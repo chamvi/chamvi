@@ -184,6 +184,7 @@ export default defineConfig({
                         { text: '@chamvi/channel-cron', link: '/reference/channel-cron' },
                         { text: '@chamvi/channel-openclaw', link: '/reference/channel-openclaw' },
                         { text: '@chamvi/chat', link: '/reference/chat' },
+                        { text: '@chamvi/chat-whatsapp', link: '/deployment/whatsapp#createwhatsappchat' },
                         { text: '@chamvi/cli', link: '/reference/cli' },
                         { text: '@chamvi/coding', link: '/reference/coding' },
                         { text: '@chamvi/github', link: '/reference/github' },

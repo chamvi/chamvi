@@ -6,7 +6,7 @@ Inspected 2026-11-01 from the published npm packages installed in this repositor
 - `baileys` 7.0.0-rc14, `lib/index.d.ts` and the `lib/Types`, `lib/Utils`, `lib/WABinary` declarations (the public API), plus `lib/Socket/socket.js` for behaviour.
 - History only: `chat-adapter-baileys` 2.1.0 (rama-adi/chat-adapter-baileys, MIT), no longer a dependency (see the last section).
 
-Executable evidence: `packages/chat/test/unit/ingress/upstream.spec.ts` (tests named `native: ...` record upstream Chat SDK behaviour as it is) and `packages/chat/test/unit/baileys/*.spec.ts` (chamvi's adapter over a fake socket).
+Executable evidence: `packages/chat/test/unit/ingress/upstream.spec.ts` (tests named `native: ...` record upstream Chat SDK behaviour as it is) and `packages/chat-whatsapp/test/unit/whatsapp/*.spec.ts` (chamvi's adapter over a fake socket).
 
 ## Chat SDK (`chat` 4.43.0)
 
@@ -24,7 +24,7 @@ Executable evidence: `packages/chat/test/unit/ingress/upstream.spec.ts` (tests n
 
 | External file / function | chamvi counterpart | Behaviour / implication |
 |---|---|---|
-| `makeWASocket(config: UserFacingSocketConfig)` (`lib/Socket/index.js`) | `packages/chat/src/baileys/module.ts` (default `socketFactory`), `connection.ts:createSocket` | chamvi passes `auth` (the lease's creds plus the guarded key store) and a silent `logger`; the rest comes from `socketOptions`. `WhatsAppSocket` (`baileys/types.ts`) is the structural subset used (`ev.on/off`, `user`, `signalRepository.lidMapping`, `end`, `sendMessage`); `makeWASocket` is assignable to `WhatsAppSocketFactory` (pinned in `test/unit/baileys/module.spec.ts`). |
+| `makeWASocket(config: UserFacingSocketConfig)` (`lib/Socket/index.js`) | `packages/chat-whatsapp/src/whatsapp/module.ts` (default `socketFactory`), `connection.ts:createSocket` | chamvi passes `auth` (the lease's creds plus the guarded key store) and a silent `logger`; the rest comes from `socketOptions`. `WhatsAppSocket` (`whatsapp/types.ts`) is the structural subset used (`ev.on/off`, `user`, `signalRepository.lidMapping`, `end`, `sendMessage`); `makeWASocket` is assignable to `WhatsAppSocketFactory` (pinned in `packages/chat-whatsapp/test/unit/whatsapp/module.spec.ts`). |
 | `SocketConfig` has `waWebSocketUrl` but no WebSocket class/factory (`lib/Types/Socket.d.ts`) | `WhatsAppChatOptions.socketFactory` | Tests replace the whole socket factory (fake event emitter), never the transport: no Noise handshake is reproducible offline. |
 | `makeSocket` wraps `authState.keys` with `addTransactionCapability(keys, ...)` (`lib/Socket/socket.js`) | `connection.ts:guardKeys` | Baileys only calls the documented `SignalKeyStore` `get`/`set`/`clear` of the store it is given and buffers transactions itself, so guarding those three is complete: after the generation ends each rejects (`InvalidRunStateError`). A provider's own `transaction` is not called. |
 | `ev.emit('creds.update', ...)`; the socket itself `Object.assign`s the update into `authState.creds` | `connection.ts:onCreds` | chamvi calls `lease.saveCreds()` per update while the generation admits writes; tracked, awaited before `flush`. |
@@ -37,12 +37,12 @@ Executable evidence: `packages/chat/test/unit/ingress/upstream.spec.ts` (tests n
 
 ### Why `baileys` is pinned to exactly 7.0.0-rc14
 
-`packages/chat/package.json` names `baileys` `7.0.0-rc14` as both the peer and the dev dependency (pinned in `test/unit/baileys/module.spec.ts`), not a range. `policy.ts` trusts two LID-to-phone sources, and both rest on rc14 behaviour that a later release may change:
+`packages/chat-whatsapp/package.json` names `baileys` `7.0.0-rc14` as both the peer and the dev dependency (pinned in `test/unit/whatsapp/module.spec.ts`), not a range. `policy.ts` trusts two LID-to-phone sources, and both rest on rc14 behaviour that a later release may change:
 
 - **The LID mapping store** (`signalRepository.lidMapping.getPNForLID`). Its content path, a `protocolMessage` of type `LID_MIGRATION_MAPPING_SYNC`, is only processed for `key.fromMe` in rc14: `lib/Utils/process-message.js` drops every `SELF_ONLY_TYPES` protocol message (`HISTORY_SYNC_NOTIFICATION`, `APP_STATE_SYNC_KEY_SHARE`, `LID_MIGRATION_MAPPING_SYNC`, `PEER_DATA_OPERATION_REQUEST_RESPONSE_MESSAGE`) from a non-self origin ("dropping spoofed self-only protocolMessage"). A version without that gate would let any sender write the mapping chamvi's policy reads, and so claim an allowed sender's phone number.
 - **`key.participantAlt` / `key.remoteJidAlt`**. `lib/Utils/decode-wa-message.js:decodeMessageNode` sets them from `extractAddressingContext(stanza)`: the stanza's own attributes (`participant_pn`, `sender_pn`, `peer_recipient_pn` for a LID-addressed message; the `_lid` counterparts for a PN-addressed one), `remoteJidAlt` for a direct chat, `participantAlt` for a group. They come from the server's envelope over the Noise channel, with the same trust as `participant`, not from the encrypted message content a sender controls.
 
-Moving to another Baileys version means re-reading both places and re-running the baileys specs before widening the pin.
+Moving to another Baileys version means re-reading both places and re-running the `@chamvi/chat-whatsapp` specs before widening the pin.
 
 ## History: chat-adapter-baileys 2.1.0 (Task 1, removed)
 
@@ -50,7 +50,7 @@ Task 1 found the adapter lacked every seam the WhatsApp task needed; the owner c
 
 | External file / function | chamvi counterpart | Behaviour / implication |
 |---|---|---|
-| `createBaileysAdapter(config)` / `BaileysAdapterConfig` | `/baileys` entry (Task 6) | Options: `adapterName`, `auth { state, saveCreds }`, `version`, `userName`, `logger`, `onQR`, `phoneNumber` + `onPairingCode`, `socketOptions` (spread into `makeWASocket` after `version`/`auth`), `pollTtlMs`. No transport/socket factory, no reconnect delay, no abort signal, no status or logged-out callback. |
+| `createBaileysAdapter(config)` / `BaileysAdapterConfig` | `@chamvi/chat-whatsapp` (formerly the `/baileys` entry, Task 6) | Options: `adapterName`, `auth { state, saveCreds }`, `version`, `userName`, `logger`, `onQR`, `phoneNumber` + `onPairingCode`, `socketOptions` (spread into `makeWASocket` after `version`/`auth`), `pollTtlMs`. No transport/socket factory, no reconnect delay, no abort signal, no status or logged-out callback. |
 | `BaileysAdapter.initialize(chat)` | ingress facade | Stores the chat and replaces the configured logger with `chat.getLogger('baileys')`. |
 | `connect()` -> `_createSocket()` (private) | Task 6 lifecycle | Calls the module-level `makeWASocket` import (`baileys`); without `version` it first fetches `fetchLatestBaileysVersion()` over the network. Resolves once the socket object exists, before any transport opened (pinned). |
 | `connection.update` handling inside `_createSocket` | Task 6 status | `open` sets private `_isConnected`; `close` reconnects **immediately** (`await this._createSocket()`, no delay, no backoff, no abort) unless `disconnect()` ran or the status code is `DisconnectReason.loggedOut`. Logged-out and every state change surface only as logger text (`Connected to WhatsApp`, `Connection closed (code=<n>, reconnect=<bool>)`, `Logged out — not reconnecting.`). Pinned over a loopback transport: at least 5 attempts within milliseconds. |
