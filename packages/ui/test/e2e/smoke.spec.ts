@@ -277,6 +277,20 @@ test('choose an option on an approval card', async ({ page, request }) => {
 
     await expect(approve).toBeDisabled();
 
+    // the option's image: a thumbnail under its label, full size in the viewer, Escape closes it
+    const thumb = card.locator('[data-option="1.4.0"]').locator('xpath=..').getByTestId('artifact-open');
+
+    await expect(thumb.locator('img')).toHaveAttribute('src', /^blob:/);
+    await expect(card.getByText('release-1.4.0.png')).toBeVisible();
+    expect(await thumb.locator('img').evaluate((img: HTMLImageElement) => img.naturalWidth)).toBe(1);
+    await thumb.click();
+
+    const viewer = page.getByTestId('artifact-viewer');
+
+    await expect(viewer.locator('img')).toHaveAttribute('alt', 'release-1.4.0.png');
+    await page.keyboard.press('Escape');
+    await expect(viewer).toBeHidden();
+
     await card.locator('[data-option="1.4.0"]').locator('xpath=..').getByText('Details').click();
     await expect(card.locator('.diff-add')).toHaveText('+"version": "1.4.0"');
     await page.setViewportSize({ width: 390, height: 844 });

@@ -11,7 +11,10 @@ import { renderToString } from 'vue/server-renderer';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import type { RunWire } from '../../../../app/api/types.ts';
 import ApprovalCallout from '../../../../app/components/approval-callout/ApprovalCallout.vue';
+import { APP_CONTEXT } from '../../../../app/context/constants.ts';
+import type { AppContext } from '../../../../app/context/types.ts';
 import { RouteName } from '../../../../app/router/constants.ts';
+import { fakeClient } from '../../../utils/client.ts';
 import { wireRun } from '../../../utils/runs.ts';
 
 async function render(run: RunWire): Promise<string> {
@@ -38,9 +41,11 @@ async function render(run: RunWire): Promise<string> {
     const app = createSSRApp(ApprovalCallout, { run, canAnswer: false });
 
     app.use(router);
+    // SSR never mounts, so the client is never asked
+    app.provide(APP_CONTEXT, { client: fakeClient() } as unknown as AppContext);
 
     // the vuecs components are global in the app; here they render as nothing
-    for (const name of ['VCCountdown', 'VCTimeago', 'VCButton', 'VCFormTextarea']) {
+    for (const name of ['VCCountdown', 'VCTimeago', 'VCButton', 'VCFormTextarea', 'VCModal']) {
         app.component(name, { render: () => null });
     }
 
@@ -169,5 +174,47 @@ describe('ApprovalCallout', () => {
         expect(html).not.toContain('type="radio"');
         expect(html).not.toContain('type="checkbox"');
         expect(html).not.toContain('data-testid="approval-options"');
+    });
+
+    it('shows the request strip above the options', async () => {
+        const html = await render(wireRun({
+            status: 'waiting',
+            waiting: {
+                ...waiting,
+                artifacts: ['r1.k.overview'],
+                options,
+            },
+        }));
+        const strip = html.indexOf('data-testid="artifact-strip"');
+
+        expect(strip).toBeGreaterThan(-1);
+        expect(strip).toBeLessThan(html.indexOf('data-testid="approval-options"'));
+        expect(html).toContain('data-artifact="r1.k.overview"');
+    });
+
+    it('shows each option\'s strip under its label and above Details', async () => {
+        const html = await render(wireRun({
+            status: 'waiting',
+            waiting: {
+                ...waiting,
+                options: [
+                    { ...options[0]!, artifacts: ['r1.k.a1', 'r1.k.a2'] },
+                    { ...options[1]!, artifacts: ['r1.k.b1'] },
+                ],
+            },
+        }));
+        const rows = html.split('class="callout-option"').slice(1);
+
+        expect(rows).toHaveLength(2);
+        expect(rows[0]!.match(/data-artifact="[^"]+"/g)).toEqual(['data-artifact="r1.k.a1"', 'data-artifact="r1.k.a2"']);
+        expect(rows[0]!.indexOf('Alpha')).toBeLessThan(rows[0]!.indexOf('data-testid="artifact-strip"'));
+        expect(rows[0]!.indexOf('data-testid="artifact-strip"')).toBeLessThan(rows[0]!.indexOf('<details'));
+        expect(rows[1]!.match(/data-artifact="[^"]+"/g)).toEqual(['data-artifact="r1.k.b1"']);
+    });
+
+    it('renders no strip for a wait point without artifacts', async () => {
+        const html = await render(wireRun({ status: 'waiting', waiting: { ...waiting, options } }));
+
+        expect(html).not.toContain('data-testid="artifact-strip"');
     });
 });

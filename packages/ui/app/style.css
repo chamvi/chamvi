@@ -541,6 +541,19 @@ table.t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 
 /* removed lines use the accent, not --ch-fail: Crimson's fail is near-ink and would read as plain text */
 .option-detail .diff-del { color: var(--ch-accent-text); background: var(--ch-accent-tint); }
 .option-detail .diff-hunk { color: var(--ch-run); background: var(--ch-run-tint); }
+/* approval artifacts: a thumbnail strip (request above the options, per option under its label) and a full-size viewer */
+.artifact-strip { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; margin: 2px 0; }
+.artifact { display: grid; gap: 4px; margin: 0; width: 120px; min-width: 0; }
+.artifact-thumb { display: grid; place-items: center; width: 120px; height: 72px; padding: 0; overflow: hidden; background: var(--ch-sunken); border: 1px solid var(--ch-line); border-radius: var(--ch-radius-sm); color: var(--ch-muted); font: 400 11.5px/1.3 var(--ch-font-mono); }
+button.artifact-thumb { cursor: pointer; }
+button.artifact-thumb:hover { border-color: var(--ch-accent); }
+button.artifact-thumb:focus-visible { outline: none; box-shadow: var(--ch-ring); }
+.artifact-thumb img { width: 100%; height: 100%; object-fit: contain; display: block; }
+.artifact-file { color: var(--ch-accent-text); text-decoration: underline; }
+.artifact-name { font-size: 11px; color: var(--ch-muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.modal.artifact-viewer { max-width: min(1100px, calc(100% - 32px)); }
+.artifact-viewer-title { font-size: 14px; overflow-wrap: anywhere; }
+.artifact-viewer img { display: block; max-width: 100%; max-height: 72vh; margin: 0 auto; object-fit: contain; background: var(--ch-sunken); border: 1px solid var(--ch-line); border-radius: var(--ch-radius-sm); }
 .callout-foot { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; justify-content: space-between; padding: 12px 20px; background: var(--ch-sunken); border-top: 1px solid var(--ch-line); }
 .callout-foot p { font-size: 12.5px; color: var(--ch-muted); }
 .callout-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-left: auto; }

@@ -27,6 +27,9 @@ import { serve } from 'routup';
 import { E2E_PORT, E2E_TOKEN } from './constants.ts';
 import { createDemoModel } from './model.ts';
 
+/** A 1x1 PNG, the release preview the `release` agent shows on its option. */
+const PREVIEW_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
+
 /** Takes the approval messages (and drops them): the tests answer in the dashboard. */
 const capture: IChannel = {
     name: 'capture',
@@ -69,12 +72,20 @@ const engine = new Engine({
                     description: 'Ask which version to release.',
                     inputSchema: z.object({}),
                     execute: async (_input, { context }) => {
+                        // a keyed write: the replay after the answer replaces it instead of adding one
+                        const preview = await context.artifacts.put({
+                            key: 'preview/1.4.0',
+                            mediaType: 'image/png',
+                            filename: 'release-1.4.0.png',
+                            data: new Uint8Array(Buffer.from(PREVIEW_PNG, 'base64')),
+                        });
                         const decision = await approve(context, {
                             title: 'Release which version?',
                             options: [
                                 {
                                     id: '1.4.0',
                                     label: 'Minor 1.4.0',
+                                    artifacts: [preview.id],
                                     detail: '@@ -1 +1 @@\n-"version": "1.3.2"\n+"version": "1.4.0"',
                                 },
                                 { id: '2.0.0', label: 'Major 2.0.0' },

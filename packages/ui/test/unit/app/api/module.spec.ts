@@ -48,6 +48,65 @@ describe('createApiClient', () => {
         expect(JSON.parse(requests[0]!.body!)).toEqual({ payload: { tag: 'v1' } });
     });
 
+    it('readArtifact sends the bearer token and returns a Blob', async () => {
+        const bytes = new Uint8Array([137, 80, 78, 71]);
+        const { fetch, requests } = createFakeFetch([new Response(bytes, { headers: { 'content-type': 'image/png' } })]);
+        const client = createApiClient({
+            apiBase: '/api',
+            token: async () => 'tok',
+            fetch,
+        });
+        const blob = await client.readArtifact('r 1', 'r 1.k.ab');
+
+        expect(requests[0]).toMatchObject({ url: '/api/runs/r%201/artifacts/r%201.k.ab', method: 'GET' });
+        expect(requests[0]!.headers.get('authorization')).toBe('Bearer tok');
+        expect(requests[0]!.headers.get('accept')).toBe('*/*');
+        expect(blob).toBeInstanceOf(Blob);
+        expect(blob.type).toBe('image/png');
+        expect(new Uint8Array(await blob.arrayBuffer())).toEqual(bytes);
+    });
+
+    it('readArtifact refreshes once on a 401 and maps a 404 to ApiError', async () => {
+        let refreshed = 0;
+        const { fetch } = createFakeFetch([
+            json({ code: 'unauthorized', message: 'no' }, 401),
+            json({ code: 'artifact_not_found', message: 'gone' }, 404),
+        ]);
+        const client = createApiClient({
+            apiBase: '',
+            token: async () => 'tok',
+            refresh: async () => {
+                refreshed++;
+
+                return true;
+            },
+            fetch,
+        });
+
+        await expect(client.readArtifact('r1', 'a')).rejects.toMatchObject({ status: 404, code: 'artifact_not_found' });
+        expect(refreshed).toBe(1);
+    });
+
+    it('listArtifacts reads the run\'s artifact metadata', async () => {
+        const artifact = {
+            id: 'r1.k.ab',
+            runId: 'r1',
+            mediaType: 'image/png',
+            filename: 'a.png',
+            size: 4,
+            createdAt: '2026-11-02T10:00:00.000Z',
+        };
+        const { fetch, requests } = createFakeFetch([json({ data: [artifact] })]);
+        const client = createApiClient({
+            apiBase: '/api',
+            token: async () => 'tok',
+            fetch,
+        });
+
+        expect(await client.listArtifacts('r1')).toEqual([artifact]);
+        expect(requests[0]!.url).toBe('/api/runs/r1/artifacts');
+    });
+
     it('sends no authorization without a token', async () => {
         const { fetch, requests } = createFakeFetch([json({ data: [] })]);
         const client = createApiClient({
