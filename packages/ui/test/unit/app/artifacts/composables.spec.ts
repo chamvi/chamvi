@@ -238,6 +238,51 @@ describe('useArtifactTiles', () => {
         expect([...live]).toEqual(['blob:test/2']);
     });
 
+    it('keeps the tiles when the run object is replaced with the same run and approval id', async () => {
+        const reads: string[] = [];
+        const lists: string[] = [];
+        const {
+            urls,
+            live,
+            revoked,
+        } = fakeUrls();
+        // a poll replaces the run with a new object holding the same ids
+        const run = ref({ id: 'r1', waiting: { approvalId: 'call-1:0' } });
+        const scope = effectScope();
+        const tiles = scope.run(() => useArtifactTiles({
+            client: fakeClient({
+                listArtifacts: async (runId) => {
+                    lists.push(runId);
+
+                    return METADATA;
+                },
+                readArtifact: async (runId, id) => {
+                    reads.push(`${runId}/${id}`);
+
+                    return new Blob([id]);
+                },
+            }),
+            runId: () => run.value.id,
+            key: () => run.value.waiting.approvalId,
+            ids: () => ['a'],
+            urls,
+        }))!;
+
+        tiles.start();
+        await flush();
+        run.value = { id: 'r1', waiting: { approvalId: 'call-1:0' } };
+        await flush();
+        run.value = { id: 'r1', waiting: { approvalId: 'call-1:0' } };
+        await flush();
+
+        expect(lists).toEqual(['r1']);
+        expect(reads).toEqual(['r1/a']);
+        expect(revoked).toEqual([]);
+        expect([...live]).toEqual(['blob:test/1']);
+        expect(tiles.tilesOf(['a'])[0]).toMatchObject({ status: 'image', url: 'blob:test/1' });
+        scope.stop();
+    });
+
     it('drops a stale image that arrives after the key changed, without creating a URL', async () => {
         const slow = Promise.withResolvers<Blob>();
         const {

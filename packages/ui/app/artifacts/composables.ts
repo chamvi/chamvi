@@ -139,7 +139,8 @@ export function useArtifactTiles(options: ArtifactTilesOptions) {
         }
 
         started = true;
-        watch(() => [options.runId(), options.key()] as const, ([runId]) => load(runId), { immediate: true });
+        // two sources, compared one by one: a getter returning a new array would fire on every poll that replaces the run
+        watch([options.runId, options.key], ([runId]) => load(runId), { immediate: true });
     }
 
     function tilesOf(ids: readonly string[] | undefined): ArtifactTile[] {
