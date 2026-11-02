@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.5.1](https://github.com/chamvi/chamvi/compare/v0.5.0...v0.5.1) (2026-11-02)
+
+
+### Features
+
+* **knowledge,http:** resync and managed collections ([#119](https://github.com/chamvi/chamvi/issues/119)) ([efd485b](https://github.com/chamvi/chamvi/commit/efd485bb401c39fd95f11852713d2f8cc11a8cdc))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/core bumped from ^0.5.0 to ^0.5.1
+  * peerDependencies
+    * @chamvi/core bumped from ^0.5.0 to ^0.5.1
+
 ## [0.5.0](https://github.com/chamvi/chamvi/compare/v0.4.0...v0.5.0) (2026-11-02)
 
 
