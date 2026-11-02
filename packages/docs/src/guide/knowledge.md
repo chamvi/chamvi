@@ -50,6 +50,8 @@ A document id is stable: yielding it again with new content replaces the documen
 
 The module indexes once `chamvi start` is up, in the background: it never blocks the start or readiness. `run-job`, `start --check` and `migrate` never embed; a check only reads the store.
 
+A pass reads every source in full and compares it with the index (a snapshot, so deletions are found too). It runs at start only: a database or API source picks up changes at the next start. A resync interval and an on-demand sync are planned, as is pushing single documents over REST. Data an agent needs exact or current (an order status, a price, stock) does not belong in a collection: give the agent a tool that queries it when asked.
+
 Documents are split into passages of at most 2000 characters: paragraphs are packed whole, a Markdown heading stays with the paragraph after it and consecutive passages overlap by about 200 characters. Passages are embedded through the AI SDK's `embedMany`, 64 per call. Each document's content hash is stored, so a restart with unchanged sources makes no embedding call and a changed file re-embeds that file only.
 
 Each collection is indexed under the store lock `knowledge:<name>`, so one replica (or one process of several) indexes it while the others wait; each then syncs its own sources once the lock is free, which embeds nothing when they match. A failed pass (a provider error, a rate limit, an unreadable source) is stored on the collection with the time of the next attempt, logged as `knowledge error` with the collection, and retried after 5 seconds, doubling up to 5 minutes per failure in a row. The backoff is stored, so it holds across replicas: however many replicas run, the provider sees one attempt per backoff step (a replica only skips it on its own first attempt after a start). An embedding call that does not answer within 60 seconds is given up and counts as a failure.
@@ -94,5 +96,6 @@ This records provenance; it does not filter injected instructions out of the pas
 ## Not built yet
 
 - **Managed collections**: collections created and filled through a REST API while the app runs (`knowledge:read`, `knowledge:write`), untrusted by default.
+- **Resync**: a per-collection interval and an on-demand sync, so pull sources change without a restart.
 - **`@chamvi/store-db-vector`**: a pgvector repository with its own migrations.
 - **More sources**: `git()` and `urls()` (untrusted by default), PDF documents, and per-agent `knowledge/` folders.
