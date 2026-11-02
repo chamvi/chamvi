@@ -38,7 +38,7 @@
 npm install @chamvi/http @chamvi/core --save
 ```
 
-ESM only, Node.js `>=24.3.0`. `@chamvi/core` is a peer dependency; [routup](https://www.npmjs.com/package/routup) v6, the [MCP TypeScript SDK](https://www.npmjs.com/package/@modelcontextprotocol/server) v2, [vouchly](https://www.npmjs.com/package/vouchly) and the authup server adapter are installed with the package.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core` is a peer dependency; [routup](https://www.npmjs.com/package/routup) v6, the [MCP TypeScript SDK](https://www.npmjs.com/package/@modelcontextprotocol/server) v2, [vouchly](https://www.npmjs.com/package/vouchly) and the authup server adapter are installed with the package.
 
 ## Usage
 

@@ -37,7 +37,7 @@
 npm install @chamvi/chat @chamvi/core @chamvi/http chat --save
 ```
 
-ESM only, Node.js `>=24.3.0`. `@chamvi/core`, `@chamvi/http` (the webhook body reader) and [`chat`](https://www.npmjs.com/package/chat) (the Chat SDK, 4.43 or later in the 4.x line) are peer dependencies; `smob` is the only runtime dependency. `@chamvi/app` is an optional peer of `@chamvi/chat/module`. The package imports no platform SDK: WhatsApp Web lives in [`@chamvi/chat-whatsapp`](https://www.npmjs.com/package/@chamvi/chat-whatsapp).
+ESM only, Node.js `>=26.0.0`. `@chamvi/core`, `@chamvi/http` (the webhook body reader) and [`chat`](https://www.npmjs.com/package/chat) (the Chat SDK, 4.43 or later in the 4.x line) are peer dependencies; `smob` is the only runtime dependency. `@chamvi/app` is an optional peer of `@chamvi/chat/module`. The package imports no platform SDK: WhatsApp Web lives in [`@chamvi/chat-whatsapp`](https://www.npmjs.com/package/@chamvi/chat-whatsapp).
 
 | Entry | Holds |
 |---|---|

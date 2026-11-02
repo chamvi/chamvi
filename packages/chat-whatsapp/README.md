@@ -33,7 +33,7 @@
 npm install @chamvi/chat-whatsapp @chamvi/chat @chamvi/core @chamvi/http chat baileys@7.0.0-rc14 --save
 ```
 
-ESM only, Node.js `>=24.3.0`. `@chamvi/chat`, `@chamvi/core`, [`chat`](https://www.npmjs.com/package/chat) (the Chat SDK, 4.43 or later in the 4.x line) and `baileys` are peer dependencies; `baileys` is pinned to the one version chamvi's adapter was verified against (`7.0.0-rc14`). `smob` is the only runtime dependency. The package uses only `@chamvi/chat`'s public API: its channel is a `chatChannel()` with the WhatsApp hooks passed as `platform` ([`IChatPlatform`](https://www.npmjs.com/package/@chamvi/chat#platform-packages)).
+ESM only, Node.js `>=26.0.0`. `@chamvi/chat`, `@chamvi/core`, [`chat`](https://www.npmjs.com/package/chat) (the Chat SDK, 4.43 or later in the 4.x line) and `baileys` are peer dependencies; `baileys` is pinned to the one version chamvi's adapter was verified against (`7.0.0-rc14`). `smob` is the only runtime dependency. The package uses only `@chamvi/chat`'s public API: its channel is a `chatChannel()` with the WhatsApp hooks passed as `platform` ([`IChatPlatform`](https://www.npmjs.com/package/@chamvi/chat#platform-packages)).
 
 ## Usage
 

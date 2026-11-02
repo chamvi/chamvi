@@ -298,7 +298,7 @@ describeDocker('docker sandbox', () => {
 
     it.skipIf(offline)('resolves a mise tool installed with `mise use -g` after a restart', async () => {
         const { runId, workspace } = await create();
-        const installed = await workspace.exec(['sh', '-c', 'mise use -g node@24 >/dev/null && node --version'], { timeoutMs: 170_000 });
+        const installed = await workspace.exec(['sh', '-c', 'mise use -g node@26 >/dev/null && node --version'], { timeoutMs: 170_000 });
 
         expect(installed.exitCode).toBe(0);
         await docker.getContainer(`${CONTAINER_NAME_PREFIX}${workspace.id}`).stop({ t: 0 });
@@ -310,7 +310,7 @@ describeDocker('docker sandbox', () => {
         const result = await found!.exec(['sh', '-c', 'node --version']);
 
         expect(result.exitCode).toBe(0);
-        expect(result.stdout).toMatch(/^v24\./);
+        expect(result.stdout).toMatch(/^v26\./);
     }, 180_000);
 
     it('never finds a workspace again that it is disposing', async () => {

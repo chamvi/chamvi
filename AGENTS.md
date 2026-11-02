@@ -17,19 +17,39 @@ npm run typecheck
 npm run lint
 ```
 
-- **Node.js**: >= 24.3.0
+- **Node.js**: >=26.0.0
 - **Package manager**: npm (workspaces)
 - **Build orchestration**: nx (`nx run-many`), packages built with tsdown (ESM only)
 
-Packages live in `packages/*`. `@chamvi/app`, `@chamvi/channel-cron`, `@chamvi/channel-openclaw`, `@chamvi/chat`, `@chamvi/chat-whatsapp`, `@chamvi/cli`, `@chamvi/coding`, `@chamvi/core`, `@chamvi/github`, `@chamvi/http`, `@chamvi/sandbox`, `@chamvi/sandbox-docker`, `@chamvi/sandbox-k8s`, `@chamvi/sandbox-local`, `@chamvi/skills`, `@chamvi/store-db`, `@chamvi/test-kit`, `@chamvi/tool-web` and `@chamvi/ui` exist today (container images in `images/*`); the others are planned (see [Project Structure](.agents/structure.md)).
+Packages live in `packages/*`. `@chamvi/app`, `@chamvi/channel-cron`, `@chamvi/channel-openclaw`, `@chamvi/chat`, `@chamvi/chat-whatsapp`, `@chamvi/cli`, `@chamvi/coding`, `@chamvi/core`, `@chamvi/github`, `@chamvi/http`, `@chamvi/knowledge`, `@chamvi/sandbox`, `@chamvi/sandbox-docker`, `@chamvi/sandbox-k8s`, `@chamvi/sandbox-local`, `@chamvi/skills`, `@chamvi/store-db`, `@chamvi/test-kit`, `@chamvi/tool-web` and `@chamvi/ui` exist today (container images in `images/*`); the others are planned (see [Project Structure](.agents/structure.md)).
 
 ## Detailed Guides
 
-- **[Project Structure](.agents/structure.md)**: Workspace layout, existing and planned packages, core module map
-- **[Architecture](.agents/architecture.md)**: Run lifecycle and statuses, channels and the envelope, untrusted-content taint and outbound gates (shell excluded), durable approvals and hooks, repository contracts, idempotency and effects
+- **[Project Structure](.agents/structure.md)**: Workspace layout, related repositories, existing and planned packages
+- **[Architecture](.agents/architecture.md)**: Core concepts, engine, cross-cutting rules (agents, channels, trust, approvals), run lifecycle, repository contract, idempotency, errors, and the index of topic files
 - **[Testing](.agents/testing.md)**: Vitest setup, source aliasing, in-memory repositories, repository contracts suite
 - **[Conventions](.agents/conventions.md)**: Tooling, naming rules, commits, release flow, external references (`.agents/references/`)
 - **[Design](.agents/design.md)**: Brand direction, colour tokens, type, logo and docs landing page rules
+- **[Topic files](.agents/topics/)**: per-subsystem detail and module maps (agents, skills, channels, trust, approvals, store, http, github, sandbox, coding, ui, app, ...), indexed at the end of architecture.md. NOT loaded into every session: read the topic file before changing that area.
+
+### Writing agent docs
+
+The guides above (except Design) are loaded into every session, so their whole size is paid on every task; the topic files are read on demand. Both tell a future task what it must know to avoid a silent breakage. **They are not a changelog, a design record or a test index.**
+
+| Content | Where it goes |
+|---|---|
+| A cross-cutting rule or an easy-to-break invariant, its reason, and the rejected alternative | One line in a guide, with the issue number |
+| A subsystem's invariants and rejected alternatives | Its topic file (`.agents/topics/<name>.md`) |
+| Mechanism the code already shows | Nowhere, or a code comment |
+| How a defect happened, before/after, `pinned by spec X` | The PR description or commit message |
+| What changed for users or operators | CHANGELOG or the docs site (`packages/docs`) |
+
+The test for a paragraph: would removing it let a reasonable change break something silently? If not, leave it out.
+
+- **Update docs only when an invariant or a cross-cutting rule changes.** A bug fix or a feature that follows the existing rules needs no doc change. Edit the existing line; never add a section for a single fix.
+- **Describe what the code does now.** No `used to`, `no longer`, `before #N`. The one exception is a rejected alternative: keep the verdict and its one-line reason.
+- **Cite issues or PRs, never local plan files** (`plan 026`): `.agents/plans/` is gitignored and resolves for one person on one machine.
+- **`npm run lint` enforces it** through the `agentDocs` checks of `@tada5hi/eslint-config`: a size limit per agent doc, a limit on everything `CLAUDE.md` loads through its imports, and no history phrase outside code (`used to`, `no longer`, `before #N`, `pinned by`, `plan NNN`). The limits live in `eslint.config.js`: lower them as the docs shrink; raising one is a policy change, not a fix. `.agents/plans/` is not linted.
 
 ## Downstream Repos
 

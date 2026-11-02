@@ -18,7 +18,7 @@ agent repo --push--> CI --image--> registry --Flux image automation--> HelmRelea
 | Piece | Built as |
 |---|---|
 | [`@chamvi/app`](/reference/app) + [`@chamvi/cli`](/reference/cli) (exist) | `createApp({ agents, modules })` boots config, store, engine (with its channels) and HTTP in order and tears them down in reverse, draining on `SIGTERM`. The `chamvi` bin with `dev`, `build`, `start`, `run-job` and `migrate`. See [Apps & Modules](/guide/app) |
-| [Base image](/deployment/docker) (exists) | `ghcr.io/chamvi/node`: Node 24 on Debian trixie slim, tini, uid 1000, `linux/amd64` and `linux/arm64`; agent repositories use a two-stage Dockerfile |
+| [Base image](/deployment/docker) (exists) | `ghcr.io/chamvi/node`: Node 26 on Debian trixie slim, tini, uid 1000, `linux/amd64` and `linux/arm64`; agent repositories use a two-stage Dockerfile |
 | [Helm chart](/deployment/kubernetes) | One shared OCI chart for every agent app; each repository gets a small `HelmRelease` |
 | Template repository | A GitHub template with an example agent, Dockerfile, CI that builds and tags images for Flux, and example Flux manifests |
 

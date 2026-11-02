@@ -40,7 +40,7 @@
 npm install @chamvi/github @chamvi/http @chamvi/core ai --save
 ```
 
-ESM only, Node.js `>=24.3.0`. `@chamvi/core`, [`@chamvi/http`](../http) (it serves the channel's deliveries) and `ai` are peer dependencies. GitHub is reached through [`@octokit/core`](https://www.npmjs.com/package/@octokit/core) with the pagination plugin; the App JWT, the installation tokens and the webhook signatures use `node:crypto`.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core`, [`@chamvi/http`](../http) (it serves the channel's deliveries) and `ai` are peer dependencies. GitHub is reached through [`@octokit/core`](https://www.npmjs.com/package/@octokit/core) with the pagination plugin; the App JWT, the installation tokens and the webhook signatures use `node:crypto`.
 
 ## GitHub App setup
 

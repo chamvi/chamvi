@@ -1,7 +1,7 @@
-FROM node:24-trixie-slim
+FROM node:26-trixie-slim
 
 LABEL org.opencontainers.image.source="https://github.com/chamvi/chamvi" \
-      org.opencontainers.image.description="chamvi app runtime: Node.js 24, tini, uid 1000" \
+      org.opencontainers.image.description="chamvi app runtime: Node.js 26, tini, uid 1000" \
       org.opencontainers.image.licenses="Apache-2.0"
 
 RUN apt-get update \

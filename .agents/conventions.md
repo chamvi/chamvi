@@ -18,9 +18,9 @@ The `@tada5hi/*` config packages are the source of truth for lint, TS and commit
 
 ## Code Style
 
-- ESM only (`"type": "module"`), Node >= 24.3.0 (the minimum required by `@tada5hi/eslint-config` 3.2).
+- ESM only (`"type": "module"`), Node >= 26.0.0 (CI runs Node 26 only).
 - Configured agent/contributed instructions use core `AgentInstructions`; preserve native SDK role-specific content and provider options. Only the leading system run goes into SDK `instructions`; later configured blocks stay transient and ordered. Manual skills catalog instructions remain strings.
-- `@chamvi/ui`'s app ships to Vite's default browser target (Safari 16.4, Firefox 114), which esbuild does not polyfill: no ES2025 iterator helpers (`map.entries().toArray()`; use `Array.from`), enforced by a `no-restricted-syntax` rule in `eslint.config.js`. Its scoped Unicorn override also retains `instanceof Error` instead of requiring the newer `Error.isError` API. The `Uint8Array` base64/hex preference rules are disabled globally because Node 24 does not implement those APIs; keep the existing Buffer encodings.
+- `@chamvi/ui`'s app ships to Vite's default browser target (Safari 16.4, Firefox 114), which esbuild does not polyfill: no ES2025 iterator helpers (`map.entries().toArray()`; use `Array.from`), enforced by a `no-restricted-syntax` rule in `eslint.config.js`. Its scoped Unicorn override also retains `instanceof Error` instead of requiring the newer `Error.isError` API. The `Uint8Array` base64/hex preference rules are disabled globally: Buffer's base64 decoding is lenient where `Uint8Array.fromBase64()` throws (request input relies on it) and the dashboard's browser target lacks those APIs; keep the existing Buffer encodings.
 - 4-space indent (also JSON and YAML), LF, UTF-8, final newline, trailing whitespace trimmed except in Markdown (see `.editorconfig`).
 - Single quotes, semicolons, and braces around every control-flow body, including single statements (enforced by ESLint).
 - Package scope `@chamvi/*`, Apache-2.0 license (`LICENSE` plus `NOTICE` in the root and every package), all packages public.
@@ -30,7 +30,7 @@ The `@tada5hi/*` config packages are the source of truth for lint, TS and commit
 - Declare content/exfiltration boundaries in `trust`, never in tool descriptions or permission names. `defineTool()` and `defineEffectTool()` use boolean or async input/context predicates for `taint` and `guardWhenTainted`; `taint` marks the run before a result or execution error is exposed, while `guardWhenTainted` gates execution when taint already exists. Agent tool-name overrides are booleans only. Third-party tools are trusted until classified. A new external reader or writer should carry an explicit classification and a regression for its resolved input/destination.
 - Keep the trust gate after before-hook input rewrites/validation and before effect lookup/execution. Trust approval arguments stay in the private inbox/API; only a generic notification goes to the source. Source/default-address exemptions fix destinations, not message content.
 - Preserve `Run.taint` in custom stores, including nested `Date` revival. Do not reset it on replay, child handoff or extraction. Conversation recall is conservatively untrusted; agent state remains trusted pending separate provenance work.
-- Do not present taint as a shell policy or complete injection defense. Shell remains ungated (#88 is separate), provider-executed tools bypass local execution, and model-provider exposure is outside this boundary. The opt-in GitHub file-proposal tools (030b) are implemented in the working tree pending review/release; do not describe that as a shipped release. See [architecture](architecture.md#untrusted-content-and-outbound-gates).
+- Do not present taint as a shell policy or complete injection defense. Shell remains ungated (#88 is separate), provider-executed tools bypass local execution, and model-provider exposure is outside this boundary. The opt-in GitHub file-proposal tools (030b) are implemented in the working tree pending review/release; do not describe that as a shipped release. See [topics/trust.md](topics/trust.md).
 
 ## File Organization
 
@@ -100,7 +100,7 @@ Migrations live in `packages/store-db/src/migrations/` (PostgreSQL), with the or
 
 ## Planning and Delivery
 
-- Plans and specs stay local (gitignored): the design spec and research notes in `docs/superpowers/specs/`, plans in `.agents/plans/` with `000-roadmap.md` as the living index (open work only, next free plan number at the top). A finished plan is deleted; its outcome moves into `.agents/architecture.md` or `.agents/design.md`.
+- Plans and specs stay local (gitignored): the design spec and research notes in `docs/superpowers/specs/`, plans in `.agents/plans/` with `000-roadmap.md` as the living index (open work only, next free plan number at the top). A finished plan is deleted; only the invariants and cross-cutting rules it settled move into a guide or topic file (see AGENTS.md → *Writing agent docs*), the rest goes to the PR description.
 - Before building, turn the next plan into TDD tasks (superpowers `writing-plans`), then execute subagent-driven in a git worktree under `/opt/projects/chamvi/worktrees/<name>`; keep `master` checked out in the main clone.
 - For larger work, orchestrate with workflows: Opus implementers, Fable reviewers, a per-task review and fix loop, and an adversarial whole-branch review with one fix wave before merge.
 - Every change lands through a pull request with a Conventional Commit title and an evidence-based body (what changed, what was run). The repo squash-merges with the PR title as the commit message and deletes merged branches.
@@ -117,7 +117,7 @@ Conventional Commits: `<type>(scope): <description>`, e.g. `feat(core): add run 
 
 ## CI/CD
 
-- `ci.yml`: on push and PR to `master`, install, lint, build, typecheck, test on Node 24.3.0 (the minimum) and latest 24.
+- `ci.yml`: on push and PR to `master`, one job on Node 26 (lint, build, typecheck, test, no version matrix) plus the Chromium e2e job.
 - `release.yml`: release-please on `master` opens one release PR for every package (`linked-versions`, the root package `chamvi-root` as component `root`, one tag `v<version>` without a component, `node-workspace` plugin); when merged, build and publish via `tada5hi/monoship@v2` with npm provenance.
 - Both reuse the composite actions in `.github/actions/{install,build}`; change Node setup or caching there.
 

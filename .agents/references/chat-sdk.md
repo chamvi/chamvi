@@ -4,7 +4,7 @@ Inspected 2026-11-01 from the published npm packages installed in this repositor
 
 - `chat` 4.43.0 (vercel/chat; the plan names source commit `6300fe4d3050982f758b9ea8658d8011f8ca0ee8`, not re-read for this note), `dist/index.js` and the `dist/types-*.d.ts` chunk.
 - `baileys` 7.0.0-rc14, `lib/index.d.ts` and the `lib/Types`, `lib/Utils`, `lib/WABinary` declarations (the public API), plus `lib/Socket/socket.js` for behaviour.
-- History only: `chat-adapter-baileys` 2.1.0 (rama-adi/chat-adapter-baileys, MIT), no longer a dependency (see the last section).
+- History only: `chat-adapter-baileys` 2.1.0 (rama-adi/chat-adapter-baileys, MIT), not a dependency (see the last section).
 
 Executable evidence: `packages/chat/test/unit/ingress/upstream.spec.ts` (tests named `native: ...` record upstream Chat SDK behaviour as it is) and `packages/chat-whatsapp/test/unit/whatsapp/*.spec.ts` (chamvi's adapter over a fake socket).
 

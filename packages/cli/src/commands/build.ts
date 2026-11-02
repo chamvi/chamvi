@@ -108,7 +108,7 @@ async function assertOutDir(cwd: string, outDir: string, entry: string): Promise
 
 /**
  * `chamvi build`: bundles the source entry with tsdown into
- * `<out-dir>/index.mjs` (ESM, node24, source map); dependencies and peer
+ * `<out-dir>/index.mjs` (ESM, node26, source map); dependencies and peer
  * dependencies of the app's package.json stay external, the app's own
  * modules are inlined (C2).
  */
@@ -144,7 +144,7 @@ export function createBuildCommand(context: CliContext): CommandDef<typeof BUILD
                 entry: { index: path.relative(context.cwd, entry) },
                 format: 'esm',
                 platform: 'node',
-                target: 'node24',
+                target: 'node26',
                 outDir,
                 fixedExtension: true,
                 sourcemap: true,

@@ -18,5 +18,6 @@
     "packages/ui": "0.4.0",
     "packages/app": "0.4.0",
     "packages/cli": "0.4.0",
-    "packages/tool-web": "0.4.0"
+    "packages/tool-web": "0.4.0",
+    "packages/knowledge": "0.4.0"
 }

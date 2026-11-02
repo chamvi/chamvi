@@ -1,7 +1,13 @@
 import config from '@tada5hi/eslint-config';
 
 export default [
-    ...await config({ vue: true }),
+    ...await config({
+        vue: true,
+        // Above the shared default (60000) for what CLAUDE.md loads, because the
+        // always-loaded guides are still larger. Lower it as they shrink; never
+        // raise it to make room.
+        agentDocs: { importMaxBytes: 75000 },
+    }),
     {
         ignores: [
             '**/dist/**',
@@ -12,7 +18,8 @@ export default [
         ],
     },
     {
-        // Node 24 does not implement the Uint8Array base64/hex encoding APIs.
+        // Buffer's base64 decoding is lenient where Uint8Array.fromBase64() throws, and the
+        // dashboard's browser target lacks the Uint8Array base64/hex APIs: keep Buffer.
         rules: {
             'unicorn/prefer-uint8array-base64': 'off',
             'unicorn/prefer-uint8array-hex': 'off',
