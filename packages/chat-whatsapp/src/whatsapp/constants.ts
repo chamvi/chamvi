@@ -22,7 +22,10 @@ export const WHATSAPP_RECONNECT = Object.freeze({
     maxAttempts: 12,
 });
 
-/** How long stop waits for pending auth writes and the flush before it keeps the lease fenced. */
+/**
+ * Each of stop's two bounds: ending the socket, then the pending auth writes
+ * and the flush (past the latter the lease stays fenced).
+ */
 export const WHATSAPP_SHUTDOWN_TIMEOUT_MS = 30_000;
 
 /** Auth persistence failed or did not finish in time (the lease stays fenced). */

@@ -22,7 +22,7 @@ import type {
     SignalDataTypeMap,
     SignalKeyStore,
 } from 'baileys';
-import type { IWhatsAppAuthProvider, WhatsAppAuthLease } from '@chamvi/chat/baileys';
+import type { IWhatsAppAuthProvider, WhatsAppAuthLease } from '@chamvi/chat-whatsapp';
 
 type Deferred<T> = PromiseWithResolvers<T>;
 

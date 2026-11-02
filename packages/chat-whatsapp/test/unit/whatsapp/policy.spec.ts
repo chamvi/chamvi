@@ -13,18 +13,18 @@ import {
 } from 'vitest';
 import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
 import type { IEngine, Run } from '@chamvi/core';
-import { createWhatsAppChat } from '@chamvi/chat/baileys';
-import type { WhatsAppChatOptions, WhatsAppIdentity } from '@chamvi/chat/baileys';
+import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
+import type { WhatsAppChatOptions, WhatsAppIdentity } from '@chamvi/chat-whatsapp';
 import { textModel } from '@chamvi/test-kit';
-import { toConversationTarget } from '../../../src/baileys/policy.ts';
+import { toConversationTarget } from '../../../src/whatsapp/policy.ts';
 import { createRecordingAuth } from '../../utils/auth.ts';
-import { createMemoryState } from '../../utils/chat.ts';
 import {
     ALICE,
     BOT_JID,
     BOT_LID,
     GROUP,
     MALLORY,
+    createMemoryState,
     createWhatsAppFixture,
     settle,
     waMessage,

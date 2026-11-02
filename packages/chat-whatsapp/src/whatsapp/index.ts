@@ -5,8 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-// The /baileys entry (WhatsApp Web on Baileys): the only entry that imports baileys.
-
 export {
     WHATSAPP_ADAPTER_NAME,
     WHATSAPP_AUTH_ERROR_CODE,

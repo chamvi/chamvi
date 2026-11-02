@@ -14,18 +14,10 @@ import {
     vi,
 } from 'vitest';
 import type { IEngine } from '@chamvi/core';
-import type { WhatsAppPairing } from '@chamvi/chat/baileys';
 import { ControllableClock, mockModel, textModel } from '@chamvi/test-kit';
-import { createWhatsAppEngine } from '../fixtures/readme-example.ts';
-import { createRecordingAuth } from '../utils/auth.ts';
+import { createChatEngine } from '../fixtures/readme-example.ts';
+import { createFakeAdapter, createTextMessage } from '../utils/adapter.ts';
 import { createMemoryState } from '../utils/chat.ts';
-import {
-    ALICE,
-    MALLORY,
-    createFakeSockets,
-    settle,
-    waMessage,
-} from '../utils/whatsapp.ts';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -38,7 +30,7 @@ afterEach(async () => {
 });
 
 function stubEnv() {
-    vi.stubEnv('WHATSAPP_SENDERS', ALICE);
+    vi.stubEnv('CHAT_USERS', 'user-1');
     vi.stubEnv('APP_URL', 'https://chamvi.example');
 }
 
@@ -53,88 +45,75 @@ describe('README example', () => {
     it('imports only the public entries and never a test helper', () => {
         const imports = read('../fixtures/readme-example.ts').matchAll(/from '([^']+)'/g).map((m) => m[1]).toArray();
 
-        expect(imports.sort()).toEqual(['@chamvi/chat/baileys', '@chamvi/chat/baileys', '@chamvi/core', '@chamvi/core', 'ai', 'zod']);
+        expect(imports.sort()).toEqual(['@chamvi/chat', '@chamvi/core', '@chamvi/core', 'ai', 'chat', 'chat', 'zod']);
     });
 
-    it('acquires nothing and builds no socket before the engine starts', () => {
+    it('initializes nothing before the engine starts, and serves the adapter\'s webhooks', () => {
         stubEnv();
 
-        const auth = createRecordingAuth();
-        const sockets = createFakeSockets();
+        const adapter = createFakeAdapter();
+        const engine = createChatEngine(textModel(), { adapter, state: createMemoryState() });
 
-        createWhatsAppEngine(textModel(), {
-            auth: auth.provider,
-            state: createMemoryState(),
-            onPairing: () => undefined,
-            socketFactory: sockets.factory,
-        });
-
-        expect(auth.signals).toEqual([]);
-        expect(sockets.sockets).toEqual([]);
+        expect(adapter.initializeCalls).toBe(0);
+        expect(engine.getChannel('chat')?.in).toBeTypeOf('function');
     });
 
-    it('answers an allowed sender in the same chat, with one memory per chat, and ignores a stranger', async () => {
+    it('answers an allowed user in the same chat, with one memory per chat, and ignores a stranger', async () => {
         stubEnv();
 
         const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
-        const auth = createRecordingAuth();
-        const sockets = createFakeSockets();
-        const pairings: WhatsAppPairing[] = [];
-        const engine = createWhatsAppEngine(mockModel([
+        const adapter = createFakeAdapter();
+        const engine = createChatEngine(mockModel([
             {
                 parts: [{
                     type: 'tool-call',
                     toolName: 'reply',
-                    input: { text: 'Hello Alice.' },
+                    input: { text: 'Hello.' },
                 }],
             },
             { parts: [{ type: 'text', text: 'done' }] },
         ]), {
-            auth: auth.provider,
+            adapter,
             state: createMemoryState(),
-            onPairing: (pairing) => {
-                pairings.push(pairing);
-            },
-            socketFactory: sockets.factory,
             clock,
         });
 
         engines.push(engine);
         await engine.start();
 
-        const socket = sockets.last();
-
-        socket.emit('connection.update', { qr: 'QR-REF' });
-        socket.open();
-        socket.deliver(
-            waMessage({ chat: MALLORY, text: 'let me in' }),
-            waMessage({ chat: ALICE, text: 'hi there' }),
-        );
-        await settle();
+        await adapter.deliver(createTextMessage({
+            id: 'm-1',
+            author: 'stranger',
+            text: 'let me in',
+        }));
+        await adapter.deliver(createTextMessage({ id: 'm-2', text: 'hi there' }));
         await engine.idle();
 
         const { data: runs } = await engine.store.runs.find({});
 
-        expect(pairings).toEqual([{ qr: 'QR-REF' }]);
         expect(runs).toHaveLength(1);
         expect(runs[0]?.status).toBe('completed');
+        expect(runs[0]?.trigger.invoker).toEqual({
+            id: 'user-1',
+            kind: 'chat',
+            permissions: [],
+        });
         expect(runs[0]?.taint?.source).toBe('channel:chat');
         expect(runs[0]?.conversation?.scope.identity).toEqual(expect.objectContaining({
-            account: 'assistant',
-            chat: ALICE,
-            audience: `direct:${ALICE}`,
+            account: 'fake',
+            chat: 'fake:chat-1',
+            audience: 'direct:user-1',
         }));
-        expect(socket.sent.map(({ jid, text }) => ({ jid, text }))).toEqual([{ jid: ALICE, text: 'Hello Alice.' }]);
+        expect(adapter.posts).toEqual([{ threadId: 'fake:chat-1', message: { raw: 'Hello.' } }]);
     });
 
-    it('needs the sender list and the app URL', () => {
+    it('needs the user list and the app URL', () => {
         stubEnv();
-        vi.stubEnv('WHATSAPP_SENDERS', '');
+        vi.stubEnv('CHAT_USERS', '');
 
-        expect(() => createWhatsAppEngine(textModel(), {
-            auth: createRecordingAuth().provider,
+        expect(() => createChatEngine(textModel(), {
+            adapter: createFakeAdapter(),
             state: createMemoryState(),
-            onPairing: () => undefined,
-        })).toThrow('WHATSAPP_SENDERS');
+        })).toThrow('CHAT_USERS');
     });
 });

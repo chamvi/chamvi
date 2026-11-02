@@ -11,7 +11,6 @@ export default defineConfig({
             { find: /^@chamvi\/core\/conversation\/persistence$/, replacement: fileURLToPath(new URL('../../core/src/conversation/persistence/index.ts', import.meta.url)) },
             { find: /^@chamvi\/http$/, replacement: fileURLToPath(new URL('../../http/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/chat$/, replacement: fileURLToPath(new URL('../src/index.ts', import.meta.url)) },
-            { find: /^@chamvi\/chat\/baileys$/, replacement: fileURLToPath(new URL('../src/baileys/index.ts', import.meta.url)) },
             { find: /^@chamvi\/chat\/module$/, replacement: fileURLToPath(new URL('../src/module/index.ts', import.meta.url)) },
             { find: /^@chamvi\/channel-cron$/, replacement: fileURLToPath(new URL('../../channel-cron/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/store-db$/, replacement: fileURLToPath(new URL('../../store-db/src/index.ts', import.meta.url)) },

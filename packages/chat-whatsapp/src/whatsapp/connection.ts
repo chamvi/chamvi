@@ -162,11 +162,13 @@ function guardKeys(generation: Generation, keys: SignalKeyStore): SignalKeyStore
  * exclusivity), then builds a socket over it; Baileys' connection events
  * alone set the status. An unexpected close reconnects with backoff on the
  * clock; a logout or a replacing session does not. `close` (idempotent per
- * connect) ends the socket and the reconnect, stops admitting auth calls,
- * waits for the pending ones and the lease's flush (the socket's end
- * included, at most WHATSAPP_SHUTDOWN_TIMEOUT_MS), then releases the lease. Past that bound,
- * or when the flush failed, the lease is not released: it stays fenced (the
- * guard refuses every later call) and the failure is reported.
+ * connect) stops admitting auth calls and ends the reconnect, then has two
+ * bounds of WHATSAPP_SHUTDOWN_TIMEOUT_MS (30 s) each: ending the socket (past
+ * it the end is abandoned and reported, and the close goes on), then settling
+ * (the auth calls already admitted and the lease's flush), after which it
+ * releases the lease. Past the settling bound, or when the flush failed, the
+ * lease is not released: it stays fenced (the guard refuses every later call)
+ * and the failure is reported.
  */
 export function createWhatsAppConnection(options: WhatsAppConnectionOptions): WhatsAppConnection {
     let current: Generation | undefined;

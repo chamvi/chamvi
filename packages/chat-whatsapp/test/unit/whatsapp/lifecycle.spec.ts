@@ -20,9 +20,9 @@ import {
     WHATSAPP_LOGGED_OUT_ERROR_CODE,
     WHATSAPP_RECONNECT,
     WHATSAPP_SHUTDOWN_TIMEOUT_MS,
-} from '@chamvi/chat/baileys';
+} from '@chamvi/chat-whatsapp';
 import { ControllableClock } from '@chamvi/test-kit';
-import { createWhatsAppConnection } from '../../../src/baileys/connection.ts';
+import { createWhatsAppConnection } from '../../../src/whatsapp/connection.ts';
 import { createRecordingAuth } from '../../utils/auth.ts';
 import { createFakeSockets, createWhatsAppFixture, settle } from '../../utils/whatsapp.ts';
 import type { WhatsAppFixture } from '../../utils/whatsapp.ts';

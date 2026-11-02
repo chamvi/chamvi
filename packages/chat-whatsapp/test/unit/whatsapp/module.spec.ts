@@ -8,34 +8,31 @@
 import { readFileSync } from 'node:fs';
 import { createRequire } from 'node:module';
 import { makeWASocket } from 'baileys';
-import type { Adapter } from 'chat';
+import type { Adapter, StateAdapter } from 'chat';
 import {
+    afterEach,
     describe,
     expect,
     expectTypeOf,
     it,
 } from 'vitest';
-import * as baileys from '@chamvi/chat/baileys';
-import type { WhatsAppSocketFactory } from '@chamvi/chat/baileys';
+import { defineAgent } from '@chamvi/core';
+import {
+    configModule,
+    createApp,
+    createLogger,
+} from '@chamvi/app';
+import type { IApp } from '@chamvi/app';
 import * as pkg from '@chamvi/chat';
-import { createWhatsAppAdapter } from '../../../src/baileys/adapter.ts';
-import { createFileAuthProvider } from '../../utils/auth.ts';
-import { createWhatsAppFixture } from '../../utils/whatsapp.ts';
+import { chatModule } from '@chamvi/chat/module';
+import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
+import type { WhatsAppSocketFactory } from '@chamvi/chat-whatsapp';
+import { ControllableClock, textModel } from '@chamvi/test-kit';
+import { createWhatsAppAdapter } from '../../../src/whatsapp/adapter.ts';
+import { createFileAuthProvider, createRecordingAuth } from '../../utils/auth.ts';
+import { createFakeSockets, createMemoryState, createWhatsAppFixture } from '../../utils/whatsapp.ts';
 
-describe('@chamvi/chat/baileys', () => {
-    it('exports exactly the WhatsApp surface', () => {
-        expect(Object.keys(baileys).sort()).toEqual([
-            'WHATSAPP_ADAPTER_NAME',
-            'WHATSAPP_AUTH_ERROR_CODE',
-            'WHATSAPP_CONNECTION_ERROR_CODE',
-            'WHATSAPP_LOGGED_OUT_ERROR_CODE',
-            'WHATSAPP_RECONNECT',
-            'WHATSAPP_SHUTDOWN_TIMEOUT_MS',
-            'createWhatsAppChat',
-        ]);
-        expect(baileys.WHATSAPP_ADAPTER_NAME).toBe('whatsapp');
-    });
-
+describe('@chamvi/chat-whatsapp', () => {
     it('pins the one verified Baileys version (its LID mapping trust depends on it)', () => {
         const manifest = JSON.parse(readFileSync(new URL('../../../package.json', import.meta.url), 'utf8')) as {
             peerDependencies: Record<string, string>;
@@ -48,7 +45,7 @@ describe('@chamvi/chat/baileys', () => {
         expect(installed).toBe('7.0.0-rc14');
     });
 
-    it('keeps the main entry free of it', () => {
+    it('keeps @chamvi/chat\'s main entry free of WhatsApp', () => {
         expect(Object.keys(pkg).filter((key) => /whatsapp/i.test(key))).toEqual([]);
     });
 
@@ -110,5 +107,82 @@ describe('test-only filesystem auth provider', () => {
         } finally {
             await rm(folder, { recursive: true, force: true });
         }
+    });
+});
+
+const TOKENS = JSON.stringify([{
+    value: 'a-static-token-of-length',
+    id: 'ops',
+    permissions: ['*'],
+}]);
+
+const apps: IApp[] = [];
+
+afterEach(async () => {
+    await Promise.all(apps.map((app) => app.stop()));
+    apps.length = 0;
+});
+
+/** the state adapter, every call recorded by method name */
+function recordingState(calls: string[]): StateAdapter {
+    const state = createMemoryState();
+
+    return new Proxy(state, {
+        get(target, key, receiver) {
+            const value: unknown = Reflect.get(target, key, receiver);
+
+            if (typeof value !== 'function') {
+                return value;
+            }
+
+            return (...args: unknown[]) => {
+                calls.push(String(key));
+
+                return (value as (...input: unknown[]) => unknown).apply(target, args);
+            };
+        },
+    });
+}
+
+describe('chatModule under start --check', () => {
+    it('check_no_auth_acquire_or_socket for a WhatsApp setup', async () => {
+        const stateCalls: string[] = [];
+        const auth = createRecordingAuth();
+        const sockets = createFakeSockets();
+        const setup = createWhatsAppChat({
+            account: 'support',
+            auth: auth.provider,
+            policy: { senders: ['491701111111@s.whatsapp.net'] },
+            resolveInvoker: () => undefined,
+            state: recordingState(stateCalls),
+            approvalUrl: () => 'https://chamvi.example/ui/approvals',
+            onPairing: () => undefined,
+            socketFactory: sockets.factory,
+        });
+        const app = createApp({
+            agents: [defineAgent({
+                name: 'assistant',
+                model: textModel(),
+                instructions: 'Answer.',
+                channels: [setup.channel.on()],
+            })],
+            modules: [
+                configModule({
+                    clock: new ControllableClock(new Date('2026-11-01T09:00:00Z')),
+                    logger: createLogger({ level: 'error', write: () => undefined }),
+                }),
+                chatModule({ channel: setup.channel }),
+            ],
+        });
+
+        apps.push(app);
+
+        await expect(app.check({ env: { CHAMVI_TOKENS: TOKENS, PORT: '4999' } })).resolves.toEqual({ issues: [] });
+
+        expect(auth.signals).toEqual([]);
+        expect(auth.trace).toEqual([]);
+        expect(sockets.sockets).toEqual([]);
+        expect(stateCalls).toEqual([]);
+        expect(setup.status()).toBe('stopped');
     });
 });
