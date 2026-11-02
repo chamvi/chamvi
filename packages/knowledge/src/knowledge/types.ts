@@ -7,8 +7,9 @@
 
 import type { IClock, ILockRepository, IModelResolver } from '@chamvi/core';
 import type { EmbeddingModel } from 'ai';
-import type { KnowledgeCollectionDefinition, ResolvedKnowledgeCollection } from '../collection/types.ts';
-import type { IKnowledgeRepository } from '../repository/types.ts';
+import type { EmbeddingModelRef, KnowledgeCollectionDefinition, ResolvedKnowledgeCollection } from '../collection/types.ts';
+import type { IKnowledgeRepository, KnowledgeCollection, KnowledgeDocumentStatus } from '../repository/types.ts';
+import type { KnowledgeDocumentInput } from '../source/types.ts';
 
 /** What an error reported through `onError` concerns. */
 export type KnowledgeErrorContext = {
@@ -22,6 +23,11 @@ export type KnowledgeOptions = {
     collections?: readonly KnowledgeCollectionDefinition[];
     /** Resolves string model refs (`embedding()`); the app's resolver in an app. */
     models?: IModelResolver;
+    /**
+     * The embedding model of managed collections (resolved here like a
+     * declared collection's); without it no managed collection can be created.
+     */
+    embeddingModel?: EmbeddingModelRef;
     /** Default systemClock. */
     clock?: IClock;
     /** The lock owner; default `${hostname}-${pid}`. */
@@ -30,15 +36,60 @@ export type KnowledgeOptions = {
     onError?: (error: unknown, context: KnowledgeErrorContext) => void;
 };
 
-/** The declared collections, their repository and their indexing. */
+/** What `putDocument()` did. */
+export type KnowledgeDocumentPutResult = {
+    /** The document's status now (`pending` once accepted for embedding). */
+    status: KnowledgeDocumentStatus;
+    /** False when content and details matched the stored document. */
+    changed: boolean;
+};
+
+/** The declared and managed collections, their repository and their indexing. */
 export interface IKnowledge {
     readonly repository: IKnowledgeRepository;
     /** A declared collection, or undefined. */
     collection(name: string): ResolvedKnowledgeCollection | undefined;
     /** The embedding model of a stored model identity; InvalidAgentDefinitionError for an unknown one. */
     embedding(model: string): EmbeddingModel;
-    /** Starts indexing the declared collections in the background. */
+    /** Starts indexing the declared and managed collections in the background. */
     start(): void;
+    /**
+     * Runs a pass over that collection now (after a stored backoff); calls
+     * while a pass runs coalesce into one more pass after it. A stale
+     * managed collection is re-embedded at the default model.
+     * InvalidRunStateError before `start()`, ValidationError for a name
+     * this app does not index (also one whose loop a configuration error
+     * ended, until the next `start()`).
+     */
+    sync(name: string): void;
+    /**
+     * Creates a managed collection (untrusted, generation 1, at the default
+     * embedding model). ValidationError for a bad name; InvalidRunStateError
+     * for a name this app declares or any stored record holds, and without
+     * an `embeddingModel`.
+     */
+    createCollection(name: string): Promise<KnowledgeCollection>;
+    /**
+     * Deletes a managed or orphaned collection with its documents and chunks
+     * (false when there is none), after this instance's loop of it stopped
+     * and released its lock; InvalidRunStateError for a name this app
+     * declares or a declared record.
+     */
+    deleteCollection(name: string): Promise<boolean>;
+    /**
+     * Stores a document of a managed collection: unchanged content and
+     * details answer `changed: false`; new metadata only is stored as is;
+     * anything else is stored `pending` (its previous chunks keep serving)
+     * and embedded in the background. ValidationError for invalid input
+     * (content 1 to MANAGED_CONTENT_MAX_CHARS characters),
+     * RepositoryNotFoundError for a missing collection, InvalidRunStateError
+     * for one that is not managed.
+     */
+    putDocument(collection: string, input: KnowledgeDocumentInput): Promise<KnowledgeDocumentPutResult>;
+    /** Deletes a document of a managed collection and its chunks; errors as `putDocument`. */
+    deleteDocument(collection: string, id: string): Promise<boolean>;
+    /** A copy of the record, `stale` when it is managed and serves another model or chunker than the default. */
+    view(record: KnowledgeCollection): KnowledgeCollection;
     /** Stops indexing and waits for it. */
     stop(): Promise<void>;
     /** Runs every source's check and refuses declared names the store holds as managed collections (read-only). */

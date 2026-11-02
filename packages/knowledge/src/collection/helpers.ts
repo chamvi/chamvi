@@ -8,11 +8,15 @@
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { EmbeddingModel } from 'ai';
 import { isObject } from 'smob';
+import { KNOWLEDGE_RESYNC_MIN_MS } from '../indexer/constants.ts';
 import type { IKnowledgeSource } from '../source/types.ts';
 
 /** The agent-name rule. */
 const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 const NAME_MAX_LENGTH = 64;
+
+/** The longest delay a Node timer keeps (a longer one fires at once). */
+const TIMER_MAX_MS = 2_147_483_647;
 
 /** An AI SDK embedding model object (the string form is a ref, resolved elsewhere). */
 type EmbeddingModelObject = Exclude<EmbeddingModel, string>;
@@ -56,4 +60,18 @@ export function isKnowledgeSource(value: unknown): value is IKnowledgeSource {
 /** A declared collection whose name the store holds as a managed one (the boot check and the indexer). */
 export function managedNameError(name: string): InvalidAgentDefinitionError {
     return new InvalidAgentDefinitionError(`Knowledge collection "${name}" is managed in the store; a declared collection cannot take its name.`);
+}
+
+/** Whether `value` is a valid `resyncMs`: a safe integer from KNOWLEDGE_RESYNC_MIN_MS to the longest timer. */
+export function isResyncMs(value: unknown): value is number {
+    return typeof value === 'number' &&
+        Number.isSafeInteger(value) &&
+        value >= KNOWLEDGE_RESYNC_MIN_MS &&
+        value <= TIMER_MAX_MS;
+}
+
+export function resyncMsError(label: string): InvalidAgentDefinitionError {
+    return new InvalidAgentDefinitionError(
+        `${label}: resyncMs must be an integer from ${KNOWLEDGE_RESYNC_MIN_MS} to ${TIMER_MAX_MS}.`,
+    );
 }

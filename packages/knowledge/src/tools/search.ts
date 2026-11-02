@@ -74,8 +74,9 @@ function modelOf(knowledge: IKnowledge, record: KnowledgeCollection): EmbeddingM
 }
 
 /**
- * Whether a collection's content is untrusted: not trusted by its record or
- * its declaration, or without a record while this app does not declare it
+ * Whether a collection's content is untrusted: a managed one (whatever its
+ * stored `trusted` says), not trusted by its record or its declaration, or
+ * without a record while this app does not declare it
  * trusted (it may be created by anyone meanwhile; a declared trusted one
  * without a record only answers "not ready").
  */
@@ -86,7 +87,7 @@ function isUntrustedRecord(knowledge: IKnowledge, name: string, record: Knowledg
         return declared?.trusted !== true;
     }
 
-    return !record.trusted || declared?.trusted === false;
+    return record.kind === 'managed' || !record.trusted || declared?.trusted === false;
 }
 
 /**

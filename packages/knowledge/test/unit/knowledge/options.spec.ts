@@ -6,7 +6,12 @@
  */
 
 import type { IModelResolver } from '@chamvi/core';
-import { InvalidAgentDefinitionError, createMemoryStore } from '@chamvi/core';
+import {
+    InvalidAgentDefinitionError,
+    InvalidRunStateError,
+    ValidationError,
+    createMemoryStore,
+} from '@chamvi/core';
 import { mockEmbeddingModel } from '@chamvi/test-kit';
 import { describe, expect, it } from 'vitest';
 import type { KnowledgeCollection, KnowledgeOptions } from '@chamvi/knowledge';
@@ -308,5 +313,32 @@ describe('knowledge.check()', () => {
 
         await expect(knowledge.check()).resolves.toBeUndefined();
         expect(await indexer.repository.findCollections()).toEqual([]);
+    });
+});
+
+describe('IKnowledge.sync()', () => {
+    it('refuses sync() before start() and after stop()', async () => {
+        const knowledge = createKnowledge(base({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [source] })] }));
+
+        expect(() => knowledge.sync('docs')).toThrow(InvalidRunStateError);
+
+        knowledge.start();
+        knowledge.sync('docs');
+        await knowledge.stop();
+
+        expect(() => knowledge.sync('docs')).toThrow(InvalidRunStateError);
+    });
+
+    it('refuses sync() of a collection this app does not index', async () => {
+        const knowledge = createKnowledge(base({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [source] })] }));
+
+        knowledge.start();
+
+        try {
+            expect(() => knowledge.sync('other')).toThrow(ValidationError);
+            expect(() => knowledge.sync('other')).toThrow('Knowledge collection "other" is not indexed by this app.');
+        } finally {
+            await knowledge.stop();
+        }
     });
 });

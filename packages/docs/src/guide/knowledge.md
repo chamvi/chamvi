@@ -7,7 +7,7 @@ Knowledge gives an agent a large body of reference material (handbooks, docs, AP
 | | [Skills](/guide/skills) | Knowledge | [Conversation memory](/guide/conversations) |
 |---|---|---|---|
 | What | *How* to do something (procedures) | *What* is true (reference facts, documents) | *What was said* in one chat |
-| Written by | Agent creator, reviewed and pinned | Agent creator, in code | Chat participants and the agent |
+| Written by | Agent creator, reviewed and pinned | Agent creator, in code or over REST | Chat participants and the agent |
 | Size | Small (16 skills, ~1 MiB) | Large (thousands of documents) | One chat |
 | Found by | Name: listed, loaded whole | Meaning: searched, a few passages | Recalled automatically, in order |
 
@@ -50,7 +50,12 @@ A document id is stable: yielding it again with new content replaces the documen
 
 The module indexes once `chamvi start` is up, in the background: it never blocks the start or readiness. `run-job`, `start --check` and `migrate` never embed; a check only reads the store.
 
-A pass reads every source in full and compares it with the index (a snapshot, so deletions are found too). It runs at start only: a database or API source picks up changes at the next start. A resync interval and an on-demand sync are planned, as is pushing single documents over REST. Data an agent needs exact or current (an order status, a price, stock) does not belong in a collection: give the agent a tool that queries it when asked.
+A pass reads every source in full and compares it with the index (a snapshot, so deletions are found too). It runs at start, then again:
+
+- **On an interval**: `knowledgeCollection(name, { ..., resyncMs })` re-reads the sources that long after the last successful pass (at least 60 000, one minute). The time of the last pass is stored, so however many replicas run, the sources are read once per interval, not once per replica.
+- **On demand**: `POST /knowledge/collections/<name>/sync` (see [Managed collections](#managed-collections)), or `knowledge.sync(name)` in code, runs a pass now, for example from a webhook of the system the source reads. Calls made while a pass runs add one more pass after it, never a parallel one.
+
+Without `resyncMs`, a database or API source picks up changes at the next start or sync. A source that can only send changes (a webhook per edited page) belongs in a [managed collection](#managed-collections) instead, written one document at a time. Data an agent needs exact or current (an order status, a price, stock) does not belong in a collection at all: give the agent a tool that queries it when asked.
 
 Documents are split into passages of at most 2000 characters: paragraphs are packed whole, a Markdown heading stays with the paragraph after it and consecutive passages overlap by about 200 characters. Passages are embedded through the AI SDK's `embedMany`, 64 per call. Each document's content hash is stored, so a restart with unchanged sources makes no embedding call and a changed file re-embeds that file only.
 
@@ -62,7 +67,7 @@ Each collection is indexed under the store lock `knowledge:<name>`, so one repli
 |---|---|
 | `pending` | Never indexed yet: a search answers a tool error, `Knowledge collection "<name>" is not ready.` |
 | `ready` | Indexed for the declared model and chunker. |
-| `stale` | A re-embed is in progress; searches keep reading the previous generation while its model is still available (see below). |
+| `stale` | A re-embed is in progress; searches keep reading the previous generation while its model is still available (see below). A [managed collection](#managed-collections) is `stale` while it serves another model than the current default (or was written by an older chunker version), until a sync re-embeds it. |
 | `orphaned` | The code no longer declares it: kept with its vectors, searchable by no agent. |
 
 A collection serves one **generation** of passages, embedded by one model with one chunker version. When you change the model, the next generation is written while searches keep serving the current one; once it is complete the collection switches to it and the old generation is deleted. Vectors of two models never mix. A restart in the middle resumes the same generation; a generation abandoned for yet another model (or the previous one coming back) is deleted and its number is never used again.
@@ -72,6 +77,51 @@ Searching the previous generation needs the previous model to embed the query. A
 A collection fed by an untrusted source and then by trusted ones only stays untrusted until its documents were all replaced; a collection that becomes untrusted is untrusted at once.
 
 A declared collection that disappears from the code is marked `orphaned`, never deleted, so a mistaken deploy loses no embeddings; declaring the name again picks it up. A replica that declares the name keeps serving it even when an older replica of a rolling deploy marked it orphaned. A declared name that the store holds as a managed collection fails the boot.
+
+## Managed collections
+
+A managed collection has no sources in code: it is created and filled over REST while the app runs, by a script, a CI job or the webhook handler of another system. Use one when the material changes one document at a time (a ticket, a wiki page) or lives where the app cannot read it. `knowledgeModule()` serves the routes under `/knowledge` (below the app's `basePath`); `routes: false` turns them off.
+
+Managed collections embed with one default model, the app's: `CHAMVI_KNOWLEDGE_MODEL` (a model string such as `openai/text-embedding-3-small`, resolved through the app's [model providers](/guide/models)), else `knowledgeModule({ embeddingModel })`. Without either, creating one answers 409. An agent searches a managed collection like a declared one, by naming it in `knowledgeTools({ collections })`.
+
+Every route needs a bearer token: `knowledge:read` for `GET`, `knowledge:write` for the rest. A static token for a feeding script:
+
+```bash
+export CHAMVI_KNOWLEDGE_MODEL=openai/text-embedding-3-small
+export CHAMVI_TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"feeder\", \"permissions\": [\"knowledge:read\", \"knowledge:write\"] }]"
+```
+
+Create a collection, put a document, check it and sync:
+
+```bash
+API=http://localhost:3000/knowledge
+AUTH="authorization: Bearer $TOKEN"
+
+# 201: the collection, untrusted, at the default model
+curl -X POST "$API/collections" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{ "name": "tickets" }'
+
+# 202 { "status": "pending" }: stored, embedded in the background
+curl -X PUT "$API/collections/tickets/documents/T-1042" -H "$AUTH" -H 'content-type: application/json' \
+  -d '{ "content": "Exports over 10 000 rows time out ...", "title": "Export timeout", "source": "https://tracker.example.com/T-1042" }'
+
+# 200 { "data": [...], "meta": { "total", "limit", "offset" } }: ready, pending or failed
+curl -g "$API/collections/tickets/documents?filter[status]=failed" -H "$AUTH"
+
+# 202: embed pending documents now (re-embed when stale)
+curl -X POST "$API/collections/tickets/sync" -H "$AUTH"
+
+# 204: gone from the next search
+curl -X DELETE "$API/collections/tickets/documents/T-1042" -H "$AUTH"
+```
+
+- **`PUT` is idempotent per id**: the same id with new content replaces the document, the same content again answers `200` and embeds nothing. An id with `/`, a space or other special characters goes into the path percent-encoded (`a%2Fb`); ids are 1 to 255 characters, content at most 1 048 576 characters. Over REST the whole JSON body must also fit the http app's `bodyLimit` (default 1 MiB, `413` above it), which binds first at the default: raise `bodyLimit` to send documents near the content limit.
+- **`202` means accepted, not embedded**: the document is `pending` until the background pass embedded it, and its previous content keeps answering searches until then. Read it back (`GET .../documents/<id>`) to see `ready`, or `failed` with the `error` when the provider refused it (status 400, 413 or 422, such as an input too long); a new `PUT`, even of the same content, tries again. Any other provider failure leaves documents `pending` and retries on the backoff above.
+- **`stale` and `sync`**: changing `CHAMVI_KNOWLEDGE_MODEL` does not re-embed anything by itself. Each managed collection reports `stale` (as after an upgrade that changes the chunker version) and keeps serving its stored model (whose provider must stay configured for searches and new documents); `POST .../sync` re-embeds it into a new generation with the new default and switches once complete.
+- **Always untrusted**: anyone holding `knowledge:write` decides what a managed collection says, so a search over one always [taints the run](#untrusted-content); no option makes it trusted.
+- **Deleting**: `DELETE /knowledge/collections/<name>` removes a managed collection, or an orphaned declared one, with everything in it; a collection the code declares answers 409.
+
+A collection created on another replica is picked up here within a minute. With the default in-memory repository, managed collections live only in the process that created them and are gone after a restart; they need a persistent repository to be useful in production. The routes and their answers are in the [reference](/reference/knowledge#rest-api).
 
 ## The search tool
 
@@ -85,17 +135,15 @@ It is an ordinary tool: [tool policy and hooks](/guide/approvals) apply, its res
 
 ## Untrusted content
 
-Every collection has a `trusted` flag. `folder()` and custom sources are trusted by default: you wrote them and they ship with the code. A collection is trusted when all its sources are; `trusted` on a source or on `knowledgeCollection()` overrides it. A search over any untrusted collection [taints the run](/guide/tools#untrusted-content-and-outbound-tools) (`tool:knowledge_search`) before the passages reach the model, so later outbound tools marked `guardWhenTainted` ask for approval first.
+Every collection has a `trusted` flag. `folder()` and custom sources are trusted by default: you wrote them and they ship with the code. A collection is trusted when all its sources are; `trusted` on a source or on `knowledgeCollection()` overrides it. A [managed collection](#managed-collections) is always untrusted. A search over any untrusted collection [taints the run](/guide/tools#untrusted-content-and-outbound-tools) (`tool:knowledge_search`) before the passages reach the model, so later outbound tools marked `guardWhenTainted` ask for approval first.
 
 This records provenance; it does not filter injected instructions out of the passages, which still reach the model.
 
 ## Without the app
 
-`createKnowledge({ repository, locks, collections, models?, clock?, owner?, onError? })` builds the same thing over your own engine: `provideKnowledgeContext(engine, knowledge)` lets the tools reach it, `knowledge.start()` begins indexing and `knowledge.stop()` aborts and awaits it. The [package README](https://github.com/chamvi/chamvi/tree/master/packages/knowledge#usage) has a complete example.
+`createKnowledge({ repository, locks, collections, models?, embeddingModel?, clock?, owner?, onError? })` builds the same thing over your own engine: `provideKnowledgeContext(engine, knowledge)` lets the tools reach it, `knowledge.start()` begins indexing, `knowledge.sync(name)` runs a pass now and `knowledge.stop()` aborts and awaits it. `embeddingModel` is the managed collections' model; `knowledgeRoutes(knowledge)` returns the REST routes for `createHttpApp({ routes })`. The [package README](https://github.com/chamvi/chamvi/tree/master/packages/knowledge#usage) has a complete example.
 
 ## Not built yet
 
-- **Managed collections**: collections created and filled through a REST API while the app runs (`knowledge:read`, `knowledge:write`), untrusted by default.
-- **Resync**: a per-collection interval and an on-demand sync, so pull sources change without a restart.
 - **`@chamvi/store-db-vector`**: a pgvector repository with its own migrations.
 - **More sources**: `git()` and `urls()` (untrusted by default), PDF documents, and per-agent `knowledge/` folders.

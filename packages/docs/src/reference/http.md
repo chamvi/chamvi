@@ -22,6 +22,8 @@ The store, the agents and the clock come from `engine` (`engine.store`, `engine.
 
 <<< ../../../http/src/app/types.ts#routes{ts}
 
+The app's authenticators do not guard an extra route. A handler that needs them calls `request.authorize(permission?)`: it resolves the caller's `Principal` (the authenticator chain runs once per request), answers 401 with `WWW-Authenticate: Bearer` without one and 403 when the principal lacks `permission`.
+
 ## Channel HTTP request limits
 
 `channelRateLimits?: Record<string, false | ChannelRateLimitOptions>` selects the HTTP intake policy for each mounted channel, without changing run execution capacity:

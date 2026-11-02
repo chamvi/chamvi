@@ -12,6 +12,10 @@ import type {
     KnowledgeChunkInput,
     KnowledgeCollection,
     KnowledgeDocument,
+    KnowledgeDocumentFindOptions,
+    KnowledgeDocumentPage,
+    KnowledgeDocumentPatch,
+    KnowledgeDocumentVersion,
     KnowledgeMatch,
     KnowledgeSearchOptions,
 } from './types.ts';
@@ -103,6 +107,55 @@ export class MemoryKnowledgeRepository implements IKnowledgeRepository {
         return documents.keys().toArray().sort(compareCodePoints);
     }
 
+    async findDocuments(collection: string, options: KnowledgeDocumentFindOptions = {}): Promise<KnowledgeDocumentPage> {
+        const matches = (this.documents.get(collection)?.values().toArray() ?? [])
+            .filter((document) => options.status === undefined || document.status === options.status)
+            .sort((a, b) => compareCodePoints(a.id, b.id));
+        const offset = Math.max(0, options.offset ?? 0);
+        const end = options.limit === undefined ? undefined : offset + Math.max(0, options.limit);
+
+        return {
+            data: matches.slice(offset, end).map((document) => copy(document)),
+            total: matches.length,
+        };
+    }
+
+    async updateDocument(
+        collection: string,
+        id: string,
+        version: KnowledgeDocumentVersion,
+        patch: KnowledgeDocumentPatch,
+    ): Promise<boolean> {
+        const documents = this.documents.get(collection);
+        const document = documents?.get(id);
+
+        if (
+            !documents ||
+            !document ||
+            document.hash !== version.hash ||
+            document.title !== version.title ||
+            document.source !== version.source
+        ) {
+            return false;
+        }
+
+        const updated: KnowledgeDocument = {
+            ...document,
+            status: patch.status,
+            ...(patch.generation === undefined ? {} : { generation: patch.generation }),
+        };
+
+        delete updated.error;
+
+        if (patch.error !== undefined) {
+            updated.error = patch.error;
+        }
+
+        documents.set(id, copy(updated));
+
+        return true;
+    }
+
     async deleteDocument(collection: string, id: string): Promise<boolean> {
         this.chunks.get(collection)?.delete(id);
 
@@ -166,12 +219,9 @@ export class MemoryKnowledgeRepository implements IKnowledgeRepository {
             return [];
         }
 
-        const documents = this.documents.get(collection);
         const matches: KnowledgeMatch[] = [];
 
         for (const [document, generations] of index) {
-            const record = documents?.get(document);
-
             for (const chunk of generations.get(generation) ?? []) {
                 const score = cosineSimilarity(vector, chunk.vector);
 
@@ -185,8 +235,8 @@ export class MemoryKnowledgeRepository implements IKnowledgeRepository {
                     index: chunk.index,
                     text: chunk.text,
                     score,
-                    ...(record?.title === undefined ? {} : { title: record.title }),
-                    ...(record?.source === undefined ? {} : { source: record.source }),
+                    ...(chunk.title === undefined ? {} : { title: chunk.title }),
+                    ...(chunk.source === undefined ? {} : { source: chunk.source }),
                 });
             }
         }

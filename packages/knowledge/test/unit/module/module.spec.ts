@@ -35,6 +35,8 @@ import type { ILogger, IModule } from '@chamvi/app';
 import { buildModuleHarness, createModuleHarness } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
 import {
+    KNOWLEDGE_ROUTE_PATH,
+    contentHash,
     createMemoryKnowledgeRepository,
     defineKnowledgeSource,
     folder,
@@ -140,9 +142,38 @@ function readerAgent(): Agent {
     });
 }
 
-/** The app's resolver with one provider `mock` handing out `embed`. */
-function embeddingProviders(model: EmbeddingModel): ModuleHarnessOptions['models'] {
-    return { mock: customProvider({ embeddingModels: { embed: model } }) };
+/** The app's resolver with one provider `mock` handing out `embed` (and `other`, when given). */
+function embeddingProviders(model: EmbeddingModel, other?: EmbeddingModel): ModuleHarnessOptions['models'] {
+    return { mock: customProvider({ embeddingModels: { embed: model, ...(other && { other }) } }) };
+}
+
+/** A request to the harness's http server, with the static token unless `token: false`. */
+function request(
+    harness: ModuleHarness,
+    path: string,
+    init: RequestInit & { token?: false } = {},
+): Promise<Response> {
+    const {
+        token, 
+        headers, 
+        ...rest 
+    } = init;
+
+    return fetch(`http://127.0.0.1:${harness.context.env.PORT}${path}`, {
+        ...rest,
+        headers: {
+            'content-type': 'application/json',
+            ...(token === false ? {} : { authorization: `Bearer ${TOKEN}` }),
+            ...headers,
+        },
+    });
+}
+
+/** The knowledge routes a harness's modules contributed. */
+function knowledgeRoutesOf(harness: ModuleHarness) {
+    return harness.container.has(AppToken.HTTP_ROUTES) ?
+        harness.container.resolveAll(AppToken.HTTP_ROUTES).filter((route) => route.path === KNOWLEDGE_ROUTE_PATH) :
+        [];
 }
 
 function record(name: string, kind: KnowledgeCollection['kind']): KnowledgeCollection {
@@ -231,6 +262,115 @@ describe('knowledgeModule()', () => {
             .toThrow(new InvalidAgentDefinitionError('knowledgeModule() repository must be a knowledge repository.'));
         expect(() => knowledgeModule({ owner: '' }))
             .toThrow(new InvalidAgentDefinitionError('knowledgeModule() owner must be a non-empty string.'));
+        expect(() => knowledgeModule({ embeddingModel: 42 as never }))
+            .toThrow(new InvalidAgentDefinitionError('knowledgeModule() embeddingModel must be a model string or an embedding model.'));
+        expect(() => knowledgeModule({ embeddingModel: '' }))
+            .toThrow(new InvalidAgentDefinitionError('knowledgeModule() embeddingModel must be a model string or an embedding model.'));
+        expect(() => knowledgeModule({ routes: true as never }))
+            .toThrow(new InvalidAgentDefinitionError('knowledgeModule() routes must be false when given.'));
+        expect(() => knowledgeModule({ env: 'x' as never }))
+            .toThrow(new InvalidAgentDefinitionError('knowledgeModule() env must be an object.'));
+    });
+
+    it('contributes the knowledge routes in start mode', async () => {
+        const model = mockEmbeddingModel();
+        const harness = await harnessOf({
+            knowledge: knowledgeModule({
+                repository: createMemoryKnowledgeRepository(), 
+                embeddingModel: 'mock/embed', 
+                env: {}, 
+            }),
+            http: true,
+            models: embeddingProviders(model),
+        });
+
+        expect(knowledgeRoutesOf(harness).map((route) => route.method).sort()).toEqual(['DELETE', 'GET', 'POST', 'PUT']);
+
+        expect((await request(harness, '/knowledge/collections', { token: false })).status).toBe(401);
+
+        const created = await request(harness, '/knowledge/collections', { method: 'POST', body: JSON.stringify({ name: 'notes' }) });
+
+        expect(created.status).toBe(201);
+        expect(await created.json()).toMatchObject({
+            name: 'notes',
+            kind: 'managed',
+            trusted: false,
+            model: 'mock/embed',
+        });
+
+        const put = await request(harness, '/knowledge/collections/notes/documents/a', { method: 'PUT', body: JSON.stringify({ content: 'alpha beta' }) });
+
+        expect(put.status).toBe(202);
+
+        // the module's managed loop (started in start mode) embeds the document
+        await expect.poll(async () => {
+            const response = await request(harness, '/knowledge/collections/notes/documents/a');
+
+            return ((await response.json()) as { status: string }).status;
+        }).toBe('ready');
+    });
+
+    it('routes: false contributes none', async () => {
+        const harness = await harnessOf({
+            knowledge: knowledgeModule({
+                repository: createMemoryKnowledgeRepository(),
+                embeddingModel: 'mock/embed',
+                routes: false,
+                env: {},
+            }),
+            http: true,
+            models: embeddingProviders(mockEmbeddingModel()),
+        });
+
+        expect(knowledgeRoutesOf(harness)).toEqual([]);
+        expect((await request(harness, '/knowledge/collections')).status).toBe(404);
+    });
+
+    it('CHAMVI_KNOWLEDGE_MODEL wins over embeddingModel', async () => {
+        const module = knowledgeModule({
+            repository: createMemoryKnowledgeRepository(),
+            embeddingModel: 'mock/embed',
+            env: { CHAMVI_KNOWLEDGE_MODEL: 'mock/other' },
+        });
+
+        await harnessOf({ knowledge: module, models: embeddingProviders(mockEmbeddingModel(), mockEmbeddingModel()) });
+
+        expect((await module.knowledge.createCollection('notes')).model).toBe('mock/other');
+    });
+
+    it('embeddingModel is the managed default without CHAMVI_KNOWLEDGE_MODEL', async () => {
+        const module = knowledgeModule({
+            repository: createMemoryKnowledgeRepository(),
+            embeddingModel: 'mock/embed',
+            env: { CHAMVI_KNOWLEDGE_MODEL: '' },
+        });
+
+        await harnessOf({ knowledge: module, models: embeddingProviders(mockEmbeddingModel()) });
+
+        expect((await module.knowledge.createCollection('notes')).model).toBe('mock/embed');
+    });
+
+    it.each([
+        ['an unknown provider', 'secretprovider/embed'],
+        ['a model the provider does not offer', 'mock/secretmodel'],
+    ])('an unresolvable CHAMVI_KNOWLEDGE_MODEL fails the setup naming the variable (%s)', async (_, value) => {
+        const harness = buildModuleHarness({
+            models: embeddingProviders(mockEmbeddingModel()),
+            modules: [
+                configModule({ logger: createRecordingLogger() }),
+                storeModule(),
+                engineModule(),
+                knowledgeModule({ repository: createMemoryKnowledgeRepository(), env: { CHAMVI_KNOWLEDGE_MODEL: value } }),
+            ],
+        });
+
+        harnesses.push(harness);
+
+        const error = await harness.setup().catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect((error as Error).message).toMatch(/^CHAMVI_KNOWLEDGE_MODEL /);
+        expect((error as Error).message).not.toMatch(/secret/);
     });
 
     it('indexes in start mode and the engine\'s tools reach the knowledge', async () => {
@@ -282,17 +422,39 @@ describe('knowledgeModule()', () => {
     it.each([
         ['a job', { mode: 'job', job: { agent: 'reader' } }],
         ['a check', { check: true }],
-    ] as const)('%s never indexes, even when asked to start', async (_, options) => {
+    ] as const)('%s never indexes nor contributes routes, even when asked to start', async (_, options) => {
         const model = mockEmbeddingModel();
         const repository = createMemoryKnowledgeRepository();
+        const at = new Date('2026-11-01T00:00:00Z');
+
+        // a managed collection with a pending document: no managed loop may embed it
+        await repository.saveCollection({
+            ...record('notes', 'managed'), 
+            status: 'ready', 
+            generation: 1, 
+        });
+        await repository.saveDocument({
+            collection: 'notes',
+            id: 'a',
+            content: 'alpha beta',
+            hash: contentHash('alpha beta'),
+            status: 'pending',
+            generation: 0,
+            updatedAt: at,
+        });
+
         const harness = await harnessOf({
             ...options,
             knowledge: knowledgeModule({
                 repository,
                 collections: [knowledgeCollection('docs', { model, sources: [folder(await docsDir())] })],
+                embeddingModel: model,
+                env: {},
             }),
             agents: [readerAgent()],
         });
+
+        expect(knowledgeRoutesOf(harness)).toEqual([]);
 
         const hooks = harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS).filter((hook) => hook.name === 'chamvi:knowledge');
 
@@ -305,7 +467,8 @@ describe('knowledgeModule()', () => {
         await runHooks(harness.container, 'started');
 
         expect(model.calls).toHaveLength(0);
-        expect(await repository.findCollections()).toEqual([]);
+        expect((await repository.findCollections()).map((entry) => entry.name)).toEqual(['notes']);
+        expect((await repository.findOneDocument('notes', 'a'))?.status).toBe('pending');
     });
 
     it.each([

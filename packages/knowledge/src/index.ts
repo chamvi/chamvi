@@ -10,6 +10,8 @@ export * from './collection/index.ts';
 export * from './context/index.ts';
 export * from './indexer/index.ts';
 export * from './knowledge/index.ts';
+export * from './managed/index.ts';
 export * from './repository/index.ts';
+export * from './routes/index.ts';
 export * from './source/index.ts';
 export * from './tools/index.ts';

@@ -11,7 +11,7 @@ import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../repository/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { KNOWLEDGE_LOCK_TTL_MS } from './constants.ts';
-import type { KnowledgeIndexLock } from './types.ts';
+import type { KnowledgeIndexLock, KnowledgeWake, KnowledgeWakeReason } from './types.ts';
 
 /** The store lock of a collection's indexer. */
 export function lockKey(collection: string): string {
@@ -38,6 +38,56 @@ export function wait(clock: IClock, ms: number, signal: AbortSignal): Promise<vo
 
         signal.addEventListener('abort', done, { once: true });
     });
+}
+
+/**
+ * The wake of one collection loop: a `notify()` ends the current `wait()`,
+ * or, while nobody waits, is kept for the next one (any number coalesce to
+ * one); `clear()` drops a kept one.
+ */
+export function createWake(): KnowledgeWake {
+    let requested = false;
+    let waiter: ((reason: KnowledgeWakeReason) => void) | undefined;
+
+    return {
+        notify() {
+            if (waiter) {
+                waiter('wake');
+
+                return;
+            }
+
+            requested = true;
+        },
+        clear() {
+            requested = false;
+        },
+        wait(clock: IClock, ms: number | undefined, signal: AbortSignal) {
+            if (signal.aborted) {
+                return Promise.resolve('abort');
+            }
+
+            if (requested) {
+                requested = false;
+
+                return Promise.resolve('wake');
+            }
+
+            return new Promise<KnowledgeWakeReason>((resolve) => {
+                const onAbort = () => done('abort');
+                const timer = ms === undefined ? undefined : clock.setTimeout(() => done('timeout'), ms);
+                const done = (reason: KnowledgeWakeReason) => {
+                    waiter = undefined;
+                    timer?.clear();
+                    signal.removeEventListener('abort', onAbort);
+                    resolve(reason);
+                };
+
+                waiter = done;
+                signal.addEventListener('abort', onAbort, { once: true });
+            });
+        },
+    };
 }
 
 /**
@@ -91,9 +141,38 @@ export function servesDefinition(record: KnowledgeCollection, definition: Resolv
         record.chunker === CHUNKER_VERSION;
 }
 
+/** Whether a stored document's chunks still carry the input's title and source. */
+export function sameOrigin(stored: KnowledgeDocument, input: KnowledgeDocumentInput): boolean {
+    return stored.title === input.title && stored.source === input.source;
+}
+
 /** Whether a stored document needs no new record: same title, source and metadata. */
 export function sameDetails(stored: KnowledgeDocument, input: KnowledgeDocumentInput): boolean {
-    return stored.title === input.title &&
-        stored.source === input.source &&
+    return sameOrigin(stored, input) &&
         JSON.stringify(stored.metadata) === JSON.stringify(input.metadata);
+}
+
+/** The record without a pending re-embed. */
+export function withoutPending(record: KnowledgeCollection): KnowledgeCollection {
+    const rest = { ...record };
+
+    delete rest.pending;
+
+    return rest;
+}
+
+/** The record without a pending re-embed, a stored error or a backoff. */
+export function settled(record: KnowledgeCollection): KnowledgeCollection {
+    const rest = withoutPending(record);
+
+    delete rest.error;
+    delete rest.failures;
+    delete rest.retryAt;
+
+    return rest;
+}
+
+/** The highest generation number the record ever gave out. */
+export function highestGeneration(record: KnowledgeCollection): number {
+    return Math.max(record.generation, record.pending?.generation ?? 0, record.lastGeneration ?? 0);
 }

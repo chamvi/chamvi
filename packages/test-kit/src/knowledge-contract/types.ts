@@ -33,9 +33,12 @@ export type ContractKnowledgeCollection = {
     error?: string;
     failures?: number;
     retryAt?: Date;
+    syncedAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 };
+
+export type ContractKnowledgeDocumentStatus = 'pending' | 'ready' | 'failed';
 
 export type ContractKnowledgeDocument = {
     collection: string;
@@ -45,6 +48,8 @@ export type ContractKnowledgeDocument = {
     title?: string;
     source?: string;
     metadata?: Record<string, unknown>;
+    status: ContractKnowledgeDocumentStatus;
+    error?: string;
     generation: number;
     updatedAt: Date;
 };
@@ -55,6 +60,8 @@ export type ContractKnowledgeChunk = {
     start: number;
     end: number;
     vector: number[];
+    title?: string;
+    source?: string;
 };
 
 export type ContractKnowledgeMatch = {
@@ -77,6 +84,28 @@ export type ContractKnowledgeRepository = {
     findOneDocument(collection: string, id: string): Promise<ContractKnowledgeDocument | undefined>;
     findOneDocumentOrFail(collection: string, id: string): Promise<ContractKnowledgeDocument>;
     findDocumentIds(collection: string): Promise<string[]>;
+    findDocuments(
+        collection: string,
+        options?: {
+            status?: ContractKnowledgeDocumentStatus; 
+            limit?: number; 
+            offset?: number 
+        },
+    ): Promise<{ data: ContractKnowledgeDocument[]; total: number }>;
+    updateDocument(
+        collection: string,
+        id: string,
+        version: {
+            hash: string; 
+            title?: string; 
+            source?: string 
+        },
+        patch: {
+            status: ContractKnowledgeDocumentStatus; 
+            error?: string; 
+            generation?: number 
+        },
+    ): Promise<boolean>;
     deleteDocument(collection: string, id: string): Promise<boolean>;
     replaceChunks(
         collection: string,
