@@ -49,14 +49,14 @@ export default defineAgent({
 
 ## Names
 
-One agent name, one agent. **Code agents win**, then **packages** (in the merged order), then **folders**. The loser is reported as an issue and never loaded: `<name>: a code agent has this name; package <spec> is not loaded.`, `<name>: package <earlier> already provides this agent; package <spec> is not loaded.`, or for a folder `<name>: package <spec> provides this agent; the folder is not loaded.` A package agent keeps its name against folders even when it fails to load.
+One agent name, one agent. **Code agents win**, then **packages** (in the merged order), then **folders**. The loser is reported as an issue and never loaded: `<name>: a code agent has this name; package <spec> is not loaded.`, `<name>: package <earlier> already provides this agent; package <spec> is not loaded.`, or for a folder `<name>: package <spec> provides this agent; the folder is not loaded.` A package agent keeps its name against folders once its package loaded, also when its checks or skill preparation then fail. A package that fails to import names no agents, so it reserves only the names whose stored revision is a package marker: on a first deployment, a folder of the name it would export loads.
 
 ## Revisions
 
 Like a changed folder, a changed package agent cancels its unsettled runs once across replicas, and a [job never reloads](/guide/agent-folders#jobs-never-reload). A package agent's revision is its **package version**:
 
 - **Production** (`chamvi start`, `run-job`, `start --check`): `<name>@<version>`, for example `@acme/review-agent@1.4.0`. Cancel reasons and the `agent reloaded` log name it in full.
-- **Dev** (`chamvi dev`, `start --dev`): `<name>@<version>+<12 hex>`, the version plus a hash of the files the package publishes (its `files` field, else every file but `test/`; `node_modules`, dot-files, `README*`, `CHANGELOG*` and the other ignored docs left out unless they are JavaScript, `package.json` without its `version`) and of the top-level folder of the entry the specifier resolves to (a workspace package exporting `src/index.ts` while `files` names `dist`). Editing an unreleased workspace package cancels its old runs on the next restart.
+- **Dev** (`chamvi dev`, `start --dev`): `<name>@<version>+<12 hex>`, the version plus a hash of the files the package publishes (its `files` field, else every file but `test/`; `node_modules`, dot-files, `README*`, `CHANGELOG*` and the other ignored docs left out unless they are JavaScript, `package.json` without its `version`) and of the top-level folder of the entry the specifier resolves to (a workspace package exporting `src/index.ts` while `files` names `dist`). Editing those files in an unreleased workspace package cancels its old runs on the next restart; code the entry imports from outside them (a sibling `../shared/` folder, say) does not move the marker.
 
 Moving between the dev and the production marker of the same version cancels nothing.
 

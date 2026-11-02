@@ -176,7 +176,8 @@ function buildAgents(spec: string, mod: unknown): Agent[] {
  * `main`; without one: every file but a top-level `test/` folder. With
  * `options.entry`, also the entry's top-level folder (or the entry itself at
  * the root), so a linked package exporting its source outside `files` is
- * hashed by the code that runs. Always left out: `node_modules`, dot-entries
+ * hashed by the code that runs (code it imports from outside both sets is
+ * not). Always left out: `node_modules`, dot-entries
  * and the docs and editor leftovers of HASH_IGNORE_PATTERNS (a JavaScript
  * file counts whatever its name). `package.json` counts as its JSON without
  * `version`, so a release that only bumps the version keeps the hash.
