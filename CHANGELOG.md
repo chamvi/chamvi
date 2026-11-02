@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.5.0](https://github.com/chamvi/chamvi/compare/v0.4.0...v0.5.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* require node 26 and run ci on one version ([#113](https://github.com/chamvi/chamvi/issues/113))
+
+### Features
+
+* **chat:** add Chat SDK channels and WhatsApp Web ([#109](https://github.com/chamvi/chamvi/issues/109)) ([a0b5507](https://github.com/chamvi/chamvi/commit/a0b5507f24a8401f657c4cb571a25504bbe81ef2))
+* **core,app:** resolve embedding models ([#107](https://github.com/chamvi/chamvi/issues/107)) ([d0e56b4](https://github.com/chamvi/chamvi/commit/d0e56b46c814037b55117e7163fa482dbb49519b))
+* **knowledge:** add @chamvi/knowledge ([#108](https://github.com/chamvi/chamvi/issues/108)) ([3415eb7](https://github.com/chamvi/chamvi/commit/3415eb7d2fcafbd127d999a16b596099b1da14cb))
+
+
+### Build System
+
+* require node 26 and run ci on one version ([#113](https://github.com/chamvi/chamvi/issues/113)) ([0bf352f](https://github.com/chamvi/chamvi/commit/0bf352f63e3f13433396e6ba12ae3b667f8746e4))
+
 ## [0.4.0](https://github.com/chamvi/chamvi/compare/v0.3.1...v0.4.0) (2026-11-01)
 
 
