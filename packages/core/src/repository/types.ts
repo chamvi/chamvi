@@ -135,6 +135,13 @@ export interface IArtifactRepository {
      * (metadata and bytes) when an artifact with that id exists.
      */
     insert(artifact: Artifact, data: Uint8Array): Promise<boolean>;
+    /**
+     * Atomic upsert by id. An absent id inserts the artifact as given; an id held by
+     * the same run replaces `mediaType`, `filename` (removed when absent), `size` and
+     * the bytes, keeps the stored `createdAt` and resolves the stored metadata; an id
+     * held by another run throws `InvalidRunStateError` and writes nothing.
+     */
+    save(artifact: Artifact, data: Uint8Array): Promise<Artifact>;
     /** Metadata only. */
     findOne(id: string): Promise<Artifact | undefined>;
     findOneOrFail(id: string): Promise<Artifact>;

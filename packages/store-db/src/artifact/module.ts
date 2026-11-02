@@ -5,11 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ArtifactNotFoundError, RepositoryNotFoundError } from '@chamvi/core';
+import { ArtifactNotFoundError, InvalidRunStateError, RepositoryNotFoundError } from '@chamvi/core';
 import type { Artifact, IArtifactRepository } from '@chamvi/core';
 import type { DataSource, Repository } from 'typeorm';
 import { ArtifactEntity } from '../entities/index.ts';
-import { toArtifact, toArtifactValues } from '../repository/helpers.ts';
+import { toArtifact, toArtifactValues, toEntity } from '../repository/helpers.ts';
 
 export class DatabaseArtifactRepository implements IArtifactRepository {
     protected dataSource: DataSource;
@@ -32,6 +32,29 @@ export class DatabaseArtifactRepository implements IArtifactRepository {
             .execute();
 
         return result.raw.length === 1;
+    }
+
+    async save(artifact: Artifact, data: Uint8Array): Promise<Artifact> {
+        // one statement: insert, or replace the row when it belongs to the same run
+        // (the overwrite condition), so an id of another run updates nothing
+        const result = await this.artifacts.createQueryBuilder()
+            .insert()
+            .values(toArtifactValues(artifact, data))
+            .orUpdate(
+                ['media_type', 'filename', 'size', 'data'],
+                ['id'],
+                { overwriteCondition: { where: { runId: artifact.runId } } },
+            )
+            .returning(['id', 'runId', 'agent', 'mediaType', 'filename', 'size', 'createdAt'])
+            .updateEntity(false)
+            .execute();
+        const [row] = result.raw as Record<string, unknown>[];
+
+        if (row === undefined) {
+            throw new InvalidRunStateError(`The artifact id "${artifact.id}" belongs to another run.`);
+        }
+
+        return toArtifact(toEntity(this.dataSource, ArtifactEntity, row));
     }
 
     async findOne(id: string): Promise<Artifact | undefined> {

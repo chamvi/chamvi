@@ -11,7 +11,7 @@ The engine receives an `IStore` object with one implementation per persistence c
 | `ILockRepository` | Keyed leases | `acquire(key, owner, ttlMs)`, `release(key, owner)` |
 | `IEffectRepository` | Recorded effect results | `findOne`, `save` |
 | `IStateRepository` | Per-agent state | `findOne`/`set` (`undefined` removes the key), `find` (key code-point order, `limit`/`offset`), `findDocuments`/`upsertDocument`/`deleteDocument` |
-| `IArtifactRepository` | Files of a run (attachments, files tools stored) | `insert(artifact, data)` (insert-if-absent), `findOne` (metadata), `read` (bytes), `find(runId)` |
+| `IArtifactRepository` | Files of a run (attachments, files tools stored) | `insert(artifact, data)` (insert-if-absent), `save(artifact, data)` (replacing upsert), `findOne` (metadata), `read` (bytes), `find(runId)` |
 | `IAgentRevisionRepository` | One revision marker per [folder agent](/guide/agent-folders): `{ agent, hash, changedAt }`, no code | `findOne`, `save` (upsert), `delete` (a missing one is a no-op), `find` (agent code-point order) |
 | `IConversationRepository` (optional) | Conversation generations, turn ownership, recall, journal and explicit notes | `findOne`, `findItems`, `findNotes`, `findOneNote`; `resolve`, `beginTurn`, `endTurn`, `prepareEmit`, `confirmEmit`, `applyNote`, `reset`, `delete`, `prune` |
 
@@ -72,13 +72,13 @@ const artifacts = await store.artifacts.find(runId);
 1. **One expiry rule.** A claim, key or lock created at time `T` with `ttlMs` is expired at exactly `T + ttlMs` and can be taken over at that instant.
 2. **Time comes from the clock.** Expiry decisions use an injected `IClock`, never the database's clock, so tests can drive time and replicas agree on one rule.
 3. **No aliasing.** Values are copied in and out. Mutating an object after passing it to the store, or one the store returned, never changes what the store holds.
-4. **Atomic means atomic across callers.** `runs.insert`, `idempotency.claim`, `runs.claim`, `runs.renewClaim`, `locks.acquire` and `artifacts.insert` must hold under concurrency, also across processes.
+4. **Atomic means atomic across callers.** `runs.insert`, `idempotency.claim`, `runs.claim`, `runs.renewClaim`, `locks.acquire`, `artifacts.insert` and `artifacts.save` must hold under concurrency, also across processes.
 5. **Ordering.** `runs.find` orders by `createdAt` ascending, ties broken by `id` ascending, or both descending with `order: 'desc'` (newest first); `total` ignores `limit` and `offset`. `artifacts.find` orders the same way. `agentRevisions.find` orders by agent name in code-point order.
 6. **Guards throw.** `runs.update` throws `InvalidRunStateError` when `expectStatus` does not match, or when `expectOwner` is given and the claim is absent or held by another owner (expiry is not checked there: a lease is lost once taken over). It throws `RunNotFoundError` for an unknown run.
 7. **Checkpoints.** `checkpoints.save` keeps the highest `stepIndex`; an equal index replaces.
 8. **State filters.** `state.findDocuments` `where` matches top-level fields by equality.
 9. **Run references.** `steps.insert`, `checkpoints.save` and `conversations.beginTurn` for a run the store does not hold throw `RunNotFoundError` and write nothing. `createMemoryStore()` checks its own run repository; the database store maps the foreign key violation.
-10. **Artifacts.** `artifacts.insert` resolves `false` and keeps the stored artifact when the id exists. Bytes are copied in and out like every other value, and `read` returns a plain `Uint8Array` (no `Buffer` or other subclass). `findOne` and `find` return metadata only.
+10. **Artifacts.** `artifacts.insert` resolves `false` and keeps the stored artifact when the id exists. `artifacts.save` inserts an absent id, replaces the metadata (a missing `filename` removes it) and bytes of an id held by the same run while keeping its `createdAt`, and throws `InvalidRunStateError` without writing for an id held by another run. Bytes are copied in and out like every other value, and `read` returns a plain `Uint8Array` (no `Buffer` or other subclass). `findOne` and `find` return metadata only.
 
 ## The interfaces
 
