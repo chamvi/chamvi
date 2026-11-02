@@ -10,6 +10,15 @@ import { ErrorCode, InvalidRunStateError } from '../../errors/index.ts';
 import { AGENT_LOCK_TTL_MS, REVISION_PREFIX_LENGTH } from '../constants.ts';
 import type { CancelReason, RegistryContext } from './types.ts';
 
+/**
+ * A revision as messages name it: a content hash (64 lower-case hex
+ * characters) cut to REVISION_PREFIX_LENGTH, any other marker (a package's
+ * `<name>@<version>`) in full.
+ */
+export function formatRevision(revision: string): string {
+    return /^[0-9a-f]{64}$/.test(revision) ? revision.slice(0, REVISION_PREFIX_LENGTH) : revision;
+}
+
 /** What a registry cancel stores on the runs of `agent`. */
 export function agentCancelReason(agent: string, kind: 'replaced' | 'removed', revision?: string): CancelReason {
     if (kind === 'removed') {
@@ -23,7 +32,7 @@ export function agentCancelReason(agent: string, kind: 'replaced' | 'removed', r
         code: ErrorCode.AGENT_REPLACED,
         message: revision === undefined ?
             `Agent "${agent}" was replaced; its unsettled runs were cancelled.` :
-            `Agent "${agent}" was reloaded at revision ${revision.slice(0, REVISION_PREFIX_LENGTH)}; its unsettled runs were cancelled.`,
+            `Agent "${agent}" was reloaded at revision ${formatRevision(revision)}; its unsettled runs were cancelled.`,
     };
 }
 

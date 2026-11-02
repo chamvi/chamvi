@@ -8,8 +8,7 @@
 import type { AgentRevision } from '../../agent/types.ts';
 import { InvalidRunStateError, RunNotFoundError } from '../../errors/index.ts';
 import { RunStatus } from '../../run/constants.ts';
-import { REVISION_PREFIX_LENGTH } from '../constants.ts';
-import { agentCancelReason, withAgentLock } from './helpers.ts';
+import { agentCancelReason, formatRevision, withAgentLock } from './helpers.ts';
 import type { CancelReason, DropRevisionOptions, RegistryContext } from './types.ts';
 
 const UNSETTLED = [RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.WAITING, RunStatus.INTERRUPTED];
@@ -134,8 +133,8 @@ export async function claimRevision(
             });
 
             if (data.length > 0) {
-                const stored = marker.hash.slice(0, REVISION_PREFIX_LENGTH);
-                const loaded = revision.slice(0, REVISION_PREFIX_LENGTH);
+                const stored = formatRevision(marker.hash);
+                const loaded = formatRevision(revision);
                 throw new InvalidRunStateError(
                     `Agent "${agent}" runs revision ${stored} in the store, not ${loaded}; this process does not reload agents.`,
                 );
