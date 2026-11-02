@@ -30,6 +30,7 @@ import {
     toKey,
 } from '../loader/helpers.ts';
 import {
+    ESM_CONDITIONS,
     PACKAGE_HASH_IGNORE,
     PACKAGE_HASH_IMPORTABLE_EXTENSIONS,
     PACKAGE_MANIFEST,
@@ -41,6 +42,7 @@ import {
     findPackageRoot,
     packageNameOf,
     readManifest,
+    userConditions,
 } from './helpers.ts';
 import { pinPackageImports } from './hooks.ts';
 import type { HashAgentPackageOptions, LoadAgentPackageOptions, LoadedPackage } from './types.ts';
@@ -72,7 +74,8 @@ export async function loadAgentPackage(spec: string, options: LoadAgentPackageOp
 async function loadOnce(spec: string, options: LoadAgentPackageOptions): Promise<LoadedPackage> {
     const { cwd } = options;
     const name = packageNameOf(spec);
-    const entry = await resolveEntry(spec, cwd);
+    const conditions = options.conditions ?? userConditions(process.execArgv, process.env.NODE_OPTIONS);
+    const entry = await resolveEntry(spec, cwd, conditions);
     const found = await findPackageRoot(entry, name);
 
     if (found === undefined) {
@@ -113,16 +116,20 @@ async function loadOnce(spec: string, options: LoadAgentPackageOptions): Promise
         root,
         revision,
         ...(options.dev && { formerRevision: versionMarker }),
-        agents: buildAgents(spec, mod),
+        agents: buildAgents(spec, await produce(spec, mod)),
     };
 }
 
-async function resolveEntry(spec: string, cwd: string): Promise<string> {
+async function resolveEntry(spec: string, cwd: string, conditions: readonly string[]): Promise<string> {
     const resolver = createJiti(join(cwd, PACKAGE_MANIFEST), { moduleCache: false, fsCache: false });
     let resolved: string;
 
     try {
-        resolved = resolver.esmResolve(spec, { parentURL: pathToFileURL(`${cwd}${sep}`).href });
+        resolved = resolver.esmResolve(spec, {
+            parentURL: pathToFileURL(`${cwd}${sep}`).href,
+            // jiti's default is node and import only, Node adds the user conditions in front
+            conditions: [...conditions, ...ESM_CONDITIONS],
+        });
     } catch {
         throw new InvalidAgentDefinitionError(`${spec}: not found from the app's directory; add it to the app's dependencies.`);
     }
@@ -141,11 +148,30 @@ function importMessage(error: unknown): string {
     return message;
 }
 
-function buildAgents(spec: string, mod: unknown): Agent[] {
+/**
+ * The default export, or what it returns when it is a factory: a function
+ * called once with no arguments (sync or async), so a package reads its
+ * configuration at load rather than at import. A throw or rejection is a load
+ * error naming the package.
+ */
+async function produce(spec: string, mod: unknown): Promise<unknown> {
     const declared = defaultExportOf(mod, spec);
+
+    if (typeof declared !== 'function') {
+        return declared;
+    }
+
+    try {
+        return await (declared as () => unknown)();
+    } catch (error) {
+        throw new InvalidAgentDefinitionError(`${spec}: the default export's factory failed: ${messageOf(error)}`);
+    }
+}
+
+function buildAgents(spec: string, declared: unknown): Agent[] {
     const list = Array.isArray(declared) ? declared : [declared];
     const shapeError = new InvalidAgentDefinitionError(
-        `${spec}: the default export must be defineAgent(...)'s result or a non-empty array of them.`,
+        `${spec}: the default export must be defineAgent(...)'s result, a non-empty array of them, or a function returning (or resolving to) one of those.`,
     );
 
     if (list.length === 0) {

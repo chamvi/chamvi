@@ -24,7 +24,7 @@ export type LoadedPackage = {
     revision: string;
     /** Dev only: the production marker `<name>@<version>`, moved to the dev marker without a cancel. */
     formerRevision?: string;
-    /** The agents of its default export, rebuilt through this copy's defineAgent(). */
+    /** The agents of its default export (or of what its factory returned), rebuilt through this copy's defineAgent(). */
     agents: Agent[];
 };
 
@@ -35,6 +35,12 @@ export type LoadAgentPackageOptions = {
     dev?: boolean;
     /** Imports the entry by file URL. Default: a native `import()` with the app's packages pinned. */
     importer?: (url: string) => Promise<unknown>;
+    /**
+     * The user conditions resolved before `node` and `import`. Default: this
+     * process's (`--conditions`/`-C` in `execArgv` and `NODE_OPTIONS`), as
+     * Node's own resolution uses them.
+     */
+    conditions?: readonly string[];
 };
 
 export type HashAgentPackageOptions = {

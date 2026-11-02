@@ -14,6 +14,7 @@ import {
     mergePackageSpecifiers,
     packageNameOf,
     splitAgentEntries,
+    userConditions,
 } from '../../../src/package/helpers.ts';
 
 describe('package specifiers', () => {
@@ -94,5 +95,20 @@ describe('dev markers', () => {
         expect(isDevMarkerOf('@s/pkg@1.0.0+0123456789a', '@s/pkg@1.0.0')).toBe(false);
         expect(isDevMarkerOf('@s/pkg@1.0.1+0123456789ab', '@s/pkg@1.0.0')).toBe(false);
         expect(isDevMarkerOf('@s/pkg@1.0.0', '@s/pkg@1.0.0')).toBe(false);
+    });
+});
+
+describe('userConditions', () => {
+    it('reads --conditions and -C from the exec argv and NODE_OPTIONS, in order and once each', () => {
+        expect(userConditions(['--conditions=development', '-C', 'edge', '--watch'], '--conditions custom -C=other --conditions=development')).toEqual(['development', 'edge', 'custom', 'other']);
+    });
+
+    it('is empty without conditions', () => {
+        expect(userConditions([], undefined)).toEqual([]);
+        expect(userConditions(['--watch', '--env-file-if-exists=.env'], '--max-old-space-size=4096')).toEqual([]);
+    });
+
+    it('ignores a trailing flag without a value', () => {
+        expect(userConditions(['--conditions'], '-C')).toEqual([]);
     });
 });

@@ -16,7 +16,12 @@ import {
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { hashAgentPackage, loadAgentPackage } from '@chamvi/app';
 import { createTempDir, writeTree } from '../../utils/folder.ts';
-import { installPackage, linkPackage, writePackage } from '../../utils/packages.ts';
+import {
+    agentSource,
+    installPackage,
+    linkPackage,
+    writePackage,
+} from '../../utils/packages.ts';
 
 describe('loadAgentPackage', () => {
     let tmp: { path: string; remove: () => Promise<void> };
@@ -129,8 +134,8 @@ describe('loadAgentPackage', () => {
 
     it.each([
         ['no default export', 'export const agent = 1;\n', '@s/bad: has no default export.'],
-        ['an empty array', 'export default [];\n', '@s/bad: the default export must be defineAgent(...)\'s result or a non-empty array of them.'],
-        ['another shape', 'export default { name: 1 };\n', '@s/bad: the default export must be defineAgent(...)\'s result or a non-empty array of them.'],
+        ['an empty array', 'export default [];\n', '@s/bad: the default export must be defineAgent(...)\'s result, a non-empty array of them, or a function returning (or resolving to) one of those.'],
+        ['another shape', 'export default { name: 1 };\n', '@s/bad: the default export must be defineAgent(...)\'s result, a non-empty array of them, or a function returning (or resolving to) one of those.'],
         [
             'one name twice',
             'const a = { name: \'a\', definition: { model: \'m/x\', instructions: \'x\' } };\nexport default [a, a];\n',
@@ -209,5 +214,97 @@ describe('loadAgentPackage', () => {
         expect(urls).toHaveLength(1);
         expect(urls[0]).toMatch(/^file:.*index\.mjs$/);
         expect(loaded.agents.map((agent) => agent.name)).toEqual(['injected']);
+    });
+
+    describe('a factory as default export', () => {
+        const factoryPackage = (body: string) => installPackage(cwd, '@s/factory', { files: { 'index.mjs': `export default ${body};\n` } });
+
+        it('calls a sync factory once, after the import', async () => {
+            await factoryPackage(`function () { globalThis.__chamviFactoryCalls = (globalThis.__chamviFactoryCalls ?? 0) + 1; return ${agentSource('made')}; }`);
+
+            const loaded = await loadAgentPackage('@s/factory', { cwd });
+
+            expect(loaded.agents.map((agent) => agent.name)).toEqual(['made']);
+            expect((globalThis as { __chamviFactoryCalls?: number }).__chamviFactoryCalls).toBe(1);
+        });
+
+        it('awaits an async factory returning an array of agents', async () => {
+            await factoryPackage(`async () => [${agentSource('one')}, ${agentSource('two')}]`);
+
+            const loaded = await loadAgentPackage('@s/factory', { cwd });
+
+            expect(loaded.agents.map((agent) => agent.name)).toEqual(['one', 'two']);
+        });
+
+        it('turns a throwing factory into a load error naming the package', async () => {
+            await factoryPackage('() => { throw new Error(\'CHAMVI_X is not set\'); }');
+
+            await expect(loadAgentPackage('@s/factory', { cwd })).rejects.toThrow(InvalidAgentDefinitionError);
+            await expect(loadAgentPackage('@s/factory', { cwd })).rejects.toThrow(/^@s\/factory: .*CHAMVI_X is not set/);
+        });
+
+        it('turns a rejecting factory into a load error', async () => {
+            await factoryPackage('async () => { throw new Error(\'no config\'); }');
+
+            await expect(loadAgentPackage('@s/factory', { cwd })).rejects.toThrow(/^@s\/factory: .*no config/);
+        });
+
+        it('refuses a factory that returns no agent', async () => {
+            await factoryPackage('() => ({ nope: true })');
+
+            await expect(loadAgentPackage('@s/factory', { cwd })).rejects.toThrow(/default export must be/);
+        });
+
+        it('refuses a factory that returns another factory', async () => {
+            await factoryPackage(`() => () => (${agentSource('nested')})`);
+
+            await expect(loadAgentPackage('@s/factory', { cwd })).rejects.toThrow(/default export must be/);
+        });
+    });
+
+    describe('conditions', () => {
+        const conditionalPackage = () => installPackage(cwd, '@s/cond', {
+            manifest: { files: ['dist'], exports: { '.': { development: './src/index.mjs', default: './dist/index.mjs' } } },
+            files: {
+                'src/index.mjs': `export default ${agentSource('from-src')};\n`,
+                'dist/index.mjs': `export default ${agentSource('from-dist')};\n`,
+            },
+        });
+
+        it('resolves through the given user conditions first', async () => {
+            await conditionalPackage();
+
+            const loaded = await loadAgentPackage('@s/cond', { cwd, conditions: ['development'] });
+
+            expect(loaded.agents.map((agent) => agent.name)).toEqual(['from-src']);
+        });
+
+        it('takes the default branch without user conditions', async () => {
+            await conditionalPackage();
+
+            const loaded = await loadAgentPackage('@s/cond', { cwd, conditions: [] });
+
+            expect(loaded.agents.map((agent) => agent.name)).toEqual(['from-dist']);
+        });
+
+        it('hashes the source a development condition points at in dev', async () => {
+            const dir = await conditionalPackage();
+            const before = await loadAgentPackage('@s/cond', {
+                cwd, 
+                dev: true, 
+                conditions: ['development'], 
+            });
+
+            await writeTree(dir, { 'src/helper.mjs': 'export const x = 2;\n' });
+
+            const after = await loadAgentPackage('@s/cond', {
+                cwd, 
+                dev: true, 
+                conditions: ['development'], 
+                importer: async () => ({ default: JSON.parse('{"name":"x","definition":{"model":"m/x","instructions":"x"}}') }), 
+            });
+
+            expect(after.revision).not.toBe(before.revision);
+        });
     });
 });

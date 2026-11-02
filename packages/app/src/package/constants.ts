@@ -27,3 +27,6 @@ export const PACKAGE_HASH_IMPORTABLE_EXTENSIONS = ['.ts', '.mts', '.cts', '.json
 
 /** Always left out of a package's hash: installed packages of its own. */
 export const PACKAGE_HASH_IGNORE = ['**/node_modules/**'] as const;
+
+/** The conditions every package agent resolves with, after the user conditions (Node's ESM resolution). */
+export const ESM_CONDITIONS = ['node', 'import'] as const;

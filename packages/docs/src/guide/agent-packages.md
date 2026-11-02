@@ -25,7 +25,7 @@ Three sources, merged in this order (a package listed twice loads once):
 | `chamvi.json` | `"agents": ["@acme/review-agent"]` (the [config file](/guide/models#the-config-file), `CHAMVI_CONFIG_FILE` names another one) |
 | `CHAMVI_AGENTS` | comma-separated specifiers: `CHAMVI_AGENTS=@acme/review-agent,@acme/digest-agent` |
 
-Each specifier resolves from the app's working directory with the ESM conditions, so every listed package must be installed in the app (`dependencies`, so the image has it). `chamvi build` keeps the specifiers as strings: nothing of a package is bundled into `dist/index.mjs`.
+Each specifier resolves from the app's working directory like Node resolves an `import` from there: the process's user conditions (`--conditions`/`-C` in its arguments or `NODE_OPTIONS`) first, then `node` and `import`. With `NODE_OPTIONS=--conditions=development`, a package whose `exports` list a `development` target (its `src/`) before the build output loads that source in dev, its own imports resolve the same way, and the dev revision hashes it. Every listed package must be installed in the app (`dependencies`, so the image has it). `chamvi build` keeps the specifiers as strings: nothing of a package is bundled into `dist/index.mjs`.
 
 ## The package
 
@@ -40,6 +40,14 @@ export default defineAgent({
     instructions: 'Review the pull request.',
     tools: { /* ... */ },
 });
+```
+
+The default export may also be a factory: a function, sync or async, called once with no arguments after the import, that returns (or resolves to) an agent or an array of agents. It keeps the import free of side effects and reads the configuration at load. A throw or rejection is a load issue like a failed import (`<spec>: the default export's factory failed: <message>`), and `start --check` calls it too:
+
+```ts
+export default async function review() {
+    return createReviewAgent(readConfig(process.env));
+}
 ```
 
 - **Peers.** `@chamvi/*`, `ai` and `@ai-sdk/*` always resolve to the app's copies, also when the package installed copies of its own, so context keys, `instanceof` checks and the engine are shared. Declare them as `peerDependencies`.
