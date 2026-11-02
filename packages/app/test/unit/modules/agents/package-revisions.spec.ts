@@ -273,4 +273,38 @@ describe('package agents across restarts', () => {
         expect((await store.agentRevisions.findOne('other'))?.hash).toBe('other@1.0.0');
         expect(setup.logger.entries.some((entry) => entry.msg === ORPHANS_KEPT_MESSAGE)).toBe(true);
     });
+
+    it('removes the package agents once the last package left the list, keeping folder markers', async () => {
+        await installPackage(cwd, 'other', { agents: ['other'] });
+        await boot({ packages: ['other'] });
+        await stopAll();
+
+        const folderHash = 'ab'.repeat(32);
+
+        await store.agentRevisions.save({
+            agent: 'folder', 
+            hash: folderHash, 
+            changedAt: clock.now(), 
+        });
+
+        const runId = await queueRun(store, clock, 'other');
+
+        clock.advance(1_000);
+        await boot({ packages: [] });
+
+        expect(await statusOf(runId)).toBe('cancelled');
+        expect((await store.runs.findOne(runId))?.error?.code).toBe('agent_removed');
+        expect(await store.agentRevisions.findOne('other')).toBeUndefined();
+        expect((await store.agentRevisions.findOne('folder'))?.hash).toBe(folderHash);
+    });
+
+    it('keeps the issue of a failed package when another package exports an agent of its name', async () => {
+        await installPackage(cwd, 'broken', { agents: ['spare'] });
+        await installPackage(cwd, 'second', { agents: ['broken'] });
+
+        const setup = await boot({ packages: ['broken', 'second'], importer: (url) => (url.includes('/broken/') ? failing() : import(url)) });
+
+        expect(setup.issues()).toContainEqual(expect.objectContaining({ agent: 'broken', message: expect.stringContaining('boom at import') }));
+        expect((await store.agentRevisions.findOne('broken'))?.hash).toBe('second@1.0.0');
+    });
 });

@@ -49,7 +49,7 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
         importer,
     } = options;
 
-    // keyed by agent name, or by the specifier for a package that failed before its agents were known
+    // keyed by agent name, `<spec>\0<name>` for a clash, or `<spec>\0` for a package that failed before its agents were known
     const issues = new Map<string, AgentIssue>();
     const errors = new Map<string, unknown>();
     const claims = new Map<string, Claim>();
@@ -186,7 +186,8 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
                     });
                 } catch (error) {
                     unresolved.push(spec);
-                    record(spec, spec, relativize(messageOf(error), cwd), error);
+                    // NUL-suffixed: an agent of this name registering later must not delete the package's issue
+                    record(`${spec}\0`, spec, relativize(messageOf(error), cwd), error);
 
                     continue;
                 }

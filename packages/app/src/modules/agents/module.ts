@@ -27,6 +27,7 @@ import {
     UNRESOLVED_PACKAGE_RESERVED_MESSAGE,
 } from './constants.ts';
 import { isDirectory, removeOrphanAgents, resolveAgentsRoot } from './helpers.ts';
+import type { ILogger } from '../../logger/types.ts';
 import type { AgentCheck } from '../../module/types.ts';
 import { createPackageAgents } from './packages.ts';
 import type {
@@ -146,6 +147,15 @@ export class AgentsModule implements IModule {
         }
 
         if (root === undefined && this.packages.length === 0) {
+            if (context.mode === 'start' && !context.check) {
+                // the last package left the list: its stored package agents are removed; folder markers stay without an agents dir
+                const engine = container.resolve(AppToken.ENGINE);
+                const codeNames = new Set(context.agents.map((agent) => agent.name));
+
+                this.logCancelled(engine, container.resolve(AppToken.LOGGER));
+                await removeOrphanAgents(engine, (name, marker) => codeNames.has(name) || !isPackageMarker(marker));
+            }
+
             return;
         }
 
@@ -158,13 +168,7 @@ export class AgentsModule implements IModule {
 
         if (!context.check) {
             // before the boot: a folder or package changed while the app was down is logged too
-            this.unsubscribe = engine.on('agents.cancelled', (event) => {
-                logger.info(event.reason === 'agent_removed' ? AGENT_REMOVED_MESSAGE : AGENT_RELOADED_MESSAGE, {
-                    agent: event.name,
-                    ...(event.revision !== undefined && { revision: formatRevision(event.revision) }),
-                    cancelled: event.runIds,
-                });
-            });
+            this.logCancelled(engine, logger);
         }
 
         let role: AgentsWatcherRole = 'start';
@@ -287,6 +291,17 @@ export class AgentsModule implements IModule {
                 message: `No agent "${agent}" loaded; the package(s) ${unresolved.join(', ')} did not load and may provide it.`,
             });
         }
+    }
+
+    /** Logs every `agents.cancelled` sweep (`agent reloaded` or `agent removed`) until teardown. */
+    protected logCancelled(engine: IEngine, logger: ILogger): void {
+        this.unsubscribe = engine.on('agents.cancelled', (event) => {
+            logger.info(event.reason === 'agent_removed' ? AGENT_REMOVED_MESSAGE : AGENT_RELOADED_MESSAGE, {
+                agent: event.name,
+                ...(event.revision !== undefined && { revision: formatRevision(event.revision) }),
+                cancelled: event.runIds,
+            });
+        });
     }
 
     /** Resolves once the watcher's poll and the package retry in flight, if any, settled. */

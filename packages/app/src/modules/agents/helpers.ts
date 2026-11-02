@@ -59,10 +59,11 @@ export function nextRetryDelay(previous: number | undefined, pollMs: number): nu
 /**
  * Removes every agent with a revision marker that `keep` refuses (its
  * unsettled runs cancelled, `agent_removed`): the start boot's orphan sweep.
+ * `keep` gets the agent name and the stored marker.
  */
-export async function removeOrphanAgents(engine: IEngine, keep: (name: string) => boolean): Promise<void> {
+export async function removeOrphanAgents(engine: IEngine, keep: (name: string, marker: string) => boolean): Promise<void> {
     for (const marker of await engine.store.agentRevisions.find()) {
-        if (!keep(marker.agent)) {
+        if (!keep(marker.agent, marker.hash)) {
             await engine.removeAgent(marker.agent);
         }
     }
