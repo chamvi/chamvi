@@ -1,7 +1,13 @@
 import config from '@tada5hi/eslint-config';
 
 export default [
-    ...await config({ vue: true }),
+    ...await config({
+        vue: true,
+        // Above the shared default (60000) for what CLAUDE.md loads, because the
+        // always-loaded guides are still larger. Lower it as they shrink; never
+        // raise it to make room.
+        agentDocs: { importMaxBytes: 75000 },
+    }),
     {
         ignores: [
             '**/dist/**',
