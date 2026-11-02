@@ -21,6 +21,8 @@ export type KnowledgeCollectionDefinition = {
     sources: readonly IKnowledgeSource[];
     /** Whether search results from it are trusted (else they taint the run). */
     trusted: boolean;
+    /** Re-reads the sources this long after the last successful pass; absent: only on `sync()` or a restart. */
+    resyncMs?: number;
 };
 
 export type KnowledgeCollectionOptions = {
@@ -28,6 +30,12 @@ export type KnowledgeCollectionOptions = {
     sources: readonly IKnowledgeSource[];
     /** Default: true when every source is trusted. */
     trusted?: boolean;
+    /**
+     * Re-reads the sources this long after the last successful pass (across
+     * replicas), from KNOWLEDGE_RESYNC_MIN_MS to 2 147 483 647; default: only
+     * on `sync()` or a restart.
+     */
+    resyncMs?: number;
 };
 
 /** A declared collection with its embedding model resolved. */
@@ -38,4 +46,5 @@ export type ResolvedKnowledgeCollection = {
     embedding: EmbeddingModel;
     sources: readonly IKnowledgeSource[];
     trusted: boolean;
+    resyncMs?: number;
 };

@@ -54,12 +54,15 @@ async function seed(setup: IndexerSetup, name: string, kind: KnowledgeCollection
         start: 0,
         end: 4,
         vector: [1, 0],
+        title: 'kept.md',
     }]);
     await setup.repository.saveDocument({
         collection: name,
         id: 'kept.md',
         content: 'kept',
         hash: contentHash('kept'),
+        title: 'kept.md',
+        status: 'ready',
         generation: 1,
         updatedAt: now,
     });

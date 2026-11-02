@@ -9,9 +9,21 @@ import { UnauthorizedError } from '@ebec/http';
 import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
-import type { HttpRoute, HttpRouteContext, HttpRouteRequest } from '@chamvi/http';
+import type {
+    Authenticator,
+    HttpRoute,
+    HttpRouteContext,
+    HttpRouteRequest,
+    Principal,
+} from '@chamvi/http';
 import type { App } from 'routup';
-import { createTestApp } from '../../utils/app.ts';
+import {
+    ADMIN_TOKEN,
+    READER_TOKEN,
+    call,
+    createTestApp,
+    testAuth,
+} from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
 
 type SendOptions = {
@@ -565,5 +577,74 @@ describe('prefix routes, headers and byte bodies', () => {
         await engine.removeAgent('echo');
         await send(app, '/extra');
         expect(names).toEqual(['late']);
+    });
+});
+
+describe('extra routes: authorize()', () => {
+    function authorizing(permission?: string): HttpRoute {
+        return route({
+            handler: async (request) => {
+                const principal = await request.authorize(permission);
+
+                return { status: 200, body: { id: principal.id } };
+            },
+        });
+    }
+
+    it('answers 401 with WWW-Authenticate: Bearer without a token', async () => {
+        const { app } = createTestApp({ routes: [authorizing()] });
+        const response = await call(app, 'POST', '/extra');
+
+        expect(response.status).toBe(401);
+        expect(response.headers.get('www-authenticate')).toBe('Bearer');
+    });
+
+    it('answers 403 for a token without the permission', async () => {
+        const { app } = createTestApp({ routes: [authorizing('knowledge:read')] });
+        const response = await call(app, 'POST', '/extra', { token: READER_TOKEN });
+
+        expect(response.status).toBe(403);
+        expect(await response.json()).toMatchObject({ message: 'Missing permission "knowledge:read".' });
+    });
+
+    it('resolves the principal, and a route reading it twice authenticates once', async () => {
+        let calls = 0;
+        const counting: Authenticator = async (request) => {
+            calls++;
+
+            return testAuth(request);
+        };
+        const principals: Principal[] = [];
+        const { app } = createTestApp({
+            auth: [counting],
+            routes: [route({
+                handler: async (request) => {
+                    principals.push(await request.authorize());
+                    principals.push(await request.authorize('knowledge:write'));
+
+                    return { status: 200, body: { id: principals[0]!.id } };
+                },
+            })],
+        });
+        const response = await call(app, 'POST', '/extra', { token: ADMIN_TOKEN });
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ id: 'admin' });
+        expect(principals[1]).toBe(principals[0]);
+        expect(calls).toBe(1);
+    });
+
+    it('a route that never calls authorize() stays unauthenticated', async () => {
+        let calls = 0;
+        const counting: Authenticator = async () => {
+            calls++;
+
+            return undefined;
+        };
+        const { app } = createTestApp({ auth: [counting], routes: [route()] });
+        const response = await call(app, 'POST', '/extra');
+
+        expect(response.status).toBe(202);
+        expect(calls).toBe(0);
     });
 });

@@ -5,6 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export { KNOWLEDGE_MODULE_NAME } from './constants.ts';
+export { KNOWLEDGE_MODEL_VARIABLE, KNOWLEDGE_MODULE_NAME } from './constants.ts';
 export * from './module.ts';
 export type * from './types.ts';

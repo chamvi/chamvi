@@ -360,4 +360,57 @@ describe('the indexing lock', () => {
         expect((setup.errors[0]!.error as Error).message).toBe('lock store down');
         expect(await setup.repository.findOneCollection('docs')).toEqual(ready);
     });
+
+    it('runs one pass per interval across two replicas', async () => {
+        const setup = createIndexerSetup();
+        const model = mockEmbeddingModel();
+        let reads = 0;
+        const inner = mapSource(docs);
+        const source = defineKnowledgeSource({
+            async* documents(ctx) {
+                reads++;
+
+                yield* inner.documents(ctx);
+            },
+        });
+
+        for (const owner of ['replica-a', 'replica-b']) {
+            const knowledge = createKnowledge(setup.options({
+                owner,
+                collections: [knowledgeCollection('docs', {
+                    model,
+                    sources: [source],
+                    resyncMs: 60_000,
+                })],
+            }));
+
+            started.push(knowledge);
+            knowledge.start();
+        }
+
+        await waitForReady(setup.repository, 'docs');
+        await expect.poll(() => setup.locks.acquired.length).toBe(2);
+
+        // the loser's own first pass, once the lock is free
+        setup.clock.advance(KNOWLEDGE_RETRY_MS);
+        await expect.poll(() => reads).toBe(2);
+        await settle();
+
+        const passes: number[] = [];
+
+        for (let interval = 0; interval < 3; interval++) {
+            const before = reads;
+
+            setup.clock.advance(60_000);
+            await settle();
+            // a replica that lost the lock race tries again after KNOWLEDGE_RETRY_MS
+            setup.clock.advance(KNOWLEDGE_RETRY_MS);
+            await settle();
+            passes.push(reads - before);
+        }
+
+        expect(passes).toEqual([1, 1, 1]);
+        expect(model.calls.flatMap((call) => call.values)).toHaveLength(3);
+        expect(setup.errors).toEqual([]);
+    });
 });

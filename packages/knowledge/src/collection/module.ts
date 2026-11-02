@@ -11,13 +11,16 @@ import {
     assertCollectionName,
     isEmbeddingModelObject,
     isKnowledgeSource,
+    isResyncMs,
+    resyncMsError,
 } from './helpers.ts';
 import type { KnowledgeCollectionDefinition, KnowledgeCollectionOptions } from './types.ts';
 
 /**
  * Declares a collection: a name (the agent-name rule), the embedding model
  * its chunks are written with and at least one source. `trusted` defaults
- * to true when every source is trusted; an explicit value wins.
+ * to true when every source is trusted; an explicit value wins. `resyncMs`
+ * re-reads the sources on an interval.
  */
 export function knowledgeCollection(name: string, options: KnowledgeCollectionOptions): KnowledgeCollectionDefinition {
     assertCollectionName(name, 'knowledgeCollection()');
@@ -29,9 +32,10 @@ export function knowledgeCollection(name: string, options: KnowledgeCollectionOp
     }
 
     const {
-        model, 
-        sources, 
-        trusted, 
+        model,
+        sources,
+        trusted,
+        resyncMs,
     } = options;
 
     if (typeof model === 'string' ? model.length === 0 : !isEmbeddingModelObject(model)) {
@@ -56,10 +60,15 @@ export function knowledgeCollection(name: string, options: KnowledgeCollectionOp
         throw new InvalidAgentDefinitionError(`${label}: trusted must be a boolean.`);
     }
 
+    if (resyncMs !== undefined && !isResyncMs(resyncMs)) {
+        throw resyncMsError(label);
+    }
+
     return {
         name,
         model,
         sources: [...sources],
         trusted: trusted ?? sources.every((source) => source.trusted),
+        ...(resyncMs === undefined ? {} : { resyncMs }),
     };
 }

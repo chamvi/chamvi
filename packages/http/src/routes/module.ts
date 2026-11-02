@@ -15,6 +15,7 @@ import type {
     HttpRouteRequest,
     HttpRouteResult,
 } from '../app/types.ts';
+import { authorize } from '../auth/helpers.ts';
 import { assertContentLength, isJsonMediaType, readBodyBytes } from '../request/helpers.ts';
 import { toBody } from '../runs/helpers.ts';
 import { routeSubpath } from './helpers.ts';
@@ -22,7 +23,8 @@ import { routeSubpath } from './helpers.ts';
 /**
  * The route's view of the request: URL, method, headers and signal without
  * the body, so the limited `readBody()` (memoized: every call gets the same
- * bytes) is the only way to it.
+ * bytes) is the only way to it; `authorize()` runs the app's authenticator
+ * chain once per request, as the built-in routes do.
  */
 function toRouteRequest(event: IAppEvent, ctx: HttpContext, route: HttpRoute): HttpRouteRequest {
     const { request } = event;
@@ -35,6 +37,7 @@ function toRouteRequest(event: IAppEvent, ctx: HttpContext, route: HttpRoute): H
             headers: request.headers,
             signal: request.signal,
         }),
+        authorize: (permission) => authorize(event, ctx, permission),
         readBody: () => {
             body ??= (async () => {
                 assertContentLength(event, ctx.bodyLimit);
@@ -48,8 +51,8 @@ function toRouteRequest(event: IAppEvent, ctx: HttpContext, route: HttpRoute): H
 }
 
 /**
- * Serves the app's extra routes (`HttpAppOptions.routes`), unauthenticated:
- * each route checks its own credentials. A result without `body` answers
+ * Serves the app's extra routes (`HttpAppOptions.routes`), unauthenticated
+ * unless the handler calls `request.authorize()`. A result without `body` answers
  * an empty body (routup waits forever on a handler returning `undefined`).
  */
 export function registerRoutes(app: App, ctx: HttpContext): void {

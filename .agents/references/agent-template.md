@@ -122,4 +122,6 @@ Read-only GitHub `gh api` inspection at `3da2172220b91f8f5859b8f7ca8009abe5bf96a
 
 Checked against this file's contract map only (no fresh downstream checkout). `@chamvi/knowledge` phase 1 adds no env variable, CLI command, argument, exit code, signal, route, port, base image, sandbox RBAC or label and no model string format; the only `@chamvi/app` addition is the single-value token `AppToken.MODELS` (the engine module's model resolver), which is additive and not consumed downstream. No downstream change or PR is needed for phase 1.
 
-Pending: phase 2 (managed collections) adds the env variable `CHAMVI_KNOWLEDGE_MODEL` (the default embedding model of managed collections) and REST routes for collections; when it lands, the downstream repository needs a PR documenting the variable (and any route it exposes) before release.
+## Knowledge phase 2 contract check (2026-11-02, unreleased)
+
+Checked `main` at `80bd0bf0` (2026-11-02): `src/modules.ts` lists `uiModule()` and commented feature modules; nothing imports `@chamvi/knowledge`. Phase 2 adds the optional `CHAMVI_KNOWLEDGE_MODEL` (read only by `knowledgeModule()`, `packages/knowledge/src/module/`) and routes under `<basePath>/knowledge`. Since the template shows no knowledge, no change is required; if it gains a commented `knowledgeModule()` example, its `.env.example` should list `CHAMVI_KNOWLEDGE_MODEL` beside it. Any template PR is prepared after this PR merges, with the owner's go.

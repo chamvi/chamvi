@@ -27,38 +27,24 @@ import {
 } from './constants.ts';
 import {
     createIndexLock,
+    highestGeneration,
     lockKey,
     messageOf,
     sameDetails,
+    sameOrigin,
     servesDefinition,
+    settled,
     wait,
+    withoutPending,
 } from './helpers.ts';
-import type { CollectionLoopInput, KnowledgeIndexLock, SyncCollectionInput } from './types.ts';
-
-/** The record without a pending re-embed. */
-function withoutPending(record: KnowledgeCollection): KnowledgeCollection {
-    const rest = { ...record };
-
-    delete rest.pending;
-
-    return rest;
-}
-
-/** The record without a pending re-embed, a stored error or a backoff. */
-function settled(record: KnowledgeCollection): KnowledgeCollection {
-    const rest = withoutPending(record);
-
-    delete rest.error;
-    delete rest.failures;
-    delete rest.retryAt;
-
-    return rest;
-}
-
-/** The highest generation number the record ever gave out. */
-function highestGeneration(record: KnowledgeCollection): number {
-    return Math.max(record.generation, record.pending?.generation ?? 0, record.lastGeneration ?? 0);
-}
+import type {
+    CollectionLoopInput,
+    EmbedDocumentInput,
+    EmbeddedDocument,
+    KnowledgeIndexLock,
+    KnowledgeWakeReason,
+    SyncCollectionInput,
+} from './types.ts';
 
 /** The wait after the `failures`-th failure in a row: 5 s doubling, capped. */
 function backoffOf(failures: number): number {
@@ -85,6 +71,7 @@ function documentOf(
         ...(input.title === undefined ? {} : { title: input.title }),
         ...(input.source === undefined ? {} : { source: input.source }),
         ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
+        status: 'ready',
         generation,
         updatedAt,
     };
@@ -121,12 +108,53 @@ function assertVectors(label: string, vectors: unknown, count: number, dimension
 }
 
 /**
+ * The chunk-and-embed step of one document, shared by every pass: chunks the
+ * content, embeds the chunks in batches of EMBED_BATCH_SIZE with `model`,
+ * checks each batch's vectors against the generation's length (learned from
+ * the first batch when unknown; `learned` is called once with it) and gives
+ * every chunk the document's title and source.
+ */
+export async function embedDocument(input: EmbedDocumentInput): Promise<EmbeddedDocument> {
+    const { document, label } = input;
+    const chunks = chunkText(document.content);
+    const inputs: KnowledgeChunkInput[] = [];
+    let { dimensions } = input;
+
+    for (let offset = 0; offset < chunks.length; offset += EMBED_BATCH_SIZE) {
+        const batch = chunks.slice(offset, offset + EMBED_BATCH_SIZE);
+        const vectors = await input.embed(input.model, batch.map((chunk) => chunk.text), input.signal);
+        const learned = dimensions === undefined;
+
+        dimensions = assertVectors(label, vectors, batch.length, dimensions);
+
+        if (learned) {
+            await input.learned?.(dimensions);
+        }
+
+        for (const [index, chunk] of batch.entries()) {
+            inputs.push({
+                ...chunk,
+                vector: vectors[index]!,
+                ...(document.title === undefined ? {} : { title: document.title }),
+                ...(document.source === undefined ? {} : { source: document.source }),
+            });
+        }
+    }
+
+    return {
+        chunks: inputs,
+        ...(dimensions === undefined ? {} : { dimensions }),
+    };
+}
+
+/**
  * One pass over a declared collection: picks the generation to write (the
  * served one when model and chunker match, else the pending re-embed), embeds
  * every new or changed document into it, deletes the documents the sources no
  * longer yield (none when a source marked its read incomplete: reported once;
  * a re-embed then fails, retried on the backoff) and, for a re-embed, switches the served generation and deletes
- * the previous one. Unchanged documents cost nothing. Ends early, without an
+ * the previous one. A document with unchanged content, title and source costs
+ * nothing (its chunks carry the title and source). Ends early, without an
  * error, once `lock.renew()` answers false.
  */
 export async function syncCollection(input: SyncCollectionInput): Promise<void> {
@@ -236,7 +264,14 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
             const hash = contentHash(document.content);
             const existing = await repository.findOneDocument(name, document.id);
 
-            if (existing && existing.hash === hash && existing.generation === target) {
+            // a new title or source re-writes the chunks: each carries its own copy for search results
+            if (
+                existing &&
+                existing.hash === hash &&
+                existing.generation === target &&
+                existing.status === 'ready' &&
+                sameOrigin(existing, document)
+            ) {
                 if (!sameDetails(existing, document)) {
                     await repository.saveDocument(documentOf(name, document, hash, target, clock.now()));
                 }
@@ -244,25 +279,24 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                 continue;
             }
 
-            const chunks = chunkText(document.content);
-            const inputs: KnowledgeChunkInput[] = [];
+            const embedded = await embedDocument({
+                label,
+                model: definition.model,
+                document,
+                embed: input.embed,
+                signal,
+                ...(dimensions === undefined ? {} : { dimensions }),
+                learned: async (length) => {
+                    if (!(record.pending && target === record.pending.generation)) {
+                        return;
+                    }
 
-            for (let offset = 0; offset < chunks.length; offset += EMBED_BATCH_SIZE) {
-                const batch = chunks.slice(offset, offset + EMBED_BATCH_SIZE);
-                const vectors = await input.embed(definition.model, batch.map((chunk) => chunk.text), signal);
-                const learned = dimensions === undefined;
-
-                dimensions = assertVectors(label, vectors, batch.length, dimensions);
-
-                if (learned && record.pending && target === record.pending.generation) {
-                    record = { ...record, pending: { ...record.pending, dimensions } };
+                    record = { ...record, pending: { ...record.pending, dimensions: length } };
                     await repository.saveCollection(record);
-                }
+                },
+            });
 
-                for (const [index, chunk] of batch.entries()) {
-                    inputs.push({ ...chunk, vector: vectors[index]! });
-                }
-            }
+            ({ dimensions } = embedded);
 
             signal.throwIfAborted();
 
@@ -271,7 +305,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                 return;
             }
 
-            await repository.replaceChunks(name, document.id, target, inputs);
+            await repository.replaceChunks(name, document.id, target, embedded.chunks);
             await repository.saveDocument(documentOf(name, document, hash, target, clock.now()));
         }
     }
@@ -309,6 +343,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
             trusted: definition.trusted,
             ...(dimensions === undefined ? {} : { dimensions }),
             status: 'ready',
+            syncedAt: finishedAt,
             updatedAt: finishedAt,
         });
 
@@ -329,6 +364,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         ...(dimensions === undefined ? {} : { dimensions }),
         chunker: CHUNKER_VERSION,
         status: 'ready',
+        syncedAt: finishedAt,
         updatedAt: finishedAt,
     });
 
@@ -388,34 +424,67 @@ async function retryDelayOf(repository: IKnowledgeRepository, name: string, cloc
 }
 
 /**
- * Indexes one declared collection until it is current: syncs under the store
- * lock `knowledge:<name>`; while another owner holds it, waits
- * `KNOWLEDGE_RETRY_MS` and tries again, so this replica's own sources are
- * synced once the lock is free (an unchanged document embeds nothing). A failure is stored with the time of the next attempt
- * (still under the lock, so no replica's later sync is overwritten) and
- * reported; every replica waits for that time before it takes the lock again
- * (5 s doubling to `KNOWLEDGE_RETRY_MAX_MS` per failure in a row, across
- * replicas), except on its own first attempt. A configuration error
+ * How long until an interval pass is due (0: now): `idleMs` after the
+ * stored `syncedAt`, the end of the last successful pass on any replica.
+ */
+async function dueDelayOf(
+    repository: IKnowledgeRepository,
+    name: string,
+    clock: IClock,
+    idleMs: number | undefined,
+): Promise<number> {
+    if (idleMs === undefined) {
+        return 0;
+    }
+
+    const syncedAt = (await repository.findOneCollection(name))?.syncedAt;
+
+    if (!syncedAt) {
+        return 0;
+    }
+
+    // a clock skewed between replicas never parks the loop longer than the interval
+    return Math.min(Math.max(idleMs - (clock.now().getTime() - syncedAt.getTime()), 0), idleMs);
+}
+
+/**
+ * Keeps one collection current: runs `pass` under the store lock
+ * `knowledge:<name>`, then idles until a wake (`wake.notify()`) or, with
+ * `idleMs`, until that long after the last successful pass, and runs it
+ * again. An interval pass is skipped while the stored `syncedAt` is younger
+ * than `idleMs` (another replica ran it; checked again under the lock), so
+ * replicas share one pass per interval; a wake always runs one. While
+ * another owner holds the lock, waits `KNOWLEDGE_RETRY_MS` and tries again,
+ * so this replica's own sources are synced once the lock is free (an
+ * unchanged document embeds nothing). A failure is stored with the time of
+ * the next attempt (still under the lock, so no replica's later sync is
+ * overwritten) and reported; every replica waits for that time before it
+ * takes the lock again (5 s doubling to `KNOWLEDGE_RETRY_MAX_MS` per failure
+ * in a row, across replicas), except on its own first attempt, and a wake
+ * meanwhile waits for it too. A configuration error
  * (InvalidAgentDefinitionError) is stored and reported once and ends the
  * loop. A failed lock acquire or store read is only reported and retried on
  * this loop's own backoff. Never rejects; an abort ends it.
  */
 export async function runCollection(input: CollectionLoopInput): Promise<void> {
     const {
-        definition,
+        name,
         repository,
         locks,
         owner,
         clock,
         signal,
+        wake,
+        idleMs,
     } = input;
-    const { name } = definition;
     const key = lockKey(name);
     const context: KnowledgeErrorContext = { collection: name };
     const report = (error: unknown) => input.onError(error, context);
     // this loop's own backoff, for store failures that leave no stored retry time
     let delay = KNOWLEDGE_RETRY_MS;
     let first = true;
+    // what started the next pass: only an interval one is skipped for a younger pass
+    let reason: 'start' | Exclude<KnowledgeWakeReason, 'abort'> = 'start';
     const backOff = async () => {
         await wait(clock, delay, signal);
         delay = Math.min(delay * 2, KNOWLEDGE_RETRY_MAX_MS);
@@ -428,6 +497,20 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
         first = false;
 
         try {
+            const dueIn = reason === 'timeout' ? await dueDelayOf(repository, name, clock, idleMs) : 0;
+
+            if (dueIn > 0) {
+                const woken = await wake.wait(clock, dueIn, signal);
+
+                if (woken === 'abort') {
+                    return;
+                }
+
+                reason = woken;
+
+                continue;
+            }
+
             const retryIn = honourRetry ? await retryDelayOf(repository, name, clock) : 0;
 
             if (retryIn > 0) {
@@ -454,17 +537,21 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
             const lock = createIndexLock(locks, key, owner, clock);
             let failure: { error: unknown; stored: boolean } | undefined;
             let deferred = false;
+            let dueIn = 0;
 
             try {
                 // another replica may have failed between our wait and the acquire
                 deferred = honourRetry && await retryDelayOf(repository, name, clock) > 0;
 
-                if (!deferred) {
-                    await syncCollection({
-                        ...input,
-                        lock,
-                        onError: report,
-                    });
+                if (!deferred && reason === 'timeout') {
+                    // or run this interval's pass
+                    dueIn = await dueDelayOf(repository, name, clock, idleMs);
+                }
+
+                if (!deferred && dueIn === 0) {
+                    // a wake from here on asks for one more pass
+                    wake.clear();
+                    await input.pass(lock, report);
                 }
             } catch (error) {
                 failure = { error, stored: false };
@@ -503,7 +590,17 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
             }
 
             if (!lock.lost) {
-                return;
+                delay = KNOWLEDGE_RETRY_MS;
+
+                const woken = await wake.wait(clock, dueIn > 0 ? dueIn : idleMs, signal);
+
+                if (woken === 'abort') {
+                    return;
+                }
+
+                reason = woken;
+
+                continue;
             }
         }
 

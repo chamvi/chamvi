@@ -8,7 +8,12 @@
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { mockEmbeddingModel } from '@chamvi/test-kit';
 import { describe, expect, it } from 'vitest';
-import { defineKnowledgeSource, folder, knowledgeCollection } from '@chamvi/knowledge';
+import {
+    KNOWLEDGE_RESYNC_MIN_MS,
+    defineKnowledgeSource,
+    folder,
+    knowledgeCollection,
+} from '@chamvi/knowledge';
 
 const custom = defineKnowledgeSource({
     async* documents() {
@@ -76,5 +81,30 @@ describe('knowledgeCollection', () => {
             trusted: 'yes' as never, 
         }))
             .toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('keeps a resyncMs from KNOWLEDGE_RESYNC_MIN_MS to the longest timer', () => {
+        expect(KNOWLEDGE_RESYNC_MIN_MS).toBe(60_000);
+        expect(knowledgeCollection('docs', {
+            model: 'openai/x',
+            sources: [custom],
+            resyncMs: 60_000,
+        }).resyncMs).toBe(60_000);
+        expect(knowledgeCollection('docs', {
+            model: 'openai/x',
+            sources: [custom],
+            resyncMs: 2_147_483_647,
+        }).resyncMs).toBe(2_147_483_647);
+        expect(knowledgeCollection('docs', { model: 'openai/x', sources: [custom] })).not.toHaveProperty('resyncMs');
+    });
+
+    it('refuses resyncMs below 60 000, above 2 147 483 647 or not an integer', () => {
+        for (const resyncMs of [59_999, 2_147_483_648, 60_000.5, NaN, Infinity, '60000', null]) {
+            expect(() => knowledgeCollection('docs', {
+                model: 'openai/x',
+                sources: [custom],
+                resyncMs: resyncMs as never,
+            })).toThrow(InvalidAgentDefinitionError);
+        }
     });
 });

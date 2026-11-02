@@ -44,9 +44,17 @@ export type KnowledgeCollection = {
     failures?: number;
     /** No replica tries again before it (the backoff shared across replicas). */
     retryAt?: Date;
+    /** The end of the last successful pass. */
+    syncedAt?: Date;
     createdAt: Date;
     updatedAt: Date;
 };
+
+/**
+ * `pending`: accepted, its chunks not written for its `hash` yet; `ready`:
+ * searchable at its `generation`; `failed`: the provider refused it (`error`).
+ */
+export type KnowledgeDocumentStatus = 'pending' | 'ready' | 'failed';
 
 export type KnowledgeDocument = {
     collection: string;
@@ -57,18 +65,57 @@ export type KnowledgeDocument = {
     title?: string;
     source?: string;
     metadata?: Record<string, unknown>;
+    status: KnowledgeDocumentStatus;
+    /** Why it `failed`; absent otherwise. */
+    error?: string;
     /** The generation its chunks were written for `hash`. */
     generation: number;
     updatedAt: Date;
 };
 
-/** A passage with its vector; `start`/`end` are UTF-16 offsets into the document's content. */
+export type KnowledgeDocumentFindOptions = {
+    status?: KnowledgeDocumentStatus;
+    limit?: number;
+    offset?: number;
+};
+
+export type KnowledgeDocumentPage = {
+    data: KnowledgeDocument[];
+    /** Documents matching the filter, before `limit`/`offset`. */
+    total: number;
+};
+
+/**
+ * The version of a document `updateDocument()` writes to: its hash and the
+ * title and source its chunks carry (absent matches absent only).
+ */
+export type KnowledgeDocumentVersion = {
+    hash: string;
+    title?: string;
+    source?: string;
+};
+
+/** The fields `updateDocument()` writes; an `error` not given is removed. */
+export type KnowledgeDocumentPatch = {
+    status: KnowledgeDocumentStatus;
+    error?: string;
+    generation?: number;
+};
+
+/**
+ * A passage with its vector; `start`/`end` are UTF-16 offsets into the
+ * document's content. `title`/`source` are the document's at the time the
+ * chunk was written: search results show them, so a replaced document never
+ * shows its new details next to its old text.
+ */
 export type KnowledgeChunkInput = {
     index: number;
     text: string;
     start: number;
     end: number;
     vector: number[];
+    title?: string;
+    source?: string;
 };
 
 export type KnowledgeMatch = {
@@ -80,7 +127,9 @@ export type KnowledgeMatch = {
     text: string;
     /** Cosine similarity, 1 for the same direction. */
     score: number;
+    /** The chunk's copy of its document's title. */
     title?: string;
+    /** The chunk's copy of its document's source. */
     source?: string;
 };
 
@@ -113,6 +162,23 @@ export interface IKnowledgeRepository {
     findOneDocumentOrFail(collection: string, id: string): Promise<KnowledgeDocument>;
     /** The collection's document ids, in code-point order. */
     findDocumentIds(collection: string): Promise<string[]>;
+    /**
+     * The collection's documents (filtered by `status`), in id code-point
+     * order, paged by `offset` and `limit` (unbounded without); `total`
+     * counts the matches before paging.
+     */
+    findDocuments(collection: string, options?: KnowledgeDocumentFindOptions): Promise<KnowledgeDocumentPage>;
+    /**
+     * Applies the patch only while the stored document has that version's
+     * hash, title and source (atomic check and write); `false` for a missing
+     * document or another version.
+     */
+    updateDocument(
+        collection: string,
+        id: string,
+        version: KnowledgeDocumentVersion,
+        patch: KnowledgeDocumentPatch,
+    ): Promise<boolean>;
     /** Deletes the document and its chunks of every generation; whether the document existed. */
     deleteDocument(collection: string, id: string): Promise<boolean>;
     /** Atomically replaces the document's chunks of one generation (`[]` removes them). */

@@ -17,7 +17,7 @@ import type { Options as PrometheusPluginOptions } from '@routup/prometheus';
 import type { Options as RateLimitPluginOptions } from '@routup/rate-limit';
 import type { AppOptionsInput } from 'routup';
 import type { AgentIssue } from '../agents/types.ts';
-import type { Authenticator } from '../auth/types.ts';
+import type { Authenticator, Principal } from '../auth/types.ts';
 import type { IShutdown } from '../shutdown/types.ts';
 
 // #region options
@@ -114,6 +114,13 @@ export type HttpRouteRequest = {
     /** URL, method, headers and signal; without the body, which only readBody() reads. */
     request: Request;
     /**
+     * Runs the app's authenticators over the request, once per request (every
+     * call, and a built-in route's check, shares the result): 401 with
+     * `WWW-Authenticate: Bearer` without a principal, 403 when `permission`
+     * is given and not granted. A route that never calls it stays unauthenticated.
+     */
+    authorize(permission?: string): Promise<Principal>;
+    /**
      * The raw body, at most `bodyLimit` bytes: 413 above it (content-length
      * refused unread, else drained like readJsonBody), 415 for a non-JSON
      * media type with a non-empty body; an empty body is a 0-length array.
@@ -162,8 +169,8 @@ export type HttpRoute = {
      */
     prefix?: true;
     /**
-     * Not authenticated by the app's authenticators: the route checks its own
-     * credentials. Thrown @ebec/http and core errors render like any route's.
+     * Not authenticated by the app's authenticators unless the handler calls
+     * `request.authorize()`. Thrown @ebec/http and core errors render like any route's.
      */
     handler: (request: HttpRouteRequest, ctx: HttpRouteContext) => Promise<HttpRouteResult>;
 };
