@@ -34,6 +34,16 @@ Without `repository` the vectors live in memory, which the module warns about ou
 - **`folder(path, { extensions?, trusted? })`**: every `.md`, `.markdown`, `.mdx` and `.txt` file below `path` (resolved against the working directory when called), in path order, dot entries skipped. The document id and source are the relative POSIX path, the title the first `# ` heading outside fenced code blocks, else the file name. A symbolic link (to a file or a directory: never followed), a file that is no regular file (a FIFO, a device), a file over 1 MiB, a file that is not UTF-8 or a relative path over 255 characters is reported through the app log and skipped; the rest of the collection indexes, and a document skipped so is deleted. A subdirectory that cannot be listed and a file that cannot be read are reported and skipped too, but mark the read incomplete, so the documents they held stay indexed. A missing directory fails the boot.
 - **`defineKnowledgeSource({ kind?, trusted?, check?, documents })`**: your own source. `documents({ signal, onError, incomplete })` yields `{ id, content, title?, source?, metadata? }`. An item with an empty id, an id over 255 characters or with NUL, content that is no string, or metadata that is no plain object or cannot be cloned, is reported by its id (never its content) and skipped. Call `incomplete(reason)` when a transient failure kept documents out of this read (an API page that failed): the pass then deletes no document and a re-embed does not switch (a failure, retried on the backoff). An optional `check()` validates the source's configuration at the boot and in `start --check`; an `InvalidAgentDefinitionError` it (or `documents()`) throws is a configuration error: stored on the collection and logged once, never retried.
 
+`documents()` returns any async iterable; an `async*` function is the plain way. It gets the context on every pass, so a source that needs none of it can leave the parameter out. Each pass yields the whole set (a snapshot, not a feed of changes): content hashes keep unchanged documents from being embedded again, so a pass over a large table only costs the read.
+
+A database table your team maintains, read in pages:
+
+<<< @/snippets/knowledge-sources.ts#database
+
+A paginated API others write to (untrusted), where a failed page must not delete what was indexed:
+
+<<< @/snippets/knowledge-sources.ts#api
+
 A document id is stable: yielding it again with new content replaces the document, so a re-run never duplicates. A document no source yields any more is deleted, unless a source marked its read incomplete (reported once). When two sources yield the same id, the first is kept.
 
 ## Indexing
