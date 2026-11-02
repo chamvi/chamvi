@@ -461,13 +461,7 @@ async function readFileLayer(
     }
 
     try {
-        const { model, providers } = await readConfigFile(located.path);
-
-        return {
-            path: located.path,
-            ...(model !== undefined && { model }),
-            providers,
-        };
+        return { path: located.path, ...(await readConfigFile(located.path)) };
     } catch (error) {
         report(issues, located.named ? `${CONFIG_FILE_VARIABLE}: ${messageOf(error)}` : messageOf(error));
 

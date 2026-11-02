@@ -159,3 +159,8 @@ export function isDevMarkerOf(marker: string, versionMarker: string): boolean {
 
     return marker.startsWith(prefix) && new RegExp(`^[0-9a-f]{${DEV_HASH_LENGTH}}$`).test(marker.slice(prefix.length));
 }
+
+/** Whether a stored revision marker is a package agent's (`<name>@<version>`, dev `+<hash>`), not a folder's content hash. */
+export function isPackageMarker(marker: string): boolean {
+    return marker.includes('@');
+}

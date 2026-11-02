@@ -6,23 +6,32 @@
  */
 
 import { readFile, realpath  } from 'node:fs/promises';
-import { join, sep } from 'node:path';
+import {
+    isAbsolute,
+    join,
+    relative,
+    sep,
+} from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { Agent, AgentDefinition } from '@chamvi/core';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import type { Agent } from '@chamvi/core';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { createJiti } from 'jiti';
 import { locateMany } from 'locter';
 import { isObject } from 'smob';
 import {
+    defaultExportOf,
     hashFiles,
+    isDeclaredAgent,
     isFile,
     isHashIgnored,
     messageOf,
+    rebuildAgent,
     relativize,
     toKey,
 } from '../loader/helpers.ts';
 import {
     PACKAGE_HASH_IGNORE,
+    PACKAGE_HASH_IMPORTABLE_EXTENSIONS,
     PACKAGE_MANIFEST,
     PACKAGE_TEST_DIR,
     REVISION_MAX_LENGTH,
@@ -34,7 +43,7 @@ import {
     readManifest,
 } from './helpers.ts';
 import { pinPackageImports } from './hooks.ts';
-import type { LoadAgentPackageOptions, LoadedPackage } from './types.ts';
+import type { HashAgentPackageOptions, LoadAgentPackageOptions, LoadedPackage } from './types.ts';
 
 /**
  * Resolves the agent package `spec` from `options.cwd` (ESM conditions, the
@@ -44,7 +53,7 @@ import type { LoadAgentPackageOptions, LoadedPackage } from './types.ts';
  * The default export is an agent or a non-empty array of agents, checked
  * structurally (another `@chamvi/core` copy's agents pass) and rebuilt
  * through this copy's defineAgent(). The revision is `<name>@<version>`, in
- * dev `<name>@<version>+<12 hex of hashAgentPackage(root)>`. Every failure
+ * dev `<name>@<version>+<12 hex of hashAgentPackage(root, { entry })>`. Every failure
  * is an InvalidAgentDefinitionError naming the specifier, paths relative to
  * `cwd`.
  */
@@ -78,7 +87,7 @@ async function loadOnce(spec: string, options: LoadAgentPackageOptions): Promise
     }
 
     const versionMarker = `${name}@${version}`;
-    const revision = options.dev ? devMarker(versionMarker, await hashAgentPackage(root)) : versionMarker;
+    const revision = options.dev ? devMarker(versionMarker, await hashAgentPackage(root, { entry })) : versionMarker;
 
     if (revision.length > REVISION_MAX_LENGTH) {
         throw new InvalidAgentDefinitionError(`${spec}: the revision ${revision} is longer than ${REVISION_MAX_LENGTH} characters.`);
@@ -133,11 +142,7 @@ function importMessage(error: unknown): string {
 }
 
 function buildAgents(spec: string, mod: unknown): Agent[] {
-    if (!(isObject(mod) || typeof mod === 'function') || !('default' in mod)) {
-        throw new InvalidAgentDefinitionError(`${spec}: has no default export.`);
-    }
-
-    const declared = (mod as { default: unknown }).default;
+    const declared = defaultExportOf(mod, spec);
     const list = Array.isArray(declared) ? declared : [declared];
     const shapeError = new InvalidAgentDefinitionError(
         `${spec}: the default export must be defineAgent(...)'s result or a non-empty array of them.`,
@@ -150,8 +155,7 @@ function buildAgents(spec: string, mod: unknown): Agent[] {
     const names = new Set<string>();
 
     return list.map((item: unknown) => {
-        // structural, so an agent built by another @chamvi/core copy passes too
-        if (!isObject(item) || typeof item.name !== 'string' || !isObject(item.definition)) {
+        if (!isDeclaredAgent(item)) {
             throw shapeError;
         }
 
@@ -161,8 +165,7 @@ function buildAgents(spec: string, mod: unknown): Agent[] {
 
         names.add(item.name);
 
-        // through this copy of defineAgent, so its checks and budget defaults apply
-        return defineAgent({ ...item.definition, name: item.name } as AgentDefinition);
+        return rebuildAgent(item);
     });
 }
 
@@ -170,62 +173,66 @@ function buildAgents(spec: string, mod: unknown): Agent[] {
  * The content hash of an agent package: sha256 (hex, `hashFiles` framing)
  * over the files npm would publish. With a `files` array: its entries (a
  * folder with everything below it, `!` entries left out), `package.json` and
- * `main`; without one: every file but a top-level `test/` folder. Always
- * left out: `node_modules`, dot-entries and the docs and editor leftovers
- * of HASH_IGNORE_PATTERNS. `package.json` counts as its JSON without
+ * `main`; without one: every file but a top-level `test/` folder. With
+ * `options.entry`, also the entry's top-level folder (or the entry itself at
+ * the root), so a linked package exporting its source outside `files` is
+ * hashed by the code that runs. Always left out: `node_modules`, dot-entries
+ * and the docs and editor leftovers of HASH_IGNORE_PATTERNS (a JavaScript
+ * file counts whatever its name). `package.json` counts as its JSON without
  * `version`, so a release that only bumps the version keeps the hash.
  */
-export async function hashAgentPackage(root: string): Promise<string> {
+export async function hashAgentPackage(root: string, options: HashAgentPackageOptions = {}): Promise<string> {
     const manifest = await readManifest(root);
     const { files, main } = manifest ?? {};
-    const keys: string[] = [];
+    const keys = new Set<string>();
+    const include: string[] = [];
+    const exclude: string[] = [];
 
     const hasFiles = Array.isArray(files) && files.every((entry) => typeof entry === 'string');
 
     if (hasFiles) {
-        const include: string[] = [];
-        const exclude: string[] = [];
-
         for (const entry of files as string[]) {
             const negated = entry.startsWith('!');
             const pattern = normalizePattern(negated ? entry.slice(1) : entry);
 
             if (pattern.length > 0) {
-                (negated ? exclude : include).push(pattern, `${pattern}/**`);
+                (negated ? exclude : include).push(...await patternsOf(root, pattern));
             }
         }
 
-        if (include.length > 0) {
-            const found = await locateMany(include, {
-                cwd: root,
-                onlyFiles: true,
-                dot: false,
-                ignore: [...PACKAGE_HASH_IGNORE, ...exclude],
-            });
-
-            keys.push(...found.map((info) => toKey(root, info.path)));
-        }
-
         if (typeof main === 'string' && await isFile(join(root, main))) {
-            keys.push(normalizePattern(main));
+            keys.add(normalizePattern(main));
         }
     } else {
-        const found = await locateMany('**/*', {
+        include.push('**/*');
+        exclude.push(`${PACKAGE_TEST_DIR}/**`);
+    }
+
+    const entryTop = options.entry !== undefined ? topLevelOf(root, options.entry) : undefined;
+
+    if (entryTop !== undefined) {
+        include.push(...await patternsOf(root, entryTop));
+    }
+
+    if (include.length > 0) {
+        const found = await locateMany(include, {
             cwd: root,
             onlyFiles: true,
             dot: false,
-            ignore: [...PACKAGE_HASH_IGNORE, `${PACKAGE_TEST_DIR}/**`],
+            ignore: [...PACKAGE_HASH_IGNORE, ...exclude],
         });
 
-        keys.push(...found.map((info) => toKey(root, info.path)));
+        for (const info of found) {
+            keys.add(toKey(root, info.path));
+        }
     }
 
     if (manifest !== undefined) {
-        keys.push(PACKAGE_MANIFEST);
+        keys.add(PACKAGE_MANIFEST);
     }
 
-    const counted = keys.filter((key) => key.split('/').every((segment) => !(segment.startsWith('.') || segment === 'node_modules')) &&
-        !isHashIgnored(key));
+    const counted = [...keys].filter((key) => key.split('/').every((segment) => !(segment.startsWith('.') || segment === 'node_modules')) &&
+        !isHashIgnored(key, PACKAGE_HASH_IMPORTABLE_EXTENSIONS));
 
     return hashFiles(root, counted, (key, path) => {
         if (key === PACKAGE_MANIFEST && manifest !== undefined) {
@@ -238,6 +245,22 @@ export async function hashAgentPackage(root: string): Promise<string> {
 
         return readFile(path);
     });
+}
+
+/** A `files` entry as glob patterns: a file itself, anything else (a folder, a glob) with everything below it. */
+async function patternsOf(root: string, pattern: string): Promise<string[]> {
+    return await isFile(join(root, pattern)) ? [pattern] : [pattern, `${pattern}/**`];
+}
+
+/** The first path segment of `file` below `root` (POSIX), or undefined outside it. */
+function topLevelOf(root: string, file: string): string | undefined {
+    const rel = relative(root, file);
+
+    if (rel.length === 0 || rel.startsWith('..') || isAbsolute(rel)) {
+        return undefined;
+    }
+
+    return rel.split(sep)[0];
 }
 
 /** A `files` entry or `main` as a pattern relative to the root: a leading `./` and trailing `/` dropped. */

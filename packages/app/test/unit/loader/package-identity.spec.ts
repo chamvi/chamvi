@@ -25,18 +25,18 @@ const SCRIPT = fileURLToPath(new URL('../../fixtures/identity/packages.mjs', imp
 function decoys(prefix: string): Record<string, string> {
     const decoy = (name: string) => ({
         [`${prefix}node_modules/${name}/package.json`]: JSON.stringify({
-            name, 
-            version: '0.0.0-decoy', 
-            type: 'module', 
-            exports: { '.': './index.mjs', './test': './index.mjs' }, 
+            name,
+            version: '0.0.0-decoy',
+            type: 'module',
+            exports: { '.': './index.mjs', './test': './index.mjs' },
         }),
         [`${prefix}node_modules/${name}/index.mjs`]: `throw new Error('decoy ${name}');\n`,
     });
 
     return {
-        ...decoy('@chamvi/core'), 
-        ...decoy('@chamvi/channel-cron'), 
-        ...decoy('ai'), 
+        ...decoy('@chamvi/core'),
+        ...decoy('@chamvi/channel-cron'),
+        ...decoy('ai'),
     };
 }
 

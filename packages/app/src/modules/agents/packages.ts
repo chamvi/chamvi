@@ -209,9 +209,9 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
                     }
 
                     const claim = {
-                        spec, 
-                        agent, 
-                        loaded, 
+                        spec,
+                        agent,
+                        loaded,
                     };
 
                     // reserved against folders from here on, also when a later step fails

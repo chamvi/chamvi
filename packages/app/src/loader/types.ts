@@ -35,3 +35,9 @@ export type LoadAgentsResult = {
     agents: LoadedAgent[];
     issues: AgentLoadIssue[];
 };
+
+/** An agent as a default export declares it, checked structurally (another `@chamvi/core` copy's agent passes). */
+export type DeclaredAgent = {
+    name: string;
+    definition: Record<string, unknown>;
+};

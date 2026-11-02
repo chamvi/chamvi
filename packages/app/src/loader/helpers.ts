@@ -23,12 +23,14 @@ import {
     sep,
 } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import type { Agent, AgentDefinition } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
 import { createJiti } from 'jiti';
 import type { Jiti } from 'jiti';
 import { locateMany } from 'locter';
 import { isObject } from 'smob';
 import { HASH_IGNORE_PATTERNS, HASH_IMPORTABLE_EXTENSIONS, PINNED_PACKAGE_SCOPES } from './constants.ts';
+import type { DeclaredAgent } from './types.ts';
 
 let moduleJiti: Jiti | undefined;
 
@@ -264,14 +266,29 @@ export function defaultExportOf(mod: unknown, file: string): unknown {
 }
 
 /**
- * Whether the folder hash leaves out `file` (a relative POSIX path): its
- * basename matches HASH_IGNORE_PATTERNS and the loader cannot import it.
+ * Whether `value` has an agent's shape (`name` a string, `definition` an
+ * object), checked structurally so an agent built by another `@chamvi/core`
+ * copy passes too; folder and package agents share this rule.
  */
-export function isHashIgnored(file: string): boolean {
+export function isDeclaredAgent(value: unknown): value is DeclaredAgent {
+    return isObject(value) && typeof value.name === 'string' && isObject(value.definition);
+}
+
+/** A declared agent rebuilt through this copy of defineAgent(), so its checks and budget defaults apply. */
+export function rebuildAgent(declared: DeclaredAgent): Agent {
+    return defineAgent({ ...declared.definition, name: declared.name } as AgentDefinition);
+}
+
+/**
+ * Whether the folder hash leaves out `file` (a relative POSIX path): its
+ * basename matches HASH_IGNORE_PATTERNS and its extension is none of
+ * `importable` (default HASH_IMPORTABLE_EXTENSIONS, what the loader imports).
+ */
+export function isHashIgnored(file: string, importable: readonly string[] = HASH_IMPORTABLE_EXTENSIONS): boolean {
     const name = file.slice(file.lastIndexOf('/') + 1);
     const extension = extname(name).toLowerCase();
 
-    if ((HASH_IMPORTABLE_EXTENSIONS as readonly string[]).includes(extension)) {
+    if (importable.includes(extension)) {
         return false;
     }
 

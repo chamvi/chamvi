@@ -210,5 +210,6 @@ describe('loadEntryApp', () => {
         expect(isApp(app)).toBe(true);
         expect(app.agents).toEqual([]);
         expect(written).toEqual([DEFAULT_APP_NOTICE]);
+        expect(DEFAULT_APP_NOTICE).toContain('chamvi.json or CHAMVI_AGENTS');
     });
 });

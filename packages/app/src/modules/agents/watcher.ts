@@ -16,7 +16,12 @@ import {
     JOB_CONFLICT_HINT,
     ORPHANS_KEPT_MESSAGE,
 } from './constants.ts';
-import { isDirectory, isEmptyDirectory, nextRetryDelay } from './helpers.ts';
+import {
+    isDirectory,
+    isEmptyDirectory,
+    nextRetryDelay,
+    removeOrphanAgents,
+} from './helpers.ts';
 import { registerAgent } from './register.ts';
 import type { AgentsWatcherOptions, IAgentsWatcher } from './types.ts';
 
@@ -425,13 +430,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
 
             const folders = new Set(names);
 
-            for (const marker of await engine.store.agentRevisions.find()) {
-                if (folders.has(marker.agent) || reserved.has(marker.agent)) {
-                    continue;
-                }
-
-                await engine.removeAgent(marker.agent);
-            }
+            await removeOrphanAgents(engine, (name) => folders.has(name) || reserved.has(name));
         },
         start() {
             if (started || stopped) {

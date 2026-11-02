@@ -19,9 +19,9 @@ import { createTempDir, writeTree } from '../../utils/folder.ts';
 import { linkPackage } from '../../utils/packages.ts';
 
 const manifest = (fields: Record<string, unknown>) => `${JSON.stringify({
-    name: '@s/pkg', 
-    version: '1.0.0', 
-    ...fields, 
+    name: '@s/pkg',
+    version: '1.0.0',
+    ...fields,
 }, null, 2)}\n`;
 
 describe('hashAgentPackage', () => {
@@ -79,14 +79,56 @@ describe('hashAgentPackage', () => {
 
             await writeTree(root, {
                 'package.json': JSON.stringify({
-                    name: '@s/pkg', 
-                    version: '2.0.0', 
-                    files: ['dist', '!dist/*.map'], 
-                }), 
+                    name: '@s/pkg',
+                    version: '2.0.0',
+                    files: ['dist', '!dist/*.map'],
+                }),
             });
             expect(await hashAgentPackage(root)).toBe(before);
 
             await writeTree(root, { 'package.json': manifest({ files: ['dist', '!dist/*.map'], dependencies: { ai: '^7.0.0' } }) });
+            expect(await hashAgentPackage(root)).not.toBe(before);
+        });
+
+        it.each([
+            ['src/index.ts', 'src/index.ts'],
+            ['src/index.ts', 'src/helper.ts'],
+            ['index.ts', 'index.ts'],
+        ])('counts the folder of the entry %s outside the files field (%s)', async (entry, file) => {
+            const options = { entry: join(root, entry) };
+
+            await writeTree(root, { [file]: 'a' });
+
+            const before = await hashAgentPackage(root, options);
+
+            await writeTree(root, { [file]: 'b' });
+            expect(await hashAgentPackage(root, options)).not.toBe(before);
+        });
+
+        it('keeps the excludes and ignores within the entry folder', async () => {
+            const options = { entry: join(root, 'dist/index.mjs') };
+            const before = await hashAgentPackage(root, options);
+
+            await writeTree(root, { 'dist/index.mjs.map': '{"y":1}', 'README.md': '# again' });
+            expect(await hashAgentPackage(root, options)).toBe(before);
+            expect(before).toBe(await hashAgentPackage(root));
+        });
+
+        it.each(['dist/notes.mjs', 'dist/license.js', 'dist/readme.cjs'])('counts the JavaScript file %s named like a doc', async (file) => {
+            await writeTree(root, { [file]: 'a' });
+
+            const before = await hashAgentPackage(root);
+
+            await writeTree(root, { [file]: 'b' });
+            expect(await hashAgentPackage(root)).not.toBe(before);
+        });
+
+        it('counts a file listed in the files field', async () => {
+            await writeTree(root, { 'package.json': manifest({ files: ['index.mjs', 'dist'] }), 'index.mjs': 'a' });
+
+            const before = await hashAgentPackage(root);
+
+            await writeTree(root, { 'index.mjs': 'b' });
             expect(await hashAgentPackage(root)).not.toBe(before);
         });
 

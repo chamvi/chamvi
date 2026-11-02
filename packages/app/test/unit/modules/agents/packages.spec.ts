@@ -75,11 +75,35 @@ describe('package agents', () => {
         await installPackage(cwd, 'c', { agents: ['three'] });
         await writeTree(cwd, { 'chamvi.json': JSON.stringify({ agents: ['b'] }) });
 
-        const setup = build({ packages: ['a'], env: { CHAMVI_AGENTS: 'c,b' } });
+        // the config file is the engine module's: located from the process cwd, here named absolutely
+        const setup = build({ packages: ['a'], env: { CHAMVI_AGENTS: 'c,b', CHAMVI_CONFIG_FILE: join(cwd, 'chamvi.json') } });
 
         await setup.harness.setup();
 
         expect(setup.engine().listAgents().map((agent) => agent.name)).toEqual(['one', 'two', 'three']);
+    });
+
+    it('reads chamvi.json from the process cwd like the model settings, not the module cwd', async () => {
+        await installPackage(cwd, 'b', { agents: ['two'] });
+        await writeTree(cwd, { 'chamvi.json': JSON.stringify({ agents: ['b'] }) });
+
+        const setup = build({ agents: [codeAgent('one')] });
+
+        await setup.harness.setup();
+
+        expect(setup.engine().getAgent('two')).toBeUndefined();
+    });
+
+    it('fails on an invalid chamvi.json agents field without calling it a model setting', async () => {
+        await writeTree(cwd, { 'app.json': JSON.stringify({ agents: ['./x'] }) });
+
+        const setup = build({ env: { CHAMVI_CONFIG_FILE: join(cwd, 'app.json') } });
+        const attempt = setup.harness.setup();
+
+        await expect(attempt).rejects.toThrow(
+            'CHAMVI_CONFIG_FILE: app.json: agents[0] is no bare package specifier (a package name such as @acme/agents, no path or URL).',
+        );
+        await expect(attempt).rejects.not.toThrow('model settings');
     });
 
     it('lets a code agent win a name, the package agent being an issue', async () => {
@@ -146,9 +170,9 @@ describe('package agents', () => {
         const store = createMemoryStore({ clock });
 
         await store.agentRevisions.save({
-            agent: 'elsewhere', 
-            hash: 'h1', 
-            changedAt: clock.now(), 
+            agent: 'elsewhere',
+            hash: 'h1',
+            changedAt: clock.now(),
         });
 
         const runId = await queueRun(store, clock, 'elsewhere');
@@ -179,15 +203,15 @@ describe('package agents', () => {
         const store = createMemoryStore({ clock });
 
         await store.agentRevisions.save({
-            agent: 'elsewhere', 
-            hash: 'h1', 
-            changedAt: clock.now(), 
+            agent: 'elsewhere',
+            hash: 'h1',
+            changedAt: clock.now(),
         });
 
         const setup = build({
-            packages: ['ok'], 
-            clock, 
-            store, 
+            packages: ['ok'],
+            clock,
+            store,
         });
 
         await setup.harness.setup();

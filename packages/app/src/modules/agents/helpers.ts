@@ -7,7 +7,8 @@
 
 import { readdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { DEFAULT_AGENTS_DIR, HASH_PREFIX_LENGTH, SKILL_PREPARATION_RETRY_MAX_MS } from './constants.ts';
+import type { IEngine } from '@chamvi/core';
+import { DEFAULT_AGENTS_DIR, SKILL_PREPARATION_RETRY_MAX_MS } from './constants.ts';
 
 export async function isDirectory(path: string): Promise<boolean> {
     try {
@@ -55,7 +56,14 @@ export function nextRetryDelay(previous: number | undefined, pollMs: number): nu
     return Math.min((previous ?? pollMs) * 2, Math.max(pollMs, SKILL_PREPARATION_RETRY_MAX_MS));
 }
 
-/** A revision as a log line names it: a content hash cut to its prefix, a package marker in full. */
-export function formatRevision(revision: string): string {
-    return /^[0-9a-f]{64}$/.test(revision) ? revision.slice(0, HASH_PREFIX_LENGTH) : revision;
+/**
+ * Removes every agent with a revision marker that `keep` refuses (its
+ * unsettled runs cancelled, `agent_removed`): the start boot's orphan sweep.
+ */
+export async function removeOrphanAgents(engine: IEngine, keep: (name: string) => boolean): Promise<void> {
+    for (const marker of await engine.store.agentRevisions.find()) {
+        if (!keep(marker.agent)) {
+            await engine.removeAgent(marker.agent);
+        }
+    }
 }

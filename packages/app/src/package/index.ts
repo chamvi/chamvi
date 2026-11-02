@@ -6,4 +6,4 @@
  */
 
 export * from './module.ts';
-export type { LoadAgentPackageOptions, LoadedPackage } from './types.ts';
+export type { HashAgentPackageOptions, LoadAgentPackageOptions, LoadedPackage } from './types.ts';

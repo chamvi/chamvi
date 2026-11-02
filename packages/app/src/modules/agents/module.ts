@@ -5,21 +5,28 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, InvalidAgentDefinitionError, InvalidRunStateError } from '@chamvi/core';
+import {
+    ChamviError,
+    InvalidAgentDefinitionError,
+    InvalidRunStateError,
+    formatRevision,
+} from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { readConfigFileAgents } from '../../models/file.ts';
 import { APP_ERROR_CODE, AppToken, ModuleName } from '../../module/constants.ts';
-import { mergePackageSpecifiers } from '../../package/helpers.ts';
+import { isPackageMarker, mergePackageSpecifiers } from '../../package/helpers.ts';
 import {
     AGENTS_WATCHER_HOOK_NAME,
     AGENT_RELOADED_MESSAGE,
     AGENT_REMOVED_MESSAGE,
     NO_AGENTS_MESSAGE,
     NO_DIRECTORY_MESSAGE,
+    ORPHANS_KEPT_MESSAGE,
+    UNRESOLVED_PACKAGE_RESERVED_MESSAGE,
 } from './constants.ts';
-import { formatRevision, isDirectory, resolveAgentsRoot } from './helpers.ts';
+import { isDirectory, removeOrphanAgents, resolveAgentsRoot } from './helpers.ts';
 import type { AgentCheck } from '../../module/types.ts';
 import { createPackageAgents } from './packages.ts';
 import type {
@@ -41,7 +48,9 @@ import { createAgentsWatcher } from './watcher.ts';
  * start step runs (a folder changed while the app was down cancels its old
  * runs once, logged `agent reloaded`/`agent removed` with the ids of the
  * runs whose cancel went through (a run on another replica may still
- * complete); in start mode a marker without a folder removes that agent), and the
+ * complete); in start mode a marker without a folder, code or package agent
+ * removes that agent, also without a dir, unless a package did not load,
+ * whose stored package markers also keep folders of their name out), and the
  * watcher polls every `CHAMVI_AGENTS_POLL_MS` from `started` until
  * `stopping` or `teardown`, awaiting a reload in flight. A job never cancels:
  * a revision conflict of the job's own agent fails the job
@@ -89,8 +98,8 @@ export class AgentsModule implements IModule {
 
         const { dir, packages } = container.resolve(AppToken.CONFIG).agents;
 
-        // an invalid chamvi.json already failed the engine module's model settings
-        this.packages = mergePackageSpecifiers(context.packages, await readConfigFileAgents(context.env, this.cwd), packages);
+        // the model settings' config file (the process cwd, never options.cwd); an unreadable one already failed the engine module
+        this.packages = mergePackageSpecifiers(context.packages, await readConfigFileAgents(context.env, process.cwd()), packages);
         // a dir named explicitly must exist, checked in onReady
         this.root = await resolveAgentsRoot(dir, this.cwd);
 
@@ -194,6 +203,8 @@ export class AgentsModule implements IModule {
         }
 
         let watcher: IAgentsWatcher | undefined;
+        const claimed = packageAgents?.reserved() ?? new Map<string, string>();
+        const unresolved = packageAgents?.unresolved() ?? [];
 
         if (root !== undefined) {
             const reserved = new Map<string, string>();
@@ -202,18 +213,34 @@ export class AgentsModule implements IModule {
                 reserved.set(name, `${name}: a code agent has this name; the folder is not loaded.`);
             }
 
-            for (const [name, message] of packageAgents?.reserved() ?? []) {
+            for (const [name, message] of claimed) {
                 reserved.set(name, message);
+            }
+
+            if (unresolved.length > 0 && role !== 'check') {
+                // a package that did not load may hold a stored package agent: a folder must not take it over (and cancel its runs)
+                for (const marker of await engine.store.agentRevisions.find()) {
+                    if (isPackageMarker(marker.hash) && !reserved.has(marker.agent)) {
+                        reserved.set(marker.agent, `${marker.agent}: ${UNRESOLVED_PACKAGE_RESERVED_MESSAGE}`);
+                    }
+                }
             }
 
             watcher = createAgentsWatcher({
                 ...common,
                 root,
                 reserved,
-                removeOrphans: (packageAgents?.unresolved().length ?? 0) === 0,
+                removeOrphans: unresolved.length === 0,
             });
             this.watcher = watcher;
             await watcher.boot();
+        } else if (packageAgents !== undefined && role === 'start') {
+            // without an agents dir the watcher's orphan sweep runs here: a package agent gone from its package or the list is removed
+            if (unresolved.length > 0) {
+                logger.warn(ORPHANS_KEPT_MESSAGE);
+            } else {
+                await removeOrphanAgents(engine, (name) => codeNames.has(name) || claimed.has(name));
+            }
         }
 
         if (context.job) {

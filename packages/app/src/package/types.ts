@@ -19,7 +19,7 @@ export type LoadedPackage = {
     root: string;
     /**
      * The revision its agents are registered at: `<name>@<version>`, in dev
-     * `<name>@<version>+<12 hex of hashAgentPackage(root)>`.
+     * `<name>@<version>+<12 hex of hashAgentPackage(root, { entry })>`.
      */
     revision: string;
     /** Dev only: the production marker `<name>@<version>`, moved to the dev marker without a cancel. */
@@ -35,6 +35,16 @@ export type LoadAgentPackageOptions = {
     dev?: boolean;
     /** Imports the entry by file URL. Default: a native `import()` with the app's packages pinned. */
     importer?: (url: string) => Promise<unknown>;
+};
+
+export type HashAgentPackageOptions = {
+    /**
+     * The resolved entry file, absolute. Its top-level folder below the root
+     * (or the file itself at the root) is hashed too, also outside `files`:
+     * a linked workspace package may export its source while `files` names
+     * the build output.
+     */
+    entry?: string;
 };
 
 /** createApp's agent entries split into code agents and package specifiers. */

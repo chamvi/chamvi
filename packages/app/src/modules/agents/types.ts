@@ -11,7 +11,11 @@ import type { ILogger } from '../../logger/types.ts';
 import type { AgentCheck } from '../../module/types.ts';
 
 export type AgentsModuleOptions = {
-    /** The folder the agents dir and the agent packages resolve from. Default `process.cwd()`. */
+    /**
+     * The folder the agents dir and the agent packages resolve from. Default
+     * `process.cwd()`. The config file's `agents` are always read from the
+     * process cwd, the file the engine module reads the model settings from.
+     */
     cwd?: string;
     /** Imports an agent package's entry by file URL. Default: a native `import()` with the app's packages pinned. */
     importer?: (url: string) => Promise<unknown>;
@@ -98,7 +102,7 @@ export type RegisterAgentInput = {
     signal?: AbortSignal;
 };
 
-export type RegisterOutcome =    | { kind: 'registered' } |
+export type RegisterOutcome = { kind: 'registered' } |
     { kind: 'checked' } |
     { kind: 'issue'; message: string } |
     { kind: 'conflict'; message: string } |

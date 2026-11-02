@@ -17,7 +17,13 @@ import {
     it,
 } from 'vitest';
 import { hashAgentPackage } from '@chamvi/app';
-import { START, buildAgentsDirHarness, queueRun } from '../../../utils/agents-dir.ts';
+import { ORPHANS_KEPT_MESSAGE } from '../../../../src/modules/agents/constants.ts';
+import {
+    START,
+    agentFile,
+    buildAgentsDirHarness,
+    queueRun,
+} from '../../../utils/agents-dir.ts';
 import type { AgentsDirHarnessOptions } from '../../../utils/agents-dir.ts';
 import { createTempDir, writeTree } from '../../../utils/folder.ts';
 import type { Harness } from '../../../utils/harness.ts';
@@ -182,12 +188,89 @@ describe('package agent revisions in a job', () => {
         await installPackage(cwd, '@s/greeter', { version: '2.0.0' });
 
         const setup = await boot({
-            mode: 'job', 
-            job: { agent: 'other' }, 
-            packages: ['@s/greeter', 'other'], 
+            mode: 'job',
+            job: { agent: 'other' },
+            packages: ['@s/greeter', 'other'],
         });
 
         expect(setup.engine().getAgent('other')).toBeDefined();
         expect(setup.issues().map((issue) => issue.agent)).toEqual(['greeter']);
+    });
+});
+
+describe('package agents across restarts', () => {
+    const failing = () => Promise.reject(new Error('boom at import'));
+
+    it('keeps a folder of the same name from taking over while the package does not load', async () => {
+        const root = join(cwd, 'agents');
+
+        await installPackage(cwd, '@s/greeter');
+        await writeTree(root, { 'greeter/agent.ts': agentFile('from folder') });
+        await boot({ root });
+        await stopAll();
+
+        const runId = await queueRun(store, clock, 'greeter');
+
+        clock.advance(1_000);
+
+        const setup = await boot({ root, importer: failing });
+
+        expect(await statusOf(runId)).toBe('queued');
+        expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe('@s/greeter@1.0.0');
+        expect(setup.engine().getAgent('greeter')).toBeUndefined();
+        expect(setup.issues()).toContainEqual(expect.objectContaining({
+            agent: 'greeter',
+            message: 'greeter: a package that did not load may provide this agent; the folder is not loaded.',
+        }));
+    });
+
+    it('removes a package agent that is gone without an agents dir', async () => {
+        await installPackage(cwd, '@s/greeter', { agents: ['greeter', 'other'] });
+        await boot();
+        await stopAll();
+
+        const runId = await queueRun(store, clock, 'other');
+
+        clock.advance(1_000);
+        await installPackage(cwd, '@s/greeter', { version: '2.0.0', agents: ['greeter'] });
+        // a query busts Node's module cache, as a new process would
+        await boot({ importer: (url) => import(`${url}?v=2`) });
+
+        expect(await statusOf(runId)).toBe('cancelled');
+        expect((await store.runs.findOne(runId))?.error?.code).toBe('agent_removed');
+        expect(await store.agentRevisions.findOne('other')).toBeUndefined();
+        expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe('@s/greeter@2.0.0');
+    });
+
+    it('removes the agents of a package dropped from the list without an agents dir', async () => {
+        await installPackage(cwd, '@s/greeter');
+        await installPackage(cwd, 'other', { agents: ['other'] });
+        await boot({ packages: ['@s/greeter', 'other'] });
+        await stopAll();
+
+        const runId = await queueRun(store, clock, 'other');
+
+        clock.advance(1_000);
+        await boot();
+
+        expect(await statusOf(runId)).toBe('cancelled');
+        expect(await store.agentRevisions.findOne('other')).toBeUndefined();
+    });
+
+    it('keeps every marker while a package does not load, without an agents dir', async () => {
+        await installPackage(cwd, '@s/greeter');
+        await installPackage(cwd, 'other', { agents: ['other'] });
+        await boot({ packages: ['@s/greeter', 'other'] });
+        await stopAll();
+
+        const runId = await queueRun(store, clock, 'other');
+
+        clock.advance(1_000);
+
+        const setup = await boot({ packages: ['@s/greeter', 'other'], importer: (url) => (url.includes('/other/') ? failing() : import(url)) });
+
+        expect(await statusOf(runId)).toBe('queued');
+        expect((await store.agentRevisions.findOne('other'))?.hash).toBe('other@1.0.0');
+        expect(setup.logger.entries.some((entry) => entry.msg === ORPHANS_KEPT_MESSAGE)).toBe(true);
     });
 });

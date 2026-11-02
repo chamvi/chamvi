@@ -623,21 +623,10 @@ describe('readConfigFile', () => {
         await expect(readConfigFile(path)).resolves.toEqual({ providers: {} });
     });
 
-    it('returns the agent packages', async () => {
-        const path = await file({ agents: ['@acme/triage', 'greeter/sub'] });
+    it('leaves the agents field to readConfigFileAgents', async () => {
+        const path = await file({ agents: './not-checked-here' });
 
-        await expect(readConfigFile(path)).resolves.toEqual({ providers: {}, agents: ['@acme/triage', 'greeter/sub'] });
-    });
-
-    it.each([
-        [{ agents: 'pkg' }, 'chamvi.json: agents must be an array of package names.'],
-        [{ agents: ['ok', './local'] }, 'chamvi.json: agents[1] is no bare package specifier'],
-        [{ agents: [{ package: 'pkg' }] }, 'chamvi.json: agents[0] is no bare package specifier'],
-        [{ agents: ['a', 'a'] }, 'chamvi.json: agents lists the package a twice.'],
-    ])('refuses agents %j', async (content, message) => {
-        const path = await file(content);
-
-        await expect(readConfigFile(path)).rejects.toThrow(message);
+        await expect(readConfigFile(path)).resolves.toEqual({ providers: {} });
     });
 });
 
@@ -666,6 +655,28 @@ describe('readConfigFileAgents', () => {
     it('has none without a file', async () => {
         await expect(readConfigFileAgents({}, cwd)).resolves.toEqual([]);
     });
+
+    it('returns the agent packages in order', async () => {
+        await writeFile(join(cwd, 'chamvi.json'), JSON.stringify({ agents: ['@acme/triage', 'greeter/sub'] }));
+        await expect(readConfigFileAgents({}, cwd)).resolves.toEqual(['@acme/triage', 'greeter/sub']);
+    });
+
+    it.each([
+        [{ agents: 'pkg' }, 'chamvi.json: agents must be an array of package names.'],
+        [{ agents: ['ok', './local'] }, 'chamvi.json: agents[1] is no bare package specifier'],
+        [{ agents: [{ package: 'pkg' }] }, 'chamvi.json: agents[0] is no bare package specifier'],
+        [{ agents: ['a', 'a'] }, 'chamvi.json: agents lists the package a twice.'],
+    ])('refuses agents %j', async (content, message) => {
+        await writeFile(join(cwd, 'chamvi.json'), JSON.stringify(content));
+        await expect(readConfigFileAgents({}, cwd)).rejects.toThrow(message);
+    });
+
+    it('names CHAMVI_CONFIG_FILE for a named file', async () => {
+        await writeFile(join(cwd, 'app.json'), JSON.stringify({ agents: ['./x'] }));
+        await expect(readConfigFileAgents({ CHAMVI_CONFIG_FILE: 'app.json' }, cwd)).rejects.toThrow(
+            'CHAMVI_CONFIG_FILE: app.json: agents[0] is no bare package specifier',
+        );
+    });
 });
 
 describe('readModelSettings with agents in the file', () => {
@@ -679,13 +690,11 @@ describe('readModelSettings with agents in the file', () => {
         await rm(cwd, { recursive: true, force: true });
     });
 
-    it('reports an invalid agents field as one issue', async () => {
+    it('leaves an invalid agents field to the agents module', async () => {
         await writeFile(join(cwd, 'chamvi.json'), JSON.stringify({ agents: ['./x'] }));
 
         const { issues } = await readModelSettings({ env: {}, cwd });
 
-        expect(issues.map((issue) => issue.message)).toEqual([
-            'chamvi.json: agents[0] is no bare package specifier (a package name such as @acme/agents, no path or URL).',
-        ]);
+        expect(issues).toEqual([]);
     });
 });

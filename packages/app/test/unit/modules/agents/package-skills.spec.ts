@@ -78,11 +78,11 @@ function build(prepare: () => Promise<void>, options: { mode?: 'start' | 'job'; 
                     default: {
                         name: 'skilled',
                         definition: {
-                            model: 'test/model', 
-                            instructions: 'x', 
-                            skills, 
-                        }, 
-                    }, 
+                            model: 'test/model',
+                            instructions: 'x',
+                            skills,
+                        },
+                    },
                 };
             }
 

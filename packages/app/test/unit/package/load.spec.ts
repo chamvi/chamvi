@@ -77,9 +77,9 @@ describe('loadAgentPackage', () => {
         const loaded = await loadAgentPackage('@s/agents/triage', { cwd });
 
         expect(loaded).toMatchObject({
-            spec: '@s/agents/triage', 
-            name: '@s/agents', 
-            revision: '@s/agents@1.0.0', 
+            spec: '@s/agents/triage',
+            name: '@s/agents',
+            revision: '@s/agents@1.0.0',
         });
         expect(loaded.agents.map((agent) => agent.name)).toEqual(['triage']);
     });
@@ -94,6 +94,37 @@ describe('loadAgentPackage', () => {
         expect(loaded.root).toBe(await import('node:fs/promises').then((fs) => fs.realpath(join(tmp.path, 'ws/greeter'))));
         expect(loaded.revision).toBe(`@s/greeter@0.3.0+${hash.slice(0, 12)}`);
         expect(loaded.formerRevision).toBe('@s/greeter@0.3.0');
+    });
+
+    it('hashes the source a linked package exports outside its files field', async () => {
+        const dir = join(tmp.path, 'ws/greeter');
+
+        await writePackage(dir, '@s/greeter', {
+            manifest: { files: ['dist'], exports: './src/index.mjs' },
+            files: {
+                'src/index.mjs': 'export { default } from \'./agent.mjs\';\n',
+                'src/agent.mjs': 'export default { name: \'greeter\', definition: { model: \'test/model\', instructions: \'v1\' } };\n',
+            },
+        });
+        await linkPackage(cwd, '@s/greeter', dir);
+
+        // the import is stubbed: Node caches the entry, a new process would not
+        const importer = () => Promise.resolve({ default: { name: 'greeter', definition: { model: 'test/model', instructions: 'x' } } });
+        const before = await loadAgentPackage('@s/greeter', {
+            cwd,
+            dev: true,
+            importer,
+        });
+
+        await writeTree(dir, { 'src/agent.mjs': 'export default { name: \'greeter\', definition: { model: \'test/model\', instructions: \'v2\' } };\n' });
+
+        const after = await loadAgentPackage('@s/greeter', {
+            cwd,
+            dev: true,
+            importer,
+        });
+
+        expect(after.revision).not.toBe(before.revision);
     });
 
     it.each([

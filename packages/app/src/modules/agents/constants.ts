@@ -17,6 +17,9 @@ export const NO_AGENTS_MESSAGE = `the app has no agents: pass them or agent pack
 /** Logged (warn) by a start's boot instead of removing orphan markers while a package did not load. */
 export const ORPHANS_KEPT_MESSAGE = 'a package agent did not load; no agent is removed';
 
+/** The issue of a folder named like a stored package marker while a package did not load. */
+export const UNRESOLVED_PACKAGE_RESERVED_MESSAGE = 'a package that did not load may provide this agent; the folder is not loaded.';
+
 export const NO_DIRECTORY_MESSAGE = 'CHAMVI_AGENTS_DIR must name a directory.';
 
 /** How often the boot loads a folder that changes while it is read before it leaves it to the watcher. */
@@ -33,9 +36,6 @@ export const AGENT_RELOADED_MESSAGE = 'agent reloaded';
 
 /** Logged (info) once per sweep when a removal cancelled the agent's unsettled runs. */
 export const AGENT_REMOVED_MESSAGE = 'agent removed';
-
-/** How many characters of a folder hash a log line or a message names. */
-export const HASH_PREFIX_LENGTH = 12;
 
 /** Appended to a job-role revision conflict. */
 export const JOB_CONFLICT_HINT = 'A job never reloads an agent: start the app to apply the change.';

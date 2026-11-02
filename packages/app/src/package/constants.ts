@@ -22,5 +22,8 @@ export const PACKAGE_MANIFEST = 'package.json';
 /** The top-level folder the hash leaves out of a package without a `files` field. */
 export const PACKAGE_TEST_DIR = 'test';
 
+/** The extensions a package's hash counts even when the basename looks like a doc (`notes.mjs`): a package runs JavaScript too. */
+export const PACKAGE_HASH_IMPORTABLE_EXTENSIONS = ['.ts', '.mts', '.cts', '.json', '.js', '.mjs', '.cjs'] as const;
+
 /** Always left out of a package's hash: installed packages of its own. */
 export const PACKAGE_HASH_IGNORE = ['**/node_modules/**'] as const;
