@@ -51,20 +51,21 @@ The wrapper replaces the SDK's `processMessage` on the `ChatInstance` it hands t
 ```ts
 interface IChatPlatform {
     online?(): boolean;
-    prepare?(input: ChatPlatformSend): () => Promise<unknown>;
+    prepare?(input: ChatPlatformSend): ChatPlatformPost;
     conversationTarget?(incoming: ChatIncoming, payload: ChatPayload): ConversationTarget | undefined;
 }
 type ChatPlatformSend = { adapter: string; threadId: string; text: string; key: string };
+type ChatPlatformPost = (signal: AbortSignal) => Promise<unknown>;
 ```
 
 <<< @/snippets/chat.ts#platform
 
-A platform package builds its `Chat`, its wrapped adapter and a `chatChannel()` with the public options, and passes what only its transport knows as `platform`. Every hook is optional and called on the platform object; a missing one keeps the default. The channel checks it at construction (`InvalidAgentDefinitionError` for one that is no object, or a hook that is no function). The socket lifecycle stays with `connect`/`disconnect`, the message policy with `allowMessage`/`resolveInvoker`.
+A platform package builds its `Chat`, its wrapped adapter and a `chatChannel()` with the public options, and passes what only its transport knows as `platform`. Every hook is optional and called on the platform object; a missing one keeps the default. The channel checks it at construction (`InvalidAgentDefinitionError` for one that is no object, a hook that is no function, or a plain object with a key that is no hook; a class instance may keep state in its own fields). The socket lifecycle stays with `connect`/`disconnect`, the message policy with `allowMessage`/`resolveInvoker`.
 
 | Hook | Runs | Answers |
 |---|---|---|
 | `online()` | Per send, after `prepare`, only while the channel is started | False refuses the send (`chat_request`, nothing posted). Default true |
-| `prepare(input)` | Per send, after the address decoded and the message rendered, before `online` | A throw refuses the target (its error reaches the caller as is, nothing goes out); else the post the channel calls once and waits for, bounded by `timeoutMs` and the send's signal (a failure is a `chat_request`, a late outcome goes to `onError`). `key` is `ChannelMessage.key`, the same on every retry. Default the adapter's `postMessage(threadId, { raw: text })` |
+| `prepare(input)` | Per send, after the address decoded and the message rendered, before `online` | A throw refuses the target (its error reaches the caller as is, nothing goes out); else the post (`ChatPlatformPost`) the channel calls once and waits for, bounded by `timeoutMs` and the send's signal. The post gets a signal that aborts at whichever comes first, so it can cancel its request; a failure is a `chat_request`, a late outcome goes to `onError` (not a rejection with that abort reason). `key` is `ChannelMessage.key`, the same on every retry. Default the adapter's `postMessage(threadId, { raw: text })` |
 | `conversationTarget(incoming, payload)` | Per agent with `conversation`, after `allowMessage`, the text checks and `resolveInvoker` (never for a refused message) | The conversation identity; `undefined` refuses that agent's dispatch (`chat_intake_failed`, the other agents still run), a throw fails the message. Default from the payload, as in [Memory and trust](#memory-and-trust) |
 
 ### Intake

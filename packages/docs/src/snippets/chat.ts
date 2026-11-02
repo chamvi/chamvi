@@ -23,7 +23,7 @@ declare const state: StateAdapter;
 // any Chat SDK adapter of a webhook platform
 declare const platformAdapter: Adapter;
 // a platform client of your own
-declare const client: { connected: boolean; send(threadId: string, text: string, messageId: string): Promise<void> };
+declare const client: { connected: boolean; send(threadId: string, text: string, messageId: string, signal: AbortSignal): Promise<void> };
 declare function showQr(qr: string): void;
 
 const approvalUrl = ({ runId, approvalId }: { runId: string; approvalId: string }) => `https://chamvi.example/ui/approvals?run=${encodeURIComponent(runId)}&approval=${encodeURIComponent(approvalId)}`;
@@ -53,12 +53,13 @@ export const channel = chatChannel({
 export const platform: IChatPlatform = {
     // sends go out only while the client is connected
     online: () => client.connected,
-    // the client posts itself, with a message id derived from the message key
+    // the client posts itself, with a message id derived from the message key;
+    // the signal aborts at the send's deadline or when the channel stops waiting
     prepare: ({
         threadId,
         text,
         key,
-    }) => () => client.send(threadId, text, key),
+    }) => (signal) => client.send(threadId, text, key, signal),
     // the conversation of a message for an agent with `conversation`
     conversationTarget: (_incoming, payload) => ({
         account: 'team',

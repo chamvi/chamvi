@@ -17,6 +17,8 @@ Last checked against the codebase and GitHub on **2026-10-30**.
 | `@chamvi/sandbox` | Sandbox contracts, path, repository and limit rules, run-scoped recoverable workspaces, bash-first credentials and bounded, path-scoped repository instructions. See [Workspaces & Coding](/guide/workspaces) |
 | `@chamvi/sandbox-local`, `@chamvi/sandbox-docker`, `@chamvi/sandbox-k8s` | Workspace providers: a temporary directory (development), a container per workspace, a pod per workspace (root inside, strict at the edge, a hardened mode, a shared package cache); the `ghcr.io/chamvi/sandbox-dev` image with mise for any toolchain |
 | `@chamvi/channel-openclaw` | The OpenClaw channel: messages and approval requests into an OpenClaw chat through its hooks endpoint, with an `Idempotency-Key`. See [OpenClaw](/deployment/openclaw) |
+| `@chamvi/chat` | Chat channels on the Chat SDK: `chatChannel()` over wrapped adapters, policy-first deduplicated intake with conversation binding, text and approval-link replies, webhook adapters on the channel mount, and the public platform seam (`IChatPlatform`) platform packages build on. See [@chamvi/chat](/reference/chat) |
+| `@chamvi/chat-whatsapp` | WhatsApp Web on Baileys as a chat channel: a sender and group policy, a caller-supplied auth lease, reconnect backoff and QR pairing. See [WhatsApp](/deployment/whatsapp) |
 | `@chamvi/coding` | Coding tools (`read_file`, `write_file`, `edit_file`, `grep`, `list_files`, `bash`, `git_diff`) over a run's workspaces and the `ICodingBackend` contract |
 | `@chamvi/tool-web` | `web_fetch` behind an address check, through a hapic client with the proxy from the environment. See [Web research tools](/guide/tools#web-research-tools) |
 | `@chamvi/ui` | Vue 3 dashboard served by `uiRoutes()`: an agents overview, runs started from the agent page, runs with live steps, an approvals inbox, agent state, schedules |
@@ -56,7 +58,6 @@ When Renovate opens a pull request, an agent reads the changelog of the bumped p
 | Coding backend on the own tools | Planned (M1) | An `ICodingBackend` that runs the coding tools in a nested tool loop |
 | `@chamvi/coding-claude-code` | Planned (M3) | A coding backend that runs Claude Code inside the sandbox |
 | `@chamvi/mail` | Planned (M2) | IMAP channel and tools |
-| `@chamvi/chat` | Planned; older PR [#32](https://github.com/chamvi/chamvi/pull/32) remains open | Native Chat SDK channels and WhatsApp transport; conversation memory is implemented separately |
 
 ## Remaining framework work
 

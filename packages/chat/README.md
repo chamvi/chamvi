@@ -151,10 +151,10 @@ A platform package (such as [`@chamvi/chat-whatsapp`](https://www.npmjs.com/pack
 | Hook | Runs | Answers |
 |---|---|---|
 | `online()` | per send, after `prepare`, only while the channel is started | false refuses the send (`chat_request`, nothing posted); default true |
-| `prepare({ adapter, threadId, text, key })` | per send, after the address decoded and the message rendered, before `online` | a throw refuses the target (its error as is); else the post the channel calls once, bounded by `timeoutMs` (a failure a `chat_request`); `key` is the message key, so a transport can derive a stable message id. Default the adapter's `postMessage(threadId, { raw: text })` |
+| `prepare({ adapter, threadId, text, key })` | per send, after the address decoded and the message rendered, before `online` | a throw refuses the target (its error as is); else the post `(signal) => Promise` the channel calls once, bounded by `timeoutMs` and the send's signal (a failure a `chat_request`); its `signal` aborts at whichever comes first, so the platform can cancel its request; `key` is the message key, so a transport can derive a stable message id. Default the adapter's `postMessage(threadId, { raw: text })` |
 | `conversationTarget(incoming, payload)` | per agent with `conversation`, after `allowMessage`, the text checks and `resolveInvoker` | the conversation identity; undefined refuses that agent (`chat_intake_failed`), a throw fails the message. Default from the payload |
 
-The channel checks the platform at construction (`InvalidAgentDefinitionError` for one that is no object or a hook that is no function). Its socket lifecycle stays with `connect`/`disconnect`, its message policy with `allowMessage`/`resolveInvoker`.
+The channel checks the platform at construction (`InvalidAgentDefinitionError` for one that is no object, a hook that is no function, or a plain object with a key that is no hook). Its socket lifecycle stays with `connect`/`disconnect`, its message policy with `allowMessage`/`resolveInvoker`.
 
 ## Subscriptions and replies
 
@@ -202,7 +202,7 @@ export default createApp({
 | Export | Entry |
 |---|---|
 | `chatChannel(options)`, `createChatIngressAdapter(adapter)`, `chat`, `chatAddress()`, `createChatSubscription()` | `@chamvi/chat` |
-| Types `ChatChannelOptions`, `ChatChannel`, `ChatPayload`, `ChatEvent`, `ChatIncoming`, `ChatIngress`, `ChatApprovalRef`, `IChatPlatform`, `ChatPlatformSend` | `@chamvi/chat` |
+| Types `ChatChannelOptions`, `ChatChannel`, `ChatPayload`, `ChatEvent`, `ChatIncoming`, `ChatIngress`, `ChatApprovalRef`, `IChatPlatform`, `ChatPlatformSend`, `ChatPlatformPost` | `@chamvi/chat` |
 | `CHAT_CHANNEL_NAME` `'chat'`, `CHAT_TEXT_MAX_CHARS` 4096, `CHAT_TIMEOUT_MS` 30 000, `CHAT_BODY_LIMIT_BYTES` 1 MiB, `CHAT_WEBHOOK_TIMEOUT_MS` 30 000, `CHAT_STOP_TIMEOUT_MS` 30 000, `CHAT_EVENTS`, `DEFAULT_CHAT_EVENTS`, `CHAT_ADDRESS_PREFIX` | `@chamvi/chat` |
 | Error codes `chat_request`, `chat_intake_failed`, `chat_stop_timeout` (`CHAT_*_ERROR_CODE`) | `@chamvi/chat` |
 | `chatModule(options)`, `ChatModule` | `@chamvi/chat/module` |

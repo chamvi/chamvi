@@ -46,3 +46,6 @@ export const CHANNEL_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
 /** The longest channel name. */
 export const CHANNEL_NAME_MAX_LENGTH = 64;
+
+/** The hooks of IChatPlatform: a plain-object platform holds no other key. */
+export const PLATFORM_HOOKS = ['online', 'prepare', 'conversationTarget'] as const;

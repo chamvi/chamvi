@@ -26,12 +26,13 @@ import type {
     IEngine,
     TriggerEnvelope,
 } from '@chamvi/core';
-import { CHAT_REQUEST_ERROR_CODE, chatAddress } from '@chamvi/chat';
+import { CHAT_REQUEST_ERROR_CODE, CHAT_TIMEOUT_MS, chatAddress } from '@chamvi/chat';
 import type {
     ChatChannel,
     ChatChannelOptions,
     ChatIncoming,
     ChatPayload,
+    ChatPlatformPost,
     ChatPlatformSend,
     IChatPlatform,
 } from '@chamvi/chat';
@@ -88,6 +89,12 @@ class FakePlatform implements IChatPlatform {
 
     readonly sent: ChatPlatformSend[] = [];
 
+    /** the signal each post got */
+    readonly signals: AbortSignal[] = [];
+
+    /** set: the post waits until its signal aborts */
+    hang = false;
+
     readonly targets: Array<{ incoming: ChatIncoming; payload: ChatPayload }> = [];
 
     online(): boolean {
@@ -96,7 +103,7 @@ class FakePlatform implements IChatPlatform {
         return this.connected;
     }
 
-    prepare(input: ChatPlatformSend): () => Promise<unknown> {
+    prepare(input: ChatPlatformSend): ChatPlatformPost {
         this.trace.push('prepare');
 
         if (input.threadId.endsWith(':refused')) {
@@ -105,7 +112,15 @@ class FakePlatform implements IChatPlatform {
 
         this.prepared.push(input);
 
-        return async () => {
+        return async (signal) => {
+            this.signals.push(signal);
+
+            if (this.hang) {
+                await new Promise((_resolve, reject) => {
+                    signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+                });
+            }
+
             this.sent.push(input);
         };
     }
@@ -145,6 +160,8 @@ async function started(input: IntakeFixtureInput): Promise<IntakeFixture> {
 describe('chatChannel({ platform })', () => {
     it('types the seam publicly', () => {
         expectTypeOf<ChatChannelOptions['platform']>().toEqualTypeOf<IChatPlatform | undefined>();
+        expectTypeOf<ChatPlatformPost>().toEqualTypeOf<(signal: AbortSignal) => Promise<unknown>>();
+        expectTypeOf<NonNullable<IChatPlatform['prepare']>>().returns.toEqualTypeOf<ChatPlatformPost>();
         expectTypeOf<ChatPlatformSend>().toEqualTypeOf<{
             adapter: string;
             threadId: string;
@@ -187,6 +204,69 @@ describe('chatChannel({ platform })', () => {
         await fixture.channel.out!(message(), SOURCE, opts());
 
         expect(platform.sent).toHaveLength(1);
+    });
+
+    it('hands the post a signal that aborts at the send\'s deadline', async () => {
+        const platform = new FakePlatform();
+        const fixture = await started({ agents: () => [], patch: { platform } });
+
+        platform.hang = true;
+
+        const sending = fixture.channel.out!(message(), SOURCE, opts()).catch((caught: unknown) => caught);
+
+        await flush();
+
+        expect(platform.signals).toHaveLength(1);
+        expect(platform.signals[0]?.aborted).toBe(false);
+
+        fixture.clock.advance(CHAT_TIMEOUT_MS);
+
+        const error = await sending;
+
+        expect((error as { code?: string }).code).toBe(CHAT_REQUEST_ERROR_CODE);
+        expect(platform.signals[0]?.aborted).toBe(true);
+        expect(platform.signals[0]?.reason).toBe(error);
+        expect(platform.sent).toEqual([]);
+
+        await flush();
+
+        // the post honoured the cancel: nothing late to report
+        expect(fixture.errors).toEqual([]);
+    });
+
+    it('hands the post a signal that aborts with the send\'s own signal', async () => {
+        const platform = new FakePlatform();
+        const fixture = await started({ agents: () => [], patch: { platform } });
+        const controller = new AbortController();
+        const reason = new Error('drained');
+
+        platform.hang = true;
+
+        const sending = fixture.channel.out!(message(), SOURCE, {
+            signal: controller.signal,
+            trigger: TRIGGER,
+        }).catch((caught: unknown) => caught);
+
+        await flush();
+        controller.abort(reason);
+
+        expect(await sending).toBe(reason);
+        expect(platform.signals[0]?.aborted).toBe(true);
+        expect(platform.signals[0]?.reason).toBe(reason);
+
+        await flush();
+
+        expect(fixture.errors).toEqual([]);
+    });
+
+    it('leaves the signal of a post that settled in time alone', async () => {
+        const platform = new FakePlatform();
+        const fixture = await started({ agents: () => [], patch: { platform } });
+
+        await fixture.channel.out!(message(), SOURCE, opts());
+        fixture.clock.advance(CHAT_TIMEOUT_MS);
+
+        expect(platform.signals[0]?.aborted).toBe(false);
     });
 
     it('sends nothing before the channel started, whatever the platform reports', async () => {
@@ -281,8 +361,21 @@ describe('chatChannel({ platform })', () => {
         expect(fixture.adapter.posts).toEqual([{ threadId: 'fake:chat-1', message: { raw: 'Hello there.' } }]);
     });
 
-    it('refuses a platform that is no object of functions', () => {
-        for (const platform of ['whatsapp', [], { online: true }, { prepare: 'post' }, { conversationTarget: {} }]) {
+    it('takes a class instance with state in its own fields', () => {
+        expect(() => createIntakeFixture({ agents: () => [], patch: { platform: new FakePlatform() } })).not.toThrow();
+    });
+
+    it('refuses a platform that is no object of functions, or a plain object with another key', () => {
+        for (const platform of [
+            'whatsapp',
+            [],
+            { online: true },
+            { prepare: 'post' },
+            { conversationTarget: {} },
+            { online: () => true, send: () => undefined },
+            { conversationtarget: () => undefined },
+            Object.assign(Object.create(null) as object, { online: () => true, offline: () => false }),
+        ]) {
             expect(() => createIntakeFixture({
                 agents: () => [],
                 patch: { platform: platform as never },

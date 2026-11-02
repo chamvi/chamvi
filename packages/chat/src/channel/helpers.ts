@@ -21,6 +21,7 @@ import {
     CHAT_ADDRESS_PREFIX,
     CHAT_CHANNEL_NAME,
     CHAT_TIMEOUT_MS,
+    PLATFORM_HOOKS,
     TIMER_MAX_MS,
 } from './constants.ts';
 import type { ChatChannelOptions, ResolvedChatChannelOptions } from './types.ts';
@@ -64,7 +65,10 @@ function assertOptionalFunction(options: ChatChannelOptions, key: keyof ChatChan
     }
 }
 
-/** A platform is an object whose given hooks are functions (IChatPlatform). */
+/**
+ * A platform is an object whose given IChatPlatform hooks are functions; a
+ * plain object holds those hooks only.
+ */
 function assertPlatform(platform: unknown): void {
     if (platform === undefined) {
         return;
@@ -74,7 +78,18 @@ function assertPlatform(platform: unknown): void {
         throw invalid('platform must be an object of hooks (IChatPlatform).');
     }
 
-    for (const key of ['online', 'prepare', 'conversationTarget'] as const) {
+    const prototype: unknown = Object.getPrototypeOf(platform);
+    // a plain object is a literal of hooks: any other key is a mistake (a typo, a hook of
+    // another seam); an instance of a class may keep its own state in fields
+    const literal = prototype === Object.prototype || prototype === null;
+
+    for (const key of literal ? Object.keys(platform) : []) {
+        if (!(PLATFORM_HOOKS as readonly string[]).includes(key)) {
+            throw invalid(`platform has no hook "${key}"; its hooks are ${PLATFORM_HOOKS.join(', ')}.`);
+        }
+    }
+
+    for (const key of PLATFORM_HOOKS) {
         if (platform[key] !== undefined && typeof platform[key] !== 'function') {
             throw invalid(`platform.${key} must be a function.`);
         }

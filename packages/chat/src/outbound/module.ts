@@ -27,10 +27,13 @@ import type { ChatSenderOptions } from './types.ts';
  * failure between the post and that record sends the message again.
  *
  * Waiting is bounded by `timeoutMs` on the channel's clock and by
- * `opts.signal`. Neither cancels the transport (the public post takes no
- * signal): the send stops waiting and rejects (`chat_request` naming the
- * deadline, or the signal's reason), and the post may still deliver. Such a
- * late outcome is reported to `onError`, never left unhandled.
+ * `opts.signal`. The send stops waiting and rejects (`chat_request` naming
+ * the deadline, or the signal's reason) and aborts the signal it gave the
+ * post with that error: a platform's post (ChatPlatformPost) may cancel its
+ * request, the adapter's public `postMessage` takes no signal and may still
+ * deliver. A late outcome is reported to `onError`, never left unhandled,
+ * except a post that rejected with that abort reason (it honoured the
+ * cancel).
  */
 export function createChatSender(options: ChatSenderOptions): NonNullable<IChannel['out']> {
     const adapters = new Map<string, Adapter>(options.adapters.map((adapter) => [adapter.name, adapter]));
@@ -40,7 +43,7 @@ export function createChatSender(options: ChatSenderOptions): NonNullable<IChann
         const target = decodeChatAddress(address, names);
         const text = renderChatMessage(message, options);
         const adapter = adapters.get(target.adapter)!;
-        // a transport's own send refuses its target here, before anything goes out
+        // a platform's own send refuses its target here, before anything goes out
         const post = options.prepare ?
             options.prepare({
                 adapter: target.adapter,
@@ -59,8 +62,10 @@ export function createChatSender(options: ChatSenderOptions): NonNullable<IChann
 
         signal.throwIfAborted();
 
+        // aborts once the send stops waiting (its signal or the deadline), so a platform's post can cancel
+        const posted = new AbortController();
         // a synchronous throw of the adapter becomes a rejection like any other failure
-        const posting = (async () => post())();
+        const posting = (async () => post(posted.signal))();
 
         await new Promise<void>((resolve, reject) => {
             let waiting = true;
@@ -79,16 +84,24 @@ export function createChatSender(options: ChatSenderOptions): NonNullable<IChann
             };
 
             timer = clock.setTimeout(() => {
-                if (stop()) {
-                    reject(requestError(
-                        `Chat adapter "${target.adapter}" did not answer within ${options.timeoutMs}ms; the message may still be delivered.`,
-                    ));
+                if (!stop()) {
+                    return;
                 }
+
+                const error = requestError(
+                    `Chat adapter "${target.adapter}" did not answer within ${options.timeoutMs}ms; the message may still be delivered.`,
+                );
+
+                posted.abort(error);
+                reject(error);
             }, options.timeoutMs);
             onAbort = () => {
-                if (stop()) {
-                    reject(signal.reason);
+                if (!stop()) {
+                    return;
                 }
+
+                posted.abort(signal.reason);
+                reject(signal.reason);
             };
 
             signal.addEventListener('abort', onAbort, { once: true });
@@ -109,6 +122,11 @@ export function createChatSender(options: ChatSenderOptions): NonNullable<IChann
                     if (stop()) {
                         reject(requestError(`Chat adapter "${target.adapter}" failed to send: ${messageOf(error)}`));
 
+                        return;
+                    }
+
+                    // a post that honoured the cancel: the caller already got the reason
+                    if (posted.signal.aborted && error === posted.signal.reason) {
                         return;
                     }
 

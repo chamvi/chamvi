@@ -12,7 +12,7 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { Invoker } from '@chamvi/core';
 import { isObject } from 'smob';
 import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
-import type { ChatIncoming } from '@chamvi/chat';
+import type { ChatIncoming, ChatPlatformPost } from '@chamvi/chat';
 import { createWhatsAppAdapter } from './adapter.ts';
 import { MESSAGE_ID_PREFIX, WHATSAPP_ADAPTER_NAME } from './constants.ts';
 import { isAllowed, resolvePolicy, toConversationTarget } from './policy.ts';
@@ -150,7 +150,12 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
 
                 const messageId = messageIdOf(channel.name, key);
 
-                return () => adapter.send(threadId, text, messageId);
+                // a ChatPlatformPost gets the send's abort signal, but Baileys' sendMessage takes
+                // none: the post ignores it, so a send the channel stopped waiting for (deadline,
+                // stop) may still go out (at least once)
+                const post: ChatPlatformPost = () => adapter.send(threadId, text, messageId);
+
+                return post;
             },
             conversationTarget: (incoming, payload) => {
                 const identity = adapter.identityOf(incoming.message);

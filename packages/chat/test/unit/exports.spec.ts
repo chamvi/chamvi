@@ -6,8 +6,18 @@
  */
 
 
-import { describe, expect, it } from 'vitest';
+import {
+    describe,
+    expect,
+    expectTypeOf,
+    it,
+} from 'vitest';
 import * as pkg from '@chamvi/chat';
+import type {
+    ChatPlatformPost,
+    ChatPlatformSend,
+    IChatPlatform,
+} from '@chamvi/chat';
 
 describe('public api', () => {
     it('exports exactly the public surface', () => {
@@ -47,7 +57,14 @@ describe('public api', () => {
         expect(pkg.CHAT_WEBHOOK_TIMEOUT_MS).toBe(30_000);
     });
 
+    it('exports the platform seam types', () => {
+        expectTypeOf<NonNullable<IChatPlatform['prepare']>>().parameters.toEqualTypeOf<[ChatPlatformSend]>();
+        expectTypeOf<NonNullable<IChatPlatform['prepare']>>().returns.toEqualTypeOf<ChatPlatformPost>();
+        expectTypeOf<ChatPlatformPost>().parameters.toEqualTypeOf<[AbortSignal]>();
+    });
+
     it.each([
+        'PLATFORM_HOOKS',
         'bindIngress',
         'isChatIngress',
         'createChatChannel',

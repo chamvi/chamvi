@@ -134,12 +134,22 @@ export type ChatPlatformSend = {
 };
 
 /**
+ * The post IChatPlatform.prepare returns: called once per send with a signal
+ * that aborts when the channel stops waiting for it (the send's own signal,
+ * or the `timeoutMs` deadline, whichever comes first), so the platform can
+ * cancel its request. A post that ignores the signal may still deliver.
+ */
+export type ChatPlatformPost = (signal: AbortSignal) => Promise<unknown>;
+
+/**
  * What a platform package built on the channel adds (`chatChannel({ platform })`,
  * e.g. `@chamvi/chat-whatsapp`): its connection state, its own send and the
  * conversation identity of its messages. Every hook is optional and called on
  * the platform object (`this` is the platform); a missing hook keeps the
  * default. The channel checks at construction that `platform` is an object
- * whose given hooks are functions (InvalidAgentDefinitionError otherwise).
+ * whose given hooks are functions and, for a plain object, that it has no
+ * other key (InvalidAgentDefinitionError otherwise; a class instance may keep
+ * state in its own fields).
  * The platform's socket lifecycle stays with `connect`/`disconnect` and its
  * message policy with `allowMessage`/`resolveInvoker`.
  */
@@ -156,13 +166,14 @@ export interface IChatPlatform {
      * Prepares one send of `out`, after the address decoded and the message
      * rendered, before the online check. It throws to refuse a target the
      * transport cannot reach (the error reaches the caller as is, nothing goes
-     * out), else returns the post the channel calls once and waits for,
-     * bounded by `timeoutMs` and the send's signal (a rejection or throw of
-     * the post is a `chat_request`; a post that settles after the channel
-     * stopped waiting is reported to `onError`). Default the adapter's
-     * `postMessage(threadId, { raw: text })`.
+     * out), else returns the post (ChatPlatformPost) the channel calls once
+     * and waits for, bounded by `timeoutMs` and the send's signal; the post
+     * gets a signal that aborts at whichever comes first (a rejection or
+     * throw of the post is a `chat_request`; a post that settles after the
+     * channel stopped waiting is reported to `onError`). Default the
+     * adapter's `postMessage(threadId, { raw: text })`, which takes no signal.
      */
-    prepare?(input: ChatPlatformSend): () => Promise<unknown>;
+    prepare?(input: ChatPlatformSend): ChatPlatformPost;
     /**
      * The conversation of a message for an agent with `conversation`, asked
      * per such agent after `allowMessage` allowed the message, its text was
