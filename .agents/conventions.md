@@ -18,9 +18,9 @@ The `@tada5hi/*` config packages are the source of truth for lint, TS and commit
 
 ## Code Style
 
-- ESM only (`"type": "module"`), Node >= 24.3.0 (the minimum required by `@tada5hi/eslint-config` 3.2).
+- ESM only (`"type": "module"`), Node >= 26.0.0 (CI runs Node 26 only).
 - Configured agent/contributed instructions use core `AgentInstructions`; preserve native SDK role-specific content and provider options. Only the leading system run goes into SDK `instructions`; later configured blocks stay transient and ordered. Manual skills catalog instructions remain strings.
-- `@chamvi/ui`'s app ships to Vite's default browser target (Safari 16.4, Firefox 114), which esbuild does not polyfill: no ES2025 iterator helpers (`map.entries().toArray()`; use `Array.from`), enforced by a `no-restricted-syntax` rule in `eslint.config.js`. Its scoped Unicorn override also retains `instanceof Error` instead of requiring the newer `Error.isError` API. The `Uint8Array` base64/hex preference rules are disabled globally because Node 24 does not implement those APIs; keep the existing Buffer encodings.
+- `@chamvi/ui`'s app ships to Vite's default browser target (Safari 16.4, Firefox 114), which esbuild does not polyfill: no ES2025 iterator helpers (`map.entries().toArray()`; use `Array.from`), enforced by a `no-restricted-syntax` rule in `eslint.config.js`. Its scoped Unicorn override also retains `instanceof Error` instead of requiring the newer `Error.isError` API. The `Uint8Array` base64/hex preference rules are disabled globally: Buffer's base64 decoding is lenient where `Uint8Array.fromBase64()` throws (request input relies on it) and the dashboard's browser target lacks those APIs; keep the existing Buffer encodings.
 - 4-space indent (also JSON and YAML), LF, UTF-8, final newline, trailing whitespace trimmed except in Markdown (see `.editorconfig`).
 - Single quotes, semicolons, and braces around every control-flow body, including single statements (enforced by ESLint).
 - Package scope `@chamvi/*`, Apache-2.0 license (`LICENSE` plus `NOTICE` in the root and every package), all packages public.
@@ -117,7 +117,7 @@ Conventional Commits: `<type>(scope): <description>`, e.g. `feat(core): add run 
 
 ## CI/CD
 
-- `ci.yml`: on push and PR to `master`, install, lint, build, typecheck, test on Node 24.3.0 (the minimum) and latest 24.
+- `ci.yml`: on push and PR to `master`, one job on Node 26 (lint, build, typecheck, test, no version matrix) plus the Chromium e2e job.
 - `release.yml`: release-please on `master` opens one release PR for every package (`linked-versions`, the root package `chamvi-root` as component `root`, one tag `v<version>` without a component, `node-workspace` plugin); when merged, build and publish via `tada5hi/monoship@v2` with npm provenance.
 - Both reuse the composite actions in `.github/actions/{install,build}`; change Node setup or caching there.
 

@@ -4,14 +4,14 @@ The runtime base of chamvi agent images: `ghcr.io/chamvi/node`. It is not the sa
 
 ## What is inside
 
-- `node:24-trixie-slim` (Node.js 24, npm, corepack, a shell)
+- `node:26-trixie-slim` (Node.js 26, npm, corepack, a shell)
 - `ca-certificates`
 - `tini` as the entrypoint (pid 1 forwards signals and reaps orphaned processes, so a Node process without a SIGTERM handler still stops)
 - `NODE_ENV=production`
 - `/app`, owned by root, the working directory: the app reads its code, never writes it
 - `USER 1000:1000`, numeric (the image's `node` user), so Kubernetes `runAsNonRoot` can verify it; the default command is `node`
 
-No git and no compiler. Build native addons in a `node:24-trixie-slim` build stage, which has the same Debian 13 glibc.
+No git and no compiler. Build native addons in a `node:26-trixie-slim` build stage, which has the same Debian 13 glibc.
 
 ## Running it
 
@@ -20,7 +20,7 @@ The image itself has a writable root filesystem. Under the Helm chart (a read-on
 A typical runtime stage installs nothing and copies the build stage's output into `/app`, root-owned (no `--chown`), then sets an exec-form `CMD` of the app's own entry (tini stays the entrypoint):
 
 ```dockerfile
-FROM ghcr.io/chamvi/node:24@sha256:...
+FROM ghcr.io/chamvi/node:26@sha256:...
 
 COPY package.json ./
 COPY dist/ ./dist/
@@ -38,14 +38,14 @@ Built for `linux/amd64` and `linux/arm64` by `.github/workflows/images.yml`:
 - `24`: the latest build, rebuilt on every push to `master` that changes anything under `images/` (or the workflow), weekly (base image security updates) and on manual runs
 - `24-<short sha>`: one tag per such push to `master`, pushed once with that commit; the weekly and manual rebuilds move only `24`
 
-Pin a digest in production (`FROM ghcr.io/chamvi/node:24@sha256:...`); a Dependabot `docker` entry in your repository then bumps that digest.
+Pin a digest in production (`FROM ghcr.io/chamvi/node:26@sha256:...`); a Dependabot `docker` entry in your repository then bumps that digest.
 
 ## Extending it
 
 Install system packages as root and switch back to uid 1000:
 
 ```dockerfile
-FROM ghcr.io/chamvi/node:24
+FROM ghcr.io/chamvi/node:26
 
 USER root
 RUN apt-get update \

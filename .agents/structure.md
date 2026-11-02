@@ -50,15 +50,15 @@ chamvi/
 │       ├── src/public/              # logo.svg (favicon), fixed light/dark logo and run-lifecycle copies
 │       └── src/snippets/            # Code samples included via <<<, type-checked by the docs typecheck
 ├── images/
-│   ├── sandbox-dev/                 # Dockerfile + README of ghcr.io/chamvi/sandbox-dev (Debian, git, build tools, ripgrep, jq, mise; root)
-│   └── sandbox-node/                # deprecated ghcr.io/chamvi/sandbox-node (Node 24, uid 1000), built for one more release
+│   ├── node/                        # Dockerfile + README of ghcr.io/chamvi/node:26 (the app base image: node:26-trixie-slim, tini, uid 1000)
+│   └── sandbox-dev/                 # Dockerfile + README of ghcr.io/chamvi/sandbox-dev (Debian, git, build tools, ripgrep, jq, mise; root)
 ├── .github/
 │   ├── assets/                      # logo.svg (+ test-kit and organisation variants), run-lifecycle.svg
 │   ├── actions/{install,build}/     # Composite actions
-│   ├── workflows/{ci,release,docs,images}.yml # CI (Node 24.3.0 and latest 24, plus the Chromium e2e job), release-please + npm publish, docs to GitHub Pages, sandbox image (craneship, amd64 + arm64)
+│   ├── workflows/{ci,release,docs,images}.yml # CI (one Node 26 check job plus the Chromium e2e job), release-please + npm publish, docs to GitHub Pages, sandbox image (craneship, amd64 + arm64)
 │   ├── ISSUE_TEMPLATE/              # Bug report and feature request templates
 │   ├── FUNDING.yml                  # GitHub Sponsors
-│   └── dependabot.yml               # Daily npm + github-actions updates, docker for images/sandbox-dev and images/sandbox-node
+│   └── dependabot.yml               # Daily npm + github-actions updates, docker for images/sandbox-dev, images/node
 ├── .husky/commit-msg                # Runs commitlint
 ├── CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md
 ├── nx.json                          # Task orchestration and caching
@@ -91,7 +91,7 @@ chamvi/
 | `@chamvi/sandbox-docker` | Exists (0.1.0) | `createDockerSandbox()`: one container per workspace (root inside, a hardened mode, a per-workspace `/cache`, a named shared volume opt-in); depends on `dockerode` + `@types/dockerode`, `smob`, peer on core and sandbox |
 | `@chamvi/sandbox-k8s` | Exists (0.1.0) | `createKubernetesSandbox()`, `createPodClient()`: one pod per workspace (root inside, a hardened mode, an optional cache claim); depends on `@kubernetes/client-node`, `smob`, peer on core and sandbox |
 | `@chamvi/coding` | Exists (0.1.0) | `codingTools()` (read_file, write_file, edit_file, multi_edit, grep, glob, list_files, bash with kept cwd and exports and output logs, background jobs with bash_output and bash_kill, git_diff), optional path-scoped instructions on ordinary UTF-8 workspace `read_file` results (its own default-on `repositoryInstructions` flag, independent of the manager), the `ICodingBackend` contract; depends on `smob`, peer on core, sandbox and `ai` |
-| `@chamvi/skills` | Exists (unpublished; first publish 0.4.0) | Skill domain types, catalogs, custom adapters and per-engine runtime; `gitSkills()`/`loadSkillBundle()` carry the runtime automatically; bundle hashing/loading and `prepareSkills()` for setup/build; core peer, no runtime or peer app edge and no module registration (a devDependency on `@chamvi/app` for its integration tests, acyclic), Node >=24.3.0 plus Git for source preparation |
+| `@chamvi/skills` | Exists (unpublished; first publish 0.4.0) | Skill domain types, catalogs, custom adapters and per-engine runtime; `gitSkills()`/`loadSkillBundle()` carry the runtime automatically; bundle hashing/loading and `prepareSkills()` for setup/build; core peer, no runtime or peer app edge and no module registration (a devDependency on `@chamvi/app` for its integration tests, acyclic), Node >=26.0.0 plus Git for source preparation |
 | `@chamvi/tool-web` | Exists (unpublished; first publish 0.4.0) | `webTools()`: `web_fetch` (a public http(s) page as markdown, text or raw through a hapic client, proxy from the environment; every URL and redirect target resolved and refused on a non-public address, `allowUrl` decides first; byte, character and time caps, offset paging); depends on `hapic`, `mdream`, `smob`, peer on core and `ai` |
 | `@chamvi/knowledge` | Exists (unpublished; first publish the release after 0.4.0) | Knowledge collections (RAG phase 1): the `IKnowledgeRepository` contract and `createMemoryKnowledgeRepository()`, `chunkText()`/`contentHash()`, sources (`folder()`, `defineKnowledgeSource()`), `knowledgeCollection()`, `createKnowledge()` (`IKnowledge`: the background indexer under the store lock `knowledge:<name>`, generations, orphans, `check()`), `knowledgeTools()` (`knowledge_search`, taint by collection), the context pair `provideKnowledgeContext`/`injectKnowledgeContext`; `/module`: `knowledgeModule()` (optional peer on `@chamvi/app`); depends on `smob`, peer on core and `ai`; never a dependency of app, test-kit types its contract structurally |
 | `@chamvi/ui` | Exists (0.1.0) | `uiRoutes()`: serves the prebuilt Vue 3 + vuecs dashboard (runs, run detail, approvals, agent state, schedules) as one extra route of `createHttpApp({ routes })`; `/module`: `uiModule()` (optional peer on `@chamvi/app`); peer on core and http (types only), every SPA library a bundled devDependency |

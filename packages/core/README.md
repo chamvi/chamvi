@@ -71,7 +71,7 @@ Models, messages and tools stay AI SDK types: `defineAgent()` takes a `LanguageM
 npm install @chamvi/core ai --save
 ```
 
-ESM only, Node.js `>=24.3.0`. `ai@^7` (the Vercel AI SDK) is a peer dependency; add the provider package of your model as well, for example `@ai-sdk/anthropic`.
+ESM only, Node.js `>=26.0.0`. `ai@^7` (the Vercel AI SDK) is a peer dependency; add the provider package of your model as well, for example `@ai-sdk/anthropic`.
 
 ## Usage
 

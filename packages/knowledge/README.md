@@ -36,7 +36,7 @@
 npm install @chamvi/knowledge @chamvi/core ai --save
 ```
 
-ESM only, Node.js `>=24.3.0`. `@chamvi/core` and `ai` are peer dependencies; `@chamvi/app` is an optional one, needed only for `@chamvi/knowledge/module`.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `ai` are peer dependencies; `@chamvi/app` is an optional one, needed only for `@chamvi/knowledge/module`.
 
 ## Knowledge, skills or conversation memory?
 

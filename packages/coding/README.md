@@ -36,7 +36,7 @@
 npm install @chamvi/coding @chamvi/sandbox @chamvi/core ai --save
 ```
 
-ESM only, Node.js `>=24.3.0`. `@chamvi/core`, `@chamvi/sandbox` and `ai` are peer dependencies. Add a sandbox provider: `@chamvi/sandbox-docker` or `@chamvi/sandbox-k8s` (or `@chamvi/sandbox-local` for development).
+ESM only, Node.js `>=26.0.0`. `@chamvi/core`, `@chamvi/sandbox` and `ai` are peer dependencies. Add a sandbox provider: `@chamvi/sandbox-docker` or `@chamvi/sandbox-k8s` (or `@chamvi/sandbox-local` for development).
 
 ## Usage
 

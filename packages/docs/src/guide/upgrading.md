@@ -2,6 +2,17 @@
 
 chamvi is pre-1.0: a minor release may break the API. Each section lists what changed and the exact replacement.
 
+## Upgrading to 0.5
+
+### Breaking changes
+
+| Change | Before (0.4) | Replacement (0.5) |
+|---|---|---|
+| Node | `>=24.3.0` | `>=26.0.0` |
+| Base image | `ghcr.io/chamvi/node:24` | `ghcr.io/chamvi/node:26`; build stages move to `node:26-trixie-slim`. The `24` tag stops receiving rebuilds |
+| `chamvi build` target | `node24` | `node26` |
+| Sandbox image `ghcr.io/chamvi/sandbox-node:24` | Rebuilt as a deprecated workspace image | Not built anymore; use the default `ghcr.io/chamvi/sandbox-dev` (`mise use -g node@26`) or your own image |
+
 ## Upgrading to 0.4
 
 ### Breaking changes

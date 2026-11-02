@@ -18,7 +18,8 @@ export default [
         ],
     },
     {
-        // Node 24 does not implement the Uint8Array base64/hex encoding APIs.
+        // Buffer's base64 decoding is lenient where Uint8Array.fromBase64() throws, and the
+        // dashboard's browser target lacks the Uint8Array base64/hex APIs: keep Buffer.
         rules: {
             'unicorn/prefer-uint8array-base64': 'off',
             'unicorn/prefer-uint8array-hex': 'off',
