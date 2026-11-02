@@ -12,7 +12,7 @@ import {
     it,
     vi,
 } from 'vitest';
-import { Engine, createMemoryStore } from '@chamvi/core';
+import { Engine, createMemoryStore, keyedArtifactId } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import { buildContext } from '../../../src/app/helpers.ts';
@@ -22,6 +22,7 @@ import {
     createRunAgents,
     createRunTestApp,
     flush,
+    shotsAgent,
     testAuth,
     testChannels,
 } from '../../utils/app.ts';
@@ -118,6 +119,25 @@ describe('mcp run_<agent> with waitSeconds', () => {
             detail: 'diff',
         }]);
         expect(Object.keys(waiting)).not.toContain('multiple');
+        await client.close();
+        await setup.engine.drain();
+    });
+
+    it('shows the artifacts of a waiting run and of its options', async () => {
+        const setup = createRunTestApp({ agents: [...createRunAgents(), shotsAgent()] });
+
+        await setup.engine.start();
+
+        const client = await connectMcp(setup.app, ADMIN_TOKEN);
+        const result = await callTool(client, 'run_shots', { waitSeconds: 5 });
+        const { runId, waiting } = (result.structuredContent as {
+            runId: string;
+            waiting: { artifacts?: string[]; options?: Array<{ artifacts?: string[] }> }
+        });
+
+        expect(waiting.artifacts).toEqual([keyedArtifactId(runId, 'overview')]);
+        expect(waiting.options?.[0]?.artifacts).toEqual([keyedArtifactId(runId, 'button/diff')]);
+        expect(Object.keys(waiting.options?.[1] ?? {})).not.toContain('artifacts');
         await client.close();
         await setup.engine.drain();
     });

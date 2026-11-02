@@ -31,6 +31,8 @@ export type RunToolResult = {
         /** What the tool asks the owner to approve. */
         title: string;
         body?: string;
+        /** Run artifact ids shown with the request (`GET /runs/:id/artifacts/:artifactId`). */
+        artifacts?: string[];
         /** The choices to answer with `approve_run`'s `selected`; absent for a plain yes or no. */
         options?: ApprovalOption[];
         /** Set (true) when several options may be selected. */

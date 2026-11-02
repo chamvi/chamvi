@@ -199,6 +199,52 @@ export function pickTool() {
     });
 }
 
+/** The bytes `shotsTool()` puts under both keys. */
+export const SHOTS_PNG = new Uint8Array([137, 80, 78, 71, 1, 2, 3]);
+
+/** A `shots` tool that puts two keyed images and asks with them on the request and an option. */
+export function shotsTool() {
+    return defineTool({
+        inputSchema: z.object({}),
+        execute: async (_input, { context }) => {
+            const overview = await context.artifacts.put({
+                key: 'overview',
+                mediaType: 'image/png',
+                filename: 'overview.png',
+                data: SHOTS_PNG,
+            });
+            const diff = await context.artifacts.put({
+                key: 'button/diff',
+                mediaType: 'image/png',
+                filename: 'button-diff.png',
+                data: SHOTS_PNG,
+            });
+            const decision = await approve(context, {
+                title: 'Accept?',
+                artifacts: [overview.id],
+                options: [{
+                    id: 'button',
+                    label: 'Button',
+                    artifacts: [diff.id],
+                }, { id: 'none', label: 'None' }],
+            });
+
+            return decision.approved ? 'accepted' : 'denied';
+        },
+    });
+}
+
+/** `shots` (http, `shots` asks with keyed images); not part of `createRunAgents()`. */
+export function shotsAgent(): Agent {
+    return defineAgent({
+        name: 'shots',
+        model: approvalModel('shots'),
+        instructions: 'Shots.',
+        channels: [http.on()],
+        tools: () => ({ shots: shotsTool() }),
+    });
+}
+
 /** The approval id the run's current wait point waits on. */
 export async function approvalIdOf(store: IStore, runId: string): Promise<string> {
     const waiting = (await store.runs.findOne(runId))?.waiting;
