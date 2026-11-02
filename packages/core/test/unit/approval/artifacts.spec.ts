@@ -50,7 +50,8 @@ const ask = (request: unknown): MockResponse => ({
 });
 const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] });
 
-const KEYS = ['expected', 'actual', 'diff'];
+/** Enough keyed artifacts for the cap cases: `$k0` ... `$k20` name real artifacts of the run. */
+const KEYS = ['expected', 'actual', 'diff', ...Array.from({ length: 21 }, (_, i) => `k${i}`)];
 
 /** `$<key>` names the keyed artifact the tool put; any other value goes to approve() as is. */
 function resolve(runId: string, value: unknown): unknown {
@@ -303,7 +304,8 @@ describe('approve() with artifacts', () => {
         expect(Object.keys(run.waiting!.options![0]!)).not.toContain('artifacts');
     });
 
-    const many = (n: number) => Array.from({ length: n }, (_, i) => `id-${i}`);
+    /** n distinct existing artifacts of the run, so a refusal can only come from the cap. */
+    const many = (n: number) => Array.from({ length: n }, (_, i) => `$k${i}`);
 
     it.each([
         ['an unknown id', { artifacts: ['missing'] }],
@@ -361,6 +363,21 @@ describe('approve() with artifacts', () => {
         const tools = (await ctx.store.steps.find(runId)).filter((s) => s.kind === 'tool');
 
         expect(tools[0]).toMatchObject({ name: 'shots', error: { code: 'validation_error' } });
+    });
+
+    it('accepts exactly 20 ids on each option and 100 in total', async () => {
+        const ctx = setup({
+            title: 'Accept?',
+            options: Array.from({ length: 5 }, (_, i) => ({
+                id: `o${i}`,
+                label: `O${i}`,
+                artifacts: many(20),
+            })),
+        });
+        const { run } = await dispatch(ctx);
+
+        expect(run.status).toBe('waiting');
+        expect(run.waiting!.options!.map((option) => option.artifacts!.length)).toEqual([20, 20, 20, 20, 20]);
     });
 
     it('accepts one id on several options', async () => {
