@@ -513,7 +513,8 @@ class Knowledge implements IKnowledge {
             ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
         };
 
-        if (existing && existing.hash === hash && sameOrigin(existing, input)) {
+        // a failed document is embedded again, also for the same content (the provider may accept it now)
+        if (existing && existing.status !== 'failed' && existing.hash === hash && sameOrigin(existing, input)) {
             if (sameDetails(existing, input)) {
                 return { status: existing.status, changed: false };
             }

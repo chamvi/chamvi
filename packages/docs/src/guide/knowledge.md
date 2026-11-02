@@ -106,7 +106,7 @@ curl -X PUT "$API/collections/tickets/documents/T-1042" -H "$AUTH" -H 'content-t
   -d '{ "content": "Exports over 10 000 rows time out ...", "title": "Export timeout", "source": "https://tracker.example.com/T-1042" }'
 
 # 200 { "data": [...], "meta": { "total", "limit", "offset" } }: ready, pending or failed
-curl "$API/collections/tickets/documents?filter[status]=failed" -H "$AUTH"
+curl -g "$API/collections/tickets/documents?filter[status]=failed" -H "$AUTH"
 
 # 202: embed pending documents now (re-embed when stale)
 curl -X POST "$API/collections/tickets/sync" -H "$AUTH"
@@ -116,7 +116,7 @@ curl -X DELETE "$API/collections/tickets/documents/T-1042" -H "$AUTH"
 ```
 
 - **`PUT` is idempotent per id**: the same id with new content replaces the document, the same content again answers `200` and embeds nothing. An id with `/`, a space or other special characters goes into the path percent-encoded (`a%2Fb`); ids are 1 to 255 characters, content at most 1 048 576 characters. Over REST the whole JSON body must also fit the http app's `bodyLimit` (default 1 MiB, `413` above it), which binds first at the default: raise `bodyLimit` to send documents near the content limit.
-- **`202` means accepted, not embedded**: the document is `pending` until the background pass embedded it, and its previous content keeps answering searches until then. Read it back (`GET .../documents/<id>`) to see `ready`, or `failed` with the `error` when the provider refused it (a request error such as an input too long); a new `PUT` tries again. Any other provider failure leaves documents `pending` and retries on the backoff above.
+- **`202` means accepted, not embedded**: the document is `pending` until the background pass embedded it, and its previous content keeps answering searches until then. Read it back (`GET .../documents/<id>`) to see `ready`, or `failed` with the `error` when the provider refused it (status 400, 413 or 422, such as an input too long); a new `PUT`, even of the same content, tries again. Any other provider failure leaves documents `pending` and retries on the backoff above.
 - **`stale` and `sync`**: changing `CHAMVI_KNOWLEDGE_MODEL` does not re-embed anything by itself. Each managed collection reports `stale` (as after an upgrade that changes the chunker version) and keeps serving its stored model (whose provider must stay configured for searches and new documents); `POST .../sync` re-embeds it into a new generation with the new default and switches once complete.
 - **Always untrusted**: anyone holding `knowledge:write` decides what a managed collection says, so a search over one always [taints the run](#untrusted-content); no option makes it trusted.
 - **Deleting**: `DELETE /knowledge/collections/<name>` removes a managed collection, or an orphaned declared one, with everything in it; a collection the code declares answers 409.

@@ -106,7 +106,7 @@ const MANAGED_CONTENT_MAX_CHARS: 1_048_576;
 
 The failure count and the time of the next attempt are stored on the collection, so the backoff holds across replicas. An `InvalidAgentDefinitionError` from a source is stored and reported once, never retried.
 
-`sync()` is an `InvalidRunStateError` before `start()` and a `ValidationError` for a name this instance does not index (also a declared one whose loop a configuration error ended); a stale managed collection is re-embedded at `embeddingModel`. `createCollection()` is a `ValidationError` for a bad name and an `InvalidRunStateError` for a name declared here or held by any stored record, or without `embeddingModel`. `putDocument()` validates like a source item (content 1 to `MANAGED_CONTENT_MAX_CHARS` characters, `ValidationError`); unchanged content and details answer `changed: false`, anything else is stored `pending` (its previous chunks keep serving) and embedded in the background. Both document methods answer `RepositoryNotFoundError` for a missing collection and `InvalidRunStateError` for one that is not managed. A provider rejection of one document (an `APICallError` with a 4xx status other than 408 and 429) marks it `failed` with the error; any other embedding error fails the pass and leaves it `pending`.
+`sync()` is an `InvalidRunStateError` before `start()` and a `ValidationError` for a name this instance does not index (also a declared one whose loop a configuration error ended); a stale managed collection is re-embedded at `embeddingModel`. `createCollection()` is a `ValidationError` for a bad name and an `InvalidRunStateError` for a name declared here or held by any stored record, or without `embeddingModel`. `putDocument()` validates like a source item (content 1 to `MANAGED_CONTENT_MAX_CHARS` characters, `ValidationError`); unchanged content and details answer `changed: false`, anything else is stored `pending` (its previous chunks keep serving) and embedded in the background. Both document methods answer `RepositoryNotFoundError` for a missing collection and `InvalidRunStateError` for one that is not managed. A provider rejection of one document (an `APICallError` with status 400, 413 or 422) marks it `failed` with the error; any other embedding error fails the pass and leaves it `pending`.
 
 ## REST API
 
@@ -167,7 +167,7 @@ interface IKnowledgeRepository {
     findOneDocumentOrFail(collection: string, id: string): Promise<KnowledgeDocument>;
     findDocumentIds(collection: string): Promise<string[]>;
     findDocuments(collection: string, options?: { status?: KnowledgeDocumentStatus; limit?: number; offset?: number }): Promise<{ data: KnowledgeDocument[]; total: number }>;
-    updateDocument(collection: string, id: string, hash: string, patch: { status: KnowledgeDocumentStatus; error?: string; generation?: number }): Promise<boolean>;
+    updateDocument(collection: string, id: string, version: KnowledgeDocumentVersion, patch: { status: KnowledgeDocumentStatus; error?: string; generation?: number }): Promise<boolean>;
     deleteDocument(collection: string, id: string): Promise<boolean>;
     replaceChunks(collection: string, document: string, generation: number, chunks: KnowledgeChunkInput[]): Promise<void>;
     deleteGeneration(collection: string, generation: number): Promise<void>;
@@ -178,7 +178,7 @@ interface IKnowledgeRepository {
 function createMemoryKnowledgeRepository(): MemoryKnowledgeRepository;
 ```
 
-A `KnowledgeCollection` record holds the served `generation`, its `model`, `dimensions` and `chunker`, an optional `pending` re-embed, `lastGeneration` (never reused), `status` (`pending`, `ready`, `stale`, `orphaned`), `trusted`, and after a failure `error`, `failures` and `retryAt` (a `Date`). A `KnowledgeCollection` also holds `syncedAt`, the end of the last successful pass, which `resyncMs` counts from. A `KnowledgeDocument` has a `status` (`pending`, `ready`, `failed` with an `error`); `updateDocument()` writes its patch only while the stored document still has that `hash`. Each chunk keeps its own `title` and `source`, which search results show. Every repository runs `describeKnowledgeRepositoryContract()` from [`@chamvi/test-kit`](/reference/test-kit).
+A `KnowledgeCollection` record holds the served `generation`, its `model`, `dimensions` and `chunker`, an optional `pending` re-embed, `lastGeneration` (never reused), `status` (`pending`, `ready`, `stale`, `orphaned`), `trusted`, and after a failure `error`, `failures` and `retryAt` (a `Date`). A `KnowledgeCollection` also holds `syncedAt`, the end of the last successful pass, which `resyncMs` counts from. A `KnowledgeDocument` has a `status` (`pending`, `ready`, `failed` with an `error`); `updateDocument()` writes its patch only while the stored document still has the version's `hash`, `title` and `source` (`KnowledgeDocumentVersion`; an absent value matches only an absent one). Each chunk keeps its own `title` and `source`, which search results show. Every repository runs `describeKnowledgeRepositoryContract()` from [`@chamvi/test-kit`](/reference/test-kit).
 
 ## Chunking
 

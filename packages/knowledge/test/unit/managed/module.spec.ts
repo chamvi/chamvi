@@ -22,7 +22,7 @@ import {
     it,
     vi,
 } from 'vitest';
-import type { IKnowledge, KnowledgeOptions } from '@chamvi/knowledge';
+import type { IKnowledge, KnowledgeCollection, KnowledgeOptions } from '@chamvi/knowledge';
 import {
     CHUNKER_VERSION,
     KNOWLEDGE_MANAGED_POLL_MS,
@@ -78,7 +78,7 @@ async function waitForDocument(setup: IndexerSetup, collection: string, id: stri
     return (await setup.repository.findOneDocument(collection, id))!;
 }
 
-/** An embedding model rejecting a text with "reject" (400), "busy" (429) or "boom" (500). */
+/** An embedding model rejecting a text with "reject" (400), "busy" (429), "denied" (401), "forbidden" (403) or "boom" (500). */
 function rejectingModel(): EmbeddingModel {
     const inner = mockEmbeddingModel();
 
@@ -86,7 +86,7 @@ function rejectingModel(): EmbeddingModel {
         maxEmbeddingsPerCall: null,
         supportsParallelCalls: true,
         doEmbed: async (call) => {
-            for (const [text, statusCode] of [['reject', 400], ['busy', 429], ['boom', 500]] as const) {
+            for (const [text, statusCode] of [['reject', 400], ['busy', 429], ['denied', 401], ['forbidden', 403], ['boom', 500]] as const) {
                 const matched = call.values.some((value) => value.includes(text));
 
                 if (matched) {
@@ -386,6 +386,9 @@ describe('managed collections', () => {
         const failed = await waitForDocument(setup, 'notes', 'a', 'failed');
 
         expect(failed.error).toBe('The provider refused the input (400).');
+        // the same content again is embedded again (the provider may accept it now)
+        expect(await knowledge.putDocument('notes', { id: 'a', content: 'Please reject this text.' })).toEqual({ status: 'pending', changed: true });
+        await waitForDocument(setup, 'notes', 'a', 'failed');
         await waitForDocument(setup, 'notes', 'b', 'ready');
         expect(setup.errors).toEqual([]);
 
@@ -410,13 +413,17 @@ describe('managed collections', () => {
         expect(fixed.error).toBeUndefined();
     });
 
-    it('a 429 is no verdict on the document: it stays pending and the pass backs off', async () => {
+    it.each([
+        ['a 429', 'The provider is busy.'],
+        ['a 401', 'Access denied for this key.'],
+        ['a 403', 'The key is forbidden here.'],
+    ])('%s is no verdict on the document: it stays pending and the pass backs off', async (_, content) => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: rejectingModel() });
 
         await knowledge.createCollection('notes');
         knowledge.start();
-        await knowledge.putDocument('notes', { id: 'a', content: 'The provider is busy.' });
+        await knowledge.putDocument('notes', { id: 'a', content });
 
         await vi.waitFor(() => {
             expect(setup.errors).toHaveLength(1);
@@ -462,6 +469,14 @@ describe('managed collections', () => {
         expect(second.view(record)).toMatchObject({ model: 'mock/a', status: 'stale' });
         expect(first.view(record).status).toBe('ready');
 
+        const saves: KnowledgeCollection[] = [];
+        const save = setup.repository.saveCollection.bind(setup.repository);
+
+        vi.spyOn(setup.repository, 'saveCollection').mockImplementation(async (collection) => {
+            saves.push(structuredClone(collection));
+
+            return save(collection);
+        });
         second.start();
         // the poll started its loop: nothing is re-embedded without a sync()
         await vi.waitFor(() => second.sync('notes'));
@@ -475,6 +490,8 @@ describe('managed collections', () => {
             status: 'ready',
         });
         expect(switched.pending).toBeUndefined();
+        // the learned length was stored on the pending re-embed before the switch
+        expect(saves.some((saved) => saved.pending?.generation === 2 && saved.pending.dimensions === 32)).toBe(true);
         expect(second.view(switched).status).toBe('ready');
         expect(await setup.repository.findOneDocument('notes', 'refunds')).toMatchObject({ status: 'ready', generation: 2 });
 

@@ -193,6 +193,26 @@ async function reembed(
             return undefined;
         }
 
+        if (dimensions === undefined && outcome.dimensions !== undefined) {
+            // keep the learned length, so a resumed re-embed checks its vectors against it
+            if (!await lock.renew()) {
+                return undefined;
+            }
+
+            const current = await isSameCollection(input, record);
+
+            if (!current?.pending || current.pending.generation !== target) {
+                return undefined;
+            }
+
+            record = {
+                ...current,
+                pending: { ...current.pending, dimensions: outcome.dimensions },
+                updatedAt: clock.now(),
+            };
+            await repository.saveCollection(record);
+        }
+
         ({ dimensions } = outcome);
     }
 

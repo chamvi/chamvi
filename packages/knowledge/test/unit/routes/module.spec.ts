@@ -45,9 +45,9 @@ type Fixture = {
     setup: IndexerSetup;
     knowledge: IKnowledge;
     send(method: string, path: string, options?: {
-        token?: string | null; 
-        body?: unknown; 
-        raw?: string 
+        token?: string | null;
+        body?: unknown;
+        raw?: string | Uint8Array<ArrayBuffer>;
     }): Promise<Response>;
 };
 
@@ -103,7 +103,7 @@ function createFixture(extra: Partial<KnowledgeOptions> = {}): Fixture {
                 headers.set('authorization', `Bearer ${token}`);
             }
 
-            let body: string | undefined;
+            let body: string | Uint8Array<ArrayBuffer> | undefined;
 
             if (options.raw !== undefined || options.body !== undefined) {
                 headers.set('content-type', 'application/json');
@@ -332,7 +332,7 @@ describe('knowledgeRoutes', () => {
     });
 
     it('refuses a body that is no JSON object', async () => {
-        const { send } = createFixture();
+        const { send, setup } = createFixture();
 
         await send('POST', base, { body: { name: 'notes' } });
 
@@ -343,6 +343,13 @@ describe('knowledgeRoutes', () => {
         }
 
         expect((await send('POST', base, { raw: '[1]' })).status).toBe(400);
+
+        // invalid UTF-8 inside a JSON string is refused, never stored as U+FFFD
+        const invalid = new Uint8Array([...new TextEncoder().encode('{"content":"a'), 0xFF, ...new TextEncoder().encode('b"}')]);
+        const response = await send('PUT', `${base}/notes/documents/a`, { raw: invalid });
+
+        expect(response.status).toBe(400);
+        expect(await setup.repository.findOneDocument('notes', 'a')).toBeUndefined();
     });
 
     it('GET /knowledge/collections/:c/documents/:id answers the view with content, or 404', async () => {

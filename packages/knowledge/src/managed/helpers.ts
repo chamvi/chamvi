@@ -13,20 +13,20 @@ import { documentProblem } from '../source/helpers.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { MANAGED_CONTENT_MAX_CHARS } from './constants.ts';
 
+const PROVIDER_REJECTION_STATUSES = new Set([400, 413, 422]);
+
 /**
- * Whether the provider refused this input for good: an `APICallError` with a
- * status from 400 to 499 other than 408 (timeout) and 429 (rate limit).
- * Anything else (a 5xx, a timeout, a network error) is no verdict on the
- * document.
+ * Whether the provider refused this input for good: an `APICallError` with
+ * status 400, 413 or 422. Anything else (a 401 or 403 for a rejected key, a
+ * 404 for an unknown model, a 408, a 429, a 5xx, a network error) is no
+ * verdict on the document.
  */
 export function isProviderRejection(error: unknown): error is APICallError {
     if (!APICallError.isInstance(error) || error.statusCode === undefined) {
         return false;
     }
 
-    const status = error.statusCode;
-
-    return status >= 400 && status < 500 && status !== 408 && status !== 429;
+    return PROVIDER_REJECTION_STATUSES.has(error.statusCode);
 }
 
 /** Whether a managed record serves another model or chunker than `model` and this chunker. */

@@ -55,7 +55,7 @@ export async function readJsonObject(request: HttpRouteRequest): Promise<Record<
     let value: unknown;
 
     try {
-        value = JSON.parse(new TextDecoder().decode(bytes));
+        value = JSON.parse(new TextDecoder('utf-8', { fatal: true }).decode(bytes));
     } catch {
         throw new ValidationError('The request body must be a JSON object.');
     }
