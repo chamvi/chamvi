@@ -1318,6 +1318,7 @@ export class Engine implements IEngine {
                     toolCallId: waiting.toolCallId,
                     title: waiting.title,
                     ...(waiting.body !== undefined ? { body: waiting.body } : {}),
+                    ...(waiting.artifacts !== undefined ? { artifacts: waiting.artifacts } : {}),
                     ...(waiting.options !== undefined ? { options: waiting.options } : {}),
                     ...(waiting.multiple === true ? { multiple: true } : {}),
                 },
@@ -1489,7 +1490,16 @@ export class Engine implements IEngine {
                     ...(waiting.slot !== undefined ? { slot: waiting.slot } : {}),
                     approvalId: waiting.approvalId,
                     expiresAt: waiting.expiresAt,
-                    ...(waiting.options !== undefined ? { options: waiting.options } : {}),
+                    // artifacts stay in the inbox and the API, never in a channel message
+                    ...(waiting.options !== undefined ?
+                        {
+                            options: waiting.options.map((option) => ({
+                                id: option.id,
+                                label: option.label,
+                                ...(option.detail !== undefined ? { detail: option.detail } : {}),
+                            })),
+                        } :
+                        {}),
                     ...(waiting.multiple === true ? { multiple: true } : {}),
                 }, waiting.address ?? '', { signal: controller.signal, trigger: run.trigger }),
                 aborted,

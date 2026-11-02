@@ -133,6 +133,7 @@ export function wrapToolsForRun(
                 stepIndex: stepIndex?.() ?? 0,
                 approvals: 0,
                 effects: store,
+                artifacts: ctx.artifacts,
             };
             const suspend = () => {
                 onSuspend?.(frame.suspended!);

@@ -17,12 +17,14 @@ import {
 } from '../errors/index.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
-import { APPROVAL_TIMEOUT_MAX_MS, DEFAULT_APPROVAL_TIMEOUT_MS } from './constants.ts';
+import { APPROVAL_ARTIFACTS_MAX, APPROVAL_TIMEOUT_MAX_MS, DEFAULT_APPROVAL_TIMEOUT_MS } from './constants.ts';
 import {
     approvalDecisionKey,
+    collectArtifactIds,
     fitRecordedDecision,
     toApprovalDecision,
     toApprovalOptions,
+    toArtifactIds,
 } from './helpers.ts';
 import type { ApprovalDecision, ApprovalRequestInput, ApprovalReservation } from './types.ts';
 
@@ -43,7 +45,7 @@ export class SuspendSignal extends ChamviError {
     }
 }
 
-function assertRequest(request: unknown): Pick<ApprovalRequest, 'options' | 'multiple'> {
+function assertRequest(request: unknown): Pick<ApprovalRequest, 'options' | 'multiple' | 'artifacts'> {
     if (!isObject(request)) {
         throw new ValidationError('An approval request must be an object.');
     }
@@ -65,7 +67,34 @@ function assertRequest(request: unknown): Pick<ApprovalRequest, 'options' | 'mul
         throw new ValidationError(`An approval timeoutMs must be an integer from 1 to ${APPROVAL_TIMEOUT_MAX_MS}.`);
     }
 
-    return toApprovalOptions(request.options, request.multiple);
+    const artifacts = toArtifactIds(request.artifacts, 'an approval request', APPROVAL_ARTIFACTS_MAX);
+    const choice = {
+        ...(artifacts !== undefined ? { artifacts } : {}),
+        ...toApprovalOptions(request.options, request.multiple),
+    };
+
+    collectArtifactIds(choice);
+
+    return choice;
+}
+
+/** Throws ValidationError unless every id is an artifact of the frame's run (one listing of the run's artifacts). */
+async function assertRunArtifacts(frame: ApprovalReservation['frame'], ids: string[]): Promise<void> {
+    if (ids.length === 0) {
+        return;
+    }
+
+    if (!frame.artifacts) {
+        throw new ValidationError('This tool call cannot attach artifacts to an approval.');
+    }
+
+    const known = new Set((await frame.artifacts.list()).map((artifact) => artifact.id));
+
+    for (const id of ids) {
+        if (!known.has(id)) {
+            throw new ValidationError(`The approval names "${id}", which is no artifact of this run.`);
+        }
+    }
 }
 
 function checkFrame(request: unknown) {
@@ -138,6 +167,9 @@ export async function requestApproval(
     const approvalId = request.binding ?
         `bound:${stableHash([frame.stepIndex, frame.toolCallId, ordinal, request.binding])}` :
         `${frame.stepIndex}:${frame.toolCallId}:${ordinal}`;
+
+    await assertRunArtifacts(frame, collectArtifactIds(choice));
+
     const recorded = await frame.effects.findOne(approvalDecisionKey(frame.runId, approvalId));
 
     if (recorded) {

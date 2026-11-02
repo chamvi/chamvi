@@ -78,6 +78,8 @@ export type ApprovalRequest = {
     title: string;
     body?: string;
     notification?: string;
+    /** The run's artifact ids shown with the request; absent when none. */
+    artifacts?: string[];
     options?: ApprovalOption[];
     /** Set (true) only for a request with options of which several may be selected. */
     multiple?: boolean;
