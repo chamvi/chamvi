@@ -85,6 +85,7 @@ describe('public api', () => {
         'createMemoryStore',
         'defineAgent',
         'Engine',
+        'formatRevision',
         'MemoryAgentRevisionRepository',
         'MemoryArtifactRepository',
         'MemoryCheckpointRepository',

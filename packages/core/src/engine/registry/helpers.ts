@@ -11,9 +11,9 @@ import { AGENT_LOCK_TTL_MS, REVISION_PREFIX_LENGTH } from '../constants.ts';
 import type { CancelReason, RegistryContext } from './types.ts';
 
 /**
- * A revision as messages name it: a content hash (64 lower-case hex
+ * A revision as messages and logs name it: a content hash (64 lower-case hex
  * characters) cut to REVISION_PREFIX_LENGTH, any other marker (a package's
- * `<name>@<version>`) in full.
+ * `<name>@<version>`) in full. Public, so `@chamvi/app`'s logs format alike.
  */
 export function formatRevision(revision: string): string {
     return /^[0-9a-f]{64}$/.test(revision) ? revision.slice(0, REVISION_PREFIX_LENGTH) : revision;

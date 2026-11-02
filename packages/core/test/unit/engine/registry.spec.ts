@@ -20,6 +20,7 @@ import {
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     defineAgent,
+    formatRevision,
 } from '@chamvi/core';
 import type {
     AgentChange,
@@ -960,5 +961,12 @@ describe('putAgent formerRevision', () => {
         await engine.putAgent(next, { revision: revB, formerRevision: revA });
         expect((await store.agentRevisions.findOne('triage'))?.hash).toBe(revB);
         expect(await statusOf(engine, runId)).toBe('cancelled');
+    });
+});
+
+describe('formatRevision', () => {
+    it('cuts a content hash to its prefix and names any other marker in full', () => {
+        expect(formatRevision('a'.repeat(64))).toBe('a'.repeat(12));
+        expect(formatRevision('@s/greeter@1.0.0+0123456789ab')).toBe('@s/greeter@1.0.0+0123456789ab');
     });
 });
