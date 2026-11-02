@@ -119,6 +119,18 @@ describe('readConfig', () => {
         expect(start({ CHAMVI_AGENTS_DIR: '' }).agents).toEqual({ pollMs: 5_000 });
     });
 
+    it('CHAMVI_AGENTS lists agent packages', () => {
+        expect(start({ CHAMVI_AGENTS: '@acme/triage, greeter' }).agents.packages).toEqual(['@acme/triage', 'greeter']);
+        expect(start({ CHAMVI_AGENTS: '' }).agents.packages).toBeUndefined();
+    });
+
+    it('CHAMVI_AGENTS refuses a path, naming the entry and never the value', () => {
+        expect(() => start({ CHAMVI_AGENTS: 'ok,./secret-path' })).toThrow(
+            'CHAMVI_AGENTS entry 2 is no bare package specifier (a package name such as @acme/agents, no path or URL).',
+        );
+        expect(() => start({ CHAMVI_AGENTS: 'a,a' })).toThrow('CHAMVI_AGENTS lists the package a twice.');
+    });
+
     it('CHAMVI_AGENTS_POLL_MS must be 1 to the timer limit', () => {
         expect(() => start({ CHAMVI_AGENTS_POLL_MS: '0' })).toThrow('CHAMVI_AGENTS_POLL_MS must be at least 1.');
         expect(() => start({ CHAMVI_AGENTS_POLL_MS: String(TIMER_MAX_MS + 1) }))

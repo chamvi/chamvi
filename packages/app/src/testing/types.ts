@@ -19,6 +19,8 @@ export type ModuleHarnessOptions = {
     env?: Env;
     modules?: IModule[];
     agents?: Agent[];
+    /** createApp's package specifiers, copied into the context. */
+    packages?: string[];
     models?: AppContext['models'];
     /** createApp's `model`, copied into the context. */
     model?: AppContext['model'];

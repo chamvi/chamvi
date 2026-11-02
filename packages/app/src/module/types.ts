@@ -48,6 +48,8 @@ export type AppContext = {
     providers?: Readonly<Record<string, ProviderConfig>>;
     /** createApp's agents (the code agents); the live set is `engine.listAgents()`. */
     agents: readonly Agent[];
+    /** createApp's agent package specifiers; `chamvi.json` `agents` and `CHAMVI_AGENTS` add theirs in the agents module. */
+    packages?: readonly string[];
     /** createApp's additive skill defaults; check and migrate never load sources. */
     skills?: readonly SkillInput[];
     /**
@@ -135,7 +137,7 @@ export type AppTokens = {
     /** A collection: the channels modules contribute (`registerMany` in `setup`). */
     CHANNELS: IChannel<any, any>;
     LIFECYCLE_HOOKS: ILifecycleHook;
-    /** The agents dir's load issues (`chamvi:agents`, when a dir is configured), at the time of the call. */
+    /** The agents dir's and agent packages' load issues (`chamvi:agents`, when a dir or a package is configured), at the time of the call. */
     AGENT_ISSUES: () => readonly AgentIssue[];
     /** A collection: every module's check of a folder agent before it is registered. */
     AGENT_CHECKS: AgentCheck;

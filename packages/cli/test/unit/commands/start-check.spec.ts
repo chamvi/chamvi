@@ -85,6 +85,16 @@ describe('start --check', () => {
         expect(lines[1]).toMatch(/^beta\//);
     });
 
+    it('exits 2 for an agent package that does not resolve, one line naming it', async () => {
+        await check('app', startEnv(port, { CHAMVI_AGENTS: '@chamvi-fixture/missing-agents' }));
+
+        expect(exitCode()).toBe(2);
+
+        const lines = fake.stderr.join('').split('\n').filter((line) => line.length > 0);
+
+        expect(lines).toEqual(['@chamvi-fixture/missing-agents: not found from the app\'s directory; add it to the app\'s dependencies.']);
+    });
+
     it('exits 2 without CHAMVI_TOKENS', async () => {
         const env = startEnv(port);
 

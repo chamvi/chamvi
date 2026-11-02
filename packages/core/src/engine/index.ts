@@ -6,6 +6,7 @@
  */
 
 export * from './module.ts';
+export { formatRevision } from './registry/helpers.ts';
 export type {
     ApprovalRequest,
 } from './execute/types.ts';

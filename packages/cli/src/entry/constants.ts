@@ -12,4 +12,7 @@ export const SOURCE_ENTRY = 'src/index.ts';
 export const BUILT_ENTRY = 'dist/index.mjs';
 
 /** Written to stderr when a command runs the default app, there being no entry file. */
-export const DEFAULT_APP_NOTICE = 'no entry file: running the default app (agents from ./agents or CHAMVI_AGENTS_DIR)\n';
+export const DEFAULT_APP_NOTICE = 'no entry file: running the default app (agents from ./agents or CHAMVI_AGENTS_DIR, agent packages from chamvi.json or CHAMVI_AGENTS)\n';
+
+/** DEFAULT_APP_NOTICE for `migrate`, which loads no agent. */
+export const MIGRATE_DEFAULT_APP_NOTICE = 'no entry file: migrating the store of the default app\n';

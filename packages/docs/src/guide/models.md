@@ -128,7 +128,7 @@ The Vercel AI Gateway is the type `gateway`, used only when you declare a provid
 }
 ```
 
-The file is meant to be committed, so it refuses a literal `apiKey` and a literal value for a credential header (a name containing `auth`, `token`, `secret` or `api-key`/`apikey`/`api_key`): use `{ "env": "VAR" }` or `{ "file": "path" }` for those. An unknown field, provider type or header name is an error naming the file and the field. `remotes` is reserved for remote agents.
+The file is meant to be committed, so it refuses a literal `apiKey` and a literal value for a credential header (a name containing `auth`, `token`, `secret` or `api-key`/`apikey`/`api_key`): use `{ "env": "VAR" }` or `{ "file": "path" }` for those. An unknown field, provider type or header name is an error naming the file and the field. `agents` lists [agent packages](/guide/agent-packages) by name (`"agents": ["@acme/review-agent"]`). `remotes` is reserved for remote agents.
 
 ## Precedence
 

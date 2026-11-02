@@ -141,6 +141,7 @@ export default defineConfig({
                         { text: 'Apps & Modules', link: '/guide/app' },
                         { text: 'Pick a Model', link: '/guide/models' },
                         { text: 'Agent Folders', link: '/guide/agent-folders' },
+                        { text: 'Agent Packages', link: '/guide/agent-packages' },
                         { text: 'Concurrency, Leases & Multi-Replica', link: '/guide/concurrency' },
                         { text: 'Cancel, Drain & Recovery', link: '/guide/recovery' },
                         { text: 'Cron Scheduling', link: '/guide/scheduler' },

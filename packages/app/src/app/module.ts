@@ -22,6 +22,7 @@ import {
     runHooks,
 } from '../module/helpers.ts';
 import { runStartSteps } from '../module/start.ts';
+import { splitAgentEntries } from '../package/helpers.ts';
 import type { AppContext, AppMode } from '../module/types.ts';
 import { APP_BRAND } from './constants.ts';
 import {
@@ -65,6 +66,8 @@ export class App implements IApp {
     readonly [APP_BRAND] = true as const;
 
     readonly agents: readonly Agent[];
+
+    readonly packages: readonly string[];
 
     protected modules: IModule[];
 
@@ -110,7 +113,10 @@ export class App implements IApp {
             }
         }
 
-        this.agents = Object.freeze([...options.agents ?? []]);
+        const entries = splitAgentEntries(options.agents ?? []);
+
+        this.agents = Object.freeze(entries.agents);
+        this.packages = Object.freeze(entries.packages);
         this.modules = buildModules(options.modules);
         this.models = options.models;
         this.skills = options.skills;
@@ -188,6 +194,7 @@ export class App implements IApp {
             ...(this.model !== undefined && { model: this.model }),
             ...(this.providers !== undefined && { providers: this.providers }),
             agents: this.agents,
+            packages: this.packages,
             ...(this.skills !== undefined && { skills: this.skills }),
             ...extra,
         };

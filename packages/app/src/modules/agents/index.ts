@@ -6,3 +6,4 @@
  */
 
 export * from './module.ts';
+export type { AgentsModuleOptions } from './types.ts';

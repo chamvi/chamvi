@@ -39,6 +39,7 @@ export function buildModuleHarness(options: ModuleHarnessOptions = {}): ModuleHa
         ...(options.model !== undefined && { model: options.model }),
         ...(options.providers !== undefined && { providers: options.providers }),
         agents: options.agents ?? [],
+        packages: options.packages ?? [],
         ...(options.check !== undefined && { check: options.check }),
         ...(options.job !== undefined && { job: options.job }),
     };

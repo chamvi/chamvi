@@ -86,6 +86,8 @@ export default createApp({
 
 `env` defaults to `process.env`. An app runs one lifecycle (`check` counts as one); a second one rejects with `app_in_use`. `isApp(value)` recognizes an app, also one of another installed copy of the package.
 
+`agents` also takes bare package specifiers beside code agents: `createApp({ agents: [triage, '@acme/review-agent'] })` loads the package's default export (an agent, an array of agents, or a sync or async factory returning one of those) at start, with `@chamvi/*`, `ai` and `@ai-sdk/*` resolved to the app's copies. `chamvi.json` `agents` and `CHAMVI_AGENTS` (comma-separated) add packages from the deployment. A package agent's revision is its version (`<name>@<version>`; in dev plus a content hash), so a version bump cancels its unsettled runs once. Code agents win a name, then packages, then folders. See [Agent Packages](https://chamvi.dev/guide/agent-packages).
+
 Agent `instructions` also accept an ordered readonly array of native system/user/assistant messages. `AgentInstructions`, `SystemModelMessage`, `UserModelMessage`, `AssistantModelMessage` and the native content types are exported by `@chamvi/core` and re-exported by this package. Strings remain compatible. See the [typed instructions example](https://chamvi.dev/guide/agents#instructions) for role-specific content, provider options and transient checkpoint behavior.
 
 ## Approved local skills

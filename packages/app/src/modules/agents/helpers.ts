@@ -7,7 +7,8 @@
 
 import { readdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { DEFAULT_AGENTS_DIR } from './constants.ts';
+import type { IEngine } from '@chamvi/core';
+import { DEFAULT_AGENTS_DIR, SKILL_PREPARATION_RETRY_MAX_MS } from './constants.ts';
 
 export async function isDirectory(path: string): Promise<boolean> {
     try {
@@ -44,4 +45,26 @@ export async function resolveAgentsRoot(dir: string | undefined, cwd: string): P
     const fallback = resolve(cwd, DEFAULT_AGENTS_DIR);
 
     return await isDirectory(fallback) ? fallback : undefined;
+}
+
+/**
+ * The delay before the next skill preparation attempt: twice the previous
+ * one (the first: twice the poll interval), at most
+ * SKILL_PREPARATION_RETRY_MAX_MS unless the poll interval is longer.
+ */
+export function nextRetryDelay(previous: number | undefined, pollMs: number): number {
+    return Math.min((previous ?? pollMs) * 2, Math.max(pollMs, SKILL_PREPARATION_RETRY_MAX_MS));
+}
+
+/**
+ * Removes every agent with a revision marker that `keep` refuses (its
+ * unsettled runs cancelled, `agent_removed`): the start boot's orphan sweep.
+ * `keep` gets the agent name and the stored marker.
+ */
+export async function removeOrphanAgents(engine: IEngine, keep: (name: string, marker: string) => boolean): Promise<void> {
+    for (const marker of await engine.store.agentRevisions.find()) {
+        if (!keep(marker.agent, marker.hash)) {
+            await engine.removeAgent(marker.agent);
+        }
+    }
 }

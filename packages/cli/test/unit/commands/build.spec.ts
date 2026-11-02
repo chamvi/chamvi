@@ -65,6 +65,26 @@ describe('build', () => {
         expect(await exists(path.join(app.cwd, 'dist/agents.mjs'))).toBe(false);
     });
 
+    it('keeps an agent package specifier a string, bundling nothing of it', async () => {
+        await mkdir(path.join(app.cwd, 'node_modules/@fixture/greeter'), { recursive: true });
+        await writeFile(path.join(app.cwd, 'node_modules/@fixture/greeter/package.json'), JSON.stringify({
+            name: '@fixture/greeter',
+            version: '1.0.0',
+            type: 'module',
+            exports: './index.mjs',
+        }));
+        await writeFile(path.join(app.cwd, 'node_modules/@fixture/greeter/index.mjs'), 'export default { name: \'greeter\', definition: { instructions: \'PACKAGE AGENT CODE\' } };\n');
+        await writeFile(path.join(app.cwd, 'src/index.ts'), 'import { createApp } from \'@chamvi/app\';\nexport default createApp({ agents: [\'@fixture/greeter\'] });\n');
+
+        await runCli(['build'], fake.context({ cwd: app.cwd }));
+        expect(fake.exitCodes).toEqual([]);
+
+        const bundle = await readFile(path.join(app.cwd, 'dist/index.mjs'), 'utf8');
+
+        expect(bundle).toContain('"@fixture/greeter"');
+        expect(bundle).not.toContain('PACKAGE AGENT CODE');
+    });
+
     it('--out-dir', async () => {
         await runCli(['build', '--out-dir', 'build'], fake.context({ cwd: app.cwd }));
         expect(fake.exitCodes).toEqual([]);

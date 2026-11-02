@@ -18,8 +18,14 @@ import type { ModelProviders, ProviderConfig } from '../models/types.ts';
 import type { APP_BRAND } from './constants.ts';
 
 export type AppOptions = {
-    /** The code agents; may be omitted or empty when CHAMVI_AGENTS_DIR names an agents folder. */
-    agents?: Agent[];
+    /**
+     * The code agents and agent packages: an `Agent`, or a bare package
+     * specifier (`'@acme/agents'`, `'@acme/agents/triage'`) whose default
+     * export is an agent or an array of agents, resolved from the working
+     * directory at start. May be omitted or empty when an agents dir,
+     * `chamvi.json` `agents` or `CHAMVI_AGENTS` provides the agents.
+     */
+    agents?: (Agent | string)[];
     /** Additive skill defaults for every code and folder agent, verified before serving. */
     skills?: readonly SkillInput[];
     /** Optional conversation recall and notes; the default store follows the app's selected data source. */
@@ -46,7 +52,7 @@ export type AppStartOptions = AppLifecycleOptions & {
 export type AppCheckOptions = AppStartOptions;
 
 export type AppCheckResult = {
-    /** The agent folders' load issues (`AGENT_ISSUES`), one per folder; empty without an agents dir. */
+    /** The agent folders' and packages' load issues (`AGENT_ISSUES`); empty without an agents dir or packages. */
     issues: AgentIssue[];
 };
 
@@ -68,8 +74,10 @@ export type AppRunJobResult = {
  */
 export interface IApp {
     readonly [APP_BRAND]: true;
-    /** The code agents (createApp's `agents`); folder agents are in the engine's live set. */
+    /** The code agents (createApp's `agents` that are no string); package and folder agents are in the engine's live set. */
     readonly agents: readonly Agent[];
+    /** createApp's package specifiers, in order (`chamvi.json` and `CHAMVI_AGENTS` add theirs at start). */
+    readonly packages: readonly string[];
     /** Sets every module up; resolves once the HTTP server listens. */
     start(options?: AppStartOptions): Promise<void>;
     /**

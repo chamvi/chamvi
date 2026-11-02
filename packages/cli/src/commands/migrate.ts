@@ -7,6 +7,7 @@
 
 import { defineCommand } from 'citty';
 import type { CommandDef } from 'citty';
+import { MIGRATE_DEFAULT_APP_NOTICE } from '../entry/constants.ts';
 import { loadEntryApp, resolveEntry } from '../entry/module.ts';
 import { assertKnownArgs } from '../run/helpers.ts';
 import type { CliContext } from '../run/types.ts';
@@ -30,7 +31,7 @@ export function createMigrateCommand(context: CliContext): CommandDef<typeof MIG
                 entry: args.entry,
                 kind: 'built',
             });
-            const app = await loadEntryApp(entry, context);
+            const app = await loadEntryApp(entry, context, MIGRATE_DEFAULT_APP_NOTICE);
 
             await app.migrate({ env: context.env });
         },

@@ -129,17 +129,18 @@ export async function loadApp(file: string, importModule: CliContext['importModu
 /**
  * The app of `entry` (see loadApp), or without one the default app
  * `createApp({})`: no code agents, its agents from `./agents` or
- * `CHAMVI_AGENTS_DIR`, configured by env alone; noted on stderr.
+ * `CHAMVI_AGENTS_DIR`, configured by env alone; `notice` written to stderr.
  */
 export async function loadEntryApp(
     entry: string | undefined,
     context: Pick<CliContext, 'importModule' | 'stderr'>,
+    notice: string = DEFAULT_APP_NOTICE,
 ): Promise<IApp> {
     if (entry !== undefined) {
         return loadApp(entry, context.importModule);
     }
 
-    context.stderr(DEFAULT_APP_NOTICE);
+    context.stderr(notice);
 
     return createApp({});
 }

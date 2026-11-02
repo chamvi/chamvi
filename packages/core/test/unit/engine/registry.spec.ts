@@ -20,6 +20,7 @@ import {
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     defineAgent,
+    formatRevision,
 } from '@chamvi/core';
 import type {
     AgentChange,
@@ -535,6 +536,26 @@ describe('cancel reasons', () => {
         expect(await engine.getRun('waiting-run')).toMatchObject({ status: 'cancelled', error: replacedError });
     });
 
+    it('a package version marker is named in full', async () => {
+        const {
+            engine,
+            store,
+            clock,
+        } = make();
+
+        await engine.putAgent(triage, { revision: '@acme/triage@1.0.0' });
+        await parkWaiting(store, clock, 'waiting-run');
+        clock.advance(1_000);
+        await engine.putAgent(next, { revision: '@acme/triage@1.1.0' });
+        expect(await engine.getRun('waiting-run')).toMatchObject({
+            status: 'cancelled',
+            error: {
+                code: 'agent_replaced',
+                message: 'Agent "triage" was reloaded at revision @acme/triage@1.1.0; its unsettled runs were cancelled.',
+            },
+        });
+    });
+
     it('a removal stores agent_removed', async () => {
         const {
             engine,
@@ -859,6 +880,25 @@ describe('checkAgent and putAgent reload: false', () => {
         expect(engine.getAgent('triage')).toBeUndefined();
         expect(changes).toEqual([]);
     });
+
+    it('reload: false names package version markers in full', async () => {
+        const clock = new ControllableClock(new Date(1_000_000));
+        const store = createCountingStore({ clock });
+        const other = make({ store, clock });
+
+        await other.engine.putAgent(triage, { revision: 'triage-pkg@1.0.0' });
+        await other.engine.dispatch(env());
+
+        const { engine } = make({
+            store,
+            clock,
+            agents: [],
+        });
+
+        await expect(engine.putAgent(next, { revision: 'triage-pkg@2.0.0', reload: false })).rejects.toThrow(
+            'Agent "triage" runs revision triage-pkg@1.0.0 in the store, not triage-pkg@2.0.0; this process does not reload agents.',
+        );
+    });
 });
 
 describe('putAgent formerRevision', () => {
@@ -921,5 +961,12 @@ describe('putAgent formerRevision', () => {
         await engine.putAgent(next, { revision: revB, formerRevision: revA });
         expect((await store.agentRevisions.findOne('triage'))?.hash).toBe(revB);
         expect(await statusOf(engine, runId)).toBe('cancelled');
+    });
+});
+
+describe('formatRevision', () => {
+    it('cuts a content hash to its prefix and names any other marker in full', () => {
+        expect(formatRevision('a'.repeat(64))).toBe('a'.repeat(12));
+        expect(formatRevision('@s/greeter@1.0.0+0123456789ab')).toBe('@s/greeter@1.0.0+0123456789ab');
     });
 });

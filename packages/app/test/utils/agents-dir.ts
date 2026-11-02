@@ -84,7 +84,15 @@ export async function queueRun(store: IStore, clock: ControllableClock, name: st
 }
 
 export type AgentsDirHarnessOptions = {
-    root: string;
+    /** The agents dir (CHAMVI_AGENTS_DIR); none without it (unless `cwd` holds `./agents`). */
+    root?: string;
+    /** The agents module's working directory (agent packages and `./agents` resolve from it). */
+    cwd?: string;
+    /** createApp's agent package specifiers. */
+    packages?: string[];
+    /** Imports a package entry by file URL (the agents module's `importer`). */
+    importer?: (url: string) => Promise<unknown>;
+    dev?: boolean;
     mode?: AppMode;
     /** The job identity (job mode): the agent `runJob` runs. */
     job?: { agent: string };
@@ -103,13 +111,18 @@ export function buildAgentsDirHarness(options: AgentsDirHarnessOptions) {
     const clock = options.clock ?? new ControllableClock(START);
     const logger = createRecordingLogger(clock);
     const store = options.store ?? createMemoryStore({ clock });
-    const module = new AgentsModule();
+    const module = new AgentsModule({
+        ...(options.cwd !== undefined && { cwd: options.cwd }),
+        ...(options.importer !== undefined && { importer: options.importer }),
+    });
     const harness: Harness = buildHarness({
         mode: options.mode,
+        ...(options.dev !== undefined && { dev: options.dev }),
+        ...(options.packages !== undefined && { packages: options.packages }),
         ...(options.job && { job: options.job }),
         ...(options.check && { check: options.check }),
         env: {
-            CHAMVI_AGENTS_DIR: options.root,
+            ...(options.root !== undefined && { CHAMVI_AGENTS_DIR: options.root }),
             CHAMVI_AGENTS_POLL_MS: String(POLL_MS),
             ...options.env,
         },

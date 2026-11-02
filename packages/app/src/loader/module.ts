@@ -15,10 +15,9 @@ import {
     relative,
     sep,
 } from 'node:path';
-import type { Agent, AgentDefinition } from '@chamvi/core';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import type { Agent } from '@chamvi/core';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { locateMany } from 'locter';
-import { isObject } from 'smob';
 import {
     AGENT_FILE,
     AGENT_NAME_MAX_LENGTH,
@@ -30,11 +29,13 @@ import {
     compareCodePoints,
     defaultExportOf,
     hashFolder,
+    isDeclaredAgent,
     isDirectory,
     isFile,
     isHashIgnored,
     messageOf,
     readFreshModule,
+    rebuildAgent,
     relativize,
 } from './helpers.ts';
 import type {
@@ -213,8 +214,7 @@ async function buildAgent(dir: string, load: (path: string) => Promise<unknown>)
 
     const declared = defaultExportOf(mod, rel);
 
-    // structural, so an agent built by another @chamvi/core copy passes too
-    if (!isObject(declared) || typeof declared.name !== 'string' || !isObject(declared.definition)) {
+    if (!isDeclaredAgent(declared)) {
         throw new InvalidAgentDefinitionError(`${rel}: the default export must be defineAgent(...)'s result.`);
     }
 
@@ -224,6 +224,5 @@ async function buildAgent(dir: string, load: (path: string) => Promise<unknown>)
         );
     }
 
-    // through this copy of defineAgent, so its checks and budget defaults apply
-    return defineAgent({ ...declared.definition, name } as AgentDefinition);
+    return rebuildAgent(declared);
 }

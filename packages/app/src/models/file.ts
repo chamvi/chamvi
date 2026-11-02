@@ -5,11 +5,19 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { readFile } from 'node:fs/promises';
-import { basename } from 'node:path';
+import { readFile, stat } from 'node:fs/promises';
+import { basename, resolve } from 'node:path';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
-import { PROVIDER_TYPES, SECRET_HEADER_PATTERN } from './constants.ts';
+import { envString } from '../env/module.ts';
+import type { Env } from '../env/types.ts';
+import { assertPackageSpecifier, assertUniqueSpecifiers } from '../package/helpers.ts';
+import {
+    CONFIG_FILE_VARIABLE,
+    DEFAULT_CONFIG_FILE,
+    PROVIDER_TYPES,
+    SECRET_HEADER_PATTERN,
+} from './constants.ts';
 import {
     assertBaseUrl,
     assertHeaderName,
@@ -18,10 +26,13 @@ import {
 } from './helpers.ts';
 import type { ProviderConfig, SecretValue } from './types.ts';
 
-const FILE_KEYS = ['model', 'providers', 'remotes'];
+const FILE_KEYS = ['model', 'providers', 'agents', 'remotes'];
 const PROVIDER_KEYS = ['type', 'apiKey', 'baseURL', 'headers'];
 
-type ConfigFile = { model?: string; providers: Record<string, ProviderConfig> };
+type ConfigFile = {
+    model?: string;
+    providers: Record<string, ProviderConfig>;
+};
 
 function fail(message: string): never {
     throw new InvalidAgentDefinitionError(message);
@@ -103,12 +114,64 @@ function readProvider(value: unknown, field: string): ProviderConfig {
 }
 
 /**
- * The model settings of a JSON config file (`chamvi.json`): `model`, `providers`
- * (shape checked, literal `apiKey` and credential headers refused), `remotes`
- * ignored. Throws InvalidAgentDefinitionError on the first problem, naming the
- * file and field, never a value.
+ * The config file a lifecycle reads: `CHAMVI_CONFIG_FILE` (relative to `cwd`,
+ * `named`), else `./chamvi.json` when it exists, else undefined.
  */
-export async function readConfigFile(path: string): Promise<ConfigFile> {
+export async function locateConfigFile(env: Env, cwd: string): Promise<{ path: string; named: boolean } | undefined> {
+    const named = envString(env, CONFIG_FILE_VARIABLE);
+    const path = resolve(cwd, named ?? DEFAULT_CONFIG_FILE);
+
+    if (named === undefined) {
+        try {
+            await stat(path);
+        } catch {
+            return undefined;
+        }
+    }
+
+    return { path, named: named !== undefined };
+}
+
+/**
+ * The config file's agent package specifiers (`agents`, bare package
+ * specifiers, none twice), or none without a file. Read by the agents module,
+ * never part of the model settings; a problem throws InvalidAgentDefinitionError
+ * naming the file and field (prefixed `CHAMVI_CONFIG_FILE: ` for a named file).
+ */
+export async function readConfigFileAgents(env: Env, cwd: string): Promise<string[]> {
+    const located = await locateConfigFile(env, cwd);
+
+    if (located === undefined) {
+        return [];
+    }
+
+    try {
+        const { label, data } = await readConfigData(located.path);
+
+        if (typeof data.agents === 'undefined') {
+            return [];
+        }
+
+        if (!Array.isArray(data.agents)) {
+            fail(`${label}: agents must be an array of package names.`);
+        }
+
+        const agents = data.agents.map((entry: unknown, index: number) => assertPackageSpecifier(entry, `${label}: agents[${index}]`));
+
+        assertUniqueSpecifiers(agents, `${label}: agents`);
+
+        return agents;
+    } catch (error) {
+        if (located.named && error instanceof InvalidAgentDefinitionError) {
+            throw new InvalidAgentDefinitionError(`${CONFIG_FILE_VARIABLE}: ${error.message}`);
+        }
+
+        throw error;
+    }
+}
+
+/** The config file as a JSON object with known keys only, and its label (the basename). */
+async function readConfigData(path: string): Promise<{ label: string; data: Record<string, unknown> }> {
     const label = basename(path);
     let text: string;
 
@@ -136,6 +199,18 @@ export async function readConfigFile(path: string): Promise<ConfigFile> {
         }
     }
 
+    return { label, data };
+}
+
+/**
+ * The model settings of a JSON config file (`chamvi.json`): `model`,
+ * `providers` (shape checked, literal `apiKey` and credential headers
+ * refused); `agents` is readConfigFileAgents' and `remotes` is ignored.
+ * Throws InvalidAgentDefinitionError on the first problem, naming the file
+ * and field, never a value.
+ */
+export async function readConfigFile(path: string): Promise<ConfigFile> {
+    const { label, data } = await readConfigData(path);
     const config: ConfigFile = { providers: {} };
 
     if (typeof data.model !== 'undefined') {

@@ -23,12 +23,14 @@ import {
     sep,
 } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import type { Agent, AgentDefinition } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
 import { createJiti } from 'jiti';
 import type { Jiti } from 'jiti';
 import { locateMany } from 'locter';
 import { isObject } from 'smob';
 import { HASH_IGNORE_PATTERNS, HASH_IMPORTABLE_EXTENSIONS, PINNED_PACKAGE_SCOPES } from './constants.ts';
+import type { DeclaredAgent } from './types.ts';
 
 let moduleJiti: Jiti | undefined;
 
@@ -264,14 +266,29 @@ export function defaultExportOf(mod: unknown, file: string): unknown {
 }
 
 /**
- * Whether the folder hash leaves out `file` (a relative POSIX path): its
- * basename matches HASH_IGNORE_PATTERNS and the loader cannot import it.
+ * Whether `value` has an agent's shape (`name` a string, `definition` an
+ * object), checked structurally so an agent built by another `@chamvi/core`
+ * copy passes too; folder and package agents share this rule.
  */
-export function isHashIgnored(file: string): boolean {
+export function isDeclaredAgent(value: unknown): value is DeclaredAgent {
+    return isObject(value) && typeof value.name === 'string' && isObject(value.definition);
+}
+
+/** A declared agent rebuilt through this copy of defineAgent(), so its checks and budget defaults apply. */
+export function rebuildAgent(declared: DeclaredAgent): Agent {
+    return defineAgent({ ...declared.definition, name: declared.name } as AgentDefinition);
+}
+
+/**
+ * Whether the folder hash leaves out `file` (a relative POSIX path): its
+ * basename matches HASH_IGNORE_PATTERNS and its extension is none of
+ * `importable` (default HASH_IMPORTABLE_EXTENSIONS, what the loader imports).
+ */
+export function isHashIgnored(file: string, importable: readonly string[] = HASH_IMPORTABLE_EXTENSIONS): boolean {
     const name = file.slice(file.lastIndexOf('/') + 1);
     const extension = extname(name).toLowerCase();
 
-    if ((HASH_IMPORTABLE_EXTENSIONS as readonly string[]).includes(extension)) {
+    if (importable.includes(extension)) {
         return false;
     }
 
@@ -288,15 +305,30 @@ export async function hashFolder(dir: string, include: (key: string) => boolean)
         onlyFiles: true,
         dot: false,
     });
-    const files = found
-        .map((info) => ({ path: info.path, key: relative(dir, info.path).split(sep).join('/') }))
-        .filter((file) => include(file.key))
-        .sort((a, b) => compareCodePoints(a.key, b.key));
+
+    return hashFiles(dir, found.map((info) => toKey(dir, info.path)).filter(include));
+}
+
+/** A path below `dir` as a relative POSIX path. */
+export function toKey(dir: string, path: string): string {
+    return relative(dir, path).split(sep).join('/');
+}
+
+/**
+ * sha256 (hex) over the files `keys` (relative POSIX paths below `dir`) in
+ * code-point order, each as `key + '\0' + bytes + '\0'`; `read` may supply a
+ * file's bytes instead of its content on disk.
+ */
+export async function hashFiles(
+    dir: string,
+    keys: readonly string[],
+    read: (key: string, path: string) => Promise<Uint8Array | string> = (_key, path) => readFile(path),
+): Promise<string> {
     const hash = createHash('sha256');
 
-    for (const file of files) {
-        hash.update(`${file.key}\0`);
-        hash.update(await readFile(file.path));
+    for (const key of [...new Set(keys)].sort(compareCodePoints)) {
+        hash.update(`${key}\0`);
+        hash.update(await read(key, join(dir, ...key.split('/'))));
         hash.update('\0');
     }
 
