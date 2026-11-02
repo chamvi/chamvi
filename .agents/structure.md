@@ -22,6 +22,8 @@ chamvi/
 │   ├── github/                      # @chamvi/github (same layout; aliases core, http, test-kit, itself and its /module, app, app/testing, channel-cron, store-db to src)
 │   │   └── test/fixtures/deliveries/ # Recorded GitHub webhook bodies (issues.opened, a bot's issue_comment)
 │   ├── channel-openclaw/            # @chamvi/channel-openclaw (aliases core, test-kit, itself and its /module, plus app, app/testing, http, channel-cron, store-db; fake gateway in test/utils/openclaw.ts)
+│   ├── chat/                        # @chamvi/chat (aliases core, http, test-kit, itself and its /module, plus app, app/testing, channel-cron, store-db; fake Chat SDK adapter in test/utils/)
+│   ├── chat-whatsapp/               # @chamvi/chat-whatsapp (aliases core, chat, chat/module, test-kit, itself, plus app, http, channel-cron, store-db; fake Baileys sockets and auth in test/utils/)
 │   ├── sandbox/                     # @chamvi/sandbox (same layout; aliases core, itself and its /module, sandbox-local, app, app/testing, http, channel-cron, store-db; private test/utils/clock.ts)
 │   │   └── src/instructions/        # Bounded workspace-exec collector, include/protocol helpers, source/provenance/diagnostic types and limits
 │   ├── sandbox-local/               # @chamvi/sandbox-local (aliases core, sandbox, test-kit and itself)
@@ -100,6 +102,8 @@ chamvi/
 | `@chamvi/coding-claude-code` | Planned | Claude Code coding backend |
 | `@chamvi/github` | Exists (0.1.0) | `createGithubApp()` (App JWT, `IClock` installation-token cache, Octokit per installation), `githubChannel()` (`in`: the signed deliveries, one run per matching agent with the address `<owner>/<repo>#<n>`; `out`: one comment per key, deduplicated by `effectMarker()` found before posting), `github.on()`, `github.to()`, read tools and effect write tools, the context pair `provideGithubContext`/`injectGithubContext`; `/module`: `githubModule()` (optional peer on `@chamvi/app`; contributes the channel); depends on `@octokit/core` + `plugin-paginate-rest`, `@ebec/http`, `smob`, peer on core and `ai` (http a devDependency for tests) |
 | `@chamvi/channel-openclaw` | Exists (0.1.0) | `openclawChannel()` (out only): `POST <hooksPath>/agent` with `Idempotency-Key`, a deterministic message with the approval link, an `IClock` timeout; `/module`: `openclawModule()` (optional peer on `@chamvi/app`; contributes the channel); no runtime dependencies, peer on core |
+| `@chamvi/chat` | Exists (unpublished) | `chatChannel()` over Chat SDK (`chat`) adapters (`createChatIngressAdapter()`), `chat.on()`/`chat.to()`, policy-first intake with conversation binding, text/approval-link outbound, webhooks on the channel mount, the platform seam `IChatPlatform`; `/module`: `chatModule()`; depends on `smob`, peer on core, http and `chat`; no platform SDK |
+| `@chamvi/chat-whatsapp` | Exists (unpublished) | `createWhatsAppChat()`: a chamvi-owned adapter on Baileys over `@chamvi/chat`'s public API only; depends on `smob`, peer on core, chat, `chat` and `baileys` (exactly `7.0.0-rc14`) |
 
 The memory store lives inside `@chamvi/core` (no separate `store-memory` package), because every test needs it.
 

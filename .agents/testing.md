@@ -31,4 +31,4 @@ Only `test/unit/**/*.{test,spec}.{js,ts}` is picked up; a new test directory nee
 - `test/unit/smoke.spec.ts` checks that the package entry resolves.
 - `test/unit/exports.spec.ts` pins the public exports; `test/unit/readme.spec.ts` runs `test/fixtures/readme-example.ts` and checks that the package's `README.md` contains that file verbatim. Change the example in the fixture, then copy it into the README.
 - Tests that need a build first (`nx` `dependsOn: ["build"]`; by hand run `npm run build` first): `@chamvi/app` (`test/unit/loader/identity.spec.ts`), `@chamvi/cli` (`test/unit/bin/`) and `@chamvi/ui` (`readme.spec.ts`).
-- Package-specific fakes and suites (GitHub, OpenClaw, web, knowledge, sandbox providers, app harness, CLI, UI e2e, skills, structured instructions) are in the `## Testing` section of the matching [topic file](architecture.md#topic-files).
+- Package-specific fakes and suites (GitHub, OpenClaw, chat, WhatsApp, web, knowledge, sandbox providers, app harness, CLI, UI e2e, skills, structured instructions) are in the `## Testing` section of the matching [topic file](architecture.md#topic-files).

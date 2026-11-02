@@ -30,6 +30,8 @@
         "@chamvi/app": "*",
         "@chamvi/channel-cron": "*",
         "@chamvi/channel-openclaw": "*",
+        "@chamvi/chat": "*",
+        "@chamvi/chat-whatsapp": "*",
         "@chamvi/cli": "*",
         "@chamvi/coding": "*",
         "@chamvi/core": "*",
