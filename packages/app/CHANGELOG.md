@@ -1,5 +1,33 @@
 # Changelog
 
+## [0.5.0](https://github.com/chamvi/chamvi/compare/v0.4.0...v0.5.0) (2026-11-02)
+
+
+### ⚠ BREAKING CHANGES
+
+* require node 26 and run ci on one version ([#113](https://github.com/chamvi/chamvi/issues/113))
+
+### Features
+
+* **core,app:** resolve embedding models ([#107](https://github.com/chamvi/chamvi/issues/107)) ([d0e56b4](https://github.com/chamvi/chamvi/commit/d0e56b46c814037b55117e7163fa482dbb49519b))
+
+
+### Build System
+
+* require node 26 and run ci on one version ([#113](https://github.com/chamvi/chamvi/issues/113)) ([0bf352f](https://github.com/chamvi/chamvi/commit/0bf352f63e3f13433396e6ba12ae3b667f8746e4))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/channel-cron bumped from ^0.4.0 to ^0.5.0
+    * @chamvi/core bumped from ^0.4.0 to ^0.5.0
+    * @chamvi/http bumped from ^0.4.0 to ^0.5.0
+    * @chamvi/store-db bumped from ^0.4.0 to ^0.5.0
+  * devDependencies
+    * @chamvi/test-kit bumped from ^0.4.0 to ^0.5.0
+
 ## [0.4.0](https://github.com/chamvi/chamvi/compare/v0.3.1...v0.4.0) (2026-11-01)
 
 
