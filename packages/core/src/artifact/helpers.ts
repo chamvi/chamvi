@@ -9,7 +9,7 @@ import type { FilePart, ModelMessage } from 'ai';
 import { isObject } from 'smob';
 import { ArtifactNotFoundError, ValidationError } from '../errors/index.ts';
 import type { IArtifactRepository } from '../repository/types.ts';
-import { ARTIFACT_URI_PREFIX } from './constants.ts';
+import { ARTIFACT_KEY_MAX_LENGTH, ARTIFACT_URI_PREFIX } from './constants.ts';
 import { isArtifactMediaType } from './media-type.ts';
 import type { Artifact, ArtifactInput } from './types.ts';
 
@@ -29,6 +29,19 @@ export function assertArtifactInput(input: unknown, what = 'artifact'): asserts 
 
     if (!(input.data instanceof Uint8Array)) {
         throw new ValidationError(`The ${what} data must be a Uint8Array.`);
+    }
+
+    if (input.key !== undefined) {
+        if (
+            typeof input.key !== 'string' ||
+            input.key.length === 0 ||
+            input.key.length > ARTIFACT_KEY_MAX_LENGTH ||
+            input.key.includes('\0')
+        ) {
+            throw new ValidationError(
+                `The ${what} key must be a string of 1 to ${ARTIFACT_KEY_MAX_LENGTH} characters without NUL.`,
+            );
+        }
     }
 }
 

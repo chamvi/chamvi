@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { randomUUID } from 'node:crypto';
+import { createHash, randomUUID } from 'node:crypto';
 import type { IClock } from '../clock/index.ts';
 import { InvalidRunStateError } from '../errors/index.ts';
 import type { IArtifactRepository } from '../repository/types.ts';
@@ -66,6 +66,15 @@ export function attachmentIds(runId: string, count: number): string[] {
     return Array.from({ length: count }, (_, i) => `${runId}.${String(i).padStart(width, '0')}`);
 }
 
+/**
+ * The id of a run's artifact stored under `key` (`artifacts.put({ key })`):
+ * `<runId>.k.<the first 32 hex digits of sha256(key)>`. It never matches an
+ * attachment id (`<runId>.<digits>`) and fits the stores' id width.
+ */
+export function keyedArtifactId(runId: string, key: string): string {
+    return `${runId}.k.${createHash('sha256').update(key).digest('hex').slice(0, 32)}`;
+}
+
 /** The artifacts of one run, as tools get them. */
 export function createRunArtifacts(
     store: IArtifactRepository,
@@ -76,7 +85,19 @@ export function createRunArtifacts(
         async put(input) {
             assertArtifactInput(input);
 
-            return storeArtifact(store, run, input, clock.now());
+            if (input.key === undefined) {
+                return storeArtifact(store, run, input, clock.now());
+            }
+
+            return store.save({
+                id: keyedArtifactId(run.id, input.key),
+                runId: run.id,
+                agent: run.agent,
+                mediaType: input.mediaType,
+                ...(input.filename === undefined ? {} : { filename: input.filename }),
+                size: input.data.byteLength,
+                createdAt: clock.now(),
+            }, input.data);
         },
         async get(id) {
             const artifact = await store.findOne(id);

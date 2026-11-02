@@ -312,7 +312,13 @@ export class Engine implements IEngine {
             throw new ValidationError('The attachments must be an array.');
         }
 
-        attachments?.forEach((attachment, i) => assertArtifactInput(attachment, `attachment ${i}`));
+        attachments?.forEach((attachment, i) => {
+            assertArtifactInput(attachment, `attachment ${i}`);
+
+            if (attachment.key !== undefined) {
+                throw new ValidationError('Attachments take no key.');
+            }
+        });
         assertTriggerKey('idempotency key', envelope.idempotencyKey);
         assertTriggerKey('concurrency key', envelope.concurrencyKey);
         assertTriggerKey('address', envelope.address);

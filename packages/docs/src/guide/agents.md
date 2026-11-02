@@ -89,7 +89,7 @@ A run can start with files ([attachments](/guide/channels#attachments)) and tool
 
 <<< @/snippets/agents.ts#artifacts
 
-`put()` is not an effect by itself: a recovered run repeats the step in progress, so call it inside a [`defineEffectTool`](/guide/effect-tools) to store a file exactly once. Over HTTP, `GET /runs/:id/artifacts` lists them and `GET /runs/:id/artifacts/:artifactId` downloads one (see [HTTP API](/guide/http#files)).
+`put()` is not an effect by itself: a recovered run repeats the step in progress, so call it inside a [`defineEffectTool`](/guide/effect-tools) to store a file exactly once. Or give it a `key` (1 to 255 characters, no NUL): `put({ key, mediaType, data })` stores the file under an id derived from the run and the key (`keyedArtifactId(runId, key)`), and a later `put()` with the same key replaces the bytes and metadata instead of adding a second file, so a repeated or replayed call stores it once. Over HTTP, `GET /runs/:id/artifacts` lists them and `GET /runs/:id/artifacts/:artifactId` downloads one (see [HTTP API](/guide/http#files)).
 
 ## Many agents per engine
 
