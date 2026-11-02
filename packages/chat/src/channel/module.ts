@@ -21,9 +21,9 @@ import {
 import { CHAT_STOP_TIMEOUT_ERROR_CODE, CHAT_STOP_TIMEOUT_MS } from './constants.ts';
 import type {
     ChatChannel,
-    ChatChannelHooks,
     ChatChannelOptions,
     ChatIntake,
+    ChatPlatformSend,
     ResolvedChatChannelOptions,
 } from './types.ts';
 import { receiveWebhook } from './webhook.ts';
@@ -191,12 +191,13 @@ function teardown(run: ChatRun, options: ResolvedChatChannelOptions): Promise<vo
  * (a button) or any other event the adapter forwards answers nothing and
  * never answers an approval.
  */
-export function createChatChannel(options: ChatChannelOptions, intake: ChatIntake, hooks: ChatChannelHooks = {}): ChatChannel {
-    const resolved: ResolvedChatChannelOptions = {
-        ...resolveOptions(options),
-        ...(hooks.conversationTarget ? { conversationTarget: hooks.conversationTarget } : {}),
-    };
-    const { name, adapterNames } = resolved;
+export function createChatChannel(options: ChatChannelOptions, intake: ChatIntake): ChatChannel {
+    const resolved: ResolvedChatChannelOptions = resolveOptions(options);
+    const {
+        name,
+        adapterNames,
+        platform,
+    } = resolved;
     let current: ChatRun | undefined;
     const out = createChatSender({
         name,
@@ -204,8 +205,8 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         ...(resolved.approvalUrl ? { approvalUrl: resolved.approvalUrl } : {}),
         timeoutMs: resolved.timeoutMs,
         // started, and connected as far as the transport knows
-        online: () => (current?.online && (hooks.online?.() ?? true) ? current.context.engine.clock : undefined),
-        ...(hooks.prepare ? { prepare: hooks.prepare } : {}),
+        online: () => (current?.online && (platform?.online ? platform.online() : true) ? current.context.engine.clock : undefined),
+        ...(platform?.prepare ? { prepare: (input: ChatPlatformSend) => platform.prepare!(input) } : {}),
         onError: resolved.onError,
     });
 
@@ -285,7 +286,8 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
 /**
  * A chat channel over a Chat SDK `Chat` whose adapters are wrapped by
  * createChatIngressAdapter(). See createChatChannel() for the lifecycle and
- * createChatIntake() for what a message must pass to start runs.
+ * createChatIntake() for what a message must pass to start runs. A platform
+ * package passes its hooks as `platform` (IChatPlatform).
  * Throws InvalidAgentDefinitionError for an invalid option.
  */
 export function chatChannel(options: ChatChannelOptions): ChatChannel {

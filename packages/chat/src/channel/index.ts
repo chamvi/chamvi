@@ -24,4 +24,6 @@ export type {
     ChatChannelOptions,
     ChatEvent,
     ChatPayload,
+    ChatPlatformSend,
+    IChatPlatform,
 } from './types.ts';

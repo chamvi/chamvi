@@ -22,8 +22,8 @@ import type {
     RawMessage,
     StateAdapter,
 } from 'chat';
-import type { ChatApprovalRef, ChatChannel } from '../channel/types.ts';
-import type { ChatIngress } from '../ingress/types.ts';
+import type { ChatApprovalRef, ChatChannel } from '../channel/index.ts';
+import type { ChatIngress } from '../ingress/index.ts';
 
 /**
  * The persisted WhatsApp session one connector holds while it runs. The

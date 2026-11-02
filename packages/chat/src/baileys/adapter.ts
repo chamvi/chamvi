@@ -23,7 +23,7 @@ import type {
 } from 'chat';
 import { ChamviError, ValidationError } from '@chamvi/core';
 import { isObject } from 'smob';
-import { CHAT_REQUEST_ERROR_CODE } from '../channel/constants.ts';
+import { CHAT_REQUEST_ERROR_CODE } from '../channel/index.ts';
 import { WHATSAPP_ADAPTER_NAME } from './constants.ts';
 import { createWhatsAppConnection } from './connection.ts';
 import { resolveIdentity } from './policy.ts';

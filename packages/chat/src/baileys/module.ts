@@ -11,10 +11,9 @@ import { Chat } from 'chat';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { Invoker } from '@chamvi/core';
 import { isObject } from 'smob';
-import { createChatChannel } from '../channel/module.ts';
-import { createChatIntake } from '../intake/module.ts';
-import { createChatIngressAdapter } from '../ingress/module.ts';
-import type { ChatIncoming } from '../ingress/types.ts';
+import { chatChannel } from '../channel/index.ts';
+import { createChatIngressAdapter } from '../ingress/index.ts';
+import type { ChatIncoming } from '../ingress/index.ts';
 import { createWhatsAppAdapter } from './adapter.ts';
 import { MESSAGE_ID_PREFIX, WHATSAPP_ADAPTER_NAME } from './constants.ts';
 import { isAllowed, resolvePolicy, toConversationTarget } from './policy.ts';
@@ -127,7 +126,7 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
     };
 
     const { name } = options;
-    const channel = createChatChannel({
+    const channel = chatChannel({
         chat,
         adapters: [ingress],
         ...(name !== undefined ? { name } : {}),
@@ -140,24 +139,25 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
         resolveInvoker: (incoming) => invokers.get(incoming.message),
         approvalUrl: options.approvalUrl,
         onError,
-    }, createChatIntake(), {
-        online: () => adapter.connection.status() === 'connected',
-        prepare: ({
-            threadId,
-            text,
-            key,
-        }) => {
-            // refuses a thread of no WhatsApp chat before anything goes out
-            adapter.decodeThreadId(threadId);
+        platform: {
+            online: () => adapter.connection.status() === 'connected',
+            prepare: ({
+                threadId,
+                text,
+                key,
+            }) => {
+                // refuses a thread of no WhatsApp chat before anything goes out
+                adapter.decodeThreadId(threadId);
 
-            const messageId = messageIdOf(channel.name, key);
+                const messageId = messageIdOf(channel.name, key);
 
-            return () => adapter.send(threadId, text, messageId);
-        },
-        conversationTarget: (incoming, payload) => {
-            const identity = adapter.identityOf(incoming.message);
+                return () => adapter.send(threadId, text, messageId);
+            },
+            conversationTarget: (incoming, payload) => {
+                const identity = adapter.identityOf(incoming.message);
 
-            return identity ? toConversationTarget(identity, payload.message.text) : undefined;
+                return identity ? toConversationTarget(identity, payload.message.text) : undefined;
+            },
         },
     });
 

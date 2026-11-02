@@ -95,6 +95,8 @@ export type ChatChannelOptions = {
     timeoutMs?: number;
     /** Failures nobody awaits (refused and failed messages, stop); default console.error. */
     onError?: (error: unknown) => void;
+    /** A platform package's hooks (IChatPlatform); none by default. */
+    platform?: IChatPlatform;
 };
 
 export type ChatChannel = IChannel & ChatSubscriber;
@@ -116,36 +118,63 @@ export type ResolvedChatChannelOptions = {
     approvalUrl?: ChatChannelOptions['approvalUrl'];
     timeoutMs: number;
     onError: (error: unknown) => void;
-    /** see ChatChannelHooks */
-    conversationTarget?: ChatChannelHooks['conversationTarget'];
+    platform?: IChatPlatform;
+};
+
+/** One send a platform prepares (IChatPlatform.prepare): the target, the rendered text and the message key. */
+export type ChatPlatformSend = {
+    /** The adapter the address names (a name of `adapters`). */
+    adapter: string;
+    /** The thread the address names, as the adapter encodes it. */
+    threadId: string;
+    /** The text the channel rendered (title, body, approval link), at most `CHAT_TEXT_MAX_CHARS`. */
+    text: string;
+    /** `ChannelMessage.key`: the same for every retry of one message, so a transport may derive its own message id from it. */
+    key: string;
 };
 
 /**
- * What a transport package built on the channel adds (internal: the /baileys
- * entry); a plain chatChannel() has none.
+ * What a platform package built on the channel adds (`chatChannel({ platform })`,
+ * e.g. `@chamvi/chat-whatsapp`): its connection state, its own send and the
+ * conversation identity of its messages. Every hook is optional and called on
+ * the platform object (`this` is the platform); a missing hook keeps the
+ * default. The channel checks at construction that `platform` is an object
+ * whose given hooks are functions (InvalidAgentDefinitionError otherwise).
+ * The platform's socket lifecycle stays with `connect`/`disconnect` and its
+ * message policy with `allowMessage`/`resolveInvoker`.
  */
-export type ChatChannelHooks = {
-    /** Whether the transport is connected; the channel sends only while it is started and this holds. */
-    online?: () => boolean;
+export interface IChatPlatform {
     /**
-     * Prepares one send before the channel's online check: throws for a
-     * target the transport refuses (its error as is), else returns the post
-     * the sender waits for (its failure a `chat_request`). Default the
-     * adapter's `postMessage(threadId, { raw: text })`.
+     * Whether the transport is connected, asked once per send after `prepare`
+     * and only while the channel is started (before `start` finished and from
+     * `stop` on the channel sends nothing whatever this answers). False refuses
+     * the send (`chat_request`, nothing posted). Default true: the channel
+     * sends while it is started.
      */
-    prepare?: (input: {
-        adapter: string;
-        threadId: string;
-        text: string;
-        key: string
-    }) => () => Promise<unknown>;
+    online?(): boolean;
     /**
-     * The conversation of a message for an agent with `conversation`: undefined
-     * refuses the dispatch of that agent. Default from the payload (the
-     * account alias, the thread, `direct:<author>` or `group:<channel>`).
+     * Prepares one send of `out`, after the address decoded and the message
+     * rendered, before the online check. It throws to refuse a target the
+     * transport cannot reach (the error reaches the caller as is, nothing goes
+     * out), else returns the post the channel calls once and waits for,
+     * bounded by `timeoutMs` and the send's signal (a rejection or throw of
+     * the post is a `chat_request`; a post that settles after the channel
+     * stopped waiting is reported to `onError`). Default the adapter's
+     * `postMessage(threadId, { raw: text })`.
      */
-    conversationTarget?: (incoming: ChatIncoming, payload: ChatPayload) => ConversationTarget | undefined;
-};
+    prepare?(input: ChatPlatformSend): () => Promise<unknown>;
+    /**
+     * The conversation of a message for an agent with `conversation`, asked
+     * per such agent after `allowMessage` allowed the message, its text was
+     * accepted and `resolveInvoker` ran (never for a refused message).
+     * Undefined refuses that agent's dispatch (a refusal, reported as
+     * `chat_intake_failed`; other agents still get their run); a throw fails
+     * the message's intake. Default from the payload: the `account` alias
+     * (else the adapter), the thread, `direct:<author>` or `group:<channel>`,
+     * the message text.
+     */
+    conversationTarget?(incoming: ChatIncoming, payload: ChatPayload): ConversationTarget | undefined;
+}
 
 /** What the intake of one message gets besides the message (internal). */
 export type ChatIntakeContext = {

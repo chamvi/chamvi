@@ -64,6 +64,23 @@ function assertOptionalFunction(options: ChatChannelOptions, key: keyof ChatChan
     }
 }
 
+/** A platform is an object whose given hooks are functions (IChatPlatform). */
+function assertPlatform(platform: unknown): void {
+    if (platform === undefined) {
+        return;
+    }
+
+    if (!isObject(platform)) {
+        throw invalid('platform must be an object of hooks (IChatPlatform).');
+    }
+
+    for (const key of ['online', 'prepare', 'conversationTarget'] as const) {
+        if (platform[key] !== undefined && typeof platform[key] !== 'function') {
+            throw invalid(`platform.${key} must be a function.`);
+        }
+    }
+}
+
 function assertAdapters(options: ChatChannelOptions): ChatIngress[] {
     const { chat, adapters } = options;
 
@@ -167,6 +184,8 @@ export function resolveOptions(options: ChatChannelOptions): ResolvedChatChannel
         assertOptionalFunction(options, key);
     }
 
+    assertPlatform(options.platform);
+
     if (options.untrusted !== undefined && typeof options.untrusted !== 'boolean') {
         throw invalid('untrusted must be a boolean.');
     }
@@ -216,6 +235,7 @@ export function resolveOptions(options: ChatChannelOptions): ResolvedChatChannel
         timeoutMs,
         // eslint-disable-next-line no-console
         onError: options.onError ?? ((error) => console.error('[chamvi]', error)),
+        ...(options.platform !== undefined ? { platform: options.platform } : {}),
     };
 }
 

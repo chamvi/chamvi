@@ -324,7 +324,7 @@ describe('chat intake with conversations', () => {
     it('a transport without a conversation for the message refuses the bound agent only, once', async () => {
         const fixture = await started({
             agents: (channel) => [remembering(channel), plain(channel, 'plain')],
-            hooks: { conversationTarget: () => undefined },
+            patch: { platform: { conversationTarget: () => undefined } },
         });
 
         const error = await fixture.adapter.deliver(createTextMessage({ id: 'm-1', text: 'secret words' })).catch((caught: unknown) => caught);

@@ -20,9 +20,6 @@ import { ControllableClock } from '@chamvi/test-kit';
 import { createFakeAdapter } from './adapter.ts';
 import type { FakeAdapter } from './adapter.ts';
 import { createMemoryState, createRecordingLogger } from './chat.ts';
-import { createChatChannel } from '../../src/channel/module.ts';
-import type { ChatChannelHooks } from '../../src/channel/types.ts';
-import { createChatIntake } from '../../src/intake/module.ts';
 
 export type IntakeFixture = {
     /** the first adapter */
@@ -51,8 +48,6 @@ export type IntakeFixtureInput = {
     store?: (store: ReturnType<typeof createMemoryStore>) => IStore;
     /** the conversation policy; default allow */
     authorize?: (access: ConversationAccess) => boolean | Promise<boolean>;
-    /** a transport's hooks (internal seam, as the /baileys entry passes them) */
-    hooks?: ChatChannelHooks;
     /** the adapters' names; default one adapter `fake` */
     adapterNames?: string[];
 };
@@ -83,7 +78,7 @@ export function createIntakeFixture(input: IntakeFixtureInput): IntakeFixture {
         },
         ...input.patch,
     };
-    const channel = input.hooks ? createChatChannel(options, createChatIntake(), input.hooks) : chatChannel(options);
+    const channel = chatChannel(options);
     const memory = createMemoryStore({ clock });
     const store = input.store ? input.store(memory) : memory;
     const engine = new Engine({

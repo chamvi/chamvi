@@ -145,10 +145,12 @@ function firstMatch(agent: Agent, channel: string, payload: ChatPayload): Channe
         matchesChatSubscription(subscription, payload));
 }
 
-/** The conversation of the message: the transport's (hook), else from the payload. */
+/** The conversation of the message: the platform's (IChatPlatform.conversationTarget), else from the payload. */
 function conversationOf(incoming: ChatIncoming, options: ResolvedChatChannelOptions, payload: ChatPayload): ConversationTarget | undefined {
-    if (options.conversationTarget) {
-        return options.conversationTarget(incoming, payload);
+    const { platform } = options;
+
+    if (platform?.conversationTarget) {
+        return platform.conversationTarget(incoming, payload);
     }
 
     return {
