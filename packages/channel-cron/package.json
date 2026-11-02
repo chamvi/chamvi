@@ -57,7 +57,7 @@
         "@chamvi/core": "^0.5.1",
         "@chamvi/test-kit": "^0.5.1",
         "@hubwire/test": "^0.1.2",
-        "ai": "^7.0.150",
+        "ai": "^7.0.157",
         "zod": "^4.6.7"
     },
     "peerDependencies": {

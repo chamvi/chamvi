@@ -68,7 +68,7 @@
         "@chamvi/core": "^0.5.1",
         "@chamvi/http": "^0.5.1",
         "@chamvi/test-kit": "^0.5.1",
-        "ai": "^7.0.150"
+        "ai": "^7.0.157"
     },
     "peerDependencies": {
         "@chamvi/core": "^0.5.1",
