@@ -239,11 +239,12 @@ export class AgentsModule implements IModule {
             this.watcher = watcher;
             await watcher.boot();
         } else if (packageAgents !== undefined && role === 'start') {
-            // without an agents dir the watcher's orphan sweep runs here: a package agent gone from its package or the list is removed
+            // without an agents dir the watcher's orphan sweep runs here, over package markers only: a package agent gone
+            // from its package or the list is removed, a folder agent's marker stays (its dir may be an unmounted volume)
             if (unresolved.length > 0) {
                 logger.warn(ORPHANS_KEPT_MESSAGE);
             } else {
-                await removeOrphanAgents(engine, (name) => codeNames.has(name) || claimed.has(name));
+                await removeOrphanAgents(engine, (name, marker) => codeNames.has(name) || claimed.has(name) || !isPackageMarker(marker));
             }
         }
 

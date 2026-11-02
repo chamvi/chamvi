@@ -298,6 +298,25 @@ describe('package agents across restarts', () => {
         expect((await store.agentRevisions.findOne('folder'))?.hash).toBe(folderHash);
     });
 
+    it('keeps folder markers in a package-only start without an agents dir', async () => {
+        await installPackage(cwd, '@s/greeter');
+
+        const folderHash = 'cd'.repeat(32);
+
+        await store.agentRevisions.save({
+            agent: 'folder', 
+            hash: folderHash, 
+            changedAt: clock.now(), 
+        });
+
+        const runId = await queueRun(store, clock, 'folder');
+
+        await boot();
+
+        expect(await statusOf(runId)).toBe('queued');
+        expect((await store.agentRevisions.findOne('folder'))?.hash).toBe(folderHash);
+    });
+
     it('keeps the issue of a failed package when another package exports an agent of its name', async () => {
         await installPackage(cwd, 'broken', { agents: ['spare'] });
         await installPackage(cwd, 'second', { agents: ['broken'] });
