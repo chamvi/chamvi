@@ -123,3 +123,7 @@ Read-only GitHub `gh api` inspection at `3da2172220b91f8f5859b8f7ca8009abe5bf96a
 Checked against this file's contract map only (no fresh downstream checkout). `@chamvi/knowledge` phase 1 adds no env variable, CLI command, argument, exit code, signal, route, port, base image, sandbox RBAC or label and no model string format; the only `@chamvi/app` addition is the single-value token `AppToken.MODELS` (the engine module's model resolver), which is additive and not consumed downstream. No downstream change or PR is needed for phase 1.
 
 Pending: phase 2 (managed collections) adds the env variable `CHAMVI_KNOWLEDGE_MODEL` (the default embedding model of managed collections) and REST routes for collections; when it lands, the downstream repository needs a PR documenting the variable (and any route it exposes) before release.
+
+## Agent packages (#118)
+
+Checked against this file's contract map only (no fresh downstream checkout). `createApp({ agents })` widens compatibly to `(Agent | string)[]` (bare package specifiers); `IApp.packages` is additive. The new optional env variable `CHAMVI_AGENTS` and the `chamvi.json` `agents` field are opt-in, and the template's existing `createApp({ agents: [example], ... })` is unchanged. No template PR is required; a documentation follow-up (the package form, `CHAMVI_AGENTS` in `.env.example` if its env-example test lists every variable) is optional.

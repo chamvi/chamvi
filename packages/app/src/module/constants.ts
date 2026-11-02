@@ -65,4 +65,6 @@ export const APP_ERROR_CODE = {
     STOP_FAILED: 'app_stop_failed',
     /** A check (`IApp.check()`) found migrations a start would not apply (`CHAMVI_MIGRATE=false`). */
     STORE_NOT_MIGRATED: 'store_not_migrated',
+    /** A job's agent is a package agent that did not load, check or prepare, or a package failed before its agents were known. */
+    PACKAGE_AGENT_FAILED: 'package_agent_failed',
 } as const;

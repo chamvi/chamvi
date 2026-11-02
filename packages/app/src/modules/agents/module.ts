@@ -5,27 +5,38 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError, InvalidRunStateError } from '@chamvi/core';
+import { ChamviError, InvalidAgentDefinitionError, InvalidRunStateError } from '@chamvi/core';
+import type { IEngine } from '@chamvi/core';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
-import { AppToken, ModuleName } from '../../module/constants.ts';
+import { readConfigFileAgents } from '../../models/file.ts';
+import { APP_ERROR_CODE, AppToken, ModuleName } from '../../module/constants.ts';
+import { mergePackageSpecifiers } from '../../package/helpers.ts';
 import {
     AGENTS_WATCHER_HOOK_NAME,
     AGENT_RELOADED_MESSAGE,
     AGENT_REMOVED_MESSAGE,
-    HASH_PREFIX_LENGTH,
     NO_AGENTS_MESSAGE,
     NO_DIRECTORY_MESSAGE,
 } from './constants.ts';
-import { isDirectory, resolveAgentsRoot } from './helpers.ts';
+import { formatRevision, isDirectory, resolveAgentsRoot } from './helpers.ts';
 import type { AgentCheck } from '../../module/types.ts';
-import type { AgentsWatcherRole, IAgentsWatcher } from './types.ts';
+import { createPackageAgents } from './packages.ts';
+import type {
+    AgentsModuleOptions,
+    AgentsWatcherRole,
+    IAgentsWatcher,
+    IPackageAgents,
+} from './types.ts';
 import { createAgentsWatcher } from './watcher.ts';
 
 /**
- * The agents dir (`CHAMVI_AGENTS_DIR`, else `./agents` when that is a
- * directory; start and job mode, nothing in migrate mode). Without a dir an
- * app without code agents starts empty (a warning). With one, `setup` registers `AGENT_ISSUES` and (start mode) the watcher's
+ * The agent packages (createApp's specifiers, then `chamvi.json` `agents`,
+ * then `CHAMVI_AGENTS`; loaded once in `onReady`, before the folders, code
+ * agents winning a name, then the earlier package) and the agents dir
+ * (`CHAMVI_AGENTS_DIR`, else `./agents` when that is a directory; start and
+ * job mode, nothing in migrate mode). Without a dir or a package an app
+ * without code agents starts empty (a warning). With one, `setup` registers `AGENT_ISSUES` and (start mode) the watcher's
  * lifecycle hook; `onReady` loads every folder into the engine before any
  * start step runs (a folder changed while the app was down cancels its old
  * runs once, logged `agent reloaded`/`agent removed` with the ids of the
@@ -48,11 +59,26 @@ export class AgentsModule implements IModule {
 
     protected watcher: IAgentsWatcher | undefined;
 
+    protected packageAgents: IPackageAgents | undefined;
+
+    /** The merged package specifiers this lifecycle loads; set by `setup`. */
+    protected packages: string[] = [];
+
+    protected options: AgentsModuleOptions;
+
     /** Ends the `agents.cancelled` subscription (start and job mode). */
     protected unsubscribe: (() => void) | undefined;
 
     /** The agents dir this lifecycle loads, absolute; set by `setup`. */
     protected root: string | undefined;
+
+    constructor(options: AgentsModuleOptions = {}) {
+        this.options = options;
+    }
+
+    protected get cwd(): string {
+        return this.options.cwd ?? process.cwd();
+    }
 
     async setup(container: IContainer): Promise<void> {
         const context = container.resolve(AppToken.CONTEXT);
@@ -61,12 +87,14 @@ export class AgentsModule implements IModule {
             return;
         }
 
-        const { dir } = container.resolve(AppToken.CONFIG).agents;
+        const { dir, packages } = container.resolve(AppToken.CONFIG).agents;
 
+        // an invalid chamvi.json already failed the engine module's model settings
+        this.packages = mergePackageSpecifiers(context.packages, await readConfigFileAgents(context.env, this.cwd), packages);
         // a dir named explicitly must exist, checked in onReady
-        this.root = await resolveAgentsRoot(dir, process.cwd());
+        this.root = await resolveAgentsRoot(dir, this.cwd);
 
-        if (this.root === undefined) {
+        if (this.root === undefined && this.packages.length === 0) {
             if (context.agents.length === 0) {
                 container.resolve(AppToken.LOGGER).warn(NO_AGENTS_MESSAGE);
             }
@@ -74,14 +102,17 @@ export class AgentsModule implements IModule {
             return;
         }
 
-        container.register(AppToken.AGENT_ISSUES, { useValue: () => this.watcher?.issues() ?? [] });
+        container.register(AppToken.AGENT_ISSUES, { useValue: () => [...this.packageAgents?.issues() ?? [], ...this.watcher?.issues() ?? []] });
 
         if (context.mode === 'start' && !context.check) {
             container.registerMany(AppToken.LIFECYCLE_HOOKS, {
                 useValue: {
                     name: AGENTS_WATCHER_HOOK_NAME,
-                    started: () => this.watcher?.start(),
-                    stopping: () => this.watcher?.stop(),
+                    started: () => {
+                        this.packageAgents?.start();
+                        this.watcher?.start();
+                    },
+                    stopping: () => this.stopAll(),
                 },
             });
         }
@@ -105,11 +136,11 @@ export class AgentsModule implements IModule {
             }
         }
 
-        if (root === undefined) {
+        if (root === undefined && this.packages.length === 0) {
             return;
         }
 
-        if (!await isDirectory(root)) {
+        if (root !== undefined && !await isDirectory(root)) {
             throw new InvalidAgentDefinitionError(NO_DIRECTORY_MESSAGE);
         }
 
@@ -117,11 +148,11 @@ export class AgentsModule implements IModule {
         const logger = container.resolve(AppToken.LOGGER);
 
         if (!context.check) {
-            // before the boot: a folder changed while the app was down is logged too
+            // before the boot: a folder or package changed while the app was down is logged too
             this.unsubscribe = engine.on('agents.cancelled', (event) => {
                 logger.info(event.reason === 'agent_removed' ? AGENT_REMOVED_MESSAGE : AGENT_RELOADED_MESSAGE, {
                     agent: event.name,
-                    ...(event.revision !== undefined && { revision: event.revision.slice(0, HASH_PREFIX_LENGTH) }),
+                    ...(event.revision !== undefined && { revision: formatRevision(event.revision) }),
                     cancelled: event.runIds,
                 });
             });
@@ -135,37 +166,105 @@ export class AgentsModule implements IModule {
             role = 'job';
         }
 
-        const watcher = createAgentsWatcher({
-            root,
+        const codeNames = new Set(context.agents.map((agent) => agent.name));
+        const common = {
             engine,
-            codeNames: new Set(context.agents.map((agent) => agent.name)),
             check: createAgentCheck(container),
             clock: container.resolve(AppToken.CLOCK),
             logger,
             pollMs: config.agents.pollMs,
             signal: context.signal,
             role,
-        });
+        };
 
-        this.watcher = watcher;
-        await watcher.boot();
+        let packageAgents: IPackageAgents | undefined;
 
-        const conflict = context.job ? watcher.conflict(context.job.agent) : undefined;
+        if (this.packages.length > 0) {
+            packageAgents = createPackageAgents({
+                ...common,
+                specs: this.packages,
+                cwd: this.cwd,
+                dev: context.dev,
+                codeNames,
+                ...(this.options.importer !== undefined && { importer: this.options.importer }),
+            });
+            this.packageAgents = packageAgents;
+            // before the folders: their names are reserved against them
+            await packageAgents.boot();
+        }
+
+        let watcher: IAgentsWatcher | undefined;
+
+        if (root !== undefined) {
+            const reserved = new Map<string, string>();
+
+            for (const name of codeNames) {
+                reserved.set(name, `${name}: a code agent has this name; the folder is not loaded.`);
+            }
+
+            for (const [name, message] of packageAgents?.reserved() ?? []) {
+                reserved.set(name, message);
+            }
+
+            watcher = createAgentsWatcher({
+                ...common,
+                root,
+                reserved,
+                removeOrphans: (packageAgents?.unresolved().length ?? 0) === 0,
+            });
+            this.watcher = watcher;
+            await watcher.boot();
+        }
+
+        if (context.job) {
+            this.assertJobAgent(context.job.agent, engine, packageAgents, watcher);
+        }
+    }
+
+    /** Throws when the job's own agent did not load: a revision conflict, a failed package agent or folder preparation. */
+    protected assertJobAgent(
+        agent: string,
+        engine: IEngine,
+        packageAgents: IPackageAgents | undefined,
+        watcher: IAgentsWatcher | undefined,
+    ): void {
+        const conflict = packageAgents?.conflict(agent) ?? watcher?.conflict(agent);
 
         if (conflict !== undefined) {
             throw new InvalidRunStateError(conflict);
         }
 
+        const failed = packageAgents?.failure(agent);
+
+        if (failed) {
+            throw new ChamviError({
+                code: APP_ERROR_CODE.PACKAGE_AGENT_FAILED,
+                message: failed.message,
+                ...(failed.error !== undefined && { cause: failed.error }),
+            });
+        }
+
         // a job of an agent whose skills failed to prepare fails with that error (configuration or transient)
-        const failure = context.job ? watcher.preparationFailure(context.job.agent) : undefined;
+        const failure = watcher?.preparationFailure(agent);
 
         if (failure) {
             throw failure.error;
         }
+
+        const unresolved = packageAgents?.unresolved() ?? [];
+
+        if (unresolved.length > 0 && engine.getAgent(agent) === undefined) {
+            // else runJob's "No agent" (a usage error) would hide that a package may hold it
+            throw new ChamviError({
+                code: APP_ERROR_CODE.PACKAGE_AGENT_FAILED,
+                message: `No agent "${agent}" loaded; the package(s) ${unresolved.join(', ')} did not load and may provide it.`,
+            });
+        }
     }
 
-    /** Resolves once the watcher's poll in flight, if any, settled. */
+    /** Resolves once the watcher's poll and the package retry in flight, if any, settled. */
     async idle(): Promise<void> {
+        await this.packageAgents?.idle();
         await this.watcher?.idle();
     }
 
@@ -173,7 +272,11 @@ export class AgentsModule implements IModule {
         // idempotent; the issues stay readable
         this.unsubscribe?.();
         this.unsubscribe = undefined;
-        await this.watcher?.stop();
+        await this.stopAll();
+    }
+
+    protected async stopAll(): Promise<void> {
+        await Promise.all([this.packageAgents?.stop(), this.watcher?.stop()]);
     }
 }
 
@@ -188,6 +291,6 @@ function createAgentCheck(container: IContainer): AgentCheck {
     };
 }
 
-export function agentsModule(): IModule {
-    return new AgentsModule();
+export function agentsModule(options?: AgentsModuleOptions): IModule {
+    return new AgentsModule(options);
 }

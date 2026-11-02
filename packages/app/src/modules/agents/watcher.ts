@@ -6,7 +6,6 @@
  */
 
 import { join } from 'node:path';
-import { InvalidAgentDefinitionError, InvalidRunStateError } from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/http';
 import { formerAgentFolderHash, messageOf, relativize } from '../../loader/helpers.ts';
 import { hashAgentFolder, listAgentFolders, loadAgent } from '../../loader/module.ts';
@@ -15,9 +14,10 @@ import {
     BOOT_LOAD_ATTEMPTS,
     EMPTY_ROOT_MESSAGE,
     JOB_CONFLICT_HINT,
-    SKILL_PREPARATION_RETRY_MAX_MS,
+    ORPHANS_KEPT_MESSAGE,
 } from './constants.ts';
-import { isDirectory, isEmptyDirectory } from './helpers.ts';
+import { isDirectory, isEmptyDirectory, nextRetryDelay } from './helpers.ts';
+import { registerAgent } from './register.ts';
 import type { AgentsWatcherOptions, IAgentsWatcher } from './types.ts';
 
 /**
@@ -39,7 +39,8 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
     const {
         root,
         engine,
-        codeNames,
+        reserved,
+        removeOrphans = true,
         check,
         clock,
         logger,
@@ -112,8 +113,10 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
         preparationRetries.delete(name);
         preparationFailures.delete(name);
 
-        if (codeNames.has(name)) {
-            record(name, `${name}: a code agent has this name; the folder is not loaded.`);
+        const reservedBy = reserved.get(name);
+
+        if (reservedBy !== undefined) {
+            record(name, reservedBy);
 
             return 'done';
         }
@@ -140,67 +143,50 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
             return 'unstable';
         }
 
-        try {
-            check(loaded.agent);
-            engine.checkAgent(loaded.agent);
-        } catch (error) {
-            record(name, relativize(messageOf(error), root));
+        const outcome = await registerAgent({
+            engine,
+            agent: loaded.agent,
+            check,
+            role,
+            revision: hash,
+            // a marker from before HASH_IGNORE_PATTERNS holds the same content: moved, never a cancel
+            formerRevision: () => formerAgentFolderHash(join(root, name), hash),
+            signal,
+        });
+
+        if (outcome.kind === 'checked') {
+            return 'done';
+        }
+
+        if (outcome.kind === 'issue') {
+            record(name, relativize(outcome.message, root));
 
             return 'done';
         }
 
-        if (role === 'check') {
+        if (outcome.kind === 'conflict') {
+            const message = `${name}: ${outcome.message} ${JOB_CONFLICT_HINT}`;
+
+            conflicts.set(name, message);
+            record(name, message);
+
             return 'done';
         }
 
         // A failed preparation is an issue (boot included): the last valid agent stays, the others start, polling retries with backoff.
-        try {
-            await engine.prepare({ agents: [loaded.agent], signal });
-        } catch (error) {
+        if (outcome.kind === 'preparation') {
             if (stopped || signal?.aborted) {
-                throw error;
+                throw outcome.error;
             }
 
-            preparationFailures.set(name, { error });
+            preparationFailures.set(name, { error: outcome.error });
 
-            const delay = Math.min((previousRetry?.delay ?? pollMs) * 2, Math.max(pollMs, SKILL_PREPARATION_RETRY_MAX_MS));
+            const delay = nextRetryDelay(previousRetry?.delay, pollMs);
 
             preparationRetries.set(name, { delay, at: clock.now().getTime() + delay });
-            record(name, relativize(messageOf(error), root));
+            record(name, relativize(messageOf(outcome.error), root));
 
             return 'done';
-        }
-
-        try {
-            // a marker from before HASH_IGNORE_PATTERNS holds the same content: moved, never a cancel
-            const formerRevision = await formerAgentFolderHash(join(root, name), hash);
-
-            signal?.throwIfAborted();
-            await engine.putAgent(loaded.agent, {
-                revision: hash,
-                reload: role === 'start',
-                signal,
-                ...(formerRevision !== undefined && { formerRevision }),
-            });
-        } catch (error) {
-            // refused before any store write (a model that cannot resolve, a subscription to an unknown channel): an issue until the content changes
-            if (error instanceof InvalidAgentDefinitionError) {
-                record(name, relativize(messageOf(error), root));
-
-                return 'done';
-            }
-
-            // a job never reloads: the marker differs while the agent has unsettled runs
-            if (role === 'job' && error instanceof InvalidRunStateError) {
-                const message = `${name}: ${messageOf(error)} ${JOB_CONFLICT_HINT}`;
-
-                conflicts.set(name, message);
-                record(name, message);
-
-                return 'done';
-            }
-
-            throw error;
         }
 
         applied.set(name, hash);
@@ -342,7 +328,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
                 continue;
             }
 
-            if (!codeNames.has(name)) {
+            if (!reserved.has(name)) {
                 try {
                     await engine.removeAgent(name);
                 } catch (error) {
@@ -423,6 +409,12 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
                 return;
             }
 
+            if (!removeOrphans) {
+                logger.warn(ORPHANS_KEPT_MESSAGE);
+
+                return;
+            }
+
             if (await isEmptyDirectory(root)) {
                 // an empty mount point must not remove every agent with a marker
                 logger.warn(EMPTY_ROOT_MESSAGE);
@@ -434,7 +426,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
             const folders = new Set(names);
 
             for (const marker of await engine.store.agentRevisions.find()) {
-                if (folders.has(marker.agent) || codeNames.has(marker.agent)) {
+                if (folders.has(marker.agent) || reserved.has(marker.agent)) {
                     continue;
                 }
 

@@ -48,3 +48,4 @@ export * from './modules/http/index.ts';
 export * from './modules/scheduler/index.ts';
 export * from './modules/static-tokens/index.ts';
 export * from './modules/repository/index.ts';
+export * from './package/index.ts';

@@ -15,6 +15,8 @@ agents/
 
 Folder code runs in the app's process with the app's full access (store, secrets, provided instances). Only people who may deploy the app should be able to write the folder.
 
+A folder named like a code agent or an [agent package](/guide/agent-packages)'s agent is an issue and never loaded: code agents win, then packages, then folders.
+
 ## Turning it on
 
 | Variable | Default | |

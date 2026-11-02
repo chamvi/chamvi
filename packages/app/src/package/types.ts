@@ -1,0 +1,44 @@
+/*
+ * Copyright (c) 2026.
+ * Author Peter Placzek (tada5hi)
+ * For the full copyright and license information,
+ * view the LICENSE file that was distributed with this source code.
+ */
+
+import type { Agent } from '@chamvi/core';
+
+/** An agent package, resolved, hashed and imported. */
+export type LoadedPackage = {
+    /** The specifier as listed (`@acme/agents`, `@acme/agents/triage`). */
+    spec: string;
+    /** The package name (`package.json` `name`). */
+    name: string;
+    /** The package version (`package.json` `version`). */
+    version: string;
+    /** The package's root folder, its real path (a symlinked workspace package resolved). */
+    root: string;
+    /**
+     * The revision its agents are registered at: `<name>@<version>`, in dev
+     * `<name>@<version>+<12 hex of hashAgentPackage(root)>`.
+     */
+    revision: string;
+    /** Dev only: the production marker `<name>@<version>`, moved to the dev marker without a cancel. */
+    formerRevision?: string;
+    /** The agents of its default export, rebuilt through this copy's defineAgent(). */
+    agents: Agent[];
+};
+
+export type LoadAgentPackageOptions = {
+    /** The folder the specifier resolves from (the app's working directory). */
+    cwd: string;
+    /** Dev markers (`start --dev`): the version plus the content hash. */
+    dev?: boolean;
+    /** Imports the entry by file URL. Default: a native `import()` with the app's packages pinned. */
+    importer?: (url: string) => Promise<unknown>;
+};
+
+/** createApp's agent entries split into code agents and package specifiers. */
+export type AgentEntries = {
+    agents: Agent[];
+    packages: string[];
+};

@@ -43,6 +43,8 @@ describe('public api', () => {
         'loadAgents',
         'hashAgentFolder',
         'listAgentFolders',
+        'loadAgentPackage',
+        'hashAgentPackage',
         'configModule',
         'storeModule',
         'staticTokensModule',
@@ -140,6 +142,7 @@ describe('public api', () => {
             IN_USE: 'app_in_use',
             STOP_FAILED: 'app_stop_failed',
             STORE_NOT_MIGRATED: 'store_not_migrated',
+            PACKAGE_AGENT_FAILED: 'package_agent_failed',
         });
         expect(app.AUTHENTICATOR_ORDER).toEqual({
             STATIC_TOKENS: 0,

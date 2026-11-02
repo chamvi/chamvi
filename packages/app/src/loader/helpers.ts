@@ -288,15 +288,30 @@ export async function hashFolder(dir: string, include: (key: string) => boolean)
         onlyFiles: true,
         dot: false,
     });
-    const files = found
-        .map((info) => ({ path: info.path, key: relative(dir, info.path).split(sep).join('/') }))
-        .filter((file) => include(file.key))
-        .sort((a, b) => compareCodePoints(a.key, b.key));
+
+    return hashFiles(dir, found.map((info) => toKey(dir, info.path)).filter(include));
+}
+
+/** A path below `dir` as a relative POSIX path. */
+export function toKey(dir: string, path: string): string {
+    return relative(dir, path).split(sep).join('/');
+}
+
+/**
+ * sha256 (hex) over the files `keys` (relative POSIX paths below `dir`) in
+ * code-point order, each as `key + '\0' + bytes + '\0'`; `read` may supply a
+ * file's bytes instead of its content on disk.
+ */
+export async function hashFiles(
+    dir: string,
+    keys: readonly string[],
+    read: (key: string, path: string) => Promise<Uint8Array | string> = (_key, path) => readFile(path),
+): Promise<string> {
     const hash = createHash('sha256');
 
-    for (const file of files) {
-        hash.update(`${file.key}\0`);
-        hash.update(await readFile(file.path));
+    for (const key of [...new Set(keys)].sort(compareCodePoints)) {
+        hash.update(`${key}\0`);
+        hash.update(await read(key, join(dir, ...key.split('/'))));
         hash.update('\0');
     }
 

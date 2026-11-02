@@ -127,3 +127,7 @@ Read-only GitHub `gh api` inspection at `482f7de3759e43d61a7faedeb00547e9b3fc520
 Checked against this file's contract map only (no fresh downstream checkout). `@chamvi/knowledge` phase 1 adds no env variable, CLI command, argument, exit code, signal, route, port, base image, sandbox RBAC or label and no model string format; the only `@chamvi/app` addition is the single-value token `AppToken.MODELS` (the engine module's model resolver), which is additive and not consumed downstream. No downstream change or PR is needed for phase 1.
 
 Pending: phase 2 (managed collections) adds the env variable `CHAMVI_KNOWLEDGE_MODEL` (the default embedding model of managed collections) and REST routes for collections; when it lands, the downstream repository needs a PR documenting the variable (and any route it exposes) before release.
+
+## Agent packages (#118)
+
+Checked against this file's contract map only (no fresh downstream checkout). The new optional env variable `CHAMVI_AGENTS` (comma-separated agent package specifiers, `packages/app/src/config/module.ts`) is not chart-owned: it passes through the generic `env` like `CHAMVI_AGENTS_DIR`, so no template, schema or validation change is needed. The packages must be installed in the image (the app's `dependencies`), which is the image build's concern, not the chart's. `chamvi start --check` exit codes are unchanged (an unresolved package is one issue line, exit 2); `run-job` exits 1 with `package_agent_failed` for a failed package agent. No chart PR needed; an optional README row for `CHAMVI_AGENTS` may follow.

@@ -7,7 +7,7 @@
 
 import { readdir, stat } from 'node:fs/promises';
 import { resolve } from 'node:path';
-import { DEFAULT_AGENTS_DIR } from './constants.ts';
+import { DEFAULT_AGENTS_DIR, HASH_PREFIX_LENGTH, SKILL_PREPARATION_RETRY_MAX_MS } from './constants.ts';
 
 export async function isDirectory(path: string): Promise<boolean> {
     try {
@@ -44,4 +44,18 @@ export async function resolveAgentsRoot(dir: string | undefined, cwd: string): P
     const fallback = resolve(cwd, DEFAULT_AGENTS_DIR);
 
     return await isDirectory(fallback) ? fallback : undefined;
+}
+
+/**
+ * The delay before the next skill preparation attempt: twice the previous
+ * one (the first: twice the poll interval), at most
+ * SKILL_PREPARATION_RETRY_MAX_MS unless the poll interval is longer.
+ */
+export function nextRetryDelay(previous: number | undefined, pollMs: number): number {
+    return Math.min((previous ?? pollMs) * 2, Math.max(pollMs, SKILL_PREPARATION_RETRY_MAX_MS));
+}
+
+/** A revision as a log line names it: a content hash cut to its prefix, a package marker in full. */
+export function formatRevision(revision: string): string {
+    return /^[0-9a-f]{64}$/.test(revision) ? revision.slice(0, HASH_PREFIX_LENGTH) : revision;
 }

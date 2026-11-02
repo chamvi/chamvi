@@ -5,17 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { stat } from 'node:fs/promises';
-import { resolve } from 'node:path';
 import type { ModelRef } from '@chamvi/core';
 import { envString } from '../env/module.ts';
 import type { Env } from '../env/types.ts';
 import {
     BUILTIN_PROVIDERS,
-    DEFAULT_CONFIG_FILE,
+    CONFIG_FILE_VARIABLE,
     PROVIDER_TYPES,
 } from './constants.ts';
-import { readConfigFile } from './file.ts';
+import { locateConfigFile, readConfigFile } from './file.ts';
 import {
     assertBaseUrl,
     assertHeaderName,
@@ -37,7 +35,6 @@ import type {
 } from './types.ts';
 
 const ENV_PREFIX = 'CHAMVI_PROVIDER_';
-const CONFIG_FILE_VARIABLE = 'CHAMVI_CONFIG_FILE';
 const MODEL_VARIABLE = 'CHAMVI_MODEL';
 const HEADER_PREFIX = 'HEADER_';
 
@@ -448,16 +445,6 @@ function implicitProviders(env: Env, declared: ReadonlySet<string>, issues: Issu
     return providers;
 }
 
-async function exists(path: string): Promise<boolean> {
-    try {
-        await stat(path);
-
-        return true;
-    } catch {
-        return false;
-    }
-}
-
 async function readFileLayer(
     env: Env,
     cwd: string,
@@ -467,17 +454,22 @@ async function readFileLayer(
     model?: string;
     providers: Record<string, ProviderConfig>
 }> {
-    const named = envString(env, CONFIG_FILE_VARIABLE);
-    const path = resolve(cwd, named ?? DEFAULT_CONFIG_FILE);
+    const located = await locateConfigFile(env, cwd);
 
-    if (typeof named === 'undefined' && !(await exists(path))) {
+    if (located === undefined) {
         return { providers: {} };
     }
 
     try {
-        return { path, ...(await readConfigFile(path)) };
+        const { model, providers } = await readConfigFile(located.path);
+
+        return {
+            path: located.path,
+            ...(model !== undefined && { model }),
+            providers,
+        };
     } catch (error) {
-        report(issues, typeof named === 'undefined' ? messageOf(error) : `${CONFIG_FILE_VARIABLE}: ${messageOf(error)}`);
+        report(issues, located.named ? `${CONFIG_FILE_VARIABLE}: ${messageOf(error)}` : messageOf(error));
 
         return { providers: {} };
     }

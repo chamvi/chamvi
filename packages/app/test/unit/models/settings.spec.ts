@@ -21,7 +21,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { readConfigFile } from '../../../src/models/file.ts';
+import { readConfigFile, readConfigFileAgents } from '../../../src/models/file.ts';
 import { readModelSettings } from '../../../src/models/settings.ts';
 import type { ProviderConfig } from '../../../src/models/types.ts';
 
@@ -621,5 +621,71 @@ describe('readConfigFile', () => {
         const path = await file({});
 
         await expect(readConfigFile(path)).resolves.toEqual({ providers: {} });
+    });
+
+    it('returns the agent packages', async () => {
+        const path = await file({ agents: ['@acme/triage', 'greeter/sub'] });
+
+        await expect(readConfigFile(path)).resolves.toEqual({ providers: {}, agents: ['@acme/triage', 'greeter/sub'] });
+    });
+
+    it.each([
+        [{ agents: 'pkg' }, 'chamvi.json: agents must be an array of package names.'],
+        [{ agents: ['ok', './local'] }, 'chamvi.json: agents[1] is no bare package specifier'],
+        [{ agents: [{ package: 'pkg' }] }, 'chamvi.json: agents[0] is no bare package specifier'],
+        [{ agents: ['a', 'a'] }, 'chamvi.json: agents lists the package a twice.'],
+    ])('refuses agents %j', async (content, message) => {
+        const path = await file(content);
+
+        await expect(readConfigFile(path)).rejects.toThrow(message);
+    });
+});
+
+describe('readConfigFileAgents', () => {
+    let cwd: string;
+
+    beforeEach(async () => {
+        cwd = await mkdtemp(join(tmpdir(), 'chamvi-config-'));
+    });
+
+    afterEach(async () => {
+        await rm(cwd, { recursive: true, force: true });
+    });
+
+    it('reads ./chamvi.json when it exists', async () => {
+        await writeFile(join(cwd, 'chamvi.json'), JSON.stringify({ agents: ['a'] }));
+        await expect(readConfigFileAgents({}, cwd)).resolves.toEqual(['a']);
+    });
+
+    it('reads CHAMVI_CONFIG_FILE relative to the cwd', async () => {
+        await mkdir(join(cwd, 'config'));
+        await writeFile(join(cwd, 'config/app.json'), JSON.stringify({ agents: ['b'] }));
+        await expect(readConfigFileAgents({ CHAMVI_CONFIG_FILE: 'config/app.json' }, cwd)).resolves.toEqual(['b']);
+    });
+
+    it('has none without a file', async () => {
+        await expect(readConfigFileAgents({}, cwd)).resolves.toEqual([]);
+    });
+});
+
+describe('readModelSettings with agents in the file', () => {
+    let cwd: string;
+
+    beforeEach(async () => {
+        cwd = await mkdtemp(join(tmpdir(), 'chamvi-config-'));
+    });
+
+    afterEach(async () => {
+        await rm(cwd, { recursive: true, force: true });
+    });
+
+    it('reports an invalid agents field as one issue', async () => {
+        await writeFile(join(cwd, 'chamvi.json'), JSON.stringify({ agents: ['./x'] }));
+
+        const { issues } = await readModelSettings({ env: {}, cwd });
+
+        expect(issues.map((issue) => issue.message)).toEqual([
+            'chamvi.json: agents[0] is no bare package specifier (a package name such as @acme/agents, no path or URL).',
+        ]);
     });
 });

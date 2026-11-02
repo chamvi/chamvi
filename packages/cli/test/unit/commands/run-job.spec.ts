@@ -77,6 +77,12 @@ describe('run-job', () => {
         });
     });
 
+    it('exits 1 when an agent package that may hold the agent did not load', async () => {
+        await runCli(['run-job', 'greeter', '--entry', fixture('app')], fake.context({ env: { CHAMVI_DRAIN_TIMEOUT_MS: '1000', CHAMVI_AGENTS: '@chamvi-fixture/missing-agents' } }));
+        expect(fake.exitCodes).toEqual([1]);
+        expect(fake.stderr.join('')).toContain('@chamvi-fixture/missing-agents');
+    });
+
     it('unknown agent exits 2', async () => {
         await runJob(['nope', '--entry', fixture('app')]);
         expect(fake.exitCodes).toEqual([2]);

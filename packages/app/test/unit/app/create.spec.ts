@@ -141,3 +141,26 @@ describe('createApp', () => {
         })).not.toThrow();
     });
 });
+
+describe('createApp package agents', () => {
+    it('takes bare package specifiers beside code agents, without touching the file system', () => {
+        const app = createApp({ agents: [agent, '@acme/missing-agents', 'other/sub'] });
+
+        expect(app.agents).toEqual([agent]);
+        expect(app.packages).toEqual(['@acme/missing-agents', 'other/sub']);
+        expect(Object.isFrozen(app.packages)).toBe(true);
+    });
+
+    it.each(['./agents/greeter', '/abs/pkg', 'file:///pkg', 'node:fs', 'Upper'])('refuses %s', (spec) => {
+        expect(() => createApp({ agents: [spec] })).toThrow(InvalidAgentDefinitionError);
+        expect(() => createApp({ agents: [spec] })).toThrow('createApp\'s agents[0] is no bare package specifier');
+    });
+
+    it('refuses a package listed twice', () => {
+        expect(() => createApp({ agents: ['a', agent, 'a'] })).toThrow('createApp\'s agents lists the package a twice.');
+    });
+
+    it('has no packages without string entries', () => {
+        expect(createApp({ agents: [agent] }).packages).toEqual([]);
+    });
+});

@@ -11,6 +11,7 @@ import {
     TIMER_MAX_MS,
     envBoolean,
     envInteger,
+    envList,
     envOneOf,
     envString,
     envUrl,
@@ -30,6 +31,7 @@ import {
     LOG_LEVELS,
     PUBLIC_URL_PROTOCOLS,
 } from './constants.ts';
+import { assertPackageSpecifier, assertUniqueSpecifiers } from '../package/helpers.ts';
 import { readTokens } from './helpers.ts';
 import type { AppConfig, ReadConfigOptions } from './types.ts';
 
@@ -45,6 +47,21 @@ function readBasePath(env: Env): string {
     return value;
 }
 
+/** CHAMVI_AGENTS: comma-separated bare package specifiers, each checked (an error names the entry, never its value). */
+function readAgentPackages(env: Env): string[] | undefined {
+    const list = envList(env, 'CHAMVI_AGENTS');
+
+    if (list === undefined || list.length === 0) {
+        return undefined;
+    }
+
+    const packages = list.map((entry, index) => assertPackageSpecifier(entry, `CHAMVI_AGENTS entry ${index + 1}`));
+
+    assertUniqueSpecifiers(packages, 'CHAMVI_AGENTS');
+
+    return packages;
+}
+
 /**
  * The app config from env (C4). Pure: reads only the given env.
  */
@@ -58,6 +75,7 @@ export function readConfig(env: Env, options: ReadConfigOptions): AppConfig {
     });
     const tokens = readTokens(env);
     const agentsDir = envString(env, 'CHAMVI_AGENTS_DIR');
+    const packages = readAgentPackages(env);
 
     return {
         dev,
@@ -89,6 +107,7 @@ export function readConfig(env: Env, options: ReadConfigOptions): AppConfig {
         scheduler: { enabled: envBoolean(env, 'CHAMVI_SCHEDULER', { default: true }) },
         agents: {
             ...(typeof agentsDir === 'string' ? { dir: agentsDir } : {}),
+            ...(packages !== undefined && { packages }),
             pollMs: envInteger(env, 'CHAMVI_AGENTS_POLL_MS', {
                 default: DEFAULT_AGENTS_POLL_MS,
                 min: 1,
