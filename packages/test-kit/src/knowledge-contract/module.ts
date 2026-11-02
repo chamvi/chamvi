@@ -44,19 +44,26 @@ function documentOf(
         id,
         content: `content of ${id}`,
         hash: `sha256:${id}`,
+        status: 'ready',
         generation: 1,
         updatedAt: AT,
         ...patch,
     };
 }
 
-function chunkOf(index: number, vector: number[], text = `chunk ${index}`): ContractKnowledgeChunk {
+function chunkOf(
+    index: number,
+    vector: number[],
+    text = `chunk ${index}`,
+    patch: Partial<ContractKnowledgeChunk> = {},
+): ContractKnowledgeChunk {
     return {
         index,
         text,
         start: index * 10,
         end: (index * 10) + text.length,
         vector,
+        ...patch,
     };
 }
 
@@ -97,6 +104,7 @@ export function describeKnowledgeRepositoryContract(
                     error: 'failed once',
                     failures: 2,
                     retryAt: new Date(5_000),
+                    syncedAt: new Date(4_000),
                 }));
 
                 const stored = await repository.findOneCollectionOrFail('docs');
@@ -112,9 +120,11 @@ export function describeKnowledgeRepositoryContract(
                     error: 'failed once',
                     failures: 2,
                     retryAt: new Date(5_000),
+                    syncedAt: new Date(4_000),
                 }));
                 expect(stored.createdAt).toBeInstanceOf(Date);
                 expect(stored.retryAt).toBeInstanceOf(Date);
+                expect(stored.syncedAt).toBeInstanceOf(Date);
                 expect(stored.updatedAt.getTime()).toBe(AT.getTime());
                 expect(await repository.findCollections()).toHaveLength(1);
             });
@@ -275,6 +285,143 @@ export function describeKnowledgeRepositoryContract(
                 expect(await repository.findDocumentIds('docs')).toEqual(['a']);
             });
 
+            it('saves and reads a document\'s status and error', async () => {
+                const repository = await create();
+
+                await repository.saveCollection(collectionOf('docs'));
+                await repository.saveDocument(documentOf('docs', 'a', { status: 'pending' }));
+                await repository.saveDocument(documentOf('docs', 'b', { status: 'failed', error: 'rejected' }));
+
+                expect(await repository.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', { status: 'pending' }));
+                expect(await repository.findOneDocumentOrFail('docs', 'b')).toEqual(documentOf('docs', 'b', {
+                    status: 'failed',
+                    error: 'rejected',
+                }));
+
+                await repository.saveDocument(documentOf('docs', 'b'));
+
+                const replaced = await repository.findOneDocumentOrFail('docs', 'b');
+
+                expect(replaced.status).toBe('ready');
+                expect(replaced.error).toBeUndefined();
+            });
+
+            it('findDocuments filters by status, pages by limit and offset and counts the total', async () => {
+                const repository = await create();
+
+                await repository.saveCollection(collectionOf('docs'));
+                await repository.saveCollection(collectionOf('other'));
+
+                for (const [id, status] of [
+                    ['\u{1F600}', 'pending'],
+                    ['b', 'ready'],
+                    ['�', 'ready'],
+                    ['a', 'pending'],
+                    ['B', 'failed'],
+                ] as const) {
+                    await repository.saveDocument(documentOf('docs', id, { status }));
+                }
+
+                await repository.saveDocument(documentOf('other', 'z', { status: 'pending' }));
+
+                const ids = (page: { data: ContractKnowledgeDocument[] }) => page.data.map((document) => document.id);
+                const all = await repository.findDocuments('docs');
+
+                expect(ids(all)).toEqual(['B', 'a', 'b', '�', '\u{1F600}']);
+                expect(all.total).toBe(5);
+                expect(all.data[0]).toEqual(documentOf('docs', 'B', { status: 'failed' }));
+
+                const pending = await repository.findDocuments('docs', { status: 'pending' });
+
+                expect(ids(pending)).toEqual(['a', '\u{1F600}']);
+                expect(pending.total).toBe(2);
+
+                const page = await repository.findDocuments('docs', { limit: 2, offset: 1 });
+
+                expect(ids(page)).toEqual(['a', 'b']);
+                expect(page.total).toBe(5);
+
+                const ready = await repository.findDocuments('docs', { status: 'ready', offset: 1 });
+
+                expect(ids(ready)).toEqual(['�']);
+                expect(ready.total).toBe(2);
+
+                const beyond = await repository.findDocuments('docs', { limit: 2, offset: 10 });
+
+                expect(beyond).toEqual({ data: [], total: 5 });
+                expect(await repository.findDocuments('docs', { limit: 0 })).toEqual({ data: [], total: 5 });
+                expect(await repository.findDocuments('missing')).toEqual({ data: [], total: 0 });
+            });
+
+            it('copies documents out of findDocuments', async () => {
+                const repository = await create();
+
+                await repository.saveCollection(collectionOf('docs'));
+                await repository.saveDocument(documentOf('docs', 'a', { metadata: { n: 1 } }));
+
+                const { data: [listed] } = await repository.findDocuments('docs');
+
+                listed!.status = 'failed';
+                (listed!.metadata as { n: number }).n = 2;
+
+                expect(await repository.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', { metadata: { n: 1 } }));
+            });
+
+            it('updateDocument writes only while the hash, title and source match', async () => {
+                const repository = await create();
+                const version = { hash: 'sha256:a', title: 'A' };
+
+                await repository.saveCollection(collectionOf('docs'));
+                await repository.saveDocument(documentOf('docs', 'a', {
+                    status: 'pending',
+                    title: 'A',
+                    metadata: { n: 1 },
+                }));
+
+                expect(await repository.updateDocument('docs', 'a', { ...version, hash: 'sha256:other' }, { status: 'ready', generation: 5 })).toBe(false);
+                expect(await repository.updateDocument('docs', 'a', { ...version, title: 'B' }, { status: 'ready', generation: 5 })).toBe(false);
+                expect(await repository.updateDocument('docs', 'a', { hash: 'sha256:a' }, { status: 'ready', generation: 5 })).toBe(false);
+                expect(await repository.updateDocument('docs', 'a', { ...version, source: 'a.md' }, { status: 'ready', generation: 5 })).toBe(false);
+                expect(await repository.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', {
+                    status: 'pending',
+                    title: 'A',
+                    metadata: { n: 1 },
+                }));
+
+                expect(await repository.updateDocument('docs', 'a', version, { status: 'failed', error: 'rejected' })).toBe(true);
+                expect(await repository.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', {
+                    status: 'failed',
+                    error: 'rejected',
+                    title: 'A',
+                    metadata: { n: 1 },
+                }));
+
+                expect(await repository.updateDocument('docs', 'a', version, { status: 'ready', generation: 3 })).toBe(true);
+
+                const updated = await repository.findOneDocumentOrFail('docs', 'a');
+
+                expect(updated).toEqual(documentOf('docs', 'a', {
+                    status: 'ready',
+                    generation: 3,
+                    title: 'A',
+                    metadata: { n: 1 },
+                }));
+                expect(updated.error).toBeUndefined();
+                expect(updated.content).toBe('content of a');
+                expect(updated.updatedAt.getTime()).toBe(AT.getTime());
+            });
+
+            it('updateDocument answers false for a missing document', async () => {
+                const repository = await create();
+
+                await repository.saveCollection(collectionOf('docs'));
+
+                expect(await repository.updateDocument('docs', 'missing', { hash: 'sha256:missing' }, { status: 'ready' })).toBe(false);
+                expect(await repository.updateDocument('missing', 'a', { hash: 'sha256:a' }, { status: 'ready' })).toBe(false);
+                expect(await repository.findOneDocument('docs', 'missing')).toBeUndefined();
+                expect(await repository.findDocuments('docs')).toEqual({ data: [], total: 0 });
+            });
+
             it('lists document ids in code point order, per collection', async () => {
                 const repository = await create();
 
@@ -391,7 +538,7 @@ export function describeKnowledgeRepositoryContract(
                 await repository.saveDocument(documentOf('docs', 'near', { title: 'Near', source: 'near.md' }));
                 await repository.saveDocument(documentOf('docs', 'far'));
                 await repository.saveDocument(documentOf('docs', 'next'));
-                await repository.replaceChunks('docs', 'near', 1, [chunkOf(0, [1, 0], 'exact')]);
+                await repository.replaceChunks('docs', 'near', 1, [chunkOf(0, [1, 0], 'exact', { title: 'Near', source: 'near.md' })]);
                 await repository.replaceChunks('docs', 'far', 1, [chunkOf(0, [0.6, 0.8], 'partial')]);
                 await repository.replaceChunks('docs', 'next', 2, [chunkOf(0, [1, 0], 'next generation')]);
 
@@ -417,6 +564,22 @@ export function describeKnowledgeRepositoryContract(
                 expect(matches[1]!.score).toBeCloseTo(0.6, 6);
                 expect(matches[1]!.title).toBeUndefined();
                 expect(matches[1]!.source).toBeUndefined();
+            });
+
+            it('search returns the title and source the chunk was written with, not the document\'s current ones', async () => {
+                const repository = await seed();
+
+                await repository.saveDocument(documentOf('docs', 'near', { title: 'Renamed', source: 'renamed.md' }));
+                await repository.saveDocument(documentOf('docs', 'far', { title: 'Far', source: 'far.md' }));
+                await repository.replaceChunks('docs', 'loose', 1, [chunkOf(0, [0, 1], 'loose', { title: 'Loose', source: 'loose.md' })]);
+
+                const matches = await repository.search('docs', 1, [1, 0], { topK: 10 });
+                const byDocument = new Map(matches.map((match) => [match.document, match]));
+
+                expect(byDocument.get('near')).toMatchObject({ title: 'Near', source: 'near.md' });
+                expect(byDocument.get('far')!.title).toBeUndefined();
+                expect(byDocument.get('far')!.source).toBeUndefined();
+                expect(byDocument.get('loose')).toMatchObject({ title: 'Loose', source: 'loose.md' });
             });
 
             it('compares by direction, not by length', async () => {

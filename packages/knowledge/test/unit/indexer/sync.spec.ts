@@ -80,8 +80,10 @@ describe('syncing a declared collection', () => {
             content: docs.get('a.md'),
             hash: contentHash(docs.get('a.md')!),
             title: 'a.md',
+            status: 'ready',
             generation: 1,
         });
+        expect((await setup.repository.findOneDocument('docs', 'a.md'))?.error).toBeUndefined();
 
         const [query] = (await model.doEmbed({ values: ['refund policy'] })).embeddings;
         const matches = await setup.repository.search('docs', 1, query!, { topK: 1 });
@@ -149,6 +151,95 @@ describe('syncing a declared collection', () => {
 
         expect(matches.map((match) => match.document).sort()).toEqual(['a.md', 'c.md']);
         expect(matches.find((match) => match.document === 'a.md')?.text).toBe('Refunds are no longer offered.');
+    });
+
+    it('writes the document\'s title and source onto its chunks and re-writes them on a rename', async () => {
+        const setup = createIndexerSetup();
+        const model = mockEmbeddingModel();
+        const details = { title: 'Refunds', source: 'policies/refunds.md' };
+        const content = 'Our refund policy allows returns within thirty days.';
+        const source = defineKnowledgeSource({
+            async* documents() {
+                yield {
+                    id: 'a.md',
+                    content,
+                    ...details,
+                };
+            },
+        });
+        const collections = [knowledgeCollection('docs', { model, sources: [source] })];
+        const [query] = (await model.doEmbed({ values: ['refund policy'] })).embeddings;
+        const search = async () => (await setup.repository.search('docs', 1, query!, { topK: 1 }))[0];
+
+        const first = start(createKnowledge(setup.options({ collections })));
+
+        await waitForReady(setup.repository, 'docs');
+        await first.stop();
+
+        expect(await search()).toMatchObject({
+            document: 'a.md', 
+            title: 'Refunds', 
+            source: 'policies/refunds.md', 
+        });
+
+        // the record alone changing never reaches a search result: the chunk carries its own copy
+        await setup.repository.saveDocument({
+            ...(await setup.repository.findOneDocumentOrFail('docs', 'a.md')),
+            title: 'Changed elsewhere',
+        });
+
+        expect(await search()).toMatchObject({ title: 'Refunds' });
+
+        details.title = 'Returns';
+        details.source = 'policies/returns.md';
+        setup.clock.advance(1000);
+        start(createKnowledge(setup.options({ collections })));
+
+        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now().getTime());
+
+        expect(await search()).toMatchObject({
+            document: 'a.md', 
+            title: 'Returns', 
+            source: 'policies/returns.md', 
+        });
+        expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({
+            title: 'Returns',
+            source: 'policies/returns.md',
+            status: 'ready',
+        });
+    });
+
+    it('re-saves only the record when nothing but the metadata changed', async () => {
+        const setup = createIndexerSetup();
+        const model = mockEmbeddingModel();
+        const metadata = { tag: 'one' };
+        const source = defineKnowledgeSource({
+            async* documents() {
+                yield {
+                    id: 'a.md',
+                    content: 'Invoices are sent on the first day of each month.',
+                    title: 'Invoices',
+                    metadata: { ...metadata },
+                };
+            },
+        });
+        const collections = [knowledgeCollection('docs', { model, sources: [source] })];
+
+        const first = start(createKnowledge(setup.options({ collections })));
+
+        await waitForReady(setup.repository, 'docs');
+        await first.stop();
+
+        const calls = model.calls.length;
+
+        metadata.tag = 'two';
+        setup.clock.advance(1000);
+        start(createKnowledge(setup.options({ collections })));
+
+        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now().getTime());
+
+        expect(model.calls).toHaveLength(calls);
+        expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({ metadata: { tag: 'two' }, status: 'ready' });
     });
 
     it('saves a document without text with no chunks', async () => {

@@ -8,6 +8,9 @@
 /** The lease of the store lock `knowledge:<collection>`; renewed once half of it passed. */
 export const KNOWLEDGE_LOCK_TTL_MS = 300_000;
 
+/** The shortest `resyncMs` of a declared collection. */
+export const KNOWLEDGE_RESYNC_MIN_MS = 60_000;
+
 /** The first wait after a failed index (and a lock held elsewhere), doubling per failure. */
 export const KNOWLEDGE_RETRY_MS = 5_000;
 

@@ -126,7 +126,9 @@ Read-only GitHub `gh api` inspection at `482f7de3759e43d61a7faedeb00547e9b3fc520
 
 Checked against this file's contract map only (no fresh downstream checkout). `@chamvi/knowledge` phase 1 adds no env variable, CLI command, argument, exit code, signal, route, port, base image, sandbox RBAC or label and no model string format; the only `@chamvi/app` addition is the single-value token `AppToken.MODELS` (the engine module's model resolver), which is additive and not consumed downstream. No downstream change or PR is needed for phase 1.
 
-Pending: phase 2 (managed collections) adds the env variable `CHAMVI_KNOWLEDGE_MODEL` (the default embedding model of managed collections) and REST routes for collections; when it lands, the downstream repository needs a PR documenting the variable (and any route it exposes) before release.
+## Knowledge phase 2 contract check (2026-11-02, unreleased)
+
+Checked the chart's `charts/agent-app/values.yaml` at `057a72e6` (2026-11-02). Phase 2 adds one optional variable, `CHAMVI_KNOWLEDGE_MODEL` (`'<provider>/<model id>'`, the managed collections' default embedding model), read only when the app lists `knowledgeModule()` (`packages/knowledge/src/module/`); unset, creating a managed collection answers 409 and nothing else changes. The chart carries it through its generic `env` map (plain values; the chart does not own the name, so no validation conflicts), and the provider key it needs through `secrets` like any model key. It also adds routes under `<basePath>/knowledge` (authenticated by the app's tokens, `knowledge:read`/`knowledge:write`); the chart's probes, ServiceMonitor and Ingress (a path prefix of `basePath`) need no change. Required downstream action: a chart README note (the variable, and that managed collections need a persistent repository across replicas), prepared after this PR merges with the owner's go; no template, schema or values change.
 
 ## Agent packages (#118)
 

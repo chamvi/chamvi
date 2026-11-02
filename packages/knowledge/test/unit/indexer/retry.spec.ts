@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
 import { mockEmbeddingModel } from '@chamvi/test-kit';
 import { MockEmbeddingModelV4 } from 'ai/test';
 import { 
@@ -207,6 +207,8 @@ describe('indexing failures', () => {
         }
 
         expect(setup.errors).toHaveLength(1);
+        // its loop ended: a sync() is refused instead of accepted for no pass
+        expect(() => knowledge.sync('docs')).toThrow(ValidationError);
     });
 
     it('gives up an embedding call that never answers and retries it', async () => {
@@ -279,5 +281,30 @@ describe('indexing failures', () => {
         } finally {
             logged.mockRestore();
         }
+    });
+
+    it('lets a sync() during a stored backoff wait for retryAt', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = start(setup, 1);
+
+        await expect.poll(() => setup.errors.length).toBe(1);
+
+        knowledge.sync('docs');
+        await new Promise<void>((resolve) => {
+            setImmediate(resolve);
+        });
+        setup.clock.advance(KNOWLEDGE_RETRY_MS - 1);
+        await new Promise<void>((resolve) => {
+            setImmediate(resolve);
+        });
+
+        expect(await setup.repository.findOneCollection('docs')).toMatchObject({ status: 'pending', failures: 1 });
+
+        setup.clock.advance(1);
+
+        const collection = await waitForReady(setup.repository, 'docs');
+
+        expect(collection.error).toBeUndefined();
+        expect(setup.errors).toHaveLength(1);
     });
 });

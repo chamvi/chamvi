@@ -111,6 +111,8 @@ export async function seedCollection(
             start: 0,
             end: chunk.text.length,
             vector: chunk.vector ?? embeddings[next++]!,
+            title: `Title ${id}`,
+            source: `${name}/${id}.md`,
         })));
         await repository.saveDocument({
             collection: name,
@@ -119,6 +121,7 @@ export async function seedCollection(
             hash: `sha256:${id}`,
             title: `Title ${id}`,
             source: `${name}/${id}.md`,
+            status: 'ready',
             generation,
             updatedAt: at,
         });

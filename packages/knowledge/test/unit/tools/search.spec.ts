@@ -370,6 +370,56 @@ describe('knowledge_search', () => {
         expect(await taint({ query: 'x', collection: 'other' }, ctx)).toBe(false);
     });
 
+    it('searches a managed collection the agent names, and taints the call', async () => {
+        const indexer = createIndexerSetup();
+        const model = mockEmbeddingModel();
+
+        knowledge = createKnowledge(indexer.options({ embeddingModel: model }));
+        await knowledge.createCollection('notes');
+        await knowledge.putDocument('notes', {
+            id: 'refunds',
+            content: HANDBOOK.refunds,
+            title: 'Refunds',
+        });
+        knowledge.start();
+
+        await vi.waitFor(async () => {
+            expect(await indexer.repository.findOneDocument('notes', 'refunds')).toMatchObject({ status: 'ready' });
+        });
+
+        const tools = knowledgeTools({ collections: ['notes'] });
+        const { taint } = (tools.knowledge_search as unknown as { trust: { taint: (input: unknown, ctx: unknown) => Promise<boolean> } }).trust;
+        const ctx = toolContext(knowledge);
+        const input = { query: 'refund policy' };
+
+        expect(await taint(input, ctx)).toBe(true);
+
+        const result = await callTool<KnowledgeSearchResult>(tools, 'knowledge_search', input, ctx);
+
+        expect(result.matches).toMatchObject([{
+            collection: 'notes',
+            document: 'refunds',
+            title: 'Refunds',
+        }]);
+    });
+
+    it('taints a search of a managed collection whose stored record says trusted', async () => {
+        const indexer = createIndexerSetup();
+
+        knowledge = createKnowledge(indexer.options({ embeddingModel: mockEmbeddingModel() }));
+
+        const record = await knowledge.createCollection('notes');
+
+        // a store edited by hand, or written by another implementation
+        await indexer.repository.saveCollection({ ...record, trusted: true });
+
+        const tools = knowledgeTools({ collections: ['notes'] });
+        const { taint } = (tools.knowledge_search as unknown as { trust: { taint: (input: unknown, ctx: unknown) => Promise<boolean> } }).trust;
+
+        expect(await taint({ query: 'refund policy' }, toolContext(knowledge))).toBe(true);
+        expect(knowledge.view((await indexer.repository.findOneCollection('notes'))!).trusted).toBe(false);
+    });
+
     it('fails instead of answering when the served generation switched during the search', async () => {
         const fixture = await setup();
         const search_ = fixture.repository.search.bind(fixture.repository);

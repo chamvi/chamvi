@@ -48,7 +48,11 @@ export default createApp({
             knowledgeCollection('releases', {
                 model: 'openai/text-embedding-3-small',
                 sources: [releases],
+                // re-read hourly, once across replicas
+                resyncMs: 3_600_000,
             }),
         ],
+        // managed collections (filled over REST); CHAMVI_KNOWLEDGE_MODEL wins over it
+        embeddingModel: 'openai/text-embedding-3-small',
     })],
 });

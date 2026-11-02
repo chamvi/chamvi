@@ -24,6 +24,7 @@
 - [In an app](#in-an-app)
 - [Sources](#sources)
 - [Indexing](#indexing)
+- [Managed collections](#managed-collections)
 - [The tool](#the-tool)
 - [Untrusted content](#untrusted-content)
 - [Repository](#repository)
@@ -36,14 +37,14 @@
 npm install @chamvi/knowledge @chamvi/core ai --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `ai` are peer dependencies; `@chamvi/app` is an optional one, needed only for `@chamvi/knowledge/module`.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `ai` are peer dependencies; `@chamvi/app` is an optional one, needed only for `@chamvi/knowledge/module`, and `@chamvi/http` another, for the types of `knowledgeRoutes()`.
 
 ## Knowledge, skills or conversation memory?
 
 | | Skills | Knowledge | Conversation memory |
 |---|---|---|---|
 | What | *How* to do something (procedures) | *What* is true (reference facts, documents) | *What was said* in one chat |
-| Written by | Agent creator, reviewed and pinned | Agent creator, in code | Chat participants and the agent |
+| Written by | Agent creator, reviewed and pinned | Agent creator, in code or over REST | Chat participants and the agent |
 | Size | Small (16 skills, ~1 MiB) | Large (thousands of documents) | One chat |
 | Found by | Name: listed, loaded whole | Meaning: searched, a few passages | Recalled automatically, in order |
 
@@ -138,9 +139,25 @@ A document id is stable: yielding the same id with new content replaces the docu
 
 Documents are split into passages of at most 2000 characters (paragraphs packed whole, a heading kept with the paragraph after it, 200 characters of overlap) and embedded through the AI SDK's `embedMany`, 64 passages per call. Each document's content hash is stored, so a restart with unchanged sources makes no embedding call.
 
+A pass reads every source in full (a snapshot, so deletions are found). It runs at start, every `resyncMs` after the last successful pass when the collection sets it (`knowledgeCollection(name, { ..., resyncMs: 3_600_000 })`, at least 60 000; the time is stored, so replicas read the sources once per interval in total) and on `knowledge.sync(name)`, which runs one now (calls during a pass add exactly one more).
+
 Each collection is indexed under the store lock `knowledge:<name>`: one replica indexes, the others wait and then sync their own sources once it is free (embedding nothing when they match). A failed pass (a provider error, a rate limit) is stored on the collection with the time of the next attempt, reported through `onError` and retried after 5 seconds, doubling up to 5 minutes; the backoff is stored, so it holds across replicas. An embedding call that does not answer within 60 seconds counts as a failure. Indexing never blocks the start or readiness.
 
 A collection serves one **generation** of passages, embedded by one model with one chunker version. When the model changes, the next generation is written while searches keep reading the current one; it is switched to once complete and the old one deleted. Searching the old generation needs the old model: an object model the code no longer passes, or a removed provider, leaves the collection unsearchable (a clear tool error) until the switch. Statuses: `pending` (never indexed), `ready`, `stale` (a re-embed in progress, the old generation served) and `orphaned` (a collection the code no longer declares: kept, searchable by no agent).
+
+## Managed collections
+
+A managed collection has no sources in code: it is created and filled over REST while the app runs. `knowledgeModule()` serves `knowledgeRoutes()` under `/knowledge` (`routes: false` turns them off; `createHttpApp({ routes: knowledgeRoutes(knowledge) })` mounts them without the app), each request authorized with `knowledge:read` (`GET`) or `knowledge:write`:
+
+| Route | Does |
+|---|---|
+| `GET` / `POST /knowledge/collections` | List, or create `{ name }` (`201`) |
+| `GET` / `DELETE /knowledge/collections/:name` | Read, or delete a managed or orphaned one with its documents (`204`) |
+| `POST /knowledge/collections/:name/sync` | Run a pass now (`202`); a stale managed one is re-embedded |
+| `GET /knowledge/collections/:name/documents` | A page (`page[limit]`, `page[offset]`, `filter[status]`) |
+| `GET` / `PUT` / `DELETE /knowledge/collections/:name/documents/:id` | Read with content, put `{ content, title?, source?, metadata? }` (`202` pending, `200` unchanged), delete (`204`) |
+
+Their model is `CHAMVI_KNOWLEDGE_MODEL`, else `knowledgeModule({ embeddingModel })` (`createKnowledge({ embeddingModel })` without the app); without one, creating a collection answers 409. A `PUT` is idempotent per id and `202` means accepted, not embedded: the document is `pending` (its previous content still answers searches) until the background pass makes it `ready`, or `failed` with the error when the provider rejects it. Changing the default model (or a new chunker version) marks every managed collection `stale` (it keeps serving its stored model) until a `sync` re-embeds it. Managed collections are always untrusted: a search over one taints the run.
 
 ## The tool
 
@@ -152,7 +169,7 @@ A collection serves one **generation** of passages, embedded by one model with o
 
 ## Untrusted content
 
-Each collection has a `trusted` flag: `folder()` and custom sources are trusted by default (written by you, shipped with the code); `trusted: false` on the source or the collection overrides it. A search over any untrusted collection taints the run (`tool:knowledge_search`) before the passages reach the model, so later outbound tools that `guardWhenTainted` ask for approval. This is provenance, not an injection filter: the passages still reach the model.
+Each collection has a `trusted` flag: `folder()` and custom sources are trusted by default (written by you, shipped with the code); `trusted: false` on the source or the collection overrides it. Managed collections are always untrusted. A search over any untrusted collection taints the run (`tool:knowledge_search`) before the passages reach the model, so later outbound tools that `guardWhenTainted` ask for approval. This is provenance, not an injection filter: the passages still reach the model.
 
 ## Repository
 
@@ -160,7 +177,7 @@ Each collection has a `trusted` flag: `folder()` and custom sources are trusted 
 
 ## Not built yet
 
-Managed collections (filled through a REST API while the app runs), a pgvector repository, `git()` and `urls()` sources and PDF documents are planned.
+A pgvector repository, `git()` and `urls()` sources and PDF documents are planned.
 
 ## License
 
