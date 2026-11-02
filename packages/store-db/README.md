@@ -48,7 +48,7 @@
 npm install @chamvi/store-db @chamvi/core typeorm pg
 ```
 
-- ESM only, Node.js 24.3.0 or newer.
+- ESM only, Node.js 26.0.0 or newer.
 - `@chamvi/core`, `typeorm` (`^1.1.2`) and `pg` (`^8`) are peer dependencies.
 - Postgres only.
 

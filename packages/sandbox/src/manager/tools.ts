@@ -48,7 +48,7 @@ export function createWorkspaceTools(manager: IWorkspaceManager, options: { imag
             type: 'string',
             minLength: 1,
             description: 'The container image, e.g. "python:3.13" or "rust:1"; the operator allows only some. It needs sh, git and GNU coreutils. ' +
-                'Default: the operator\'s image, which installs toolchains with mise (e.g. mise use -g node@24).',
+                'Default: the operator\'s image, which installs toolchains with mise (e.g. mise use -g node@26).',
         };
     }
 

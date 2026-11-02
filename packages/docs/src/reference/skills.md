@@ -1,6 +1,6 @@
 # @chamvi/skills
 
-Optional skill types, validation, catalogs, runtime loading and filesystem verification, including startup or setup/build preparation for explicitly selected Git skill sources. Requires Node >=24.3.0, like core/app, with Git for source preparation.
+Optional skill types, validation, catalogs, runtime loading and filesystem verification, including startup or setup/build preparation for explicitly selected Git skill sources. Requires Node >=26.0.0, like core/app, with Git for source preparation.
 
 ```bash
 npm install @chamvi/skills @chamvi/core
@@ -122,6 +122,6 @@ The app owns source/commit configuration, role profiles and reviewed pins. Combi
 
 Chamvi owns the temporary commit-pinned backend. Consumers do not import its SDK, fork or types. Backend replacement criteria are tracked in [issue #97](https://github.com/chamvi/chamvi/issues/97).
 
-`signal` is optional for `prepareSkills`. Cancellation is checked around clone/copy/verification phases and before promotion. Native Git metadata commands receive it; SDK cloning is awaited to actual settlement before cleanup. Promotion/rollback is completed once entered. Stop may wait for cloning; no bounded-fast-shutdown guarantee is made. Git providers require runtime Git (absent from the base Node 24 image), writable corpus/tmp space, source credentials/network and sufficient startup probe time.
+`signal` is optional for `prepareSkills`. Cancellation is checked around clone/copy/verification phases and before promotion. Native Git metadata commands receive it; SDK cloning is awaited to actual settlement before cleanup. Promotion/rollback is completed once entered. Stop may wait for cloning; no bounded-fast-shutdown guarantee is made. Git providers require runtime Git (absent from the base Node 26 image), writable corpus/tmp space, source credentials/network and sufficient startup probe time.
 
 The pinned SDK's `cloneRepo` falls back to the host's own credentials when an HTTPS clone of a GitHub repository fails authentication: it runs `gh auth status` and `gh repo clone` with the host's GitHub CLI login, then retries over SSH (`git@github.com:<owner>/<repo>.git`, `GIT_SSH_COMMAND` or `ssh -o BatchMode=yes`) with the host's SSH agent and keys. On a server this means a private source can be fetched with whatever `gh` login, `~/.ssh` keys or forwarded agent the process can reach, not only the credentials you configured for Git. Run the app as a user without a `gh` login or SSH keys (the base image's uid 1000 has neither), or give it exactly the read-only deploy credential the source needs. Prebuilt local snapshots need only the deployed readable bundle files.

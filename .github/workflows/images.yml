@@ -50,7 +50,7 @@ jobs:
                   # the providers' capability set: apt and mise work as root, a toolchain lands in HOME, never /cache
                   docker run --rm --cap-drop ALL --cap-add CHOWN --cap-add DAC_OVERRIDE --cap-add FOWNER --cap-add FSETID \
                       --cap-add SETUID --cap-add SETGID --cap-add KILL --security-opt no-new-privileges:true -e HOME=/home/sandbox "$IMAGE" \
-                      sh -c 'gh --version | grep -q "^gh version " && apt-get update -qq && apt-get install -y -qq --no-install-recommends file >/dev/null && file --version && mise use -g node@24 && node --version && test -d /home/sandbox/.local/share/mise/installs/node && test ! -e /cache/mise'
+                      sh -c 'gh --version | grep -q "^gh version " && apt-get update -qq && apt-get install -y -qq --no-install-recommends file >/dev/null && file --version && mise use -g node@26 && node --version && test -d /home/sandbox/.local/share/mise/installs/node && test ! -e /cache/mise'
                   # the hardened mode: uid 1000 on a read-only root writes /workspace, HOME and /cache
                   docker run --rm --user 1000:1000 --read-only --tmpfs /tmp -v /workspace -v /home/sandbox -v /cache "$IMAGE" \
                       sh -c 'gh --version | grep -q "^gh version " && touch /workspace/probe && mkdir -p /cache/npm /home/sandbox/.cargo && touch /tmp/probe && mise reshim && test -d "$MISE_SHIMS_DIR"'
@@ -78,41 +78,6 @@ jobs:
                   platforms: linux/amd64,linux/arm64
 
     # deprecated: replaced by sandbox-dev, kept building for one release
-    sandbox-node:
-        name: sandbox-node
-        runs-on: ubuntu-latest
-        steps:
-            - name: Checkout
-              uses: actions/checkout@v7
-
-            - name: Smoke test
-              run: |
-                  docker build -t sandbox-node:smoke images/sandbox-node
-                  output="$(docker run --rm sandbox-node:smoke sh -c 'node --version && git --version && id -u')"
-                  echo "$output"
-                  test "$(echo "$output" | tail -n 1)" = "1000"
-
-            # 24-<short sha> only for the push of a commit: a scheduled or
-            # manual rebuild of the same commit would move it to a new digest
-            - name: Tags
-              id: tags
-              run: |
-                  {
-                      echo 'list<<TAGS'
-                      echo '24'
-                      if [ "$GITHUB_EVENT_NAME" = 'push' ]; then echo "24-$(git rev-parse --short HEAD)"; fi
-                      echo 'TAGS'
-                  } >> "$GITHUB_OUTPUT"
-
-            - name: Publish
-              if: github.event_name != 'pull_request'
-              uses: tada5hi/craneship@v4
-              with:
-                  dockerFilePath: images/sandbox-node
-                  registryRepository: chamvi/sandbox-node
-                  registryTag: ${{ steps.tags.outputs.list }}
-                  platforms: linux/amd64,linux/arm64
-
     node:
         name: node
         runs-on: ubuntu-latest
@@ -135,8 +100,8 @@ jobs:
                   test "$(docker image inspect -f '{{.Config.WorkingDir}}' "$IMAGE")" = '/app'
                   test "$(docker image inspect -f '{{.Config.User}}' "$IMAGE")" = '1000:1000'
                   docker run --rm "$IMAGE" node -e 'process.exit(process.env.NODE_ENV === "production" && process.cwd() === "/app" ? 0 : 1)'
-                  # Node 24, the CA bundle, /app root-owned and read-only for uid 1000
-                  docker run --rm "$IMAGE" sh -c 'node --version | grep -q "^v24\." && test -s /etc/ssl/certs/ca-certificates.crt && test "$(stat -c %u /app)" = 0 && test ! -w /app'
+                  # Node 26, the CA bundle, /app root-owned and read-only for uid 1000
+                  docker run --rm "$IMAGE" sh -c 'node --version | grep -q "^v26\." && test -s /etc/ssl/certs/ca-certificates.crt && test "$(stat -c %u /app)" = 0 && test ! -w /app'
                   # starts on a read-only root filesystem with only /tmp writable (the chart's pod)
                   docker run --rm --read-only --tmpfs /tmp "$IMAGE" node -e 'require("node:fs").writeFileSync("/tmp/probe", "ok")'
                   # SIGTERM reaches Node through tini (docker stop = the kubelet's SIGTERM);
@@ -150,15 +115,15 @@ jobs:
                   docker rm node-smoke-term
                   echo 'smoke ok'
 
-            # 24-<short sha> only for the push of a commit: a scheduled or
+            # 26-<short sha> only for the push of a commit: a scheduled or
             # manual rebuild of the same commit would move it to a new digest
             - name: Tags
               id: tags
               run: |
                   {
                       echo 'list<<TAGS'
-                      echo '24'
-                      if [ "$GITHUB_EVENT_NAME" = 'push' ]; then echo "24-$(git rev-parse --short HEAD)"; fi
+                      echo '26'
+                      if [ "$GITHUB_EVENT_NAME" = 'push' ]; then echo "26-$(git rev-parse --short HEAD)"; fi
                       echo 'TAGS'
                   } >> "$GITHUB_OUTPUT"
 

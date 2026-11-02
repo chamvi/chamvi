@@ -82,10 +82,10 @@ All errors extend `ChamviError` (ebec `BaseError`) with a `code`: `InvalidAgentD
 
 ## Deploy Kit (outside this repo)
 
-The deploy kit has four parts: `@chamvi/app` + `@chamvi/cli` (above), the base image `ghcr.io/chamvi/node:24` (`images/node`: `node:24-trixie-slim`, tini entrypoint, uid 1000, workdir `/app`), and two repos of their own. Both follow this repo's contract, so changes here are checked against them ([Downstream Repos](../AGENTS.md#downstream-repos)).
+The deploy kit has four parts: `@chamvi/app` + `@chamvi/cli` (above), the base image `ghcr.io/chamvi/node:26` (`images/node`: `node:26-trixie-slim`, tini entrypoint, uid 1000, workdir `/app`), and two repos of their own. Both follow this repo's contract, so changes here are checked against them ([Downstream Repos](../AGENTS.md#downstream-repos)).
 
 - **Chart `agent-app`** ([chamvi/helm](https://github.com/chamvi/helm), `oci://ghcr.io/chamvi/helm/agent-app`, 0.1.x; map in [references/helm.md](references/helm.md)): Deployment (Recreate, probes under `basePath`, preStop sleep 5 s, grace 120 s, guard `preStop + CHAMVI_FORCE_EXIT_MS < grace`), Service, optional Ingress with a derived `CHAMVI_PUBLIC_URL` (origin only), optional run-job CronJobs (`Forbid`, `backoffLimit: 0`; they set `CHAMVI_SCHEDULER=false` everywhere), sandbox Role/RoleBinding and an egress NetworkPolicy (DNS plus TCP 443 to public addresses) or, opt-in, a CiliumNetworkPolicy, optional ServiceMonitor, a helm test hook. Value `command` renders into `args`, so tini stays PID 1. Released by release-please plus `tada5hi/hevi`.
-- **Template** ([chamvi/agent-template](https://github.com/chamvi/agent-template), a GitHub template repository; map in [references/agent-template.md](references/agent-template.md)): one example agent on `@chamvi/app`, a two-stage Dockerfile on `ghcr.io/chamvi/node:24` (by digest), CI with a read-only docker smoke, Flux examples (`OCIRepository`, `HelmRelease`, image automation) for the chart, image tags `main-<sha7>-<commit unix ts>` and `<semver>`.
+- **Template** ([chamvi/agent-template](https://github.com/chamvi/agent-template), a GitHub template repository; map in [references/agent-template.md](references/agent-template.md)): one example agent on `@chamvi/app`, a two-stage Dockerfile on `ghcr.io/chamvi/node:26` (by digest), CI with a read-only docker smoke, Flux examples (`OCIRepository`, `HelmRelease`, image automation) for the chart, image tags `main-<sha7>-<commit unix ts>` and `<semver>`.
 
 ## Topic Files
 

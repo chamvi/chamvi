@@ -108,7 +108,7 @@ Pick one of the others when you want what chamvi does not have yet: a hosted ser
 npm install @chamvi/core ai @ai-sdk/anthropic zod --save
 ```
 
-ESM only, Node.js `>=24.3.0`. `ai@^7` is a peer dependency; use the provider package of your model.
+ESM only, Node.js `>=26.0.0`. `ai@^7` is a peer dependency; use the provider package of your model.
 
 ```typescript
 import { anthropic } from '@ai-sdk/anthropic';
