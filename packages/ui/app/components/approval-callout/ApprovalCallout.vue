@@ -68,6 +68,7 @@ const artifacts = useArtifactTiles({
     client,
     runId: () => props.run.id,
     key: () => props.run.waiting?.approvalId,
+    refresh: () => props.run,
     ids: () => approvalArtifactIds(props.run.waiting),
 });
 const viewing = ref<ArtifactTile>();

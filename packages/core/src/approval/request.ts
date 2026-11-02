@@ -168,13 +168,14 @@ export async function requestApproval(
         `bound:${stableHash([frame.stepIndex, frame.toolCallId, ordinal, request.binding])}` :
         `${frame.stepIndex}:${frame.toolCallId}:${ordinal}`;
 
-    await assertRunArtifacts(frame, collectArtifactIds(choice));
-
     const recorded = await frame.effects.findOne(approvalDecisionKey(frame.runId, approvalId));
 
     if (recorded) {
         return fitRecordedDecision(toApprovalDecision(recorded.result), { approvalId, ...choice });
     }
+
+    // only a request that suspends is checked: a replay with a recorded decision never shows the artifacts again
+    await assertRunArtifacts(frame, collectArtifactIds(choice));
 
     const pending: ApprovalRequest = {
         approvalId,

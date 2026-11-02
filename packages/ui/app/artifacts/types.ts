@@ -35,6 +35,8 @@ export type ArtifactTilesOptions = {
     runId: () => string | undefined;
     /** A new key (the approval id) drops every tile, revokes its URLs and loads again. */
     key: () => string | undefined;
+    /** Changes on every poll (the run object): a load that failed runs again then. */
+    refresh?: () => unknown;
     /** The ids to show, read when a key loads. */
     ids: () => string[];
     urls?: ObjectUrls;

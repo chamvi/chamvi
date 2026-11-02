@@ -105,7 +105,7 @@ export interface IApiClient {
     /** `GET /runs/:id/artifacts`: the run's artifact metadata. */
     listArtifacts(runId: string): Promise<ArtifactWire[]>;
     /** `GET /runs/:id/artifacts/:artifactId`: an artifact's bytes, typed by the stored media type. */
-    readArtifact(runId: string, artifactId: string): Promise<Blob>;
+    readArtifact(runId: string, artifactId: string, signal?: AbortSignal): Promise<Blob>;
     /** `POST /agents/:name/runs`: a run through the agent's `http.on()` subscription. */
     startRun(agent: string, body: StartRunBody): Promise<StartRunResult>;
     /** The raw SSE response of `GET /runs/:id/stream` (an ApiError for a non-2xx answer). */

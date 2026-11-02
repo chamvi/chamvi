@@ -51,6 +51,7 @@ const emit = defineEmits<{
                 class="artifact-thumb artifact-file"
                 data-testid="artifact-download"
                 :title="tile.mediaType"
+                :aria-label="`Download ${tile.name}`"
                 @click="emit('download', tile.id)"
             >
                 Download

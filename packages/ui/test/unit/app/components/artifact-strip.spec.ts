@@ -68,6 +68,9 @@ describe('ArtifactStrip', () => {
         expect(html).not.toContain('target=');
         expect(html).not.toContain('href=');
         expect(tagsOf(html, 'artifact-download')).toHaveLength(2);
+        // each button names its file for screen readers, not only "Download"
+        expect(html).toContain('aria-label="Download logo.svg"');
+        expect(html).toContain('aria-label="Download report.pdf"');
         expect(html).toContain('logo.svg');
         expect(html).toContain('report.pdf');
     });

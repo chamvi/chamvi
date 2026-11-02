@@ -204,6 +204,30 @@ describe('approve() with artifacts', () => {
         expect(Array.from((await ctx.store.artifacts.read(keyedArtifactId(runId, 'actual')))!)).toEqual([2, 6]);
     });
 
+    it('returns a recorded decision on replay without listing the artifacts again', async () => {
+        const ctx = setup({
+            title: 'Accept baselines?',
+            options: OPTIONS,
+            multiple: true,
+        });
+        const { runId, run } = await dispatch(ctx);
+
+        // a store that cannot list now must not hide the owner's recorded answer
+        ctx.store.artifacts.find = async () => {
+            throw new Error('artifacts unavailable');
+        };
+
+        await ctx.engine.approve(runId, {
+            approvalId: run.waiting!.approvalId,
+            approved: true,
+            selected: ['bootstrap'],
+        });
+        await ctx.engine.idle();
+
+        expect((await ctx.store.runs.findOne(runId))!.status).toBe('completed');
+        expect(ctx.decisions).toEqual([{ approved: true, selected: ['bootstrap'] }]);
+    });
+
     it('keeps the artifacts out of the channel message', async () => {
         const sent: ChannelMessage[] = [];
         const channel: IChannel = {

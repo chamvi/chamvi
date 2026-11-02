@@ -198,6 +198,112 @@ describe('useArtifactTiles', () => {
         scope.stop();
     });
 
+    it('loads again on the next refresh after the metadata read failed, not after a healthy load', async () => {
+        let fail = true;
+        let lists = 0;
+        const refresh = ref(0);
+        const scope = effectScope();
+        const tiles = scope.run(() => useArtifactTiles({
+            client: fakeClient({
+                listArtifacts: async () => {
+                    lists++;
+
+                    if (fail) {
+                        throw apiError(503, 'unavailable');
+                    }
+
+                    return METADATA;
+                },
+                readArtifact: async (_runId, id) => new Blob([id]),
+            }),
+            runId: () => 'r1',
+            key: () => 'k',
+            refresh: () => refresh.value,
+            ids: () => ['a'],
+            urls: fakeUrls().urls,
+        }))!;
+
+        tiles.start();
+        await flush();
+        expect(tiles.tilesOf(['a'])[0]?.status).toBe('missing');
+
+        fail = false;
+        refresh.value++;
+        await flush();
+        expect(tiles.tilesOf(['a'])[0]?.status).toBe('image');
+        expect(lists).toBe(2);
+
+        refresh.value++;
+        await flush();
+        expect(lists).toBe(2);
+        scope.stop();
+    });
+
+    it('loads again on the next refresh after an image read failed', async () => {
+        let fail = true;
+        const refresh = ref(0);
+        const scope = effectScope();
+        const tiles = scope.run(() => useArtifactTiles({
+            client: fakeClient({
+                listArtifacts: async () => METADATA,
+                readArtifact: async (_runId, id) => {
+                    if (fail) {
+                        throw apiError(429, 'too_many_requests');
+                    }
+
+                    return new Blob([id]);
+                },
+            }),
+            runId: () => 'r1',
+            key: () => 'k',
+            refresh: () => refresh.value,
+            ids: () => ['a'],
+            urls: fakeUrls().urls,
+        }))!;
+
+        tiles.start();
+        await flush();
+        expect(tiles.tilesOf(['a'])[0]?.status).toBe('missing');
+
+        fail = false;
+        refresh.value++;
+        await flush();
+        expect(tiles.tilesOf(['a'])[0]?.status).toBe('image');
+        scope.stop();
+    });
+
+    it('runs at most four image reads at once and aborts them when the scope stops', async () => {
+        const ids = Array.from({ length: 10 }, (_, i) => `img${i}`);
+        const signals: AbortSignal[] = [];
+        let running = 0;
+        let peak = 0;
+        const scope = effectScope();
+        const tiles = scope.run(() => useArtifactTiles({
+            client: fakeClient({
+                listArtifacts: async () => ids.map((id) => meta(id, 'image/png')),
+                readArtifact: (_runId, _id, signal) => {
+                    running++;
+                    peak = Math.max(peak, running);
+                    signals.push(signal!);
+
+                    return new Promise<Blob>(() => {});
+                },
+            }),
+            runId: () => 'r1',
+            key: () => 'k',
+            ids: () => ids,
+            urls: fakeUrls().urls,
+        }))!;
+
+        tiles.start();
+        await flush();
+        expect(peak).toBe(4);
+        expect(signals.every((signal) => !signal.aborted)).toBe(true);
+
+        scope.stop();
+        expect(signals.every((signal) => signal.aborted)).toBe(true);
+    });
+
     it('revokes object URLs when the scope stops', async () => {
         const {
             tiles,

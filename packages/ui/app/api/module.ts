@@ -137,8 +137,8 @@ export function createApiClient(options: ApiClientOptions): IApiClient {
             pageQuery(new URLSearchParams(), page),
         ))),
         listArtifacts: async (id) => dataOf<ArtifactWire>(await request(`${path('runs', id)}/artifacts`)),
-        readArtifact: async (id, artifactId) => {
-            const response = await send(`${path('runs', id)}/artifacts${path(artifactId)}`, { headers: { accept: '*/*' } });
+        readArtifact: async (id, artifactId, signal) => {
+            const response = await send(`${path('runs', id)}/artifacts${path(artifactId)}`, { headers: { accept: '*/*' }, signal });
 
             return response.blob();
         },
