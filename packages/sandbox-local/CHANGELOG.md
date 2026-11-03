@@ -1,5 +1,24 @@
 # Changelog
 
+## [0.6.0](https://github.com/chamvi/chamvi/compare/v0.5.1...v0.6.0) (2026-11-03)
+
+
+### Bug Fixes
+
+* ensure consistent version for release ([4210928](https://github.com/chamvi/chamvi/commit/42109287c9fbc5863138bc9c29120ab356de0663))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/core bumped from ^0.5.1 to ^0.6.0
+    * @chamvi/sandbox bumped from ^0.5.1 to ^0.6.0
+    * @chamvi/test-kit bumped from ^0.5.1 to ^0.6.0
+  * peerDependencies
+    * @chamvi/core bumped from ^0.5.1 to ^0.6.0
+    * @chamvi/sandbox bumped from ^0.5.1 to ^0.6.0
+
 ## [0.5.1](https://github.com/chamvi/chamvi/compare/v0.5.0...v0.5.1) (2026-11-02)
 
 
