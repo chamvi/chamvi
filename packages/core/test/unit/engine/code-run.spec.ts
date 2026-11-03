@@ -313,7 +313,7 @@ describe('code run execution', () => {
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'validation_error', message: 'The output of code agent "code" is not JSON-serialisable.' });
-        expect((await store.steps.find(runId)).map((s) => [s.kind, s.error?.code])).toEqual([['tool', 'validation_error']]);
+        expect(await store.steps.find(runId)).toEqual([expect.objectContaining({ kind: 'tool', error: expect.objectContaining({ code: 'validation_error' }) })]);
         expect(errors).toEqual([]);
 
         await engine.stop();
