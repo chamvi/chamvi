@@ -225,7 +225,7 @@ describe('dispatch()', () => {
             trigger: 'default',
             channel: 'agent',
             payload: { pr: 'o/r#5' },
-            idempotencyKey: 'dispatch:o/r#5@2026-10-27',
+            idempotencyKey: 'dispatch:default:o/r#5@2026-10-27',
             concurrencyKey: 'o/r#5',
             address: 'o/r#5',
             parent: {
@@ -288,7 +288,7 @@ describe('dispatch()', () => {
             agent: 'maintainer',
             role: 'default',
             payload: pr.payload,
-            key: 'dispatch:o/r#5@2026-10-27',
+            key: 'dispatch:default:o/r#5@2026-10-27',
             concurrencyKey: pr.concurrencyKey,
             address: pr.address,
         })}`;
@@ -476,7 +476,7 @@ describe('dispatch()', () => {
 
         const [child] = await children(store);
 
-        expect(child!.trigger.idempotencyKey).toMatch(new RegExp(`^dispatch:${firstId}:[0-9a-f]{64}$`));
+        expect(child!.trigger.idempotencyKey).toMatch(new RegExp(`^dispatch:default:${firstId}:[0-9a-f]{64}$`));
 
         const second = setup({ parent: [turn(call({ payload: { pr: 'o/r#5' } })), text('done')], store });
 
@@ -513,8 +513,8 @@ describe('dispatch()', () => {
         const all = await children(store);
         const byPr = Object.fromEntries(all.map((run) => [(run.trigger.payload as { pr: string }).pr, run]));
 
-        expect(byPr.a!.trigger).toMatchObject({ idempotencyKey: 'dispatch:i:a', concurrencyKey: 'c:a' });
-        expect(byPr.b!.trigger).toMatchObject({ idempotencyKey: 'dispatch:mine', concurrencyKey: 'own' });
+        expect(byPr.a!.trigger).toMatchObject({ idempotencyKey: 'dispatch:default:i:a', concurrencyKey: 'c:a' });
+        expect(byPr.b!.trigger).toMatchObject({ idempotencyKey: 'dispatch:default:mine', concurrencyKey: 'own' });
     });
 
     it('the payload is parsed by the schema', async () => {
@@ -830,6 +830,91 @@ describe('dispatch() roles and depth', () => {
 
         await dispatchParent(engine);
         expect(await children(store)).toHaveLength(2);
+    });
+
+    it('two roles whose keys are the same string start two children', async () => {
+        const { engine, store } = setup({
+            parent: [
+                turn(call({ role: 'hunt', payload: { id: 'x' } }, 'c1')),
+                turn(call({ role: 'verify', payload: { id: 'x' } }, 'c2')),
+                text('done'),
+            ],
+            channels: [
+                agent.on<{ id: string }>({ role: 'hunt', idempotencyKey: (p) => p.id }),
+                agent.on<{ id: string }>({ role: 'verify', idempotencyKey: (p) => p.id }),
+            ],
+        });
+        const parentId = await dispatchParent(engine);
+        const all = await children(store);
+
+        expect(all.map((run) => [run.trigger.trigger, run.trigger.idempotencyKey])).toEqual([
+            ['hunt', 'dispatch:hunt:x'],
+            ['verify', 'dispatch:verify:x'],
+        ]);
+
+        const steps = await toolSteps(store, parentId);
+
+        expect(steps.map((step) => step.output)).toEqual([
+            { runId: all[0]!.id, deduplicated: false },
+            { runId: all[1]!.id, deduplicated: false },
+        ]);
+    });
+
+    it('refuses a key that deduplicates into the calling run', async () => {
+        const model = markedModel([
+            ['level-1', [turn(call({ payload: 'level-2', idempotencyKey: 'same' }, 'g2'))]],
+            ['', [turn(call({ payload: 'level-1', idempotencyKey: 'same' }, 'g1'))]],
+        ]);
+        const { engine, store } = setup({
+            parent: [], 
+            model, 
+            subscription: agent.on({ maxDepth: 2 }), 
+        });
+
+        await dispatchParent(engine);
+
+        const all = await children(store);
+
+        expect(all).toHaveLength(1);
+
+        const [level1] = all;
+        const [refused] = await toolSteps(store, level1!.id);
+
+        expect(refused?.error).toEqual({
+            code: 'validation_error',
+            message: `The dispatch deduplicated into run ${level1!.id}, the calling run or a run up its lineage, which it could never wait on.`,
+        });
+        expect(await store.effects.findOne(`dispatch-children:${level1!.id}`)).toBeUndefined();
+        expect((await store.runs.findOne(level1!.id))?.status).toBe('completed');
+    });
+
+    it('refuses a key that deduplicates into a run up the lineage', async () => {
+        const model = markedModel([
+            ['level-2', [turn(call({ payload: 'level-3', idempotencyKey: 'a' }, 'g3'))]],
+            ['level-1', [turn(call({ payload: 'level-2', idempotencyKey: 'b' }, 'g2'))]],
+            ['', [turn(call({ payload: 'level-1', idempotencyKey: 'a' }, 'g1'))]],
+        ]);
+        const { engine, store } = setup({
+            parent: [], 
+            model, 
+            subscription: agent.on({ maxDepth: 3 }), 
+        });
+
+        await dispatchParent(engine);
+
+        const all = await children(store);
+        const level1 = all.find((run) => run.trigger.payload === 'level-1')!;
+        const level2 = all.find((run) => run.trigger.payload === 'level-2')!;
+
+        expect(all).toHaveLength(2);
+
+        const [refused] = await toolSteps(store, level2.id);
+
+        expect(refused?.error).toEqual({
+            code: 'validation_error',
+            message: `The dispatch deduplicated into run ${level1.id}, the calling run or a run up its lineage, which it could never wait on.`,
+        });
+        expect(await store.effects.findOne(`dispatch-children:${level2.id}`)).toBeUndefined();
     });
 
     it.each([5, ''])('refuses a role that is no non-empty string (%j)', async (role) => {

@@ -164,9 +164,12 @@ export async function validatePayload(
     return result.value;
 }
 
-/** The idempotency key a dispatch claims: `dispatch:<key>`, or `sha256:<hex>` of it above 255 characters. */
-export function claimKey(key: string): string {
-    const prefixed = `dispatch:${key}`;
+/**
+ * The idempotency key a dispatch claims: `dispatch:<role>:<key>` (the roles
+ * of one agent share its claim scope), or `sha256:<hex>` of it above 255 characters.
+ */
+export function claimKey(role: string, key: string): string {
+    const prefixed = `dispatch:${role}:${key}`;
 
     if (prefixed.length <= TRIGGER_KEY_MAX_LENGTH) {
         return prefixed;

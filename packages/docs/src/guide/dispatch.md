@@ -72,9 +72,9 @@ type DispatchOutcome = {
 
 ## Keys and dedupe across runs
 
-The claimed idempotency key is `dispatch:<key>` (or `sha256:<hex>` of it when it is longer than 255 characters), where `<key>` is the call's `idempotencyKey`, else the role's `idempotencyKey(payload)`, else `<parent run id>:<hash of agent, role, payload, concurrency key and address>`.
+The claimed idempotency key is `dispatch:<role>:<key>` (or `sha256:<hex>` of it when it is longer than 255 characters), so two roles of one agent never share a child, where `<key>` is the call's `idempotencyKey`, else the role's `idempotencyKey(payload)`, else `<parent run id>:<hash of agent, role, payload, concurrency key and address>`.
 
-A given key is **not** scoped to the parent run: a second run that dispatches the same key (the job run again, a replica) gets the first child back with `deduplicated: true`. Key it by what makes the work unique, for example the pull request and the day (`${pr}@${day}`), taking the day from `ctx.run.trigger.receivedAt` so a redo keeps the same key. Without a key, the default is scoped to the parent, so another parent with the same payload starts its own child. The idempotency scope is `<target agent>:agent` (plus the invoker), apart from every other channel's.
+A given key is **not** scoped to the parent run: a second run that dispatches the same key (the job run again, a replica) gets the first child back with `deduplicated: true`. Key it by what makes the work unique, for example the pull request and the day (`${pr}@${day}`), taking the day from `ctx.run.trigger.receivedAt` so a redo keeps the same key. Without a key, the default is scoped to the parent, so another parent with the same payload starts its own child. The idempotency scope is `<target agent>:agent` (plus the invoker), apart from every other channel's. A dispatch whose key deduplicates into the caller itself or a run up its lineage is refused (`ValidationError`): waiting on it would be a cycle that nothing settles.
 
 The concurrency key works as for any run: two children with the same key never run at the same time, so one key per pull request keeps two fixes of one pull request apart. A dispatch whose child would take the agent and concurrency key that the caller or a run up its lineage holds is refused (`ValidationError`), since the child could never start while that run waits.
 

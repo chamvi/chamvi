@@ -159,7 +159,7 @@ async function start(
     assertDispatchKey('idempotency key', given, false);
 
     const { address } = input;
-    const key = claimKey(given ?? `${run.runId}:${stableHash({
+    const key = claimKey(role, given ?? `${run.runId}:${stableHash({
         agent: target,
         role,
         payload,
@@ -203,6 +203,15 @@ async function start(
             depth,
         });
         const value: DispatchResult = { runId: result.runId, deduplicated: result.deduplicated };
+
+        // a key claimed by the caller or a run up its lineage: waiting on it is a cycle nothing settles
+        const cycle = value.deduplicated && chain.some((r) => r.id === value.runId);
+
+        if (cycle) {
+            throw new ValidationError(
+                `The dispatch deduplicated into run ${value.runId}, the calling run or a run up its lineage, which it could never wait on.`,
+            );
+        }
 
         // the child exists: a failing record must not fail the call (createRun dedupes a redo)
         try {
@@ -281,7 +290,7 @@ async function start(
  * Starts a run of the calling run's own agent through its `agent.on()` role
  * (`input.role`, default `default`): channel `agent`, the parent's invoker,
  * `trigger.parent` naming this run. Effect-recorded per run and call, and
- * deduplicated across runs by the idempotency key (`dispatch:<key>`), so a
+ * deduplicated across runs by the idempotency key (`dispatch:<role>:<key>`), so a
  * second run dispatching the same key gets the first child
  * (`deduplicated: true`). The role's `maxDepth` bounds the child's depth
  * (a root run has depth 0), and a run starts at most `maxPerRun` dispatches
