@@ -12,14 +12,18 @@ import type { DispatchResult } from '../channel/types.ts';
 import { inject } from '../context/module.ts';
 import { currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
-import { InvalidRunStateError, ValidationError } from '../errors/index.ts';
+import { BudgetExceededError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
+import { hasPermission } from '../permission/match.ts';
+import type { Run } from '../run/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { DEFAULT_DISPATCH_ROLE, DISPATCH_CONTEXT } from './constants.ts';
 import {
+    ancestorsOf,
     assertDispatchKey,
     claimKey,
     findDispatchRole,
+    fromOf,
     maxDepthOf,
     maxPerRunOf,
     readChildren,
@@ -27,7 +31,7 @@ import {
     runSnapshotOf,
     validatePayload,
 } from './helpers.ts';
-import type { DispatchHost, DispatchInput, DispatchRunSnapshot } from './types.ts';
+import type { DispatchHost, DispatchInput, DispatchToInput } from './types.ts';
 
 /** Appends `childId` to `dispatch-children:<runId>` (once); called under the run's serial chain. */
 async function recordChild(host: DispatchHost, runId: string, childId: string): Promise<void> {
@@ -39,11 +43,31 @@ async function recordChild(host: DispatchHost, runId: string, childId: string): 
     }
 }
 
+/** The first run of `chain` whose agent's `budget.maxSubtreeTokens` its `subtreeUsage` reached, with that budget. */
+function overSubtreeBudget(host: DispatchHost, chain: Run[]): { run: Run, max: number } | undefined {
+    for (const run of chain) {
+        const max = host.getAgent(run.agent)?.definition.budget.maxSubtreeTokens;
+
+        if (max === undefined) {
+            continue;
+        }
+
+        const used = (run.subtreeUsage?.inputTokens ?? 0) + (run.subtreeUsage?.outputTokens ?? 0);
+
+        if (used >= max) {
+            return { run, max };
+        }
+    }
+
+    return undefined;
+}
+
 async function start(
     name: string,
     ctx: ToolContext<any>,
     input: DispatchInput,
-    resolveTarget: (run: DispatchRunSnapshot) => string,
+    // undefined: the calling run's own agent (dispatch())
+    targetAgent: (input: DispatchInput) => string | undefined,
 ): Promise<DispatchResult> {
     const frame = currentToolCall();
 
@@ -76,13 +100,31 @@ async function start(
     assertDispatchKey('concurrency key', input.concurrencyKey, true);
     assertDispatchKey('address', input.address, true);
 
-    const target = resolveTarget(run);
+    const target = targetAgent(input) ?? run.agent;
     const role = input.role ?? DEFAULT_DISPATCH_ROLE;
     const agent = host.getAgent(target);
-    const subscription = agent ? findDispatchRole(agent, role) : undefined;
+
+    if (!agent) {
+        throw new ValidationError(`Agent "${target}" is not registered.`);
+    }
+
+    const subscription = findDispatchRole(agent, role);
 
     if (!subscription) {
         throw new ValidationError(`Agent "${target}" has no dispatch role "${role}": add agent.on({ role: '${role}' }) to its channels.`);
+    }
+
+    const cross = target !== run.agent;
+
+    if (cross && !(fromOf(target, subscription) ?? []).includes(run.agent)) {
+        throw new ValidationError(`Agent "${target}" role "${role}" accepts no dispatches from agent "${run.agent}".`);
+    }
+
+    // the same permission http and MCP check (agentPermission(target, 'run')); a run without invoker passes
+    const permission = `agent:${target}:run`;
+
+    if (cross && run.invoker && !hasPermission(run.invoker.permissions, permission)) {
+        throw new ValidationError(`The run's invoker may not run agent "${target}" (${permission}).`);
     }
 
     const maxPerRun = maxPerRunOf(target, subscription);
@@ -97,6 +139,20 @@ async function start(
     const concurrencyKey = input.concurrencyKey ?? subscription.concurrencyKey?.(payload);
 
     assertDispatchKey('concurrency key', concurrencyKey, true);
+
+    // the stored runs (the snapshot holds no concurrency key or usage), read once per call
+    const chain = await ancestorsOf(host, run.runId);
+
+    // the queue holds a keyed run while a run of its agent and key waits: the child could never start
+    const holder = concurrencyKey === undefined ?
+        undefined :
+        chain.find((r) => r.agent === target && r.concurrencyKey === concurrencyKey);
+
+    if (holder) {
+        throw new ValidationError(
+            `A dispatch to agent "${target}" with concurrency key "${concurrencyKey}" would wait on run ${holder.id}, which holds that key.`,
+        );
+    }
 
     const given = input.idempotencyKey ?? subscription.idempotencyKey?.(payload);
 
@@ -190,6 +246,13 @@ async function start(
                 return create();
             }
 
+            // a new call only: a recorded or redone one keeps its child however the subtree grew
+            const over = overSubtreeBudget(host, chain);
+
+            if (over) {
+                throw new BudgetExceededError(`Run ${over.run.id} reached its subtree token budget of ${over.max} tokens.`);
+            }
+
             if (count >= maxPerRun) {
                 throw new ValidationError(
                     `Run ${run.runId} reached its ${maxPerRun} dispatches of agent "${target}" role "${role}" (agent.on({ maxPerRun })).`,
@@ -228,5 +291,29 @@ export async function dispatch<S extends StateSchema = StateSchema>(
     ctx: ToolContext<S>,
     input: DispatchInput,
 ): Promise<DispatchResult> {
-    return start('dispatch()', ctx, input, (run) => run.agent);
+    return start('dispatch()', ctx, input, () => undefined);
+}
+
+/**
+ * Starts a run of `input.agent` through its `agent.on()` role, like
+ * dispatch() (`input.agent` the calling run's own agent behaves exactly as
+ * dispatch()). Another agent's role must list the caller in `from`, and a
+ * run with an invoker needs `agent:<agent>:run` there; the child carries
+ * that invoker unchanged. Every dispatch refuses a child whose agent and
+ * concurrency key a run up its lineage holds, and once a run up the
+ * lineage (or the caller) reached its agent's `budget.maxSubtreeTokens`.
+ */
+export async function dispatchTo<S extends StateSchema = StateSchema>(
+    ctx: ToolContext<S>,
+    input: DispatchToInput,
+): Promise<DispatchResult> {
+    return start('dispatchTo()', ctx, input, () => {
+        const { agent } = input as { agent?: unknown };
+
+        if (typeof agent !== 'string' || agent.length === 0) {
+            throw new ValidationError('dispatchTo() needs an agent name.');
+        }
+
+        return agent;
+    });
 }

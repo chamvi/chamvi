@@ -15,7 +15,7 @@ import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
 import { assertChannelName } from '../channel/helpers.ts';
 import type { ChannelSubscription } from '../channel/types.ts';
 import { InvalidAgentDefinitionError, ValidationError } from '../errors/index.ts';
-import type { RunContext } from '../run/types.ts';
+import type { Run, RunContext } from '../run/types.ts';
 import { describeIssues } from '../state/helpers.ts';
 import { TRIGGER_KEY_MAX_LENGTH } from '../trigger/constants.ts';
 import type { Invoker, TriggerParent } from '../trigger/types.ts';
@@ -24,7 +24,7 @@ import {
     DEFAULT_MAX_DISPATCHES_PER_RUN,
     DISPATCH_DEPTH_MAX,
 } from './constants.ts';
-import type { DispatchRunSnapshot } from './types.ts';
+import type { DispatchHost, DispatchRunSnapshot } from './types.ts';
 
 /** The agent's `agent.on()` subscription for `role` (channel `agent`, id = role), if any. */
 export function findDispatchRole(agent: Agent, role: string): ChannelSubscription | undefined {
@@ -90,6 +90,33 @@ export function maxPerRunOf(agent: string, subscription: ChannelSubscription): n
 /** The role's `maxDepth`, re-checked like maxPerRunOf(). */
 export function maxDepthOf(agent: string, subscription: ChannelSubscription): number {
     return checkMaxDepth(roleLabel(agent, subscription.id), (subscription.options as Record<string, unknown> | undefined)?.maxDepth);
+}
+
+/** The role's `from`, re-checked like maxPerRunOf() (undefined: only the own agent may dispatch). */
+export function fromOf(agent: string, subscription: ChannelSubscription): string[] | undefined {
+    return checkFrom(roleLabel(agent, subscription.id), (subscription.options as Record<string, unknown> | undefined)?.from);
+}
+
+/**
+ * The stored run `runId` first, then its ancestors up `parentRunId` (at most
+ * DISPATCH_DEPTH_MAX hops); stops at a run the store does not hold.
+ */
+export async function ancestorsOf(host: DispatchHost, runId: string): Promise<Run[]> {
+    const chain: Run[] = [];
+    let next: string | undefined = runId;
+
+    while (next !== undefined && chain.length <= DISPATCH_DEPTH_MAX) {
+        const run = await host.runs.findOne(next);
+
+        if (!run) {
+            break;
+        }
+
+        chain.push(run);
+        next = run.parentRunId;
+    }
+
+    return chain;
 }
 
 /** Refuses an agent with an invalid role: id, `maxPerRun`, `maxDepth` or `from` (the engine's registration check). */

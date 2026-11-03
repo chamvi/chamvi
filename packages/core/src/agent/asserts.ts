@@ -51,6 +51,19 @@ export function assertNoNeedsApproval(agent: string, tools: ToolSet): void {
     }
 }
 
+/** `budget.maxSubtreeTokens`, when given, is a positive safe integer. */
+export function assertSubtreeBudget(agent: string, budget: { maxSubtreeTokens?: unknown } | undefined): void {
+    const value = budget?.maxSubtreeTokens;
+
+    if (value === undefined) {
+        return;
+    }
+
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+        throw new InvalidAgentDefinitionError(`Agent "${agent}": budget.maxSubtreeTokens must be a positive integer.`);
+    }
+}
+
 /** The configured storage namespace, validated before registration or any store write. */
 export function conversationKey(def: Pick<AgentDefinition, 'name' | 'conversation'>): string | undefined {
     const value = def.conversation;

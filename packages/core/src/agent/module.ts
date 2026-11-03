@@ -17,7 +17,12 @@ import {
     NAME_MAX_LENGTH,
     NAME_PATTERN,
 } from './constants.ts';
-import { assertNoNeedsApproval, assertToolsContext, conversationKey } from './asserts.ts';
+import {
+    assertNoNeedsApproval,
+    assertSubtreeBudget,
+    assertToolsContext,
+    conversationKey,
+} from './asserts.ts';
 import type { Agent, AgentDefinition } from './types.ts';
 
 export function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefinition<S>): Agent<S> {
@@ -40,6 +45,7 @@ export function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefin
 
     assertAgentTrust(def.trust, completeTools);
     assertConcurrencyMaxRuns(def.concurrencyMaxRuns, `Agent "${def.name}" concurrencyMaxRuns`);
+    assertSubtreeBudget(def.name, def.budget);
     conversationKey(def);
 
     const seen = new Set<string>();

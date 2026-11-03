@@ -26,6 +26,12 @@ export type Budget = {
      * execution of the run gets the full timeout again.
      */
     timeoutMs?: number;
+    /**
+     * Total tokens (input + output) of every descendant dispatched below a
+     * run of this agent: at or over it, dispatch() and dispatchTo() refuse
+     * (checked at dispatch time only, running children are not stopped).
+     */
+    maxSubtreeTokens?: number;
 };
 
 export type RunTaint = { at: Date; source: string };

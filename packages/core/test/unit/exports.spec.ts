@@ -133,6 +133,7 @@ describe('public api', () => {
         'extract',
         'agentChannel',
         'dispatch',
+        'dispatchTo',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
@@ -167,6 +168,7 @@ describe('public api', () => {
         expect(core).not.toHaveProperty('claimKey');
         expect(core).not.toHaveProperty('bindRunSnapshot');
         expect(core).not.toHaveProperty('findDispatchRole');
+        expect(core).not.toHaveProperty('ancestorsOf');
         expectTypeOf<core.TriggerEnvelope>().toHaveProperty('parent').toEqualTypeOf<core.TriggerParent | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatch>>().toEqualTypeOf<Promise<core.DispatchResult>>();
         expectTypeOf<core.DispatchInput>().toEqualTypeOf<{
@@ -179,6 +181,9 @@ describe('public api', () => {
         expectTypeOf<core.AgentSubscriber['on']>().returns.toEqualTypeOf<core.ChannelSubscription<unknown>>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('maxDepth').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('from').toEqualTypeOf<string[] | undefined>();
+        expectTypeOf<ReturnType<typeof core.dispatchTo>>().toEqualTypeOf<Promise<core.DispatchResult>>();
+        expectTypeOf<core.DispatchToInput>().toEqualTypeOf<core.DispatchInput & { agent: string }>();
+        expectTypeOf<core.Budget>().toHaveProperty('maxSubtreeTokens').toEqualTypeOf<number | undefined>();
     });
 
     it.each([

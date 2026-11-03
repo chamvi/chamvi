@@ -48,6 +48,12 @@ export type DispatchInput = {
     address?: string;
 };
 
+/** dispatchTo()'s input: a dispatch to the `agent.on()` role of `agent`. */
+export type DispatchToInput = DispatchInput & {
+    /** The receiving agent (the calling run's own agent behaves as dispatch()). */
+    agent: string;
+};
+
 /** The engine's copy of a run dispatch() reads (internal). */
 export type DispatchRunSnapshot = {
     readonly runId: string;
