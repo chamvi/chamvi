@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { defineAgent } from '@chamvi/core';
+import type { IStore } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -30,6 +31,45 @@ async function setup() {
     }
 
     return { ...ctx, ids };
+}
+
+/** Inserts one child of `parentId` per agent, in that order; returns their ids. */
+async function insertChildren(store: IStore, parentId: string, agents: string[]): Promise<string[]> {
+    const parent = await store.runs.findOneOrFail(parentId);
+    const ids: string[] = [];
+
+    for (const [index, agent] of agents.entries()) {
+        const id = `${parentId}-child-${index}`;
+        const at = new Date(parent.createdAt.getTime() + 10 + index);
+
+        await store.runs.insert({
+            id,
+            agent,
+            status: 'completed',
+            trigger: {
+                id: `t-${id}`,
+                agent,
+                trigger: 'default',
+                channel: 'dispatch',
+                payload: {},
+                parent: {
+                    kind: 'dispatch',
+                    runId: parentId,
+                    agent: parent.agent,
+                    role: 'default',
+                    depth: 1,
+                },
+                receivedAt: at,
+            },
+            usage: { inputTokens: 1, outputTokens: 1 },
+            subtreeUsage: { inputTokens: 3, outputTokens: 4 },
+            createdAt: at,
+            updatedAt: at,
+        });
+        ids.push(id);
+    }
+
+    return ids;
 }
 
 type ListBody = {
@@ -130,6 +170,52 @@ describe('GET /runs', () => {
         expect((await call(app, 'GET', '/runs?filter[agent]=echo', { token })).status).toBe(200);
         expect((await call(app, 'GET', '/runs?filter[agent]=gate', { token })).status).toBe(403);
         expect((await call(app, 'GET', '/runs')).status).toBe(401);
+    });
+
+    it('lists a run\'s children', async () => {
+        const {
+            app, 
+            store, 
+            ids, 
+        } = await setup();
+        const [parentId] = ids as [string];
+        const children = await insertChildren(store, parentId, ['echo', 'gate']);
+        const body = await (await call(app, 'GET', `/runs?filter[parent]=${parentId}`, { token: READER_TOKEN })).json() as ListBody;
+
+        expect(body.meta.total).toBe(2);
+        expect(body.data.map((run) => run.id)).toEqual(children);
+
+        for (const run of body.data) {
+            expect(run.parentRunId).toBe(parentId);
+            expect(run.subtreeUsage).toEqual({ inputTokens: 3, outputTokens: 4 });
+        }
+
+        const none = await (await call(app, 'GET', `/runs?filter[parent]=${ids[1]}`, { token: READER_TOKEN })).json() as ListBody;
+
+        expect(none.meta.total).toBe(0);
+
+        const echo = await (await call(app, 'GET', `/runs?filter[parent]=${parentId}&filter[agent]=echo`, { token: READER_TOKEN })).json() as ListBody;
+
+        expect(echo.data.map((run) => run.id)).toEqual([children[0]]);
+    });
+
+    it('an agent-scoped reader sees only children of its agent with filter[agent], 403 without', async () => {
+        const {
+            app, 
+            store, 
+            ids, 
+        } = await setup();
+        const [parentId] = ids as [string];
+        const children = await insertChildren(store, parentId, ['echo', 'gate']);
+        const token = tokenFor('agent:echo:run');
+
+        expect((await call(app, 'GET', `/runs?filter[parent]=${parentId}`, { token })).status).toBe(403);
+        expect((await call(app, 'GET', `/runs?filter[parent]=${parentId}&filter[agent]=gate`, { token })).status).toBe(403);
+
+        const response = await call(app, 'GET', `/runs?filter[parent]=${parentId}&filter[agent]=echo`, { token });
+
+        expect(response.status).toBe(200);
+        expect((await response.json() as ListBody).data.map((run) => run.id)).toEqual([children[0]]);
     });
 
     it('answers 400 JSON with issues for a rejected query', async () => {

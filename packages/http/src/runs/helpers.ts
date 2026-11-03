@@ -211,7 +211,7 @@ export function contentDisposition(filename: string | undefined): string {
 }
 
 const RUN_LIST_SCHEMA = defineSchema({
-    filters: { allowed: ['agent', 'status'] },
+    filters: { allowed: ['agent', 'parent', 'status'] },
     sorts: { allowed: ['createdAt'] },
     throwOnFailure: true,
 });
@@ -243,6 +243,17 @@ function readAgentFilter(filter: IFilter, agentNames: Iterable<string>): string 
     return matches[0] ?? String(value);
 }
 
+/** One run id; a value the wire coerced to a scalar reads in canonical form. */
+function readParentFilter(filter: IFilter): string {
+    const { value } = filter;
+
+    if (filter.operator !== 'eq' || Array.isArray(value) || isObject(value)) {
+        throw new BadRequestError({ message: 'filter[parent] takes one run id.' });
+    }
+
+    return String(value);
+}
+
 function readStatusFilter(filter: IFilter): RunStatusLiteral[] {
     let values: unknown[] | undefined;
 
@@ -263,7 +274,7 @@ function readStatusFilter(filter: IFilter): RunStatusLiteral[] {
 }
 
 /**
- * `GET /runs` query: one agent, statuses, a page, `sort=createdAt` only.
+ * `GET /runs` query: one agent, one parent run, statuses, a page, `sort=createdAt` only.
  * `agentNames` (the app's agents) resolve an agent name the wire coerced.
  */
 export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Iterable<string> = []): RunListQuery {
@@ -285,6 +296,8 @@ export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Ite
 
         if (filter.field === 'agent') {
             query.agent = readAgentFilter(filter, agentNames);
+        } else if (filter.field === 'parent') {
+            query.parent = readParentFilter(filter);
         } else {
             query.status = readStatusFilter(filter);
         }

@@ -27,6 +27,8 @@ export type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
 /** `GET /runs` query after decoding. */
 export type RunListQuery = {
     agent?: string;
+    /** `filter[parent]`: only the runs this run dispatched. */
+    parent?: string;
     status?: RunStatusLiteral[];
     limit: number;
     offset: number;

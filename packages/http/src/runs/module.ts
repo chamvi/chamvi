@@ -85,7 +85,8 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
 
         assertCanListRuns(principal, query.agent);
 
-        const { data, total } = await ctx.store.runs.find(query);
+        const { parent, ...options } = query;
+        const { data, total } = await ctx.store.runs.find({ ...options, parentRunId: parent });
 
         return {
             data: data.map(serializeRun),
