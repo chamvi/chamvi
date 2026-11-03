@@ -214,7 +214,7 @@ export class AgentsModule implements IModule {
             const reserved = new Map<string, string>();
 
             for (const name of codeNames) {
-                reserved.set(name, `${name}: a code agent has this name; the folder is not loaded.`);
+                reserved.set(name, `${name}: an agent passed in code has this name; the folder is not loaded.`);
             }
 
             for (const [name, message] of claimed) {

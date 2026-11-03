@@ -196,7 +196,7 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
                     const { name } = agent;
 
                     if (codeNames.has(name)) {
-                        record(`${spec}\0${name}`, name, `${name}: a code agent has this name; package ${spec} is not loaded.`);
+                        record(`${spec}\0${name}`, name, `${name}: an agent passed in code has this name; package ${spec} is not loaded.`);
 
                         continue;
                     }

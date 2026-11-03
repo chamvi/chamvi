@@ -318,14 +318,14 @@ describe('agentsModule', () => {
         expect(engine().agentRevision('greeter')).toBeUndefined();
         expect(issues()).toEqual([{
             agent: 'greeter',
-            message: 'greeter: a code agent has this name; the folder is not loaded.',
+            message: 'greeter: an agent passed in code has this name; the folder is not loaded.',
             at: START,
         }]);
         expect(logger.entries).toContainEqual(expect.objectContaining({
             level: 'warn',
             msg: 'agent load failed',
             agent: 'greeter',
-            message: 'greeter: a code agent has this name; the folder is not loaded.',
+            message: 'greeter: an agent passed in code has this name; the folder is not loaded.',
         }));
     });
 

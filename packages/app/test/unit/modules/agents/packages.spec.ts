@@ -116,7 +116,7 @@ describe('package agents', () => {
         expect(setup.engine().agentRevision('greeter')).toBeUndefined();
         expect(setup.issues()).toEqual([expect.objectContaining({
             agent: 'greeter',
-            message: 'greeter: a code agent has this name; package @s/greeter is not loaded.',
+            message: 'greeter: an agent passed in code has this name; package @s/greeter is not loaded.',
         })]);
     });
 

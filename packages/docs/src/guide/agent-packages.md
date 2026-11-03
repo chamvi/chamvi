@@ -57,7 +57,7 @@ export default async function review() {
 
 ## Names
 
-One agent name, one agent. **Agents passed in code win**, then **packages** (in the merged order), then **folders**. The loser is reported as an issue and never loaded: `<name>: a code agent has this name; package <spec> is not loaded.`, `<name>: package <earlier> already provides this agent; package <spec> is not loaded.`, or for a folder `<name>: package <spec> provides this agent; the folder is not loaded.` A package agent keeps its name against folders once its package loaded, also when its checks or skill preparation then fail. A package that fails to import names no agents, so it reserves only the names whose stored revision is a package marker: on a first deployment, a folder of the name it would export loads.
+One agent name, one agent. **Agents passed in code win**, then **packages** (in the merged order), then **folders**. The loser is reported as an issue and never loaded: `<name>: an agent passed in code has this name; package <spec> is not loaded.`, `<name>: package <earlier> already provides this agent; package <spec> is not loaded.`, or for a folder `<name>: package <spec> provides this agent; the folder is not loaded.` A package agent keeps its name against folders once its package loaded, also when its checks or skill preparation then fail. A package that fails to import names no agents, so it reserves only the names whose stored revision is a package marker: on a first deployment, a folder of the name it would export loads.
 
 ## Revisions
 

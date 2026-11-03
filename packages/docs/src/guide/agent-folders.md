@@ -93,7 +93,7 @@ During that window the store keeps them apart: a replica starts (and recovers) a
 
 ## Agents passed in code win
 
-A folder named like an agent passed to `createApp({ agents })` is not loaded: it is reported as an issue (`a code agent has this name; the folder is not loaded.`), and the agent passed in code stays as it is.
+A folder named like an agent passed to `createApp({ agents })` is not loaded: it is reported as an issue (`an agent passed in code has this name; the folder is not loaded.`), and the agent passed in code stays as it is.
 
 ## Without the app
 
