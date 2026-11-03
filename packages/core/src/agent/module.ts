@@ -19,12 +19,21 @@ import {
     NAME_PATTERN,
 } from './constants.ts';
 import {
+    assertCodeAgent,
+    assertDescription,
     assertNoNeedsApproval,
     assertSubtreeBudget,
     assertToolsContext,
     conversationKey,
 } from './asserts.ts';
 import type { Agent, AgentDefinition } from './types.ts';
+
+/** Whether the agent (or definition) is a code agent: one with `run` and no model. */
+export function isCodeAgent(agent: Agent | AgentDefinition): boolean {
+    const definition: AgentDefinition = 'definition' in agent ? agent.definition : agent;
+
+    return typeof definition.run === 'function';
+}
 
 export function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefinition<S>): Agent<S> {
     if (
@@ -37,7 +46,13 @@ export function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefin
         );
     }
 
-    assertInstructions(def.instructions);
+    if (def.run !== undefined) {
+        assertCodeAgent(def);
+    } else {
+        assertInstructions(def.instructions);
+    }
+
+    assertDescription(def);
 
     // Factories, state and skills can add tools; validate their names after assembly.
     const completeTools = typeof def.tools === 'function' || def.state || def.skills?.length ?
@@ -78,16 +93,16 @@ export function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefin
         }
     }
 
-    return {
-        name: def.name,
-        definition: {
-            ...def,
-            ...(def.skills !== undefined && { skills }),
-            budget: {
-                maxSteps: DEFAULT_MAX_STEPS,
-                timeoutMs: DEFAULT_TIMEOUT_MS,
-                ...def.budget,
-            },
+    // the spread keeps the definition's kind; TypeScript cannot narrow a spread union
+    const definition = {
+        ...def,
+        ...(def.skills !== undefined && { skills }),
+        budget: {
+            maxSteps: DEFAULT_MAX_STEPS,
+            timeoutMs: DEFAULT_TIMEOUT_MS,
+            ...def.budget,
         },
-    };
+    } as Agent<S>['definition'];
+
+    return { name: def.name, definition };
 }

@@ -19,6 +19,7 @@ import type {
     Agent,
     IChannel,
     IEngine,
+    ModelAgentDefinition,
     ModelRef,
 } from '@chamvi/core';
 import { ControllableClock, approvalModel, textModel } from '@chamvi/test-kit';
@@ -45,7 +46,7 @@ import type { Harness } from '../../../utils/harness.ts';
 import { createRecordingLogger } from '../../../utils/logger.ts';
 
 
-function agentWith(model: Agent['definition']['model'], extra: Partial<Parameters<typeof defineAgent>[0]> = {}): Agent {
+function agentWith(model: Agent['definition']['model'], extra: Partial<ModelAgentDefinition> = {}): Agent {
     return defineAgent({
         name: 'triage',
         model,

@@ -183,10 +183,19 @@ function registerReadTools(server: McpServer, ctx: HttpContext, principal: Princ
 }
 
 function describeAgent(agent: Agent): string {
-    const { instructions } = agent.definition;
-    const texts = typeof instructions === 'string' ? [instructions] : instructions
-        .filter((message) => message.role === 'system')
-        .map((message) => message.content);
+    const { description, instructions = [] } = agent.definition;
+    let texts: string[];
+
+    if (description !== undefined) {
+        texts = [description];
+    } else if (typeof instructions === 'string') {
+        texts = [instructions];
+    } else {
+        texts = instructions
+            .filter((message) => message.role === 'system')
+            .map((message) => message.content);
+    }
+
     const firstLine = texts.flatMap((text) => text.split('\n')).find((line) => line.trim()) ?? '';
 
     return firstLine.trim().slice(0, DESCRIPTION_MAX_LENGTH) || `Starts a run of agent "${agent.name}".`;
@@ -258,7 +267,7 @@ export function buildRunTool(agent: Agent, options: McpEndpointOptions): McpRunT
 /**
  * Throws InvalidAgentDefinitionError when the agent's `run_<agent>` MCP tool
  * cannot be built (a name above 64 characters with `run_`, a payload schema
- * the MCP validator cannot compile), as createHttpApp would for a code agent.
+ * the MCP validator cannot compile), as createHttpApp would for an agent it holds at construction.
  */
 export function assertMcpRunTool(agent: Agent): void {
     buildRunTool(agent, {

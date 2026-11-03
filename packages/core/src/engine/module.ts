@@ -10,6 +10,7 @@ import { hostname } from 'node:os';
 import { pid } from 'node:process';
 import type { Agent } from '../agent/types.ts';
 import { conversationKey } from '../agent/asserts.ts';
+import { isCodeAgent } from '../agent/module.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
 import { attachmentIds, storeArtifact } from '../artifact/module.ts';
@@ -113,7 +114,7 @@ export class Engine implements IEngine {
 
     protected readonly agents: Map<string, Agent>;
 
-    /** The revision each registered agent was loaded at; undefined for a code agent. */
+    /** The revision each registered agent was loaded at; undefined for an agent without a revision. */
     protected readonly revisions = new Map<string, string | undefined>();
 
     /** Agents whose revision marker this engine is moving: none of their runs starts here meanwhile. */
@@ -614,7 +615,7 @@ export class Engine implements IEngine {
         return Array.from(this.channels.values());
     }
 
-    /** The revision the registered agent was loaded at (undefined for a code agent). */
+    /** The revision the registered agent was loaded at (undefined for an agent without a revision). */
     agentRevision(name: string): string | undefined {
         return this.revisions.get(name);
     }
@@ -1709,7 +1710,7 @@ export class Engine implements IEngine {
      * The start guard of one scheduling pass, built from one read of the
      * revision markers (skipped while no folder agent is registered): a run
      * may start when cancel asked for it, or when its agent is registered
-     * here and is a code agent or loaded at the stored marker's hash.
+     * here and has no revision or is loaded at the stored marker's hash.
      */
     protected async prepareStart(): Promise<(run: Run) => boolean> {
         const folder = this.revisions.values().some((revision) => revision !== undefined);
@@ -1738,7 +1739,7 @@ export class Engine implements IEngine {
         };
     }
 
-    /** Whether the registered agent is a code agent or loaded at the stored marker's hash. */
+    /** Whether the registered agent has no revision or is loaded at the stored marker's hash. */
     protected async isCurrent(name: string): Promise<boolean> {
         if (this.syncing.has(name)) {
             return false;
@@ -1913,7 +1914,10 @@ export class Engine implements IEngine {
      */
     protected assertRegistrable(agent: Agent, options: { commit?: boolean } = {}): void {
         // first: putAgent refuses before syncing, the lock and any store write
-        checkAgentModel(agent, { model: this.model, models: this.models });
+        if (!isCodeAgent(agent)) {
+            checkAgentModel(agent, { model: this.model, models: this.models });
+        }
+
         assertConcurrencyMaxRuns(agent.definition.concurrencyMaxRuns, `Agent "${agent.name}" concurrencyMaxRuns`);
 
         for (const subscription of agent.definition.channels ?? []) {

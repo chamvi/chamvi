@@ -19,7 +19,11 @@ import {
     defineAgent,
     defineTool,
 } from '@chamvi/core';
-import type { AgentDefinition, ChannelSubscription } from '@chamvi/core';
+import type {
+    AgentDefinition,
+    ChannelSubscription,
+    ModelAgentDefinition,
+} from '@chamvi/core';
 
 const model = {} as LanguageModel;
 const base = { model, instructions: 'do things' };
@@ -29,7 +33,7 @@ describe('defineAgent', () => {
         expect(() => defineAgent({
             ...base,
             name: 'a',
-            instructions: instructions as unknown as AgentDefinition['instructions'],
+            instructions: instructions as unknown as ModelAgentDefinition['instructions'],
         })).toThrow(InvalidAgentDefinitionError);
     });
 

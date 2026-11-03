@@ -26,6 +26,7 @@ import type {
     EngineOptions,
     IChannel,
     IEngine,
+    ModelAgentDefinition,
     Run,
 } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
@@ -293,7 +294,7 @@ describe('channels on the engine', () => {
     it('start receives the engine channel context with trusted conversation intake', async () => {
         const chat = recording('chat', []);
         const engine = make({
-            agents: [defineAgent({ ...agent.definition, conversation: true })],
+            agents: [defineAgent({ ...agent.definition as ModelAgentDefinition, conversation: true })],
             channels: [chat],
             conversations: { authorize: () => true },
         });

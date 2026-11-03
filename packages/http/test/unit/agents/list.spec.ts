@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { defineAgent } from '@chamvi/core';
 import {
     READER_TOKEN,
     call,
@@ -26,12 +27,14 @@ describe('GET /agents', () => {
         expect(data).toEqual([
             {
                 name: 'echo',
+                kind: 'model',
                 channels: [{ channel: 'http', id: 'http' }],
                 budget: { maxSteps: 20, timeoutMs: 900_000 },
                 state: [],
             },
             {
                 name: 'intake',
+                kind: 'model',
                 channels: [{
                     channel: 'webhook',
                     id: 'webhook:/issues',
@@ -41,6 +44,15 @@ describe('GET /agents', () => {
                 state: ['issues'],
             },
         ]);
+    });
+
+    it('marks a code agent', async () => {
+        const fan = defineAgent({ name: 'fan', run: () => 'ok' });
+        const { app } = createTestApp({ agents: [fan] });
+        const response = await call(app, 'GET', '/agents', { token: READER_TOKEN });
+        const { data } = await response.json();
+
+        expect(data).toEqual([expect.objectContaining({ name: 'fan', kind: 'code' })]);
     });
 
     it('prefixes the hook path with basePath', async () => {

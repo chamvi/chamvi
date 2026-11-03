@@ -25,7 +25,11 @@ import {
     defineTool,
     dispatch,
 } from '@chamvi/core';
-import type { AgentDefinition, RunTaint, ToolContext } from '@chamvi/core';
+import type {
+    ModelAgentDefinition,
+    RunTaint,
+    ToolContext,
+} from '@chamvi/core';
 import { createRunArtifacts } from '../../../src/artifact/module.ts';
 import { systemClock } from '../../../src/clock/index.ts';
 import { wrapToolsForRun } from '../../../src/effect/wrap.ts';
@@ -55,7 +59,7 @@ afterEach(async () => {
     vi.restoreAllMocks();
 });
 
-function setup(definition: Omit<AgentDefinition, 'name' | 'instructions'>, store = createMemoryStore()) {
+function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>, store = createMemoryStore()) {
     const engine = new Engine({
         store,
         agents: [defineAgent({

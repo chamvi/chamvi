@@ -20,7 +20,7 @@ import {
     defineEffectTool,
     defineTool,
 } from '@chamvi/core';
-import type { AgentDefinition, ToolContext } from '@chamvi/core';
+import type { ModelAgentDefinition, ToolContext } from '@chamvi/core';
 import { wrapToolsForRun } from '../../../src/effect/wrap.ts';
 import { gateOutbound } from '../../../src/trust/module.ts';
 import { approvalWait } from '../../utils/approvals.ts';
@@ -47,7 +47,7 @@ afterEach(async () => {
     await Promise.all(engines.splice(0).map((engine) => engine.stop()));
 });
 
-function setup(definition: Omit<AgentDefinition, 'name' | 'instructions'>) {
+function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>) {
     const store = createMemoryStore();
     const engine = new Engine({
         store,

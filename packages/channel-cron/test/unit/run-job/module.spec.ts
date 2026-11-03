@@ -14,9 +14,9 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import type {
-    AgentDefinition,
     ChannelSubscription,
     IChannel,
+    ModelAgentDefinition,
     Run,
     WaitPoint,
 } from '@chamvi/core';
@@ -53,7 +53,7 @@ const httpOn: ChannelSubscription = {
 };
 
 /** A deploy tool that asks for an approval first. */
-const gated = (): Partial<AgentDefinition> => ({
+const gated = (): Partial<ModelAgentDefinition> => ({
     tools: () => ({
         deploy: defineTool({
             inputSchema: z.object({}),
@@ -69,7 +69,7 @@ const gated = (): Partial<AgentDefinition> => ({
 function setup(
     model: LanguageModel,
     subscriptions: ChannelSubscription[] = [cron.on('*/5 * * * *')],
-    extra: Partial<AgentDefinition> = {},
+    extra: Partial<ModelAgentDefinition> = {},
 ) {
     const clock = new ControllableClock(T);
     const store = createMemoryStore({ clock });

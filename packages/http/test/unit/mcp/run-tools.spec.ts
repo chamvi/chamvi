@@ -122,6 +122,33 @@ describe('mcp run_<agent>', () => {
         await client.close();
     });
 
+    it('describes an agent by its description, a code agent included', async () => {
+        const agents = [defineAgent({
+            name: 'fan',
+            description: 'Fans out reviews.',
+            channels: [http.on()],
+            run: () => 'ok',
+        }), defineAgent({
+            name: 'plain',
+            channels: [http.on()],
+            run: () => 'ok',
+        }), defineAgent({
+            name: 'described',
+            description: 'Described runs.',
+            model: textModel(),
+            instructions: 'Instruction runs.',
+            channels: [http.on()],
+        })];
+        const { app } = createRunTestApp({ agents });
+        const client = await connectMcp(app, ADMIN_TOKEN);
+        const { tools } = await client.listTools();
+
+        expect(tools.find((entry) => entry.name === 'run_fan')?.description).toBe('Fans out reviews.');
+        expect(tools.find((entry) => entry.name === 'run_plain')?.description).toBe('Starts a run of agent "plain".');
+        expect(tools.find((entry) => entry.name === 'run_described')?.description).toBe('Described runs.');
+        await client.close();
+    });
+
     it('lists one tool per agent with an http subscription', async () => {
         const { app } = createRunTestApp();
         const client = await connectMcp(app, ADMIN_TOKEN);

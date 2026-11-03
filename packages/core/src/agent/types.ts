@@ -73,8 +73,16 @@ export type AgentInstruction = SystemModelMessage | UserModelMessage | Assistant
 /** A string is shorthand for one system message. Arrays retain their authored order. */
 export type AgentInstructions = string | readonly AgentInstruction[];
 
-export type AgentDefinition<S extends StateSchema = StateSchema> = {
+/** An agent whose runs call a language model (the default kind). */
+export type ModelAgentDefinition<S extends StateSchema = StateSchema> = {
     name: string;
+
+    /** What MCP and the agent listing show for the agent; default: its leading system instruction. */
+    description?: string;
+
+    /** Only a code agent has it. */
+    run?: never;
+
     /**
      * `'<provider>/<model id>'` (resolved through EngineOptions.models) or a
      * LanguageModel object; without it the agent uses EngineOptions.model.
@@ -145,6 +153,58 @@ export type AgentDefinition<S extends StateSchema = StateSchema> = {
         key: string;
     };
 };
+
+/**
+ * What a code agent's `run()` gets: the ToolContext its tools would get, plus
+ * its own tools (wrapped like a model's calls: effect-recorded,
+ * trust-classified, gated) as plain functions by name.
+ */
+export type CodeRunContext<S extends StateSchema = StateSchema> = ToolContext<S> & {
+    tools: Record<string, (input: unknown) => Promise<unknown>>;
+};
+
+/**
+ * A model-free agent: the engine runs `run(payload, ctx)` as a durable run
+ * inside one tool-call frame, so dispatch(), waitForDispatch(), approve(),
+ * ctx.channels and the agent's tools work as inside a tool call. A suspended
+ * run re-runs `run()` from the start on resume (the replay rule).
+ */
+export type CodeAgentDefinition<S extends StateSchema = StateSchema> = {
+    name: string;
+
+    /** The run's body; its JSON-serialisable return value is the run's `output`. */
+    run(payload: unknown, ctx: CodeRunContext<S>): unknown | Promise<unknown>;
+
+    /** What MCP and the agent listing show for the agent. */
+    description?: string;
+
+    channels?: ChannelSubscription[];
+
+    concurrencyMaxRuns?: number | false;
+
+    /** A plain set only: a factory is refused. */
+    tools?: ToolSet;
+
+    trust?: AgentTrust;
+
+    hooks?: AgentHooks;
+
+    toolPolicy?: ToolPolicy;
+
+    state?: S;
+
+    /** `timeoutMs` and the subtree budget apply; `maxSteps` and `maxTokens` do not. */
+    budget?: Partial<Budget>;
+
+    model?: never;
+    instructions?: never;
+    readonly skills?: never;
+    output?: never;
+    conversation?: never;
+    toolsContext?: never;
+};
+
+export type AgentDefinition<S extends StateSchema = StateSchema> = ModelAgentDefinition<S> | CodeAgentDefinition<S>;
 
 export type Agent<S extends StateSchema = StateSchema> = {
     readonly name: string;

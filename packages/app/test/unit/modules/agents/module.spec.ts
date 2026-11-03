@@ -13,6 +13,7 @@ import {
     InvalidAgentDefinitionError,
     createMemoryStore,
     defineAgent,
+    isCodeAgent,
 } from '@chamvi/core';
 import type { Agent, IStore } from '@chamvi/core';
 import { ControllableClock, mockModel, textModel } from '@chamvi/test-kit';
@@ -183,6 +184,26 @@ describe('agentsModule', () => {
         expect(engine().agentRevision('greeter')).toBe(await hashAgentFolder(folder()));
         expect(await store.runs.findOne(runId)).toMatchObject({ status: 'completed', output: 'from folder' });
         expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe(await hashAgentFolder(folder()));
+    });
+
+    it('registers a folder exporting a code agent, which needs no model', async () => {
+        await writeTree(root.path, { 'fan/agent.ts': 'export default { name: \'fan\', definition: { description: \'Fans out.\', run: () => \'ran\' } };\n' });
+
+        const {
+            harness, 
+            engine, 
+            issues, 
+        } = build();
+
+        await harness.setup();
+
+        const fan = engine().getAgent('fan');
+
+        expect(fan).toBeDefined();
+        expect(isCodeAgent(fan!)).toBe(true);
+        expect(fan?.definition.description).toBe('Fans out.');
+        expect(engine().agentRevision('fan')).toBe(await hashAgentFolder(folder('fan')));
+        expect(issues()).toEqual([]);
     });
 
     it('a folder change while stopped cancels the old runs at boot once', async () => {

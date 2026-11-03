@@ -82,7 +82,7 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
 
     try {
         assertTranscriptMessages(initial);
-        configured = splitInstructions(agent.definition.instructions, ctx.skills?.instructions ?? []);
+        configured = splitInstructions(agent.definition.instructions ?? [], ctx.skills?.instructions ?? []);
     } catch (error) {
         if (!(error instanceof ValidationError || error instanceof InvalidAgentDefinitionError)) {
             throw error;

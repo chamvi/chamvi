@@ -12,6 +12,38 @@ import type { AgentDefinition } from './types.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { hasToolContext } from '../tool/helpers.ts';
 
+/** Fields a code agent (one with `run`) does not take. */
+const CODE_AGENT_REFUSED = ['model', 'instructions', 'skills', 'output', 'conversation', 'toolsContext'] as const;
+
+/**
+ * A code agent's `run` is a function, it declares none of the model-only
+ * fields and its `tools` is a plain set (InvalidAgentDefinitionError).
+ */
+export function assertCodeAgent(def: AgentDefinition): void {
+    if (typeof def.run !== 'function') {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": "run" must be a function.`);
+    }
+
+    const fields = def as Record<string, unknown>;
+
+    for (const field of CODE_AGENT_REFUSED) {
+        if (fields[field] !== undefined) {
+            throw new InvalidAgentDefinitionError(`Agent "${def.name}": "${field}" is not allowed on a code agent (one with "run").`);
+        }
+    }
+
+    if (typeof def.tools === 'function') {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": "tools" of a code agent must be a plain tool set, not a factory.`);
+    }
+}
+
+/** `description`, when given, is a non-empty string. */
+export function assertDescription(def: AgentDefinition): void {
+    if (def.description !== undefined && (typeof def.description !== 'string' || def.description.trim().length === 0)) {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": "description" must be a non-empty string.`);
+    }
+}
+
 /**
  * Every own key of `toolsContext` must name a tool of `tools` that is not a
  * chamvi tool (those get the run context instead); anything else is a

@@ -58,7 +58,7 @@ function recordingResolver(refused: string[] = []): IModelResolver & { checks: A
 function withModel(model: unknown, name = 'triage'): Agent {
     const agent = defineAgent({ name, instructions: 'x' });
 
-    return { ...agent, definition: { ...agent.definition, model: model as LanguageModel } };
+    return { ...agent, definition: { ...agent.definition, model: model as LanguageModel } as Agent['definition'] };
 }
 
 const engines: IEngine[] = [];

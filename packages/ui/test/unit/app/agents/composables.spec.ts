@@ -28,12 +28,14 @@ import { flush } from '../../../utils/timers.ts';
 const AGENTS: AgentWire[] = [
     {
         name: 'deploy',
+        kind: 'model',
         channels: [{ channel: 'http', id: 'http' }],
         budget: { maxSteps: 20 },
         state: [],
     },
     {
         name: 'digest',
+        kind: 'model',
         channels: [{ channel: 'cron', id: 'cron:0 8 * * *' }],
         budget: { maxSteps: 12 },
         state: ['sent'],

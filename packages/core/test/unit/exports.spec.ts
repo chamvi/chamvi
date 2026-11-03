@@ -74,7 +74,7 @@ describe('public api', () => {
         expectTypeOf<core.TextPart>().toEqualTypeOf<sdk.TextPart>();
         expectTypeOf<core.FilePart>().toEqualTypeOf<sdk.FilePart>();
         expectTypeOf<core.AgentInstruction>().toEqualTypeOf<sdk.SystemModelMessage | sdk.UserModelMessage | sdk.AssistantModelMessage>();
-        expectTypeOf<core.AgentDefinition['instructions']>().toEqualTypeOf<string | readonly core.AgentInstruction[]>();
+        expectTypeOf<core.ModelAgentDefinition['instructions']>().toEqualTypeOf<string | readonly core.AgentInstruction[]>();
         expectTypeOf<core.SkillContribution['instructions']>().toEqualTypeOf<core.AgentInstructions>();
         expectTypeOf<sdk.ToolModelMessage>().not.toExtend<core.AgentInstruction>();
         expect(core).not.toHaveProperty('normalizeInstructions');
@@ -84,6 +84,7 @@ describe('public api', () => {
     it.each([
         'createMemoryStore',
         'defineAgent',
+        'isCodeAgent',
         'Engine',
         'formatRevision',
         'MemoryAgentRevisionRepository',
@@ -143,7 +144,7 @@ describe('public api', () => {
     });
 
     it('exports passive skill contracts', () => {
-        expectTypeOf<core.AgentDefinition['skills']>().toEqualTypeOf<readonly core.SkillInput[] | undefined>();
+        expectTypeOf<core.ModelAgentDefinition['skills']>().toEqualTypeOf<readonly core.SkillInput[] | undefined>();
         expectTypeOf<core.EngineOptions['skills']>().toEqualTypeOf<readonly core.SkillInput[] | undefined>();
         expectTypeOf<core.SkillInput['runtime']>().toEqualTypeOf<core.ISkillRuntimeProvider>();
         expectTypeOf<ReturnType<core.ISkillRuntimeProvider['create']>>().toEqualTypeOf<core.ISkillRuntime>();
