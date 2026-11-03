@@ -171,7 +171,11 @@ async function start(
 
     assertDispatchKey('idempotency key', given, false);
 
-    const { address } = input;
+    // before the claim key and the call hash: it feeds both
+    const address = input.address ?? subscription.address?.(payload);
+
+    assertDispatchKey('address', address, true);
+
     const key = claimKey(role, given ?? `${run.runId}:${stableHash({
         agent: target,
         role,

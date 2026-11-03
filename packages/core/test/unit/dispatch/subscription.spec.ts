@@ -65,6 +65,25 @@ describe('agent.on()', () => {
         expect(subscription).not.toHaveProperty('idempotencyKey');
     });
 
+    it('copies the address hook and keeps the description', () => {
+        const address = (p: { pr: string }) => p.pr;
+        const subscription = agent.on({
+            role: 'pr', 
+            address, 
+            description: 'Reviews one pull request.', 
+        });
+
+        expect(subscription.address).toBe(address);
+        expect(subscription.options).toMatchObject({ description: 'Reviews one pull request.' });
+        expect(agent.on()).not.toHaveProperty('address');
+        expect(agent.on().options).not.toHaveProperty('description');
+    });
+
+    it.each(['', 5])('refuses the description %j', (value) => {
+        expect(() => agent.on({ description: value as string })).toThrow(InvalidAgentDefinitionError);
+        expect(() => agent.on({ description: value as string })).toThrow(/description/);
+    });
+
     it.each([0, 1.5, '3', -1])('maxPerRun must be a positive integer (%s)', (value) => {
         expect(() => agent.on({ maxPerRun: value as number })).toThrow(InvalidAgentDefinitionError);
         expect(() => agent.on({ maxPerRun: value as number })).toThrow(/maxPerRun/);

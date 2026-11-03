@@ -89,6 +89,19 @@ export function checkFrom(label: string, value: unknown): string[] | undefined {
     return [...value as string[]];
 }
 
+/** `description` as given; InvalidAgentDefinitionError for a value that is no non-empty string. */
+export function checkDescription(label: string, value: unknown): string | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (typeof value !== 'string' || value.length === 0) {
+        throw new InvalidAgentDefinitionError(`${label}: description must be a non-empty string.`);
+    }
+
+    return value;
+}
+
 function roleLabel(agent: string, role: string): string {
     return `Agent "${agent}" role "${role}"`;
 }

@@ -9,7 +9,12 @@ import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
 import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
 import { assertChannelName } from '../channel/helpers.ts';
 import { DEFAULT_DISPATCH_ROLE } from './constants.ts';
-import { checkFrom, checkMaxDepth, checkMaxPerRun } from './helpers.ts';
+import {
+    checkDescription,
+    checkFrom,
+    checkMaxDepth,
+    checkMaxPerRun,
+} from './helpers.ts';
 import type { AgentSubscriber } from './types.ts';
 
 /**
@@ -30,6 +35,7 @@ export const agent: AgentSubscriber = {
         const maxPerRun = checkMaxPerRun(label, options.maxPerRun);
         const maxDepth = checkMaxDepth(label, options.maxDepth);
         const from = checkFrom(label, options.from);
+        const description = checkDescription(label, options.description);
 
         return {
             channel: AGENT_CHANNEL_NAME,
@@ -40,9 +46,11 @@ export const agent: AgentSubscriber = {
                 maxPerRun,
                 maxDepth,
                 ...(from ? { from } : {}),
+                ...(description !== undefined ? { description } : {}),
             },
             ...(options.concurrencyKey ? { concurrencyKey: options.concurrencyKey } : {}),
             ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
+            ...(options.address ? { address: options.address } : {}),
         };
     },
 };

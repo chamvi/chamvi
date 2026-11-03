@@ -29,6 +29,10 @@ export type AgentSubscriptionOptions<P = unknown> = {
     concurrencyKey?(payload: P): string | undefined;
     /** The child's idempotency key when the call gives none. */
     idempotencyKey?(payload: P): string | undefined;
+    /** The child's address when the call gives none; deterministic (it feeds the dispatch's dedupe key). */
+    address?(payload: P): string | undefined;
+    /** What the role does, for a generated dispatch tool's description. */
+    description?: string;
 };
 
 /** Makes a role of the `agent` channel (subscription id = role): the opt-in for dispatch(). */
