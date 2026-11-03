@@ -61,7 +61,7 @@ import type {
 } from '../run/types.ts';
 import { DISPATCH_CONTEXT } from '../dispatch/constants.ts';
 import type { DispatchHost } from '../dispatch/types.ts';
-import { assertDispatchRoles } from '../dispatch/helpers.ts';
+import { assertDispatchRoles, declaresDispatchRole } from '../dispatch/helpers.ts';
 import { MODEL_CONTEXT } from '../model/constants.ts';
 import { checkAgentModel, checkDefaultModel } from '../model/module.ts';
 import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
@@ -1285,8 +1285,10 @@ export class Engine implements IEngine {
             resumed = true;
         }
 
-        // a cancel cascade lost to a failure (onRunSettled is best effort)
-        await healCancelCascade(this.dispatchContext()).catch((error: unknown) => this.onError(error));
+        // a cancel cascade lost to a failure (onRunSettled is best effort); no role, no parent
+        if (this.listAgents().some((agent) => declaresDispatchRole(agent))) {
+            await healCancelCascade(this.dispatchContext()).catch((error: unknown) => this.onError(error));
+        }
 
         // A one-shot job may drain next; finish admission of resumed approvals first.
         if (resumed && this.started) {

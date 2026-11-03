@@ -37,6 +37,11 @@ export function findDispatchRole(agent: Agent, role: string): ChannelSubscriptio
     return agent.definition.channels?.find((s) => s.channel === AGENT_CHANNEL_NAME && s.id === role);
 }
 
+/** Whether the agent declares any `agent.on()` role (a subscription to channel `agent`). */
+export function declaresDispatchRole(agent: Agent): boolean {
+    return agent.definition.channels?.some((s) => s.channel === AGENT_CHANNEL_NAME) ?? false;
+}
+
 /** `maxPerRun` or its default; InvalidAgentDefinitionError for a value that is no positive safe integer. */
 export function checkMaxPerRun(label: string, value: unknown): number {
     if (value === undefined) {

@@ -25,6 +25,7 @@ import {
     JsonContains,
     LessThanOrEqual,
     MoreThan,
+    Not,
 } from 'typeorm';
 import type { DataSource, FindOptionsWhere, Repository } from 'typeorm';
 import { RunEntity } from '../entities/index.ts';
@@ -180,8 +181,16 @@ export class DatabaseRunRepository implements IRunRepository {
             where.id = In([...q.ids]);
         }
 
+        if (q.parentRunId !== undefined && q.hasParent === false) {
+            // a parent run and none: matches nothing
+            return { data: [], total: 0 };
+        }
+
         if (q.parentRunId !== undefined) {
             where.parentRunId = q.parentRunId;
+        } else if (q.hasParent !== undefined) {
+            // the indexed parent_run_id column
+            where.parentRunId = q.hasParent ? Not(IsNull()) : IsNull();
         }
 
         if (q.waitKind !== undefined) {

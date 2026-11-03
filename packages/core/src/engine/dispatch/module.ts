@@ -40,13 +40,21 @@ function dispatchWaitOf(run: Run | undefined): DispatchWaitPoint | undefined {
 /** How often a recompute re-reads the children after its write before it lets a later settle converge it. */
 const SUBTREE_RECHECKS = 3;
 
+/** A child whose usage or subtreeUsage may still move: unsettled, or a settled one with descendants of its own. */
+function isVolatile(child: Run): boolean {
+    return !isSettled(child) || child.subtreeUsage !== undefined;
+}
+
 /**
  * Recomputes `subtreeUsage` of run `runId` from its children (their usage
  * plus their own subtreeUsage), then of its parent and so on up the lineage
  * (at most DISPATCH_DEPTH_MAX hops). A recompute, never an increment, so a
  * repeated or healed call never counts a run twice. After each write the
- * children are read again and the total rewritten when it changed (a
- * sibling's settle that interleaved), so the last write is never stale.
+ * children that may still move (unsettled, or with descendants of their
+ * own) are read again by id and the total rewritten when it changed (a
+ * sibling's settle that interleaved), so the last write is never stale; a
+ * read with none of them (a fan-out of leaves, all settled) skips the
+ * re-check, which keeps a wide fan-out to one children read per settle.
  * Patched without a status guard and with `keepUpdatedAt` (the run's own
  * writes go on, and a wait step's start, taken from updatedAt, stays the
  * wait's start).
@@ -56,11 +64,22 @@ export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: s
 
     for (let hop = 0; next !== undefined && hop <= DISPATCH_DEPTH_MAX; hop++) {
         const id: string = next;
-        let subtreeUsage = sumSubtreeUsage((await ctx.store.runs.find({ parentRunId: id })).data);
+        let children = (await ctx.store.runs.find({ parentRunId: id })).data;
+        let subtreeUsage = sumSubtreeUsage(children);
         let updated: Run = await ctx.store.runs.update(id, { subtreeUsage }, { keepUpdatedAt: true });
 
         for (let check = 0; check < SUBTREE_RECHECKS; check++) {
-            const again = sumSubtreeUsage((await ctx.store.runs.find({ parentRunId: id })).data);
+            const volatile = children.filter((child) => isVolatile(child)).map((child) => child.id);
+
+            if (volatile.length === 0) {
+                break;
+            }
+
+            const fresh = new Map((await ctx.store.runs.find({ ids: volatile })).data.map((child) => [child.id, child]));
+
+            children = children.map((child) => fresh.get(child.id) ?? child);
+
+            const again = sumSubtreeUsage(children);
 
             if (again.inputTokens === subtreeUsage.inputTokens && again.outputTokens === subtreeUsage.outputTokens) {
                 break;
@@ -268,12 +287,14 @@ export async function cancelChildren(ctx: DispatchEngineContext, runId: string, 
 /**
  * tick()'s heal of a lost cancel cascade (onRunSettled() is best effort):
  * cancels every unsettled run whose parent (`parentRunId`) is `cancelled`,
- * one listing of the unsettled runs and one batched read of their parents.
+ * one listing of the unsettled runs with a parent (`hasParent`) and one
+ * batched read of their parents. tick() skips it while no registered agent
+ * declares an `agent.on()` role (no run can get a parent).
  * A run that got `cancelRequested` already is left to its owner. The
  * cascade goes on down from each cancel's own settle, or from the next tick.
  */
 export async function healCancelCascade(ctx: DispatchEngineContext): Promise<void> {
-    const { data } = await ctx.store.runs.find({ status: UNSETTLED });
+    const { data } = await ctx.store.runs.find({ status: UNSETTLED, hasParent: true });
     const orphans = data.filter((run) => run.parentRunId !== undefined && !run.cancelRequested);
 
     if (orphans.length === 0) {

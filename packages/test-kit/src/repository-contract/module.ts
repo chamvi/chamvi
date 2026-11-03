@@ -692,6 +692,31 @@ export function describeRepositoryContract(
             expect((await store.runs.find({ parentRunId: 'r3' })).data).toEqual([]);
         });
 
+        it('hasParent filters runs with and without a parent, with paging and total', async () => {
+            const { store } = await setup();
+
+            await store.runs.insert(makeRun('p1', { createdAt: new Date(500) }));
+            await store.runs.insert(makeChild('r1', 'p1', 1_000));
+            await store.runs.insert(makeRun('r2', { createdAt: new Date(1_500) }));
+            await store.runs.insert(makeChild('r3', 'r1', 2_000));
+            await store.runs.update('r3', { status: RunStatus.RUNNING });
+
+            const children = await store.runs.find({ hasParent: true });
+
+            expect(children.data.map((r) => r.id)).toEqual(['r1', 'r3']);
+            expect(children.total).toBe(2);
+            expect((await store.runs.find({ hasParent: false })).data.map((r) => r.id)).toEqual(['p1', 'r2']);
+
+            const page = await store.runs.find({ hasParent: true, limit: 1, offset: 1 });
+
+            expect(page.data.map((r) => r.id)).toEqual(['r3']);
+            expect(page.total).toBe(2);
+            expect((await store.runs.find({ hasParent: true, limit: 0 })).total).toBe(2);
+            expect((await store.runs.find({ hasParent: true, status: [RunStatus.RUNNING] })).data.map((r) => r.id)).toEqual(['r3']);
+            expect((await store.runs.find({ hasParent: true, parentRunId: 'p1' })).data.map((r) => r.id)).toEqual(['r1']);
+            expect((await store.runs.find({ hasParent: false, parentRunId: 'p1' })).total).toBe(0);
+        });
+
         it('parentRunId comes from trigger.parent, never from the caller (insert or update)', async () => {
             const { store } = await setup();
 
