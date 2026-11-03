@@ -362,7 +362,7 @@ describe('streaming', () => {
     });
 
     it('a model error is not logged by the AI SDK', async () => {
-        // onError is passed untyped to streamText; a dependency bump that stops forwarding it fails here
+        // the agent's onError setting mutes the AI SDK's default console logging of stream errors
         const log = vi.spyOn(console, 'error').mockImplementation(() => {});
         const { engine, store } = make(mockModel([]));
 
