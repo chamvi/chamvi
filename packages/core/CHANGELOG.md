@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.6.1](https://github.com/chamvi/chamvi/compare/v0.6.0...v0.6.1) (2026-11-03)
+
+
+### Bug Fixes
+
+* **core:** refuse a key-holding child only when its caller waits for it ([#132](https://github.com/chamvi/chamvi/issues/132)) ([f6608a8](https://github.com/chamvi/chamvi/commit/f6608a883a16f067a65e7f16c9c298f12b8ab656))
+
 ## [0.6.0](https://github.com/chamvi/chamvi/compare/v0.5.1...v0.6.0) (2026-11-03)
 
 

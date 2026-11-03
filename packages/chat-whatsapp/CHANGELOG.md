@@ -1,5 +1,20 @@
 # Changelog
 
+## [0.6.1](https://github.com/chamvi/chamvi/compare/v0.6.0...v0.6.1) (2026-11-03)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.6.0 to ^0.6.1
+    * @chamvi/chat bumped from ^0.6.0 to ^0.6.1
+    * @chamvi/core bumped from ^0.6.0 to ^0.6.1
+    * @chamvi/test-kit bumped from ^0.6.0 to ^0.6.1
+  * peerDependencies
+    * @chamvi/chat bumped from ^0.6.0 to ^0.6.1
+    * @chamvi/core bumped from ^0.6.0 to ^0.6.1
+
 ## [0.6.0](https://github.com/chamvi/chamvi/compare/v0.5.1...v0.6.0) (2026-11-03)
 
 
