@@ -152,6 +152,25 @@ export function toRunError(error: unknown): { code: string; message: string } {
 }
 
 /**
+ * The execution's one ToolContext (`run`, `state`, `artifacts`, `channels`)
+ * with the engine's provided values bound, so inject() works on it.
+ */
+export function createToolContext(ctx: ExecuteContext, runContext: RunContext): ToolContext {
+    const toolContext: ToolContext = {
+        run: runContext,
+        state: createAgentState(ctx.agent.name, ctx.agent.definition.state, ctx.store.state),
+        artifacts: createRunArtifacts(ctx.store.artifacts, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock),
+        channels: createToolChannels(runContext, ctx.store.effects, ctx.engine),
+    };
+
+    if (ctx.provided) {
+        bindProvided(toolContext, ctx.provided);
+    }
+
+    return toolContext;
+}
+
+/**
  * The tools handed to the agent: generated state tools (when the agent declares
  * `state`) merged with the user's tools (a plain set or the factory's result),
  * which win on a name clash. Every tool stays executable, so a call pending
@@ -207,18 +226,8 @@ export async function assembleTools(
         return { tools: {}, toolsContext: {} };
     }
 
-    const toolContext: ToolContext = {
-        run: runContext,
-        state: createAgentState(ctx.agent.name, schema, ctx.store.state),
-        artifacts: createRunArtifacts(ctx.store.artifacts, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock),
-        channels: createToolChannels(runContext, ctx.store.effects, ctx.engine),
-    };
-
     // before the factory, so inject() works there, in execute and in the effect hooks
-    if (ctx.provided) {
-        bindProvided(toolContext, ctx.provided);
-    }
-
+    const toolContext = createToolContext(ctx, runContext);
     const stateTools = schema ? createStateTools(schema) : {};
     const ownTools = typeof userTools === 'function' ? userTools(toolContext) : userTools ?? {};
 

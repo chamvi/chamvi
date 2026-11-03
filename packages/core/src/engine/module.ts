@@ -68,6 +68,7 @@ import { checkAgentModel, checkDefaultModel } from '../model/module.ts';
 import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
 import { EngineSkills } from './skills/module.ts';
 import type { IEngineSkills } from './skills/types.ts';
+import type { SkillContribution } from '../skill/types.ts';
 import type { IStore } from '../repository/types.ts';
 import { idempotencyScope, toInvoker } from '../trigger/helpers.ts';
 import { assertTriggerKey } from '../trigger/key.ts';
@@ -78,8 +79,9 @@ import {
     IDEMPOTENCY_TTL_MS,
 } from './constants.ts';
 import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
+import { executeCodeRun } from './execute/code.ts';
 import { executeRun } from './execute/module.ts';
-import type { SuspendRequest } from './execute/types.ts';
+import type { ExecuteContext, SuspendRequest } from './execute/types.ts';
 import {
     answerDispatchWait,
     healCancelCascade,
@@ -1630,6 +1632,13 @@ export class Engine implements IEngine {
             return;
         }
 
+        if (isCodeAgent(agent)) {
+            // a code agent takes no conversation, so it skips admission
+            await executeCodeRun(this.executeContext(run, agent, skills, signal));
+
+            return;
+        }
+
         let conversation;
 
         if (run.conversation) {
@@ -1675,7 +1684,18 @@ export class Engine implements IEngine {
             conversation = { capability, snapshot: admitted.snapshot };
         }
 
-        await executeRun({
+        await executeRun(this.executeContext(run, agent, skills, signal, conversation));
+    }
+
+    /** What one execution of `run` gets from this engine (an LLM and a code run alike). */
+    protected executeContext(
+        run: Run,
+        agent: Agent,
+        skills: SkillContribution,
+        signal: AbortSignal,
+        conversation?: ExecuteContext['conversation'],
+    ): ExecuteContext {
+        return {
             engine: this,
             conversation,
             run,
@@ -1703,7 +1723,7 @@ export class Engine implements IEngine {
             pause: (request, usage) => this.pause(run, request, usage),
             ownsRun: () => this.ownsRun(run.id),
             provided: this.provided,
-        });
+        };
     }
 
     /**
