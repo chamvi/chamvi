@@ -31,6 +31,7 @@ import type {
 } from '@chamvi/core';
 import { toApprovalDecision } from '../../../src/approval/helpers.ts';
 import { createMemoryStore } from '../../../src/repository/index.ts';
+import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
@@ -148,7 +149,7 @@ describe('approve() with options', () => {
         const { run } = await dispatch(engine, store);
 
         expect(run?.status).toBe('waiting');
-        expect(run?.waiting?.options).toEqual([
+        expect(approvalWait(run)?.options).toEqual([
             {
                 id: 'unicorn/no-null',
                 label: 'no-null',
@@ -156,7 +157,7 @@ describe('approve() with options', () => {
             },
             { id: 'b', label: 'B' },
         ]);
-        expect(run?.waiting?.multiple).toBe(true);
+        expect(approvalWait(run)?.multiple).toBe(true);
     });
 
     it('keeps a plain wait point free of option keys', async () => {
@@ -173,7 +174,7 @@ describe('approve() with options', () => {
         }), text('done')]));
         const second = await dispatch(single.engine, single.store);
 
-        expect(second.run?.waiting?.options).toEqual(OPTIONS);
+        expect(approvalWait(second.run)?.options).toEqual(OPTIONS);
         expect(Object.keys(second.run?.waiting ?? {})).not.toContain('multiple');
     });
 
@@ -248,7 +249,7 @@ describe('approve() with options', () => {
         const { store, engine } = setup(mockModel([ask({ title: 'Pick?', options }), text('done')]));
         const { run } = await dispatch(engine, store);
 
-        expect(run?.waiting?.options).toEqual(options);
+        expect(approvalWait(run)?.options).toEqual(options);
     });
 });
 
@@ -256,7 +257,7 @@ async function paused(request: unknown) {
     const ctx = setup(mockModel([ask(request), text('done')]));
     const { runId, run } = await dispatch(ctx.engine, ctx.store);
 
-    if (!run?.waiting) {
+    if (run?.waiting?.kind !== 'approval') {
         throw new Error('not waiting');
     }
 
@@ -461,6 +462,7 @@ describe('answering an approval with options', () => {
             trigger,
             waiting: {
                 kind: 'approval',
+                id: '0:c1:0',
                 approvalId: '0:c1:0',
                 toolName: 'pick',
                 toolCallId: 'c1',
@@ -649,7 +651,7 @@ describe('replaying an answered approval with options', () => {
             throw new Error('not waiting');
         }
 
-        await stale.approve(runId, { approvalId: run.waiting.approvalId, ...answer });
+        await stale.approve(runId, { approvalId: approvalWait(run)!.approvalId, ...answer });
         await vi.waitFor(() => expect(decisions).toHaveLength(1));
 
         clock.advance(31);

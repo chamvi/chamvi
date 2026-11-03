@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunWire } from '../api/types.ts';
+import type { ApprovalWaitWire } from '../approvals/types.ts';
 import { INLINE_IMAGE_TYPES } from './constants.ts';
 import type { ObjectUrls } from './types.ts';
 
@@ -15,7 +15,7 @@ export function isInlineImage(mediaType: string): boolean {
 }
 
 /** Every artifact id a wait point names, request first, then per option, once each. */
-export function approvalArtifactIds(waiting: Pick<NonNullable<RunWire['waiting']>, 'artifacts' | 'options'> | undefined): string[] {
+export function approvalArtifactIds(waiting: Pick<ApprovalWaitWire, 'artifacts' | 'options'> | undefined): string[] {
     const ids = new Set<string>(waiting?.artifacts ?? []);
 
     for (const option of waiting?.options ?? []) {

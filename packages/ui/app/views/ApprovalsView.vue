@@ -13,6 +13,7 @@ import type { RunWire } from '../api/types.ts';
 import { useApprovals, useLinkedApproval } from '../approvals/composables.ts';
 import { INBOX, INBOX_POLL_MS  } from '../approvals/constants.ts';
 import {
+    approvalWaitOf,
     linkNotice,
     linkedApprovalState,
     pendingApprovals,
@@ -136,7 +137,7 @@ async function answer(run: RunWire, approved: boolean, reason: string, selected:
 
         <ApprovalCallout
             v-if="linkedRun"
-            :key="`linked-${linkedRun.id}-${linkedRun.waiting?.approvalId}`"
+            :key="`linked-${linkedRun.id}-${approvalWaitOf(linkedRun)?.approvalId}`"
             :run="linkedRun"
             :can-answer="linkedState?.kind === 'pending'"
             :busy="busy === linkedRun.id"
@@ -197,7 +198,7 @@ async function answer(run: RunWire, approved: boolean, reason: string, selected:
 
         <ApprovalCallout
             v-for="run in pending"
-            :key="`${run.id}-${run.waiting?.approvalId}`"
+            :key="`${run.id}-${approvalWaitOf(run)?.approvalId}`"
             :run="run"
             :can-answer="canAnswer(run.agent)"
             :busy="busy === run.id"

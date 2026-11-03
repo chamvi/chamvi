@@ -16,6 +16,7 @@ import {
 import { defineAgent, defineTool } from '@chamvi/core';
 import type {
     Agent,
+    ApprovalWaitPoint,
     IEngine,
     IStore,
     Run,
@@ -27,6 +28,15 @@ import type { MockResponse } from '@chamvi/test-kit';
 import { createTextMessage } from '../../utils/adapter.ts';
 import { createIntakeFixture } from '../../utils/intake.ts';
 import type { IntakeFixture, IntakeFixtureInput } from '../../utils/intake.ts';
+
+/** The run's approval wait point; throws when it waits on none. */
+function approvalOf(run: Pick<Run, 'waiting'> | undefined): ApprovalWaitPoint {
+    if (run?.waiting?.kind !== 'approval') {
+        throw new Error('the run waits on no approval');
+    }
+
+    return run.waiting;
+}
 
 const engines: IEngine[] = [];
 
@@ -251,11 +261,11 @@ describe('chat channel out on an engine', () => {
         const run = await trigger(fixture, 'please release secret-xyz');
 
         expect(run.status).toBe('waiting');
-        expect(run.waiting?.notifiedAt).toBeInstanceOf(Date);
+        expect(approvalOf(run).notifiedAt).toBeInstanceOf(Date);
         expect(fixture.adapter.posts).toHaveLength(1);
 
         const post = fixture.adapter.posts[0]!;
-        const { approvalId } = (run.waiting!);
+        const { approvalId } = approvalOf(run);
 
         // plain raw text: no card, no buttons, no action ids
         expect(Object.keys(post.message as object)).toEqual(['raw']);

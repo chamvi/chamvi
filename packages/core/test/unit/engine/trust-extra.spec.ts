@@ -17,13 +17,13 @@ import { z } from 'zod';
 import {
     Engine,
     MemoryConversationRepository,
+    agent,
     agentChannel,
     createMemoryStore,
     defineAgent,
     defineEffectTool,
     defineTool,
-    handoff,
-    startHandoff,
+    dispatch,
 } from '@chamvi/core';
 import type { AgentDefinition, RunTaint, ToolContext } from '@chamvi/core';
 import { createRunArtifacts } from '../../../src/artifact/module.ts';
@@ -361,15 +361,15 @@ it('applies agent trust overrides to foreign tools without replacing their own c
     expect((await store.runs.findOne(runId))?.status).toBe('completed');
 });
 
-it('inherits a tainted parent into a handoff run and blocks child outbound effects', async () => {
+it('inherits a tainted parent into a dispatched run and blocks child outbound effects', async () => {
     const parentModel = mockModel([call('reader'), call('fan'), done]);
     const childModel = mockModel([call('send'), done]);
     const send = vi.fn(async () => 'sent');
     const store = createMemoryStore();
-    const agent = defineAgent({
+    const tester = defineAgent({
         name: 'test',
         instructions: 'test',
-        channels: [handoff.on()],
+        channels: [agent.on()],
         trust: { onTainted: 'deny' },
         model: new MockLanguageModelV4({
             doStream: (options) => {
@@ -386,7 +386,7 @@ it('inherits a tainted parent into a handoff run and blocks child outbound effec
                 trust: { taint: true },
                 execute: async () => 'external text',
             }),
-            fan: defineTool({ inputSchema: z.object({}), execute: async (_input, { context }) => startHandoff(context, { payload: 'child task' }) }),
+            fan: defineTool({ inputSchema: z.object({}), execute: async (_input, { context }) => dispatch(context, { payload: 'child task' }) }),
             send: defineEffectTool({
                 inputSchema: z.object({}),
                 trust: { guardWhenTainted: true },
@@ -396,7 +396,7 @@ it('inherits a tainted parent into a handoff run and blocks child outbound effec
     });
     const engine = new Engine({
         store,
-        agents: [agent],
+        agents: [tester],
         channels: [agentChannel()],
     });
 

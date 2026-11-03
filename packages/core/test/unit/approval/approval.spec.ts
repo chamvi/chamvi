@@ -31,7 +31,7 @@ import type {
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createMemoryStore } from '../../../src/repository/index.ts';
-import { recordApprovals } from '../../utils/approvals.ts';
+import { approvalWait, recordApprovals } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
 
@@ -179,7 +179,7 @@ describe('approvals', () => {
         });
         expect(ctx.executed).toEqual([]);
 
-        const { approvalId } = run!.waiting!;
+        const { approvalId } = approvalWait(run)!;
 
         expect(typeof approvalId).toBe('string');
 
@@ -234,7 +234,7 @@ describe('approvals', () => {
             name: 'deploy',
             input: { title: 'Deploy prod?' },
             output: {
-                approvalId: run!.waiting!.approvalId,
+                approvalId: approvalWait(run)!.approvalId,
                 approved: true,
                 reason: 'go',
             },
@@ -340,7 +340,7 @@ describe('approvals', () => {
         const again = await ctx.store.runs.findOne(runId);
 
         expect(again?.status).toBe('waiting');
-        expect(again?.waiting?.approvalId).toBe(run?.waiting?.approvalId);
+        expect(approvalWait(again)?.approvalId).toBe(approvalWait(run)?.approvalId);
         expect(again?.waiting?.expiresAt).toEqual(run?.waiting?.expiresAt);
         expect(model.doStreamCalls).toHaveLength(1);
         expect(ctx.notifier.calls).toHaveLength(1);
@@ -614,7 +614,7 @@ describe('Engine.approve', () => {
         const model = mockModel([deployTurn(), text('done')]);
         const ctx = setup({ model });
         const { runId, run } = await dispatchToWaiting(ctx);
-        const { approvalId } = run!.waiting!;
+        const { approvalId } = approvalWait(run)!;
 
         await ctx.engine.approve(runId, {
             approvalId,
@@ -641,7 +641,7 @@ describe('Engine.approve', () => {
         const { runId, run } = await dispatchToWaiting(ctx);
 
         await ctx.engine.approve(runId, {
-            approvalId: run!.waiting!.approvalId,
+            approvalId: approvalWait(run)!.approvalId,
             approved: false,
             reason: 'no',
         });
@@ -667,7 +667,7 @@ describe('Engine.approve', () => {
         const model = mockModel([deployTurn(), text('timed out')]);
         const ctx = setup({ model });
         const { runId, run } = await dispatchToWaiting(ctx);
-        const { approvalId } = run!.waiting!;
+        const { approvalId } = approvalWait(run)!;
 
         ctx.engine.stop();
         ctx.clock.advance(TIMEOUT);
@@ -686,7 +686,7 @@ describe('Engine.approve', () => {
     it('approve rejects a run that is not waiting', async () => {
         const ctx = setup({ model: mockModel([deployTurn(), text('done')]) });
         const { runId, run } = await dispatchToWaiting(ctx);
-        const { approvalId } = run!.waiting!;
+        const { approvalId } = approvalWait(run)!;
 
         await ctx.engine.approve(runId, { approvalId, approved: true });
         await ctx.engine.idle();

@@ -9,11 +9,14 @@ import { describe, expect, it } from 'vitest';
 import { hasPermission } from '../../../../app/auth/helpers.ts';
 import {
     canCancel,
+    childRole,
+    dispatchCallout,
     formatDuration,
     formatTokens,
     lastStepIndex,
     mergeRunEvent,
     parentOf,
+    subtreeTotal,
 } from '../../../../app/runs/helpers.ts';
 import type { RunDetailState } from '../../../../app/runs/helpers.ts';
 import { wireRun, wireStep } from '../../../utils/runs.ts';
@@ -145,7 +148,7 @@ describe('format', () => {
 });
 
 describe('parentOf', () => {
-    it('names the run a hand-off came from', () => {
+    it('parentOf labels a dispatch parent "dispatched from"', () => {
         const base = wireRun();
         const run = wireRun({
             trigger: {
@@ -153,15 +156,16 @@ describe('parentOf', () => {
                 channel: 'agent',
                 trigger: 'handoff',
                 parent: {
-                    kind: 'handoff',
+                    kind: 'dispatch',
                     runId: 'p1',
                     agent: 'deploy',
+                    role: 'default',
                     depth: 1,
                 },
             },
         });
 
-        expect(parentOf(run)).toEqual({ runId: 'p1', label: 'handed off from' });
+        expect(parentOf(run)).toEqual({ runId: 'p1', label: 'dispatched from' });
     });
 
     it('is undefined without a parent', () => {
@@ -173,5 +177,68 @@ describe('parentOf', () => {
         const run = wireRun({ trigger: { ...base.trigger, parent: { kind: 'other', runId: 'p1' } as never } });
 
         expect(parentOf(run)).toBeUndefined();
+    });
+});
+
+describe('subtreeTotal', () => {
+    it('subtreeTotal sums tokens', () => {
+        expect(subtreeTotal(wireRun({ subtreeUsage: { inputTokens: 120, outputTokens: 30 } }))).toBe(150);
+    });
+
+    it('is undefined without subtree usage', () => {
+        expect(subtreeTotal(wireRun())).toBeUndefined();
+    });
+});
+
+describe('dispatchCallout', () => {
+    it('dispatchCallout names the run count', () => {
+        const waiting = {
+            kind: 'dispatch' as const,
+            id: '0:c1:w0',
+            toolName: 'fan_out',
+            toolCallId: 'c1',
+            runIds: ['c1', 'c2', 'c2'],
+            expiresAt: '2026-10-22T10:00:00.000Z',
+        };
+
+        expect(dispatchCallout(wireRun({ status: 'waiting', waiting }))).toBe('Waits for 2 dispatched runs');
+        expect(dispatchCallout(wireRun({ status: 'waiting', waiting: { ...waiting, runIds: ['c1'] } }))).toBe('Waits for 1 dispatched run');
+    });
+
+    it('is undefined for an approval wait or a run that does not wait', () => {
+        expect(dispatchCallout(wireRun())).toBeUndefined();
+        expect(dispatchCallout(wireRun({
+            status: 'waiting',
+            waiting: {
+                kind: 'approval',
+                id: '0:c1:0',
+                approvalId: '0:c1:0',
+                toolName: 'deploy',
+                toolCallId: 'c1',
+                title: 'Deploy?',
+                expiresAt: '2026-10-22T10:00:00.000Z',
+            } as never,
+        }))).toBeUndefined();
+    });
+});
+
+describe('childRole', () => {
+    it('reads the dispatch role, else the subscription id', () => {
+        const base = wireRun();
+
+        expect(childRole(wireRun({
+            trigger: {
+                ...base.trigger,
+                trigger: 'review',
+                parent: {
+                    kind: 'dispatch',
+                    runId: 'p1',
+                    agent: 'deploy',
+                    role: 'review',
+                    depth: 1,
+                },
+            },
+        }))).toBe('review');
+        expect(childRole(base)).toBe('http');
     });
 });

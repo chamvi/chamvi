@@ -55,7 +55,8 @@ function listRunsOver(runs: RunWire[], seen: RunListFilter[] = []) {
         seen.push(filter);
 
         const matching = runs.filter((run) => (!filter.agent || run.agent === filter.agent) &&
-            (!filter.status || filter.status.includes(run.status)));
+            (!filter.status || filter.status.includes(run.status)) &&
+            (!filter.waiting || run.waiting?.kind === filter.waiting));
 
         return page(matching.slice(0, filter.limit), matching.length);
     };
@@ -244,6 +245,7 @@ describe('useAgentDetail', () => {
                 createdAt: now,
                 waiting: {
                     kind: 'approval',
+                    id: 'a1',
                     approvalId: 'a1',
                     toolName: 'deploy',
                     toolCallId: 'call-1',
@@ -279,6 +281,55 @@ describe('useAgentDetail', () => {
         expect(detail.waitingRuns.value.map((r) => r.id)).toEqual(['w1']);
         expect(detail.activity.value.count).toBe(2);
         expect(detail.notFound.value).toBe(false);
+        scope.stop();
+    });
+
+    it('waitingRuns asks the server for approval waits, so dispatch waits never fill its page', async () => {
+        const dispatching = Array.from({ length: 20 }, (_, i) => wireRun({
+            id: `d${i}`,
+            agent: 'deploy',
+            status: 'waiting',
+            createdAt: now,
+            waiting: {
+                kind: 'dispatch',
+                id: `0:call-${i}:w0`,
+                toolName: 'delegate',
+                toolCallId: `call-${i}`,
+                runIds: ['c1'],
+                expiresAt: now,
+            },
+        }));
+        const runs = [
+            ...dispatching,
+            wireRun({
+                id: 'w1',
+                agent: 'deploy',
+                status: 'waiting',
+                createdAt: now,
+                waiting: {
+                    kind: 'approval',
+                    id: 'a1',
+                    approvalId: 'a1',
+                    toolName: 'deploy',
+                    toolCallId: 'call-1',
+                    title: 'Deploy prod?',
+                    expiresAt: now,
+                },
+            }),
+        ];
+        const seen: RunListFilter[] = [];
+        const client = fakeClient({
+            listAgents: async () => ({ data: AGENTS, issues: [] }),
+            listSchedules: async () => [],
+            listRuns: listRunsOver(runs, seen),
+        });
+        const scope = effectScope();
+        const detail = scope.run(() => useAgentDetail(client, ref('deploy')))!;
+
+        await flush();
+        expect(seen).toContainEqual(expect.objectContaining({ status: ['waiting'], waiting: 'approval' }));
+        expect(detail.waitingRuns.value.map((r) => r.id)).toEqual(['w1']);
+        expect(detail.waitingTotal.value).toBe(1);
         scope.stop();
     });
 

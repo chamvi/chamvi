@@ -20,7 +20,16 @@ import {
     vi,
 } from 'vitest';
 import { z } from 'zod';
-import { Engine, defineAgent } from '@chamvi/core';
+import {
+    Engine,
+    agent,
+    agentChannel,
+    approve,
+    defineAgent,
+    defineTool,
+    dispatch,
+    waitForDispatch,
+} from '@chamvi/core';
 import type { EngineOptions, IEngine } from '@chamvi/core';
 import { createDatabaseStore } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
@@ -84,6 +93,54 @@ const env = {
     channel: 'http' as const,
     payload: { issue: 42 },
 };
+
+/**
+ * A model for a parent and its dispatched run, decided by the prompt alone
+ * (so any engine can make any call): the parent fans out to one run and
+ * then answers; the dispatched run asks for an approval, then answers.
+ */
+function treeModel() {
+    return new MockLanguageModelV4({
+        doStream: async (options) => {
+            const prompt = JSON.stringify(options.prompt);
+            const child = /\\"channel\\":\s*\\"agent\\"/.test(prompt);
+
+            if (child) {
+                return mockModel([prompt.includes('ok-approved') ?
+                    text('out-a') :
+                    {
+                        parts: [{
+                            type: 'tool-call',
+                            toolName: 'ask',
+                            input: {},
+                            toolCallId: 'k1',
+                        }],
+                    }]).doStream(options);
+            }
+
+            return mockModel([prompt.includes('out-a') ?
+                text('done') :
+                {
+                    parts: [{
+                        type: 'tool-call',
+                        toolName: 'fan',
+                        input: {},
+                        toolCallId: 'c1',
+                    }],
+                }]).doStream(options);
+        },
+    });
+}
+
+const fan = defineTool({
+    inputSchema: z.object({}),
+    execute: async (_input, { context }) => waitForDispatch(context, [await dispatch(context, { payload: 'a' })]),
+});
+
+const ask = defineTool({
+    inputSchema: z.object({}),
+    execute: async (_input, { context }) => ((await approve(context, { title: 'Go on?' })).approved ? 'ok-approved' : 'ok-denied'),
+});
 
 describePostgres('two engines sharing TypeORM store', () => {
     let dataSource: DataSource;
@@ -175,6 +232,73 @@ describePostgres('two engines sharing TypeORM store', () => {
         expect(steps.map((s) => s.kind)).toEqual(['llm', 'tool', 'llm']);
         expect(a.errors).toEqual([]);
         expect(b.errors).toEqual([]);
+    });
+
+    it('the child settles on B and the parent on A resumes once', async () => {
+        const lead = () => defineAgent({
+            name: 'lead',
+            instructions: 'You lead.',
+            model: treeModel(),
+            channels: [agent.on()],
+            tools: { fan, ask },
+        });
+        const replica = (owner: string) => make(treeModel(), {
+            owner,
+            agents: [lead()],
+            channels: [agentChannel()],
+        });
+        const a = replica('A');
+        const b = replica('B');
+
+        await a.engine.start();
+
+        const { runId: parentId } = await a.engine.dispatch({
+            agent: 'lead',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+        });
+        let childId = '';
+
+        // A runs the parent until it waits on the child, and the child until it asks
+        await vi.waitFor(async () => {
+            const { data } = await a.store.runs.find({ parentRunId: parentId });
+
+            childId = data[0]?.id ?? '';
+            expect(data[0]?.waiting?.kind).toBe('approval');
+            expect((await a.store.runs.findOne(parentId))?.waiting?.kind).toBe('dispatch');
+        }, WAIT);
+
+        const waited = await a.store.runs.findOneOrFail(parentId);
+
+        // B answers and executes the child; its settle answers the parent
+        await b.engine.start();
+        await b.engine.approve(childId, { approvalId: '0:k1:0', approved: true });
+
+        await vi.waitFor(async () => {
+            expect((await a.store.runs.findOne(parentId))?.status).toBe('completed');
+        }, WAIT);
+
+        const child = await b.store.runs.findOne(childId);
+        const steps = await b.store.steps.find(parentId);
+
+        expect(child).toMatchObject({ status: 'completed', output: 'out-a' });
+        expect(steps.filter((s) => s.kind === 'wait')).toHaveLength(1);
+        // the child's settle (a subtreeUsage patch) did not move the wait's start
+        expect(steps.find((s) => s.kind === 'wait')?.startedAt).toEqual(waited.updatedAt);
+        expect(steps.filter((s) => s.kind === 'tool')[0]?.output).toEqual([{
+            runId: childId,
+            agent: 'lead',
+            role: 'default',
+            status: 'completed',
+            output: 'out-a',
+        }]);
+        expect((await b.store.runs.findOne(parentId))?.subtreeUsage).toEqual(child?.usage);
+
+        // the child's approval message has nowhere to go (channel agent has no out)
+        for (const error of [...a.errors, ...b.errors]) {
+            expect((error as { code?: string }).code).toBe('channel_not_found');
+        }
     });
 
     it('the same idempotency key dispatched on both replicas creates one run', async () => {

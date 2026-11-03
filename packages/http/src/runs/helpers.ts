@@ -20,6 +20,7 @@ import type {
     Run,
     RunStatusLiteral,
     Step,
+    WaitPoint,
 } from '@chamvi/core';
 import { BadRequestError, ForbiddenError, NotFoundError } from '@ebec/http';
 import { defineSchema } from '@rapiq/core';
@@ -211,7 +212,7 @@ export function contentDisposition(filename: string | undefined): string {
 }
 
 const RUN_LIST_SCHEMA = defineSchema({
-    filters: { allowed: ['agent', 'status'] },
+    filters: { allowed: ['agent', 'parent', 'status', 'waiting'] },
     sorts: { allowed: ['createdAt'] },
     throwOnFailure: true,
 });
@@ -243,6 +244,28 @@ function readAgentFilter(filter: IFilter, agentNames: Iterable<string>): string 
     return matches[0] ?? String(value);
 }
 
+/** One run id; a value the wire coerced to a scalar reads in canonical form. */
+function readParentFilter(filter: IFilter): string {
+    const { value } = filter;
+
+    if (filter.operator !== 'eq' || Array.isArray(value) || isObject(value)) {
+        throw new BadRequestError({ message: 'filter[parent] takes one run id.' });
+    }
+
+    return String(value);
+}
+
+/** One wait point kind: `approval` or `dispatch`. */
+function readWaitingFilter(filter: IFilter): WaitPoint['kind'] {
+    const { value } = filter;
+
+    if (filter.operator !== 'eq' || (value !== 'approval' && value !== 'dispatch')) {
+        throw new BadRequestError({ message: 'filter[waiting] takes approval or dispatch.' });
+    }
+
+    return value;
+}
+
 function readStatusFilter(filter: IFilter): RunStatusLiteral[] {
     let values: unknown[] | undefined;
 
@@ -263,7 +286,8 @@ function readStatusFilter(filter: IFilter): RunStatusLiteral[] {
 }
 
 /**
- * `GET /runs` query: one agent, statuses, a page, `sort=createdAt` only.
+ * `GET /runs` query: one agent, one parent run, statuses, one wait point
+ * kind, a page, `sort=createdAt` only.
  * `agentNames` (the app's agents) resolve an agent name the wire coerced.
  */
 export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Iterable<string> = []): RunListQuery {
@@ -285,6 +309,10 @@ export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Ite
 
         if (filter.field === 'agent') {
             query.agent = readAgentFilter(filter, agentNames);
+        } else if (filter.field === 'parent') {
+            query.parent = readParentFilter(filter);
+        } else if (filter.field === 'waiting') {
+            query.waiting = readWaitingFilter(filter);
         } else {
             query.status = readStatusFilter(filter);
         }

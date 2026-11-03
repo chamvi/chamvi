@@ -8,10 +8,10 @@
 import {
     AGENT_CHANNEL_NAME,
     InvalidAgentDefinitionError,
+    agent as agentRoles,
     createMemoryStore,
     defineAgent,
     defineTool,
-    handoff,
     resolveModel,
 } from '@chamvi/core';
 import { http, httpChannel } from '@chamvi/http';
@@ -200,7 +200,7 @@ describe('engineModule', () => {
     });
 
     it.each(['start', 'job'] as const)('contributes the agent channel in %s mode', async (mode) => {
-        const agent = agentWith(textModel(), { channels: [handoff.on()] });
+        const agent = agentWith(textModel(), { channels: [agentRoles.on()] });
         const { harness } = build({ mode, agents: [agent] });
 
         await harness.setup();

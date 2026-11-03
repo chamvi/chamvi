@@ -178,6 +178,23 @@ describePostgres('relational integrity', () => {
             startedAt: now,
             finishedAt: now,
         });
+        await seedRun(ds, 'child', {
+            trigger: {
+                id: 'child',
+                agent: 'helper',
+                trigger: 'message',
+                channel: 'chat',
+                payload: {},
+                receivedAt: now,
+                parent: {
+                    kind: 'dispatch',
+                    runId: 'run',
+                    agent: 'helper',
+                    role: 'default',
+                    depth: 1,
+                },
+            },
+        });
 
         // These IDs reserve runs before runs.insert; every other local run/scope ID must be queryable.
         const reservations = new Set([`${TableName.ARTIFACTS}.runId`, `${TableName.IDEMPOTENCY_KEYS}.runId`]);
@@ -207,7 +224,11 @@ describePostgres('relational integrity', () => {
                 expect(relation.inverseEntityMetadata.tableName).toBe(parent);
 
                 const entity = await ds.getRepository(metadata.target).createQueryBuilder('entity')
-                    .leftJoinAndSelect(`entity.${relation.propertyName}`, 'parent').getOne();
+                    .leftJoinAndSelect(`entity.${relation.propertyName}`, 'parent')
+                    .where(`entity.${column.propertyName} IS NOT NULL`)
+                    .getOne();
+
+                expect(entity, `${metadata.name}.${column.propertyName} has a seeded row`).toBeDefined();
 
                 expect(entity?.[relation.propertyName]).toMatchObject({ id: entity?.[column.propertyName] });
             }

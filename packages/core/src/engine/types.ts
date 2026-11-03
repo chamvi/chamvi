@@ -140,7 +140,7 @@ export type EngineOptions = {
     onError?: (error: unknown, run?: Run) => void;
 };
 
-/** A run to create; `parent` is no field: only startHandoff() sets the lineage. */
+/** A run to create; `parent` is no field: only the dispatch host (dispatch()) sets the lineage. */
 export type DispatchEnvelope = Omit<TriggerEnvelope, 'id' | 'receivedAt' | 'attachments' | 'parent'> &
     Partial<Pick<TriggerEnvelope, 'id' | 'receivedAt'>> & {
         /** Files to start the run with; stored as artifacts of the run before it is created. */

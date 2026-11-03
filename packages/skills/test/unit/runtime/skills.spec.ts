@@ -599,7 +599,7 @@ describe('first class skills', () => {
             })],
         });
 
-        await b.start(); await b.approve(run.runId, { approvalId: waiting!.waiting!.approvalId, approved: true }); await b.idle();
+        await b.start(); await b.approve(run.runId, { approvalId: waiting!.waiting!.id, approved: true }); await b.idle();
         expect((await b.getRun(run.runId))?.status).toBe('completed'); expect(before).toEqual(['load_skill', 'load_skill']);
         expect(after).toMatchObject([{ content: 'NEW' }]);
         expect(JSON.stringify(second.doStreamCalls[0]?.prompt)).toContain('NEW'); await b.stop();

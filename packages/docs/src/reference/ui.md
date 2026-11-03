@@ -6,7 +6,7 @@ The dashboard, served by `@chamvi/http`. The public API of `packages/ui/src/inde
 npm install @chamvi/ui @chamvi/http @chamvi/core --save
 ```
 
-`@chamvi/core` and `@chamvi/http` are peer dependencies. See [Dashboard](/guide/ui) for the pages, sign-in and serving rules.
+`@chamvi/core` and `@chamvi/http` are peer dependencies. See [Dashboard](/guide/ui) for the pages, sign-in and serving rules. The run page's lineage view (parent link, dispatched runs, subtree total) reads `GET /runs?filter[parent]=<id>` from the `@chamvi/http` version it is served with, so serve both at the same version.
 
 ## uiRoutes
 

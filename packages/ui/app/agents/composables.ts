@@ -120,8 +120,8 @@ export function useAgentRollups(client: IApiClient) {
 
 /**
  * One agent's page: its summary and schedules, its newest runs (the 24 h
- * activity, the recent list, the run total), the running total and its waiting
- * runs. `start()` dispatches through the agent's `http.on()` subscription and refreshes.
+ * activity, the recent list, the run total), the running total and its runs
+ * waiting on an approval. `start()` dispatches through the agent's `http.on()` subscription and refreshes.
  */
 export function useAgentDetail(client: IApiClient, name: Ref<string>) {
     const agent = shallowRef<AgentWire>();
@@ -150,9 +150,11 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
                     offset: 0,
                 }),
                 totalOf(client, agentName, 'running'),
+                // a dispatch wait waits on no person: the server leaves it out
                 client.listRuns({
                     agent: agentName,
                     status: ['waiting'],
+                    waiting: 'approval',
                     limit: AGENT_WAITING_LIMIT,
                     offset: 0,
                 }),
@@ -167,7 +169,7 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
             runs.value = recent.data;
             totalRuns.value = recent.meta.total;
             running.value = runningTotal;
-            waitingRuns.value = waiting.data.filter((run) => run.waiting);
+            waitingRuns.value = waiting.data;
             waitingTotal.value = waiting.meta.total;
             activity.value = summarizeActivity(recent.data, Date.now(), ACTIVITY_LIMIT);
             error.value = undefined;

@@ -25,13 +25,13 @@ On shutdown, drain the engine before destroying the data source:
 
 ## Migrations
 
-`migrateStore(dataSource)` runs the pending migrations under the Postgres advisory lock `chamvi:migrations` (`MIGRATION_LOCK_NAME`). Call it on every boot: replicas that start at once wait for each other, and each migration is applied and recorded once. Each call uses one pooled connection, the one holding the lock, for the migrations as well. chamvi is pre-1.0, so a new version may ship a new migration. The migrations so far: `1792195200000-init.ts`, `1792368000000-artifacts.ts`, `1792454400000-idempotency-scope.ts`, `1792540800000-kv-key-collation.ts` and `1792627200000-agent-revisions.ts` (`AgentRevisions1792627200000`, the table `chamvi_agent_revisions`), followed by `1792713600000-conversations-run-taint.ts` (`ConversationsRunTaint1792713600000`: conversation identities, items, notes and operation receipts, run/checkpoint bindings, their foreign keys and indexes on every new foreign key column (including `chamvi_conversations.active_run_id`), then the nullable `chamvi_runs.taint` column and the conservative backfill of unfinished runs, see [Persist run taint](/repositories/writing-a-repository#persist-run-taint)). Upgrading to it needs downtime: follow [Upgrading to 0.4](/guide/upgrading#upgrading-to-0-4).
+`migrateStore(dataSource)` runs the pending migrations under the Postgres advisory lock `chamvi:migrations` (`MIGRATION_LOCK_NAME`). Call it on every boot: replicas that start at once wait for each other, and each migration is applied and recorded once. Each call uses one pooled connection, the one holding the lock, for the migrations as well. chamvi is pre-1.0, so a new version may ship a new migration. The migrations so far: `1792195200000-init.ts`, `1792368000000-artifacts.ts`, `1792454400000-idempotency-scope.ts`, `1792540800000-kv-key-collation.ts` and `1792627200000-agent-revisions.ts` (`AgentRevisions1792627200000`, the table `chamvi_agent_revisions`), followed by `1792713600000-conversations-run-taint.ts` (`ConversationsRunTaint1792713600000`: conversation identities, items, notes and operation receipts, run/checkpoint bindings, their foreign keys and indexes on every new foreign key column (including `chamvi_conversations.active_run_id`), then the nullable `chamvi_runs.taint` column and the conservative backfill of unfinished runs, see [Persist run taint](/repositories/writing-a-repository#persist-run-taint)). Upgrading to it needs downtime: follow [Upgrading to 0.4](/guide/upgrading#upgrading-to-0-4). Then `1792800000000-run-lineage.ts` (`RunLineage1792800000000`): `chamvi_runs.parent_run_id` (`varchar(128) COLLATE "C"`, indexed, the self foreign key to `chamvi_runs.id`) and `subtree_usage` (jsonb), the backfill of `parent_run_id` from `trigger.parent.runId`, the rewrite of stored hand-off parents (`kind` `dispatch`, role `handoff`) and the generic `id` on pending approval wait points (see [Upgrading to 0.6](/guide/upgrading#upgrading-to-0-6)).
 
-The conversations migration preserves legacy checkpoints and steps whose run does not exist. Earlier store methods allowed those rows, so their run foreign keys are added as PostgreSQL `NOT VALID`: no rows are deleted and no placeholder runs are created. New inserts and changes to `run_id` must reference an existing run; the other foreign keys are validated normally. Those two constraints remain unvalidated until the legacy data is reconciled explicitly, and do not need validation for new-write enforcement.
+The conversations migration preserves legacy checkpoints and steps whose run does not exist. Earlier store methods allowed those rows, so their run foreign keys are added as PostgreSQL `NOT VALID`: no rows are deleted and no placeholder runs are created. New inserts and changes to `run_id` must reference an existing run; the other foreign keys are validated normally. The lineage migration adds the self foreign key on `parent_run_id` `NOT VALID` for the same reason: a child whose parent run is gone keeps its row, while every new run must name an existing parent. These `NOT VALID` constraints remain unvalidated until the legacy data is reconciled explicitly, and do not need validation for new-write enforcement.
 
 ### Validating the legacy constraints
 
-To find the orphans the two `NOT VALID` constraints tolerate:
+To find the orphans the step and checkpoint constraints tolerate:
 
 ```sql
 SELECT 'checkpoint' AS kind, c.run_id FROM chamvi_checkpoints c
@@ -40,6 +40,16 @@ UNION ALL
 SELECT 'step', s.run_id FROM chamvi_steps s
     WHERE NOT EXISTS (SELECT 1 FROM chamvi_runs r WHERE r.id = s.run_id);
 ```
+
+Children whose parent run is gone, for the lineage constraint:
+
+```sql
+SELECT c.id, c.parent_run_id FROM chamvi_runs c
+    WHERE c.parent_run_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM chamvi_runs r WHERE r.id = c.parent_run_id);
+```
+
+Once they are deleted (deepest first, since a child may be a parent too), `ALTER TABLE chamvi_runs VALIDATE CONSTRAINT "FK_099dba5007e83a7ad85d75ec83c";` validates it.
 
 Orphans are leftovers no run can resume. Once you have kept what you need (a backup, an audit export) and deleted them, validate the constraints; `VALIDATE CONSTRAINT` takes only a `SHARE UPDATE EXCLUSIVE` lock, so writes continue meanwhile:
 
@@ -58,7 +68,7 @@ chamvi never runs these itself; a validated constraint changes nothing for the e
 
 | Table | Holds | Keys and indexes |
 |---|---|---|
-| `chamvi_runs` | Runs; JSON columns for trigger, output, error, usage, wait point and `taint`; the run's `address` in the `thread` column; claim owner and expiry; the conversation binding | PK `id` (`COLLATE "C"`); `(agent, status, concurrency_key)`; `(status, created_at, id)`; `conversation_scope_id` |
+| `chamvi_runs` | Runs; JSON columns for trigger, output, error, usage, subtree usage, wait point and `taint`; the run's `address` in the `thread` column; claim owner and expiry; the conversation binding; `parent_run_id` | PK `id` (`COLLATE "C"`); `(agent, status, concurrency_key)`; `(status, created_at, id)`; `conversation_scope_id`; `parent_run_id` (FK to `id`) |
 | `chamvi_steps` | Append-only steps | `(run_id, step_index)` |
 | `chamvi_checkpoints` | The latest checkpoint per run | PK `run_id`; `conversation_scope_id` |
 | `chamvi_conversations` | Conversation identities, generation, active owner and its snapshot | PK `id` (`COLLATE "C"`) |
@@ -77,7 +87,7 @@ Conversation rows, active owners, transcript items, notes and operation receipts
 
 ## How it keeps the contract
 
-- **Repositories and query builders.** Every method goes through the entities' TypeORM repositories, find options and query builders. Hand-written fragments remain only where find options cannot express the condition: the `jsonb_exists` key check in `findDocuments` (TypeORM has no key-existence operator) and the UTF-8 byte-length bound of conversation recall (`octet_length`).
+- **Repositories and query builders.** Every method goes through the entities' TypeORM repositories, find options and query builders. Hand-written fragments remain only where find options cannot express the condition: the `jsonb_exists` key check in `findDocuments` (TypeORM has no key-existence operator) the UTF-8 byte-length bound of conversation recall (`octet_length`) and the wait id guard of `runs.update` (`COALESCE(waiting->>'id', waiting->>'approvalId')`, TypeORM has no jsonb path operator).
 - **One statement for each listed atomic operation**, never read-then-write in JavaScript:
   - `runs.insert`: an insert with `orIgnore()` (`ON CONFLICT DO NOTHING RETURNING id`).
   - `idempotency.claim` and `locks.acquire`: an insert with `orUpdate()` and an overwrite condition (`ON CONFLICT DO UPDATE ... WHERE expires_at <= now RETURNING`), so an expired key or lock is taken over in the same statement.

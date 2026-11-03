@@ -34,6 +34,7 @@ import type {
 } from '@chamvi/core';
 import type { IClock } from '../../../src/clock/index.ts';
 import { systemClock } from '../../../src/clock/index.ts';
+import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { MemoryRunRepository, createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
@@ -293,7 +294,7 @@ describe('graceful drain', () => {
 
             delivered.resolve();
             await flush();
-            expect((await store.runs.findOne(runId))?.waiting?.notifiedAt).toBeUndefined();
+            expect(approvalWait(await store.runs.findOne(runId))?.notifiedAt).toBeUndefined();
         } finally {
             clock.advance(60_000);
             await draining;

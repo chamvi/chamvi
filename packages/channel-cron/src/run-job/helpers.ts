@@ -12,8 +12,9 @@ import type {
     IRunRepository,
     Run,
 } from '@chamvi/core';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { InvalidAgentDefinitionError, findApprovalWaitBelow } from '@chamvi/core';
 import { isCronChannel } from '../channel/helpers.ts';
+import { TERMINAL } from './constants.ts';
 
 /**
  * The cron subscription a job fires: `subscriptionId`, or the agent's only
@@ -42,22 +43,50 @@ export function resolveCronSubscription(engine: IEngine, agent: Agent, subscript
     return crons[0] as ChannelSubscription;
 }
 
+function isApprovalWait(run: Run): boolean {
+    return run.status === 'waiting' && run.waiting?.kind === 'approval';
+}
+
+/**
+ * The run a job returns on, or `false` to keep waiting: the run itself when it
+ * finished or waits for a human (an approval); when it waits on its dispatched
+ * runs, the first unsettled descendant that waits on an approval
+ * (`findApprovalWaitBelow()`). A dispatch wait alone keeps the job waiting.
+ */
+export async function isJobSettled(store: Pick<IRunRepository, 'find' | 'findOne'>, run: Run): Promise<Run | false> {
+    if (TERMINAL.includes(run.status) || isApprovalWait(run)) {
+        return run;
+    }
+
+    if (run.status !== 'waiting' || run.waiting?.kind !== 'dispatch') {
+        return false;
+    }
+
+    return (await findApprovalWaitBelow(store, run)) ?? false;
+}
+
 /**
  * Whether a queued run is held back by a run of its concurrency key that waits
- * for an approval: it starts only once a human answers (or the approval times
- * out), so a job must not wait for it.
+ * for a human (an approval, its own or a descendant's): it starts only once a
+ * human answers (or the approval times out), so a job must not wait for it.
  */
-export async function isQueuedBehindApproval(store: Pick<IRunRepository, 'find'>, run: Run): Promise<boolean> {
+export async function isQueuedBehindApproval(store: Pick<IRunRepository, 'find' | 'findOne'>, run: Run): Promise<boolean> {
     if (run.status !== 'queued' || run.concurrencyKey === undefined) {
         return false;
     }
 
-    const { total } = await store.find({
+    // every waiting run of the key: a dispatch wait ahead of an approval wait must not hide it
+    const { data } = await store.find({
         agent: run.agent,
         status: ['waiting'],
         concurrencyKey: run.concurrencyKey,
-        limit: 1,
     });
 
-    return total > 0;
+    for (const candidate of data) {
+        if (await isJobSettled(store, candidate)) {
+            return true;
+        }
+    }
+
+    return false;
 }

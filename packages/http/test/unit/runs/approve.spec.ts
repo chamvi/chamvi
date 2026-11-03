@@ -12,6 +12,7 @@ import {
 } from 'vitest';
 import {
     ADMIN_TOKEN,
+    approvalWaitOf,
     call,
     createRunTestApp,
     tokenFor,
@@ -33,7 +34,7 @@ async function pausedGate(overrides: TestAppOverrides = {}, agent = 'gate') {
     return {
         ...ctx,
         runId,
-        waiting: run!.waiting!,
+        waiting: approvalWaitOf(run),
     };
 }
 
@@ -113,6 +114,46 @@ describe('POST /runs/:id/approve', () => {
         expect((await response.json()).code).toBe('invalid_run_state');
         expect((await store.runs.findOne(runId))?.status).toBe('waiting');
         await engine.drain();
+    });
+
+    it('approving a dispatch wait answers 409', async () => {
+        const { app, store } = createRunTestApp();
+        const at = new Date(0);
+        const waitId = '0:call-1:w0';
+
+        await store.runs.insert({
+            id: 'parent',
+            agent: 'gate',
+            status: 'waiting',
+            trigger: {
+                id: 't-parent',
+                agent: 'gate',
+                trigger: 'http',
+                channel: 'http',
+                payload: {},
+                receivedAt: at,
+            },
+            usage: { inputTokens: 0, outputTokens: 0 },
+            waiting: {
+                kind: 'dispatch',
+                id: waitId,
+                toolName: 'fan_out',
+                toolCallId: 'call-1',
+                runIds: ['child'],
+                expiresAt: new Date(86_400_000),
+            },
+            createdAt: at,
+            updatedAt: at,
+        });
+
+        const response = await call(app, 'POST', '/runs/parent/approve', {
+            token: ADMIN_TOKEN,
+            body: { approvalId: waitId, approved: true },
+        });
+
+        expect(response.status).toBe(409);
+        expect((await response.json()).code).toBe('invalid_run_state');
+        expect((await store.runs.findOne('parent'))?.status).toBe('waiting');
     });
 
     it('409 for a run that is not waiting', async () => {

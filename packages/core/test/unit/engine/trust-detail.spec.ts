@@ -17,6 +17,7 @@ import {
     outboundApproved,
 } from '@chamvi/core';
 import type { ChannelMessage, IChannel, ToolContext } from '@chamvi/core';
+import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 
 const engines: Engine[] = [];
@@ -108,12 +109,12 @@ it('carries approvalDetail in the private gate body and tells the tool the gate 
     const gate = await ctx.store.runs.findOne(runId);
 
     expect(gate?.status).toBe('waiting');
-    expect(gate?.waiting?.approvalId).toMatch(/^bound:/);
-    expect(JSON.parse(gate!.waiting!.body!)).toMatchObject({ tool: 'push', detail: 'abc1234 Fix the build' });
+    expect(approvalWait(gate)?.approvalId).toMatch(/^bound:/);
+    expect(JSON.parse(approvalWait(gate)!.body!)).toMatchObject({ tool: 'push', detail: 'abc1234 Fix the build' });
     // the source channel gets the generic notification only
     expect(JSON.stringify(ctx.sent)).not.toContain('Fix the build');
 
-    await ctx.engine.approve(runId, { approvalId: gate!.waiting!.approvalId, approved: true });
+    await ctx.engine.approve(runId, { approvalId: approvalWait(gate)!.approvalId, approved: true });
     await ctx.engine.idle();
 
     const run = await ctx.store.runs.findOne(runId);
@@ -129,14 +130,14 @@ it('binds the gate decision to the detail: a changed detail on replay asks again
     const first = await ctx.store.runs.findOne(runId);
 
     ctx.setDetail('def5678 Something else');
-    await ctx.engine.approve(runId, { approvalId: first!.waiting!.approvalId, approved: true });
+    await ctx.engine.approve(runId, { approvalId: approvalWait(first)!.approvalId, approved: true });
     await ctx.engine.idle();
 
     const second = await ctx.store.runs.findOne(runId);
 
     expect(second?.status).toBe('waiting');
-    expect(second?.waiting?.approvalId).not.toBe(first!.waiting!.approvalId);
-    expect(JSON.parse(second!.waiting!.body!)).toMatchObject({ detail: 'def5678 Something else' });
+    expect(approvalWait(second)?.approvalId).not.toBe(approvalWait(first)!.approvalId);
+    expect(JSON.parse(approvalWait(second)!.body!)).toMatchObject({ detail: 'def5678 Something else' });
 });
 
 it('answers false without a gate (untainted run), so the tool asks itself', async () => {
@@ -145,7 +146,7 @@ it('answers false without a gate (untainted run), so the tool asks itself', asyn
     const run = await ctx.store.runs.findOne(runId);
 
     expect(run?.status).toBe('waiting');
-    expect(run?.waiting?.title).toBe('Push?');
+    expect(approvalWait(run)?.title).toBe('Push?');
     expect(ctx.seen).toEqual([false]);
 });
 

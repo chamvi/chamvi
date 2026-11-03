@@ -11,6 +11,7 @@ import type {
     Run,
     RunStatusLiteral,
     TriggerEnvelope,
+    WaitPoint,
 } from '@chamvi/core';
 
 /** An invoker or approver as it leaves the package: identity only, never the grants. */
@@ -27,7 +28,11 @@ export type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
 /** `GET /runs` query after decoding. */
 export type RunListQuery = {
     agent?: string;
+    /** `filter[parent]`: only the runs this run dispatched. */
+    parent?: string;
     status?: RunStatusLiteral[];
+    /** `filter[waiting]`: only the runs whose wait point is of this kind. */
+    waiting?: WaitPoint['kind'];
     limit: number;
     offset: number;
     /** `sort=createdAt` (default) or `sort=-createdAt`. */

@@ -16,7 +16,7 @@ import type { SkillContribution } from '../../skill/types.ts';
 import type { IStore } from '../../repository/types.ts';
 import type { IEngine, RunDelta } from '../types.ts';
 
-/** A tool call of the checkpoint that has no result yet: suspended by approve(). */
+/** A tool call of the checkpoint that has no result yet: suspended by approve() or waitForDispatch(). */
 export type PendingToolCall = {
     toolCallId: string;
     toolName: string;
@@ -52,7 +52,7 @@ export type ExecuteContext = {
      * Moves the still `running` run to `waiting` on `request` (releasing its
      * claim and slot).
      */
-    pause: (request: ApprovalRequest, usage: Usage) => Promise<void>;
+    pause: (request: SuspendRequest, usage: Usage) => Promise<void>;
     /**
      * False once another owner took the run over (its lease expired and it was
      * recovered); checked before every step and checkpoint write.
@@ -67,6 +67,7 @@ export type ExecuteContext = {
 
 /** What a suspended approve() asks for: the run pauses on it (`Run.waiting`). */
 export type ApprovalRequest = {
+    kind: 'approval';
     /**
      * `<stepIndex>:<toolCallId>:<n>`: the checkpoint step index of the model
      * step that made the call, its call id, n the 0-based ordinal of the
@@ -89,3 +90,18 @@ export type ApprovalRequest = {
     slot?: string;
     timeoutMs: number;
 };
+
+/** What a suspended waitForDispatch() waits on (internal): the run pauses on it (`Run.waiting`). */
+export type DispatchWaitRequest = {
+    kind: 'dispatch';
+    /** `<stepIndex>:<toolCallId>:w<n>`, n the 0-based ordinal of the waitForDispatch() within the call. */
+    id: string;
+    toolName: string;
+    toolCallId: string;
+    /** The runs waited on, in the caller's order (duplicates kept). */
+    runIds: string[];
+    timeoutMs: number;
+};
+
+/** What a suspended tool call waits on (internal). */
+export type SuspendRequest = ApprovalRequest | DispatchWaitRequest;

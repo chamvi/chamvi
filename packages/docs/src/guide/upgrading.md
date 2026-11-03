@@ -2,6 +2,31 @@
 
 chamvi is pre-1.0: a minor release may break the API. Each section lists what changed and the exact replacement.
 
+## Upgrading to 0.6
+
+### Breaking changes
+
+Hand-offs became [dispatch](/guide/dispatch): a tool starts runs of its own or another agent and may wait for them ([#129](https://github.com/chamvi/chamvi/issues/129), [#76](https://github.com/chamvi/chamvi/issues/76)). No alias is left for the hand-off names.
+
+| Change | Before (0.5) | Replacement (0.6) |
+|---|---|---|
+| Subscription | `handoff.on(opts?)`, at most one per agent, subscription id `handoff` | `agent.on(opts?)`, one per role; the role is the subscription id, default `'default'` (`DEFAULT_DISPATCH_ROLE`). `agent.on({ role: 'handoff' })` keeps the old id (stored runs carry it as `trigger.trigger`) |
+| Starting a run | `startHandoff(ctx, input)` | `dispatch(ctx, input)`; `input.role` picks the role. `dispatchTo(ctx, { agent, ... })` reaches another agent |
+| Types | `HandoffInput`, `HandoffResult`, `HandoffSubscriber`, `HandoffSubscriptionOptions` | `DispatchInput`, `DispatchResult`, `AgentSubscriber`, `AgentSubscriptionOptions` |
+| Constants | `HANDOFF_SUBSCRIPTION_ID`, `MAX_HANDOFF_DEPTH` (1), `DEFAULT_MAX_HANDOFFS_PER_RUN` (100) | `DEFAULT_DISPATCH_ROLE`, `DEFAULT_DISPATCH_MAX_DEPTH` (1, per role through `agent.on({ maxDepth })`, at most `DISPATCH_DEPTH_MAX` 8), `DEFAULT_MAX_DISPATCHES_PER_RUN` (100) |
+| Per-run limit | `maxPerRun` counted every hand-off of the run (`handoff-count:<runId>`) | Counted per target agent and role (`dispatch-count:<runId>:<agent>:<role>`) |
+| Keys | Effect `<runId>:handoff:<hash>`, idempotency claim `handoff:<key>` | `<runId>:dispatch:<hash>` (the hash also covers the agent and the role), `dispatch:<role>:<key>` |
+| Lineage | `trigger.parent: { kind: 'handoff', runId, agent, depth }` | `{ kind: 'dispatch', runId, agent, role, depth }`, plus `run.parentRunId` and `run.subtreeUsage`. The migration rewrites stored hand-off parents to role `handoff` |
+| Wait point | `run.waiting` (`WaitPoint`) was always an approval | A union on `kind`: `ApprovalWaitPoint` (`kind: 'approval'`, plus the generic `id`, equal to `approvalId`) or `DispatchWaitPoint` (`kind: 'dispatch'`, `runIds`). Narrow on `kind === 'approval'` before reading `title`, `approvalId` or `options` |
+| MCP `run_<agent>` result | `waiting: { toolName, title, ... }` | `waiting.kind` `'approval'` (with `runId` and `agent`: the run to answer, possibly a descendant) or `'dispatch'` (`get_run` only) |
+| Custom repositories | | `Run.parentRunId` (set by `insert` from `trigger.parent.runId`, a missing parent throws `RunNotFoundError`), `Run.subtreeUsage`, `RunFindOptions.ids`, `parentRunId`, `parentRunIds`, `hasParent` and `waitKind`, `RunUpdateOptions.expectWaitId` and `keepUpdatedAt`, both wait point kinds read back through `normalizeWaitPoint()`. `describeRepositoryContract()` checks each ([Lineage and wait points](/repositories/writing-a-repository#lineage-and-wait-points)) |
+
+Drain hand-off trees before upgrading: a parent that replays a `startHandoff()` call under the new effect keys can start a second child, and a stored child of subscription id `handoff` matches no role unless the agent declares `agent.on({ role: 'handoff' })`.
+
+### Database migration
+
+0.6 ships `1792800000000-run-lineage.ts` (`RunLineage1792800000000`): `chamvi_runs.parent_run_id` (indexed, a self foreign key, `NOT VALID` so legacy children of a deleted parent stay) and `subtree_usage`, the `parent_run_id` backfill from `trigger.parent.runId`, the hand-off parent rewrite, and the generic `id` on every pending approval wait point, so an approval that waits across the upgrade can still be answered. See [Migrations](/repositories/database#migrations).
+
 ## Upgrading to 0.5
 
 ### Breaking changes

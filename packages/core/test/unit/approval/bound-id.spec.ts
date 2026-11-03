@@ -27,7 +27,7 @@ async function pendingId(call: ToolCallFrame, binding?: string): Promise<string>
     try {
         await runToolCall(call, () => requestApproval({ title: 'Review', binding }));
     } catch (error) {
-        if (error instanceof SuspendSignal) {
+        if (error instanceof SuspendSignal && error.request.kind === 'approval') {
             return error.request.approvalId;
         }
 

@@ -22,6 +22,7 @@ import {
     defineTool,
 } from '@chamvi/core';
 import type { IChannel, IEngine, ToolContext } from '@chamvi/core';
+import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { CONVERSATION_SEND_GRACE_MS } from '../../../src/engine/execute/constants.ts';
@@ -556,7 +557,7 @@ describe('source emit journal', () => {
 
         const first = await s.store.runs.findOne(runId);
 
-        await s.engine.approve(runId, { approvalId: first!.waiting!.approvalId, approved: true });
+        await s.engine.approve(runId, { approvalId: approvalWait(first)!.approvalId, approved: true });
         await s.engine.tick();
         await vi.waitFor(() => expect(s.out).toHaveBeenCalledTimes(2));
 
@@ -570,7 +571,7 @@ describe('source emit journal', () => {
 
         await vi.waitFor(async () => {
             clock.advance(CONVERSATION_SEND_GRACE_MS);
-            expect((await s.store.runs.findOne(runId))?.waiting?.title).toBe('two');
+            expect(approvalWait(await s.store.runs.findOne(runId))?.title).toBe('two');
         });
         expect(signal.aborted).toBe(true);
     });
@@ -602,7 +603,7 @@ describe('source emit journal', () => {
         const first = await s.store.runs.findOne(runId);
 
         replaying = true;
-        await s.engine.approve(runId, { approvalId: first!.waiting!.approvalId, approved: true });
+        await s.engine.approve(runId, { approvalId: approvalWait(first)!.approvalId, approved: true });
         await s.engine.tick();
         await vi.waitFor(() => expect(s.out).toHaveBeenCalledTimes(1));
 

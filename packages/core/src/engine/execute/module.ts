@@ -23,8 +23,8 @@ import {
     InvalidAgentDefinitionError,
     ValidationError,
 } from '../../errors/index.ts';
+import { bindRunSnapshot } from '../../dispatch/helpers.ts';
 import { assertTranscriptMessages, splitInstructions } from '../../message/helpers.ts';
-import { bindRunSnapshot } from '../../handoff/helpers.ts';
 import { toLanguageModel } from '../../model/asserts.ts';
 import { untilAborted } from '../../run/helpers.ts';
 import { RunStatus } from '../../run/constants.ts';
@@ -54,15 +54,15 @@ import {
     withoutPartialOutput,
     withoutResults,
 } from './helpers.ts';
-import type { ApprovalRequest, ExecuteContext } from './types.ts';
+import type { ExecuteContext, SuspendRequest } from './types.ts';
 
 /**
  * One execution of a claimed, `running` run: first runs the tool calls a
- * suspended approve() left pending in the latest checkpoint (pausing again,
- * without a model call, when one suspends again), then streams a
- * ToolLoopAgent from there (emitting text and reasoning deltas), checkpoints
- * every step and settles the run, or pauses it on the first call an
- * approve() suspended.
+ * suspended approve() or waitForDispatch() left pending in the latest
+ * checkpoint (pausing again, without a model call, when one suspends again),
+ * then streams a ToolLoopAgent from there (emitting text and reasoning
+ * deltas), checkpoints every step and settles the run, or pauses it on the
+ * first call that suspended.
  */
 export async function executeRun(ctx: ExecuteContext): Promise<void> {
     const {
@@ -178,8 +178,8 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
         bindConversationRun(runContext, ctx.conversation.capability, run);
     }
 
-    // the calls approve() suspended in this execution, in the order they suspended
-    const suspended: ApprovalRequest[] = [];
+    // the calls approve() or waitForDispatch() suspended in this execution, in the order they suspended
+    const suspended: SuspendRequest[] = [];
     // while the pending calls run they belong to the checkpoint's step, later ones to the step being made
     let replaying = pending.length > 0;
     let assembled: ReturnType<typeof assembleTools>;
@@ -220,8 +220,8 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
     let abandoned = false;
     let pendingStepEnd: Promise<void> = Promise.resolve();
     let stepStartedAt = clock.now();
-    // the approval the last step suspended on (the first in call order); the loop stops on it
-    let approval: ApprovalRequest | undefined;
+    // the wait the last step suspended on (the first in call order); the loop stops on it
+    let paused: SuspendRequest | undefined;
     // set when the provider's finish part arrived for the current step; without
     // it the AI SDK synthesizes a finish ('other') and never runs the step's tools
     let modelCallEnded = false;
@@ -336,7 +336,7 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
 
                 const order = step.toolCalls.map((c) => c.toolCallId);
 
-                approval = suspended
+                paused = suspended
                     .filter((request) => order.includes(request.toolCallId))
                     .sort((a, b) => order.indexOf(a.toolCallId) - order.indexOf(b.toolCallId))[0] ?? suspended[0];
             }
@@ -554,7 +554,7 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
     const stopWhen: StopCondition<ToolSet>[] = [
         isStepCount(remainingSteps),
         () => fatal !== undefined,
-        // a call approve() suspended ends the loop after its step
+        // a call approve() or waitForDispatch() suspended ends the loop after its step
         () => suspended.length > 0,
     ];
     const spentTokens = run.usage.inputTokens + run.usage.outputTokens;
@@ -687,8 +687,8 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
         return;
     }
 
-    if (approval) {
-        await ctx.pause(approval, usage);
+    if (paused) {
+        await ctx.pause(paused, usage);
 
         return;
     }

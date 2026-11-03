@@ -17,6 +17,7 @@ import type { IApiClient, RunDetail, RunWire } from '../api/types.ts';
 import { createPoller } from '../polling/module.ts';
 import { asApiError, retryDelayOf } from '../api/helpers.ts';
 import { INBOX_PAGE_SIZE, INBOX_POLL_MS } from './constants.ts';
+import { approvalWaitOf } from './helpers.ts';
 import type { AnswerResult, ApprovalLink } from './types.ts';
 
 function reasonOf(reason: string | undefined): { reason?: string } {
@@ -26,7 +27,7 @@ function reasonOf(reason: string | undefined): { reason?: string } {
 }
 
 /**
- * The approvals inbox: waiting runs, newest first, polled every
+ * The approvals inbox: runs waiting on an approval, newest first, polled every
  * `INBOX_POLL_MS`. `answer` approves or denies the run's current wait
  * point by id (`POST /runs/:id/approve`): a 409 (answered meanwhile,
  * expired, or moved on to another approval) is `already-answered`, a 403
@@ -37,13 +38,15 @@ export function useApprovals(client: IApiClient) {
     const error = shallowRef<ApiError>();
     const poller = createPoller(async () => {
         try {
+            // a run waiting on its dispatched runs waits on no person: the server leaves it out
             const page = await client.listRuns({
                 status: ['waiting'],
+                waiting: 'approval',
                 limit: INBOX_PAGE_SIZE,
                 offset: 0,
             });
 
-            runs.value = page.data.filter((run) => run.waiting);
+            runs.value = page.data;
             error.value = undefined;
 
             return undefined;
@@ -58,13 +61,15 @@ export function useApprovals(client: IApiClient) {
     onScopeDispose(() => poller.stop());
 
     async function answer(run: RunWire, approved: boolean, reason?: string, selected?: string[]): Promise<AnswerResult> {
-        if (!run.waiting) {
+        const waiting = approvalWaitOf(run);
+
+        if (!waiting) {
             return 'already-answered';
         }
 
         try {
             await client.approve(run.id, {
-                approvalId: run.waiting.approvalId,
+                approvalId: waiting.approvalId,
                 approved,
                 ...reasonOf(reason),
                 // a denial selects nothing
@@ -141,7 +146,7 @@ export function useLinkedApproval(client: IApiClient, target: Ref<ApprovalLink |
             error.value = undefined;
 
             if (!value.approvalId && !pinned.value) {
-                pinned.value = run.value.waiting?.approvalId;
+                pinned.value = approvalWaitOf(run.value)?.approvalId;
             }
         } catch (e) {
             if (current !== generation) {

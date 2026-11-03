@@ -128,7 +128,7 @@ export default defineConfig({
                         { text: 'Approved Local Skills', link: '/guide/skills' },
                         { text: 'Effect Tools & Reconciliation', link: '/guide/effect-tools' },
                         { text: 'Approvals & Hooks', link: '/guide/approvals' },
-                        { text: 'Hand-offs', link: '/guide/handoffs' },
+                        { text: 'Dispatch', link: '/guide/dispatch' },
                         { text: 'Agent State', link: '/guide/state' },
                         { text: 'Conversation Memory', link: '/guide/conversations' },
                         { text: 'Knowledge', link: '/guide/knowledge' },

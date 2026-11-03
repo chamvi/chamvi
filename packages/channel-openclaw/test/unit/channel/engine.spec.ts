@@ -13,7 +13,12 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
-import type { ChamviError, IEngine } from '@chamvi/core';
+import type {
+    ApprovalWaitPoint,
+    ChamviError,
+    IEngine,
+    Run,
+} from '@chamvi/core';
 import {
     Engine,
     createMemoryStore,
@@ -25,6 +30,15 @@ import type { OpenclawChannelOptions } from '@chamvi/channel-openclaw';
 import { ControllableClock } from '@chamvi/test-kit';
 import { approvalModel, mockModel } from '../../utils/model.ts';
 import { createFakeOpenclaw } from '../../utils/openclaw.ts';
+
+/** The run's approval wait point; throws when it waits on none. */
+function approvalOf(run: Pick<Run, 'waiting'> | undefined): ApprovalWaitPoint {
+    if (run?.waiting?.kind !== 'approval') {
+        throw new Error('the run waits on no approval');
+    }
+
+    return run.waiting;
+}
 
 const TOKEN = 'hooks-token-0123456789';
 
@@ -141,7 +155,7 @@ describe('openclawChannel with the engine', () => {
         expect(ctx.fake.requests).toHaveLength(1);
         expect(ctx.fake.dispatched).toHaveLength(1);
 
-        const waiting = (await ctx.engine.getRun(runId))!.waiting!;
+        const waiting = approvalOf(await ctx.engine.getRun(runId));
 
         expect(waiting.notifiedAt).toBeInstanceOf(Date);
         expect(ctx.fake.requests[0]!.headers['idempotency-key']).toBe(`${runId}:${waiting.approvalId}`);
@@ -163,7 +177,7 @@ describe('openclawChannel with the engine', () => {
 
         expect(ctx.errors).toHaveLength(1);
         expect((ctx.errors[0] as ChamviError).code).toBe('openclaw_request');
-        expect((await ctx.engine.getRun(runId))?.waiting?.notifiedAt).toBeUndefined();
+        expect(approvalOf(await ctx.engine.getRun(runId)).notifiedAt).toBeUndefined();
 
         await ctx.engine.tick();
         expect(ctx.fake.requests).toHaveLength(2);
@@ -173,7 +187,7 @@ describe('openclawChannel with the engine', () => {
         expect(second!.headers['idempotency-key']).toBe(first!.headers['idempotency-key']);
         expect(JSON.stringify(second!.body)).toBe(JSON.stringify(first!.body));
         expect(ctx.fake.dispatched).toHaveLength(1);
-        expect((await ctx.engine.getRun(runId))?.waiting?.notifiedAt).toBeInstanceOf(Date);
+        expect(approvalOf(await ctx.engine.getRun(runId)).notifiedAt).toBeInstanceOf(Date);
     });
 
     it('replays a lost response', async () => {
@@ -191,13 +205,13 @@ describe('openclawChannel with the engine', () => {
         expect(ctx.fake.requests).toHaveLength(2);
         // one admitted OpenClaw run per approval across engine retries
         expect(ctx.fake.dispatched).toHaveLength(1);
-        expect((await ctx.engine.getRun(runId))?.waiting?.notifiedAt).toBeInstanceOf(Date);
+        expect(approvalOf(await ctx.engine.getRun(runId)).notifiedAt).toBeInstanceOf(Date);
     });
 
     it('the approval message links the approval, which the owner answers there', async () => {
         const ctx = setup(undefined, { approvalUrl: (ref) => `https://chamvi.example/ui/approvals?run=${ref.runId}&approval=${ref.approvalId}&agent=${ref.agent}` });
         const runId = await dispatchToWaiting(ctx);
-        const waiting = (await ctx.engine.getRun(runId))!.waiting!;
+        const waiting = approvalOf(await ctx.engine.getRun(runId));
         const [request] = ctx.fake.requests;
 
         expect((request!.body as { message: string }).message).toContain(`Approve or deny: https://chamvi.example/ui/approvals?run=${runId}&approval=${waiting.approvalId}&agent=deployer`);

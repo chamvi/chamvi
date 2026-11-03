@@ -6,7 +6,7 @@ Implement the capability interfaces from `@chamvi/core` and assemble them into a
 
 `Run.taint` is optional and has shape `{ at: Date; source: string }`. Persist it on insert and update, preserve it on unrelated updates, return independent copies, and hydrate `taint.at` as a `Date` on every read, including claims/recovery paths. Do not silently drop it when selecting run columns or serializing JSON. Missing taint remains absent, not an empty object.
 
-The engine owns monotonic, first-write taint: it keeps the first exposure's timestamp/source, shares the persistence write across parallel tool calls, and does not clear it on replay, extraction or handoff. This is an engine invariant, **not** a new repository compare-and-set API or a claim that arbitrary direct store writes cannot overwrite it. Custom stores must durably apply that field through the normal guarded run updates before untrusted results can be exposed.
+The engine owns monotonic, first-write taint: it keeps the first exposure's timestamp/source, shares the persistence write across parallel tool calls, and does not clear it on replay, extraction or dispatch. This is an engine invariant, **not** a new repository compare-and-set API or a claim that arbitrary direct store writes cannot overwrite it. Custom stores must durably apply that field through the normal guarded run updates before untrusted results can be exposed.
 
 For `@chamvi/store-db`, apply migration `ConversationsRunTaint1792713600000` (bundled in 0.4 with the conversation tables), which adds nullable `chamvi_runs.taint` JSONB. It conservatively backfills legacy unfinished runs (`queued`, `running`, `waiting`, `interrupted`) with `{ at: <migration time>, source: 'migration:legacy-run' }`: their old checkpoints may already contain unclassified content. Terminal legacy runs remain untainted. Custom backends need equivalent schema support and unfinished-run backfill before resuming pre-upgrade work; otherwise old content can bypass the new gate. Do not infer trust from an absent field on a legacy unfinished run.
 
@@ -37,6 +37,18 @@ async insert(step: Step): Promise<void> {
 
 Match a foreign key violation on structured fields (an error code and the constraint name), never on the message text: PostgreSQL translates it by `lc_messages`.
 
+## Lineage and wait points
+
+New in 0.6, for [dispatch](/guide/dispatch):
+
+- **`parentRunId`.** `runs.insert` sets `Run.parentRunId` from `trigger.parent.runId` and ignores a `parentRunId` the caller passes. A parent the store does not hold throws `RunNotFoundError` and writes nothing (Postgres: a self foreign key). Persist it as its own indexed field: `find({ parentRunId })` lists a run's children, `find({ parentRunIds })` the children of several runs at once (an empty list matches none).
+- **`subtreeUsage`.** Optional `Usage`, written by the engine through `update`; persist and copy it like `usage`. `update(id, patch, { keepUpdatedAt: true })` keeps the stored `updatedAt` when the patch sets none (the engine uses it for this derived field).
+- **`ids`.** `find({ ids })` returns only those runs (an empty list matches none), combined with the other filters, in the usual order.
+- **`hasParent`.** `find({ hasParent: true })` returns only runs with a `parentRunId`, `false` only runs without one (the engine's cancel cascade heal lists unsettled children this way each tick: filter on the indexed field).
+- **`waitKind`.** `find({ waitKind })` returns only runs whose `waiting.kind` is that kind (`'approval'` or `'dispatch'`), so an approval inbox never lists dispatch waits.
+- **`expectWaitId`.** `update` throws `InvalidRunStateError` when `expectWaitId` is given and the run has no wait point or its wait id differs, so two answers of different waits never cross. The wait id is `waiting.id`, else `waiting.approvalId` (`waitIdOf()`): an approval stored before 0.6 has no `id`.
+- **Both wait point kinds.** `run.waiting` is an `ApprovalWaitPoint` (`kind: 'approval'`) or a `DispatchWaitPoint` (`kind: 'dispatch'`, `runIds`). Store it as it is, revive `expiresAt` (and an approval's `notifiedAt`) as `Date` for both, and pass every wait point you read through `normalizeWaitPoint()` from `@chamvi/core`, which gives a legacy approval its `id`.
+
 ## Prove it with the contract suite
 
 `@chamvi/test-kit` ships `describeRepositoryContract`, the Vitest suite every store must pass. It is the same suite `createMemoryStore()` runs.
@@ -53,11 +65,12 @@ The suite covers:
 
 - atomicity under concurrency: parallel `idempotency.claim`, `runs.claim`, `locks.acquire` and `runs.insert` calls have exactly one winner,
 - expiry: keys, claims and locks expire after their TTL, and exactly at `expiresAt` they count as expired,
-- `update` guards: `expectStatus` (one or several allowed statuses) and `expectOwner`, `RunNotFoundError` for a missing run, untouched fields preserved,
+- `update` guards: `expectStatus` (one or several allowed statuses), `expectOwner` and `expectWaitId` (with the `approvalId` fallback), `RunNotFoundError` for a missing run, untouched fields preserved,
 - `claim` and `renewClaim` on a missing run resolve `false`,
+- lineage: `parentRunId` set from the envelope and refused for an unknown parent, `subtreeUsage` round trips, both wait point kinds with their dates revived, a legacy approval wait point read back with its `id`,
 - checkpoints: the highest `stepIndex` wins, an equal index replaces,
 - locks: exclusive, released by their owner only, taken over after expiry,
-- `find` filters (`agent`, `status`, `concurrencyKey`), `total`, and the `createdAt`/`id` order in both directions (`order: 'asc' | 'desc'`),
+- `find` filters (`agent`, `status`, `concurrencyKey`, `ids`, `parentRunId`, `parentRunIds`, `hasParent`, `waitKind`), `total`, and the `createdAt`/`id` order in both directions (`order: 'asc' | 'desc'`),
 - effect and state round trips, including `where` filters,
 - artifacts: insert-if-absent, metadata and bytes round trips, copies, the `createdAt`/`id` order, unknown ids,
 - agent revisions: upsert, delete (also of a missing marker), the code-point order of `find`, copies with `changedAt` revived as a `Date`,

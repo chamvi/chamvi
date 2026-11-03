@@ -6,7 +6,12 @@
  */
 
 import { ToolDeniedError, approve } from '@chamvi/core';
-import type { AgentHooks, IEngine } from '@chamvi/core';
+import type {
+    AgentHooks,
+    ApprovalWaitPoint,
+    IEngine,
+    Run,
+} from '@chamvi/core';
 
 export type IssuedApproval = {
     runId: string;
@@ -15,6 +20,11 @@ export type IssuedApproval = {
     title: string;
     expiresAt: Date;
 };
+
+/** The run's approval wait point; undefined without one or for another kind. */
+export function approvalWait(run: Pick<Run, 'waiting'> | undefined): ApprovalWaitPoint | undefined {
+    return run?.waiting?.kind === 'approval' ? run.waiting : undefined;
+}
 
 /**
  * Records each new wait point the engine emits (what the owner would be
@@ -30,7 +40,7 @@ export function recordApprovals(engine: IEngine): { calls: IssuedApproval[] } {
         }
 
         const { run } = event;
-        const { waiting } = run;
+        const waiting = approvalWait(run);
         const key = waiting ? `${run.id}:${waiting.approvalId}` : '';
 
         if (run.status !== 'waiting' || !waiting || seen.has(key)) {

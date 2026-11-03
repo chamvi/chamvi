@@ -13,15 +13,34 @@ import type {
     Run,
     RunStatusLiteral,
     Step,
+    WaitPoint,
 } from '../run/types.ts';
 
 export type RunFindOptions = {
     agent?: string;
     status?: RunStatusLiteral[];
     concurrencyKey?: string;
+    /** Only these run ids (an empty list matches none). */
+    ids?: readonly string[];
+    /** Only the runs dispatched by this run (`Run.parentRunId`). */
+    parentRunId?: string;
+    /** Only the runs dispatched by one of these runs (an empty list matches none). */
+    parentRunIds?: readonly string[];
+    /** Only the runs dispatched by some run (`true`, `Run.parentRunId` set) or by none (`false`). */
+    hasParent?: boolean;
+    /** Only the runs whose wait point (`Run.waiting`) is of this kind. */
+    waitKind?: WaitPoint['kind'];
     limit?: number;
     offset?: number;
     order?: 'asc' | 'desc';
+};
+
+export type RunUpdateOptions = {
+    expectStatus?: RunStatusLiteral[];
+    expectOwner?: string;
+    expectWaitId?: string;
+    /** Keep the stored updatedAt when the patch sets none (default: stamped with now), for derived fields such as subtreeUsage. */
+    keepUpdatedAt?: boolean;
 };
 
 export type StateFindOptions = { limit?: number; offset?: number };
@@ -45,6 +64,9 @@ export interface IRunRepository {
     /**
      * Atomic insert-if-absent: resolves false and keeps the stored run when a run
      * with that id exists (two dispatches may create the run an idempotency key names).
+     * Sets `parentRunId` from `trigger.parent.runId` (a given `parentRunId` is
+     * ignored); a parent run the store does not hold throws RunNotFoundError
+     * and writes nothing.
      */
     insert(run: Run): Promise<boolean>;
     findOne(id: string): Promise<Run | undefined>;
@@ -52,9 +74,12 @@ export interface IRunRepository {
     /**
      * Throws InvalidRunStateError when `expectStatus` does not match the current
      * status, or when `expectOwner` is given and the run's claim is absent or held
-     * by another owner (expiry is not checked: a lease is lost once taken over).
+     * by another owner (expiry is not checked: a lease is lost once taken over),
+     * or when `expectWaitId` is given and the run has no wait point or its wait
+     * id (`id`, else `approvalId`) differs. A stored wait point without `id`
+     * reads back with `id = approvalId`.
      */
-    update(id: string, patch: Partial<Run>, opts?: { expectStatus?: RunStatusLiteral[]; expectOwner?: string }): Promise<Run>;
+    update(id: string, patch: Partial<Run>, opts?: RunUpdateOptions): Promise<Run>;
     /**
      * Ordered by createdAt, ties broken by id, both ascending (`order` `asc`,
      * the default) or both descending (`desc`). `total` ignores limit/offset.

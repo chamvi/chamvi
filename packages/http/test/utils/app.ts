@@ -15,9 +15,11 @@ import {
 } from '@chamvi/core';
 import type {
     Agent,
+    ApprovalWaitPoint,
     ChannelSubscription,
     IChannel,
     IStore,
+    Run,
 } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
@@ -245,15 +247,18 @@ export function shotsAgent(): Agent {
     });
 }
 
-/** The approval id the run's current wait point waits on. */
-export async function approvalIdOf(store: IStore, runId: string): Promise<string> {
-    const waiting = (await store.runs.findOne(runId))?.waiting;
-
-    if (!waiting) {
-        throw new Error(`run ${runId} is not waiting`);
+/** The run's approval wait point; throws without one or for another kind. */
+export function approvalWaitOf(run: Pick<Run, 'id' | 'waiting'> | undefined): ApprovalWaitPoint {
+    if (run?.waiting?.kind !== 'approval') {
+        throw new Error(`run ${run?.id} is not waiting on an approval`);
     }
 
-    return waiting.approvalId;
+    return run.waiting;
+}
+
+/** The approval id the run's current wait point waits on. */
+export async function approvalIdOf(store: IStore, runId: string): Promise<string> {
+    return approvalWaitOf(await store.runs.findOne(runId)).approvalId;
 }
 
 /**

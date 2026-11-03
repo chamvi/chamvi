@@ -23,6 +23,7 @@ import {
 import type { AgentDefinition, ToolContext } from '@chamvi/core';
 import { wrapToolsForRun } from '../../../src/effect/wrap.ts';
 import { gateOutbound } from '../../../src/trust/module.ts';
+import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 
 const engines: Engine[] = [];
@@ -268,14 +269,14 @@ it('replays an ordinary approval after parallel taint adds an automatic gate on 
     await engine.start();
     await engine.idle();
 
-    const manual = (await store.runs.findOne(runId))!.waiting!;
+    const manual = approvalWait(await store.runs.findOne(runId))!;
 
     expect(manual.title).toBe('Manual send approval');
     expect(manual.approvalId).toBe('0:send:0');
     await engine.approve(runId, { approvalId: manual.approvalId, approved: true });
     await engine.idle();
 
-    const automatic = (await store.runs.findOne(runId))!.waiting!;
+    const automatic = approvalWait(await store.runs.findOne(runId))!;
 
     expect(automatic.approvalId).toMatch(/^bound:/);
     expect(send).not.toHaveBeenCalled();

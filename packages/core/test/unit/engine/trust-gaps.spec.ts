@@ -28,6 +28,7 @@ import { toolContextSchema } from '../../../src/tool/constants.ts';
 import { systemClock } from '../../../src/clock/index.ts';
 import { wrapToolsForRun } from '../../../src/effect/wrap.ts';
 import { createAgentState } from '../../../src/state/module.ts';
+import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 
 const engines: Engine[] = [];
@@ -125,19 +126,19 @@ it('asks the outbound gate before delivering an approval to another address, pri
     const gate = await ctx.store.runs.findOne(runId);
 
     expect(gate?.status).toBe('waiting');
-    expect(gate?.waiting?.approvalId).toMatch(/^bound:/);
-    expect(gate?.waiting?.body).toContain('elsewhere');
+    expect(approvalWait(gate)?.approvalId).toMatch(/^bound:/);
+    expect(approvalWait(gate)?.body).toContain('elsewhere');
     expect(ctx.sent.map((entry) => entry.address)).toEqual(['origin']);
     expect(JSON.stringify(ctx.sent)).not.toContain('private plan');
 
-    await ctx.engine.approve(runId, { approvalId: gate!.waiting!.approvalId, approved: true });
+    await ctx.engine.approve(runId, { approvalId: approvalWait(gate)!.approvalId, approved: true });
     await ctx.engine.idle();
 
     const asked = await ctx.store.runs.findOne(runId);
 
     expect(asked?.status).toBe('waiting');
-    expect(asked?.waiting?.address).toBe('elsewhere');
-    expect(asked?.waiting?.body).toBe('private plan');
+    expect(approvalWait(asked)?.address).toBe('elsewhere');
+    expect(approvalWait(asked)?.body).toBe('private plan');
 });
 
 it('sends an approval to the source address without the gate', async () => {
@@ -150,7 +151,7 @@ it('sends an approval to the source address without the gate', async () => {
     const run = await ctx.store.runs.findOne(runId);
 
     expect(run?.status).toBe('waiting');
-    expect(run?.waiting?.approvalId).not.toMatch(/^bound:/);
+    expect(approvalWait(run)?.approvalId).not.toMatch(/^bound:/);
     expect(ctx.sent.map((entry) => entry.address)).toEqual(['origin']);
 });
 
@@ -322,20 +323,20 @@ it('keeps the plain ordinals of parallel gated approvals in call order when gate
     const runId = await ctx.dispatch();
     const first = await ctx.store.runs.findOne(runId);
 
-    expect(first?.waiting?.approvalId).toMatch(/^bound:/);
-    expect(first?.waiting?.body).toContain('"x"');
+    expect(approvalWait(first)?.approvalId).toMatch(/^bound:/);
+    expect(approvalWait(first)?.body).toContain('"x"');
 
     // A's gate lookup is slow from now on: B passes its gate first on every replay
-    slow = first!.waiting!.approvalId;
+    slow = approvalWait(first)!.approvalId;
 
     for (let i = 0; i < 4; i++) {
         const run = await ctx.store.runs.findOne(runId);
 
-        if (!run?.waiting?.approvalId.startsWith('bound:')) {
+        if (!approvalWait(run)?.approvalId.startsWith('bound:')) {
             break;
         }
 
-        await ctx.engine.approve(runId, { approvalId: run.waiting.approvalId, approved: true });
+        await ctx.engine.approve(runId, { approvalId: approvalWait(run)!.approvalId, approved: true });
         await ctx.engine.idle();
         await new Promise((resolve) => {
             setTimeout(resolve, 50);
@@ -346,8 +347,8 @@ it('keeps the plain ordinals of parallel gated approvals in call order when gate
     const plain = await ctx.store.runs.findOne(runId);
 
     expect(plain?.status).toBe('waiting');
-    expect(plain?.waiting?.title).toBe('B');
-    expect(plain?.waiting?.approvalId).toMatch(/:1$/);
+    expect(approvalWait(plain)?.title).toBe('B');
+    expect(approvalWait(plain)?.approvalId).toMatch(/:1$/);
 });
 
 it('gates the reserved copy of the options a channel approval sends, not the caller\'s array changed afterwards', async () => {
@@ -375,7 +376,7 @@ it('gates the reserved copy of the options a channel approval sends, not the cal
     const runId = await ctx.dispatch();
     const run = await ctx.store.runs.findOne(runId);
 
-    expect(run?.waiting?.approvalId).toMatch(/^bound:/);
-    expect(run?.waiting?.body).toContain('Keep the branch');
-    expect(run?.waiting?.body).not.toContain('Delete the branch');
+    expect(approvalWait(run)?.approvalId).toMatch(/^bound:/);
+    expect(approvalWait(run)?.body).toContain('Keep the branch');
+    expect(approvalWait(run)?.body).not.toContain('Delete the branch');
 });

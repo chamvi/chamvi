@@ -54,6 +54,7 @@ async function render(run: RunWire): Promise<string> {
 
 const waiting = {
     kind: 'approval' as const,
+    id: 'call-1:0',
     approvalId: 'call-1:0',
     toolName: 'deploy',
     toolCallId: 'call-1',

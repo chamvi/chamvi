@@ -40,7 +40,11 @@ export type RunPage = {
 
 export type RunListFilter = {
     agent?: string;
+    /** `filter[parent]`: only the runs this run dispatched. */
+    parent?: string;
     status?: RunStatusLiteral[];
+    /** `filter[waiting]`: only the runs whose wait point is of this kind. */
+    waiting?: 'approval' | 'dispatch';
     limit?: number;
     offset?: number;
 };

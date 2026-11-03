@@ -27,6 +27,7 @@ import type {
     IEngine,
     ModelMessage,
 } from '@chamvi/core';
+import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { fakeSkillRuntime } from '../../utils/skill-runtime.ts';
@@ -186,7 +187,7 @@ describe('conversation execution admission', () => {
         });
 
         await resumed.engine.start();
-        await resumed.engine.approve(id, { approvalId: waiting.waiting!.approvalId, approved: true });
+        await resumed.engine.approve(id, { approvalId: approvalWait(waiting)!.approvalId, approved: true });
         await resumed.engine.idle();
         expect(await s.store.runs.findOne(id)).toMatchObject({ status: 'completed', output: 'finished' });
         expect(applied).toBe(1);
@@ -580,7 +581,7 @@ describe('conversation execution admission', () => {
 
         expect((await s.store.runs.findOne(id))?.status).toBe('waiting');
 
-        const waiting = (await s.store.runs.findOne(id))!.waiting!;
+        const waiting = approvalWait(await s.store.runs.findOne(id))!;
 
         allowed = false;
         await s.engine.approve(id, { approvalId: waiting.approvalId, approved: true }); await s.engine.idle();

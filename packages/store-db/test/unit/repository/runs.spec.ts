@@ -69,6 +69,7 @@ describePostgres('DatabaseRunRepository runs', () => {
             error: { code: 'X', message: 'm' },
             waiting: {
                 kind: 'approval',
+                id: 'ap1',
                 approvalId: 'ap1',
                 toolName: 'tool',
                 toolCallId: 'call-1',
@@ -99,11 +100,11 @@ describePostgres('DatabaseRunRepository runs', () => {
         expect(got!.trigger.receivedAt).toBeInstanceOf(Date);
         expect(got!.taint!.at).toBeInstanceOf(Date);
         expect(got!.waiting!.expiresAt).toBeInstanceOf(Date);
-        expect(got!.waiting!.notifiedAt).toBeInstanceOf(Date);
+        expect(got!.waiting!.kind === 'approval' && got!.waiting!.notifiedAt).toBeInstanceOf(Date);
         expect(got!.createdAt).toBeInstanceOf(Date);
         expect(got!.trigger.receivedAt.getTime()).toBe(run.trigger.receivedAt.getTime());
         expect(got!.waiting!.expiresAt.getTime()).toBe(run.waiting!.expiresAt.getTime());
-        expect(got!.waiting!.notifiedAt!.getTime()).toBe(run.waiting!.notifiedAt!.getTime());
+        expect(got!.waiting).toMatchObject({ notifiedAt: new Date(2_000_001) });
         expect(got!.createdAt.getTime()).toBe(run.createdAt.getTime());
         expect(got!.updatedAt.getTime()).toBe(run.updatedAt.getTime());
         expect(got!.startedAt!.getTime()).toBe(run.startedAt!.getTime());
@@ -129,6 +130,63 @@ describePostgres('DatabaseRunRepository runs', () => {
         for (const key of ['output', 'error', 'waiting', 'taint', 'claim', 'cancelRequested', 'concurrencyKey', 'address', 'startedAt', 'finishedAt']) {
             expect(keys).not.toContain(key);
         }
+    });
+
+    it('revives a dispatch wait point', async () => {
+        const waiting = {
+            kind: 'dispatch' as const,
+            id: '0:call-1:w1',
+            toolName: 'wait_for_dispatch',
+            toolCallId: 'call-1',
+            runIds: ['c2', 'c1', 'c2'],
+            expiresAt: new Date('2026-03-08T07:15:00.456Z'),
+        };
+
+        await store.insert(makeRun('r1', { status: 'waiting', waiting }));
+
+        const got = await store.findOneOrFail('r1');
+
+        expect(got.waiting).toEqual(waiting);
+        expect(got.waiting!.expiresAt).toBeInstanceOf(Date);
+
+        const updated = await store.update('r1', { cancelRequested: true }, { expectWaitId: '0:call-1:w1' });
+
+        expect(updated.waiting).toEqual(waiting);
+        await expect(store.update('r1', { cancelRequested: false }, { expectWaitId: '0:call-1:w2' }))
+            .rejects.toBeInstanceOf(InvalidRunStateError);
+    });
+
+    it('stores lineage and subtree usage as columns', async () => {
+        await store.insert(makeRun('p1'));
+        await store.insert(makeRun('c1', {
+            parentRunId: 'forged',
+            subtreeUsage: { inputTokens: 3, outputTokens: 4 },
+            trigger: {
+                ...makeRun('c1').trigger,
+                parent: {
+                    kind: 'dispatch',
+                    runId: 'p1',
+                    agent: 'a',
+                    role: 'default',
+                    depth: 1,
+                },
+            },
+        }));
+
+        const rows: { parent_run_id: string | null; subtree_usage: unknown }[] = await dataSource.query(
+            'SELECT parent_run_id, subtree_usage FROM chamvi_runs WHERE id = $1',
+            ['c1'],
+        );
+
+        expect(rows).toEqual([{ parent_run_id: 'p1', subtree_usage: { inputTokens: 3, outputTokens: 4 } }]);
+
+        // a patch never moves a run to another parent
+        await store.insert(makeRun('p2'));
+        await expect(store.update('c1', { parentRunId: 'p2' })).resolves.toMatchObject({ parentRunId: 'p1' });
+        await expect(store.find({ parentRunId: 'p1' })).resolves.toMatchObject({ total: 1 });
+        // the self reference refuses a parent row removal while a child names it
+        await expect(dataSource.query('DELETE FROM chamvi_runs WHERE id = $1', ['p1']))
+            .rejects.toMatchObject({ driverError: { code: '23503' } });
     });
 
     it('revives taint dates in update results and preserves taint through unrelated updates', async () => {
@@ -194,6 +252,7 @@ describePostgres('DatabaseRunRepository runs', () => {
             error: { code: 'X', message: 'm' },
             waiting: {
                 kind: 'approval',
+                id: 'ap1',
                 approvalId: 'ap1',
                 toolName: 'tool',
                 toolCallId: 'call-1',

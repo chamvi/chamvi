@@ -117,7 +117,7 @@ describe('existing-label trust exemption', () => {
             expect(run?.waiting?.toolName).toBe('github_create_issue');
             expect(issueWrites()).toHaveLength(0);
 
-            await engine.approve(runId, { approvalId: run!.waiting!.approvalId, approved: false });
+            await engine.approve(runId, { approvalId: run!.waiting!.id, approved: false });
             await engine.idle();
 
             expect((await store.runs.findOne(runId))?.status).toBe('completed');

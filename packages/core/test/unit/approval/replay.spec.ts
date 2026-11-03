@@ -23,6 +23,7 @@ import {
 } from '@chamvi/core';
 import type { IChannel, IEngine } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
+import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
@@ -167,7 +168,7 @@ describe('approval replay', () => {
         const runId = await dispatch(first.engine);
 
         await first.engine.idle();
-        expect((await store.runs.findOne(runId))?.waiting?.approvalId).toBe('0:c1:0');
+        expect(approvalWait(await store.runs.findOne(runId))?.approvalId).toBe('0:c1:0');
 
         hold = true;
         await first.engine.approve(runId, { approvalId: '0:c1:0', approved: true });
@@ -200,7 +201,7 @@ describe('approval replay', () => {
         await second.engine.idle();
         // only c2 replays: it asks for its own approval
         expect(deployed).toEqual(['prod']);
-        expect((await store.runs.findOne(runId))?.waiting?.approvalId).toBe('0:c2:0');
+        expect(approvalWait(await store.runs.findOne(runId))?.approvalId).toBe('0:c2:0');
         expect((await store.steps.find(runId)).filter((step) => step.kind === 'tool')).toHaveLength(1);
     });
 
@@ -233,7 +234,7 @@ describe('approval replay', () => {
 
         const run = await store.runs.findOne(runId);
 
-        expect(run?.waiting?.approvalId).toBe('0:c1:0');
+        expect(approvalWait(run)?.approvalId).toBe('0:c1:0');
         // neither call has a step or a result: both stay pending
         expect((await store.steps.find(runId)).map((step) => step.kind)).toEqual(['llm']);
         expect(JSON.stringify((await store.checkpoints.findOne(runId))?.messages)).not.toContain('suspended');

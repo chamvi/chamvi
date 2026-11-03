@@ -26,6 +26,7 @@ import type {
     IEngine,
 } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
+import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
@@ -159,9 +160,9 @@ describe('approve() with artifacts', () => {
         const { runId, run } = await dispatch(ctx);
 
         expect(run.status).toBe('waiting');
-        expect(run.waiting?.artifacts).toEqual([keyedArtifactId(runId, 'diff'), keyedArtifactId(runId, 'expected')]);
-        expect(run.waiting?.options?.[0]?.artifacts).toEqual([keyedArtifactId(runId, 'actual'), keyedArtifactId(runId, 'diff')]);
-        expect(run.waiting?.options?.[1]).toEqual({ id: 'bulma', label: 'Bulma theme' });
+        expect(approvalWait(run)?.artifacts).toEqual([keyedArtifactId(runId, 'diff'), keyedArtifactId(runId, 'expected')]);
+        expect(approvalWait(run)?.options?.[0]?.artifacts).toEqual([keyedArtifactId(runId, 'actual'), keyedArtifactId(runId, 'diff')]);
+        expect(approvalWait(run)?.options?.[1]).toEqual({ id: 'bulma', label: 'Bulma theme' });
     });
 
     it('records them on the wait step and resumes without duplicate artifacts', async () => {
@@ -174,7 +175,7 @@ describe('approve() with artifacts', () => {
         const { runId, run } = await dispatch(ctx);
 
         await ctx.engine.approve(runId, {
-            approvalId: run.waiting!.approvalId,
+            approvalId: approvalWait(run)!.approvalId,
             approved: true,
             selected: ['bootstrap'],
         });
@@ -218,7 +219,7 @@ describe('approve() with artifacts', () => {
         };
 
         await ctx.engine.approve(runId, {
-            approvalId: run.waiting!.approvalId,
+            approvalId: approvalWait(run)!.approvalId,
             approved: true,
             selected: ['bootstrap'],
         });
@@ -295,7 +296,7 @@ describe('approve() with artifacts', () => {
 
         const run = (await store.runs.findOne(runId))!;
 
-        expect(run.waiting?.artifacts).toEqual([keyedArtifactId(runId, 'k')]);
+        expect(approvalWait(run)?.artifacts).toEqual([keyedArtifactId(runId, 'k')]);
         expect(sent).toHaveLength(1);
         expect(sent[0]).not.toHaveProperty('artifacts');
         expect(sent[0]).toMatchObject({ options: [{ id: 'a', label: 'A' }] });
@@ -308,7 +309,7 @@ describe('approve() with artifacts', () => {
 
         expect(run.status).toBe('waiting');
         expect(Object.keys(run.waiting!)).not.toContain('artifacts');
-        expect(Object.keys(run.waiting!.options![0]!)).not.toContain('artifacts');
+        expect(Object.keys(approvalWait(run)!.options![0]!)).not.toContain('artifacts');
     });
 
     it('drops empty artifact lists', async () => {
@@ -325,7 +326,7 @@ describe('approve() with artifacts', () => {
 
         expect(run.status).toBe('waiting');
         expect(Object.keys(run.waiting!)).not.toContain('artifacts');
-        expect(Object.keys(run.waiting!.options![0]!)).not.toContain('artifacts');
+        expect(Object.keys(approvalWait(run)!.options![0]!)).not.toContain('artifacts');
     });
 
     /** n distinct existing artifacts of the run, so a refusal can only come from the cap. */
@@ -401,7 +402,7 @@ describe('approve() with artifacts', () => {
         const { run } = await dispatch(ctx);
 
         expect(run.status).toBe('waiting');
-        expect(run.waiting!.options!.map((option) => option.artifacts!.length)).toEqual([20, 20, 20, 20, 20]);
+        expect(approvalWait(run)!.options!.map((option) => option.artifacts!.length)).toEqual([20, 20, 20, 20, 20]);
     });
 
     it('accepts one id on several options', async () => {

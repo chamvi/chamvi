@@ -19,6 +19,7 @@ import type {
     IApiClient,
     RunListFilter,
     RunPage,
+    RunWire,
 } from '../api/types.ts';
 import { ACTIVITY_LIMIT } from '../agents/constants.ts';
 import { summarizeActivity } from '../agents/helpers.ts';
@@ -26,7 +27,11 @@ import type { Activity } from '../agents/types.ts';
 import { createPoller } from '../polling/module.ts';
 import { openRunStream } from '../sse/module.ts';
 import type { IRunStream, RunStreamOptions } from '../sse/types.ts';
-import { RUN_COUNTS_POLL_MS, RUN_LIST_POLL_MS } from './constants.ts';
+import {
+    RUN_CHILDREN_LIMIT,
+    RUN_COUNTS_POLL_MS,
+    RUN_LIST_POLL_MS,
+} from './constants.ts';
 import { isSettled, lastStepIndex, mergeRunEvent } from './helpers.ts';
 import type { RunDetailState } from './helpers.ts';
 
@@ -120,6 +125,75 @@ export function useRunActivity(client: IApiClient) {
     onScopeDispose(() => poller.stop());
 
     return { activity, error };
+}
+
+/**
+ * The runs `runId` dispatched (`filter[parent]`, newest first), polled
+ * every `RUN_LIST_POLL_MS` and refetched on another id and whenever
+ * `parent` (the viewed run, live over its stream) changes, since a child
+ * settling updates the parent's `subtreeUsage` (a `run.updated` of the
+ * replica it settled on; the poll covers the others). A 403 sets `forbidden`
+ * (an agent-scoped reader cannot list across agents) and drops the page.
+ */
+export function useRunChildren(client: IApiClient, runId: Ref<string>, parent?: Ref<RunWire | undefined>) {
+    const page = shallowRef<RunPage>();
+    const error = shallowRef<ApiError>();
+    const forbidden = ref(false);
+
+    const poller = createPoller(async () => {
+        const id = runId.value;
+
+        try {
+            const next = await client.listRuns({ parent: id, limit: RUN_CHILDREN_LIMIT });
+
+            if (id !== runId.value) {
+                return undefined;
+            }
+
+            page.value = next;
+            error.value = undefined;
+            forbidden.value = false;
+
+            return undefined;
+        } catch (e) {
+            if (id !== runId.value) {
+                return undefined;
+            }
+
+            error.value = asApiError(e);
+            forbidden.value = error.value.status === 403;
+
+            if (forbidden.value) {
+                page.value = undefined;
+            }
+
+            return retryDelayOf(error.value);
+        }
+    }, RUN_LIST_POLL_MS);
+
+    watch(runId, () => {
+        page.value = undefined;
+        forbidden.value = false;
+        void poller.refresh();
+    });
+
+    if (parent) {
+        watch(parent, (next, previous) => {
+            if (next && previous && next.id === previous.id) {
+                void poller.refresh();
+            }
+        });
+    }
+
+    poller.start();
+    onScopeDispose(() => poller.stop());
+
+    return {
+        page,
+        error,
+        forbidden,
+        refresh: () => poller.refresh(),
+    };
 }
 
 export type RunDetailDeps = {

@@ -30,6 +30,25 @@ export function makeRun(id: string, overrides: Partial<Run> = {}): Run {
     };
 }
 
+/** A run whose `trigger.parent` names `parentRunId` (created at `at`). */
+export function makeChild(id: string, parentRunId: string, at = 1_000): Run {
+    const run = makeRun(id, { createdAt: new Date(at), updatedAt: new Date(at) });
+
+    run.trigger = {
+        ...run.trigger,
+        channel: 'agent',
+        parent: {
+            kind: 'dispatch',
+            runId: parentRunId,
+            agent: 'a',
+            role: 'default',
+            depth: 1,
+        },
+    };
+
+    return run;
+}
+
 export function makeArtifact(id: string, overrides: Partial<Artifact> = {}): Artifact {
     return {
         id,

@@ -38,6 +38,25 @@ describe('parseRunListQuery', () => {
         expect(parse('filter[status]=queued').status).toEqual(['queued']);
     });
 
+    it('parses filter[parent]', () => {
+        expect(parse('filter[parent]=run-1&filter[agent]=echo&filter[status]=completed')).toEqual({
+            parent: 'run-1',
+            agent: 'echo',
+            status: ['completed'],
+            limit: 50,
+            offset: 0,
+            order: 'asc',
+        });
+    });
+
+    it.each([
+        'filter[parent]=a&filter[parent]=b',
+        'filter[parent]=a,b',
+        'filter[parent]=~a',
+    ])('refuses two filter[parent] (%s)', (query) => {
+        expect(() => parse(query)).toThrow('filter[parent] takes one run id.');
+    });
+
     it('reads an agent name the wire coerces to a scalar back as the registered name', () => {
         const names = ['123', '007', 'true', 'null', '0x10'];
         const read = (query: string) => parseRunListQuery(new URLSearchParams(query), names).agent;

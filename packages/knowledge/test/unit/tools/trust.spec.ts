@@ -185,7 +185,7 @@ it('taints the run after searching an untrusted collection and gates the next ou
 
     const calls = model.calls.length;
 
-    await engine.approve(runId, { approvalId: waiting!.waiting!.approvalId, approved: true });
+    await engine.approve(runId, { approvalId: waiting!.waiting!.id, approved: true });
     await engine.idle();
 
     const run = await store.runs.findOne(runId);

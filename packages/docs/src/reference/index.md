@@ -60,7 +60,7 @@ The envelope (`TriggerEnvelope`, `Invoker`):
 
 <<< ../../../core/src/trigger/types.ts{ts}
 
-Subscription builders live in the channel packages: `http.on()` and `webhook.on()` in [`@chamvi/http`](/reference/http), `cron.on()` in [`@chamvi/channel-cron`](/reference/channel-cron), `github.on()` in [`@chamvi/github`](/reference/github). See [Channels & the Envelope](/guide/channels).
+`agent.on()` (dispatch roles) is in core, see [Dispatch](#dispatch). The other subscription builders live in the channel packages: `http.on()` and `webhook.on()` in [`@chamvi/http`](/reference/http), `cron.on()` in [`@chamvi/channel-cron`](/reference/channel-cron), `github.on()` in [`@chamvi/github`](/reference/github). See [Channels & the Envelope](/guide/channels).
 
 ## Engine
 
@@ -247,6 +247,31 @@ const APPROVAL_OPTIONS_DETAIL_MAX_LENGTH: 100_000; // all details of one request
 <<< ../../../core/src/approval/types.ts{ts}
 
 `approve()` outside a tool call, or in a streaming tool's body, throws `InvalidRunStateError`; a `timeoutMs` that is no positive integer up to `APPROVAL_TIMEOUT_MAX_MS` is a `ValidationError`, as are options outside the limits above (see [Offering options](/guide/approvals#offering-options)). `ChannelHandle.approve()` is the same with the request delivered through the channel. The agent hooks (`AgentHooks`, `ToolCallInfo`) are on `AgentDefinition` above. See [Approvals & Hooks](/guide/approvals).
+
+## Dispatch
+
+```ts
+const agent: AgentSubscriber; // agent.on(options?): a role of the channel 'agent'
+function agentChannel(): IChannel; // name 'agent', no in, no out
+function dispatch(ctx: ToolContext, input: DispatchInput): Promise<DispatchResult>; // the own agent
+function dispatchTo(ctx: ToolContext, input: DispatchToInput): Promise<DispatchResult>; // another agent
+function waitForDispatch(ctx: ToolContext, run: string | DispatchResult, options?: DispatchWaitOptions): Promise<DispatchOutcome>;
+function waitForDispatch(ctx: ToolContext, runs: Array<string | DispatchResult>, options?: DispatchWaitOptions): Promise<DispatchOutcome[]>;
+function normalizeWaitPoint(raw: Record<string, unknown>): WaitPoint; // for repositories: a legacy approval gets its id
+function waitIdOf(waiting: WaitPoint | undefined): string | undefined; // id, else approvalId
+
+const DEFAULT_DISPATCH_ROLE: 'default';
+const DEFAULT_DISPATCH_MAX_DEPTH: 1;
+const DISPATCH_DEPTH_MAX: 8;
+const DEFAULT_MAX_DISPATCHES_PER_RUN: 100;
+const DEFAULT_DISPATCH_WAIT_TIMEOUT_MS: 86_400_000; // 24 hours
+```
+
+`AgentSubscriptionOptions`, `AgentSubscriber`, `DispatchInput`, `DispatchToInput`, `DispatchOutcome` and `DispatchWaitOptions` (`DispatchHost`, `DispatchRunSnapshot` and `DispatchWaitRecord` are internal):
+
+<<< ../../../core/src/dispatch/types.ts{ts}
+
+All three functions run inside a tool call only (`InvalidRunStateError` elsewhere; `waitForDispatch()` also in a streaming tool's body). A missing role, a caller not in `from`, a too deep child, the per-run limit, an invoker without `agent:<target>:run`, a held concurrency key and a run this run did not dispatch are `ValidationError` tool errors; a reached `budget.maxSubtreeTokens` is a `BudgetExceededError` tool error. See [Dispatch](/guide/dispatch).
 
 ## State
 

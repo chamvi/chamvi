@@ -43,6 +43,7 @@ const waitingRun = (approvalId = 'a1', overrides: Partial<RunWire> = {}) => wire
     status: 'waiting',
     waiting: {
         kind: 'approval',
+        id: approvalId,
         approvalId,
         toolName: 'deploy',
         toolCallId: 'call-1',

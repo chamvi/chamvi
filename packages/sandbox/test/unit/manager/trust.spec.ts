@@ -14,11 +14,20 @@ import {
     defineAgent,
     defineTool,
 } from '@chamvi/core';
-import type { ToolTrust } from '@chamvi/core';
+import type { ApprovalWaitPoint, Run, ToolTrust } from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { toolContext } from '../../utils/context.ts';
 import { mockModel } from '../../utils/model.ts';
 import { createFakeProvider } from '../../utils/provider.ts';
+
+/** The run's approval wait point; throws when it waits on none. */
+function approvalOf(run: Pick<Run, 'waiting'> | undefined): ApprovalWaitPoint {
+    if (run?.waiting?.kind !== 'approval') {
+        throw new Error('the run waits on no approval');
+    }
+
+    return run.waiting;
+}
 
 async function taint(tools: ToolSet, name: string, input: unknown): Promise<boolean | undefined> {
     const { taint: classify } = (tools[name] as Tool & { trust: ToolTrust }).trust;
@@ -536,15 +545,15 @@ describe('workspace tool trust classification', () => {
             const gate = await store.runs.findOne(runId);
 
             expect(gate?.status).toBe('waiting');
-            expect(gate?.waiting?.approvalId).toMatch(/^bound:/);
-            expect(JSON.parse(gate!.waiting!.body!)).toMatchObject({
+            expect(gate?.waiting?.id).toMatch(/^bound:/);
+            expect(JSON.parse(approvalOf(gate).body!)).toMatchObject({
                 tool: 'git_push',
                 detail: 'Push 1 commit to feature\nTo https://github.com/octo/demo.git:\nabc1234 fix the build\n' +
                     `Push ${'1'.repeat(40)} to feature at https://github.com/octo/demo.git (lease none)`,
             });
             expect(pushes).toBe(0);
 
-            await engine.approve(runId, { approvalId: gate!.waiting!.approvalId, approved: true });
+            await engine.approve(runId, { approvalId: gate!.waiting!.id, approved: true });
             await engine.idle();
 
             const run = await store.runs.findOne(runId);
@@ -631,7 +640,7 @@ describe('workspace tool trust classification', () => {
             expect(gate?.status).toBe('waiting');
 
             approved = true;
-            await engine.approve(runId, { approvalId: gate!.waiting!.approvalId, approved: true });
+            await engine.approve(runId, { approvalId: gate!.waiting!.id, approved: true });
             await engine.idle();
 
             return {
@@ -801,10 +810,10 @@ describe('workspace tool trust classification', () => {
         try {
             const gate = await t.store.runs.findOne(t.runId);
 
-            expect(gate?.waiting?.approvalId).toMatch(/^bound:/);
-            expect(gate?.waiting?.channel).toBeUndefined();
+            expect(gate?.waiting?.id).toMatch(/^bound:/);
+            expect(approvalOf(gate).channel).toBeUndefined();
 
-            await t.engine.approve(t.runId, { approvalId: gate!.waiting!.approvalId, approved: true });
+            await t.engine.approve(t.runId, { approvalId: gate!.waiting!.id, approved: true });
             await t.engine.idle();
 
             expect((await t.store.runs.findOne(t.runId))?.status).toBe('completed');

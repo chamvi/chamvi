@@ -5,8 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError, RunNotFoundError, RunStatus } from '@chamvi/core';
-import type { Run } from '@chamvi/core';
+import {
+    ChamviError,
+    RunNotFoundError,
+    RunStatus,
+    findApprovalWaitBelow,
+} from '@chamvi/core';
+import type { IEngine, Run } from '@chamvi/core';
 import { isHTTPError } from '@ebec/http';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
@@ -16,6 +21,7 @@ import type {
     McpRequestExtra,
     RunToolResult,
     WaitForRunOptions,
+    WaitForRunResult,
 } from './types.ts';
 
 /** A tool result carrying `value` as JSON text and as structured content. */
@@ -61,22 +67,52 @@ export function readRequestExtra(extra: Record<string, unknown> | undefined): Mc
     return extra as unknown as McpRequestExtra;
 }
 
-const WAIT_OVER = new Set<string>([
+const TERMINAL = new Set<string>([
     RunStatus.COMPLETED,
     RunStatus.FAILED,
     RunStatus.CANCELLED,
-    RunStatus.WAITING,
 ]);
 
+function isApprovalWait(run: Run): boolean {
+    return run.status === RunStatus.WAITING && run.waiting?.kind === 'approval';
+}
+
+function isDispatchWait(run: Run): boolean {
+    return run.status === RunStatus.WAITING && run.waiting?.kind === 'dispatch';
+}
+
 /**
- * Resolves with the run once it is `completed`, `failed`, `cancelled` or
- * `waiting` (seen through `run.updated` or a store poll every `pollMs`, which
- * covers runs executing on another replica), or with the latest stored run
- * when `timeoutMs` elapses or `signal` aborts. Rejects when the store fails.
- * Always unsubscribes and clears its timers.
+ * Whether a `run_<agent>` wait is over: the run is terminal, or waits on a
+ * human (an approval). A run waiting on its dispatched runs keeps the wait open.
  */
-export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOptions): Promise<Run> {
-    return new Promise<Run>((resolve, reject) => {
+export function isWaitOver(run: Run): boolean {
+    return TERMINAL.has(run.status) || isApprovalWait(run);
+}
+
+/**
+ * The run itself when it waits on an approval, else the first unsettled
+ * descendant that does (`findApprovalWaitBelow()`); `undefined` without one.
+ */
+export async function findWaitingApproval(engine: IEngine, runId: string): Promise<Run | undefined> {
+    const root = await engine.store.runs.findOne(runId);
+
+    if (!root) {
+        return undefined;
+    }
+
+    return isApprovalWait(root) ? root : findApprovalWaitBelow(engine.store.runs, root);
+}
+
+/**
+ * Resolves once the run is `completed`, `failed`, `cancelled` or `waiting`
+ * on an approval, or waits on a dispatch while a descendant waits on an
+ * approval (`approval`; seen through `run.updated` or a store poll every
+ * `pollMs`, which covers runs executing on another replica), or with the
+ * latest stored run when `timeoutMs` elapses or `signal` aborts. Rejects when
+ * the store fails. Always unsubscribes and clears its timers.
+ */
+export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOptions): Promise<WaitForRunResult> {
+    return new Promise<WaitForRunResult>((resolve, reject) => {
         let done = false;
         let poll: { clear(): void } | undefined;
         let timeout: { clear(): void } | undefined;
@@ -99,7 +135,7 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
 
         function settle(run: Run | undefined): void {
             if (run) {
-                resolve(run);
+                resolve({ run });
             } else {
                 reject(new RunNotFoundError(runId));
             }
@@ -114,18 +150,61 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
             ctx.store.runs.findOne(runId).then(settle, reject);
         }
 
+        /** The answer when the wait is over (`null`: the run is gone), else `undefined`. */
+        async function inspect(run: Run | undefined): Promise<WaitForRunResult | null | undefined> {
+            if (!run) {
+                return null;
+            }
+
+            if (isWaitOver(run)) {
+                return { run };
+            }
+
+            if (!isDispatchWait(run)) {
+                return undefined;
+            }
+
+            const approval = await findWaitingApproval(ctx.engine, runId);
+
+            return approval ? { run, approval } : undefined;
+        }
+
+        function finish(result: WaitForRunResult | null | undefined): boolean {
+            if (result === undefined || !stop()) {
+                return false;
+            }
+
+            if (result === null) {
+                reject(new RunNotFoundError(runId));
+            } else {
+                resolve(result);
+            }
+
+            return true;
+        }
+
+        function fail(error: unknown): void {
+            if (stop()) {
+                reject(error);
+            }
+        }
+
+        /** Checks on an event: no poll of its own. */
+        function probe(): void {
+            ctx.store.runs.findOne(runId)
+                .then(inspect)
+                .then((result) => {
+                    if (!done) {
+                        finish(result);
+                    }
+                }, fail);
+        }
+
         async function check(): Promise<void> {
             try {
-                const run = await ctx.store.runs.findOne(runId);
+                const result = await inspect(await ctx.store.runs.findOne(runId));
 
-                if (done) {
-                    return;
-                }
-
-                if (!run || WAIT_OVER.has(run.status)) {
-                    stop();
-                    settle(run);
-
+                if (done || finish(result)) {
                     return;
                 }
 
@@ -133,9 +212,7 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
                     void check();
                 }, opts.pollMs);
             } catch (error) {
-                if (stop()) {
-                    reject(error);
-                }
+                fail(error);
             }
         }
 
@@ -146,12 +223,19 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
         }
 
         unsubscribe = ctx.engine.on('run.updated', (e) => {
-            if (e.run.id !== runId || !WAIT_OVER.has(e.run.status)) {
+            if (e.run.id === runId) {
+                if (isWaitOver(e.run)) {
+                    finish({ run: e.run });
+                } else if (isDispatchWait(e.run)) {
+                    probe();
+                }
+
                 return;
             }
 
-            if (stop()) {
-                resolve(e.run);
+            // a descendant (or any other run) pausing for an approval
+            if (isApprovalWait(e.run)) {
+                probe();
             }
         });
         signal?.addEventListener('abort', settleLatest, { once: true });
@@ -160,8 +244,11 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
     });
 }
 
-/** What `run_<agent>` answers for a run. */
-export function toRunToolResult(run: Run, deduplicated: boolean): RunToolResult {
+/**
+ * What `run_<agent>` answers for a run: `waiting` is the approval of
+ * `approval` (a descendant) when given, else the run's own wait point.
+ */
+export function toRunToolResult(run: Run, deduplicated: boolean, approval?: Run): RunToolResult {
     const result: RunToolResult = {
         runId: run.id,
         status: run.status,
@@ -176,15 +263,28 @@ export function toRunToolResult(run: Run, deduplicated: boolean): RunToolResult 
         result.error = run.error;
     }
 
-    if (run.waiting) {
+    const waiter = approval ?? run;
+    const { waiting } = waiter;
+
+    if (waiting?.kind === 'approval') {
         result.waiting = {
-            toolName: run.waiting.toolName,
-            title: run.waiting.title,
-            ...(run.waiting.body !== undefined ? { body: run.waiting.body } : {}),
-            ...(run.waiting.artifacts !== undefined ? { artifacts: run.waiting.artifacts } : {}),
-            ...(run.waiting.options !== undefined ? { options: run.waiting.options } : {}),
-            ...(run.waiting.multiple === true ? { multiple: true } : {}),
-            expiresAt: run.waiting.expiresAt.toISOString(),
+            kind: 'approval',
+            runId: waiter.id,
+            agent: waiter.agent,
+            toolName: waiting.toolName,
+            title: waiting.title,
+            ...(waiting.body !== undefined ? { body: waiting.body } : {}),
+            ...(waiting.artifacts !== undefined ? { artifacts: waiting.artifacts } : {}),
+            ...(waiting.options !== undefined ? { options: waiting.options } : {}),
+            ...(waiting.multiple === true ? { multiple: true } : {}),
+            expiresAt: waiting.expiresAt.toISOString(),
+        };
+    } else if (waiting?.kind === 'dispatch') {
+        result.waiting = {
+            kind: 'dispatch',
+            toolName: waiting.toolName,
+            runIds: [...waiting.runIds],
+            expiresAt: waiting.expiresAt.toISOString(),
         };
     }
 

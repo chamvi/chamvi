@@ -11,7 +11,7 @@ import { computed, onScopeDispose, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAgents } from '../agents/composables.ts';
 import { ApiError } from '../api/error.ts';
-import { approvalLinkQuery } from '../approvals/helpers.ts';
+import { approvalLinkQuery, approvalWaitOf } from '../approvals/helpers.ts';
 import JsonBlock from '../components/json-block/JsonBlock.vue';
 import NavIcon from '../components/nav-icon/NavIcon.vue';
 import StatusChip from '../components/status-chip/StatusChip.vue';
@@ -21,15 +21,19 @@ import UntrustedChip from '../components/untrusted-chip/UntrustedChip.vue';
 import UsageMeter from '../components/usage-meter/UsageMeter.vue';
 import { useAppContext } from '../context/module.ts';
 import { RouteName } from '../router/constants.ts';
-import { useRunDetail } from '../runs/composables.ts';
+import type { RunWire } from '../api/types.ts';
+import { useRunChildren, useRunDetail } from '../runs/composables.ts';
 import {
     canCancel,
+    childRole,
+    dispatchCallout,
     formatDuration,
     formatTokens,
     landedModelSteps,
     parentOf,
     runDuration,
     shortId,
+    subtreeTotal,
 } from '../runs/helpers.ts';
 
 const { client, session } = useAppContext();
@@ -54,6 +58,17 @@ const clock = setInterval(() => {
 onScopeDispose(() => clearInterval(clock));
 
 const run = computed(() => state.value?.run);
+const { page: childPage, forbidden: childrenForbidden } = useRunChildren(client, runId, run);
+const childRows = computed(() => childPage.value?.data ?? []);
+const CHILD_COLUMNS = [
+    { key: 'id', label: 'Run' },
+    { key: 'agent', label: 'Agent' },
+    { key: 'role', label: 'Role' },
+    { key: 'status', label: 'Status' },
+];
+const childRow = (value: unknown) => value as RunWire;
+const subtree = computed(() => (run.value ? subtreeTotal(run.value) : undefined));
+const dispatchLine = computed(() => (run.value ? dispatchCallout(run.value) : undefined));
 const budget = computed(() => agents.value.find((agent) => agent.name === run.value?.agent)?.budget);
 const permissions = computed(() => session.principal.value?.permissions ?? []);
 const parent = computed(() => (run.value ? parentOf(run.value) : undefined));
@@ -191,6 +206,15 @@ async function onCancel(): Promise<void> {
                             </RouterLink>
                         </dd>
                     </div>
+                    <div v-if="subtree !== undefined">
+                        <dt>subtree</dt>
+                        <dd
+                            class="tnum"
+                            data-testid="subtree-total"
+                        >
+                            {{ formatTokens(subtree) }} tok
+                        </dd>
+                    </div>
                     <div v-if="run.concurrencyKey">
                         <dt>key</dt>
                         <dd class="mono">
@@ -248,14 +272,14 @@ async function onCancel(): Promise<void> {
         </section>
 
         <div
-            v-if="run.status === 'waiting' && run.waiting"
+            v-if="run.status === 'waiting' && approvalWaitOf(run)"
             class="callout"
             style="margin-bottom: 26px"
         >
             <div class="callout-head">
                 <span class="callout-icon"><NavIcon name="hand" /></span>
                 <div class="callout-title">
-                    <h2>{{ run.waiting.toolName }}<StatusChip status="waiting" /></h2>
+                    <h2>{{ approvalWaitOf(run)?.toolName }}<StatusChip status="waiting" /></h2>
                     <p>The run waits for an approval of this tool call.</p>
                 </div>
                 <RouterLink
@@ -266,6 +290,73 @@ async function onCancel(): Promise<void> {
                 </RouterLink>
             </div>
         </div>
+
+        <div
+            v-if="dispatchLine"
+            class="callout"
+            style="margin-bottom: 26px"
+            data-testid="dispatch-callout"
+        >
+            <div class="callout-head">
+                <span class="callout-icon"><NavIcon name="play" /></span>
+                <div class="callout-title">
+                    <h2>{{ run.waiting?.toolName }}<StatusChip status="waiting" /></h2>
+                    <p>{{ dispatchLine }}.</p>
+                </div>
+            </div>
+        </div>
+
+        <template v-if="childrenForbidden || childRows.length > 0">
+            <div class="section-head">
+                <h2 class="display">
+                    Dispatched runs
+                </h2>
+                <span v-if="childPage">{{ childPage.meta.total }}</span>
+            </div>
+            <div
+                v-if="childrenForbidden"
+                class="card notice"
+                style="margin-bottom: 26px"
+                data-testid="children-forbidden"
+            >
+                Listing dispatched runs needs <b class="mono">run:read</b>.
+            </div>
+            <div
+                v-else
+                class="card table-card"
+                style="margin-bottom: 26px"
+            >
+                <div class="table-wrap">
+                    <VCTable
+                        class="t stack"
+                        :columns="CHILD_COLUMNS"
+                        :data="childRows"
+                        data-testid="children"
+                    >
+                        <template #cell-id="{ row: value }">
+                            <RouterLink
+                                class="id"
+                                :to="{ name: RouteName.RUN, params: { id: childRow(value).id } }"
+                                data-testid="child-link"
+                            >
+                                {{ shortId(childRow(value).id) }}
+                            </RouterLink>
+                        </template>
+                        <template #cell-agent="{ row: value }">
+                            <RouterLink :to="{ name: RouteName.AGENT, params: { name: childRow(value).agent } }">
+                                {{ childRow(value).agent }}
+                            </RouterLink>
+                        </template>
+                        <template #cell-role="{ row: value }">
+                            <span class="mono">{{ childRole(childRow(value)) }}</span>
+                        </template>
+                        <template #cell-status="{ row: value }">
+                            <StatusChip :status="childRow(value).status" />
+                        </template>
+                    </VCTable>
+                </div>
+            </div>
+        </template>
 
         <div class="section-head">
             <h2 class="display">

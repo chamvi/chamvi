@@ -10,8 +10,8 @@ import type { IChannel } from './types.ts';
 
 /**
  * The channel runs started by another run come in on (channel `agent`):
- * no `start`, no `in`, no `out`. It is registered so a `handoff.on()`
- * subscription validates; `startHandoff()` dispatches its runs. `@chamvi/app`
+ * no `start`, no `in`, no `out`. It is registered so an `agent.on()`
+ * role validates; `dispatch()` starts its runs. `@chamvi/app`
  * contributes it; a bare `Engine` lists it in `channels`.
  */
 export function agentChannel(): IChannel {

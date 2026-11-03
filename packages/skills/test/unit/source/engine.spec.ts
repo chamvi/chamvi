@@ -235,7 +235,7 @@ it('rejects changed Git bytes under an old content pin before recovery and prese
         engines.push(restarted);
         await restarted.start();
         expect(resumedModel.doStreamCalls).toHaveLength(0);
-        await restarted.approve(runId, { approvalId: paused!.waiting!.approvalId, approved: true });
+        await restarted.approve(runId, { approvalId: paused!.waiting!.id, approved: true });
         await restarted.idle();
         expect((await store.runs.findOne(runId))?.status).toBe('completed');
 

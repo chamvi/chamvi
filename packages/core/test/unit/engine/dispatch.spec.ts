@@ -481,7 +481,7 @@ describe('Engine.dispatch', () => {
         await flush();
         await flush();
 
-        // one chain means one approval expiry check, one recovery and one scheduling pass per poll tick
+        // one chain means one approval expiry check, one recovery and one scheduling pass per poll tick (no dispatch role: no cascade heal)
         const statuses = list.mock.calls.map(([q]) => q.status?.join());
 
         expect(statuses).toEqual(['waiting', 'running,interrupted', 'queued']);
@@ -512,9 +512,10 @@ describe('Engine.on', () => {
 
 describe('dispatch keeps lineage private', () => {
     const parent = {
-        kind: 'handoff' as const,
+        kind: 'dispatch' as const,
         runId: 'x',
         agent: 'triage',
+        role: 'default',
         depth: 1,
     };
 

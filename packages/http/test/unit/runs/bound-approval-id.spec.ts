@@ -8,7 +8,12 @@
 import { describe, expect, it } from 'vitest';
 import { defineAgent, defineTool } from '@chamvi/core';
 import { z } from 'zod';
-import { ADMIN_TOKEN, call, createRunTestApp } from '../../utils/app.ts';
+import {
+    ADMIN_TOKEN,
+    approvalWaitOf,
+    call,
+    createRunTestApp,
+} from '../../utils/app.ts';
 import { callTool, connectMcp } from '../../utils/mcp.ts';
 import { mockModel } from '../../utils/model.ts';
 
@@ -62,10 +67,10 @@ describe('automatic approvals with long provider call ids', () => {
 
             expect(run.status).toBe('waiting');
             expect(run.waiting?.toolCallId).toBe(toolCallId);
-            expect(run.waiting!.approvalId.length).toBeLessThanOrEqual(255);
+            expect(approvalWaitOf(run).approvalId.length).toBeLessThanOrEqual(255);
             expect(writes).toBe(0);
 
-            const body = { approvalId: run.waiting!.approvalId, approved: true };
+            const body = { approvalId: approvalWaitOf(run).approvalId, approved: true };
 
             if (transport === 'REST') {
                 const response = await call(setup.app, 'POST', `/runs/${runId}/approve`, { token: ADMIN_TOKEN, body });

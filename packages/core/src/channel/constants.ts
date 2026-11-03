@@ -5,5 +5,5 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-/** The channel hand-offs (and later delegations) of one agent to an agent come in on. */
+/** The channel dispatched runs (dispatch(), the roles of `agent.on()`) come in on. */
 export const AGENT_CHANNEL_NAME = 'agent';

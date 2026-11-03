@@ -26,6 +26,12 @@ export type Budget = {
      * execution of the run gets the full timeout again.
      */
     timeoutMs?: number;
+    /**
+     * Total tokens (input + output) of every descendant dispatched below a
+     * run of this agent: at or over it, dispatch() and dispatchTo() refuse
+     * (checked at dispatch time only, running children are not stopped).
+     */
+    maxSubtreeTokens?: number;
 };
 
 export type RunTaint = { at: Date; source: string };
@@ -39,8 +45,10 @@ export type RunContext = {
 };
 
 /** The approval a `waiting` run waits on, as approve() requested it. */
-export type WaitPoint = {
+export type ApprovalWaitPoint = {
     kind: 'approval';
+    /** The generic wait id, always equal to `approvalId` (a stored wait point without it reads back with it). */
+    id: string;
     /** `<stepIndex>:<toolCallId>:<n>` of the stored checkpoint's pending call: never changes after the pause. */
     approvalId: string;
     toolName: string;
@@ -65,6 +73,21 @@ export type WaitPoint = {
     notifiedAt?: Date;
 };
 
+/** The dispatched runs a `waiting` run waits on to settle. */
+export type DispatchWaitPoint = {
+    kind: 'dispatch';
+    /** `<stepIndex>:<toolCallId>:w<n>`: never changes after the pause. */
+    id: string;
+    toolName: string;
+    toolCallId: string;
+    /** The runs waited on, in the caller's order (duplicates allowed). */
+    runIds: string[];
+    expiresAt: Date;
+};
+
+/** What a `waiting` run waits on, by `kind`. */
+export type WaitPoint = ApprovalWaitPoint | DispatchWaitPoint;
+
 export type Run = {
     id: string;
     agent: string;
@@ -83,6 +106,13 @@ export type Run = {
      */
     error?: { code: string; message: string };
     usage: Usage;
+    /** The sum of every descendant's usage, recomputed from the children (never incremented). */
+    subtreeUsage?: Usage;
+    /**
+     * The run that dispatched this one (`trigger.parent.runId`); set by the
+     * repository at insert, never from the caller.
+     */
+    parentRunId?: string;
     waiting?: WaitPoint;
     claim?: { owner: string; expiresAt: Date };
     /**

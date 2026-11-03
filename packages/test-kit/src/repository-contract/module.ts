@@ -14,13 +14,21 @@ import {
 } from '@chamvi/core';
 import type {
     AgentRevision,
+    ApprovalWaitPoint,
     Artifact,
     Checkpoint,
+    DispatchWaitPoint,
     IStore,
     Step,
+    WaitPoint,
 } from '@chamvi/core';
 import { ControllableClock } from '../clock/index.ts';
-import { makeAgentRevision, makeArtifact, makeRun } from './helpers.ts';
+import {
+    makeAgentRevision,
+    makeArtifact,
+    makeChild,
+    makeRun,
+} from './helpers.ts';
 
 /**
  * Shared behavioural contract for every store.
@@ -645,9 +653,10 @@ export function describeRepositoryContract(
             const { store } = await setup();
             const run = makeRun('r1');
             const parent = {
-                kind: 'handoff' as const,
+                kind: 'dispatch' as const,
                 runId: 'p1',
                 agent: 'a',
+                role: 'default',
                 depth: 1,
             };
 
@@ -656,12 +665,347 @@ export function describeRepositoryContract(
                 channel: 'agent',
                 parent,
             };
+            await store.runs.insert(makeRun('p1'));
             await store.runs.insert(run);
             expect((await store.runs.findOne('r1'))?.trigger.parent).toEqual(parent);
 
-            const listed = await store.runs.find({});
+            const listed = await store.runs.find({ ids: ['r1'] });
 
             expect(listed.data[0]?.trigger.parent).toEqual(parent);
+        });
+
+        it('parentRunId is derived from trigger.parent and filters children', async () => {
+            const { store } = await setup();
+
+            await store.runs.insert(makeRun('p1'));
+            await store.runs.insert(makeChild('r2', 'p1', 2_000));
+            await store.runs.insert(makeChild('r1', 'p1', 1_500));
+            await store.runs.insert(makeRun('r3'));
+
+            const children = await store.runs.find({ parentRunId: 'p1' });
+
+            expect(children.data.map((r) => r.id)).toEqual(['r1', 'r2']);
+            expect(children.total).toBe(2);
+            expect((await store.runs.findOne('r1'))?.parentRunId).toBe('p1');
+            expect((await store.runs.findOne('r3'))?.parentRunId).toBeUndefined();
+            expect((await store.runs.findOne('p1'))?.parentRunId).toBeUndefined();
+            expect((await store.runs.find({ parentRunId: 'r3' })).data).toEqual([]);
+        });
+
+        it('hasParent filters runs with and without a parent, with paging and total', async () => {
+            const { store } = await setup();
+
+            await store.runs.insert(makeRun('p1', { createdAt: new Date(500) }));
+            await store.runs.insert(makeChild('r1', 'p1', 1_000));
+            await store.runs.insert(makeRun('r2', { createdAt: new Date(1_500) }));
+            await store.runs.insert(makeChild('r3', 'r1', 2_000));
+            await store.runs.update('r3', { status: RunStatus.RUNNING });
+
+            const children = await store.runs.find({ hasParent: true });
+
+            expect(children.data.map((r) => r.id)).toEqual(['r1', 'r3']);
+            expect(children.total).toBe(2);
+            expect((await store.runs.find({ hasParent: false })).data.map((r) => r.id)).toEqual(['p1', 'r2']);
+
+            const page = await store.runs.find({
+                hasParent: true,
+                limit: 1,
+                offset: 1,
+            });
+
+            expect(page.data.map((r) => r.id)).toEqual(['r3']);
+            expect(page.total).toBe(2);
+            expect((await store.runs.find({ hasParent: true, limit: 0 })).total).toBe(2);
+            expect((await store.runs.find({ hasParent: true, status: [RunStatus.RUNNING] })).data.map((r) => r.id)).toEqual(['r3']);
+            expect((await store.runs.find({ hasParent: true, parentRunId: 'p1' })).data.map((r) => r.id)).toEqual(['r1']);
+            expect((await store.runs.find({ hasParent: false, parentRunId: 'p1' })).total).toBe(0);
+        });
+
+        it('parentRunIds filters the children of several runs, with paging and total', async () => {
+            const { store } = await setup();
+
+            await store.runs.insert(makeRun('p1', { createdAt: new Date(100) }));
+            await store.runs.insert(makeRun('p2', { createdAt: new Date(200) }));
+            await store.runs.insert(makeRun('p3', { createdAt: new Date(300) }));
+            await store.runs.insert(makeChild('c3', 'p2', 3_000));
+            await store.runs.insert(makeChild('c1', 'p1', 1_000));
+            await store.runs.insert(makeChild('c2', 'p3', 2_000));
+            await store.runs.insert(makeChild('c4', 'p1', 4_000));
+            await store.runs.update('c4', { status: RunStatus.RUNNING });
+
+            const children = await store.runs.find({ parentRunIds: ['p1', 'p2'] });
+
+            expect(children.data.map((r) => r.id)).toEqual(['c1', 'c3', 'c4']);
+            expect(children.total).toBe(3);
+            expect((await store.runs.find({ parentRunIds: [] })).data).toEqual([]);
+            expect((await store.runs.find({ parentRunIds: [] })).total).toBe(0);
+
+            const page = await store.runs.find({
+                parentRunIds: ['p1', 'p2'],
+                limit: 1,
+                offset: 1,
+            });
+
+            expect(page.data.map((r) => r.id)).toEqual(['c3']);
+            expect(page.total).toBe(3);
+            expect((await store.runs.find({ parentRunIds: ['p1', 'p2'], status: [RunStatus.RUNNING] })).data.map((r) => r.id)).toEqual(['c4']);
+            expect((await store.runs.find({ parentRunIds: ['p1', 'p2'], parentRunId: 'p2' })).data.map((r) => r.id)).toEqual(['c3']);
+            expect((await store.runs.find({ parentRunIds: ['p1'], parentRunId: 'p2' })).total).toBe(0);
+            expect((await store.runs.find({ parentRunIds: ['p1'], hasParent: false })).total).toBe(0);
+        });
+
+        it('parentRunId comes from trigger.parent, never from the caller (insert or update)', async () => {
+            const { store } = await setup();
+
+            await store.runs.insert(makeRun('p1'));
+            await store.runs.insert(makeRun('r1', { parentRunId: 'p1' }));
+
+            expect((await store.runs.findOne('r1'))?.parentRunId).toBeUndefined();
+            expect((await store.runs.find({ parentRunId: 'p1' })).data).toEqual([]);
+
+            await store.runs.insert(makeChild('c1', 'p1'));
+            await store.runs.update('r1', { parentRunId: 'p1' });
+            await store.runs.update('c1', { parentRunId: 'r1', status: RunStatus.RUNNING });
+
+            expect((await store.runs.findOne('r1'))?.parentRunId).toBeUndefined();
+            expect((await store.runs.findOne('c1'))?.parentRunId).toBe('p1');
+            expect((await store.runs.find({ parentRunId: 'p1' })).data.map((r) => r.id)).toEqual(['c1']);
+        });
+
+        it('insert of a child whose parent is absent throws RunNotFoundError and writes nothing', async () => {
+            const { store } = await setup();
+
+            await expect(store.runs.insert(makeChild('r1', 'missing'))).rejects.toBeInstanceOf(RunNotFoundError);
+            expect(await store.runs.findOne('r1')).toBeUndefined();
+        });
+
+        it('find({ ids }) returns exactly the listed runs', async () => {
+            const { store } = await setup();
+
+            await store.runs.insert(makeRun('r1', { createdAt: new Date(1_000) }));
+            await store.runs.insert(makeRun('r2', { createdAt: new Date(2_000) }));
+            await store.runs.insert(makeRun('r3', { createdAt: new Date(3_000) }));
+
+            const listed = await store.runs.find({ ids: ['r3', 'missing', 'r1'] });
+
+            expect(listed.data.map((r) => r.id)).toEqual(['r1', 'r3']);
+            expect(listed.total).toBe(2);
+            expect(await store.runs.find({ ids: [] })).toEqual({ data: [], total: 0 });
+        });
+
+        it('subtreeUsage round-trips and survives unrelated updates', async () => {
+            const { store } = await setup();
+            const subtreeUsage = { inputTokens: 10, outputTokens: 5 };
+
+            await store.runs.insert(makeRun('r1', { subtreeUsage }));
+            await store.runs.insert(makeRun('r2'));
+
+            expect((await store.runs.findOne('r1'))?.subtreeUsage).toEqual(subtreeUsage);
+            expect((await store.runs.findOne('r2'))?.subtreeUsage).toBeUndefined();
+
+            const updated = await store.runs.update('r1', { status: RunStatus.RUNNING });
+
+            expect(updated.subtreeUsage).toEqual(subtreeUsage);
+            expect((await store.runs.findOne('r1'))?.subtreeUsage).toEqual(subtreeUsage);
+
+            await store.runs.update('r2', { subtreeUsage: { inputTokens: 1, outputTokens: 2 } });
+            expect((await store.runs.findOne('r2'))?.subtreeUsage).toEqual({ inputTokens: 1, outputTokens: 2 });
+        });
+
+        it('both wait point kinds round-trip with Date revival', async () => {
+            const { store } = await setup();
+            const approval: ApprovalWaitPoint = {
+                kind: 'approval',
+                id: '0:c1:0',
+                approvalId: '0:c1:0',
+                toolName: 'deploy',
+                toolCallId: 'c1',
+                title: 'Deploy?',
+                options: [{ id: 'yes', label: 'Yes' }],
+                channel: 'console',
+                expiresAt: new Date(5_000),
+                notifiedAt: new Date(2_000),
+            };
+            const dispatch: DispatchWaitPoint = {
+                kind: 'dispatch',
+                id: '1:c2:w0',
+                toolName: 'review',
+                toolCallId: 'c2',
+                runIds: ['c1', 'c2'],
+                expiresAt: new Date(9_000),
+            };
+
+            await store.runs.insert(makeRun('r1', { status: RunStatus.WAITING, waiting: approval }));
+            await store.runs.insert(makeRun('r2'));
+            await store.runs.update('r2', { status: RunStatus.WAITING, waiting: dispatch });
+
+            const first = await store.runs.findOneOrFail('r1');
+            const second = await store.runs.findOneOrFail('r2');
+
+            expect(first.waiting).toEqual(approval);
+            expect(first.waiting?.expiresAt).toBeInstanceOf(Date);
+            expect(first.waiting?.kind === 'approval' ? first.waiting.notifiedAt : undefined).toBeInstanceOf(Date);
+            expect(second.waiting).toEqual(dispatch);
+            expect(second.waiting?.expiresAt).toBeInstanceOf(Date);
+
+            const listed = await store.runs.find({ ids: ['r2'] });
+
+            expect(listed.data[0]?.waiting).toEqual(dispatch);
+            expect(listed.data[0]?.waiting?.expiresAt).toBeInstanceOf(Date);
+        });
+
+        it('waitKind filters by the wait point kind, with paging and total', async () => {
+            const { store } = await setup();
+            const approval = (id: string): ApprovalWaitPoint => ({
+                kind: 'approval',
+                id,
+                approvalId: id,
+                toolName: 'deploy',
+                toolCallId: 'c1',
+                title: 'Deploy?',
+                expiresAt: new Date(5_000),
+            });
+            const dispatch: DispatchWaitPoint = {
+                kind: 'dispatch',
+                id: '1:c2:w0',
+                toolName: 'review',
+                toolCallId: 'c2',
+                runIds: ['x'],
+                expiresAt: new Date(9_000),
+            };
+
+            await store.runs.insert(makeRun('r1', {
+                status: RunStatus.WAITING,
+                waiting: approval('0:c1:0'),
+                createdAt: new Date(1_000),
+            }));
+            await store.runs.insert(makeRun('r2', {
+                status: RunStatus.WAITING,
+                waiting: dispatch,
+                createdAt: new Date(2_000),
+            }));
+            await store.runs.insert(makeRun('r3', {
+                status: RunStatus.WAITING,
+                waiting: approval('0:c1:1'),
+                createdAt: new Date(3_000),
+            }));
+            await store.runs.insert(makeRun('r4', { createdAt: new Date(4_000) }));
+
+            const approvals = await store.runs.find({ waitKind: 'approval' });
+
+            expect(approvals.data.map((r) => r.id)).toEqual(['r1', 'r3']);
+            expect(approvals.total).toBe(2);
+            expect((await store.runs.find({ waitKind: 'dispatch' })).data.map((r) => r.id)).toEqual(['r2']);
+
+            const page = await store.runs.find({
+                status: [RunStatus.WAITING],
+                waitKind: 'approval',
+                limit: 1,
+                offset: 1,
+            });
+
+            expect(page.data.map((r) => r.id)).toEqual(['r3']);
+            expect(page.total).toBe(2);
+            expect((await store.runs.find({ waitKind: 'approval', limit: 0 })).total).toBe(2);
+        });
+
+        it('a legacy approval wait point without id reads back with id = approvalId', async () => {
+            const { store } = await setup();
+            const legacy = {
+                kind: 'approval',
+                approvalId: '0:c1:0',
+                toolName: 'deploy',
+                toolCallId: 'c1',
+                title: 'Deploy?',
+                expiresAt: new Date(5_000),
+            } as unknown as WaitPoint;
+
+            await store.runs.insert(makeRun('r1'));
+
+            const updated = await store.runs.update('r1', { status: RunStatus.WAITING, waiting: legacy });
+
+            expect(updated.waiting?.id).toBe('0:c1:0');
+            expect((await store.runs.findOneOrFail('r1')).waiting).toEqual({ ...legacy, id: '0:c1:0' });
+            expect((await store.runs.find({ ids: ['r1'] })).data[0]?.waiting?.id).toBe('0:c1:0');
+        });
+
+        it('expectWaitId guards update', async () => {
+            const { store } = await setup();
+            const waiting: DispatchWaitPoint = {
+                kind: 'dispatch',
+                id: '1:c2:w0',
+                toolName: 'review',
+                toolCallId: 'c2',
+                runIds: ['c1'],
+                expiresAt: new Date(9_000),
+            };
+
+            await store.runs.insert(makeRun('r1', { status: RunStatus.WAITING, waiting }));
+            await store.runs.insert(makeRun('r2', { status: RunStatus.WAITING }));
+
+            await expect(
+                store.runs.update('r1', { status: RunStatus.QUEUED }, { expectWaitId: '1:c2:w1' }),
+            ).rejects.toBeInstanceOf(InvalidRunStateError);
+            await expect(
+                store.runs.update('r2', { status: RunStatus.QUEUED }, { expectWaitId: '1:c2:w0' }),
+            ).rejects.toBeInstanceOf(InvalidRunStateError);
+            expect((await store.runs.findOneOrFail('r1')).status).toBe(RunStatus.WAITING);
+            expect((await store.runs.findOneOrFail('r2')).status).toBe(RunStatus.WAITING);
+
+            const updated = await store.runs.update(
+                'r1',
+                { status: RunStatus.QUEUED },
+                { expectStatus: [RunStatus.WAITING], expectWaitId: '1:c2:w0' },
+            );
+
+            expect(updated.status).toBe(RunStatus.QUEUED);
+        });
+
+        it('keepUpdatedAt leaves updatedAt as stored', async () => {
+            const { store, clock } = await setup();
+
+            await store.runs.insert(makeRun('r1'));
+
+            const before = await store.runs.findOneOrFail('r1');
+
+            clock.advance(5_000);
+
+            const kept = await store.runs.update(
+                'r1',
+                { subtreeUsage: { inputTokens: 3, outputTokens: 4 } },
+                { keepUpdatedAt: true },
+            );
+
+            expect(kept.updatedAt).toEqual(before.updatedAt);
+            expect(kept.subtreeUsage).toEqual({ inputTokens: 3, outputTokens: 4 });
+            expect((await store.runs.findOneOrFail('r1')).updatedAt).toEqual(before.updatedAt);
+
+            const stamped = await store.runs.update('r1', { subtreeUsage: { inputTokens: 5, outputTokens: 6 } });
+
+            expect(stamped.updatedAt).toEqual(clock.now());
+        });
+
+        it('expectWaitId matches a wait point without id by its approvalId', async () => {
+            const { store } = await setup();
+            const legacy = {
+                kind: 'approval',
+                approvalId: '0:c1:0',
+                toolName: 'deploy',
+                toolCallId: 'c1',
+                title: 'Deploy?',
+                expiresAt: new Date(5_000),
+            } as unknown as WaitPoint;
+
+            await store.runs.insert(makeRun('r1'));
+            await store.runs.update('r1', { status: RunStatus.WAITING, waiting: legacy });
+
+            await expect(
+                store.runs.update('r1', { status: RunStatus.QUEUED }, { expectWaitId: '0:c1:1' }),
+            ).rejects.toBeInstanceOf(InvalidRunStateError);
+
+            const updated = await store.runs.update('r1', { status: RunStatus.QUEUED }, { expectWaitId: '0:c1:0' });
+
+            expect(updated.status).toBe(RunStatus.QUEUED);
         });
 
         it('an envelope stored before channels (source, thread) reads back as channel and address', async () => {
@@ -937,9 +1281,9 @@ export function describeRepositoryContract(
         it('artifacts.save replaces bytes and metadata and keeps createdAt', async () => {
             const { clock, store } = await setup();
             const first = makeArtifact('a1', {
-                mediaType: 'image/png', 
-                filename: 'first.png', 
-                createdAt: clock.now(), 
+                mediaType: 'image/png',
+                filename: 'first.png',
+                createdAt: clock.now(),
             });
 
             await store.artifacts.insert(first, new Uint8Array([1, 2, 3]));

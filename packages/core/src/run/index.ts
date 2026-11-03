@@ -6,4 +6,5 @@
  */
 
 export * from './constants.ts';
+export { normalizeWaitPoint, waitIdOf } from './helpers.ts';
 export type * from './types.ts';

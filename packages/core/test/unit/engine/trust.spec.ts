@@ -15,6 +15,7 @@ import {
     defineTool,
 } from '@chamvi/core';
 import type { AgentDefinition, IChannel } from '@chamvi/core';
+import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { fakeSkillRuntime } from '../../utils/skill-runtime.ts';
 
@@ -254,10 +255,10 @@ it('binds automatic approval to final input and keeps arguments out of channel n
     const waiting = await store.runs.findOne(runId);
 
     expect(waiting?.status).toBe('waiting');
-    expect(waiting?.waiting?.body).toContain('secret');
+    expect(approvalWait(waiting)?.body).toContain('secret');
     expect(JSON.stringify(notifications)).not.toContain('secret');
     expect(writes).toBe(0);
-    await engine.approve(runId, { approvalId: waiting!.waiting!.approvalId, approved: true });
+    await engine.approve(runId, { approvalId: approvalWait(waiting)!.approvalId, approved: true });
     await engine.idle();
     expect(writes).toBe(1);
     expect((await store.runs.findOne(runId))?.taint?.source).toBe('channel:source');
@@ -414,13 +415,13 @@ it('rechecks approval after a hook changes the final input on resume', async () 
 
     await engine.idle();
 
-    const first = (await store.runs.findOne(runId))!.waiting!;
+    const first = approvalWait(await store.runs.findOne(runId))!;
 
     argument = 'changed';
     await engine.approve(runId, { approvalId: first.approvalId, approved: true });
     await engine.idle();
 
-    const next = (await store.runs.findOne(runId))!.waiting!;
+    const next = approvalWait(await store.runs.findOne(runId))!;
 
     expect(next.approvalId).not.toBe(first.approvalId);
     expect(next.body).toContain('changed');

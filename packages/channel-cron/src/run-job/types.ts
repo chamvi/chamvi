@@ -41,13 +41,18 @@ export type RunJobResult = {
     runId?: string;
     /**
      * The run's status when the job returned: `completed`, `failed`,
-     * `cancelled`, `waiting`, `queued` (behind a run of its concurrency key
+     * `cancelled`, `waiting` (on an approval, its own or a descendant's), `queued` (behind a run of its concurrency key
      * that waits for an approval), or 'skipped' (overlap, or a signal
      * aborted before the call). After an abort while waiting: the status the
      * drain left, usually `interrupted`, or `running` when the drain timed out
      * before the run was marked.
      */
     status: RunStatusLiteral | 'skipped';
+    /**
+     * Set when the run waits on its dispatched runs and a descendant, not the
+     * run itself, waits on an approval: that descendant's id.
+     */
+    waitingRunId?: string;
     /** 1 for failed and cancelled; 0 otherwise (an interrupted run is resumed by a replica). */
     exitCode: 0 | 1;
 };

@@ -98,7 +98,7 @@ export function canCancel(run: RunWire, permissions: readonly string[]): boolean
     return CANCELABLE_STATUSES.includes(run.status) && hasPermission(permissions, 'run:cancel');
 }
 
-/** The run this one was started from (a hand-off), with the run page's label; undefined for none or an unknown kind. */
+/** The run this one was dispatched from, with the run page's label; undefined for none or an unknown kind. */
 export function parentOf(run: RunWire): { runId: string; label: string } | undefined {
     const { parent } = run.trigger;
 
@@ -109,6 +109,27 @@ export function parentOf(run: RunWire): { runId: string; label: string } | undef
     const label = Object.hasOwn(PARENT_LABELS, parent.kind) ? PARENT_LABELS[parent.kind] : undefined;
 
     return label ? { runId: parent.runId, label } : undefined;
+}
+
+/** The tokens of every run below this one (`subtreeUsage`, input plus output); undefined without any. */
+export function subtreeTotal(run: RunWire): number | undefined {
+    return run.subtreeUsage ? run.subtreeUsage.inputTokens + run.subtreeUsage.outputTokens : undefined;
+}
+
+/** The run page's line for a dispatch wait (distinct runs); undefined for any other run. */
+export function dispatchCallout(run: RunWire): string | undefined {
+    if (run.status !== 'waiting' || run.waiting?.kind !== 'dispatch') {
+        return undefined;
+    }
+
+    const count = new Set(run.waiting.runIds).size;
+
+    return `Waits for ${count} dispatched ${count === 1 ? 'run' : 'runs'}`;
+}
+
+/** The dispatch role a child run was started through, else its subscription id. */
+export function childRole(run: RunWire): string {
+    return run.trigger.parent?.role ?? run.trigger.trigger;
 }
 
 export function isSettled(run: RunWire): boolean {

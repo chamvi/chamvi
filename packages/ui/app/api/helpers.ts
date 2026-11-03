@@ -18,8 +18,16 @@ export function runListQuery(filter: RunListFilter): URLSearchParams {
         query.set('filter[agent]', filter.agent);
     }
 
+    if (filter.parent) {
+        query.set('filter[parent]', filter.parent);
+    }
+
     if (filter.status && filter.status.length > 0) {
         query.set('filter[status]', filter.status.join(','));
+    }
+
+    if (filter.waiting) {
+        query.set('filter[waiting]', filter.waiting);
     }
 
     pageQuery(query, filter);
