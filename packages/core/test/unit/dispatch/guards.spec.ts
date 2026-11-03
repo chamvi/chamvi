@@ -8,11 +8,11 @@
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 import type { ToolSet } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
-import { 
-    afterEach, 
-    describe, 
-    expect, 
-    it, 
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
 } from 'vitest';
 import { z } from 'zod';
 import {

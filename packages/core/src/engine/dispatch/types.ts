@@ -14,9 +14,9 @@ import type { CancelReason } from '../registry/types.ts';
 export type ResumeRecord = { key: string; value: unknown };
 
 export type ResumeStep = {
-    name: string; 
-    input: unknown; 
-    output: unknown 
+    name: string;
+    input: unknown;
+    output: unknown
 };
 
 /** What the dispatch-wait operations need from the engine. */

@@ -321,9 +321,9 @@ describe('useRunChildren', () => {
         expect(seen).toHaveLength(1);
 
         parent.value = wireRun({
-            id: 'p1', 
-            status: 'waiting', 
-            subtreeUsage: { inputTokens: 10, outputTokens: 2 }, 
+            id: 'p1',
+            status: 'waiting',
+            subtreeUsage: { inputTokens: 10, outputTokens: 2 },
         });
         await nextTick();
         await flush();

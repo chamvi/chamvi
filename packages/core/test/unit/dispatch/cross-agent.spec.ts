@@ -7,11 +7,11 @@
 
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
 import { MockLanguageModelV4 } from 'ai/test';
-import { 
-    afterEach, 
-    describe, 
-    expect, 
-    it, 
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
 } from 'vitest';
 import { z } from 'zod';
 import {
@@ -156,9 +156,9 @@ async function toolSteps(store: IStore, runId: string) {
 }
 
 const draft = {
-    agent: 'reporter', 
-    role: 'draft', 
-    payload: { findings: 2 }, 
+    agent: 'reporter',
+    role: 'draft',
+    payload: { findings: 2 },
 };
 
 describe('dispatchTo()', () => {

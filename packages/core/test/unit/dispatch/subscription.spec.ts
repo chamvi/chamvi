@@ -57,9 +57,9 @@ describe('agent.on()', () => {
 
         expect(subscription.id).toBe('hunt');
         expect(subscription.options).toMatchObject({
-            maxPerRun: 3, 
-            maxDepth: 2, 
-            from: ['auditor'], 
+            maxPerRun: 3,
+            maxDepth: 2,
+            from: ['auditor'],
         });
         expect(subscription.concurrencyKey).toBe(concurrencyKey);
         expect(subscription).not.toHaveProperty('idempotencyKey');
@@ -104,9 +104,9 @@ describe('agent.on()', () => {
 
     it('defineAgent refuses a role named like another subscription id', () => {
         const httpOn: ChannelSubscription = {
-            channel: 'http', 
-            id: 'http', 
-            options: {}, 
+            channel: 'http',
+            id: 'http',
+            options: {},
         };
 
         expect(() => define([httpOn, agent.on({ role: 'http' })])).toThrow(/duplicate subscription id "http"/);
@@ -134,9 +134,9 @@ describe('agent.on()', () => {
         [{ from: ['A'] }, /from/],
     ])('the engine refuses a hand-built role with %j', (options, message) => {
         const subscription: ChannelSubscription = {
-            channel: 'agent', 
-            id: 'hunt', 
-            options, 
+            channel: 'agent',
+            id: 'hunt',
+            options,
         };
 
         expect(() => new Engine({
@@ -148,9 +148,9 @@ describe('agent.on()', () => {
 
     it('the engine refuses a hand-built role id that breaks the channel-name rule', () => {
         const subscription: ChannelSubscription = {
-            channel: 'agent', 
-            id: 'Hunt', 
-            options: {}, 
+            channel: 'agent',
+            id: 'Hunt',
+            options: {},
         };
 
         expect(() => new Engine({

@@ -189,9 +189,9 @@ describePostgres('schema', () => {
     };
 
     const insertLegacyRun = (ds: DataSource, id: string, extra: {
-        status?: string; 
-        parent?: unknown; 
-        waiting?: unknown 
+        status?: string;
+        parent?: unknown;
+        waiting?: unknown
     } = {}) => ds.query(
         'INSERT INTO chamvi_runs (id, agent, status, trigger, usage, waiting, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $7)',
         [

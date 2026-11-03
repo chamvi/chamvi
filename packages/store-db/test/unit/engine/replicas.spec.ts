@@ -110,11 +110,11 @@ function treeModel() {
                     text('out-a') :
                     {
                         parts: [{
-                            type: 'tool-call', 
-                            toolName: 'ask', 
-                            input: {}, 
-                            toolCallId: 'k1', 
-                        }], 
+                            type: 'tool-call',
+                            toolName: 'ask',
+                            input: {},
+                            toolCallId: 'k1',
+                        }],
                     }]).doStream(options);
             }
 
@@ -122,11 +122,11 @@ function treeModel() {
                 text('done') :
                 {
                     parts: [{
-                        type: 'tool-call', 
-                        toolName: 'fan', 
-                        input: {}, 
-                        toolCallId: 'c1', 
-                    }], 
+                        type: 'tool-call',
+                        toolName: 'fan',
+                        input: {},
+                        toolCallId: 'c1',
+                    }],
                 }]).doStream(options);
         },
     });

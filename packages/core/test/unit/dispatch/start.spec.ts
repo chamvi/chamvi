@@ -719,9 +719,9 @@ describe('dispatch() roles and depth', () => {
             ['', [turn(call({ payload: 'level-1' }, 'g1'))]],
         ]);
         const { engine, store } = setup({
-            parent: [], 
-            model, 
-            subscription: agent.on({ maxDepth: 2 }), 
+            parent: [],
+            model,
+            subscription: agent.on({ maxDepth: 2 }),
         });
         const rootId = await dispatchParent(engine);
 
@@ -866,9 +866,9 @@ describe('dispatch() roles and depth', () => {
             ['', [turn(call({ payload: 'level-1', idempotencyKey: 'same' }, 'g1'))]],
         ]);
         const { engine, store } = setup({
-            parent: [], 
-            model, 
-            subscription: agent.on({ maxDepth: 2 }), 
+            parent: [],
+            model,
+            subscription: agent.on({ maxDepth: 2 }),
         });
 
         await dispatchParent(engine);
@@ -895,9 +895,9 @@ describe('dispatch() roles and depth', () => {
             ['', [turn(call({ payload: 'level-1', idempotencyKey: 'a' }, 'g1'))]],
         ]);
         const { engine, store } = setup({
-            parent: [], 
-            model, 
-            subscription: agent.on({ maxDepth: 3 }), 
+            parent: [],
+            model,
+            subscription: agent.on({ maxDepth: 3 }),
         });
 
         await dispatchParent(engine);

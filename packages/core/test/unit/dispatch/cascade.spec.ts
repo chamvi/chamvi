@@ -6,11 +6,11 @@
  */
 
 import type { LanguageModelV4CallOptions } from '@ai-sdk/provider';
-import { 
-    afterEach, 
-    describe, 
-    expect, 
-    it, 
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
 } from 'vitest';
 import { z } from 'zod';
 import {
@@ -87,9 +87,9 @@ function leadAgent(parent: ParentTurn[], child: ChildTurn) {
         model: treeModel([...parent, ...done()], child),
         channels: [agent.on({ maxDepth: 2 })],
         tools: {
-            fan, 
-            start, 
-            fanTo, 
+            fan,
+            start,
+            fanTo,
         },
     });
 }
@@ -225,9 +225,9 @@ describe('dispatch cancel cascade', () => {
     it('a child settling after its parent was cancelled does nothing', async () => {
         const hold = gate();
         const {
-            engine, 
-            store, 
-            clock, 
+            engine,
+            store,
+            clock,
         } = build([turn(call('fan', { payloads: ['a'] }, 'c1'))], async () => {
             await hold.wait();
 
@@ -300,9 +300,9 @@ describe('dispatch cancel cascade', () => {
 
     it('registry replacement cascades', async () => {
         const {
-            engine, 
-            store, 
-            clock, 
+            engine,
+            store,
+            clock,
         } = build([turn(call('fanTo', { payloads: ['w'] }, 'c1'))], (_payload, options) => hanging(options));
         const started = runningChildren(engine, 1);
         const paused = nextRun(engine, (run) => run.status === 'waiting');

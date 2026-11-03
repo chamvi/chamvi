@@ -83,9 +83,9 @@ const share = defineTool({
     inputSchema: z.object({ wait: z.boolean(), timeoutMs: z.number().optional() }),
     execute: async ({ wait, timeoutMs }, { context }) => {
         const child = await dispatchTo(context, {
-            agent: 'worker', 
-            payload: 'x', 
-            idempotencyKey: 'shared', 
+            agent: 'worker',
+            payload: 'x',
+            idempotencyKey: 'shared',
         });
 
         if (!wait) {
@@ -253,9 +253,9 @@ describe('dispatch wait heal', () => {
         };
         // the child asks for an approval, the parent waits on the child
         const {
-            engine, 
-            store, 
-            clock, 
+            engine,
+            store,
+            clock,
         } = build(
             [turn(call('fan', { payloads: ['a'] }, 'c1'))],
             (payload, options) => (promptHas(options, 'ok-approved') ? answer(payload, options) : turn(call('ask', {}, 'k1'))),
@@ -356,9 +356,9 @@ describe('dispatch wait heal', () => {
 
     it('a deduplicated child of another parent: the wait times out without cancelling it', async () => {
         const {
-            engine, 
-            store, 
-            clock, 
+            engine,
+            store,
+            clock,
         } = build([], answer, {
             worker: hang,
             p1: [turn(call('share', { wait: false }, 's1'))],
