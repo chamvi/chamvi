@@ -15,6 +15,9 @@ export {
     DISCORD_TEXT_MAX_CHARS,
 } from './constants.ts';
 export type {
+    DiscordClient,
+    DiscordClientFactory,
+    DiscordConnectionStatus,
     DiscordIdentity,
     DiscordInboundAttachment,
     DiscordInboundMessage,

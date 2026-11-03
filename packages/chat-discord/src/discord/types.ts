@@ -5,7 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { APIAttachment, APIMessage, APIUser } from 'discord.js';
+import type {
+    APIAttachment,
+    APIMessage,
+    APIUser,
+    ClientOptions,
+} from 'discord.js';
+import type { IClock } from '@chamvi/core';
 
 /** Who may start runs: Discord ids (snowflakes) only, never names. */
 export type DiscordPolicy = {
@@ -109,4 +115,42 @@ export type ResolvedDiscordPolicy = {
     /** undefined: no DMs */
     dmUsers?: ReadonlySet<string>;
     requireMention: boolean;
+};
+
+/**
+ * The Gateway connection's state: `failed` is terminal (an invalid token,
+ * disallowed intents, an invalidated session, reconnects exhausted) until the
+ * channel starts again.
+ */
+export type DiscordConnectionStatus = 'stopped' | 'connecting' | 'connected' | 'disconnected' | 'failed';
+
+/** The members of a discord.js `Client` chamvi uses (a Client is one). */
+export type DiscordClient = {
+    on(event: string, listener: (...args: any[]) => void): unknown;
+    off(event: string, listener: (...args: any[]) => void): unknown;
+    login(token: string): Promise<string>;
+    destroy(): Promise<void> | void;
+    readonly user: { id: string } | null;
+};
+
+/** Makes a client; default `new Client(options)` of discord.js (tests pass a fake). */
+export type DiscordClientFactory = (options: ClientOptions) => DiscordClient;
+
+/** The Gateway connection's inputs (internal). */
+export type DiscordConnectionOptions = {
+    /** Read per login attempt, never kept. */
+    token: () => Promise<string>;
+    clientFactory: DiscordClientFactory;
+    /** Every message the current client receives, with the bot's own user id. */
+    onMessage(message: DiscordInboundMessage, botId: string): void;
+    onError(error: unknown): void;
+};
+
+/** The Gateway connection (internal). */
+export type DiscordConnection = {
+    status(): DiscordConnectionStatus;
+    /** Resolves once the first client is made and its login started; settles on abort. */
+    connect(ctx: { signal: AbortSignal; clock: IClock }): Promise<void>;
+    /** Stops the connection for good: no client is made after it. */
+    close(): Promise<void>;
 };

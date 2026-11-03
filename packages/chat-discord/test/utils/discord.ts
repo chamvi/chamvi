@@ -9,7 +9,8 @@
 // subset chamvi reads (DiscordInboundMessage), so no discord.js runtime runs.
 
 import { ChannelType } from 'discord.js';
-import type { DiscordInboundMessage } from '../../src/discord/types.ts';
+import type { ClientOptions } from 'discord.js';
+import type { DiscordClient, DiscordClientFactory, DiscordInboundMessage } from '../../src/discord/types.ts';
 
 export const ACCOUNT = 'support';
 export const BOT = '100000000000000001';
@@ -146,4 +147,121 @@ export function discordMessage(input: DiscordMessageInput = {}): DiscordInboundM
         } as DiscordInboundMessage['mentions'],
         attachments: new Map((input.attachments ?? []).map((item) => [item.id, item])),
     };
+}
+
+/** A fake discord.js client: listeners on a plain map, a login the test settles. */
+export type FakeClient = DiscordClient & {
+    readonly options: ClientOptions;
+    /** every token login was called with */
+    readonly logins: string[];
+    /** how often destroy was called */
+    destroyed: number;
+    user: { id: string } | null;
+    /** calls every listener of `event` */
+    emit(event: string, ...args: unknown[]): void;
+    /** how many listeners are attached in all */
+    listenerCount(): number;
+    resolveLogin(): void;
+    rejectLogin(error: unknown): void;
+};
+
+export type FakeClients = {
+    readonly factory: DiscordClientFactory;
+    readonly clients: FakeClient[];
+    last(): FakeClient;
+    /** destroy() of the clients made from now on never settles */
+    destroyHangs: boolean;
+};
+
+/** Each factory call records its options and returns a fake whose login hangs until the test settles it. */
+export function createFakeClients(): FakeClients {
+    const clients: FakeClient[] = [];
+    const state: FakeClients = {
+        clients,
+        destroyHangs: false,
+        last() {
+            const client = clients.at(-1);
+
+            if (!client) {
+                throw new Error('no client was made');
+            }
+
+            return client;
+        },
+        factory: (options) => {
+            const listeners = new Map<string, Set<(...args: any[]) => void>>();
+            let resolveLogin: (token: string) => void = () => undefined;
+            let rejectLogin: (error: unknown) => void = () => undefined;
+            const hangs = state.destroyHangs;
+            const client: FakeClient = {
+                options,
+                logins: [],
+                destroyed: 0,
+                user: { id: BOT },
+                on(event, listener) {
+                    let set = listeners.get(event);
+
+                    if (!set) {
+                        set = new Set();
+                        listeners.set(event, set);
+                    }
+
+                    set.add(listener);
+
+                    return client;
+                },
+                off(event, listener) {
+                    listeners.get(event)?.delete(listener);
+
+                    return client;
+                },
+                login(token) {
+                    client.logins.push(token);
+
+                    const login = Promise.withResolvers<string>();
+
+                    resolveLogin = login.resolve;
+                    rejectLogin = login.reject;
+
+                    return login.promise;
+                },
+                destroy() {
+                    client.destroyed += 1;
+
+                    return hangs ? Promise.withResolvers<void>().promise : Promise.resolve();
+                },
+                emit(event, ...args) {
+                    for (const listener of [...listeners.get(event) ?? []]) {
+                        listener(...args);
+                    }
+                },
+                listenerCount() {
+                    let count = 0;
+
+                    for (const set of listeners.values()) {
+                        count += set.size;
+                    }
+
+                    return count;
+                },
+                resolveLogin: () => resolveLogin(client.logins.at(-1) ?? ''),
+                rejectLogin: (error) => rejectLogin(error),
+            };
+
+            clients.push(client);
+
+            return client;
+        },
+    };
+
+    return state;
+}
+
+/** lets queued promise work run (no timers) */
+export async function settle(rounds = 10): Promise<void> {
+    for (let i = 0; i < rounds; i++) {
+        await new Promise((resolve) => {
+            setImmediate(resolve);
+        });
+    }
 }
