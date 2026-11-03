@@ -12,8 +12,20 @@ import {
     it,
     vi,
 } from 'vitest';
-import { Engine, createMemoryStore, keyedArtifactId } from '@chamvi/core';
-import type { IEngine } from '@chamvi/core';
+import { z } from 'zod';
+import {
+    Engine,
+    agent,
+    agentChannel,
+    createMemoryStore,
+    defineAgent,
+    defineTool,
+    dispatchTo,
+    keyedArtifactId,
+    waitForDispatch,
+} from '@chamvi/core';
+import type { Agent, IEngine } from '@chamvi/core';
+import { http } from '@chamvi/http';
 import { ControllableClock } from '@chamvi/test-kit';
 import { buildContext } from '../../../src/app/helpers.ts';
 import { waitForRun } from '../../../src/mcp/helpers.ts';
@@ -21,11 +33,13 @@ import {
     ADMIN_TOKEN,
     createRunAgents,
     createRunTestApp,
+    deployTool,
     flush,
     shotsAgent,
     testAuth,
     testChannels,
 } from '../../utils/app.ts';
+import { approvalModel } from '../../utils/model.ts';
 import { callTool, connectMcp } from '../../utils/mcp.ts';
 import type { ToolResult } from '../../utils/mcp.ts';
 
@@ -60,6 +74,122 @@ async function until(check: () => boolean | Promise<boolean>): Promise<void> {
 
 afterEach(() => {
     vi.restoreAllMocks();
+});
+
+/** `lead` (http) whose `delegate` dispatches one `worker` run and waits on it. */
+function leadAgent(): Agent {
+    return defineAgent({
+        name: 'lead',
+        model: approvalModel('delegate'),
+        instructions: 'Lead.',
+        channels: [http.on()],
+        tools: () => ({
+            delegate: defineTool({
+                inputSchema: z.object({}),
+                execute: async (_input, { context }) => {
+                    const child = await dispatchTo(context, { agent: 'worker', payload: {} });
+                    const outcome = await waitForDispatch(context, child);
+
+                    return outcome.status;
+                },
+            }),
+        }),
+    });
+}
+
+/** `worker` (dispatched by `lead`): `deploy` asks for an approval. */
+function approvingWorker(): Agent {
+    return defineAgent({
+        name: 'worker',
+        model: approvalModel('deploy'),
+        instructions: 'Work.',
+        channels: [agent.on({ from: ['lead'] })],
+        tools: () => ({ deploy: deployTool() }),
+    });
+}
+
+/** `worker` (dispatched by `lead`): `block` returns once `release()` is called. */
+function blockingWorker() {
+    const { promise: released, resolve: release } = Promise.withResolvers<void>();
+    const worker = defineAgent({
+        name: 'worker',
+        model: approvalModel('block'),
+        instructions: 'Work.',
+        channels: [agent.on({ from: ['lead'] })],
+        tools: () => ({
+            block: defineTool({
+                inputSchema: z.object({}),
+                execute: async () => {
+                    await released;
+
+                    return 'unblocked';
+                },
+            }),
+        }),
+    });
+
+    return { worker, release: () => release() };
+}
+
+describe('mcp run_<agent> through dispatched runs', () => {
+    it('run_<agent> keeps waiting while the run waits on a dispatch, and returns on settle', async () => {
+        const { worker, release } = blockingWorker();
+        const setup = createRunTestApp({ agents: [leadAgent(), worker], engineChannels: [agentChannel()] });
+
+        await setup.engine.start();
+
+        const client = await connectMcp(setup.app, ADMIN_TOKEN);
+        let result: ToolResult | undefined;
+        const pending = callTool(client, 'run_lead', { waitSeconds: 30 }).then((r) => {
+            result = r;
+        });
+
+        await until(async () => (await setup.store.runs.find({ agent: 'lead', status: ['waiting'] })).total === 1);
+
+        const [lead] = (await setup.store.runs.find({ agent: 'lead' })).data;
+
+        expect(lead?.waiting?.kind).toBe('dispatch');
+        setup.clock.advance(5_000);
+        await flush();
+        await flush();
+        expect(result).toBeUndefined();
+
+        release();
+        await pending;
+        expect(result?.structuredContent).toMatchObject({
+            runId: lead!.id,
+            status: 'completed',
+            output: 'done',
+        });
+        await client.close();
+        await setup.engine.drain();
+    });
+
+    it('returns when a descendant waits on an approval', async () => {
+        const setup = createRunTestApp({ agents: [leadAgent(), approvingWorker()], engineChannels: [agentChannel()] });
+
+        await setup.engine.start();
+
+        const client = await connectMcp(setup.app, ADMIN_TOKEN);
+        const result = await callTool(client, 'run_lead', { waitSeconds: 30 });
+        const [lead] = (await setup.store.runs.find({ agent: 'lead' })).data;
+        const [child] = (await setup.store.runs.find({ agent: 'worker' })).data;
+
+        expect(child?.parentRunId).toBe(lead!.id);
+        expect(result.structuredContent).toMatchObject({
+            runId: lead!.id,
+            status: 'waiting',
+            waiting: {
+                kind: 'approval',
+                runId: child!.id,
+                agent: 'worker',
+                toolName: 'deploy',
+                title: 'Deploy?',
+            },
+        });
+        await client.close();
+        await setup.engine.drain();
+    });
 });
 
 describe('mcp run_<agent> with waitSeconds', () => {
@@ -271,7 +401,7 @@ describe('waitForRun', () => {
             payload: {},
         });
         const subscriptions = spyOnSubscriptions(engine);
-        const run = await waitForRun(ctx, runId, {
+        const { run } = await waitForRun(ctx, runId, {
             timeoutMs: 60_000,
             pollMs: 1_000,
             signal: AbortSignal.abort(),
@@ -341,7 +471,7 @@ describe('waitForRun', () => {
         });
 
         let settled = false;
-        const pending = waitForRun(ctx, runId, { timeoutMs: 10_000, pollMs: 1_000 }).then((run) => {
+        const pending = waitForRun(ctx, runId, { timeoutMs: 10_000, pollMs: 1_000 }).then(({ run }) => {
             settled = true;
 
             return run;

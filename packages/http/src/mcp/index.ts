@@ -6,4 +6,9 @@
  */
 
 export { assertMcpRunTool } from './tools.ts';
-export type { RunSummary, RunToolResult } from './types.ts';
+export type {
+    RunSummary,
+    RunToolApprovalWait,
+    RunToolDispatchWait,
+    RunToolResult,
+} from './types.ts';

@@ -8,8 +8,18 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import {
+    DISPATCH_DEPTH_MAX,
+    Engine,
+    createMemoryStore,
+} from '@chamvi/core';
 import type { Run, WaitPoint } from '@chamvi/core';
-import { isWaitOver, toJsonSchema, toRunToolResult } from '../../../src/mcp/helpers.ts';
+import {
+    findWaitingApproval,
+    isWaitOver,
+    toJsonSchema,
+    toRunToolResult,
+} from '../../../src/mcp/helpers.ts';
 
 function plainSchema(jsonSchema?: unknown): StandardSchemaV1 {
     return {
@@ -69,11 +79,12 @@ describe('toJsonSchema', () => {
     });
 });
 
-function buildRun(status: Run['status'], waiting?: WaitPoint): Run {
+function buildRun(status: Run['status'], waiting?: WaitPoint, id = 'r1', parentRunId?: string): Run {
     const now = new Date(0);
 
     return {
-        id: 'r1',
+        id,
+        ...(parentRunId !== undefined ? { parentRunId } : {}),
         agent: 'gate',
         status,
         trigger: {
@@ -83,6 +94,17 @@ function buildRun(status: Run['status'], waiting?: WaitPoint): Run {
             channel: 'mcp',
             payload: undefined,
             receivedAt: now,
+            ...(parentRunId !== undefined ?
+                {
+                    parent: {
+                        kind: 'dispatch' as const,
+                        runId: parentRunId,
+                        agent: 'gate',
+                        role: 'default',
+                        depth: 1,
+                    },
+                } :
+                {}),
         },
         usage: { inputTokens: 0, outputTokens: 0 },
         ...(waiting ? { waiting } : {}),
@@ -115,17 +137,95 @@ describe('toRunToolResult', () => {
         const result = toRunToolResult(buildRun('waiting', APPROVAL_WAIT), false);
 
         expect(result.waiting).toEqual({
+            kind: 'approval',
+            runId: 'r1',
+            agent: 'gate',
             toolName: 'deploy',
             title: 'Deploy?',
             expiresAt: new Date(1000).toISOString(),
         });
     });
 
-    it('omits a dispatch wait', () => {
+    it('serializes a dispatch wait for get_run', () => {
         const result = toRunToolResult(buildRun('waiting', DISPATCH_WAIT), false);
 
-        expect(result).not.toHaveProperty('waiting');
         expect(result.status).toBe('waiting');
+        expect(result.waiting).toEqual({
+            kind: 'dispatch',
+            toolName: 'delegate',
+            runIds: ['c1', 'c2'],
+            expiresAt: new Date(1000).toISOString(),
+        });
+    });
+
+    it('names the descendant whose approval the run waits behind', () => {
+        const child = { ...buildRun('waiting', APPROVAL_WAIT, 'child', 'r1'), agent: 'worker' };
+        const result = toRunToolResult(buildRun('waiting', DISPATCH_WAIT), false, child);
+
+        expect(result.runId).toBe('r1');
+        expect(result.waiting).toEqual({
+            kind: 'approval',
+            runId: 'child',
+            agent: 'worker',
+            toolName: 'deploy',
+            title: 'Deploy?',
+            expiresAt: new Date(1000).toISOString(),
+        });
+    });
+});
+
+describe('findWaitingApproval', () => {
+    function engineOver(runs: Run[]) {
+        const store = createMemoryStore();
+        const engine = new Engine({
+            store, 
+            agents: [], 
+            onError: () => {}, 
+        });
+
+        return {
+            engine,
+            // parents first: a child's insert needs its parent stored
+            ready: runs.reduce<Promise<unknown>>((prev, run) => prev.then(() => store.runs.insert(run)), Promise.resolve()),
+        };
+    }
+
+    it('is the run itself when it waits on an approval', async () => {
+        const { engine, ready } = engineOver([buildRun('waiting', APPROVAL_WAIT)]);
+
+        await ready;
+        expect((await findWaitingApproval(engine, 'r1'))?.id).toBe('r1');
+    });
+
+    it('finds a waiting grandchild breadth-first, skipping settled children', async () => {
+        const { engine, ready } = engineOver([
+            buildRun('waiting', DISPATCH_WAIT),
+            buildRun('waiting', { ...DISPATCH_WAIT, id: '0:c2:w0' }, 'c1', 'r1'),
+            buildRun('completed', undefined, 'c2', 'r1'),
+            buildRun('waiting', APPROVAL_WAIT, 'g1', 'c1'),
+            buildRun('waiting', APPROVAL_WAIT, 'g2', 'c2'),
+        ]);
+
+        await ready;
+        expect((await findWaitingApproval(engine, 'r1'))?.id).toBe('g1');
+    });
+
+    it('is undefined without an approval wait, for an unknown run and past the depth cap', async () => {
+        const chain = Array.from({ length: DISPATCH_DEPTH_MAX + 1 }, (_, i) => buildRun(
+            'waiting',
+            { ...DISPATCH_WAIT, id: `0:d${i}:w0` },
+            `d${i}`,
+            i === 0 ? undefined : `d${i - 1}`,
+        ));
+        const { engine, ready } = engineOver([
+            ...chain,
+            buildRun('waiting', APPROVAL_WAIT, 'deep', `d${DISPATCH_DEPTH_MAX}`),
+        ]);
+
+        await ready;
+        expect(await findWaitingApproval(engine, 'd0')).toBeUndefined();
+        expect((await findWaitingApproval(engine, 'd1'))?.id).toBe('deep');
+        expect(await findWaitingApproval(engine, 'missing')).toBeUndefined();
     });
 });
 

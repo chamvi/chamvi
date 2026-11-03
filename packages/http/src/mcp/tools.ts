@@ -158,7 +158,7 @@ function summarize(run: RunSummary): RunSummary {
 function registerReadTools(server: McpServer, ctx: HttpContext, principal: Principal): void {
     server.registerTool('get_run', {
         title: 'Get run',
-        description: 'Reads one run: status, output, error and the pending approval, if any.',
+        description: 'Reads one run: status, output, error and what a waiting run waits on (waiting.kind approval: answer it with approve_run; dispatch: the runs it dispatched, waiting.runIds).',
         inputSchema: GET_RUN_INPUT,
         annotations: { readOnlyHint: true },
     }, (args) => runTool(ctx, async () => toolResult(serializeRun(await loadReadableRun(ctx, principal, args.runId)))));
@@ -235,7 +235,7 @@ export function buildRunTool(agent: Agent, options: McpEndpointOptions): McpRunT
                 waitSeconds: {
                     type: 'integer',
                     minimum: 0,
-                    description: `Seconds to wait for the run to finish or pause for an approval (at most ${options.maxWaitSeconds}). Default 0.`,
+                    description: `Seconds to wait for the run to finish or pause for an approval, its own or a dispatched run's (at most ${options.maxWaitSeconds}). Default 0. A result waiting.kind approval names the run to answer with approve_run in waiting.runId; dispatch: the run still waits on its dispatched runs.`,
                 },
             },
             additionalProperties: false,
@@ -365,13 +365,13 @@ function registerRunTool(
         const signal = AbortSignal.any([extra.signal, toolCtx.mcpReq.signal]);
 
         try {
-            const run = await waitForRun(ctx, runId, {
+            const { run, approval } = await waitForRun(ctx, runId, {
                 timeoutMs: waitSeconds * 1_000,
                 pollMs: MCP_WAIT_POLL_MS,
                 signal,
             });
 
-            return toolResult(toRunToolResult(run, deduplicated));
+            return toolResult(toRunToolResult(run, deduplicated, approval));
         } finally {
             release();
         }
@@ -381,7 +381,7 @@ function registerRunTool(
 function registerApproveTool(server: McpServer, ctx: HttpContext, principal: Principal): void {
     server.registerTool('approve_run', {
         title: 'Approve run',
-        description: 'Answers the approval a waiting run waits on (its waiting.approvalId, from get_run). With options, pass the chosen option ids as selected (from get_run\'s waiting.options). Needs agent:<agent>:approve for the run\'s agent.',
+        description: 'Answers the approval a waiting run waits on (its waiting.approvalId, from get_run; a waiting.kind dispatch wait is refused). With options, pass the chosen option ids as selected (from get_run\'s waiting.options). Needs agent:<agent>:approve for the run\'s agent.',
         inputSchema: APPROVE_RUN_INPUT,
     }, (args) => runTool(ctx, async () => {
         const run = await loadApprovableRun(ctx, principal, args.runId);

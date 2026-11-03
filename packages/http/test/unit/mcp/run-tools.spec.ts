@@ -431,3 +431,47 @@ describe('mcp run_<agent>', () => {
         expect(errors[1]).toBeInstanceOf(InvalidAgentDefinitionError);
     });
 });
+
+describe('mcp approve_run on a dispatch wait', () => {
+    it('approve_run on a dispatch wait is refused', async () => {
+        const { app, store } = createRunTestApp();
+        const at = new Date(0);
+        const waitId = '0:call-1:w0';
+
+        await store.runs.insert({
+            id: 'parent',
+            agent: 'gate',
+            status: 'waiting',
+            trigger: {
+                id: 't-parent',
+                agent: 'gate',
+                trigger: 'http',
+                channel: 'mcp',
+                payload: {},
+                receivedAt: at,
+            },
+            usage: { inputTokens: 0, outputTokens: 0 },
+            waiting: {
+                kind: 'dispatch',
+                id: waitId,
+                toolName: 'delegate',
+                toolCallId: 'call-1',
+                runIds: ['child'],
+                expiresAt: new Date(86_400_000),
+            },
+            createdAt: at,
+            updatedAt: at,
+        });
+
+        const client = await connectMcp(app, ADMIN_TOKEN);
+        const result = await callTool(client, 'approve_run', {
+            runId: 'parent',
+            approvalId: waitId,
+            approved: true,
+        });
+
+        expect(result.isError).toBe(true);
+        expect((await store.runs.findOne('parent'))?.status).toBe('waiting');
+        await client.close();
+    });
+});
