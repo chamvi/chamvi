@@ -47,8 +47,8 @@ export type ChannelMessage = {
     approvalId?: string;
     /** Set for kind `approval`. */
     expiresAt?: Date;
-    /** Set for kind `approval` with options. */
-    options?: ApprovalOption[];
+    /** Set for kind `approval` with options (without their artifacts, which stay in the inbox and API). */
+    options?: Omit<ApprovalOption, 'artifacts'>[];
     /** Set (true) for kind `approval` with options of which several may be selected. */
     multiple?: boolean;
 };

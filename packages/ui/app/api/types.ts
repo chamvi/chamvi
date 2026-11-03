@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunStatusLiteral, Step } from '@chamvi/core';
+import type { Artifact, RunStatusLiteral, Step } from '@chamvi/core';
 import type {
     AgentIssue,
     AgentSummary,
@@ -23,6 +23,9 @@ export type Wire<T> = T extends Date ? string :
 export type RunWire = Wire<RunView>;
 
 export type StepWire = Wire<Step>;
+
+/** `GET /runs/:id/artifacts`: an artifact's metadata, never its bytes. */
+export type ArtifactWire = Wire<Artifact>;
 
 export type RunDetail = RunWire & { steps: StepWire[] };
 
@@ -99,8 +102,12 @@ export interface IApiClient {
     approve(id: string, body: ApproveBody): Promise<void>;
     listKv(agent: string, page?: PageQuery): Promise<KvEntry[]>;
     listDocs(agent: string, collection: string, page?: PageQuery): Promise<DocEntry[]>;
-    /** The raw SSE response of `GET /runs/:id/stream` (an ApiError for a non-2xx answer). */
+    /** `GET /runs/:id/artifacts`: the run's artifact metadata. */
+    listArtifacts(runId: string): Promise<ArtifactWire[]>;
+    /** `GET /runs/:id/artifacts/:artifactId`: an artifact's bytes, typed by the stored media type. */
+    readArtifact(runId: string, artifactId: string, signal?: AbortSignal): Promise<Blob>;
     /** `POST /agents/:name/runs`: a run through the agent's `http.on()` subscription. */
     startRun(agent: string, body: StartRunBody): Promise<StartRunResult>;
+    /** The raw SSE response of `GET /runs/:id/stream` (an ApiError for a non-2xx answer). */
     streamRun(id: string, init: { lastEventId?: number; signal: AbortSignal }): Promise<Response>;
 }

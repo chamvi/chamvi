@@ -925,6 +925,97 @@ export function describeRepositoryContract(
             expect(await store.artifacts.findOne('a1')).toEqual(makeArtifact('a1'));
         });
 
+        it('artifacts.save inserts an absent artifact', async () => {
+            const { store } = await setup();
+            const artifact = makeArtifact('a1');
+
+            expect(await store.artifacts.save(artifact, new Uint8Array([1, 2, 3]))).toEqual(artifact);
+            expect(await store.artifacts.findOne('a1')).toEqual(artifact);
+            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([1, 2, 3]);
+        });
+
+        it('artifacts.save replaces bytes and metadata and keeps createdAt', async () => {
+            const { clock, store } = await setup();
+            const first = makeArtifact('a1', {
+                mediaType: 'image/png', 
+                filename: 'first.png', 
+                createdAt: clock.now(), 
+            });
+
+            await store.artifacts.insert(first, new Uint8Array([1, 2, 3]));
+            clock.advance(5_000);
+
+            const saved = await store.artifacts.save(
+                makeArtifact('a1', {
+                    mediaType: 'image/jpeg',
+                    filename: undefined,
+                    size: 1,
+                    createdAt: clock.now(),
+                }),
+                new Uint8Array([9]),
+            );
+            const expected: Artifact = {
+                id: 'a1',
+                runId: 'r1',
+                agent: 'a',
+                mediaType: 'image/jpeg',
+                size: 1,
+                createdAt: first.createdAt,
+            };
+
+            expect(saved).toEqual(expected);
+            expect(saved).not.toHaveProperty('filename');
+            expect(await store.artifacts.findOne('a1')).toEqual(expected);
+            expect(await store.artifacts.findOne('a1')).not.toHaveProperty('filename');
+            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([9]);
+            expect(await store.artifacts.find('r1')).toHaveLength(1);
+        });
+
+        it('artifacts.save refuses an id held by another run', async () => {
+            const { store } = await setup();
+            const first = makeArtifact('a1');
+
+            await store.artifacts.insert(first, new Uint8Array([1, 2, 3]));
+            await expect(store.artifacts.save(makeArtifact('a1', { runId: 'r2', size: 1 }), new Uint8Array([9])))
+                .rejects.toMatchObject({ code: 'invalid_run_state' });
+            expect(await store.artifacts.findOne('a1')).toEqual(first);
+            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([1, 2, 3]);
+            expect(await store.artifacts.find('r2')).toEqual([]);
+        });
+
+        it('artifacts.save copies in and out', async () => {
+            const { store } = await setup();
+            const artifact = makeArtifact('a1');
+            const data = new Uint8Array([1, 2, 3]);
+
+            const saved = await store.artifacts.save(artifact, data);
+
+            data[0] = 9;
+            artifact.mediaType = 'text/html';
+            artifact.createdAt.setTime(0);
+            saved.size = 99;
+            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([1, 2, 3]);
+            expect(await store.artifacts.findOne('a1')).toEqual(makeArtifact('a1'));
+
+            await store.artifacts.save(makeArtifact('a1', { size: 2 }), data.subarray(0, 2));
+            data[1] = 7;
+            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([9, 2]);
+        });
+
+        it('concurrent artifacts.save calls of one id leave one artifact', async () => {
+            const { store } = await setup();
+
+            await Promise.all([
+                store.artifacts.save(makeArtifact('a1', { size: 1 }), new Uint8Array([1])),
+                store.artifacts.save(makeArtifact('a1', { size: 1 }), new Uint8Array([2])),
+            ]);
+
+            const listed = await store.artifacts.find('r1');
+
+            expect(listed).toHaveLength(1);
+            expect([[1], [2]]).toContainEqual(Array.from((await store.artifacts.read('a1'))!));
+        });
+
         it('agentRevisions.findOne of an unknown agent is undefined', async () => {
             const { store } = await setup();
 

@@ -14,12 +14,24 @@ export type ApprovalOption = {
     id: string;
     label: string;
     detail?: string;
+    /**
+     * Ids of this run's artifacts to show with the option (e.g. from
+     * `ctx.artifacts.put()`), at most APPROVAL_ARTIFACTS_PER_OPTION_MAX,
+     * unique. Not part of channel messages.
+     */
+    artifacts?: string[];
 };
 
 /** What a tool asks the owner to approve (`approve()`, `ChannelHandle.approve()`). */
 export type ApprovalRequestInput = {
     title: string;
     body?: string;
+    /**
+     * Ids of this run's artifacts to show with the request (e.g. from
+     * `ctx.artifacts.put()`), unique; together with the options' at most
+     * APPROVAL_ARTIFACTS_MAX. Not part of channel messages.
+     */
+    artifacts?: string[];
     /** Choices to pick from; without them the approval is a plain yes or no. */
     options?: ApprovalOption[];
     /** Several options may be selected; default one. Needs `options`. */
@@ -41,6 +53,6 @@ export type ApprovalDecision = {
 /** A plain approval ordinal taken before any await (internal, not exported): see reserveApproval(). */
 export type ApprovalReservation = {
     frame: ToolCallFrame;
-    choice: Pick<ApprovalRequest, 'options' | 'multiple'>;
+    choice: Pick<ApprovalRequest, 'options' | 'multiple' | 'artifacts'>;
     ordinal: number;
 };

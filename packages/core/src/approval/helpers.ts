@@ -10,6 +10,8 @@ import { ValidationError } from '../errors/index.ts';
 import type { WaitPoint } from '../run/types.ts';
 import type { Invoker } from '../trigger/types.ts';
 import {
+    APPROVAL_ARTIFACTS_MAX,
+    APPROVAL_ARTIFACTS_PER_OPTION_MAX,
     APPROVAL_OPTIONS_DETAIL_MAX_LENGTH,
     APPROVAL_OPTIONS_MAX,
     APPROVAL_OPTION_DETAIL_MAX_LENGTH,
@@ -55,6 +57,52 @@ function isOneLine(text: string): boolean {
     return true;
 }
 
+/**
+ * A checked copy of the artifact ids `what` names: undefined when absent or
+ * empty, else an array of at most `max` unique non-empty strings. Whether
+ * each id is an artifact of the run is checked later (requestApproval()).
+ */
+export function toArtifactIds(value: unknown, what: string, max: number): string[] | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (!Array.isArray(value) || value.length > max) {
+        throw new ValidationError(`The artifacts of ${what} must be an array of at most ${max} artifact ids.`);
+    }
+
+    const ids = new Set<string>();
+
+    for (const id of value) {
+        if (typeof id !== 'string' || id.length === 0) {
+            throw new ValidationError(`The artifacts of ${what} must be non-empty strings.`);
+        }
+
+        if (ids.has(id)) {
+            throw new ValidationError(`The artifacts of ${what} name "${id}" twice.`);
+        }
+
+        ids.add(id);
+    }
+
+    return ids.size > 0 ? [...ids] : undefined;
+}
+
+/**
+ * The artifact ids of a request and its options together, checked against
+ * APPROVAL_ARTIFACTS_MAX; the distinct ids, for the lookup.
+ */
+export function collectArtifactIds(choice: { artifacts?: string[]; options?: ApprovalOption[] }): string[] {
+    const lists = [choice.artifacts ?? [], ...(choice.options ?? []).map((option) => option.artifacts ?? [])];
+    const total = lists.reduce((sum, list) => sum + list.length, 0);
+
+    if (total > APPROVAL_ARTIFACTS_MAX) {
+        throw new ValidationError(`An approval request names at most ${APPROVAL_ARTIFACTS_MAX} artifacts, its options' included.`);
+    }
+
+    return [...new Set(lists.flat())];
+}
+
 function toApprovalOption(value: unknown, index: number): ApprovalOption {
     if (!isObject(value)) {
         throw new ValidationError(`Approval option ${index} must be an object.`);
@@ -89,16 +137,19 @@ function toApprovalOption(value: unknown, index: number): ApprovalOption {
         );
     }
 
+    const artifacts = toArtifactIds(value.artifacts, `approval option "${id}"`, APPROVAL_ARTIFACTS_PER_OPTION_MAX);
+
     return {
         id,
         label,
         ...(detail !== undefined ? { detail } : {}),
+        ...(artifacts !== undefined ? { artifacts } : {}),
     };
 }
 
 /**
  * The options and `multiple` of an approval request, checked and copied
- * (`{ id, label, detail? }`, unknown keys dropped); `{}` for a plain
+ * (`{ id, label, detail?, artifacts? }`, unknown keys dropped); `{}` for a plain
  * request, `multiple` only when true.
  */
 export function toApprovalOptions(

@@ -18,6 +18,7 @@ import type {
     AgentIssueWire,
     AgentWire,
     ApiClientOptions,
+    ArtifactWire,
     DocEntry,
     IApiClient,
     KvEntry,
@@ -135,6 +136,12 @@ export function createApiClient(options: ApiClientOptions): IApiClient {
             `${path('agents', agent)}/state/collections${path(collection)}`,
             pageQuery(new URLSearchParams(), page),
         ))),
+        listArtifacts: async (id) => dataOf<ArtifactWire>(await request(`${path('runs', id)}/artifacts`)),
+        readArtifact: async (id, artifactId, signal) => {
+            const response = await send(`${path('runs', id)}/artifacts${path(artifactId)}`, { headers: { accept: '*/*' }, signal });
+
+            return response.blob();
+        },
         startRun: (agent, body) => request<StartRunResult>(`${path('agents', agent)}/runs`, { method: 'POST', body }),
         streamRun: (id, init) => send(`${path('runs', id)}/stream`, {
             headers: {

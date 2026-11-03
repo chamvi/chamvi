@@ -49,6 +49,8 @@ export type WaitPoint = {
     body?: string;
     /** Safe channel notification instead of private approval arguments. */
     notification?: string;
+    /** The run's artifact ids shown with the request; absent when none. */
+    artifacts?: string[];
     /** The choices of the request; absent for a plain yes or no. */
     options?: ApprovalOption[];
     /** Set (true) only when several options may be selected. */

@@ -51,6 +51,20 @@ An approval can offer choices instead of a plain yes or no:
 - **Where they show**: the wait point (`run.waiting.options`, `multiple` only when true) and the `wait` step's input keep the options; the dashboard renders each as a radio or checkbox with its `detail` as preformatted text (a diff colored by line); channels list `<id>: <label>` and link to the dashboard, never the detail.
 - **Replay**: on resume `approve()` returns the recorded decision (the request is still validated first), its `selected` in the order of the options the tool passes now. When those options no longer fit the recorded answer (an id the request does not offer any more, a single choice that was a multiple one, options added to a plain request or removed from one), it returns a denial with the reason `options changed` instead, so a tool never gets an id it did not offer. A recorded denial is returned as is.
 
+## Showing files
+
+A request and each option can name files of the run to show with it, for example screenshots: `artifacts: string[]` holds the ids of the run's artifacts (from `ctx.artifacts.put()`). Put them with a `key` so a replayed call re-puts the same ids instead of adding copies:
+
+```ts
+const shot = await ctx.artifacts.put({ key: 'button/actual', mediaType: 'image/png', filename: 'button.png', data });
+const decision = await approve(ctx, {
+    title: 'Accept the new baseline?',
+    options: [{ id: 'button', label: 'Button', artifacts: [shot.id] }],
+});
+```
+
+Each id must be an artifact of this run and appear once per list; an option names at most `APPROVAL_ARTIFACTS_PER_OPTION_MAX` (20), a request with its options at most `APPROVAL_ARTIFACTS_MAX` (100); anything else is a `ValidationError` tool error and the run does not pause. The ids go onto `run.waiting` (`artifacts`, `options[].artifacts`) and the `wait` step's input, the dashboard shows images as thumbnails, and channel messages never carry them.
+
 ## Asking through a channel
 
 `approve()` on its own asks the [dashboard inbox](/guide/ui) and the API only. To ask where the owner is, call it on a [channel](/guide/channels):

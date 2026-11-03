@@ -21,8 +21,14 @@ import {
     jsonBody,
     notifiedLine,
 } from '../../approvals/helpers.ts';
+import { useArtifactTiles } from '../../artifacts/composables.ts';
+import { approvalArtifactIds } from '../../artifacts/helpers.ts';
+import type { ArtifactTile } from '../../artifacts/types.ts';
+import { useAppContext } from '../../context/module.ts';
 import { RouteName } from '../../router/constants.ts';
 import { shortId } from '../../runs/helpers.ts';
+import ArtifactStrip from '../artifact-strip/ArtifactStrip.vue';
+import ArtifactViewer from '../artifact-viewer/ArtifactViewer.vue';
 import ExpiryCountdown from '../expiry-countdown/ExpiryCountdown.vue';
 import JsonBlock from '../json-block/JsonBlock.vue';
 import NavIcon from '../nav-icon/NavIcon.vue';
@@ -56,10 +62,31 @@ const chosen = computed<string[]>(() => {
 const structured = computed(() => (props.run.waiting?.body ? jsonBody(props.run.waiting.body) : undefined));
 const approvable = computed(() => !props.run.waiting || canApprove(props.run.waiting, chosen.value));
 
-// another wait point of the run: its options are others
+const { client } = useAppContext();
+/** The images of the wait point: loaded once mounted, reloaded (and the old URLs revoked) per approval id. */
+const artifacts = useArtifactTiles({
+    client,
+    runId: () => props.run.id,
+    key: () => props.run.waiting?.approvalId,
+    refresh: () => props.run,
+    ids: () => approvalArtifactIds(props.run.waiting),
+});
+const viewing = ref<ArtifactTile>();
+const viewerOpen = ref(false);
+
+function view(tile: ArtifactTile): void {
+    viewing.value = tile;
+    viewerOpen.value = true;
+}
+
+onMounted(artifacts.start);
+
+// another wait point of the run: its options and images are others
 watch(() => props.run.waiting?.approvalId, () => {
     selected.value = [];
     single.value = undefined;
+    viewerOpen.value = false;
+    viewing.value = undefined;
 });
 
 function send(approved: boolean): void {
@@ -153,6 +180,11 @@ watch(() => props.highlight, reveal);
                 >
                     No details given.
                 </p>
+                <ArtifactStrip
+                    :tiles="artifacts.tilesOf(run.waiting.artifacts)"
+                    @open="view"
+                    @download="artifacts.download"
+                />
                 <fieldset
                     v-if="options.length > 0"
                     class="callout-options"
@@ -188,6 +220,11 @@ watch(() => props.highlight, reveal);
                             <span>{{ option.label }}</span>
                             <span class="mono muted">{{ option.id }}</span>
                         </label>
+                        <ArtifactStrip
+                            :tiles="artifacts.tilesOf(option.artifacts)"
+                            @open="view"
+                            @download="artifacts.download"
+                        />
                         <details v-if="option.detail">
                             <summary>Details</summary>
                             <pre class="option-detail"><template
@@ -262,5 +299,9 @@ watch(() => props.highlight, reveal);
                 </VCButton>
             </div>
         </div>
+        <ArtifactViewer
+            v-model:open="viewerOpen"
+            :tile="viewing"
+        />
     </article>
 </template>

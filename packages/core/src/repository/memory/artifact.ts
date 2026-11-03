@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ArtifactNotFoundError, RepositoryNotFoundError } from '../../errors/index.ts';
+import { ArtifactNotFoundError, InvalidRunStateError, RepositoryNotFoundError } from '../../errors/index.ts';
 import type { Artifact } from '../../artifact/types.ts';
 import type { IArtifactRepository } from '../types.ts';
 import { copy } from './helpers.ts';
@@ -21,6 +21,28 @@ export class MemoryArtifactRepository implements IArtifactRepository {
         this.artifacts.set(artifact.id, { artifact: copy(artifact), data: new Uint8Array(data) });
 
         return true;
+    }
+
+    async save(artifact: Artifact, data: Uint8Array): Promise<Artifact> {
+        const entry = this.artifacts.get(artifact.id);
+
+        if (entry && entry.artifact.runId !== artifact.runId) {
+            throw new InvalidRunStateError(`The artifact id "${artifact.id}" belongs to another run.`);
+        }
+
+        const next = copy(artifact);
+
+        if (next.filename === undefined) {
+            delete next.filename;
+        }
+
+        if (entry) {
+            next.createdAt = entry.artifact.createdAt;
+        }
+
+        this.artifacts.set(artifact.id, { artifact: next, data: new Uint8Array(data) });
+
+        return copy(next);
     }
 
     async findOneOrFail(id: string): Promise<Artifact> {

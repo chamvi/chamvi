@@ -26,5 +26,11 @@ export const APPROVAL_OPTION_DETAIL_MAX_LENGTH = 20_000;
 /** The longest details of all options of one request together. */
 export const APPROVAL_OPTIONS_DETAIL_MAX_LENGTH = 100_000;
 
+/** The most artifact ids one approval option may name. */
+export const APPROVAL_ARTIFACTS_PER_OPTION_MAX = 20;
+
+/** The most artifact ids one approval request may name, its own and its options' together. */
+export const APPROVAL_ARTIFACTS_MAX = 100;
+
 /** The placeholder a suspended tool call resolves with; it never reaches a checkpoint. */
 export const SUSPENDED_RESULT = Object.freeze({ suspended: 'approval' });

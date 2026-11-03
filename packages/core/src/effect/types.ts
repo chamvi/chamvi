@@ -7,6 +7,7 @@
 
 import type { Tool, ToolExecutionOptions } from 'ai';
 import type { AgentHooks } from '../agent/types.ts';
+import type { IRunArtifacts } from '../artifact/types.ts';
 import type { ApprovalRequest } from '../engine/execute/types.ts';
 import type { IEffectRepository } from '../repository/types.ts';
 import type { StateSchema } from '../state/types.ts';
@@ -44,6 +45,8 @@ export type ToolCallFrame = {
     outboundApproved?: boolean;
     /** Where approve() reads the recorded decisions. */
     effects: IEffectRepository;
+    /** The run's artifacts, where approve() checks the artifact ids a request names. */
+    artifacts?: IRunArtifacts;
     /** Set by the approve() that suspended the call; the wrapper answers it with a placeholder. */
     suspended?: ApprovalRequest;
     /** True while a streaming tool's body runs: approve() is refused there. */

@@ -85,11 +85,11 @@ The `ToolLoopAgent` gets your `Output` with one change: its `parsePartialOutput`
 
 ## Files
 
-A run can start with files ([attachments](/guide/channels#attachments)) and tools can store files of their own. Both are artifacts of the run: metadata (`id`, `runId`, `agent`, `mediaType`, `filename?`, `size`, `createdAt`) plus the bytes, kept in the store's `IArtifactRepository`. The `artifacts` of the tool context is scoped to the run: `put({ mediaType, filename?, data })` stores a `Uint8Array` and returns the `Artifact`, `get(id)` returns `{ artifact, data }` (or `undefined`, also for another run's artifact) and `list()` returns the run's artifacts by `createdAt` (attachments in the order they were given, ids `<runId>.0000`, ...; tool files get random UUIDs).
+A run can start with files ([attachments](/guide/channels#attachments)) and tools can store files of their own. Both are artifacts of the run: metadata (`id`, `runId`, `agent`, `mediaType`, `filename?`, `size`, `createdAt`) plus the bytes, kept in the store's `IArtifactRepository`. The `artifacts` of the tool context is scoped to the run: `put({ mediaType, filename?, data })` stores a `Uint8Array` and returns the `Artifact`, `get(id)` returns `{ artifact, data }` (or `undefined`, also for another run's artifact) and `list()` returns the run's artifacts by `createdAt` (attachments in the order they were given, ids `<runId>.0000`, ...; a tool file put without a `key` gets a random UUID, with one the id below).
 
 <<< @/snippets/agents.ts#artifacts
 
-`put()` is not an effect by itself: a recovered run repeats the step in progress, so call it inside a [`defineEffectTool`](/guide/effect-tools) to store a file exactly once. Over HTTP, `GET /runs/:id/artifacts` lists them and `GET /runs/:id/artifacts/:artifactId` downloads one (see [HTTP API](/guide/http#files)).
+`put()` is not an effect by itself: a recovered run repeats the step in progress, so call it inside a [`defineEffectTool`](/guide/effect-tools) to store a file exactly once. Or give it a `key` (1 to 255 characters, no NUL): `put({ key, mediaType, data })` stores the file under an id derived from the run and the key (`keyedArtifactId(runId, key)`), and a later `put()` with the same key replaces the bytes and metadata instead of adding a second file, so a repeated or replayed call stores it once. Over HTTP, `GET /runs/:id/artifacts` lists them and `GET /runs/:id/artifacts/:artifactId` downloads one (see [HTTP API](/guide/http#files)).
 
 ## Many agents per engine
 

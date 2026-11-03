@@ -115,6 +115,7 @@ describe('public api', () => {
         'requireToolPermission',
         'isArtifactMediaType',
         'artifactFilePart',
+        'keyedArtifactId',
         'assertTriggerKey',
         'assertConcurrencyMaxRuns',
         'normalizeEnvelope',
@@ -282,6 +283,8 @@ describe('public api', () => {
         expect(core.APPROVAL_OPTION_LABEL_MAX_LENGTH).toBe(200);
         expect(core.APPROVAL_OPTION_DETAIL_MAX_LENGTH).toBe(20_000);
         expect(core.APPROVAL_OPTIONS_DETAIL_MAX_LENGTH).toBe(100_000);
+        expect(core.APPROVAL_ARTIFACTS_PER_OPTION_MAX).toBe(20);
+        expect(core.APPROVAL_ARTIFACTS_MAX).toBe(100);
         expect(core).not.toHaveProperty('toApprovalOptions');
     });
 
@@ -289,8 +292,11 @@ describe('public api', () => {
         expectTypeOf<core.ApprovalOption>().toEqualTypeOf<{
             id: string;
             label: string;
-            detail?: string
+            detail?: string;
+            artifacts?: string[]
         }>();
+        expectTypeOf<core.ApprovalRequestInput['artifacts']>().toEqualTypeOf<string[] | undefined>();
+        expectTypeOf<core.WaitPoint['artifacts']>().toEqualTypeOf<string[] | undefined>();
         expectTypeOf<core.ApprovalRequestInput['options']>().toEqualTypeOf<core.ApprovalOption[] | undefined>();
         expectTypeOf<core.ApprovalRequestInput['multiple']>().toEqualTypeOf<boolean | undefined>();
     });
