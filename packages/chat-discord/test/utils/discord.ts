@@ -5,11 +5,29 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-// Fake discord.js messages and channels: plain objects of the structural
-// subset chamvi reads (DiscordInboundMessage), so no discord.js runtime runs.
+// Fake discord.js messages, channels and clients: plain objects of the
+// structural subset chamvi reads (DiscordInboundMessage, DiscordClient), so no
+// discord.js runtime runs, plus a fake fetch and createDiscordFixture().
 
-import { ChannelType } from 'discord.js';
+import { ChannelType, Events } from 'discord.js';
 import type { ClientOptions } from 'discord.js';
+import { ConsoleLogger } from 'chat';
+import type {
+    Lock,
+    QueueEntry,
+    StateAdapter,
+} from 'chat';
+import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import type {
+    Agent,
+    ConversationAccess,
+    IStore,
+    Run,
+} from '@chamvi/core';
+import type { ChatApprovalRef, ChatChannel } from '@chamvi/chat';
+import { createDiscordChat } from '@chamvi/chat-discord';
+import type { DiscordChatOptions, DiscordChatSetup } from '@chamvi/chat-discord';
+import { ControllableClock, textModel } from '@chamvi/test-kit';
 import type { DiscordClient, DiscordClientFactory, DiscordInboundMessage } from '../../src/discord/types.ts';
 
 export const ACCOUNT = 'support';
@@ -264,4 +282,276 @@ export async function settle(rounds = 10): Promise<void> {
             setImmediate(resolve);
         });
     }
+}
+
+/** A recorded fetch call: the URL and the init the sender passed. */
+export type FetchCall = { url: string; init: RequestInit };
+
+export type FakeFetch = {
+    readonly fetch: typeof fetch;
+    readonly calls: FetchCall[];
+    /** answers a call; default a 200 with a Discord message of a fresh id */
+    answer?: (call: FetchCall) => Response | Promise<Response>;
+};
+
+/** A fetch that records every call and answers like Discord's create-message route. */
+export function createFakeFetch(): FakeFetch {
+    const calls: FetchCall[] = [];
+    let count = 0;
+    const state: FakeFetch = {
+        calls,
+        fetch: (async (input: string | URL | Request, init?: RequestInit) => {
+            const call = { url: String(input), init: init ?? {} };
+
+            calls.push(call);
+
+            if (state.answer) {
+                return state.answer(call);
+            }
+
+            count += 1;
+
+            return Response.json({ id: `90000000000000${String(count).padStart(4, '0')}` });
+        }) as typeof fetch,
+    };
+
+    return state;
+}
+
+/** The JSON body of a recorded call. */
+export function bodyOf(call: FetchCall | undefined): Record<string, unknown> {
+    return JSON.parse(String(call?.init.body)) as Record<string, unknown>;
+}
+
+/** Every listener, login and destroy of the fake clients, to assert no client call happened. */
+export function clientTrace(clients: FakeClients): string {
+    return JSON.stringify(clients.clients.map((client) => ({
+        listeners: client.listenerCount(),
+        logins: client.logins.length,
+        destroyed: client.destroyed,
+    })));
+}
+
+/**
+ * An in-memory Chat SDK StateAdapter (the SDK ships none in its main package),
+ * every call recorded by method name.
+ */
+export function createMemoryState(calls: string[] = []): StateAdapter {
+    const values = new Map<string, unknown>();
+    const lists = new Map<string, unknown[]>();
+    const queues = new Map<string, QueueEntry[]>();
+    const subscriptions = new Set<string>();
+    const locks = new Map<string, Lock>();
+
+    const state: StateAdapter = {
+        async acquireLock(threadId, ttlMs) {
+            if (locks.has(threadId)) {
+                return null;
+            }
+
+            const lock = {
+                threadId,
+                token: `${threadId}:${locks.size}`,
+                expiresAt: Date.now() + ttlMs,
+            };
+
+            locks.set(threadId, lock);
+
+            return lock;
+        },
+        async appendToList(key, value, options) {
+            const list = [...(lists.get(key) ?? []), value];
+
+            lists.set(key, options?.maxLength ? list.slice(-options.maxLength) : list);
+        },
+        connect: () => Promise.resolve(),
+        async delete(key) {
+            values.delete(key);
+        },
+        async dequeue(threadId) {
+            return queues.get(threadId)?.shift() ?? null;
+        },
+        disconnect: () => Promise.resolve(),
+        async enqueue(threadId, entry) {
+            const queue = queues.get(threadId) ?? [];
+
+            queue.push(entry);
+            queues.set(threadId, queue);
+
+            return queue.length;
+        },
+        async extendLock(lock) {
+            return locks.get(lock.threadId)?.token === lock.token;
+        },
+        async forceReleaseLock(threadId) {
+            locks.delete(threadId);
+        },
+        async get<T>(key: string) {
+            return (values.get(key) as T | undefined) ?? null;
+        },
+        async getList<T>(key: string) {
+            return (lists.get(key) ?? []) as T[];
+        },
+        async isSubscribed(threadId) {
+            return subscriptions.has(threadId);
+        },
+        async queueDepth(threadId) {
+            return queues.get(threadId)?.length ?? 0;
+        },
+        async releaseLock(lock) {
+            if (locks.get(lock.threadId)?.token === lock.token) {
+                locks.delete(lock.threadId);
+            }
+        },
+        async set(key, value) {
+            values.set(key, value);
+        },
+        async setIfNotExists(key, value) {
+            if (values.has(key)) {
+                return false;
+            }
+
+            values.set(key, value);
+
+            return true;
+        },
+        async subscribe(threadId) {
+            subscriptions.add(threadId);
+        },
+        async unsubscribe(threadId) {
+            subscriptions.delete(threadId);
+        },
+    };
+
+    return new Proxy(state, {
+        get(target, key, receiver) {
+            const value: unknown = Reflect.get(target, key, receiver);
+
+            if (typeof value !== 'function') {
+                return value;
+            }
+
+            return (...args: unknown[]) => {
+                calls.push(String(key));
+
+                return (value as (...input: unknown[]) => unknown).apply(target, args);
+            };
+        },
+    });
+}
+
+/** A bot token string the tests look for in every error, run and log. */
+export const SENTINEL_TOKEN = 'MTAwMDAw.sentinel-bot-token.SECRET';
+
+export const APPROVAL_URL = (ref: ChatApprovalRef) => `https://chamvi.example/ui/approvals?run=${ref.runId}&approval=${ref.approvalId}`;
+
+export type DiscordFixture = {
+    setup: DiscordChatSetup;
+    channel: ChatChannel;
+    clients: FakeClients;
+    fetch: FakeFetch;
+    clock: ControllableClock;
+    engine: Engine;
+    store: IStore;
+    errors: unknown[];
+    access: ConversationAccess[];
+    /** how often the token provider was called */
+    tokenReads: { count: number };
+    runs(): Promise<Run[]>;
+    /** the last client, with its ready event emitted */
+    ready(): FakeClient;
+    /** hands a message to the last client's messageCreate listeners */
+    deliver(...messages: DiscordInboundMessage[]): void;
+};
+
+export type DiscordFixtureInput = {
+    patch?: Partial<DiscordChatOptions>;
+    agents?: (channel: ChatChannel) => Agent[];
+};
+
+/** createDiscordChat() over fake clients and a fake fetch, on an Engine with a memory store. */
+export function createDiscordFixture(input: DiscordFixtureInput = {}): DiscordFixture {
+    const clock = new ControllableClock(new Date('2026-11-03T09:00:00Z'));
+    const clients = createFakeClients();
+    const fakeFetch = createFakeFetch();
+    const errors: unknown[] = [];
+    const access: ConversationAccess[] = [];
+    const tokenReads = { count: 0 };
+    const setup = createDiscordChat({
+        account: ACCOUNT,
+        token: async () => {
+            tokenReads.count += 1;
+
+            return SENTINEL_TOKEN;
+        },
+        applicationId: BOT,
+        policy: {
+            guilds: [GUILD],
+            users: [ALICE],
+            dms: { users: [ALICE] },
+        },
+        resolveInvoker: (identity) => ({
+            id: identity.author,
+            kind: 'discord',
+            permissions: [],
+        }),
+        state: createMemoryState(),
+        approvalUrl: APPROVAL_URL,
+        onError: (error) => {
+            errors.push(error);
+        },
+        logger: new ConsoleLogger('error'),
+        clientFactory: clients.factory,
+        fetch: fakeFetch.fetch,
+        ...input.patch,
+    });
+    const { channel } = setup;
+    const memory = createMemoryStore({ clock });
+    const engine = new Engine({
+        store: memory,
+        agents: input.agents ? input.agents(channel) : [defineAgent({
+            name: 'assistant',
+            model: textModel(),
+            instructions: 'Answer.',
+            channels: [channel.on()],
+        })],
+        channels: [channel],
+        clock,
+        conversations: {
+            authorize: (item) => {
+                access.push(item);
+
+                return true;
+            },
+        },
+        onError: (error) => {
+            errors.push(error);
+        },
+    });
+
+    return {
+        setup,
+        channel,
+        clients,
+        fetch: fakeFetch,
+        clock,
+        engine,
+        store: memory,
+        errors,
+        access,
+        tokenReads,
+        runs: async () => (await memory.runs.find({})).data,
+        ready() {
+            const client = clients.last();
+
+            client.emit(Events.ClientReady, client);
+
+            return client;
+        },
+        deliver(...messages) {
+            for (const message of messages) {
+                clients.last().emit(Events.MessageCreate, message);
+            }
+        },
+    };
 }

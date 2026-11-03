@@ -12,7 +12,13 @@ import type {
     ClientOptions,
 } from 'discord.js';
 import type { DiscordAdapter } from '@chat-adapter/discord';
-import type { IClock } from '@chamvi/core';
+import type { IClock, Invoker } from '@chamvi/core';
+import type {
+    Chat,
+    Logger,
+    StateAdapter,
+} from 'chat';
+import type { ChatApprovalRef, ChatChannel, ChatIngress } from '@chamvi/chat';
 
 /** Who may start runs: Discord ids (snowflakes) only, never names. */
 export type DiscordPolicy = {
@@ -177,4 +183,48 @@ export type DiscordSenderOptions = {
     fetch: typeof fetch;
     /** The adapter's public thread-id decoding. */
     adapter: Pick<DiscordAdapter, 'decodeThreadId'>;
+};
+
+export type DiscordChatOptions = {
+    /** The operator's non-secret alias of the bot (the conversation account). */
+    account: string;
+    /** The bot token, or a provider read per login and per send (never in a store, run, log or error). */
+    token: string | (() => Promise<string>);
+    /** The bot's application id (a snowflake). */
+    applicationId: string;
+    /** Who may start runs: ids only; unknown guilds, channels and users are denied. */
+    policy: DiscordPolicy;
+    /** The invoker of an allowed message's runs; undefined denies the message. */
+    resolveInvoker: (identity: DiscordIdentity) => Invoker | undefined | Promise<Invoker | undefined>;
+    /** The Chat SDK state adapter of the Chat. */
+    state: StateAdapter;
+    /** The approval link (ids only); approvals are answered in the UI. */
+    approvalUrl: (ref: ChatApprovalRef) => string;
+    /** Default `chat`. */
+    name?: string;
+    /** Default true (runs are tainted). */
+    untrusted?: boolean;
+    /** Bound of one send; default `CHAT_TIMEOUT_MS`. */
+    timeoutMs?: number;
+    /** The connector's clock (login retry backoff, shutdown bound); default the engine's. */
+    clock?: IClock;
+    /** Failures nobody awaits; default console.error. Never gets the token. */
+    onError?: (error: unknown) => void;
+    /** The logger of the Chat and the adapter; default a console logger at level `warn`. */
+    logger?: Logger;
+    /** The Chat's bot user name; default `chamvi`. */
+    userName?: string;
+    /** The Discord REST base; default DISCORD_API_URL. */
+    apiUrl?: string;
+    /** Makes the discord.js client; default `new Client(options)` (tests pass a fake). */
+    clientFactory?: DiscordClientFactory;
+    /** The fetch of the REST send; default the global fetch. */
+    fetch?: typeof fetch;
+};
+
+export type DiscordChatSetup = {
+    chat: Chat;
+    ingress: ChatIngress;
+    channel: ChatChannel;
+    status(): DiscordConnectionStatus;
 };

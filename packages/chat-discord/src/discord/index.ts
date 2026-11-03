@@ -14,7 +14,10 @@ export {
     DISCORD_SHUTDOWN_TIMEOUT_MS,
     DISCORD_TEXT_MAX_CHARS,
 } from './constants.ts';
+export { createDiscordChat } from './module.ts';
 export type {
+    DiscordChatOptions,
+    DiscordChatSetup,
     DiscordClient,
     DiscordClientFactory,
     DiscordConnectionStatus,
