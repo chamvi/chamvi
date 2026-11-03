@@ -6,7 +6,7 @@ Chat channels on the [Chat SDK](https://www.npmjs.com/package/chat). The public 
 npm install @chamvi/chat @chamvi/core @chamvi/http chat --save
 ```
 
-`@chamvi/core`, `@chamvi/http` and `chat` (`^4.44.0`) are peer dependencies; `@chamvi/app` is an optional peer, imported only by `@chamvi/chat/module`. The package imports no platform SDK: platforms ship as their own packages on the public [platform seam](#platform-packages), WhatsApp Web as [`@chamvi/chat-whatsapp`](/deployment/whatsapp).
+`@chamvi/core`, `@chamvi/http` and `chat` (`^4.44.0`) are peer dependencies; `@chamvi/app` is an optional peer, imported only by `@chamvi/chat/module`. The package imports no platform SDK: platforms ship as their own packages on the public [platform seam](#platform-packages), WhatsApp Web as [`@chamvi/chat-whatsapp`](/deployment/whatsapp), Discord as [`@chamvi/chat-discord`](/deployment/discord).
 
 ## chatChannel
 
@@ -108,4 +108,4 @@ Contributes the prebuilt channel to `AppToken.CHANNELS`; the engine starts and s
 
 ## Not supported yet
 
-Media (incoming attachments, outbound files), platform history, message splitting, native approval buttons and actions, and verified webhook platforms beyond the generic adapter contract. For WhatsApp's own gaps see [WhatsApp](/deployment/whatsapp#what-is-not-guaranteed).
+Media (incoming attachments, outbound files), platform history, message splitting, native approval buttons and actions, and verified webhook platforms beyond the generic adapter contract. For WhatsApp's own gaps see [WhatsApp](/deployment/whatsapp#what-is-not-guaranteed), for Discord's [Discord](/deployment/discord#what-is-not-guaranteed).

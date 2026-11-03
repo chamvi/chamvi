@@ -37,4 +37,5 @@ Planned: OpenTelemetry spans for runs and steps next to the AI SDK's own telemet
 - [Multiple Replicas](/deployment/replicas)
 - [OpenClaw](/deployment/openclaw)
 - [WhatsApp](/deployment/whatsapp)
+- [Discord](/deployment/discord)
 - [GitHub App](/deployment/github-app)

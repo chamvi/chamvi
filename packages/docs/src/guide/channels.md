@@ -120,6 +120,7 @@ Rules for a channel:
 | `openclawChannel({ ... })` | [`@chamvi/channel-openclaw`](/deployment/openclaw) | none | an OpenClaw chat through its hooks endpoint, deduplicated by `Idempotency-Key` |
 | `chatChannel({ ... })` | [`@chamvi/chat`](/reference/chat) | Chat SDK adapters: webhooks at `POST /channels/chat/<adapter>`, socket messages from `start()` | a text message in the chat (approvals as a UI link), at least once |
 | `createWhatsAppChat({ ... })` | [`@chamvi/chat-whatsapp`](/deployment/whatsapp) | WhatsApp Web socket messages from `start()` (a `chatChannel()` with the WhatsApp platform hooks) | a text message in the WhatsApp chat, at least once |
+| `createDiscordChat({ ... })` | [`@chamvi/chat-discord`](/deployment/discord) | Discord Gateway messages from `start()` (a `chatChannel()` with the Discord platform hooks) | a text message in the Discord channel or thread over REST, without pings, at least once |
 | `consoleChannel({ name?, write? })` | `@chamvi/core` | none | one header line per message, the body lines and, for an approval, until when it waits (default `console.log`); never throws |
 
 ## Attachments
