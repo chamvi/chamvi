@@ -15,8 +15,9 @@ import { untilAborted } from '../../run/helpers.ts';
 import type { RunContext, Step } from '../../run/types.ts';
 import { assertTrust, bindTrust } from '../../trust/module.ts';
 import { resolveBudget, timeoutSignal } from '../budget.ts';
-import { createToolContext, toRunError } from './helpers.ts';
-import type { ExecuteContext } from './types.ts';
+import { createCodeTools } from './code-tools.ts';
+import { assembleTools, createToolContext, toRunError } from './helpers.ts';
+import type { CodeToolStep, ExecuteContext } from './types.ts';
 
 /** The synthetic tool call a code run's `run()` executes in: part of its approval and wait ids (`0:run:<n>`). */
 const CODE_RUN_TOOL_CALL_ID = 'run';
@@ -37,8 +38,9 @@ function isSerialisable(value: unknown): boolean {
  * `run(payload, ctx)` inside one synthetic tool-call frame (`toolCallId`
  * `run`, `toolName` the agent, step index 0), so dispatch(),
  * waitForDispatch(), approve() and ctx.channels work as inside a tool
- * call. Each execution re-runs `run()` from the start; its effect-recorded
- * calls return their records. A suspension pauses the run, whatever `run()`
+ * call. `ctx.tools` holds the agent's tools wrapped as for a model run
+ * (createCodeTools). Each execution re-runs `run()` from the start; its
+ * effect-recorded calls return their records. A suspension pauses the run, whatever `run()`
  * did with the signal afterwards; else the returned value completes it (one
  * `tool` step) and a throw fails it. No model call, no `llm` step, no
  * checkpoint.
@@ -79,8 +81,6 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
     bindRunSnapshot(runContext);
 
     const toolContext = createToolContext(ctx, runContext);
-    // the same object, so the provided values bound to it stay reachable through inject()
-    const codeContext: CodeRunContext = Object.assign(toolContext, { tools: {} });
     const frame: ToolCallFrame = {
         runId: run.id,
         toolCallId: CODE_RUN_TOOL_CALL_ID,
@@ -90,10 +90,51 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
         effects: store.effects,
         artifacts: toolContext.artifacts,
     };
+    // one write at a time, so concurrent ctx.tools calls get distinct step indexes
+    let steps: Promise<void> = Promise.resolve();
+    const appendStep = (step: CodeToolStep): Promise<void> => {
+        const write = steps.then(async () => {
+            // work run() left behind after its execution ended writes nothing more
+            if (local.signal.aborted || (ctx.ownsRun && !await ctx.ownsRun())) {
+                return;
+            }
+
+            const stored: Step = {
+                runId: run.id,
+                index: (await store.steps.find(run.id)).length,
+                kind: 'tool',
+                ...step,
+            };
+
+            await store.steps.insert(stored);
+            ctx.onStepAppended(stored);
+        });
+
+        steps = write.catch(() => {});
+
+        return write;
+    };
     const startedAt = clock.now();
     let outcome: { output: unknown } | { error: unknown };
 
     try {
+        // the same ToolContext the tools get, so the provided values bound to it stay reachable through inject()
+        const assembled = await assembleTools(ctx, runContext, (request) => {
+            // a suspension inside a tool pauses the run like a direct approve()
+            frame.suspended ??= request;
+        }, undefined, toolContext);
+        const codeContext: CodeRunContext = Object.assign(toolContext, {
+            tools: createCodeTools({
+                agent: agent.name,
+                tools: assembled.tools,
+                activeTools: assembled.activeTools,
+                toolsContext: assembled.toolsContext,
+                frame,
+                signal,
+                onStep: appendStep,
+                now: () => clock.now(),
+            }),
+        });
         const work = runToolCall(frame, async () => body(run.trigger.payload, codeContext));
 
         // run() may keep going after an abort; never leak its rejection
@@ -132,19 +173,21 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
         outcome = { error: new ValidationError(`The output of code agent "${agent.name}" is not JSON-serialisable.`) };
     }
 
-    const step: Step = {
-        runId: run.id,
-        index: (await store.steps.find(run.id)).length,
-        kind: 'tool',
-        name: agent.name,
-        input: run.trigger.payload,
-        ...('error' in outcome ? { error: toRunError(outcome.error) } : { output: outcome.output }),
-        startedAt,
-        finishedAt: clock.now(),
-    };
+    // after the steps of the ctx.tools calls; a run another owner took over gets no step from this execution
+    await steps;
 
-    // a run another owner took over gets no step from this execution
     if (!ctx.ownsRun || await ctx.ownsRun()) {
+        const step: Step = {
+            runId: run.id,
+            index: (await store.steps.find(run.id)).length,
+            kind: 'tool',
+            name: agent.name,
+            input: run.trigger.payload,
+            ...('error' in outcome ? { error: toRunError(outcome.error) } : { output: outcome.output }),
+            startedAt,
+            finishedAt: clock.now(),
+        };
+
         await store.steps.insert(step);
         ctx.onStepAppended(step);
     }

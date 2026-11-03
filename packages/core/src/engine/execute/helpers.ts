@@ -188,12 +188,15 @@ export function createToolContext(ctx: ExecuteContext, runContext: RunContext): 
  * Throws InvalidAgentDefinitionError for a misconfigured `toolsContext`,
  * for a tool declaring `needsApproval`, for a placeholder whose name a state
  * or skill tool carries and for a role schema that cannot be converted.
+ * `shared` is the execution's ToolContext when the caller built one already
+ * (a code run hands the same object to run()).
  */
 export async function assembleTools(
     ctx: ExecuteContext,
     runContext: RunContext,
     onSuspend?: (request: SuspendRequest) => void,
     stepIndex?: () => number,
+    shared?: ToolContext,
 ): Promise<{
     tools: ToolSet;
     activeTools?: string[];
@@ -227,7 +230,7 @@ export async function assembleTools(
     }
 
     // before the factory, so inject() works there, in execute and in the effect hooks
-    const toolContext = createToolContext(ctx, runContext);
+    const toolContext = shared ?? createToolContext(ctx, runContext);
     const stateTools = schema ? createStateTools(schema) : {};
     const ownTools = typeof userTools === 'function' ? userTools(toolContext) : userTools ?? {};
 
@@ -468,6 +471,8 @@ export async function executePendingCall(input: {
     toolsContext: Record<string, unknown>;
     messages: ModelMessage[];
     signal: AbortSignal;
+    /** How a validation error names the input, default `the pending call's input`. */
+    inputLabel?: string;
 }): Promise<{ output: unknown } | { error: unknown }> {
     const {
         call,
@@ -488,7 +493,7 @@ export async function executePendingCall(input: {
     let parsed: unknown;
 
     try {
-        parsed = await validateToolInput(call.toolName, tool.inputSchema, call.input, 'the pending call\'s input');
+        parsed = await validateToolInput(call.toolName, tool.inputSchema, call.input, input.inputLabel ?? 'the pending call\'s input');
     } catch (error) {
         return { error };
     }

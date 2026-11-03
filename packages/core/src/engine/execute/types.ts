@@ -6,10 +6,12 @@
  */
 
 import type { ConversationSnapshot, IConversations } from '../../conversation/types.ts';
+import type { ToolSet } from 'ai';
 import type { Agent } from '../../agent/types.ts';
 import type { ApprovalOption } from '../../approval/types.ts';
 import type { IClock } from '../../clock/index.ts';
 import type { ContextKey } from '../../context/types.ts';
+import type { ToolCallFrame } from '../../effect/types.ts';
 import type { IModelResolver, ModelRef } from '../../model/types.ts';
 import type { Run, Step, Usage } from '../../run/types.ts';
 import type { SkillContribution } from '../../skill/types.ts';
@@ -105,3 +107,23 @@ export type DispatchWaitRequest = {
 
 /** What a suspended tool call waits on (internal). */
 export type SuspendRequest = ApprovalRequest | DispatchWaitRequest;
+
+/** A tool call `ctx.tools` made in a code run, appended as a `tool` step (internal). */
+export type CodeToolStep = Pick<Step, 'name' | 'input' | 'output' | 'error' | 'startedAt' | 'finishedAt'>;
+
+/** What createCodeTools() builds a code run's `ctx.tools` from (internal). */
+export type CodeToolsOptions = {
+    /** The code agent's name, for the refusal of an unavailable tool. */
+    agent: string;
+    /** The wrapped set (wrapToolsForRun), whose suspensions reach the outer frame. */
+    tools: ToolSet;
+    /** The names the toolPolicy allows, undefined without a policy. */
+    activeTools?: string[];
+    toolsContext: Record<string, unknown>;
+    /** The synthetic frame run() executes in. */
+    frame: ToolCallFrame;
+    signal: AbortSignal;
+    /** Appends the call's step; awaited before the call resolves or rejects. */
+    onStep: (step: CodeToolStep) => Promise<void>;
+    now: () => Date;
+};
