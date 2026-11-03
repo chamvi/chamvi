@@ -19,7 +19,7 @@ Uses the plugin skills `skills:release-please-version-bump` and `skills:write-re
 ## Phase 2: publish and unpin
 
 1. Watch the `release.yml` run of the merge commit (`gh run watch <id> --exit-status`); its `Publish` step logs `[success] Published @chamvi/<pkg>@<version>` per package.
-2. Check npm through the full document: `curl -s https://registry.npmjs.org/@chamvi/<pkg>` and `versions["<version>"]`. `npm view` and `/<pkg>/latest` serve a CDN copy that lags several minutes and mixes old and new versions.
+2. Take the `Publish` log as the proof of publication. Every registry read (`npm view`, `/<pkg>/latest`, even the full `https://registry.npmjs.org/@chamvi%2f<pkg>` document) is a CDN copy that lags 15 minutes or more and mixes old and new versions; before Phase 5 only the packages the template installs must resolve (`npm install` then `npm ls --all | grep @chamvi`).
 3. Remove the `release-as` pin in a `build:` commit (it would freeze the next release at this version).
 
 ## Phase 3: chamvi release notes
@@ -29,6 +29,10 @@ Run `skills:write-release-notes` on `v<version>`. chamvi-specific:
 - The generated body is the root component's changelog and can miss commits that touch only `packages/*` (0.6.0 lost a `feat(core)!`): list `git log v<prev>..v<version>` and add what is missing.
 - Samples come from `packages/docs/src/snippets/*.ts` and `packages/docs/src/guide/*.md` at the tag; the breaking-change table from `guide/upgrading.md` at the tag. Docs live at `https://chamvi.dev/`.
 - Publish with `gh release edit v<version> --notes-file <file>` (release-please creates the release).
+
+## Patch releases
+
+A patch without a migration, env variable, route, CLI or image change touches nothing under `charts/agent-app`: helm gets the fixture and `Source:` bump only, titled `chore: track chamvi <version>` (release-please counts a commit for `agent-app` only under `charts/agent-app`, so a `fix:` elsewhere cuts no chart release anyway), the template a dependency bump without a README block, and Phases 6.2, 6.3 and 7 are skipped.
 
 ## Phase 4: chamvi/helm
 
