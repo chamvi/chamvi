@@ -6,7 +6,7 @@ Chat channels on the [Chat SDK](https://www.npmjs.com/package/chat). The public 
 npm install @chamvi/chat @chamvi/core @chamvi/http chat --save
 ```
 
-`@chamvi/core`, `@chamvi/http` and `chat` (`^4.43.0`) are peer dependencies; `@chamvi/app` is an optional peer, imported only by `@chamvi/chat/module`. The package imports no platform SDK: platforms ship as their own packages on the public [platform seam](#platform-packages), WhatsApp Web as [`@chamvi/chat-whatsapp`](/deployment/whatsapp).
+`@chamvi/core`, `@chamvi/http` and `chat` (`^4.44.0`) are peer dependencies; `@chamvi/app` is an optional peer, imported only by `@chamvi/chat/module`. The package imports no platform SDK: platforms ship as their own packages on the public [platform seam](#platform-packages), WhatsApp Web as [`@chamvi/chat-whatsapp`](/deployment/whatsapp).
 
 ## chatChannel
 

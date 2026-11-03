@@ -2,15 +2,15 @@
 
 Inspected 2026-11-01 from the published npm packages installed in this repository (`node_modules`), not from a git checkout:
 
-- `chat` 4.43.0 (vercel/chat; the plan names source commit `6300fe4d3050982f758b9ea8658d8011f8ca0ee8`, not re-read for this note), `dist/index.js` and the `dist/types-*.d.ts` chunk.
+- `chat` 4.44.0 (vercel/chat 9476152; the rows below were read on 4.43.0 and re-checked on 4.44.0 by the `native:` specs), `dist/index.js` and the `dist/types-*.d.ts` chunk.
 - `baileys` 7.0.0-rc14, `lib/index.d.ts` and the `lib/Types`, `lib/Utils`, `lib/WABinary` declarations (the public API), plus `lib/Socket/socket.js` for behaviour.
 - History only: `chat-adapter-baileys` 2.1.0 (rama-adi/chat-adapter-baileys, MIT), not a dependency (see the last section).
 
 Executable evidence: `packages/chat/test/unit/ingress/upstream.spec.ts` (tests named `native: ...` record upstream Chat SDK behaviour as it is) and `packages/chat-whatsapp/test/unit/whatsapp/*.spec.ts` (chamvi's adapter over a fake socket).
 
-## Chat SDK (`chat` 4.43.0)
+## Chat SDK (`chat` 4.44.0)
 
-| External file / function | chamvi counterpart | Behaviour / implication (4.43.0) |
+| External file / function | chamvi counterpart | Behaviour / implication (4.44.0) |
 |---|---|---|
 | `Chat.processMessage(adapter, threadId, messageOrFactory, options)` (`dist/index.js`) | `packages/chat/src/ingress/module.ts:createChatIngressAdapter` (facade `processMessage`) | Returns the task promise; attaches its own `.catch` that logs `Message processing error`, so an ignored task is no unhandled rejection. With `options.deduplicate === false` it skips the dedupe; adapters do not pass it. |
 | `Chat.routeIncomingMessage` | none (bypassed) | Skips `author.isMe`, then `state.setIfNotExists('dedupe:<adapter>:<message id>', ttl)` **before** any handler. A handler failure leaves the key: a redelivery of the same message id never reaches a handler again (pinned: `native: a handler failure after the pre-handler dedupe drops the redelivery`). Chamvi intake therefore never runs behind the SDK dedupe. |

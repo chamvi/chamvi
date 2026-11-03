@@ -60,14 +60,14 @@
         "@chamvi/http": "^0.6.1",
         "@chamvi/test-kit": "^0.6.1",
         "ai": "^7.0.159",
-        "chat": "^4.43.0",
+        "chat": "^4.44.0",
         "zod": "^4.6.7"
     },
     "peerDependencies": {
         "@chamvi/app": "^0.6.1",
         "@chamvi/core": "^0.6.1",
         "@chamvi/http": "^0.6.1",
-        "chat": "^4.43.0"
+        "chat": "^4.44.0"
     },
     "peerDependenciesMeta": {
         "@chamvi/app": {
