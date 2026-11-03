@@ -13,6 +13,7 @@ export {
     DISPATCH_DEPTH_MAX,
 } from './constants.ts';
 export * from './descendants.ts';
+export { rebaseJsonSchemaRefs } from './schema.ts';
 export * from './start.ts';
 export * from './subscription.ts';
 export { dispatchTools } from './tools.ts';

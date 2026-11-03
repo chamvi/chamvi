@@ -137,6 +137,7 @@ describe('public api', () => {
         'dispatchTo',
         'dispatchTools',
         'findApprovalWaitBelow',
+        'rebaseJsonSchemaRefs',
         'waitForDispatch',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);

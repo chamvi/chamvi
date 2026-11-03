@@ -9,7 +9,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { TypeValidationError, asSchema } from 'ai';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { InvalidAgentDefinitionError, rebaseJsonSchemaRefs } from '@chamvi/core';
 import { toRoleToolInput } from '../../../src/dispatch/schema.ts';
 
 async function validate(inputSchema: Awaited<ReturnType<typeof toRoleToolInput>>['inputSchema'], value: unknown) {
@@ -132,5 +132,16 @@ describe('toRoleToolInput()', () => {
         const result = await validate(inputSchema, { payload: 1 });
 
         expect(result.success).toBe(false);
+    });
+    it('rebaseJsonSchemaRefs re-roots local refs and leaves remote refs and data keywords alone', () => {
+        expect(rebaseJsonSchemaRefs({
+            items: [{ $ref: '#/definitions/node' }],
+            remote: { $ref: 'https://example.com/schema' },
+            fixed: { const: { $ref: '#' }, enum: [{ $ref: '#' }] },
+        }, '#/properties/payload')).toEqual({
+            items: [{ $ref: '#/properties/payload/definitions/node' }],
+            remote: { $ref: 'https://example.com/schema' },
+            fixed: { const: { $ref: '#' }, enum: [{ $ref: '#' }] },
+        });
     });
 });

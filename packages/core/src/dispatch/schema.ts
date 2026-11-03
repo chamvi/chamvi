@@ -10,19 +10,20 @@ import { TypeValidationError, asSchema, jsonSchema } from 'ai';
 import type { JSONSchema7 } from 'ai';
 import { isObject } from 'smob';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
+import { JSON_SCHEMA_DATA_KEYWORDS } from './constants.ts';
 import type { RoleToolInput } from './types.ts';
 
 const PAYLOAD_POINTER = '#/properties/payload';
 
-const JSON_SCHEMA_DATA_KEYWORDS = new Set(['const', 'default', 'enum', 'examples']);
-
 /**
  * `node` with every local `$ref` (`#`, `#/definitions/...`) re-rooted at
  * `pointer`, so a schema nested there still resolves its own definitions.
+ * The one implementation: the generated dispatch tools and the MCP run
+ * tools of `@chamvi/http` wrap a role schema the same way.
  */
-function rebaseRefs(node: unknown, pointer: string): unknown {
+export function rebaseJsonSchemaRefs(node: unknown, pointer: string): unknown {
     if (Array.isArray(node)) {
-        return node.map((item) => rebaseRefs(item, pointer));
+        return node.map((item) => rebaseJsonSchemaRefs(item, pointer));
     }
 
     if (!isObject(node)) {
@@ -37,7 +38,7 @@ function rebaseRefs(node: unknown, pointer: string): unknown {
         } else if (JSON_SCHEMA_DATA_KEYWORDS.has(key)) {
             out[key] = value;
         } else {
-            out[key] = rebaseRefs(value, pointer);
+            out[key] = rebaseJsonSchemaRefs(value, pointer);
         }
     }
 
@@ -103,7 +104,7 @@ export async function toRoleToolInput(
 
     const wrapped: JSONSchema7 = {
         type: 'object',
-        properties: { payload: (json ? rebaseRefs(json, PAYLOAD_POINTER) : {}) as JSONSchema7 },
+        properties: { payload: (json ? rebaseJsonSchemaRefs(json, PAYLOAD_POINTER) : {}) as JSONSchema7 },
         required: ['payload'],
         additionalProperties: false,
     };

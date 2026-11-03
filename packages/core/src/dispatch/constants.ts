@@ -31,3 +31,6 @@ export const DISPATCH_TOOL: unique symbol = Symbol.for('chamvi.dispatch-tool');
 
 /** The longest generated dispatch tool name (the provider limit, as MCP's). */
 export const DISPATCH_TOOL_NAME_MAX_LENGTH = 64;
+
+/** Keywords whose values are data, not subschemas: a `$ref` key inside them is no reference (internal, kept out of the barrel). */
+export const JSON_SCHEMA_DATA_KEYWORDS: ReadonlySet<string> = new Set(['const', 'default', 'enum', 'examples']);
