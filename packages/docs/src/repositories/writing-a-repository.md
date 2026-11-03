@@ -44,6 +44,8 @@ New in 0.6, for [dispatch](/guide/dispatch):
 - **`parentRunId`.** `runs.insert` sets `Run.parentRunId` from `trigger.parent.runId` and ignores a `parentRunId` the caller passes. A parent the store does not hold throws `RunNotFoundError` and writes nothing (Postgres: a self foreign key). Persist it as its own indexed field: `find({ parentRunId })` lists a run's children.
 - **`subtreeUsage`.** Optional `Usage`, written by the engine through `update`; persist and copy it like `usage`. `update(id, patch, { keepUpdatedAt: true })` keeps the stored `updatedAt` when the patch sets none (the engine uses it for this derived field).
 - **`ids`.** `find({ ids })` returns only those runs (an empty list matches none), combined with the other filters, in the usual order.
+- **`hasParent`.** `find({ hasParent: true })` returns only runs with a `parentRunId`, `false` only runs without one (the engine's cancel cascade heal lists unsettled children this way each tick: filter on the indexed field).
+- **`waitKind`.** `find({ waitKind })` returns only runs whose `waiting.kind` is that kind (`'approval'` or `'dispatch'`), so an approval inbox never lists dispatch waits.
 - **`expectWaitId`.** `update` throws `InvalidRunStateError` when `expectWaitId` is given and the run has no wait point or its wait id differs, so two answers of different waits never cross. The wait id is `waiting.id`, else `waiting.approvalId` (`waitIdOf()`): an approval stored before 0.6 has no `id`.
 - **Both wait point kinds.** `run.waiting` is an `ApprovalWaitPoint` (`kind: 'approval'`) or a `DispatchWaitPoint` (`kind: 'dispatch'`, `runIds`). Store it as it is, revive `expiresAt` (and an approval's `notifiedAt`) as `Date` for both, and pass every wait point you read through `normalizeWaitPoint()` from `@chamvi/core`, which gives a legacy approval its `id`.
 
@@ -68,7 +70,7 @@ The suite covers:
 - lineage: `parentRunId` set from the envelope and refused for an unknown parent, `subtreeUsage` round trips, both wait point kinds with their dates revived, a legacy approval wait point read back with its `id`,
 - checkpoints: the highest `stepIndex` wins, an equal index replaces,
 - locks: exclusive, released by their owner only, taken over after expiry,
-- `find` filters (`agent`, `status`, `concurrencyKey`, `ids`, `parentRunId`), `total`, and the `createdAt`/`id` order in both directions (`order: 'asc' | 'desc'`),
+- `find` filters (`agent`, `status`, `concurrencyKey`, `ids`, `parentRunId`, `hasParent`, `waitKind`), `total`, and the `createdAt`/`id` order in both directions (`order: 'asc' | 'desc'`),
 - effect and state round trips, including `where` filters,
 - artifacts: insert-if-absent, metadata and bytes round trips, copies, the `createdAt`/`id` order, unknown ids,
 - agent revisions: upsert, delete (also of a missing marker), the code-point order of `find`, copies with `changedAt` revived as a `Date`,
