@@ -315,3 +315,42 @@ export function readWaitRecord(value: unknown): DispatchWaitRecord {
         tainted: Array.isArray(value.tainted) ? value.tainted.filter((id): id is string => typeof id === 'string') : [],
     };
 }
+
+/**
+ * The record of an expired wait on `runIds` (duplicates kept, in order): a
+ * settled run keeps its outcome, an unsettled one dispatched by `parentId`
+ * is `cancelled` with `error` (the expiry cancels it), any other (owned by
+ * another run, or missing) is `timeout` with `error` and keeps running.
+ */
+export function toExpiredRecord(
+    parentId: string,
+    runIds: readonly string[],
+    runs: readonly Run[],
+    error: { code: string; message: string },
+): DispatchWaitRecord {
+    const byId = new Map(runs.map((run) => [run.id, run]));
+    const outcomes: DispatchOutcome[] = [];
+    const tainted: string[] = [];
+
+    for (const id of runIds) {
+        const run = byId.get(id);
+
+        if (run && isSettled(run)) {
+            outcomes.push(toDispatchOutcome(run));
+        } else {
+            outcomes.push({
+                runId: id,
+                agent: run?.agent ?? '',
+                role: run ? run.trigger.parent?.role ?? run.trigger.trigger : '',
+                status: run?.parentRunId === parentId ? RunStatus.CANCELLED : 'timeout',
+                error: { ...error },
+            });
+        }
+
+        if (run?.taint && !tainted.includes(id)) {
+            tainted.push(id);
+        }
+    }
+
+    return { outcomes, tainted };
+}

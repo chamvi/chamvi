@@ -79,7 +79,7 @@ import {
 import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
 import { executeRun } from './execute/module.ts';
 import type { SuspendRequest } from './execute/types.ts';
-import { answerDispatchWait, onRunSettled } from './dispatch/module.ts';
+import { answerDispatchWait, healDispatchWaits, onRunSettled } from './dispatch/module.ts';
 import type { DispatchEngineContext, ResumeRecord, ResumeStep } from './dispatch/types.ts';
 import { RunQueue } from './queue/module.ts';
 import { agentCancelReason } from './registry/helpers.ts';
@@ -1227,8 +1227,9 @@ export class Engine implements IEngine {
     /**
      * Denies every approval past its expiresAt ('approval timed out') and
      * re-sends the approval message of every other approval not delivered
-     * yet (a failed send, or a crash between the pause and the send). Also
-     * runs on every poll.
+     * yet (a failed send, or a crash between the pause and the send).
+     * Answers every dispatch wait whose runs all settled (a lost push) and
+     * expires the ones past their expiresAt. Also runs on every poll.
      */
     async tick(): Promise<void> {
         const now = this.clock.now().getTime();
@@ -1271,6 +1272,11 @@ export class Engine implements IEngine {
                     this.onError(error, listed);
                 }
             }
+        }
+
+        // a dispatch wait is never delivered or denied: answered once its runs settled, or expired
+        if (await healDispatchWaits(this.dispatchContext(), data, now)) {
+            resumed = true;
         }
 
         // A one-shot job may drain next; finish admission of resumed approvals first.
@@ -1927,7 +1933,9 @@ export class Engine implements IEngine {
     protected dispatchContext(): DispatchEngineContext {
         return {
             store: this.store,
+            clock: this.clock,
             resume: (run, waitId, record, step, stale) => this.resume(run, waitId, record, step, stale),
+            cancel: (runId, reason) => this.cancelRun(runId, reason),
             onError: (error, run) => this.onError(error, run),
         };
     }
