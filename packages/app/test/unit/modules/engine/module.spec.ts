@@ -355,7 +355,7 @@ describe('engineModule', () => {
         expect((await engine.getRun(runId))?.output).toBe('from code object');
     });
 
-    it('a code agent on an unconfigured provider fails setup naming the variable', async () => {
+    it('an agent passed in code on an unconfigured provider fails setup naming the variable', async () => {
         const { harness } = build({ agents: [agentWith('anthropic/m')] });
         const error = await rejectionOf(harness.setup());
 

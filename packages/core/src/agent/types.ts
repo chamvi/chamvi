@@ -77,7 +77,7 @@ export type AgentInstructions = string | readonly AgentInstruction[];
 export type ModelAgentDefinition<S extends StateSchema = StateSchema> = {
     name: string;
 
-    /** What MCP and the agent listing show for the agent; default: its leading system instruction. */
+    /** The text of the agent's MCP run tool; default: its leading system instruction. */
     description?: string;
 
     /** Only a code agent has it. */
@@ -175,7 +175,7 @@ export type CodeAgentDefinition<S extends StateSchema = StateSchema> = {
     /** The run's body; its JSON-serialisable return value is the run's `output`. */
     run(payload: unknown, ctx: CodeRunContext<S>): unknown | Promise<unknown>;
 
-    /** What MCP and the agent listing show for the agent. */
+    /** The text of the agent's MCP run tool. */
     description?: string;
 
     channels?: ChannelSubscription[];

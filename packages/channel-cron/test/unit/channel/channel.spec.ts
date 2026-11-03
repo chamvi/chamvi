@@ -149,7 +149,7 @@ describe('cronChannel', () => {
         expect(await runs(store)).toHaveLength(1);
     });
 
-    it('fails engine.start() for a code agent subscription hubwire cannot schedule', async () => {
+    it('fails engine.start() for a subscription of an agent passed in code hubwire cannot schedule', async () => {
         const { engine } = make([quiet()], [agentWith([cron.on('0 0 * * 1/2')])]);
 
         const started = engine.start();

@@ -70,7 +70,7 @@ describe('createApp agent entries', () => {
         instructions: 'x',
     });
 
-    it('keeps code agents in order and collects package specifiers', () => {
+    it('keeps agents passed in code in order and collects package specifiers', () => {
         expect(splitAgentEntries([agent, '@s/a', 'b'])).toEqual({ agents: [agent], packages: ['@s/a', 'b'] });
     });
 

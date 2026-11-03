@@ -246,7 +246,7 @@ describe('App.check', () => {
         expect(issues[0]?.message).toContain('unknown channel "github".');
     });
 
-    it('rejects a code agent on an unknown channel with invalid_agent_definition', async () => {
+    it('rejects an agent passed in code on an unknown channel with invalid_agent_definition', async () => {
         const lonely = defineAgent({
             name: 'lonely',
             model: textModel(),
@@ -265,7 +265,7 @@ describe('App.check', () => {
         expect(error.code).toBe('invalid_agent_definition');
     });
 
-    it('rejects a code agent with a cron subscription croner refuses, as start does', async () => {
+    it('rejects an agent passed in code with a cron subscription croner refuses, as start does', async () => {
         const nightly = defineAgent({
             name: 'nightly',
             model: textModel(),

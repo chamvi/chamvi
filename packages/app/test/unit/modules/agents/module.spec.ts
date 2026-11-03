@@ -63,7 +63,7 @@ function provider() {
     return customProvider({ languageModels: { model: mockModel(answers), hang: hangingModel() } });
 }
 
-function codeAgent(name: string): Agent {
+function inCodeAgent(name: string): Agent {
     return defineAgent({
         name,
         model: textModel('from code'),
@@ -76,7 +76,7 @@ async function queueRun(store: IStore, clock: ControllableClock, name: string): 
     const engine = new Engine({
         store,
         clock,
-        agents: [codeAgent(name)],
+        agents: [inCodeAgent(name)],
     });
     const { runId } = await engine.dispatch({
         agent: name,
@@ -301,10 +301,10 @@ describe('agentsModule', () => {
         expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe(await hashAgentFolder(folder()));
     });
 
-    it('a code agent wins a name clash and the folder is an issue', async () => {
+    it('an agent passed in code wins a name clash and the folder is an issue', async () => {
         await writeTree(root.path, { 'greeter/agent.ts': agentFile('v1') });
 
-        const code = codeAgent('greeter');
+        const code = inCodeAgent('greeter');
         const {
             harness,
             engine,
@@ -406,7 +406,7 @@ describe('agentsModule', () => {
         expect(logger.entries.filter((entry) => entry.msg === 'the agents dir is empty; no agent is removed')).toHaveLength(1);
     });
 
-    it('a marker of a code agent is left alone at boot', async () => {
+    it('a marker of an agent passed in code is left alone at boot', async () => {
         const clock = new ControllableClock(START);
         const store = createMemoryStore({ clock });
 
@@ -419,7 +419,7 @@ describe('agentsModule', () => {
         const { harness } = build({
             store,
             clock,
-            agents: [codeAgent('triage')],
+            agents: [inCodeAgent('triage')],
         });
 
         await harness.setup();
@@ -879,8 +879,8 @@ describe('agentsModule', () => {
         expect(error.message).toBe('CHAMVI_AGENTS_DIR must name a directory.');
     });
 
-    it('without CHAMVI_AGENTS_DIR it does nothing for an app with code agents', async () => {
-        const { harness, engine } = build({ agents: [codeAgent('triage')], env: { CHAMVI_AGENTS_DIR: '' } });
+    it('without CHAMVI_AGENTS_DIR it does nothing for an app with agents passed in code', async () => {
+        const { harness, engine } = build({ agents: [inCodeAgent('triage')], env: { CHAMVI_AGENTS_DIR: '' } });
 
         await harness.setup();
 
@@ -888,7 +888,7 @@ describe('agentsModule', () => {
         expect(harness.container.has(AppToken.AGENT_ISSUES)).toBe(false);
     });
 
-    it('without CHAMVI_AGENTS_DIR, ./agents and code agents it starts empty and warns', async () => {
+    it('without CHAMVI_AGENTS_DIR, ./agents and agents passed in code it starts empty and warns', async () => {
         const cwd = await createTempDir();
         const spy = vi.spyOn(process, 'cwd').mockReturnValue(cwd.path);
 
