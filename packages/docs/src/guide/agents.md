@@ -1,6 +1,6 @@
 # Agents
 
-An agent is a typed config object passed to `defineAgent()`. It names a model, its instructions, the channels that may start it, its tools and tool hooks, a budget and typed state.
+An agent is a typed config object passed to `defineAgent()`. It names a model (or, for a [code agent](#code-agents), a function), its instructions, the channels that may start it, its tools and tool hooks, a budget and typed state.
 
 <<< @/snippets/agents.ts#define
 
@@ -90,6 +90,10 @@ A run can start with files ([attachments](/guide/channels#attachments)) and tool
 <<< @/snippets/agents.ts#artifacts
 
 `put()` is not an effect by itself: a recovered run repeats the step in progress, so call it inside a [`defineEffectTool`](/guide/effect-tools) to store a file exactly once. Or give it a `key` (1 to 255 characters, no NUL): `put({ key, mediaType, data })` stores the file under an id derived from the run and the key (`keyedArtifactId(runId, key)`), and a later `put()` with the same key replaces the bytes and metadata instead of adding a second file, so a repeated or replayed call stores it once. Over HTTP, `GET /runs/:id/artifacts` lists them and `GET /runs/:id/artifacts/:artifactId` downloads one (see [HTTP API](/guide/http#files)).
+
+## Code agents
+
+An agent with `run(payload, ctx)` in place of `model` and `instructions` is a **code agent**: the engine runs the function as a durable run, with no model call. It takes `name`, `description` (what MCP and the agent listing show), `channels`, `concurrencyMaxRuns`, a plain `tools` set, `trust`, `hooks`, `toolPolicy`, `state` and `budget`; `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext` or a tools factory next to `run` are an `InvalidAgentDefinitionError`. Of the budget only `timeoutMs` and `maxSubtreeTokens` apply. `isCodeAgent(agent)` tells the two kinds apart. A code agent fans out runs that its function can wait on, see [Code agents](/guide/dispatch#code-agents).
 
 ## Many agents per engine
 

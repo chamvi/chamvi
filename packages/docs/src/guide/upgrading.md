@@ -2,6 +2,17 @@
 
 chamvi is pre-1.0: a minor release may break the API. Each section lists what changed and the exact replacement.
 
+## Upgrading to 0.7
+
+### Breaking changes
+
+[Code agents](/guide/dispatch#code-agents) (`defineAgent({ run })`, no model) and [generated dispatch tools](/guide/dispatch#generated-dispatch-tools) arrived ([#131](https://github.com/chamvi/chamvi/issues/131)).
+
+| Change | Before (0.6) | Replacement (0.7) |
+|---|---|---|
+| `AgentDefinition` | One shape, `instructions` required | A union of `ModelAgentDefinition` and `CodeAgentDefinition`: `agent.definition.instructions`, `model`, `output`, `conversation` and `skills` read as possibly `undefined`, `run` and `description` are new. Check `agent.definition.run === undefined` before reading the model fields: it narrows the type to the model agent (`isCodeAgent(agent)` answers the same at runtime, without narrowing) |
+| Hand-written dispatch tools | A `defineTool()` around `dispatch()` that only forwarded the call | Still works; `dispatchTools({ roles })` generates the same tool from the role, with `agent.on({ idempotencyKey, concurrencyKey, address, description })` deciding what the tool did |
+
 ## Upgrading to 0.6
 
 ### Breaking changes

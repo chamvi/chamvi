@@ -12,12 +12,13 @@ Test helpers live in [`@chamvi/test-kit`](/reference/test-kit).
 
 ```ts
 function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefinition<S>): Agent<S>;
+function isCodeAgent(agent: Agent | AgentDefinition): boolean; // a definition with run (no model)
 
 const DEFAULT_MAX_STEPS: 20;
 const DEFAULT_TIMEOUT_MS: 900_000; // 15 minutes
 ```
 
-Throws `InvalidAgentDefinitionError` for an invalid name, instruction outer shape or role, duplicate subscription ids, a tool with `needsApproval` or a `toolsContext` entry naming a chamvi tool or no tool of a plain tool set (both in a plain tool set; a tools factory fails the run instead). See [Agents](/guide/agents).
+Throws `InvalidAgentDefinitionError` for an invalid name, instruction outer shape or role, duplicate subscription ids, a tool with `needsApproval` or a `toolsContext` entry naming a chamvi tool or no tool of a plain tool set (both in a plain tool set; a tools factory fails the run instead). A code agent (`AgentDefinition` is `ModelAgentDefinition | CodeAgentDefinition`; `run` set) also throws for a non-function `run`, a tools factory or any of `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext`; its `run(payload, ctx: CodeRunContext)` gets the tool context plus `ctx.tools`. See [Agents](/guide/agents#code-agents).
 
 A folder agent's `agent.ts` default-exports `defineAgent()`'s result, named like its folder; `AgentRevision` is the store's revision marker of a folder agent (see [Agent Folders](/guide/agent-folders)):
 
@@ -107,7 +108,7 @@ class Engine {
 | `putAgent` | Registers an agent or replaces the one of the same name in place (a new one goes last); refuses a subscription to an unknown channel like the constructor. Replacing cancels the agent's unsettled runs created before now. With a `revision` (a folder's content hash) the store's marker is brought to it under the lock `agents:<name>` instead, cancelling once across replicas and only when a marker existed (swept before and again after the marker write; no run of the agent starts on this engine meanwhile). Each cancelled run stores `agent_replaced` as its `error` ([Errors](/guide/errors#run-errors)), and the sweep emits `agents.cancelled`. With `reload: false` (a process that never reloads, a job) nothing is cancelled: a missing marker is written, a different one moved only while the agent has no unsettled run, else `InvalidRunStateError` and the agent stays unregistered. A marker at `formerRevision` (the same content hashed by an earlier algorithm) counts as equal and is moved to `revision` without a cancel. Optional `signal` cancels preparation and rejects with its reason before registry mutation, retaining the previous agent, marker and runs. Once the registry operation starts, cancellation waits for consistent completion and local publication. Resolves `unchanged` (no event) for the same agent object at the same revision | [Agent Folders](/guide/agent-folders) |
 | `checkAgent` | What `putAgent` refuses before any store access (a model that does not resolve, a subscription to an unknown channel), as `InvalidAgentDefinitionError`; registers and writes nothing | [Agent Folders](/guide/agent-folders) |
 | `removeAgent` | Unregisters the agent here first (no further dispatch), then under the same lock cancels its unsettled runs and deletes its marker (when it has one, unless this engine had it at another revision: a newer one registered elsewhere stays), or without a marker cancels the runs of an agent registered here; each cancelled run stores `agent_removed` ([Errors](/guide/errors#run-errors)) and the sweep emits `agents.cancelled`; resolves whether it was registered here | [Agent Folders](/guide/agent-folders) |
-| `agentRevision` | The revision an agent was registered at; `undefined` for a code agent | |
+| `agentRevision` | The revision an agent was registered at; `undefined` for an agent without a revision | |
 | `dispatch` | Stores a `queued` run (and its attachments as artifacts); deduplicates by `idempotencyKey` under `<agent>:<channel>[:<kind>:<id>]` | [Channels](/guide/channels#idempotency-keys) |
 | `getRun` | Reads a run from the store | [Run Lifecycle](/guide/run-lifecycle) |
 | `on` | Subscribes to `run.updated`, `step.appended`, `run.delta`, `agents.changed` or `agents.cancelled` (`AgentRunsCancelled { name, reason: 'agent_replaced' \| 'agent_removed', revision?, runIds }`, the runs whose cancel went through: a run on another replica only gets a cancel request and may still complete); returns an unsubscribe function | [Run Lifecycle](/guide/run-lifecycle#watching-runs) |
@@ -259,6 +260,7 @@ function waitForDispatch(ctx: ToolContext, run: string | DispatchResult, options
 function waitForDispatch(ctx: ToolContext, runs: Array<string | DispatchResult>, options?: DispatchWaitOptions): Promise<DispatchOutcome[]>;
 function normalizeWaitPoint(raw: Record<string, unknown>): WaitPoint; // for repositories: a legacy approval gets its id
 function waitIdOf(waiting: WaitPoint | undefined): string | undefined; // id, else approvalId
+function dispatchTools(options: DispatchToolsOptions): ToolSet; // dispatch_<role>, dispatch_<agent>_<role>
 
 const DEFAULT_DISPATCH_ROLE: 'default';
 const DEFAULT_DISPATCH_MAX_DEPTH: 1;
@@ -267,11 +269,11 @@ const DEFAULT_MAX_DISPATCHES_PER_RUN: 100;
 const DEFAULT_DISPATCH_WAIT_TIMEOUT_MS: 86_400_000; // 24 hours
 ```
 
-`AgentSubscriptionOptions`, `AgentSubscriber`, `DispatchInput`, `DispatchToInput`, `DispatchOutcome` and `DispatchWaitOptions` (`DispatchHost`, `DispatchRunSnapshot` and `DispatchWaitRecord` are internal):
+`AgentSubscriptionOptions`, `AgentSubscriber`, `DispatchInput`, `DispatchToInput`, `DispatchOutcome`, `DispatchWaitOptions` and `DispatchToolsOptions` (`DispatchHost`, `DispatchRunSnapshot`, `DispatchWaitRecord`, `RoleToolInput` and `DispatchToolTarget` are internal):
 
 <<< ../../../core/src/dispatch/types.ts{ts}
 
-All three functions run inside a tool call only (`InvalidRunStateError` elsewhere; `waitForDispatch()` also in a streaming tool's body). A missing role, a caller not in `from`, a too deep child, the per-run limit, an invoker without `agent:<target>:run`, a held concurrency key and a run this run did not dispatch are `ValidationError` tool errors; a reached `budget.maxSubtreeTokens` is a `BudgetExceededError` tool error. See [Dispatch](/guide/dispatch).
+`dispatch()`, `dispatchTo()` and `waitForDispatch()` run inside a tool call (or a code agent's `run()`) only (`InvalidRunStateError` elsewhere; `waitForDispatch()` also in a streaming tool's body). A missing role, a caller not in `from`, a too deep child, the per-run limit, an invoker without `agent:<target>:run`, a held concurrency key and a run this run did not dispatch are `ValidationError` tool errors (a code agent's run fails instead); a reached `budget.maxSubtreeTokens` is a `BudgetExceededError` tool error. `dispatchTools()` throws `InvalidAgentDefinitionError` for no role, a bad name, a name over 64 characters or a bad `wait`. See [Dispatch](/guide/dispatch) and [Generated dispatch tools](/guide/dispatch#generated-dispatch-tools).
 
 ## State
 
