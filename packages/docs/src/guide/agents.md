@@ -27,7 +27,7 @@ The engine checks the rest when you construct it: agent names must be unique wit
 | `name` | `string` | required | Unique per engine, lowercase words joined by `-`, at most 64 characters |
 | `model` | `ModelRef` | `EngineOptions.model` | A `'<provider>/<model id>'` string resolved through `EngineOptions.models`, or any AI SDK `LanguageModel` |
 | `instructions` | `AgentInstructions` | required | A string or an ordered readonly array of native system/user/assistant messages |
-| `description` | `string` | the leading system instruction | What MCP and the agent listing (`GET /agents`) show |
+| `description` | `string` | the leading system instruction | The text of the agent's MCP run tool (its first line; without one and without a system instruction: `Starts a run of agent "<name>".`) |
 | `run` | `(payload, ctx) => unknown` | none | In place of `model` and `instructions`: a [code agent](#code-agents) |
 | `concurrencyMaxRuns` | `number \| false` | none | Shared-store ceiling for this agent's running runs; positive safe integer, or `false` for no additional ceiling |
 | `channels` | `ChannelSubscription[]` | none | From `http.on()`, `webhook.on()`, `cron.on()`, `github.on()`. See [Channels](/guide/channels) |
@@ -95,7 +95,7 @@ A run can start with files ([attachments](/guide/channels#attachments)) and tool
 
 ## Code agents
 
-An agent with `run(payload, ctx)` in place of `model` and `instructions` is a **code agent**: the engine runs the function as a durable run, with no model call. It takes `name`, `description` (what MCP and the agent listing show), `channels`, `concurrencyMaxRuns`, a plain `tools` set, `trust`, `hooks`, `toolPolicy`, `state` and `budget`; `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext` or a tools factory next to `run` are an `InvalidAgentDefinitionError`. Of the budget only `timeoutMs` and `maxSubtreeTokens` apply. `isCodeAgent(agent)` tells the two kinds apart. A code agent fans out runs that its function can wait on, see [Code agents](/guide/dispatch#code-agents).
+An agent with `run(payload, ctx)` in place of `model` and `instructions` is a **code agent**: the engine runs the function as a durable run, with no model call. It takes `name`, `description` (the text of its MCP run tool), `channels`, `concurrencyMaxRuns`, a plain `tools` set, `trust`, `hooks`, `toolPolicy`, `state` and `budget`; `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext` or a tools factory next to `run` are an `InvalidAgentDefinitionError`. Of the budget only `timeoutMs` and `maxSubtreeTokens` apply. `isCodeAgent(agent)` tells the two kinds apart. A code agent fans out runs that its function can wait on, see [Code agents](/guide/dispatch#code-agents).
 
 ## Many agents per engine
 

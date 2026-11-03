@@ -44,7 +44,7 @@ import { createAgentsWatcher } from './watcher.ts';
  * agents winning a name, then the earlier package) and the agents dir
  * (`CHAMVI_AGENTS_DIR`, else `./agents` when that is a directory; start and
  * job mode, nothing in migrate mode). Without a dir or a package an app
- * without code agents starts empty (a warning). With one, `setup` registers `AGENT_ISSUES` and (start mode) the watcher's
+ * without agents passed in code starts empty (a warning). With one, `setup` registers `AGENT_ISSUES` and (start mode) the watcher's
  * lifecycle hook; `onReady` loads every folder into the engine before any
  * start step runs (a folder changed while the app was down cancels its old
  * runs once, logged `agent reloaded`/`agent removed` with the ids of the
@@ -59,7 +59,7 @@ import { createAgentsWatcher } from './watcher.ts';
  * skill preparation fails is an issue (the others start, polling retries);
  * a job of that agent fails with the preparation error. A check
  * (`context.check`) only loads and checks, writing nothing; it also runs
- * every `AGENT_CHECKS` contribution over the code agents, since a check
+ * every `AGENT_CHECKS` contribution over the agents passed in code, since a check
  * never reaches `engine.start()` (the cron channel's check of them).
  */
 export class AgentsModule implements IModule {
@@ -138,7 +138,7 @@ export class AgentsModule implements IModule {
         }
 
         if (context.check) {
-            // a start runs these on code agents in engine.start() (the cron channel), which a check never calls
+            // a start runs these on the agents passed in code in engine.start() (the cron channel), which a check never calls
             const check = createAgentCheck(container);
 
             for (const agent of context.agents) {

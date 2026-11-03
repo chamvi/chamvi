@@ -53,7 +53,7 @@ export type HashAgentPackageOptions = {
     entry?: string;
 };
 
-/** createApp's agent entries split into code agents and package specifiers. */
+/** createApp's agent entries split into agents passed in code and package specifiers. */
 export type AgentEntries = {
     agents: Agent[];
     packages: string[];

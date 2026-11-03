@@ -78,7 +78,7 @@ export async function startScheduling(model: LanguageModel) {
 }
 ```
 
-`cron.on(expression, options?)` validates the expression (cron-parser) and the timezone and throws `InvalidAgentDefinitionError` for one it refuses. `engine.start()` starts the channel after recovering runs: a code agent's subscription the scheduler cannot use (an expression croner refuses) fails `engine.start()` with `InvalidAgentDefinitionError` naming the agent and subscription, an agent folder's goes to `onError` and leaves that agent unscheduled. Subscriptions of other channels are ignored. The channel follows agents registered, replaced and removed at runtime.
+`cron.on(expression, options?)` validates the expression (cron-parser) and the timezone and throws `InvalidAgentDefinitionError` for one it refuses. `engine.start()` starts the channel after recovering runs: the subscription of an agent passed in code that the scheduler cannot use (an expression croner refuses) fails `engine.start()` with `InvalidAgentDefinitionError` naming the agent and subscription, an agent folder's goes to `onError` and leaves that agent unscheduled. Subscriptions of other channels are ignored. The channel follows agents registered, replaced and removed at runtime.
 
 A second cron channel (e.g. one per region) needs its own name; its `on()` makes subscriptions only it fires:
 

@@ -26,7 +26,7 @@ type Claim = {
  * The agent packages of a lifecycle, loaded once at boot (no watcher: a
  * package does not change within a process). Per package in order: resolve,
  * import and build (`loadAgentPackage`), then per agent the clash order
- * (code agent, then an earlier package, win; the loser is an issue) and
+ * (an agent passed in code, then an earlier package, win; the loser is an issue) and
  * `registerAgent` at the package revision. In production a stored dev marker
  * of the same version (`<name>@<version>+<hash>`), in dev the version
  * marker, is moved without a cancel. Static failures are recorded once;

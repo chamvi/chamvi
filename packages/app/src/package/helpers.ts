@@ -78,7 +78,7 @@ export function assertUniqueSpecifiers(specs: readonly string[], source: string)
 }
 
 /**
- * createApp's `agents` split into code agents (every entry that is no
+ * createApp's `agents` split into agents passed in code (every entry that is no
  * string, checked by the engine) and package specifiers (strings, checked
  * here). Synchronous, no file access.
  */
