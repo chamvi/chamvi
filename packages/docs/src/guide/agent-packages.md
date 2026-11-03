@@ -1,6 +1,6 @@
 # Agent Packages
 
-An app can load agents from npm packages by name, next to code agents and [agent folders](/guide/agent-folders). Ship one agent (or a few) as a package, from a registry or a workspace, and list it in the app:
+An app can load agents from npm packages by name, next to agents passed in code (`createApp({ agents })`) and [agent folders](/guide/agent-folders). Ship one agent (or a few) as a package, from a registry or a workspace, and list it in the app:
 
 ```ts
 import { createApp } from '@chamvi/app';
@@ -21,7 +21,7 @@ Three sources, merged in this order (a package listed twice loads once):
 
 | Source | Form |
 |---|---|
-| `createApp({ agents })` | string entries beside the code agents |
+| `createApp({ agents })` | string entries beside the agents passed in code |
 | `chamvi.json` | `"agents": ["@acme/review-agent"]` (the [config file](/guide/models#the-config-file), `CHAMVI_CONFIG_FILE` names another one) |
 | `CHAMVI_AGENTS` | comma-separated specifiers: `CHAMVI_AGENTS=@acme/review-agent,@acme/digest-agent` |
 
@@ -57,7 +57,7 @@ export default async function review() {
 
 ## Names
 
-One agent name, one agent. **Code agents win**, then **packages** (in the merged order), then **folders**. The loser is reported as an issue and never loaded: `<name>: a code agent has this name; package <spec> is not loaded.`, `<name>: package <earlier> already provides this agent; package <spec> is not loaded.`, or for a folder `<name>: package <spec> provides this agent; the folder is not loaded.` A package agent keeps its name against folders once its package loaded, also when its checks or skill preparation then fail. A package that fails to import names no agents, so it reserves only the names whose stored revision is a package marker: on a first deployment, a folder of the name it would export loads.
+One agent name, one agent. **Agents passed in code win**, then **packages** (in the merged order), then **folders**. The loser is reported as an issue and never loaded: `<name>: a code agent has this name; package <spec> is not loaded.`, `<name>: package <earlier> already provides this agent; package <spec> is not loaded.`, or for a folder `<name>: package <spec> provides this agent; the folder is not loaded.` A package agent keeps its name against folders once its package loaded, also when its checks or skill preparation then fail. A package that fails to import names no agents, so it reserves only the names whose stored revision is a package marker: on a first deployment, a folder of the name it would export loads.
 
 ## Revisions
 

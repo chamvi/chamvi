@@ -15,7 +15,7 @@ agents/
 
 Folder code runs in the app's process with the app's full access (store, secrets, provided instances). Only people who may deploy the app should be able to write the folder.
 
-A folder named like a code agent or an [agent package](/guide/agent-packages)'s agent is an issue and never loaded: code agents win, then packages, then folders.
+A folder named like an agent passed in code (`createApp({ agents })`) or an [agent package](/guide/agent-packages)'s agent is an issue and never loaded: agents passed in code win, then packages, then folders.
 
 ## Turning it on
 
@@ -91,9 +91,9 @@ A replica whose folder did not change but whose marker another process moved or 
 
 During that window the store keeps them apart: a replica starts (and recovers) a run of a folder agent only while its loaded hash equals the stored marker, and a run of an agent it has not loaded at all (not seen yet, failed to load) stays `queued` for a replica that has it, instead of failing. A run created under the new hash is never cancelled by a replica that lags behind, since the cancel covers only runs created before the marker changed and happens once.
 
-## Code agents win
+## Agents passed in code win
 
-A folder named like an agent passed to `createApp({ agents })` is not loaded: it is reported as an issue (`a code agent has this name; the folder is not loaded.`), and the code agent stays as it is.
+A folder named like an agent passed to `createApp({ agents })` is not loaded: it is reported as an issue (`a code agent has this name; the folder is not loaded.`), and the agent passed in code stays as it is.
 
 ## Without the app
 

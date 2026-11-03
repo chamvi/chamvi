@@ -23,7 +23,7 @@ function isApp(value: unknown): value is IApp;
 const APP_BRAND: unique symbol; // Symbol.for('chamvi.app')
 ```
 
-Synchronous and side-effect free. `agents` may be omitted or empty: the agents can come from an [agents folder](/guide/agent-folders), and an app with no agent at all still starts (a warning); `app.agents` holds only the code agents, the live set is `engine.listAgents()`. Throws `InvalidAgentDefinitionError` for options that are no object or whose `agents` is no array, a module list entry that is no `IModule` and for two modules of one name (a built-in's name included: list one module to replace a built-in). `isApp` checks the brand, so an app of another installed copy matches.
+Synchronous and side-effect free. `agents` may be omitted or empty: the agents can come from an [agents folder](/guide/agent-folders), and an app with no agent at all still starts (a warning); `app.agents` holds only the agents passed in code, the live set is `engine.listAgents()`. Throws `InvalidAgentDefinitionError` for options that are no object or whose `agents` is no array, a module list entry that is no `IModule` and for two modules of one name (a built-in's name included: list one module to replace a built-in). `isApp` checks the brand, so an app of another installed copy matches.
 
 <<< ../../../app/src/app/types.ts{ts}
 
