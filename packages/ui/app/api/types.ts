@@ -40,6 +40,8 @@ export type RunPage = {
 
 export type RunListFilter = {
     agent?: string;
+    /** `filter[parent]`: only the runs this run dispatched. */
+    parent?: string;
     status?: RunStatusLiteral[];
     limit?: number;
     offset?: number;

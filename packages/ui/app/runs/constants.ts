@@ -25,3 +25,6 @@ export const ALL_AGENTS = '*';
 
 /** How the run page names a run's parent, by `trigger.parent.kind`. */
 export const PARENT_LABELS: Readonly<Record<string, string>> = { dispatch: 'dispatched from' };
+
+/** The most dispatched runs the run page lists (one page, newest first). */
+export const RUN_CHILDREN_LIMIT = 100;

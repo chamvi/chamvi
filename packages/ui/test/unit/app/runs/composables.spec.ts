@@ -10,6 +10,7 @@ import { effectScope, nextTick, ref } from 'vue';
 import type { RunListFilter } from '../../../../app/api/types.ts';
 import {
     useRunActivity,
+    useRunChildren,
     useRunCounts,
     useRunDetail,
     useRunList,
@@ -275,6 +276,79 @@ describe('useRunActivity', () => {
             failed: 1,
             saturated: false,
         });
+        scope.stop();
+    });
+});
+
+describe('useRunChildren', () => {
+    function childrenClient(seen: RunListFilter[]) {
+        return fakeClient({
+            listRuns: async (filter) => {
+                seen.push(filter);
+
+                return {
+                    data: [wireRun({ id: `c${seen.length}` })],
+                    meta: {
+                        total: 1,
+                        limit: 100,
+                        offset: 0,
+                    },
+                };
+            },
+        });
+    }
+
+    it('useRunChildren lists children', async () => {
+        const seen: RunListFilter[] = [];
+        const scope = effectScope();
+        const children = scope.run(() => useRunChildren(childrenClient(seen), ref('p1')))!;
+
+        await flush();
+        expect(seen[0]).toMatchObject({ parent: 'p1' });
+        expect(children.page.value?.data.map((run) => run.id)).toEqual(['c1']);
+        expect(children.forbidden.value).toBe(false);
+        scope.stop();
+    });
+
+    it('useRunChildren refetches when the parent updates', async () => {
+        const seen: RunListFilter[] = [];
+        const parent = ref(wireRun({ id: 'p1', status: 'waiting' }));
+        const runId = ref('p1');
+        const scope = effectScope();
+        const children = scope.run(() => useRunChildren(childrenClient(seen), runId, parent))!;
+
+        await flush();
+        expect(seen).toHaveLength(1);
+
+        parent.value = wireRun({
+            id: 'p1', 
+            status: 'waiting', 
+            subtreeUsage: { inputTokens: 10, outputTokens: 2 }, 
+        });
+        await nextTick();
+        await flush();
+        expect(seen).toHaveLength(2);
+        expect(children.page.value?.data.map((run) => run.id)).toEqual(['c2']);
+
+        runId.value = 'p2';
+        await nextTick();
+        await flush();
+        expect(seen.at(-1)).toMatchObject({ parent: 'p2' });
+        scope.stop();
+    });
+
+    it('useRunChildren reports forbidden on 403', async () => {
+        const client = fakeClient({
+            listRuns: async () => {
+                throw apiError(403, 'forbidden');
+            },
+        });
+        const scope = effectScope();
+        const children = scope.run(() => useRunChildren(client, ref('p1')))!;
+
+        await flush();
+        expect(children.forbidden.value).toBe(true);
+        expect(children.page.value).toBeUndefined();
         scope.stop();
     });
 });
