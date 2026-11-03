@@ -76,9 +76,11 @@ import {
     DEFAULT_DRAIN_TIMEOUT_MS,
     IDEMPOTENCY_TTL_MS,
 } from './constants.ts';
-import { toRunError } from './execute/helpers.ts';
+import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
 import { executeRun } from './execute/module.ts';
-import type { ApprovalRequest } from './execute/types.ts';
+import type { SuspendRequest } from './execute/types.ts';
+import { answerDispatchWait, onRunSettled } from './dispatch/module.ts';
+import type { DispatchEngineContext, ResumeRecord, ResumeStep } from './dispatch/types.ts';
 import { RunQueue } from './queue/module.ts';
 import { agentCancelReason } from './registry/helpers.ts';
 import {
@@ -1175,6 +1177,7 @@ export class Engine implements IEngine {
 
         this.emit({ type: 'run.updated', run: updated });
         await this.reconcileConversation(updated);
+        await onRunSettled(this.dispatchContext(), updated);
     }
 
     /**
@@ -1194,6 +1197,10 @@ export class Engine implements IEngine {
         assertSelectionShape(answer.selected);
 
         const run = await this.store.runs.findOneOrFail(runId);
+
+        if (run.status === RunStatus.WAITING && run.waiting?.kind === 'dispatch') {
+            throw new InvalidRunStateError(`Run "${run.id}" waits on dispatched runs, not on an approval.`);
+        }
 
         if (run.status !== RunStatus.WAITING || run.waiting?.kind !== 'approval') {
             throw new InvalidRunStateError(`Run "${run.id}" is ${run.status} and not waiting for an approval.`);
@@ -1273,16 +1280,9 @@ export class Engine implements IEngine {
     }
 
     /**
-     * waiting → queued, then the decision is recorded under
+     * Answers the approval `waiting` with `decision`: resume() records it under
      * `approval:<runId>:<approvalId>` (where the suspended approve() finds it
-     * when its call runs again) and the `wait` step appended. The transition
-     * comes first and is guarded by expectStatus, so only one answer ever
-     * records; the run stays claimed by us until the decision landed, so no
-     * pass executes it before.
-     *
-     * `waiting` survives the transition and is cleared only after the decision
-     * landed: if we die in between, the run re-pauses on the same wait point, so
-     * the approval the owner was asked stays answerable.
+     * when its call runs again) and appends the `wait` step.
      */
     protected async answer(
         run: Run,
@@ -1290,32 +1290,19 @@ export class Engine implements IEngine {
         decision: ApprovalDecisionInput,
         stale: () => Error,
     ): Promise<void> {
-        const now = this.clock.now();
-        const transitioned = await this.store.runs.update(run.id, {
-            status: RunStatus.QUEUED,
-            claim: { owner: this.owner, expiresAt: new Date(now.getTime() + this.claimTtlMs) },
-            updatedAt: now,
-        }, { expectStatus: [RunStatus.WAITING] });
-
-        let queued: Run;
-
-        try {
-            // the run may have moved on to another approval since `waiting` was read
-            if (transitioned.waiting?.kind !== 'approval' || transitioned.waiting.approvalId !== waiting.approvalId) {
-                throw stale();
-            }
-
-            await this.store.effects.save(approvalDecisionKey(run.id, waiting.approvalId), {
-                approved: decision.approved,
-                ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
-                ...(decision.approver ? { approver: decision.approver } : {}),
-                ...(decision.selected !== undefined ? { selected: decision.selected } : {}),
-            });
-
-            const step: Step = {
-                runId: run.id,
-                index: (await this.store.steps.find(run.id)).length,
-                kind: 'wait',
+        await this.resume(
+            run,
+            waiting.approvalId,
+            {
+                key: approvalDecisionKey(run.id, waiting.approvalId),
+                value: {
+                    approved: decision.approved,
+                    ...(decision.reason !== undefined ? { reason: decision.reason } : {}),
+                    ...(decision.approver ? { approver: decision.approver } : {}),
+                    ...(decision.selected !== undefined ? { selected: decision.selected } : {}),
+                },
+            },
+            {
                 name: waiting.toolName,
                 input: {
                     toolCallId: waiting.toolCallId,
@@ -1332,12 +1319,60 @@ export class Engine implements IEngine {
                     ...(decision.approver ? { approver: decision.approver } : {}),
                     ...(decision.selected !== undefined ? { selected: decision.selected } : {}),
                 },
+            },
+            stale,
+        );
+    }
+
+    /**
+     * waiting → queued for the wait point `waitId` (an approval or a dispatch
+     * wait), then `record` is stored (where the suspended call finds it when
+     * it runs again) and the `wait` step appended. The transition comes first
+     * and is guarded by status and wait id, so only one answer ever records;
+     * the run stays claimed by us until the record landed, so no pass
+     * executes it before.
+     *
+     * `waiting` survives the transition and is cleared only after the record
+     * landed: if we die in between, the run re-pauses on the same wait point, so
+     * the wait stays answerable.
+     */
+    protected async resume(
+        run: Run,
+        waitId: string,
+        record: ResumeRecord,
+        step: ResumeStep,
+        stale: () => Error,
+    ): Promise<void> {
+        const now = this.clock.now();
+        const transitioned = await this.store.runs.update(run.id, {
+            status: RunStatus.QUEUED,
+            claim: { owner: this.owner, expiresAt: new Date(now.getTime() + this.claimTtlMs) },
+            updatedAt: now,
+        }, { expectStatus: [RunStatus.WAITING], expectWaitId: waitId });
+
+        let queued: Run;
+
+        try {
+            // the run may have moved on to another wait since `waiting` was read
+            if (!sameWait(transitioned.waiting, waitId)) {
+                throw stale();
+            }
+
+            await this.store.effects.save(record.key, record.value);
+
+            const appended: Step = {
+                runId: run.id,
+                index: (await this.store.steps.find(run.id)).length,
+                kind: 'wait',
+                name: step.name,
+                input: step.input,
+                output: step.output,
                 startedAt: run.updatedAt,
                 finishedAt: now,
             };
 
-            await this.store.steps.insert(step);
-            this.emit({ type: 'step.appended', step });
+            await this.store.steps.insert(appended);
+            this.emit({ type: 'step.appended', step: appended });
             queued = await this.store.runs.update(run.id, {
                 waiting: undefined,
                 claim: undefined,
@@ -1363,22 +1398,19 @@ export class Engine implements IEngine {
 
     /**
      * running → waiting on `request`, releasing claim and slot (a keyed run keeps
-     * its key blocked while waiting). Re-pausing on the same approval keeps the
-     * wait point, so tokens handed out earlier stay valid.
+     * its key blocked while waiting). Re-pausing on the same wait keeps the
+     * wait point, so tokens handed out earlier stay valid. An approval is then
+     * delivered; a dispatch wait is answered right away when its runs settled
+     * before the write landed (their push found no wait point yet).
      */
-    protected async pause(run: Run, request: ApprovalRequest, usage: Usage): Promise<void> {
+    protected async pause(run: Run, request: SuspendRequest, usage: Usage): Promise<void> {
         await this.conversations?.idle(run.id);
 
         const now = this.clock.now();
-        const { timeoutMs, ...asked } = request;
-        const waiting: ApprovalWaitPoint = run.waiting?.kind === 'approval' && run.waiting.approvalId === request.approvalId ?
+        const waiting = sameWait(run.waiting, request.kind === 'approval' ? request.approvalId : request.id) &&
+            run.waiting?.kind === request.kind ?
             run.waiting :
-            {
-                kind: 'approval',
-                id: request.approvalId,
-                ...asked,
-                expiresAt: new Date(now.getTime() + timeoutMs),
-            };
+            toWaitPoint(request, now);
         const updated = await this.ownedUpdate(run.id, {
             status: RunStatus.WAITING,
             waiting,
@@ -1402,6 +1434,12 @@ export class Engine implements IEngine {
                     this.onError(error, run);
                 }
             });
+
+            return;
+        }
+
+        if (waiting.kind === 'dispatch') {
+            await answerDispatchWait(this.dispatchContext(), run.id).catch((error: unknown) => this.onError(error, updated));
 
             return;
         }
@@ -1772,6 +1810,7 @@ export class Engine implements IEngine {
         if (updated) {
             this.emit({ type: 'run.updated', run: updated });
             await this.reconcileConversation(updated);
+            await onRunSettled(this.dispatchContext(), updated);
         }
 
         return updated;
@@ -1881,6 +1920,14 @@ export class Engine implements IEngine {
             clock: this.clock,
             claimTtlMs: this.claimTtlMs,
             cancel: (runId, reason) => this.cancelRun(runId, reason),
+            onError: (error, run) => this.onError(error, run),
+        };
+    }
+
+    protected dispatchContext(): DispatchEngineContext {
+        return {
+            store: this.store,
+            resume: (run, waitId, record, step, stale) => this.resume(run, waitId, record, step, stale),
             onError: (error, run) => this.onError(error, run),
         };
     }

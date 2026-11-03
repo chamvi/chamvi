@@ -8,7 +8,7 @@
 import { isObject } from 'smob';
 import { currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
-import type { ApprovalRequest } from '../engine/execute/types.ts';
+import type { ApprovalRequest, SuspendRequest } from '../engine/execute/types.ts';
 import {
     ChamviError,
     ErrorCode,
@@ -29,16 +29,19 @@ import {
 import type { ApprovalDecision, ApprovalRequestInput, ApprovalReservation } from './types.ts';
 
 /**
- * Thrown by approve() to suspend its tool call until the approval is
- * answered (internal). The tool-call wrapper catches it; a ChamviError so
- * that a leaked one still reads as what it is.
+ * Thrown by approve() and waitForDispatch() to suspend their tool call until
+ * the approval is answered or the dispatched runs settled (internal). The
+ * tool-call wrapper catches it; a ChamviError so that a leaked one still
+ * reads as what it is.
  */
 export class SuspendSignal extends ChamviError {
-    readonly request: ApprovalRequest;
+    readonly request: SuspendRequest;
 
-    constructor(request: ApprovalRequest) {
+    constructor(request: SuspendRequest) {
         super({
-            message: `The tool call "${request.toolName}" is suspended until approval "${request.approvalId}" is answered.`,
+            message: request.kind === 'approval' ?
+                `The tool call "${request.toolName}" is suspended until approval "${request.approvalId}" is answered.` :
+                `The tool call "${request.toolName}" is suspended until the runs of wait "${request.id}" settle.`,
             code: ErrorCode.INVALID_RUN_STATE,
         });
         this.request = request;
@@ -178,6 +181,7 @@ export async function requestApproval(
     await assertRunArtifacts(frame, collectArtifactIds(choice));
 
     const pending: ApprovalRequest = {
+        kind: 'approval',
         approvalId,
         toolName: frame.toolName,
         toolCallId: frame.toolCallId,

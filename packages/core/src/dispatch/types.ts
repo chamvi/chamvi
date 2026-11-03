@@ -54,6 +54,30 @@ export type DispatchToInput = DispatchInput & {
     agent: string;
 };
 
+/** How a dispatched run ended, as waitForDispatch() reports it. */
+export type DispatchOutcome = {
+    runId: string;
+    agent: string;
+    role: string;
+    /** `timeout`: the wait expired on a run another run dispatched (it keeps running). */
+    status: 'completed' | 'failed' | 'cancelled' | 'timeout';
+    /** A completed run's output. */
+    output?: unknown;
+    /** A failed or cancelled run's error (a wait that expired: code `Timeout`). */
+    error?: { code: string; message: string };
+};
+
+export type DispatchWaitOptions = {
+    /** How long the run waits before the wait expires; 1 to APPROVAL_TIMEOUT_MAX_MS, default 24 h. */
+    timeoutMs?: number;
+};
+
+/** What `dispatch-wait:<runId>:<waitId>` records (internal): the outcomes in `runIds` order, the tainted run ids. */
+export type DispatchWaitRecord = {
+    outcomes: DispatchOutcome[];
+    tainted: string[];
+};
+
 /** The engine's copy of a run dispatch() reads (internal). */
 export type DispatchRunSnapshot = {
     readonly runId: string;
@@ -66,7 +90,7 @@ export type DispatchRunSnapshot = {
 export type DispatchHost = {
     getAgent(name: string): Agent | undefined;
     effects: IEffectRepository;
-    runs: Pick<IRunRepository, 'findOne'>;
+    runs: Pick<IRunRepository, 'findOne' | 'find'>;
     /** Creates the run with `parent` as its lineage (engine.dispatch() never sets one). */
     createRun(envelope: DispatchEnvelope, parent: TriggerParent): Promise<DispatchResult>;
     /** Runs `fn` after every earlier call of the same run settled (the count and children read-check-write). */

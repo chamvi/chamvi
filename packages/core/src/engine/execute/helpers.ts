@@ -32,7 +32,12 @@ import {
     ToolNotAllowedError,
     ValidationError,
 } from '../../errors/index.ts';
-import type { Budget, Checkpoint, RunContext } from '../../run/types.ts';
+import type {
+    Budget,
+    Checkpoint,
+    RunContext,
+    WaitPoint,
+} from '../../run/types.ts';
 import { createAgentState } from '../../state/module.ts';
 import { createStateTools } from '../../state/tools.ts';
 import { TOOL_CONTEXT_MISSING } from '../../tool/constants.ts';
@@ -41,7 +46,7 @@ import { assertAgentTrust } from '../../trust/asserts.ts';
 import type { ToolContext } from '../../tool/types.ts';
 import type { TriggerEnvelope } from '../../trigger/types.ts';
 import { MAX_ERROR_CAUSE_LENGTH } from './constants.ts';
-import type { ApprovalRequest, ExecuteContext, PendingToolCall } from './types.ts';
+import type { ExecuteContext, PendingToolCall, SuspendRequest } from './types.ts';
 
 export function renderTrigger(envelope: TriggerEnvelope): string {
     const json = JSON.stringify({
@@ -163,7 +168,7 @@ export function toRunError(error: unknown): { code: string; message: string } {
 export function assembleTools(
     ctx: ExecuteContext,
     runContext: RunContext,
-    onSuspend?: (request: ApprovalRequest) => void,
+    onSuspend?: (request: SuspendRequest) => void,
     stepIndex?: () => number,
 ): {
     tools: ToolSet;
@@ -637,4 +642,35 @@ export function withoutPartialOutput(output: OutputInterface): OutputInterface {
     copy.parsePartialOutput = async ({ text }: { text: string }) => ({ partial: text });
 
     return copy;
+}
+
+/** Whether `waiting` is the wait point `waitId` (an approval by its approval id). */
+export function sameWait(waiting: WaitPoint | undefined, waitId: string): boolean {
+    if (!waiting) {
+        return false;
+    }
+
+    return waiting.kind === 'approval' ? waiting.approvalId === waitId : waiting.id === waitId;
+}
+
+/** The wait point a suspended call's request stores, expiring `timeoutMs` after `now`. */
+export function toWaitPoint(request: SuspendRequest, now: Date): WaitPoint {
+    if (request.kind === 'dispatch') {
+        return {
+            kind: 'dispatch',
+            id: request.id,
+            toolName: request.toolName,
+            toolCallId: request.toolCallId,
+            runIds: [...request.runIds],
+            expiresAt: new Date(now.getTime() + request.timeoutMs),
+        };
+    }
+
+    const { timeoutMs, ...asked } = request;
+
+    return {
+        ...asked,
+        id: request.approvalId,
+        expiresAt: new Date(now.getTime() + timeoutMs),
+    };
 }

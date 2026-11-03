@@ -8,7 +8,7 @@
 import type { Tool, ToolExecutionOptions } from 'ai';
 import type { AgentHooks } from '../agent/types.ts';
 import type { IRunArtifacts } from '../artifact/types.ts';
-import type { ApprovalRequest } from '../engine/execute/types.ts';
+import type { SuspendRequest } from '../engine/execute/types.ts';
 import type { IEffectRepository } from '../repository/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { AgentTrust, ToolContext } from '../tool/types.ts';
@@ -37,6 +37,8 @@ export type ToolCallFrame = {
     stepIndex: number;
     /** How many approve() calls this tool call made so far. */
     approvals: number;
+    /** How many waitForDispatch() calls this tool call made so far (absent: none). */
+    waits?: number;
     /** Automatic bound approvals never consume ordinary approve() ordinals. */
     boundApprovals?: number;
     /** The final-input classification captured before the tool can mutate its input. */
@@ -47,9 +49,9 @@ export type ToolCallFrame = {
     effects: IEffectRepository;
     /** The run's artifacts, where approve() checks the artifact ids a request names. */
     artifacts?: IRunArtifacts;
-    /** Set by the approve() that suspended the call; the wrapper answers it with a placeholder. */
-    suspended?: ApprovalRequest;
-    /** True while a streaming tool's body runs: approve() is refused there. */
+    /** Set by the approve() or waitForDispatch() that suspended the call; the wrapper answers it with a placeholder. */
+    suspended?: SuspendRequest;
+    /** True while a streaming tool's body runs: approve() and waitForDispatch() are refused there. */
     streaming?: boolean;
 };
 
@@ -60,11 +62,11 @@ export type WrapToolsOptions = {
     /** The agent's tool hooks, run for every call of every tool. */
     hooks?: AgentHooks;
     /**
-     * Called when approve() suspended a call (its decision is not recorded
-     * yet); the call then resolves with a placeholder that never reaches a
-     * checkpoint.
+     * Called when approve() or waitForDispatch() suspended a call (its
+     * answer is not recorded yet); the call then resolves with a placeholder
+     * that never reaches a checkpoint.
      */
-    onSuspend?: (request: ApprovalRequest) => void;
+    onSuspend?: (request: SuspendRequest) => void;
     /** The checkpoint step index of the step whose calls run now (read per call); default 0. */
     stepIndex?: () => number;
 };

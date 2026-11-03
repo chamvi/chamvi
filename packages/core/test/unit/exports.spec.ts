@@ -134,6 +134,7 @@ describe('public api', () => {
         'agentChannel',
         'dispatch',
         'dispatchTo',
+        'waitForDispatch',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
@@ -184,6 +185,20 @@ describe('public api', () => {
         expectTypeOf<ReturnType<typeof core.dispatchTo>>().toEqualTypeOf<Promise<core.DispatchResult>>();
         expectTypeOf<core.DispatchToInput>().toEqualTypeOf<core.DispatchInput & { agent: string }>();
         expectTypeOf<core.Budget>().toHaveProperty('maxSubtreeTokens').toEqualTypeOf<number | undefined>();
+        expectTypeOf<core.DispatchOutcome>().toEqualTypeOf<{
+            runId: string;
+            agent: string;
+            role: string;
+            status: 'completed' | 'failed' | 'cancelled' | 'timeout';
+            output?: unknown;
+            error?: { code: string; message: string };
+        }>();
+        expectTypeOf<core.DispatchWaitOptions>().toEqualTypeOf<{ timeoutMs?: number }>();
+        expectTypeOf(core.waitForDispatch<core.StateSchema>).toBeCallableWith({} as core.ToolContext, 'run-1');
+        expect(core).not.toHaveProperty('settledOutcomes');
+        expect(core).not.toHaveProperty('answerDispatchWait');
+        expect(core).not.toHaveProperty('onRunSettled');
+        expectTypeOf<core.ApprovalRequest['kind']>().toEqualTypeOf<'approval'>();
     });
 
     it.each([

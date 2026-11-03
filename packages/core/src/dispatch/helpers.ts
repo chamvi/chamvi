@@ -15,6 +15,7 @@ import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
 import { assertChannelName } from '../channel/helpers.ts';
 import type { ChannelSubscription } from '../channel/types.ts';
 import { InvalidAgentDefinitionError, ValidationError } from '../errors/index.ts';
+import { RunStatus } from '../run/constants.ts';
 import type { Run, RunContext } from '../run/types.ts';
 import { describeIssues } from '../state/helpers.ts';
 import { TRIGGER_KEY_MAX_LENGTH } from '../trigger/constants.ts';
@@ -24,7 +25,12 @@ import {
     DEFAULT_MAX_DISPATCHES_PER_RUN,
     DISPATCH_DEPTH_MAX,
 } from './constants.ts';
-import type { DispatchHost, DispatchRunSnapshot } from './types.ts';
+import type {
+    DispatchHost,
+    DispatchOutcome,
+    DispatchRunSnapshot,
+    DispatchWaitRecord,
+} from './types.ts';
 
 /** The agent's `agent.on()` subscription for `role` (channel `agent`, id = role), if any. */
 export function findDispatchRole(agent: Agent, role: string): ChannelSubscription | undefined {
@@ -246,4 +252,66 @@ export function readChildren(value: unknown): string[] {
     }
 
     return value.runIds.filter((id): id is string => typeof id === 'string');
+}
+
+/** The effect key of a dispatch wait's recorded outcomes. */
+export function waitRecordKey(runId: string, waitId: string): string {
+    return `dispatch-wait:${runId}:${waitId}`;
+}
+
+/** Whether a waited-on run has settled (`completed`, `failed` or `cancelled`). */
+export function isSettled(run: Pick<Run, 'status'>): boolean {
+    return run.status === RunStatus.COMPLETED || run.status === RunStatus.FAILED || run.status === RunStatus.CANCELLED;
+}
+
+/** A settled run's outcome (its role is the subscription id it was dispatched to). */
+export function toDispatchOutcome(run: Run): DispatchOutcome {
+    const status = run.status as DispatchOutcome['status'];
+
+    return {
+        runId: run.id,
+        agent: run.agent,
+        role: run.trigger.parent?.role ?? run.trigger.trigger,
+        status,
+        ...(status === RunStatus.COMPLETED && run.output !== undefined ? { output: run.output } : {}),
+        ...(status !== RunStatus.COMPLETED && run.error ? { error: { code: run.error.code, message: run.error.message } } : {}),
+    };
+}
+
+/**
+ * The record of `runIds` (duplicates kept, in order) when every one of them
+ * is settled in `runs`; undefined while one is not (or is missing).
+ */
+export function toWaitRecord(runIds: readonly string[], runs: readonly Run[]): DispatchWaitRecord | undefined {
+    const byId = new Map(runs.map((run) => [run.id, run]));
+    const outcomes: DispatchOutcome[] = [];
+    const tainted: string[] = [];
+
+    for (const id of runIds) {
+        const run = byId.get(id);
+
+        if (!run || !isSettled(run)) {
+            return undefined;
+        }
+
+        outcomes.push(toDispatchOutcome(run));
+
+        if (run.taint && !tainted.includes(id)) {
+            tainted.push(id);
+        }
+    }
+
+    return { outcomes, tainted };
+}
+
+/** A stored `dispatch-wait:` record (a malformed one reads as no outcomes). */
+export function readWaitRecord(value: unknown): DispatchWaitRecord {
+    if (!isObject(value)) {
+        return { outcomes: [], tainted: [] };
+    }
+
+    return {
+        outcomes: Array.isArray(value.outcomes) ? value.outcomes as DispatchOutcome[] : [],
+        tainted: Array.isArray(value.tainted) ? value.tainted.filter((id): id is string => typeof id === 'string') : [],
+    };
 }

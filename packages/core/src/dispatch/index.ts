@@ -18,5 +18,8 @@ export type {
     AgentSubscriber,
     AgentSubscriptionOptions,
     DispatchInput,
+    DispatchOutcome,
     DispatchToInput,
+    DispatchWaitOptions,
 } from './types.ts';
+export * from './wait.ts';
