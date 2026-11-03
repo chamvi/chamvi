@@ -24,6 +24,7 @@ import {
     defineAgent,
     defineTool,
     dispatch,
+    waitForDispatch,
 } from '@chamvi/core';
 import type {
     ChannelSubscription,
@@ -58,6 +59,12 @@ const fanInput = z.object({
 const fan = defineTool({
     inputSchema: fanInput,
     execute: async (input, { context }) => dispatch(context, input as DispatchInput),
+});
+
+// dispatches, then waits for the child
+const fanWait = defineTool({
+    inputSchema: fanInput,
+    execute: async (input, { context }) => waitForDispatch(context!, await dispatch(context, input as DispatchInput)),
 });
 
 function firstText(options: LanguageModelV4CallOptions): string {
@@ -137,9 +144,12 @@ async function toolSteps(store: IStore, runId: string) {
 }
 
 describe('dispatch guards', () => {
-    it('refuses an ancestor key', async () => {
+    it('queues a fire-and-forget child under the caller\'s key until the caller settled', async () => {
         const { engine, store } = setup({
-            model: markedModel([['', [turn(call({ payload: 'job' }, 'c1')), text('done')]]]),
+            model: markedModel([
+                ['job', [text('child done')]],
+                ['', [turn(call({ payload: 'job' }, 'c1')), text('done')]],
+            ]),
             channels: [agent.on({ concurrencyKey: () => 'k' })],
         });
 
@@ -156,14 +166,53 @@ describe('dispatch guards', () => {
         await engine.idle();
 
         const [step] = await toolSteps(store, runId);
+        const [child] = await children(store);
+        const parent = (await store.runs.findOne(runId))!;
+
+        expect(step?.error).toBeUndefined();
+        expect(parent.status).toBe('completed');
+        expect(child).toMatchObject({
+            concurrencyKey: 'k', 
+            status: 'completed', 
+            parentRunId: runId, 
+        });
+        // the key held the child back: it started only after its caller settled
+        expect(child!.claim).toBeUndefined();
+        expect((await store.steps.find(child!.id))[0]!.startedAt.getTime()).toBeGreaterThanOrEqual(parent.updatedAt.getTime());
+    });
+
+    it('refuses to wait on a child that needs the waiting run\'s key', async () => {
+        const { engine, store } = setup({
+            model: markedModel([
+                ['job', [text('child done')]],
+                ['', [turn(call({ payload: 'job' }, 'c1', 'fanWait')), text('done')]],
+            ]),
+            channels: [agent.on({ concurrencyKey: () => 'k' })],
+            tools: { fanWait },
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch({
+            agent: 'maintainer',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+            concurrencyKey: 'k',
+        });
+
+        await engine.idle();
+
+        const [step] = await toolSteps(store, runId);
+        const [child] = await children(store);
 
         expect(step?.error).toEqual({
             code: 'validation_error',
-            message: `A dispatch to agent "maintainer" with concurrency key "k" would wait on run ${runId}, which holds that key.`,
+            message: `Run ${child!.id} needs concurrency key "k" of agent "maintainer", which run ${runId} holds while it waits: the wait could never end.`,
         });
-        expect(await children(store)).toHaveLength(0);
-        expect(await store.effects.findOne(`dispatch-count:${runId}:maintainer:default`)).toBeUndefined();
         expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        // the child still runs once its caller settled
+        expect(child!.status).toBe('completed');
     });
 
     it('another key passes', async () => {
@@ -187,13 +236,15 @@ describe('dispatch guards', () => {
         expect(child?.concurrencyKey).toBe('other');
     });
 
-    it("refuses a grandparent's key", async () => {
+    it("refuses to wait on a child that needs a waiting grandparent's key", async () => {
         const { engine, store } = setup({
             model: markedModel([
-                ['level-1', [turn(call({ payload: 'level-2', concurrencyKey: 'k' }, 'g2'))]],
-                ['', [turn(call({ payload: 'level-1', concurrencyKey: 'c1' }, 'g1'))]],
+                ['level-2', [text('level-2 done')]],
+                ['level-1', [turn(call({ payload: 'level-2', concurrencyKey: 'k' }, 'g2', 'fanWait')), text('done')]],
+                ['', [turn(call({ payload: 'level-1', concurrencyKey: 'c1' }, 'g1', 'fanWait')), text('done')]],
             ]),
             channels: [agent.on({ maxDepth: 2 })],
+            tools: { fanWait },
         });
 
         await engine.start();
@@ -209,16 +260,16 @@ describe('dispatch guards', () => {
         await engine.idle();
 
         const all = await children(store);
-
-        expect(all).toHaveLength(1);
-        expect(all[0]!.trigger.payload).toBe('level-1');
-
-        const [refused] = await toolSteps(store, all[0]!.id);
+        const level1 = all.find((r) => r.trigger.payload === 'level-1')!;
+        const level2 = all.find((r) => r.trigger.payload === 'level-2')!;
+        const [refused] = await toolSteps(store, level1.id);
 
         expect(refused?.error).toEqual({
             code: 'validation_error',
-            message: `A dispatch to agent "maintainer" with concurrency key "k" would wait on run ${rootId}, which holds that key.`,
+            message: `Run ${level2.id} needs concurrency key "k" of agent "maintainer", which run ${rootId} holds while it waits: the wait could never end.`,
         });
+        expect((await store.runs.findOne(rootId))?.status).toBe('completed');
+        expect(level2.status).toBe('completed');
     });
 
     it('refuses once the subtree budget is reached', async () => {

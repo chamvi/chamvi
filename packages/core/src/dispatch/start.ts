@@ -162,19 +162,10 @@ async function start(
 
     assertDispatchKey('concurrency key', concurrencyKey, true);
 
-    // the stored runs (the snapshot holds no concurrency key or usage), read once per call
+    // the stored runs (the snapshot holds no concurrency key or usage), read once per call. A child
+    // under a key the chain holds is accepted: it queues until that run settled (fire and forget);
+    // waitForDispatch() refuses to wait on it, since the wait would hold the key forever
     const chain = await ancestorsOf(host, run.runId);
-
-    // the queue holds a keyed run while a run of its agent and key waits: the child could never start
-    const holder = concurrencyKey === undefined ?
-        undefined :
-        chain.find((r) => r.agent === target && r.concurrencyKey === concurrencyKey);
-
-    if (holder) {
-        throw new ValidationError(
-            `A dispatch to agent "${target}" with concurrency key "${concurrencyKey}" would wait on run ${holder.id}, which holds that key.`,
-        );
-    }
 
     const given = input.idempotencyKey ?? subscription.idempotencyKey?.(payload);
 

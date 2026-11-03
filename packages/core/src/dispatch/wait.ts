@@ -18,13 +18,21 @@ import type { ToolContext } from '../tool/types.ts';
 import { markUntrusted } from '../trust/module.ts';
 import { DEFAULT_DISPATCH_WAIT_TIMEOUT_MS, DISPATCH_CONTEXT } from './constants.ts';
 import {
+    ancestorsOf,
+    isSettled,
     readChildren,
     readWaitRecord,
     runSnapshotOf,
     toWaitRecord,
     waitRecordKey,
 } from './helpers.ts';
-import type { DispatchOutcome, DispatchWaitOptions, DispatchWaitRecord } from './types.ts';
+import type { Run } from '../run/types.ts';
+import type {
+    DispatchHost,
+    DispatchOutcome,
+    DispatchWaitOptions,
+    DispatchWaitRecord,
+} from './types.ts';
 
 function toRunId(value: unknown): string {
     const id = isObject(value) ? value.runId : value;
@@ -67,6 +75,32 @@ async function release(ctx: ToolContext<any>, record: DispatchWaitRecord): Promi
     }
 
     return record.outcomes;
+}
+
+/**
+ * Refuses to wait on an unsettled run whose agent and concurrency key the
+ * waiting run or one of its ancestors holds: the queue keeps it back while
+ * that run waits, so the wait could never end.
+ */
+async function assertNoKeyHolder(host: DispatchHost, runId: string, children: readonly Run[]): Promise<void> {
+    const keyed = children.filter((child) => child.concurrencyKey !== undefined && !isSettled(child));
+
+    if (keyed.length === 0) {
+        return;
+    }
+
+    const chain = await ancestorsOf(host, runId);
+
+    for (const child of keyed) {
+        const holder = chain.find((r) => r.agent === child.agent && r.concurrencyKey === child.concurrencyKey);
+
+        if (holder) {
+            throw new ValidationError(
+                `Run ${child.id} needs concurrency key "${child.concurrencyKey}" of agent "${child.agent}", ` +
+                `which run ${holder.id} holds while it waits: the wait could never end.`,
+            );
+        }
+    }
 }
 
 async function waitFor(ctx: ToolContext<any>, runs: unknown, options: unknown): Promise<DispatchOutcome[]> {
@@ -132,6 +166,8 @@ async function waitFor(ctx: ToolContext<any>, runs: unknown, options: unknown): 
 
         return release(ctx, settled);
     }
+
+    await assertNoKeyHolder(host, run.runId, data);
 
     const request: DispatchWaitRequest = {
         kind: 'dispatch',

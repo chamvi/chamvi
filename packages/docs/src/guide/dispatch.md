@@ -78,7 +78,7 @@ A given key is **not** scoped to the parent run: a second run that dispatches th
 
 That check stops at the lineage. Two runs in different subtrees whose keys deduplicate into each other (run A's dispatch gets run B back, B's dispatch gets A back) can each wait on the other. Nothing settles that cycle; the wait timeout ends it: both waits expire and read the other run as `timeout`, and neither cancels the other, since a run another run dispatched is never cancelled by a wait's expiry. Keep keys deterministic and tied to the work of one subtree (no key a run of another subtree can produce for its own caller), or give such waits a shorter `timeoutMs`.
 
-The concurrency key works as for any run: two children with the same key never run at the same time, so one key per pull request keeps two fixes of one pull request apart. A dispatch whose child would take the agent and concurrency key that the caller or a run up its lineage holds is refused (`ValidationError`), since the child could never start while that run waits.
+The concurrency key works as for any run: two children with the same key never run at the same time, so one key per pull request keeps two fixes of one pull request apart. A child may take the agent and concurrency key that the caller (or a run up its lineage) holds: it then queues and starts only after that run settled, so "run this after me" needs no extra code. Mind a caller that pauses for an approval meanwhile: the child waits as long. Waiting for such a child with `waitForDispatch()` is refused (`ValidationError`), since the wait would hold the key the child needs and never end.
 
 ## The effect record
 
