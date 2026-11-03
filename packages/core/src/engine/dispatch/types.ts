@@ -23,6 +23,8 @@ export type ResumeStep = {
 export type DispatchEngineContext = {
     store: Pick<IStore, 'runs'>;
     clock: IClock;
+    /** How long past an expired wait a requested cancel may take to land before the run reads `timeout`. */
+    claimTtlMs: number;
     /**
      * waiting → queued for the wait point `waitId` (guarded by status and wait
      * id), recording `record` and appending the `wait` step; throws

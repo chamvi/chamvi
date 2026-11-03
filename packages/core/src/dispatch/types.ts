@@ -59,7 +59,7 @@ export type DispatchOutcome = {
     runId: string;
     agent: string;
     role: string;
-    /** `timeout`: the wait expired on a run another run dispatched (it keeps running). */
+    /** `timeout`: the wait expired on a run another run dispatched (it keeps running), or on one whose cancel did not land within one claim TTL. */
     status: 'completed' | 'failed' | 'cancelled' | 'timeout';
     /** A completed run's output. */
     output?: unknown;

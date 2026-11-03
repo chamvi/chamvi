@@ -321,12 +321,10 @@ export function readWaitRecord(value: unknown): DispatchWaitRecord {
 
 /**
  * The record of an expired wait on `runIds` (duplicates kept, in order): a
- * settled run keeps its outcome, an unsettled one dispatched by `parentId`
- * is `cancelled` with `error` (the expiry cancels it), any other (owned by
- * another run, or missing) is `timeout` with `error` and keeps running.
+ * settled run keeps its outcome (a cancel the expiry made reads
+ * `cancelled`), any other (still running, or missing) is `timeout` with `error`.
  */
 export function toExpiredRecord(
-    parentId: string,
     runIds: readonly string[],
     runs: readonly Run[],
     error: { code: string; message: string },
@@ -345,7 +343,7 @@ export function toExpiredRecord(
                 runId: id,
                 agent: run?.agent ?? '',
                 role: run ? run.trigger.parent?.role ?? run.trigger.trigger : '',
-                status: run?.parentRunId === parentId ? RunStatus.CANCELLED : 'timeout',
+                status: 'timeout',
                 error: { ...error },
             });
         }

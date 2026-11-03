@@ -1943,6 +1943,7 @@ export class Engine implements IEngine {
         return {
             store: this.store,
             clock: this.clock,
+            claimTtlMs: this.claimTtlMs,
             resume: (run, waitId, record, step, stale) => this.resume(run, waitId, record, step, stale),
             cancel: (runId, reason) => this.cancelRun(runId, reason),
             onError: (error, run) => this.onError(error, run),

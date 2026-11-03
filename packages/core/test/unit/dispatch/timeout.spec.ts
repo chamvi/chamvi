@@ -134,4 +134,116 @@ describe('dispatch wait timeout', () => {
         expect(outcomes[1]?.error?.message).toBe(b.error?.message);
         expect((await store.steps.find(parentId)).filter((s) => s.kind === 'wait')).toHaveLength(1);
     });
+
+    describe('a cancel that lands on another replica', () => {
+        /** Replica `a` executes the parent and child `b`; replica `remote` (never started) runs the expiring tick. */
+        async function setup() {
+            const clock = new ControllableClock(START);
+            const store = createMemoryStore({ clock });
+            const lead = defineAgent({
+                name: 'lead',
+                instructions: 'You lead.',
+                model: treeModel([
+                    { parts: [call('fan', { payloads: ['b'], timeoutMs: 60_000 }, 'c1')] },
+                    text('done'),
+                ], (_payload, options) => new Promise<MockResponse>((_resolve, reject) => {
+                    options.abortSignal?.addEventListener('abort', () => reject(options.abortSignal?.reason));
+                })),
+                channels: [agent.on()],
+                tools: { fan },
+            });
+            const options = {
+                store,
+                clock,
+                agents: [lead],
+                channels: [agentChannel()],
+                onError: () => {},
+            };
+            const a = new Engine(options);
+            const remote = new Engine(options);
+
+            engines.push(a, remote);
+            await a.start();
+
+            const running = nextRun(a, (run) => run.parentRunId !== undefined && run.status === 'running');
+            const paused = nextRun(a, (run) => run.parentRunId === undefined && run.status === 'waiting');
+            const { runId: parentId } = await a.dispatch({
+                agent: 'lead',
+                trigger: 'test',
+                channel: 'test',
+                payload: {},
+            });
+            const [b] = await Promise.all([running, paused]);
+
+            // a's poll stays out of it: the expiry happens on the remote replica
+            await a.stop();
+            clock.advance(60_000);
+            await remote.tick();
+
+            return {
+                a,
+                remote,
+                store,
+                clock,
+                parentId,
+                childId: b.id,
+            };
+        }
+
+        async function waitOutcome(store: ReturnType<typeof createMemoryStore>, parentId: string): Promise<DispatchOutcome | undefined> {
+            const [step] = (await store.steps.find(parentId)).filter((s) => s.kind === 'wait');
+
+            return (step?.output as DispatchOutcome[] | undefined)?.[0];
+        }
+
+        it('answers with cancelled once the cancel landed', async () => {
+            const {
+                a,
+                store,
+                parentId,
+                childId,
+            } = await setup();
+
+            // only cancelRequested so far: the parent waits for the cancel to land
+            expect((await store.runs.findOne(childId))).toMatchObject({ status: 'running', cancelRequested: true });
+            expect((await store.runs.findOne(parentId))?.status).toBe('waiting');
+
+            const queued = nextRun(a, (run) => run.id === parentId && run.status === 'queued');
+
+            // the owner sees cancelRequested on its next poll; the child's settle answers the parent
+            await a.recover();
+            await queued;
+
+            expect((await store.runs.findOne(childId))?.status).toBe('cancelled');
+            expect(await waitOutcome(store, parentId)).toMatchObject({
+                runId: childId,
+                status: 'cancelled',
+                error: { code: 'Timeout' },
+            });
+        });
+
+        it('answers with timeout when the cancel does not land within one claim TTL', async () => {
+            const {
+                remote,
+                store,
+                clock,
+                parentId,
+                childId,
+            } = await setup();
+
+            await remote.tick();
+            expect((await store.runs.findOne(parentId))?.status).toBe('waiting');
+
+            clock.advance(60_000);
+            await remote.tick();
+
+            expect((await store.runs.findOne(parentId))?.status).toBe('queued');
+            expect((await store.runs.findOne(childId))?.status).toBe('running');
+            expect(await waitOutcome(store, parentId)).toMatchObject({
+                runId: childId,
+                status: 'timeout',
+                error: { code: 'Timeout' },
+            });
+        });
+    });
 });

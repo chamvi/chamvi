@@ -131,15 +131,20 @@ export async function answerDispatchWait(ctx: DispatchEngineContext, parentId: s
 /**
  * Ends the expired dispatch wait of `parent` (re-read: the listing may be
  * stale): cancels every listed unsettled run it dispatched itself (reason
- * `Timeout`), then answers it with the settled outcomes, `cancelled` for
- * those, `timeout` for runs another run owns (they keep running). True
- * when this call answered.
+ * `Timeout`; one with `cancelRequested` already is left to its owner), then
+ * answers it with the settled outcomes, `cancelled` for those whose cancel
+ * landed. While a run it dispatched only got `cancelRequested` (running on
+ * another replica, or interrupted), the answer waits for the cancel to land
+ * (that run's settle answers it), at most one claim TTL past expiresAt;
+ * then, like a run another run owns (it keeps running), it is `timeout`.
+ * True when this call answered.
  */
 export async function expireDispatchWait(ctx: DispatchEngineContext, parent: Run): Promise<boolean> {
     const run = await ctx.store.runs.findOne(parent.id);
     const waiting = dispatchWaitOf(run);
+    const now = ctx.clock.now().getTime();
 
-    if (!run || !waiting || waiting.expiresAt.getTime() > ctx.clock.now().getTime()) {
+    if (!run || !waiting || waiting.expiresAt.getTime() > now) {
         return false;
     }
 
@@ -152,7 +157,7 @@ export async function expireDispatchWait(ctx: DispatchEngineContext, parent: Run
     const { data } = await ctx.store.runs.find({ ids });
 
     for (const child of data) {
-        if (child.parentRunId !== run.id || isSettled(child)) {
+        if (child.parentRunId !== run.id || isSettled(child) || child.cancelRequested) {
             continue;
         }
 
@@ -166,8 +171,13 @@ export async function expireDispatchWait(ctx: DispatchEngineContext, parent: Run
 
     // the cancels' pushes may have answered already (resumeWait then loses)
     const { data: after } = await ctx.store.runs.find({ ids });
+    const landing = after.some((child) => child.parentRunId === run.id && !isSettled(child));
 
-    return resumeWait(ctx, run, waiting, toExpiredRecord(run.id, waiting.runIds, after, reason));
+    if (landing && now < waiting.expiresAt.getTime() + ctx.claimTtlMs) {
+        return false;
+    }
+
+    return resumeWait(ctx, run, waiting, toExpiredRecord(waiting.runIds, after, reason));
 }
 
 /**
