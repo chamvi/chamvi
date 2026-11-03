@@ -148,6 +148,23 @@ describe('subtree usage', () => {
         expect(parent?.subtreeUsage).toEqual({ inputTokens: 31, outputTokens: 11 });
     });
 
+    it('a child settling emits run.updated for the parent with the new subtreeUsage', async () => {
+        const child: ChildTurn = (payload) => text(`out-${String(payload)}`, { inputTokens: 2, outputTokens: 3 });
+        const { engine } = build([turn({ inputTokens: 0, outputTokens: 0 }, call('fan', { payloads: ['a'] }, 'c1'))], child);
+        const seen: unknown[] = [];
+        let parentId: string | undefined;
+
+        engine.on('run.updated', ({ run }) => {
+            if (parentId !== undefined && run.id === parentId && run.status === 'waiting' && run.subtreeUsage) {
+                seen.push(run.subtreeUsage);
+            }
+        });
+        parentId = await root(engine);
+        await engine.idle();
+
+        expect(seen).toContainEqual({ inputTokens: 2, outputTokens: 3 });
+    });
+
     it('a child settling moves neither the parent\'s updatedAt nor the wait step start', async () => {
         const clock = new ControllableClock(START);
         const holdA = gate();

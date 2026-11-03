@@ -131,7 +131,8 @@ export function useRunActivity(client: IApiClient) {
  * The runs `runId` dispatched (`filter[parent]`, newest first), polled
  * every `RUN_LIST_POLL_MS` and refetched on another id and whenever
  * `parent` (the viewed run, live over its stream) changes, since a child
- * settling updates the parent's `subtreeUsage`. A 403 sets `forbidden`
+ * settling updates the parent's `subtreeUsage` (a `run.updated` of the
+ * replica it settled on; the poll covers the others). A 403 sets `forbidden`
  * (an agent-scoped reader cannot list across agents) and drops the page.
  */
 export function useRunChildren(client: IApiClient, runId: Ref<string>, parent?: Ref<RunWire | undefined>) {

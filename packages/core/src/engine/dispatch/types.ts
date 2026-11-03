@@ -34,4 +34,6 @@ export type DispatchEngineContext = {
     /** The engine's cancel (a remote run gets `cancelRequested`); InvalidRunStateError for a settled run. */
     cancel: (runId: string, reason?: CancelReason) => Promise<void>;
     onError: (error: unknown, run?: Run) => void;
+    /** Emits the local `run.updated` event for a run a dispatch operation wrote. */
+    emit: (run: Run) => void;
 };

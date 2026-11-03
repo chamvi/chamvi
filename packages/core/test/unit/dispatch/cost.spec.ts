@@ -145,6 +145,7 @@ describe('subtree recompute cost', () => {
             resume: async () => {},
             cancel: async () => {},
             onError: () => {},
+            emit: () => {},
         };
 
         return { store, finds, ctx };

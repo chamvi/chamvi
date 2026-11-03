@@ -57,7 +57,7 @@ function isVolatile(child: Run): boolean {
  * re-check, which keeps a wide fan-out to one children read per settle.
  * Patched without a status guard and with `keepUpdatedAt` (the run's own
  * writes go on, and a wait step's start, taken from updatedAt, stays the
- * wait's start).
+ * wait's start); each write emits `run.updated` (local).
  */
 export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: string): Promise<void> {
     let next: string | undefined = runId;
@@ -67,6 +67,8 @@ export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: s
         let children = (await ctx.store.runs.find({ parentRunId: id })).data;
         let subtreeUsage = sumSubtreeUsage(children);
         let updated: Run = await ctx.store.runs.update(id, { subtreeUsage }, { keepUpdatedAt: true });
+
+        ctx.emit(updated);
 
         for (let check = 0; check < SUBTREE_RECHECKS; check++) {
             const volatile = children.filter((child) => isVolatile(child)).map((child) => child.id);
@@ -87,6 +89,7 @@ export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: s
 
             subtreeUsage = again;
             updated = await ctx.store.runs.update(id, { subtreeUsage }, { keepUpdatedAt: true });
+            ctx.emit(updated);
         }
 
         next = updated.parentRunId;

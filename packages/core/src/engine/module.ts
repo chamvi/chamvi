@@ -1949,6 +1949,7 @@ export class Engine implements IEngine {
             resume: (run, waitId, record, step, stale) => this.resume(run, waitId, record, step, stale),
             cancel: (runId, reason) => this.cancelRun(runId, reason),
             onError: (error, run) => this.onError(error, run),
+            emit: (run) => this.emit({ type: 'run.updated', run }),
         };
     }
 
