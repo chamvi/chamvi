@@ -5,5 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+// Package entry: composes the folder barrels.
 export * from './client/index.ts';
 export * from './provider/index.ts';
