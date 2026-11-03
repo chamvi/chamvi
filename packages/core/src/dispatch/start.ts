@@ -10,7 +10,7 @@ import { isObject } from 'smob';
 import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
 import type { DispatchResult } from '../channel/types.ts';
 import { inject } from '../context/module.ts';
-import { currentToolCall } from '../effect/frame.ts';
+import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
 import { BudgetExceededError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
 import { hasPermission } from '../permission/match.ts';
@@ -96,6 +96,8 @@ async function start(
     if (!frame) {
         throw new InvalidRunStateError(`${name} runs inside a tool call, not in the tools factory.`);
     }
+
+    assertFrameActive(frame, name);
 
     // the engine's copy, never ctx.run itself: tool code can write to that
     const run = runSnapshotOf(ctx?.run);

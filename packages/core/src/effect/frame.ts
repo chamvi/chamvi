@@ -7,6 +7,7 @@
 
 import { AsyncLocalStorage } from 'node:async_hooks';
 import { isObject } from 'smob';
+import { InvalidRunStateError } from '../errors/index.ts';
 import type { ToolCallFrame } from './types.ts';
 
 const storage = new AsyncLocalStorage<ToolCallFrame>();
@@ -26,6 +27,13 @@ export function runToolCall<T>(frame: ToolCallFrame, fn: () => T): T {
 /** The tool call the caller runs for, undefined outside one (e.g. in the tools factory). */
 export function currentToolCall(): ToolCallFrame | undefined {
     return storage.getStore();
+}
+
+/** Refuses `name` in a frame whose execution ended (work a code run's run() left behind after its settle). */
+export function assertFrameActive(frame: ToolCallFrame, name: string): void {
+    if (frame.abandoned) {
+        throw new InvalidRunStateError(`${name} cannot run after the execution of run "${frame.runId}" ended.`);
+    }
 }
 
 function bindIterable(frame: ToolCallFrame, iterable: AsyncIterable<unknown>): AsyncIterable<unknown> {

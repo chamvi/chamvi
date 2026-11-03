@@ -291,4 +291,51 @@ describe('code run execution', () => {
 
         await engine.stop();
     });
+    it.each([
+        ['a function', () => 1],
+        ['a symbol', Symbol('x')],
+        ['an object holding a function', { a: 1, f() {} }],
+        ['a BigInt', { n: 1n }],
+    ])('fails with a ValidationError and one step when the output is %s', async (_label, value) => {
+        const errors: unknown[] = [];
+        const clock = new ControllableClock(START);
+        const store: IStore = createMemoryStore({ clock });
+        const engine = new Engine({
+            store,
+            clock,
+            agents: [defineAgent({ name: 'code', run: () => value } as CodeAgentDefinition)],
+            onError: (error) => {
+                errors.push(error);
+            },
+        });
+        const runId = await runOnce(engine);
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('failed');
+        expect(run?.error).toEqual({ code: 'validation_error', message: 'The output of code agent "code" is not JSON-serialisable.' });
+        expect((await store.steps.find(runId)).map((s) => [s.kind, s.error?.code])).toEqual([['tool', 'validation_error']]);
+        expect(errors).toEqual([]);
+
+        await engine.stop();
+    });
+
+    it('stores the output as plain JSON', async () => {
+        const at = new Date(START);
+        const { store, engine } = setup({
+            run: () => ({
+                at, 
+                m: new Map([['a', 1]]), 
+                list: [undefined], 
+            }), 
+        });
+        const runId = await runOnce(engine);
+
+        expect((await store.runs.findOne(runId))?.output).toEqual({
+            at: at.toISOString(), 
+            m: {}, 
+            list: [null], 
+        });
+
+        await engine.stop();
+    });
 });

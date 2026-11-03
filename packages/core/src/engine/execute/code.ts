@@ -22,14 +22,28 @@ import type { CodeToolStep, ExecuteContext } from './types.ts';
 /** The synthetic tool call a code run's `run()` executes in: part of its approval and wait ids (`0:run:<n>`). */
 const CODE_RUN_TOOL_CALL_ID = 'run';
 
-/** Whether `value` can be stored as a run's output (JSON). */
-function isSerialisable(value: unknown): boolean {
-    try {
-        JSON.stringify(value);
+/**
+ * `value` as plain JSON (undefined stays undefined), so every store keeps
+ * the same output; undefined when it is no JSON value (a function, a
+ * symbol, a BigInt, a cycle).
+ */
+function toJsonOutput(value: unknown): { value: unknown } | undefined {
+    if (value === undefined) {
+        return { value };
+    }
 
-        return true;
+    try {
+        const json = JSON.stringify(value, (_key, item: unknown) => {
+            if (typeof item === 'function' || typeof item === 'symbol') {
+                throw new TypeError('not JSON');
+            }
+
+            return item;
+        });
+
+        return json === undefined ? undefined : { value: JSON.parse(json) };
     } catch {
-        return false;
+        return undefined;
     }
 }
 
@@ -144,6 +158,7 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
     } catch (error) {
         outcome = { error };
     } finally {
+        frame.abandoned = true;
         local.abort();
         timeout?.clear();
     }
@@ -169,8 +184,10 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
         return;
     }
 
-    if ('output' in outcome && !isSerialisable(outcome.output)) {
-        outcome = { error: new ValidationError(`The output of code agent "${agent.name}" is not JSON-serialisable.`) };
+    if ('output' in outcome) {
+        const json = toJsonOutput(outcome.output);
+
+        outcome = json ? { output: json.value } : { error: new ValidationError(`The output of code agent "${agent.name}" is not JSON-serialisable.`) };
     }
 
     // after the steps of the ctx.tools calls; a run another owner took over gets no step from this execution

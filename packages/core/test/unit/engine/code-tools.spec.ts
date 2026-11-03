@@ -381,4 +381,81 @@ describe('ctx.tools in code runs', () => {
 
         await engine.stop();
     });
+    it('refuses dispatches and tool calls that run() makes after its execution ended', async () => {
+        const applied: string[] = [];
+        const gate = Promise.withResolvers<void>();
+        const late = Promise.withResolvers<unknown[]>();
+        const { store, engine } = setup({
+            tools: {
+                send: defineEffectTool({
+                    inputSchema: z.object({ body: z.string() }),
+                    execute: async ({ body }) => {
+                        applied.push(body);
+
+                        return 'sent';
+                    },
+                }),
+            },
+            // ignores ctx.run.signal: keeps going after the cancel
+            run: async (_payload, ctx) => {
+                await gate.promise;
+
+                const errors = await Promise.all([
+                    dispatchTo(ctx, {
+                        agent: 'worker',
+                        role: 'item',
+                        payload: { n: 1 },
+                    }).then(() => undefined, (error: unknown) => error),
+                    ctx.tools.send!({ body: 'late' }).then(() => undefined, (error: unknown) => error),
+                ]);
+
+                late.resolve(errors);
+
+                return 'late';
+            },
+        }, {
+            channels: [agentChannel()],
+            agents: [{
+                name: 'worker',
+                instructions: 'You work.',
+                model: mockModel([{ parts: [{ type: 'text', text: 'done' }] }]),
+                channels: [agent.on({ role: 'item', from: ['code'] })],
+            }],
+        });
+
+        await engine.start();
+
+        const running = Promise.withResolvers<void>();
+        const off = engine.on('run.updated', ({ run }) => {
+            if (run.agent === 'code' && run.status === 'running') {
+                running.resolve();
+            }
+        });
+        const { runId } = await engine.dispatch({
+            agent: 'code',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+        });
+
+        await running.promise;
+        off();
+        await engine.cancel(runId);
+        await engine.idle();
+
+        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+
+        gate.resolve();
+
+        const errors = await late.promise;
+
+        await engine.idle();
+
+        expect(errors).toEqual([expect.objectContaining({ code: 'invalid_run_state' }), expect.objectContaining({ code: 'invalid_run_state' })]);
+        expect(applied).toEqual([]);
+        expect((await store.runs.find({ parentRunId: runId })).data).toEqual([]);
+        expect(await store.steps.find(runId)).toEqual([]);
+
+        await engine.stop();
+    });
 });

@@ -6,7 +6,7 @@
  */
 
 import { isObject } from 'smob';
-import { currentToolCall } from '../effect/frame.ts';
+import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
 import type { ApprovalRequest, SuspendRequest } from '../engine/execute/types.ts';
 import {
@@ -106,6 +106,8 @@ function checkFrame(request: unknown) {
     if (!frame) {
         throw new InvalidRunStateError('approve() runs inside a tool call (its execute or the agent hooks), not in the tools factory.');
     }
+
+    assertFrameActive(frame, 'approve()');
 
     if (frame.streaming) {
         throw new InvalidRunStateError(

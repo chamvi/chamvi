@@ -8,6 +8,7 @@
 import type { CodeRunContext } from '../../agent/types.ts';
 import { SUSPENDED_RESULT } from '../../approval/constants.ts';
 import { SuspendSignal } from '../../approval/request.ts';
+import { assertFrameActive } from '../../effect/frame.ts';
 import { ValidationError } from '../../errors/index.ts';
 import { executePendingCall, toRunError } from './helpers.ts';
 import type { CodeToolsOptions } from './types.ts';
@@ -40,7 +41,10 @@ export function createCodeTools(options: CodeToolsOptions): CodeRunContext['tool
 
     // the set the model would be offered: a policy-hidden tool is absent
     for (const name of Object.keys(tools).filter((n) => !activeTools || activeTools.includes(n))) {
-        result[name] = (input: unknown) => {
+        result[name] = async (input: unknown) => {
+            // run() left running after its execution ended applies no more tools
+            assertFrameActive(frame, `Tool "${name}"`);
+
             const toolCallId = `run:${ordinal++}`;
 
             return call(name, toolCallId, input);
