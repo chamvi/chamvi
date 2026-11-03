@@ -272,6 +272,97 @@ describe('dispatch guards', () => {
         expect(level2.status).toBe('completed');
     });
 
+    it('waits on a child under a settled ancestor\'s key', async () => {
+        const { engine, store } = setup({
+            model: markedModel([
+                ['level-2', [text('level-2 done')]],
+                ['level-1', [turn(call({ payload: 'level-2', concurrencyKey: 'k' }, 'g2', 'fanWait')), text('done')]],
+                ['', [turn(call({ payload: 'level-1', concurrencyKey: 'c1' }, 'g1')), text('done')]],
+            ]),
+            channels: [agent.on({ maxDepth: 2 })],
+            tools: { fan, fanWait },
+            // one run at a time: the root settles before level-1 starts
+            concurrencyMaxRuns: 1,
+        });
+
+        await engine.start();
+
+        const { runId: rootId } = await engine.dispatch({
+            agent: 'maintainer',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+            concurrencyKey: 'k',
+        });
+
+        await engine.idle();
+
+        const all = await children(store);
+        const level1 = all.find((r) => r.trigger.payload === 'level-1')!;
+        const level2 = all.find((r) => r.trigger.payload === 'level-2')!;
+        const [waited] = await toolSteps(store, level1.id);
+
+        expect((await store.runs.findOne(rootId))?.status).toBe('completed');
+        expect(waited?.error).toBeUndefined();
+        expect(waited?.output).toMatchObject({ runId: level2.id, status: 'completed' });
+        expect(level1.status).toBe('completed');
+    });
+
+    it('returns the outcome when the key-holding child settles while the wait checks it', async () => {
+        const clock = new ControllableClock(START);
+        const store = createMemoryStore({ clock });
+        let cancelOnRead: (() => Promise<unknown>) | undefined;
+        const findOne = store.runs.findOne.bind(store.runs);
+
+        // the first run read after the dispatch (the ancestor read) cancels the queued child first
+        store.runs.findOne = async (id) => {
+            const cancel = cancelOnRead;
+
+            cancelOnRead = undefined;
+            await cancel?.();
+
+            return findOne(id);
+        };
+
+        const racer = defineTool({
+            inputSchema: fanInput,
+            execute: async (input, { context }) => {
+                const child = await dispatch(context, input as DispatchInput);
+
+                cancelOnRead = () => engine.cancel(child.runId);
+
+                return waitForDispatch(context!, child);
+            },
+        });
+        const { engine } = setup({
+            model: markedModel([
+                ['job', [text('child done')]],
+                ['', [turn(call({ payload: 'job' }, 'c1', 'racer')), text('done')]],
+            ]),
+            channels: [agent.on({ concurrencyKey: () => 'k' })],
+            tools: { racer },
+            store,
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch({
+            agent: 'maintainer',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+            concurrencyKey: 'k',
+        });
+
+        await engine.idle();
+
+        const [step] = await toolSteps(store, runId);
+        const [child] = await children(store);
+
+        expect(step?.error).toBeUndefined();
+        expect(step?.output).toMatchObject({ runId: child!.id, status: 'cancelled' });
+    });
+
     it('refuses once the subtree budget is reached', async () => {
         const { engine, store } = setup({
             model: markedModel([['', [turn(call({ payload: 'job' }, 'c1')), text('done')]]]),
