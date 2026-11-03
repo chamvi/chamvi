@@ -14,3 +14,9 @@ export {
     DISCORD_SHUTDOWN_TIMEOUT_MS,
     DISCORD_TEXT_MAX_CHARS,
 } from './constants.ts';
+export type {
+    DiscordIdentity,
+    DiscordInboundAttachment,
+    DiscordInboundMessage,
+    DiscordPolicy,
+} from './types.ts';
