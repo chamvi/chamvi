@@ -8,6 +8,7 @@
 import { DISPATCH_DEPTH_MAX } from '../../dispatch/constants.ts';
 import {
     isSettled,
+    sumSubtreeUsage,
     toExpiredRecord,
     toWaitRecord,
     waitRecordKey,
@@ -15,7 +16,7 @@ import {
 import type { DispatchWaitRecord } from '../../dispatch/types.ts';
 import { ErrorCode, InvalidRunStateError } from '../../errors/index.ts';
 import { RunStatus } from '../../run/constants.ts';
-import type { DispatchWaitPoint, Run, Usage } from '../../run/types.ts';
+import type { DispatchWaitPoint, Run } from '../../run/types.ts';
 import type { CancelReason } from '../registry/types.ts';
 import type { DispatchEngineContext } from './types.ts';
 
@@ -36,27 +37,38 @@ function dispatchWaitOf(run: Run | undefined): DispatchWaitPoint | undefined {
     return run?.status === RunStatus.WAITING && run.waiting?.kind === 'dispatch' ? run.waiting : undefined;
 }
 
+/** How often a recompute re-reads the children after its write before it lets a later settle converge it. */
+const SUBTREE_RECHECKS = 3;
+
 /**
  * Recomputes `subtreeUsage` of run `runId` from its children (their usage
  * plus their own subtreeUsage), then of its parent and so on up the lineage
  * (at most DISPATCH_DEPTH_MAX hops). A recompute, never an increment, so a
- * repeated or healed call never counts a run twice. Patched without a status
- * guard and with `keepUpdatedAt` (the run's own writes go on, and a wait
- * step's start, taken from updatedAt, stays the wait's start).
+ * repeated or healed call never counts a run twice. After each write the
+ * children are read again and the total rewritten when it changed (a
+ * sibling's settle that interleaved), so the last write is never stale.
+ * Patched without a status guard and with `keepUpdatedAt` (the run's own
+ * writes go on, and a wait step's start, taken from updatedAt, stays the
+ * wait's start).
  */
 export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: string): Promise<void> {
     let next: string | undefined = runId;
 
     for (let hop = 0; next !== undefined && hop <= DISPATCH_DEPTH_MAX; hop++) {
-        const { data } = await ctx.store.runs.find({ parentRunId: next });
-        const subtreeUsage: Usage = { inputTokens: 0, outputTokens: 0 };
+        const id: string = next;
+        let subtreeUsage = sumSubtreeUsage((await ctx.store.runs.find({ parentRunId: id })).data);
+        let updated: Run = await ctx.store.runs.update(id, { subtreeUsage }, { keepUpdatedAt: true });
 
-        for (const child of data) {
-            subtreeUsage.inputTokens += child.usage.inputTokens + (child.subtreeUsage?.inputTokens ?? 0);
-            subtreeUsage.outputTokens += child.usage.outputTokens + (child.subtreeUsage?.outputTokens ?? 0);
+        for (let check = 0; check < SUBTREE_RECHECKS; check++) {
+            const again = sumSubtreeUsage((await ctx.store.runs.find({ parentRunId: id })).data);
+
+            if (again.inputTokens === subtreeUsage.inputTokens && again.outputTokens === subtreeUsage.outputTokens) {
+                break;
+            }
+
+            subtreeUsage = again;
+            updated = await ctx.store.runs.update(id, { subtreeUsage }, { keepUpdatedAt: true });
         }
-
-        const updated: Run = await ctx.store.runs.update(next, { subtreeUsage }, { keepUpdatedAt: true });
 
         next = updated.parentRunId;
     }

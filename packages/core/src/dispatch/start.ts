@@ -14,7 +14,7 @@ import { currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
 import { BudgetExceededError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
 import { hasPermission } from '../permission/match.ts';
-import type { Run } from '../run/types.ts';
+import type { Run, Usage } from '../run/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
 import { DEFAULT_DISPATCH_ROLE, DISPATCH_CONTEXT } from './constants.ts';
@@ -29,6 +29,7 @@ import {
     readChildren,
     readCount,
     runSnapshotOf,
+    sumSubtreeUsage,
     validatePayload,
 } from './helpers.ts';
 import type { DispatchHost, DispatchInput, DispatchToInput } from './types.ts';
@@ -43,20 +44,41 @@ async function recordChild(host: DispatchHost, runId: string, childId: string): 
     }
 }
 
-/** The first run of `chain` whose agent's `budget.maxSubtreeTokens` its `subtreeUsage` reached, with that budget. */
-function overSubtreeBudget(host: DispatchHost, chain: Run[]): { run: Run, max: number } | undefined {
-    for (const run of chain) {
-        const max = host.getAgent(run.agent)?.definition.budget.maxSubtreeTokens;
+/**
+ * The first run of `chain` (the caller, then its ancestors) whose agent's
+ * `budget.maxSubtreeTokens` its subtree usage reached, with that budget. The
+ * totals along the chain are summed from the children read now (one read
+ * per run up to the highest budget), each with the total just computed for
+ * the chain's run below it, so a stored subtreeUsage left stale (a lost or
+ * interleaved recompute) cannot let a dispatch through; a stored total above
+ * the sum (it errs only low) counts instead.
+ */
+async function overSubtreeBudget(host: DispatchHost, chain: Run[]): Promise<{ run: Run, max: number } | undefined> {
+    const budgets = chain.map((run) => host.getAgent(run.agent)?.definition.budget.maxSubtreeTokens);
+    let last = -1;
 
-        if (max === undefined) {
-            continue;
+    budgets.forEach((max, i) => {
+        if (max !== undefined) {
+            last = i;
         }
+    });
 
-        const used = (run.subtreeUsage?.inputTokens ?? 0) + (run.subtreeUsage?.outputTokens ?? 0);
+    let fresh: { runId: string; usage: Usage } | undefined;
 
-        if (used >= max) {
+    for (let i = 0; i <= last; i++) {
+        const run = chain[i]!;
+        const { data } = await host.runs.find({ parentRunId: run.id });
+        const summed = sumSubtreeUsage(data, fresh);
+        const stored = run.subtreeUsage ?? { inputTokens: 0, outputTokens: 0 };
+        // a recompute never overcounts: the stored total errs only low, so the larger one counts
+        const usage = stored.inputTokens + stored.outputTokens > summed.inputTokens + summed.outputTokens ? stored : summed;
+        const max = budgets[i];
+
+        if (max !== undefined && usage.inputTokens + usage.outputTokens >= max) {
             return { run, max };
         }
+
+        fresh = { runId: run.id, usage };
     }
 
     return undefined;
@@ -256,7 +278,7 @@ async function start(
             }
 
             // a new call only: a recorded or redone one keeps its child however the subtree grew
-            const over = overSubtreeBudget(host, chain);
+            const over = await overSubtreeBudget(host, chain);
 
             if (over) {
                 throw new BudgetExceededError(`Run ${over.run.id} reached its subtree token budget of ${over.max} tokens.`);

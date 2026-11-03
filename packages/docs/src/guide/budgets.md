@@ -37,7 +37,7 @@ A resumed approval gets exactly one step beyond `maxSteps`. An approval asked fo
 
 A run's own budget does not cover the runs it [dispatched](/guide/dispatch): each child has its own. `run.subtreeUsage` is the sum of every descendant's `usage` (children, their children, and so on), recomputed from the children whenever one settles, so it is never counted twice.
 
-`budget.maxSubtreeTokens` bounds a whole tree: once the `subtreeUsage` (input plus output tokens) of a run of this agent reached it, `dispatch()` and `dispatchTo()` in that run, and in every run below it, fail with a `BudgetExceeded` tool error (not fatal: the model sees it and can finish with what it has). It is checked when a dispatch starts; children already running go on. A call recorded before the limit (a redo after a crash or a wait) keeps its child.
+`budget.maxSubtreeTokens` bounds a whole tree: once the `subtreeUsage` (input plus output tokens) of a run of this agent reached it, `dispatch()` and `dispatchTo()` in that run, and in every run below it, fail with a `BudgetExceeded` tool error (not fatal: the model sees it and can finish with what it has). It is checked when a dispatch starts, against totals summed from the children at that moment (a stored `subtreeUsage` a failed update left behind cannot let a dispatch through); children already running go on. A call recorded before the limit (a redo after a crash or a wait) keeps its child.
 
 ```ts
 defineAgent({

@@ -16,7 +16,7 @@ import { assertChannelName } from '../channel/helpers.ts';
 import type { ChannelSubscription } from '../channel/types.ts';
 import { InvalidAgentDefinitionError, ValidationError } from '../errors/index.ts';
 import { RunStatus } from '../run/constants.ts';
-import type { Run, RunContext } from '../run/types.ts';
+import type { Run, RunContext, Usage } from '../run/types.ts';
 import { describeIssues } from '../state/helpers.ts';
 import { TRIGGER_KEY_MAX_LENGTH } from '../trigger/constants.ts';
 import type { Invoker, TriggerParent } from '../trigger/types.ts';
@@ -354,4 +354,22 @@ export function toExpiredRecord(
     }
 
     return { outcomes, tainted };
+}
+
+/**
+ * The subtree usage of a run from its `children`: their usage plus their
+ * own subtreeUsage, where `fresh` (a child's id and a total computed for it)
+ * replaces that child's stored subtreeUsage.
+ */
+export function sumSubtreeUsage(children: readonly Run[], fresh?: { runId: string; usage: Usage }): Usage {
+    const total: Usage = { inputTokens: 0, outputTokens: 0 };
+
+    for (const child of children) {
+        const below = fresh?.runId === child.id ? fresh.usage : child.subtreeUsage;
+
+        total.inputTokens += child.usage.inputTokens + (below?.inputTokens ?? 0);
+        total.outputTokens += child.usage.outputTokens + (below?.outputTokens ?? 0);
+    }
+
+    return total;
 }

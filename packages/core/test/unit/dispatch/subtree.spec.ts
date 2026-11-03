@@ -5,11 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { 
-    afterEach, 
-    describe, 
-    expect, 
-    it, 
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
     vi,
 } from 'vitest';
 import { z } from 'zod';
@@ -68,9 +68,9 @@ afterEach(() => {
 });
 
 function build(parent: ParentTurn[], child: ChildTurn, options: {
-    store?: IStore; 
-    clock?: ControllableClock; 
-    maxSubtreeTokens?: number 
+    store?: IStore;
+    clock?: ControllableClock;
+    maxSubtreeTokens?: number
 } = {}) {
     const clock = options.clock ?? new ControllableClock(START);
     const store = options.store ?? createMemoryStore({ clock });
@@ -242,6 +242,88 @@ describe('subtree usage', () => {
 
         expect(parent?.status).toBe('completed');
         expect(parent?.subtreeUsage).toEqual({ inputTokens: 20, outputTokens: 10 });
+        expect(tools[1]?.error).toEqual({
+            code: 'BudgetExceeded',
+            message: `Run ${parentId} reached its subtree token budget of 30 tokens.`,
+        });
+        expect((await store.runs.find({ parentRunId: parentId })).data).toHaveLength(1);
+    });
+
+    it('interleaved sibling settles leave the correct total', async () => {
+        const clock = new ControllableClock(START);
+        const reached = Promise.withResolvers<void>();
+        const release = gate();
+        const store = createMemoryStore({ clock });
+        const find = store.runs.find.bind(store.runs);
+        let stallFor: string | undefined;
+
+        store.runs.find = async (options) => {
+            const result = await find(options);
+
+            // the first recompute reads the children, then stalls until the sibling's settle wrote
+            if (stallFor !== undefined && options.parentRunId === stallFor && options.status === undefined) {
+                stallFor = undefined;
+                reached.resolve();
+                await release.wait();
+            }
+
+            return result;
+        };
+
+        const holdA = gate();
+        const holdB = gate();
+        const { engine } = build([turn({ inputTokens: 0, outputTokens: 0 }, call('fan', { payloads: ['a', 'b'] }, 'c1'))], async (payload) => {
+            await (payload === 'a' ? holdA : holdB).wait();
+
+            return text(`out-${String(payload)}`, { inputTokens: 1, outputTokens: 1 });
+        }, { store, clock });
+        const paused = nextRun(engine, (run) => run.status === 'waiting');
+        const parentId = await root(engine);
+
+        await paused;
+        stallFor = parentId;
+        holdA.open();
+        await reached.promise;
+
+        const completed = nextRun(engine, (run) => run.id === parentId && run.status === 'completed');
+
+        holdB.open();
+        await completed;
+        expect((await store.runs.findOneOrFail(parentId)).subtreeUsage).toEqual({ inputTokens: 2, outputTokens: 2 });
+
+        // the stalled recompute writes its stale read last
+        release.open();
+        await engine.idle();
+
+        expect((await store.runs.findOneOrFail(parentId)).subtreeUsage).toEqual({ inputTokens: 2, outputTokens: 2 });
+    });
+
+    it('a stale stored subtree total does not bypass the budget', async () => {
+        const clock = new ControllableClock(START);
+        const store = createMemoryStore({ clock });
+        const update = store.runs.update.bind(store.runs);
+
+        // every subtree recompute is lost: the stored total stays empty
+        store.runs.update = async (id, patch, options) => (patch.subtreeUsage !== undefined ?
+            store.runs.findOneOrFail(id) :
+            update(id, patch, options));
+
+        const { engine } = build([
+            turn({ inputTokens: 0, outputTokens: 0 }, call('fan', { payloads: ['a'] }, 'c1')),
+            turn({ inputTokens: 0, outputTokens: 0 }, call('fan', { payloads: ['b'] }, 'c2')),
+        ], (payload) => text(`out-${String(payload)}`, { inputTokens: 20, outputTokens: 10 }), {
+            store,
+            clock,
+            maxSubtreeTokens: 30,
+        });
+        const parentId = await root(engine);
+
+        await engine.idle();
+
+        const parent = await store.runs.findOne(parentId);
+        const tools = (await store.steps.find(parentId)).filter((s) => s.kind === 'tool');
+
+        expect(parent?.subtreeUsage).toBeUndefined();
         expect(tools[1]?.error).toEqual({
             code: 'BudgetExceeded',
             message: `Run ${parentId} reached its subtree token budget of 30 tokens.`,
