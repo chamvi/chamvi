@@ -1,0 +1,222 @@
+/*
+ * Copyright (c) 2026.
+ * Author Peter Placzek (tada5hi)
+ * For the full copyright and license information,
+ * view the LICENSE file that was distributed with this source code.
+ */
+
+import { createHash } from 'node:crypto';
+import type { StandardSchemaV1 } from '@standard-schema/spec';
+import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
+import { isObject } from 'smob';
+import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
+import type { Agent } from '../agent/types.ts';
+import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
+import { assertChannelName } from '../channel/helpers.ts';
+import type { ChannelSubscription } from '../channel/types.ts';
+import { InvalidAgentDefinitionError, ValidationError } from '../errors/index.ts';
+import type { RunContext } from '../run/types.ts';
+import { describeIssues } from '../state/helpers.ts';
+import { TRIGGER_KEY_MAX_LENGTH } from '../trigger/constants.ts';
+import type { Invoker, TriggerParent } from '../trigger/types.ts';
+import {
+    DEFAULT_DISPATCH_MAX_DEPTH,
+    DEFAULT_MAX_DISPATCHES_PER_RUN,
+    DISPATCH_DEPTH_MAX,
+} from './constants.ts';
+import type { DispatchRunSnapshot } from './types.ts';
+
+/** The agent's `agent.on()` subscription for `role` (channel `agent`, id = role), if any. */
+export function findDispatchRole(agent: Agent, role: string): ChannelSubscription | undefined {
+    return agent.definition.channels?.find((s) => s.channel === AGENT_CHANNEL_NAME && s.id === role);
+}
+
+/** `maxPerRun` or its default; InvalidAgentDefinitionError for a value that is no positive safe integer. */
+export function checkMaxPerRun(label: string, value: unknown): number {
+    if (value === undefined) {
+        return DEFAULT_MAX_DISPATCHES_PER_RUN;
+    }
+
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0) {
+        throw new InvalidAgentDefinitionError(`${label}: maxPerRun must be a positive integer.`);
+    }
+
+    return value;
+}
+
+/** `maxDepth` or its default; InvalidAgentDefinitionError outside 1 to DISPATCH_DEPTH_MAX. */
+export function checkMaxDepth(label: string, value: unknown): number {
+    if (value === undefined) {
+        return DEFAULT_DISPATCH_MAX_DEPTH;
+    }
+
+    if (typeof value !== 'number' || !Number.isSafeInteger(value) || value <= 0 || value > DISPATCH_DEPTH_MAX) {
+        throw new InvalidAgentDefinitionError(`${label}: maxDepth must be an integer from 1 to ${DISPATCH_DEPTH_MAX}.`);
+    }
+
+    return value;
+}
+
+/** A copy of `from` (agent names); InvalidAgentDefinitionError for no array or an entry breaking the agent-name rule. */
+export function checkFrom(label: string, value: unknown): string[] | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (!Array.isArray(value)) {
+        throw new InvalidAgentDefinitionError(`${label}: from must be an array of agent names.`);
+    }
+
+    for (const entry of value) {
+        if (typeof entry !== 'string' || entry.length > NAME_MAX_LENGTH || !NAME_PATTERN.test(entry)) {
+            throw new InvalidAgentDefinitionError(
+                `${label}: from entry "${String(entry)}" must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+            );
+        }
+    }
+
+    return [...value as string[]];
+}
+
+function roleLabel(agent: string, role: string): string {
+    return `Agent "${agent}" role "${role}"`;
+}
+
+/** The role's `maxPerRun`, re-checked (a subscription built by hand, or options changed after agent.on()). */
+export function maxPerRunOf(agent: string, subscription: ChannelSubscription): number {
+    return checkMaxPerRun(roleLabel(agent, subscription.id), (subscription.options as Record<string, unknown> | undefined)?.maxPerRun);
+}
+
+/** The role's `maxDepth`, re-checked like maxPerRunOf(). */
+export function maxDepthOf(agent: string, subscription: ChannelSubscription): number {
+    return checkMaxDepth(roleLabel(agent, subscription.id), (subscription.options as Record<string, unknown> | undefined)?.maxDepth);
+}
+
+/** Refuses an agent with an invalid role: id, `maxPerRun`, `maxDepth` or `from` (the engine's registration check). */
+export function assertDispatchRoles(agent: Agent): void {
+    for (const subscription of agent.definition.channels ?? []) {
+        if (subscription.channel !== AGENT_CHANNEL_NAME) {
+            continue;
+        }
+
+        assertChannelName(subscription.id);
+
+        const label = roleLabel(agent.name, subscription.id);
+        const options = subscription.options as Record<string, unknown> | undefined;
+
+        checkMaxPerRun(label, options?.maxPerRun);
+        checkMaxDepth(label, options?.maxDepth);
+        checkFrom(label, options?.from);
+    }
+}
+
+/** `payload` parsed by `schema` (the parsed value); without one unchanged. */
+export async function validatePayload(
+    agent: string,
+    role: string,
+    schema: StandardSchemaV1 | undefined,
+    payload: unknown,
+): Promise<unknown> {
+    if (!schema) {
+        return payload;
+    }
+
+    const result = await schema['~standard'].validate(payload);
+
+    if (result.issues) {
+        const issues = buildIssuesForStandardSchemaIssues(result.issues);
+        throw new ValidationError(`Invalid dispatch payload for agent "${agent}" role "${role}": ${describeIssues(issues)}`, issues);
+    }
+
+    return result.value;
+}
+
+/** The idempotency key a dispatch claims: `dispatch:<key>`, or `sha256:<hex>` of it above 255 characters. */
+export function claimKey(key: string): string {
+    const prefixed = `dispatch:${key}`;
+
+    if (prefixed.length <= TRIGGER_KEY_MAX_LENGTH) {
+        return prefixed;
+    }
+
+    return `sha256:${createHash('sha256').update(prefixed).digest('hex')}`;
+}
+
+/** A given key: a non-empty string without NUL (the idempotency key may be long, it is hashed). */
+export function assertDispatchKey(name: string, value: unknown, bounded: boolean): asserts value is string | undefined {
+    if (value === undefined) {
+        return;
+    }
+
+    if (typeof value === 'string' && value.length > 0 && !value.includes('\0') &&
+        (!bounded || value.length <= TRIGGER_KEY_MAX_LENGTH)) {
+        return;
+    }
+
+    const bound = bounded ? ` of at most ${TRIGGER_KEY_MAX_LENGTH} characters` : '';
+    throw new ValidationError(`The dispatch ${name} must be a non-empty string${bound} without NUL.`);
+}
+
+// the engine's copy of each execution's run, taken before any tool runs
+const snapshots = new WeakMap<RunContext, DispatchRunSnapshot>();
+
+function cloneInvoker(invoker: Invoker): Invoker {
+    return {
+        id: invoker.id,
+        kind: invoker.kind,
+        ...(invoker.name !== undefined ? { name: invoker.name } : {}),
+        permissions: [...invoker.permissions],
+    };
+}
+
+function cloneParent(parent: TriggerParent): TriggerParent {
+    return {
+        kind: parent.kind,
+        runId: parent.runId,
+        agent: parent.agent,
+        role: parent.role,
+        depth: parent.depth,
+    };
+}
+
+/**
+ * Keeps a frozen copy of the run's id, agent, invoker and parent for
+ * dispatch(), so tool code that writes to `ctx.run` cannot pick another
+ * agent, widen the invoker or drop the lineage.
+ */
+export function bindRunSnapshot(run: RunContext): void {
+    const { invoker, parent } = run.trigger;
+
+    snapshots.set(run, Object.freeze({
+        runId: run.runId,
+        agent: run.agent,
+        ...(invoker ? { invoker: Object.freeze(cloneInvoker(invoker)) } : {}),
+        ...(parent ? { parent: Object.freeze(cloneParent(parent)) } : {}),
+    }));
+}
+
+/** The copy bindRunSnapshot() took for this run context (undefined for one the engine did not build). */
+export function runSnapshotOf(run: RunContext | undefined): DispatchRunSnapshot | undefined {
+    return run ? snapshots.get(run) : undefined;
+}
+
+/** The `dispatch-count:<runId>:<agent>:<role>` record: the slots spent and the calls (call hashes) they were spent on. */
+export function readCount(value: unknown): { count: number, calls: string[] } {
+    if (!isObject(value)) {
+        return { count: 0, calls: [] };
+    }
+
+    const count = typeof value.count === 'number' ? value.count : 0;
+    const calls = Array.isArray(value.calls) ? value.calls.filter((c): c is string => typeof c === 'string') : [];
+
+    return { count, calls };
+}
+
+/** The `dispatch-children:<runId>` record: the ids of every run this run dispatched (deduplicated ones too). */
+export function readChildren(value: unknown): string[] {
+    if (!isObject(value) || !Array.isArray(value.runIds)) {
+        return [];
+    }
+
+    return value.runIds.filter((id): id is string => typeof id === 'string');
+}

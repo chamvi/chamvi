@@ -2,12 +2,12 @@ import type { LanguageModel } from 'ai';
 import { z } from 'zod';
 import {
     Engine,
+    agent,
     agentChannel,
     createMemoryStore,
     defineAgent,
     defineTool,
-    handoff,
-    startHandoff,
+    dispatch,
 } from '@chamvi/core';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 
@@ -21,7 +21,7 @@ const handOffPr = defineTool({
         // the day the daily run was fired, not the wall clock: a redo keeps the key
         const day = context.run.trigger.receivedAt.toISOString().slice(0, 10);
 
-        return startHandoff(context, {
+        return dispatch(context, {
             payload: { pr },
             idempotencyKey: `${pr}@${day}`,
             address: pr,
@@ -38,7 +38,7 @@ const maintainer = defineAgent({
     channels: [
         cron.on('0 6 * * *'),
         // the opt-in: runs of this agent may start runs of this agent
-        handoff.on({
+        agent.on({
             schema: z.object({ pr: z.string() }),
             concurrencyKey: (p) => p.pr,
             maxPerRun: 20,

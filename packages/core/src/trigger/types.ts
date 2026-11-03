@@ -60,7 +60,7 @@ export type TriggerEnvelope<P = unknown> = {
      * is deduplicated (and gets its own first run).
      */
     invoker?: Invoker;
-    /** The run that handed this one off; set only by startHandoff(), never from a dispatch. */
+    /** The run that dispatched this one; set only by dispatch(), never from engine.dispatch(). */
     parent?: TriggerParent;
     receivedAt: Date;
 };

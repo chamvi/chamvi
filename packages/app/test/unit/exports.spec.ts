@@ -68,15 +68,15 @@ describe('public api', () => {
         'resolveModel',
         'checkAgentModel',
         'agentChannel',
-        'startHandoff',
+        'dispatch',
     ])('exports %s', (name) => {
         expect(app).toHaveProperty(name);
         expect(app[name as keyof typeof app]).toBeTypeOf('function');
     });
 
-    it('exports the handoff subscription builder and the agent channel name', () => {
-        expect(app.handoff.on).toBeTypeOf('function');
-        expect(app.handoff.on()).toMatchObject({ channel: 'agent', id: 'handoff' });
+    it('exports the dispatch role builder and the agent channel name', () => {
+        expect(app.agent.on).toBeTypeOf('function');
+        expect(app.agent.on()).toMatchObject({ channel: 'agent', id: 'default' });
         expect(app.AGENT_CHANNEL_NAME).toBe('agent');
     });
 

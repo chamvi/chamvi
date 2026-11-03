@@ -59,9 +59,9 @@ import type {
     Step,
     Usage,
 } from '../run/types.ts';
-import { HANDOFF_CONTEXT } from '../handoff/constants.ts';
-import type { HandoffHost } from '../handoff/types.ts';
-import { assertHandoffSubscription } from '../handoff/helpers.ts';
+import { DISPATCH_CONTEXT } from '../dispatch/constants.ts';
+import type { DispatchHost } from '../dispatch/types.ts';
+import { assertDispatchRoles } from '../dispatch/helpers.ts';
 import { MODEL_CONTEXT } from '../model/constants.ts';
 import { checkAgentModel, checkDefaultModel } from '../model/module.ts';
 import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
@@ -244,7 +244,7 @@ export class Engine implements IEngine {
             agentModel: (name: string) => this.agents.get(name)?.definition.model,
         } satisfies ModelContext);
 
-        this.provided.set(HANDOFF_CONTEXT, this.createHandoffHost());
+        this.provided.set(DISPATCH_CONTEXT, this.createDispatchHost());
 
         for (const agent of opts.agents) {
             this.assertRegistrable(agent);
@@ -284,7 +284,7 @@ export class Engine implements IEngine {
 
     /**
      * dispatch()'s body; `parent` comes only from this argument (the
-     * hand-off host), never from the envelope.
+     * dispatch host), never from the envelope.
      */
     protected async createRun(
         envelope: DispatchEnvelope,
@@ -295,7 +295,7 @@ export class Engine implements IEngine {
             throw new AgentNotFoundError(envelope.agent);
         }
 
-        // Also strip forged fields from handoff and internal envelope spreads.
+        // Also strip forged fields from dispatch-host and internal envelope spreads.
         const safe: DispatchEnvelope & { conversation?: unknown; parent?: unknown } = { ...envelope };
 
         delete safe.conversation;
@@ -452,16 +452,17 @@ export class Engine implements IEngine {
     }
 
     /**
-     * The internal host startHandoff() reaches through inject(): the only
-     * dispatch path that sets a run's parent.
+     * The internal host dispatch() reaches through inject(): the only
+     * path that sets a run's parent.
      */
-    protected createHandoffHost(): HandoffHost {
+    protected createDispatchHost(): DispatchHost {
         const chains = new Map<string, Promise<unknown>>();
 
         return {
             getAgent: (name) => this.agents.get(name),
             effects: this.store.effects,
-            dispatch: (envelope, parent) => this.createRun(envelope, parent),
+            runs: this.store.runs,
+            createRun: (envelope, parent) => this.createRun(envelope, parent),
             serial: (runId, fn) => {
                 const previous = chains.get(runId) ?? Promise.resolve();
                 const next = previous.then(fn, fn);
@@ -1865,7 +1866,7 @@ export class Engine implements IEngine {
             }
         }
 
-        assertHandoffSubscription(agent);
+        assertDispatchRoles(agent);
 
         if (conversationKey(agent.definition) !== undefined && !this.conversations) {
             throw new InvalidAgentDefinitionError('The agent enables conversations but the engine has no conversation capability.');

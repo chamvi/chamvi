@@ -132,7 +132,7 @@ describe('public api', () => {
         'resolveModel',
         'extract',
         'agentChannel',
-        'startHandoff',
+        'dispatch',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
@@ -155,16 +155,41 @@ describe('public api', () => {
         expect(core.toolContextSchema['~standard'].vendor).toBe('chamvi');
     });
 
-    it('exports the hand-off api', () => {
+    it('exports the dispatch api', () => {
         expect(core.AGENT_CHANNEL_NAME).toBe('agent');
-        expect(core.HANDOFF_SUBSCRIPTION_ID).toBe('handoff');
-        expect(core.DEFAULT_MAX_HANDOFFS_PER_RUN).toBe(100);
-        expect(core.MAX_HANDOFF_DEPTH).toBe(1);
-        expect(core.handoff.on).toBeTypeOf('function');
-        expect(core).not.toHaveProperty('HANDOFF_CONTEXT');
+        expect(core.DEFAULT_DISPATCH_ROLE).toBe('default');
+        expect(core.DEFAULT_DISPATCH_MAX_DEPTH).toBe(1);
+        expect(core.DISPATCH_DEPTH_MAX).toBe(8);
+        expect(core.DEFAULT_MAX_DISPATCHES_PER_RUN).toBe(100);
+        expect(core.DEFAULT_DISPATCH_WAIT_TIMEOUT_MS).toBe(86_400_000);
+        expect(core.agent.on).toBeTypeOf('function');
+        expect(core).not.toHaveProperty('DISPATCH_CONTEXT');
         expect(core).not.toHaveProperty('claimKey');
+        expect(core).not.toHaveProperty('bindRunSnapshot');
+        expect(core).not.toHaveProperty('findDispatchRole');
         expectTypeOf<core.TriggerEnvelope>().toHaveProperty('parent').toEqualTypeOf<core.TriggerParent | undefined>();
-        expectTypeOf<core.HandoffResult>().toEqualTypeOf<{ runId: string; deduplicated: boolean }>();
+        expectTypeOf<ReturnType<typeof core.dispatch>>().toEqualTypeOf<Promise<core.DispatchResult>>();
+        expectTypeOf<core.DispatchInput>().toEqualTypeOf<{
+            role?: string;
+            payload: unknown;
+            idempotencyKey?: string;
+            concurrencyKey?: string;
+            address?: string;
+        }>();
+        expectTypeOf<core.AgentSubscriber['on']>().returns.toEqualTypeOf<core.ChannelSubscription<unknown>>();
+        expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('maxDepth').toEqualTypeOf<number | undefined>();
+        expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('from').toEqualTypeOf<string[] | undefined>();
+    });
+
+    it.each([
+        'startHandoff',
+        'handoff',
+        'HANDOFF_SUBSCRIPTION_ID',
+        'MAX_HANDOFF_DEPTH',
+        'DEFAULT_MAX_HANDOFFS_PER_RUN',
+        'HANDOFF_CONTEXT',
+    ])('does not export the hand-off name %s', (name) => {
+        expect(core).not.toHaveProperty(name);
     });
 
     it('exports the conversation contract', () => {

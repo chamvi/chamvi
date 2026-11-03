@@ -23,8 +23,8 @@ import {
     InvalidAgentDefinitionError,
     ValidationError,
 } from '../../errors/index.ts';
+import { bindRunSnapshot } from '../../dispatch/helpers.ts';
 import { assertTranscriptMessages, splitInstructions } from '../../message/helpers.ts';
-import { bindRunSnapshot } from '../../handoff/helpers.ts';
 import { toLanguageModel } from '../../model/asserts.ts';
 import { untilAborted } from '../../run/helpers.ts';
 import { RunStatus } from '../../run/constants.ts';

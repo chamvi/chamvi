@@ -21,7 +21,7 @@ import type { EngineModuleOptions } from './types.ts';
  * reads the model settings (env over the config file over createApp's
  * `model`/`providers`; every issue in one InvalidAgentDefinitionError) and
  * builds the model resolver (registered as `MODELS`), and contributes `agentChannel()` (channel
- * `agent`, the one hand-offs come in on) to `CHANNELS`; `onReady` builds the engine with the default
+ * `agent`, the one dispatched runs come in on) to `CHANNELS`; `onReady` builds the engine with the default
  * model, the resolver (which refuses an agent whose model cannot resolve) and
  * every `CHANNELS` contribution (two of one name, or a subscription of a
  * channel nobody contributed, is InvalidAgentDefinitionError),
@@ -56,7 +56,7 @@ export class EngineModule implements IModule {
             return;
         }
 
-        // the channel hand-offs come in on (startHandoff(), handoff.on())
+        // the channel dispatched runs come in on (dispatch(), agent.on())
         container.registerMany(AppToken.CHANNELS, { useValue: agentChannel() });
 
         const { settings, issues } = await readModelSettings({

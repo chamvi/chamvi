@@ -512,9 +512,10 @@ describe('Engine.on', () => {
 
 describe('dispatch keeps lineage private', () => {
     const parent = {
-        kind: 'handoff' as const,
+        kind: 'dispatch' as const,
         runId: 'x',
         agent: 'triage',
+        role: 'default',
         depth: 1,
     };
 
