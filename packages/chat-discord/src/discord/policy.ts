@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChannelType } from 'discord.js';
+import { ChannelType, MessageType } from 'discord.js';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { ConversationTarget } from '@chamvi/core';
 import { isObject } from 'smob';
@@ -119,6 +119,11 @@ export function identityOf(
     } = message;
 
     if (author.id === ctx.botId || author.bot || message.webhookId) {
+        return undefined;
+    }
+
+    // only what a person wrote: system messages (pins, joins, thread created) carry no text to answer
+    if (message.type !== MessageType.Default && message.type !== MessageType.Reply) {
         return undefined;
     }
 

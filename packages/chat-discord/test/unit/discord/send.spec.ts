@@ -89,19 +89,20 @@ async function rejection(promise: Promise<unknown>): Promise<unknown> {
 }
 
 describe('nonceOf', () => {
-    it('is the first 25 hex characters of sha256 over [channel, key]', () => {
-        const expected = createHash('sha256').update(JSON.stringify(['discord', 'k1'])).digest('hex').slice(0, 25);
+    it('is the first 25 hex characters of sha256 over [channel, target, key]', () => {
+        const expected = createHash('sha256').update(JSON.stringify(['discord', '222', 'k1'])).digest('hex').slice(0, 25);
 
-        expect(nonceOf('discord', 'k1')).toBe(expected);
-        expect(nonceOf('discord', 'k1')).toHaveLength(25);
+        expect(nonceOf('discord', '222', 'k1')).toBe(expected);
+        expect(nonceOf('discord', '222', 'k1')).toHaveLength(25);
     });
 
-    it('differs per key and per channel, and is stable', () => {
-        expect(nonceOf('discord', 'k1')).toBe(nonceOf('discord', 'k1'));
-        expect(nonceOf('discord', 'k1')).not.toBe(nonceOf('discord', 'k2'));
-        expect(nonceOf('discord', 'k1')).not.toBe(nonceOf('discord-ops', 'k1'));
+    it('differs per key, per target and per channel, and is stable', () => {
+        expect(nonceOf('discord', '222', 'k1')).toBe(nonceOf('discord', '222', 'k1'));
+        expect(nonceOf('discord', '222', 'k1')).not.toBe(nonceOf('discord', '222', 'k2'));
+        expect(nonceOf('discord', '222', 'k1')).not.toBe(nonceOf('discord', '333', 'k1'));
+        expect(nonceOf('discord', '222', 'k1')).not.toBe(nonceOf('discord-ops', '222', 'k1'));
         // the encoding keeps the parts apart
-        expect(nonceOf('a:b', 'c')).not.toBe(nonceOf('a', 'b:c'));
+        expect(nonceOf('a:b', '1', 'c')).not.toBe(nonceOf('a', '1', 'b:c'));
     });
 });
 
@@ -173,7 +174,7 @@ describe('createDiscordSender', () => {
         expect(bodyOf(fake.calls[0]!)).toEqual({
             content: 'hi <@1> @everyone',
             allowed_mentions: { parse: [] },
-            nonce: nonceOf('discord', 'k1'),
+            nonce: nonceOf('discord', '222', 'k1'),
             enforce_nonce: true,
         });
         expect((bodyOf(fake.calls[0]!).nonce as string)).toHaveLength(25);
@@ -193,6 +194,37 @@ describe('createDiscordSender', () => {
         await sender(fake.fetch)({ ...input, channel: 'discord-ops' })(new AbortController().signal);
 
         expect(bodyOf(fake.calls[0]!).nonce).not.toBe(bodyOf(fake.calls[1]!).nonce);
+    });
+
+    it('keys the nonce by the Discord target, so one key sent to two channels posts twice', async () => {
+        const fake = fakeFetch();
+        const send = sender(fake.fetch);
+
+        await send({
+            channel: 'discord',
+            threadId: 'discord:111:222',
+            text: 'digest',
+            key: 'digest:2026-11-03',
+        })(new AbortController().signal);
+        await send({
+            channel: 'discord',
+            threadId: 'discord:111:555',
+            text: 'digest',
+            key: 'digest:2026-11-03',
+        })(new AbortController().signal);
+        await send({
+            channel: 'discord',
+            threadId: 'discord:111:222:333',
+            text: 'digest',
+            key: 'digest:2026-11-03',
+        })(new AbortController().signal);
+
+        const nonces = fake.calls.map((call) => bodyOf(call).nonce);
+
+        expect(nonces[0]).toBe(nonceOf('discord', '222', 'digest:2026-11-03'));
+        expect(nonces[1]).toBe(nonceOf('discord', '555', 'digest:2026-11-03'));
+        expect(nonces[2]).toBe(nonceOf('discord', '333', 'digest:2026-11-03'));
+        expect(new Set(nonces).size).toBe(3);
     });
 
     it('carries the token in the Authorization header only', async () => {

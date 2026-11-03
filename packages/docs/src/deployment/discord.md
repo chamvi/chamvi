@@ -35,7 +35,7 @@ Before a live cutover:
 | Disallowed intents (close 4014) | Status `failed`, `discord_connection` naming the Message Content intent, no retry |
 | Session invalidated, or another close discord.js does not recover from | Status `failed`, `discord_connection`, no retry until the channel restarts |
 | Any other login failure (network) | The client is destroyed and a new one logs in after `min(30 s, 2 s * 1.8^n)` ±25 % on the clock, at most 12 times in a row (reset by a ready), then `discord_connection` |
-| Disconnect or reconnect of an established session | discord.js resumes or reconnects by itself; status `disconnected` or `connecting`, `connected` again on resume |
+| Disconnect or reconnect of an established session | discord.js resumes or reconnects by itself; status `connecting` while it does, `connected` again on resume (`disconnected` only between a failed login and its retry) |
 | Stop | Detaches the listeners and destroys the client within `DISCORD_SHUTDOWN_TIMEOUT_MS` (30 s); a login still pending is dropped, and nothing connects after the stop |
 
 `setup.status()` reports `stopped`, `connecting`, `connected` (a ready or resume), `disconnected` or `failed`; poll it for a readiness signal. Sends do not depend on it: they go through REST while the channel is started.
@@ -102,7 +102,7 @@ The conversation of a message is `{ account, chat, audience }`: `chat` is the ad
 
 ### Delivery
 
-A send is one `POST /channels/<channel or thread>/messages` with the body `{ content, allowed_mentions: { parse: [] }, nonce, enforce_nonce: true }`: replies never ping anyone. The nonce is the first 25 hex characters of the SHA-256 of the channel name and the message key, so a retry within Discord's nonce window returns the first message instead of posting a copy; beyond the window a retry may post again (at least once). The send's deadline aborts the request. A non-2xx answer, a 429 included, is `chat_request` naming the status and Discord's error code, without the token; chamvi has no retry loop of its own (the engine's effect retry applies). Text is at most 2000 characters, never split; an approval's prose is cut to fit, followed by the link into the UI.
+A send is one `POST /channels/<channel or thread>/messages` with the body `{ content, allowed_mentions: { parse: [] }, nonce, enforce_nonce: true }`: replies never ping anyone. The nonce is the first 25 hex characters of the SHA-256 of the channel name, the target channel or thread id and the message key (so one key sent to two channels posts in both), so a retry within Discord's nonce window returns the first message instead of posting a copy; beyond the window a retry may post again (at least once). The send's deadline aborts the request. A non-2xx answer, a 429 included, is `chat_request` naming the status and Discord's error code, without the token; chamvi has no retry loop of its own (the engine's effect retry applies). Text is at most 2000 characters, never split; an approval's prose is cut to fit, followed by the link into the UI.
 
 ### With @chamvi/app
 

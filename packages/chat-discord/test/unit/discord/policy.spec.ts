@@ -8,6 +8,7 @@
 import type { Message } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { MessageType } from 'discord.js';
 import { identityOf, isAllowed, resolvePolicy } from '../../../src/discord/policy.ts';
 import type { DiscordInboundMessage, DiscordPolicy } from '../../../src/discord/types.ts';
 import {
@@ -105,6 +106,17 @@ describe('identityOf', () => {
         expect(identityOf(discordMessage({ author: { id: BOT } }), ctx)).toBeUndefined();
         expect(identityOf(discordMessage({ author: { bot: true } }), ctx)).toBeUndefined();
         expect(identityOf(discordMessage({ webhookId: '1' }), ctx)).toBeUndefined();
+    });
+
+    it('ignores system messages (pins, joins, thread created), keeps default messages and replies', () => {
+        const ctx = { account: ACCOUNT, botId: BOT };
+
+        expect(identityOf(discordMessage({ type: MessageType.ChannelPinnedMessage }), ctx)).toBeUndefined();
+        expect(identityOf(discordMessage({ type: MessageType.UserJoin }), ctx)).toBeUndefined();
+        expect(identityOf(discordMessage({ type: MessageType.ThreadCreated }), ctx)).toBeUndefined();
+        expect(identityOf(discordMessage({ type: MessageType.ThreadStarterMessage }), ctx)).toBeUndefined();
+        expect(identityOf(discordMessage({ type: MessageType.Default }), ctx)).toBeDefined();
+        expect(identityOf(discordMessage({ type: MessageType.Reply }), ctx)).toBeDefined();
     });
 
     it('ignores a group DM and a DM whose channel is no DM channel', () => {

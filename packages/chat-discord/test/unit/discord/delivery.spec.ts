@@ -388,7 +388,7 @@ describe('Discord outbound', () => {
         await send(value, message('k1', 'hi'), `discord:@me:${DM_CHANNEL}`);
 
         expect(value.fetch.calls.map((call) => call.url)).toEqual([`${DISCORD_API_URL}/channels/${DM_CHANNEL}/messages`]);
-        expect(bodyOf(value.fetch.calls[0]).nonce).toBe(nonceOf('chat', 'k1'));
+        expect(bodyOf(value.fetch.calls[0]).nonce).toBe(nonceOf('chat', DM_CHANNEL, 'k1'));
     });
 
     it('sends 2000 characters and refuses 2001 before any fetch', async () => {

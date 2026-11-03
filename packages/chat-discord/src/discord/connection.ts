@@ -370,7 +370,13 @@ export function createDiscordConnection(options: DiscordConnectionOptions): Disc
         }
 
         login.then(
-            () => undefined,
+            () => {
+                // a destroy that landed mid-login (before discord.js spawned its shards)
+                // leaves the late session online: a stale or failed generation destroys again
+                if (!isCurrent(generation, client) || generation.failed) {
+                    destroyOf(client).catch(() => undefined);
+                }
+            },
             (error: unknown) => onLoginRejected(generation, client, error),
         );
     };

@@ -31,12 +31,14 @@ function cut(text: string): string {
 
 /**
  * The nonce of one message: the first 25 hex characters of the sha256 of
- * `[channel, key]` as JSON, so every retry of one message sends the same
- * nonce and two channels or keys never share one.
+ * `[channel, target, key]` as JSON, `target` the Discord channel or thread id
+ * the message goes to. Every retry of one message sends the same nonce (it
+ * goes to the same address), while a key core passes through unscoped (a
+ * tool's explicit key) never collides across targets, channels or keys.
  */
-export function nonceOf(channel: string, key: string): string {
+export function nonceOf(channel: string, target: string, key: string): string {
     return createHash('sha256')
-        .update(JSON.stringify([channel, key]))
+        .update(JSON.stringify([channel, target, key]))
         .digest('hex')
         .slice(0, NONCE_LENGTH);
 }
@@ -77,9 +79,9 @@ async function refusalOf(response: Response): Promise<ChamviError> {
  * channel snowflake, throws before anything is sent), then the post reads the
  * token and does one `POST {apiUrl}/channels/<thread or channel>/messages`
  * with no pings (`allowed_mentions.parse` empty) and an enforced nonce from
- * nonceOf(), passing the signal to `fetch`. No retry of its own: a 429 or
- * any non-2xx is a `chat_request` naming the status and Discord's code. The
- * token is only ever in the Authorization header: no error carries it, a
+ * nonceOf() over the channel name, the target and the key, passing the
+ * signal to `fetch`. No retry of its own: a 429 or any non-2xx is a
+ * `chat_request` naming the status and Discord's code. The token is only ever in the Authorization header: no error carries it, a
  * token provider's own error or a network error's message.
  */
 export function createDiscordSender(options: DiscordSenderOptions): (send: DiscordSend) => ChatPlatformPost {
@@ -97,7 +99,7 @@ export function createDiscordSender(options: DiscordSenderOptions): (send: Disco
         const body = JSON.stringify({
             content: send.text,
             allowed_mentions: { parse: [] },
-            nonce: nonceOf(send.channel, send.key),
+            nonce: nonceOf(send.channel, target, send.key),
             enforce_nonce: true,
         });
 

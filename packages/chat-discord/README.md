@@ -135,7 +135,7 @@ Subscriptions, replies, approvals, memory and trust follow [`@chamvi/chat`](http
 
 - Text only: messages with attachments or no text are refused (reported, no run); replies are text up to 2000 characters (`DISCORD_TEXT_MAX_CHARS`), never split. No buttons, embeds, reactions, edits or slash commands; approvals are a link into the UI.
 - Replies never ping: every send carries `allowed_mentions: { parse: [] }`.
-- Delivery is at least once: each send carries a nonce derived from the channel name and the message key with `enforce_nonce`, so a retry within Discord's nonce window returns the first message instead of posting a copy; beyond it a retry may post again. A rate-limited (429) or failed send is `chat_request`, without the token; chamvi has no retry loop of its own.
+- Delivery is at least once: each send carries a nonce derived from the channel name, the target channel or thread and the message key with `enforce_nonce`, so a retry within Discord's nonce window returns the first message instead of posting a copy; beyond it a retry may post again. A rate-limited (429) or failed send is `chat_request`, without the token; chamvi has no retry loop of its own.
 - No lossless or offline ingestion. A message that arrives while the connector is down is not fetched later.
 
 ## Operations

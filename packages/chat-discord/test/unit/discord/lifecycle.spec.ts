@@ -597,6 +597,8 @@ describe('Discord Gateway connection lifecycle', () => {
         client.resolveLogin();
         await settle();
         expect(connection.status()).toBe('stopped');
+        // discord.js may spawn shards after a destroy that landed mid-login: destroyed again
+        expect(client.destroyed).toBe(2);
 
         clock.advance(10 * DISCORD_RECONNECT.maxMs);
         await settle();
