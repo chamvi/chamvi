@@ -98,7 +98,7 @@ export function checkDescription(label: string, value: unknown): string | undefi
         return undefined;
     }
 
-    if (typeof value !== 'string' || value.length === 0) {
+    if (typeof value !== 'string' || value.trim().length === 0) {
         throw new InvalidAgentDefinitionError(`${label}: description must be a non-empty string.`);
     }
 

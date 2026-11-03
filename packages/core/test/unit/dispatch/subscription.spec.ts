@@ -79,7 +79,7 @@ describe('agent.on()', () => {
         expect(agent.on().options).not.toHaveProperty('description');
     });
 
-    it.each(['', 5])('refuses the description %j', (value) => {
+    it.each(['', ' '.repeat(3), 5])('refuses the description %j', (value) => {
         expect(() => agent.on({ description: value as string })).toThrow(InvalidAgentDefinitionError);
         expect(() => agent.on({ description: value as string })).toThrow(/description/);
     });
@@ -153,6 +153,7 @@ describe('agent.on()', () => {
         [{ from: ['A'] }, /from/],
         [{ description: 5 }, /description/],
         [{ description: '' }, /description/],
+        [{ description: '  ' }, /description/],
     ])('the engine refuses a hand-built role with %j', (options, message) => {
         const subscription: ChannelSubscription = {
             channel: 'agent',

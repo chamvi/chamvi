@@ -142,6 +142,31 @@ describe('dispatchTools()', () => {
         expect((await engine.store.runs.findOne(parentId))?.status).toBe('completed');
     });
 
+    it('a tainted parent\'s dispatch_<role> child carries the taint', async () => {
+        const engine = setup([lead({
+            parent: [
+                turn(call('read', {}, 'c0')),
+                turn(call('dispatch_pr', { pr: 'o/r#1' })),
+                text('done'),
+            ],
+            tools: {
+                read: defineTool({
+                    inputSchema: z.object({}),
+                    trust: { taint: true },
+                    execute: async () => 'external content',
+                }),
+                ...dispatchTools({ roles: ['pr'] }),
+            },
+        })]);
+        const parentId = await startParent(engine);
+        const parent = await engine.store.runs.findOne(parentId);
+        const [child, ...rest] = await children(engine.store, parentId);
+
+        expect(parent?.taint?.source).toBe('tool:read');
+        expect(rest).toHaveLength(0);
+        expect(child?.taint).toEqual(parent?.taint);
+    });
+
     it('with wait returns how the child ended', async () => {
         const engine = setup([lead({
             parent: [turn(call('dispatch_pr', { pr: 'o/r#1' })), text('done')],
