@@ -63,6 +63,7 @@ describe('useApprovals', () => {
         await flush();
         expect(queries[0]).toEqual({
             status: ['waiting'],
+            waiting: 'approval',
             limit: 100,
             offset: 0,
         });
@@ -70,35 +71,40 @@ describe('useApprovals', () => {
         scope.stop();
     });
 
-    it('the inbox skips a dispatch wait', async () => {
-        const dispatching = wireRun({
-            id: 'd1',
+    it('the inbox asks the server for approval waits, so dispatch waits never fill its page', async () => {
+        const dispatching = Array.from({ length: 100 }, (_, i) => wireRun({
+            id: `d${i}`,
             status: 'waiting',
             waiting: {
                 kind: 'dispatch',
-                id: '0:call-1:w0',
+                id: `0:call-${i}:w0`,
                 toolName: 'delegate',
-                toolCallId: 'call-1',
+                toolCallId: `call-${i}`,
                 runIds: ['c1'],
                 expiresAt: '2026-10-22T10:00:00.000Z',
             },
-        });
+        }));
+        const all = [...dispatching, waitingRun()];
         const client = fakeClient({
-            listRuns: async () => ({
-                data: [dispatching, waitingRun()],
-                meta: {
-                    total: 2,
-                    limit: 100,
-                    offset: 0,
-                },
-            }),
+            listRuns: async (filter) => {
+                const matching = all.filter((run) => !filter.waiting || run.waiting?.kind === filter.waiting);
+
+                return {
+                    data: matching.slice(0, filter.limit),
+                    meta: {
+                        total: matching.length,
+                        limit: 100,
+                        offset: 0,
+                    },
+                };
+            },
         });
         const scope = effectScope();
         const inbox = scope.run(() => useApprovals(client))!;
 
         await flush();
         expect(inbox.runs.value.map((run) => run.id)).toEqual(['r1']);
-        expect(await inbox.answer(dispatching, true)).toBe('already-answered');
+        expect(await inbox.answer(dispatching[0]!, true)).toBe('already-answered');
         scope.stop();
     });
 

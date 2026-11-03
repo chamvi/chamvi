@@ -26,6 +26,10 @@ export function runListQuery(filter: RunListFilter): URLSearchParams {
         query.set('filter[status]', filter.status.join(','));
     }
 
+    if (filter.waiting) {
+        query.set('filter[waiting]', filter.waiting);
+    }
+
     pageQuery(query, filter);
     query.set('sort', '-createdAt');
 

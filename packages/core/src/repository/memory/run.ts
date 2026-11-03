@@ -158,7 +158,8 @@ export class MemoryRunRepository implements IRunRepository {
                 (q.status === undefined || q.status.includes(r.status)) &&
                 (q.concurrencyKey === undefined || r.concurrencyKey === q.concurrencyKey) &&
                 (q.ids === undefined || q.ids.includes(r.id)) &&
-                (q.parentRunId === undefined || r.parentRunId === q.parentRunId))
+                (q.parentRunId === undefined || r.parentRunId === q.parentRunId) &&
+                (q.waitKind === undefined || r.waiting?.kind === q.waitKind))
             .sort((a, b) => direction * (a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id, 'en')));
         const offset = q.offset ?? 0;
         const end = q.limit === undefined ? undefined : offset + q.limit;

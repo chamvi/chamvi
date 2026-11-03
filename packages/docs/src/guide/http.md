@@ -44,7 +44,7 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 | `/mcp` | authenticated | MCP endpoint |
 | `GET /healthz`, `/readyz`, `/metrics` | none | Liveness, readiness, Prometheus |
 
-`GET /runs` takes rapiq's URL syntax: `filter[agent]=triage`, `filter[status]=queued,running`, `filter[parent]=<run id>` (the runs that run [dispatched](/guide/dispatch#lineage), one id; an agent-scoped reader adds `filter[agent]`), `page[limit]` (default 50, at most 100), `page[offset]`, `sort=createdAt` (oldest first, the default) or `sort=-createdAt` (newest first). Bodies are JSON of at most `bodyLimit` bytes (default 1 MiB). A protected route checks the bearer token before it reads the body. Runs leave the API without their internal `claim`, and the run's invoker and a `wait` step's approver without their `permissions` (see [Invoker](#invoker)).
+`GET /runs` takes rapiq's URL syntax: `filter[agent]=triage`, `filter[status]=queued,running`, `filter[parent]=<run id>` (the runs that run [dispatched](/guide/dispatch#lineage), one id; an agent-scoped reader adds `filter[agent]`), `filter[waiting]=approval` or `filter[waiting]=dispatch` (the runs whose wait point is of that kind, so an inbox pages approvals only), `page[limit]` (default 50, at most 100), `page[offset]`, `sort=createdAt` (oldest first, the default) or `sort=-createdAt` (newest first). Bodies are JSON of at most `bodyLimit` bytes (default 1 MiB). A protected route checks the bearer token before it reads the body. Runs leave the API without their internal `claim`, and the run's invoker and a `wait` step's approver without their `permissions` (see [Invoker](#invoker)).
 
 ## Files
 

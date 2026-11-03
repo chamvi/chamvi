@@ -22,6 +22,7 @@ import type {
 import {
     In,
     IsNull,
+    JsonContains,
     LessThanOrEqual,
     MoreThan,
 } from 'typeorm';
@@ -181,6 +182,11 @@ export class DatabaseRunRepository implements IRunRepository {
 
         if (q.parentRunId !== undefined) {
             where.parentRunId = q.parentRunId;
+        }
+
+        if (q.waitKind !== undefined) {
+            // jsonb containment (`@>`) on the wait point's kind
+            where.waiting = JsonContains({ kind: q.waitKind });
         }
 
         if (q.limit === 0) {

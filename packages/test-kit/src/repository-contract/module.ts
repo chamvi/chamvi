@@ -792,6 +792,61 @@ export function describeRepositoryContract(
             expect(listed.data[0]?.waiting?.expiresAt).toBeInstanceOf(Date);
         });
 
+        it('waitKind filters by the wait point kind, with paging and total', async () => {
+            const { store } = await setup();
+            const approval = (id: string): ApprovalWaitPoint => ({
+                kind: 'approval',
+                id,
+                approvalId: id,
+                toolName: 'deploy',
+                toolCallId: 'c1',
+                title: 'Deploy?',
+                expiresAt: new Date(5_000),
+            });
+            const dispatch: DispatchWaitPoint = {
+                kind: 'dispatch',
+                id: '1:c2:w0',
+                toolName: 'review',
+                toolCallId: 'c2',
+                runIds: ['x'],
+                expiresAt: new Date(9_000),
+            };
+
+            await store.runs.insert(makeRun('r1', {
+                status: RunStatus.WAITING,
+                waiting: approval('0:c1:0'),
+                createdAt: new Date(1_000),
+            }));
+            await store.runs.insert(makeRun('r2', {
+                status: RunStatus.WAITING,
+                waiting: dispatch,
+                createdAt: new Date(2_000),
+            }));
+            await store.runs.insert(makeRun('r3', {
+                status: RunStatus.WAITING,
+                waiting: approval('0:c1:1'),
+                createdAt: new Date(3_000),
+            }));
+            await store.runs.insert(makeRun('r4', { createdAt: new Date(4_000) }));
+
+            const approvals = await store.runs.find({ waitKind: 'approval' });
+
+            expect(approvals.data.map((r) => r.id)).toEqual(['r1', 'r3']);
+            expect(approvals.total).toBe(2);
+            expect((await store.runs.find({ waitKind: 'dispatch' })).data.map((r) => r.id)).toEqual(['r2']);
+
+            const page = await store.runs.find({
+                status: [RunStatus.WAITING],
+                waitKind: 'approval',
+                limit: 1,
+                offset: 1,
+            });
+
+            expect(page.data.map((r) => r.id)).toEqual(['r3']);
+            expect(page.total).toBe(2);
+            expect((await store.runs.find({ waitKind: 'approval', limit: 0 })).total).toBe(2);
+        });
+
         it('a legacy approval wait point without id reads back with id = approvalId', async () => {
             const { store } = await setup();
             const legacy = {
@@ -1164,9 +1219,9 @@ export function describeRepositoryContract(
         it('artifacts.save replaces bytes and metadata and keeps createdAt', async () => {
             const { clock, store } = await setup();
             const first = makeArtifact('a1', {
-                mediaType: 'image/png', 
-                filename: 'first.png', 
-                createdAt: clock.now(), 
+                mediaType: 'image/png',
+                filename: 'first.png',
+                createdAt: clock.now(),
             });
 
             await store.artifacts.insert(first, new Uint8Array([1, 2, 3]));

@@ -174,9 +174,9 @@ describe('GET /runs', () => {
 
     it('lists a run\'s children', async () => {
         const {
-            app, 
-            store, 
-            ids, 
+            app,
+            store,
+            ids,
         } = await setup();
         const [parentId] = ids as [string];
         const children = await insertChildren(store, parentId, ['echo', 'gate']);
@@ -201,9 +201,9 @@ describe('GET /runs', () => {
 
     it('an agent-scoped reader sees only children of its agent with filter[agent], 403 without', async () => {
         const {
-            app, 
-            store, 
-            ids, 
+            app,
+            store,
+            ids,
         } = await setup();
         const [parentId] = ids as [string];
         const children = await insertChildren(store, parentId, ['echo', 'gate']);
@@ -216,6 +216,55 @@ describe('GET /runs', () => {
 
         expect(response.status).toBe(200);
         expect((await response.json() as ListBody).data.map((run) => run.id)).toEqual([children[0]]);
+    });
+
+    it('filters by wait point kind on the server, paged', async () => {
+        const {
+            app,
+            store,
+            ids,
+        } = await setup();
+        const [first, second, third] = ids as [string, string, string];
+        const expiresAt = new Date(Date.now() + 60_000);
+        const approval = (id: string) => ({
+            kind: 'approval' as const,
+            id,
+            approvalId: id,
+            toolName: 'deploy',
+            toolCallId: 'c1',
+            title: 'Deploy?',
+            expiresAt,
+        });
+
+        await store.runs.update(first, { status: 'waiting', waiting: approval('0:c1:0') });
+        await store.runs.update(second, {
+            status: 'waiting',
+            waiting: {
+                kind: 'dispatch',
+                id: '0:c2:w0',
+                toolName: 'fan',
+                toolCallId: 'c2',
+                runIds: [first],
+                expiresAt,
+            },
+        });
+        await store.runs.update(third, { status: 'waiting', waiting: approval('0:c1:1') });
+
+        const approvals = await (await call(app, 'GET', '/runs?filter[status]=waiting&filter[waiting]=approval&page[limit]=1', { token: READER_TOKEN })).json() as ListBody;
+
+        expect(approvals.data.map((run) => run.id)).toEqual([first]);
+        expect(approvals.meta.total).toBe(2);
+
+        const dispatches = await (await call(app, 'GET', '/runs?filter[waiting]=dispatch', { token: READER_TOKEN })).json() as ListBody;
+
+        expect(dispatches.data.map((run) => run.id)).toEqual([second]);
+
+        for (const query of ['filter[waiting]=human', 'filter[waiting]=approval,dispatch', 'filter[waiting]=!approval']) {
+            const response = await call(app, 'GET', `/runs?${query}`, { token: READER_TOKEN });
+
+            expect(response.status).toBe(400);
+            expect((await response.json()).message).toBe('filter[waiting] takes approval or dispatch.');
+        }
     });
 
     it('answers 400 JSON with issues for a rejected query', async () => {

@@ -276,6 +276,29 @@ describe('createApiClient', () => {
         expect(decodeURIComponent(requests[0]!.url)).toBe('/runs?filter[parent]=p1&page[limit]=100&sort=-createdAt');
     });
 
+    it('listRuns sends filter[waiting]', async () => {
+        const { fetch, requests } = createFakeFetch([json({
+            data: [],
+            meta: {
+                total: 0,
+                limit: 100,
+                offset: 0,
+            },
+        })]);
+        const client = createApiClient({
+            apiBase: '',
+            token: async () => 't',
+            fetch,
+        });
+
+        await client.listRuns({
+            status: ['waiting'],
+            waiting: 'approval',
+            limit: 100,
+        });
+        expect(decodeURIComponent(requests[0]!.url)).toBe('/runs?filter[status]=waiting&filter[waiting]=approval&page[limit]=100&sort=-createdAt');
+    });
+
     it('builds the run list query with only the given parts', () => {
         expect(runListQuery({}).toString()).toBe('sort=-createdAt');
     });

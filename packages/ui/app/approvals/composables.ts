@@ -38,14 +38,15 @@ export function useApprovals(client: IApiClient) {
     const error = shallowRef<ApiError>();
     const poller = createPoller(async () => {
         try {
+            // a run waiting on its dispatched runs waits on no person: the server leaves it out
             const page = await client.listRuns({
                 status: ['waiting'],
+                waiting: 'approval',
                 limit: INBOX_PAGE_SIZE,
                 offset: 0,
             });
 
-            // a run waiting on its dispatched runs waits on no person
-            runs.value = page.data.filter((run) => approvalWaitOf(run));
+            runs.value = page.data;
             error.value = undefined;
 
             return undefined;

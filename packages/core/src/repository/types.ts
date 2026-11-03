@@ -13,6 +13,7 @@ import type {
     Run,
     RunStatusLiteral,
     Step,
+    WaitPoint,
 } from '../run/types.ts';
 
 export type RunFindOptions = {
@@ -23,6 +24,8 @@ export type RunFindOptions = {
     ids?: readonly string[];
     /** Only the runs dispatched by this run (`Run.parentRunId`). */
     parentRunId?: string;
+    /** Only the runs whose wait point (`Run.waiting`) is of this kind. */
+    waitKind?: WaitPoint['kind'];
     limit?: number;
     offset?: number;
     order?: 'asc' | 'desc';

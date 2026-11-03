@@ -147,7 +147,7 @@ type ApproveBody = { // POST /runs/:id/approve; approve_run takes the same field
 };
 ```
 
-`GET /runs` takes `filter[parent]=<run id>` (once, else 400 `filter[parent] takes one run id.`) next to `filter[agent]` and `filter[status]`: the runs whose `parentRunId` it is, under the same read rule (an agent-scoped reader adds `filter[agent]`). Runs carry `parentRunId` and `subtreeUsage` when set; `POST /runs/:id/approve` answers a run waiting on dispatched runs with 409 `invalid_run_state`, and `approve_run` refuses it.
+`GET /runs` takes `filter[parent]=<run id>` (once, else 400 `filter[parent] takes one run id.`) next to `filter[agent]`, `filter[status]` and `filter[waiting]` (`approval` or `dispatch`, once, else 400 `filter[waiting] takes approval or dispatch.`; the wait point's kind): the runs whose `parentRunId` it is, under the same read rule (an agent-scoped reader adds `filter[agent]`). Runs carry `parentRunId` and `subtreeUsage` when set; `POST /runs/:id/approve` answers a run waiting on dispatched runs with 409 `invalid_run_state`, and `approve_run` refuses it.
 
 `selected` follows `engine.approve()`'s rules (see [Approvals](/guide/approvals) and [HTTP](/guide/http)): a selection that does not fit the wait point is `400 validation_error`.
 

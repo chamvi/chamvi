@@ -22,7 +22,6 @@ import type {
     ScheduleWire,
     StartRunResult,
 } from '../api/types.ts';
-import { approvalWaitOf } from '../approvals/helpers.ts';
 import { createPoller } from '../polling/module.ts';
 import {
     ACTIVE_LIMIT,
@@ -151,9 +150,11 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
                     offset: 0,
                 }),
                 totalOf(client, agentName, 'running'),
+                // a dispatch wait waits on no person: the server leaves it out
                 client.listRuns({
                     agent: agentName,
                     status: ['waiting'],
+                    waiting: 'approval',
                     limit: AGENT_WAITING_LIMIT,
                     offset: 0,
                 }),
@@ -168,9 +169,8 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
             runs.value = recent.data;
             totalRuns.value = recent.meta.total;
             running.value = runningTotal;
-            waitingRuns.value = waiting.data.filter((run) => approvalWaitOf(run));
-            // the page's dispatch waits wait on no person: they leave the total
-            waitingTotal.value = waiting.meta.total - (waiting.data.length - waitingRuns.value.length);
+            waitingRuns.value = waiting.data;
+            waitingTotal.value = waiting.meta.total;
             activity.value = summarizeActivity(recent.data, Date.now(), ACTIVITY_LIMIT);
             error.value = undefined;
 
