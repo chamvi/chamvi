@@ -24,6 +24,8 @@ import { createRunArtifacts } from '../../artifact/module.ts';
 import { createToolChannels } from '../../channel/helpers.ts';
 import { checkConversation, conversationFor } from '../../conversation/context.ts';
 import { bindProvided } from '../../context/helpers.ts';
+import { bindDispatchTools } from '../../dispatch/bind.ts';
+import { assertNoDispatchCollision } from '../../dispatch/tools.ts';
 import { validateToolInput } from '../../effect/helpers.ts';
 import { wrapToolsForRun } from '../../effect/wrap.ts';
 import {
@@ -162,19 +164,22 @@ export function toRunError(error: unknown): { code: string; message: string } {
  * maps every chamvi tool
  * (policy-hidden ones included) to the execution's one ToolContext, plus the
  * agent's own `toolsContext` entries for the other tools, by reference.
- * Throws InvalidAgentDefinitionError for a misconfigured `toolsContext` and
- * for a tool declaring `needsApproval`.
+ * dispatchTools() placeholders among the user's tools are bound to the
+ * roles registered now (bindDispatchTools).
+ * Throws InvalidAgentDefinitionError for a misconfigured `toolsContext`,
+ * for a tool declaring `needsApproval`, for a placeholder whose name a state
+ * or skill tool carries and for a role schema that cannot be converted.
  */
-export function assembleTools(
+export async function assembleTools(
     ctx: ExecuteContext,
     runContext: RunContext,
     onSuspend?: (request: SuspendRequest) => void,
     stepIndex?: () => number,
-): {
+): Promise<{
     tools: ToolSet;
     activeTools?: string[];
     toolsContext: Record<string, unknown>;
-} {
+}> {
     const {
         tools: userTools,
         state: schema,
@@ -214,9 +219,14 @@ export function assembleTools(
         bindProvided(toolContext, ctx.provided);
     }
 
+    const stateTools = schema ? createStateTools(schema) : {};
+    const ownTools = typeof userTools === 'function' ? userTools(toolContext) : userTools ?? {};
+
+    assertNoDispatchCollision(ctx.agent.name, ownTools, [stateTools, ctx.skills?.tools ?? {}]);
+
     const tools: ToolSet = {
-        ...(schema ? createStateTools(schema) : {}),
-        ...(typeof userTools === 'function' ? userTools(toolContext) : userTools),
+        ...stateTools,
+        ...await bindDispatchTools(ownTools, ctx.agent, (name) => ctx.engine.getAgent(name)),
     };
 
     ctx.skills?.checkTools(tools);

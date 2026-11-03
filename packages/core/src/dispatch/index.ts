@@ -15,12 +15,14 @@ export {
 export * from './descendants.ts';
 export * from './start.ts';
 export * from './subscription.ts';
+export { dispatchTools } from './tools.ts';
 export type {
     AgentSubscriber,
     AgentSubscriptionOptions,
     DispatchInput,
     DispatchOutcome,
     DispatchToInput,
+    DispatchToolsOptions,
     DispatchWaitOptions,
 } from './types.ts';
 export * from './wait.ts';

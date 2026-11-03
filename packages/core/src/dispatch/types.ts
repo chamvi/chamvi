@@ -112,3 +112,19 @@ export type RoleToolInput = {
     inputSchema: FlexibleSchema<unknown>;
     toPayload(input: unknown): unknown;
 };
+
+export type DispatchToolsOptions = {
+    /** Roles of the calling agent: one `dispatch_<role>` tool each, calling dispatch(). */
+    roles?: string[];
+    /** Roles of other agents: one `dispatch_<agent>_<role>` tool each, calling dispatchTo(). */
+    agents?: { agent: string; roles: string[] }[];
+    /** Every generated tool waits for its child (waitForDispatch()) and returns the DispatchOutcome. */
+    wait?: boolean | DispatchWaitOptions;
+};
+
+/** What a dispatchTools() placeholder stands for (internal): `agent` unset for the calling agent. */
+export type DispatchToolTarget = {
+    agent?: string;
+    role: string;
+    wait: false | DispatchWaitOptions;
+};

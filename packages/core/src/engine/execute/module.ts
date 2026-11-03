@@ -182,7 +182,7 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
     const suspended: SuspendRequest[] = [];
     // while the pending calls run they belong to the checkpoint's step, later ones to the step being made
     let replaying = pending.length > 0;
-    let assembled: ReturnType<typeof assembleTools>;
+    let assembled: Awaited<ReturnType<typeof assembleTools>>;
     let model: LanguageModel;
 
     try {
@@ -191,7 +191,7 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
         }
 
         model = toLanguageModel(ctx.model, ctx.models, agent.name);
-        assembled = assembleTools(ctx, runContext, (request) => {
+        assembled = await assembleTools(ctx, runContext, (request) => {
             suspended.push(request);
         }, () => (replaying ? checkpoint!.stepIndex : stepIndex));
     } catch (error) {

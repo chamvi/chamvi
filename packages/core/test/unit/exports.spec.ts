@@ -134,6 +134,7 @@ describe('public api', () => {
         'agentChannel',
         'dispatch',
         'dispatchTo',
+        'dispatchTools',
         'findApprovalWaitBelow',
         'waitForDispatch',
     ])('exports %s', (name) => {
@@ -171,6 +172,15 @@ describe('public api', () => {
         expect(core).not.toHaveProperty('bindRunSnapshot');
         expect(core).not.toHaveProperty('findDispatchRole');
         expect(core).not.toHaveProperty('ancestorsOf');
+        expect(core).not.toHaveProperty('DISPATCH_TOOL');
+        expect(core).not.toHaveProperty('bindDispatchTools');
+        expect(core).not.toHaveProperty('toRoleToolInput');
+        expectTypeOf<ReturnType<typeof core.dispatchTools>>().toEqualTypeOf<sdk.ToolSet>();
+        expectTypeOf<core.DispatchToolsOptions>().toEqualTypeOf<{
+            roles?: string[];
+            agents?: { agent: string; roles: string[] }[];
+            wait?: boolean | core.DispatchWaitOptions;
+        }>();
         expectTypeOf<core.TriggerEnvelope>().toHaveProperty('parent').toEqualTypeOf<core.TriggerParent | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatch>>().toEqualTypeOf<Promise<core.DispatchResult>>();
         expectTypeOf<core.DispatchInput>().toEqualTypeOf<{

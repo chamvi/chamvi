@@ -6,6 +6,7 @@
  */
 
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
+import { assertOwnDispatchRoles } from '../dispatch/tools.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { assertInstructions } from '../message/helpers.ts';
 import { assertAgentTrust } from '../trust/asserts.ts';
@@ -70,6 +71,7 @@ export function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefin
     // a factory's set is only known per execution, the engine checks it there
     if (typeof def.tools !== 'function') {
         assertNoNeedsApproval(def.name, def.tools ?? {});
+        assertOwnDispatchRoles(def.name, def.channels, def.tools ?? {});
 
         if (def.toolsContext) {
             assertToolsContext(def.name, def.tools ?? {}, def.toolsContext);

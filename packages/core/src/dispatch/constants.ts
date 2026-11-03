@@ -25,3 +25,9 @@ export const DEFAULT_DISPATCH_WAIT_TIMEOUT_MS = 86_400_000;
 
 /** The engine's dispatch host (internal, kept out of the barrel). */
 export const DISPATCH_CONTEXT = defineContextKey<DispatchHost>('dispatch');
+
+/** Marks a dispatchTools() placeholder; its value is the DispatchToolTarget (internal, kept out of the barrel). */
+export const DISPATCH_TOOL: unique symbol = Symbol.for('chamvi.dispatch-tool');
+
+/** The longest generated dispatch tool name (the provider limit, as MCP's). */
+export const DISPATCH_TOOL_NAME_MAX_LENGTH = 64;
