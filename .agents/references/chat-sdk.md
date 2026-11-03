@@ -3,10 +3,11 @@
 Inspected 2026-11-01 from the published npm packages installed in this repository (`node_modules`), not from a git checkout:
 
 - `chat` 4.44.0 (vercel/chat 9476152; the rows below were read on 4.43.0 and re-checked on 4.44.0 by the `native:` specs), `dist/index.js` and the `dist/types-*.d.ts` chunk.
+- `@chat-adapter/discord` 4.44.0 (vercel/chat 9476152, read 2026-11-03), `dist/index.js` and `dist/index.d.ts`; it depends on exactly `chat` 4.44.0 and on `discord.js` `^14.25.1` (resolves 14.28.0).
 - `baileys` 7.0.0-rc14, `lib/index.d.ts` and the `lib/Types`, `lib/Utils`, `lib/WABinary` declarations (the public API), plus `lib/Socket/socket.js` for behaviour.
 - History only: `chat-adapter-baileys` 2.1.0 (rama-adi/chat-adapter-baileys, MIT), not a dependency (see the last section).
 
-Executable evidence: `packages/chat/test/unit/ingress/upstream.spec.ts` (tests named `native: ...` record upstream Chat SDK behaviour as it is) and `packages/chat-whatsapp/test/unit/whatsapp/*.spec.ts` (chamvi's adapter over a fake socket).
+Executable evidence: `packages/chat/test/unit/ingress/upstream.spec.ts` (tests named `native: ...` record upstream Chat SDK behaviour as it is), `packages/chat-discord/test/unit/discord/upstream.spec.ts` (the same for the Discord adapter) and `packages/chat-whatsapp/test/unit/whatsapp/*.spec.ts` (chamvi's adapter over a fake socket).
 
 ## Chat SDK (`chat` 4.44.0)
 
@@ -19,6 +20,23 @@ Executable evidence: `packages/chat/test/unit/ingress/upstream.spec.ts` (tests n
 | `Chat.shutdown()` | channel stop (later task) | Calls `adapter.disconnect()` of every registered adapter (through the wrapper, bound to the real adapter), then `state.disconnect()`. |
 | `ChatConfig` | `chatChannel()` construction (later task) | `userName` and `state` are required (the plan's sample construction omits `userName`). The main package ships no in-memory `StateAdapter`; tests use `packages/chat/test/utils/chat.ts:createMemoryState`. |
 | `Adapter.reply?(threadId, messageId, message)`, called by `ThreadImpl.reply()` (`dist/chunk-*.js`) | none | New in the 4.4x line; conflicts with chat-adapter-baileys 2.1.0 (below). |
+
+## Discord adapter (`@chat-adapter/discord` 4.44.0)
+
+Gate verdict for `@chamvi/chat-discord`: GO. Every member below is public and behaves as the design assumes; chamvi uses no protected member, no subclass and no fork.
+
+| External file / function | chamvi counterpart | Behaviour / implication (4.44.0) |
+|---|---|---|
+| package `dependencies` (`chat` `4.44.0` exact) | `@chamvi/chat` and `@chamvi/chat-whatsapp` on `chat` `^4.44.0` | One `chat` copy in the workspace (`findPackageJSON('chat')` from the adapter equals the workspace's; `parseMessage()` returns the workspace's `Message` class, pinned). Moving the adapter means moving `chat` with it. |
+| `new DiscordAdapter(config)` / `createDiscordAdapter(config)` | `packages/chat-discord/src/discord/module.ts` (planned) | Every option left undefined falls back to `process.env`: `DISCORD_BOT_TOKEN`, `DISCORD_PUBLIC_KEY` (only without `webhookVerifier`), `DISCORD_APPLICATION_ID`, `DISCORD_API_URL`, `DISCORD_MENTION_ROLE_IDS`, `DISCORD_RESPOND_TO_CHANNEL_IDS` (pinned). Throws without a token, an application id, and a public key or `webhookVerifier`. chamvi passes `botToken`, `applicationId`, `apiUrl`, `mentionRoleIds: []`, `respondToChannelIds: []`, `respondToGlobalMentions: false`, a refusing `webhookVerifier`, `logger`, `userName`; then no env var is read (sentinel env, pinned through `getUser`'s URL and header and a forwarded message's mention flag). |
+| `botUserId` getter | identity (planned) | The resolved application id, not a Gateway user id; `author.isMe` in `parseMessage()` compares with it. |
+| `initialize(chat)` | ingress facade (`createChatIngressAdapter()`) | Resolves the application id (no network call for a string, pinned), stores `chat`, logs `Discord adapter initialized` on the given logger. |
+| `parseMessage(raw)` -> protected `parseDiscordMessage(raw, threadId)` | `src/discord/message.ts:toChatMessage` (planned) | `threadId` is always `discord:<guild_id \| @me>:<channel_id>`: a thread message gets the thread's own id as channel, no parent, no thread segment (pinned). `isMention` stays undefined even for a direct user mention (pinned). Keeps Discord-markdown conversion (`text` is plain), author ids/names, attachment count, `timestamp`/`edited_timestamp` dates. chamvi rebuilds the `Message` with the 4-part id and its own `isMention`. |
+| `encodeThreadId({ guildId, channelId, threadId? })` / `decodeThreadId(id)` | address codec, send target (planned) | `discord:<guild>:<channel>[:<thread>]`, the channel being the parent for a thread; round-trips; a non-`discord:` id or fewer than 3 parts throws `ValidationError` (pinned). Three 20-digit snowflakes stay within the 255 address bound through `chatAddress()` (pinned). |
+| `isDM(id)` | policy (planned) | `true` exactly for guild `@me`. |
+| `handleWebhook(request)` | none (no Interactions endpoint) | Without `x-discord-gateway-token` the `webhookVerifier` decides; a refusing one answers 401 with no call (pinned). With the header equal to the bot token it skips the verifier and processes a forwarded Gateway event through `chat.handleIncomingMessage` (pinned), so the adapter's webhook must not be reachable without chamvi's intake. |
+| `startGatewayListener(options, durationMs, abortSignal?, webhookUrl?)` | none (rejected) | A fresh discord.js `Client` per call, needs `waitUntil`, swallows login errors into the logger, auto-creates a thread per top-level mention before any consumer code, ignores every bot author, hides public vs private thread type. chamvi owns the discord.js client (`src/discord/connection.ts`). |
+| `postMessage(threadId, message)` -> `discordFetch(path, method, body)` | none (rejected); `src/discord/send.ts` (planned) | No `allowed_mentions`, no `nonce`, no `AbortSignal`; the error text carries the response body. chamvi sends through its own REST post. |
 
 ## Baileys 7.0.0-rc14 (public API chamvi's adapter uses)
 
