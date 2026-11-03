@@ -68,9 +68,9 @@ describe('agent.on()', () => {
     it('copies the address hook and keeps the description', () => {
         const address = (p: { pr: string }) => p.pr;
         const subscription = agent.on({
-            role: 'pr', 
-            address, 
-            description: 'Reviews one pull request.', 
+            role: 'pr',
+            address,
+            description: 'Reviews one pull request.',
         });
 
         expect(subscription.address).toBe(address);
@@ -151,6 +151,8 @@ describe('agent.on()', () => {
         [{ maxDepth: 9 }, /maxDepth/],
         [{ maxDepth: 0 }, /maxDepth/],
         [{ from: ['A'] }, /from/],
+        [{ description: 5 }, /description/],
+        [{ description: '' }, /description/],
     ])('the engine refuses a hand-built role with %j', (options, message) => {
         const subscription: ChannelSubscription = {
             channel: 'agent',

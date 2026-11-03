@@ -143,7 +143,7 @@ export async function ancestorsOf(host: DispatchHost, runId: string): Promise<Ru
     return chain;
 }
 
-/** Refuses an agent with an invalid role: id, `maxPerRun`, `maxDepth` or `from` (the engine's registration check). */
+/** Refuses an agent with an invalid role: id, `maxPerRun`, `maxDepth`, `from` or `description` (the engine's registration check). */
 export function assertDispatchRoles(agent: Agent): void {
     for (const subscription of agent.definition.channels ?? []) {
         if (subscription.channel !== AGENT_CHANNEL_NAME) {
@@ -158,6 +158,7 @@ export function assertDispatchRoles(agent: Agent): void {
         checkMaxPerRun(label, options?.maxPerRun);
         checkMaxDepth(label, options?.maxDepth);
         checkFrom(label, options?.from);
+        checkDescription(label, options?.description);
     }
 }
 

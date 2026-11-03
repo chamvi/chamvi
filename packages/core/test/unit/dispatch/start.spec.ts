@@ -544,7 +544,24 @@ describe('dispatch()', () => {
         expect(await children(store)).toHaveLength(0);
     });
 
-    it('the address hook feeds the default key, so a lost record still yields one child', async () => {
+    it('the address hook feeds the default key: a different address on replay is a different call', async () => {
+        let n = 0;
+        const subscription = agent.on({ address: () => `a${n++}` });
+        const { engine, store } = setup({
+            parent: [turn(call({ payload: 1 }, 'c1')), turn(call({ payload: 1 }, 'c2')), text('done')],
+            subscription,
+        });
+        const parentId = await dispatchParent(engine);
+        const all = await children(store);
+
+        expect(all.map((run) => run.address).sort()).toEqual(['a0', 'a1']);
+
+        const steps = await toolSteps(store, parentId);
+
+        expect(steps.map((s) => (s.output as { deduplicated: boolean }).deduplicated)).toEqual([false, false]);
+    });
+
+    it('a lost record redoes a deduplicating dispatch with the address of the hook', async () => {
         const store = { ...createMemoryStore({ clock: new ControllableClock(START) }), effects: new LossyRepository() };
 
         store.effects.lose = true;
