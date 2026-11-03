@@ -18,13 +18,22 @@ import type { ToolContext } from '../tool/types.ts';
 import { markUntrusted } from '../trust/module.ts';
 import { DEFAULT_DISPATCH_WAIT_TIMEOUT_MS, DISPATCH_CONTEXT } from './constants.ts';
 import {
+    ancestorsOf,
+    isSettled,
     readChildren,
     readWaitRecord,
     runSnapshotOf,
     toWaitRecord,
     waitRecordKey,
 } from './helpers.ts';
-import type { DispatchOutcome, DispatchWaitOptions, DispatchWaitRecord } from './types.ts';
+import { RunStatus } from '../run/constants.ts';
+import type { Run } from '../run/types.ts';
+import type {
+    DispatchHost,
+    DispatchOutcome,
+    DispatchWaitOptions,
+    DispatchWaitRecord,
+} from './types.ts';
 
 function toRunId(value: unknown): string {
     const id = isObject(value) ? value.runId : value;
@@ -67,6 +76,38 @@ async function release(ctx: ToolContext<any>, record: DispatchWaitRecord): Promi
     }
 
     return record.outcomes;
+}
+
+/** A run holds its concurrency key while it is running, waiting or interrupted (the queue's rule). */
+const HOLDING: readonly string[] = [RunStatus.RUNNING, RunStatus.WAITING, RunStatus.INTERRUPTED];
+
+/**
+ * The first unsettled child whose agent and concurrency key the waiting run
+ * or one of its ancestors holds: the queue keeps it back while that run
+ * waits, so the wait could never end. A settled ancestor holds nothing.
+ */
+async function findKeyHolder(
+    host: DispatchHost,
+    runId: string,
+    children: readonly Run[],
+): Promise<{ child: Run, holder: Run } | undefined> {
+    const keyed = children.filter((child) => child.concurrencyKey !== undefined && !isSettled(child));
+
+    if (keyed.length === 0) {
+        return undefined;
+    }
+
+    const chain = (await ancestorsOf(host, runId)).filter((r) => HOLDING.includes(r.status));
+
+    for (const child of keyed) {
+        const holder = chain.find((r) => r.agent === child.agent && r.concurrencyKey === child.concurrencyKey);
+
+        if (holder) {
+            return { child, holder };
+        }
+    }
+
+    return undefined;
 }
 
 async function waitFor(ctx: ToolContext<any>, runs: unknown, options: unknown): Promise<DispatchOutcome[]> {
@@ -131,6 +172,29 @@ async function waitFor(ctx: ToolContext<any>, runs: unknown, options: unknown): 
         await frame.effects.save(key, settled);
 
         return release(ctx, settled);
+    }
+
+    const blocked = await findKeyHolder(host, run.runId, data);
+
+    if (blocked) {
+        // read again after the last await: a child may have settled meanwhile, and then the wait ends
+        const { data: fresh } = await host.runs.find({ ids: unique });
+        const now = toWaitRecord(runIds, fresh);
+
+        if (now) {
+            await frame.effects.save(key, now);
+
+            return release(ctx, now);
+        }
+
+        const child = fresh.find((r) => r.id === blocked.child.id);
+
+        if (child && !isSettled(child)) {
+            throw new ValidationError(
+                `Run ${child.id} needs concurrency key "${child.concurrencyKey}" of agent "${child.agent}", ` +
+                `which run ${blocked.holder.id} holds while it waits: the wait could never end.`,
+            );
+        }
     }
 
     const request: DispatchWaitRequest = {
