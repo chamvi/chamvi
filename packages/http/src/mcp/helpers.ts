@@ -7,9 +7,9 @@
 
 import {
     ChamviError,
-    DISPATCH_DEPTH_MAX,
     RunNotFoundError,
     RunStatus,
+    findApprovalWaitBelow,
 } from '@chamvi/core';
 import type { IEngine, Run } from '@chamvi/core';
 import { isHTTPError } from '@ebec/http';
@@ -89,20 +89,9 @@ export function isWaitOver(run: Run): boolean {
     return TERMINAL.has(run.status) || isApprovalWait(run);
 }
 
-/** Statuses of a run that may still reach an approval wait. */
-const UNSETTLED = [
-    RunStatus.QUEUED,
-    RunStatus.RUNNING,
-    RunStatus.WAITING,
-    RunStatus.INTERRUPTED,
-];
-
 /**
  * The run itself when it waits on an approval, else the first unsettled
- * descendant that does (breadth-first over `parentRunId` children and the
- * runs a dispatch wait point names, a deduplicated run another run
- * dispatched too; each run once, at most `DISPATCH_DEPTH_MAX` levels, a
- * settled run's subtree skipped); `undefined` without one.
+ * descendant that does (`findApprovalWaitBelow()`); `undefined` without one.
  */
 export async function findWaitingApproval(engine: IEngine, runId: string): Promise<Run | undefined> {
     const root = await engine.store.runs.findOne(runId);
@@ -111,44 +100,7 @@ export async function findWaitingApproval(engine: IEngine, runId: string): Promi
         return undefined;
     }
 
-    if (isApprovalWait(root)) {
-        return root;
-    }
-
-    const visited = new Set([root.id]);
-    let level = [root];
-
-    for (let depth = 0; depth < DISPATCH_DEPTH_MAX && level.length > 0; depth++) {
-        const next: Run[] = [];
-        // a level's own children, then the unsettled runs its dispatch waits name (one read)
-        const batches: Array<() => Promise<Run[]>> = [
-            ...level.map((run) => async () => (await engine.store.runs.find({ parentRunId: run.id, status: UNSETTLED })).data),
-            async () => {
-                const ids = [...new Set(level.flatMap((run) => (run.waiting?.kind === 'dispatch' ? run.waiting.runIds : []))).difference(visited)];
-
-                return ids.length > 0 ? (await engine.store.runs.find({ ids, status: UNSETTLED })).data : [];
-            },
-        ];
-
-        for (const batch of batches) {
-            for (const run of await batch()) {
-                if (visited.has(run.id)) {
-                    continue;
-                }
-
-                if (isApprovalWait(run)) {
-                    return run;
-                }
-
-                visited.add(run.id);
-                next.push(run);
-            }
-        }
-
-        level = next;
-    }
-
-    return undefined;
+    return isApprovalWait(root) ? root : findApprovalWaitBelow(engine.store.runs, root);
 }
 
 /**

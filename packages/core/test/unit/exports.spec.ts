@@ -134,6 +134,7 @@ describe('public api', () => {
         'agentChannel',
         'dispatch',
         'dispatchTo',
+        'findApprovalWaitBelow',
         'waitForDispatch',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
@@ -183,6 +184,7 @@ describe('public api', () => {
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('maxDepth').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('from').toEqualTypeOf<string[] | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatchTo>>().toEqualTypeOf<Promise<core.DispatchResult>>();
+        expectTypeOf<ReturnType<typeof core.findApprovalWaitBelow>>().toEqualTypeOf<Promise<core.Run | undefined>>();
         expectTypeOf<core.DispatchToInput>().toEqualTypeOf<core.DispatchInput & { agent: string }>();
         expectTypeOf<core.Budget>().toHaveProperty('maxSubtreeTokens').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.DispatchOutcome>().toEqualTypeOf<{

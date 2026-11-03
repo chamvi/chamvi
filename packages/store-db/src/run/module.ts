@@ -181,13 +181,15 @@ export class DatabaseRunRepository implements IRunRepository {
             where.id = In([...q.ids]);
         }
 
-        if (q.parentRunId !== undefined && q.hasParent === false) {
-            // a parent run and none: matches nothing
+        const parents = q.parentRunId === undefined ? q.parentRunIds : [q.parentRunId].filter((id) => q.parentRunIds?.includes(id) ?? true);
+
+        if (parents !== undefined && (parents.length === 0 || q.hasParent === false)) {
+            // no parent run left to match, or a parent run and none: matches nothing
             return { data: [], total: 0 };
         }
 
-        if (q.parentRunId !== undefined) {
-            where.parentRunId = q.parentRunId;
+        if (parents !== undefined) {
+            where.parentRunId = In([...parents]);
         } else if (q.hasParent !== undefined) {
             // the indexed parent_run_id column
             where.parentRunId = q.hasParent ? Not(IsNull()) : IsNull();

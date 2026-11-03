@@ -55,7 +55,7 @@ running with an expired claim (crash) -> queued (recover) -> running
 
 | Interface | Holds |
 |-----------|-------|
-| `IRunRepository` | Runs (`insert` derives `parentRunId` from `trigger.parent`, refuses an absent parent); `update` with `expectStatus`/`expectOwner`/`expectWaitId` guards; `find` filters `ids`/`parentRunId`/`hasParent`/`waitKind`, ordered by createdAt then id (both asc, or desc with `order: 'desc'`), unbounded without `limit`; `claim`/`renewClaim` leases |
+| `IRunRepository` | Runs (`insert` derives `parentRunId` from `trigger.parent`, refuses an absent parent); `update` with `expectStatus`/`expectOwner`/`expectWaitId` guards; `find` filters `ids`/`parentRunId(s)`/`hasParent`/`waitKind`, ordered by createdAt then id (asc, or desc with `order: 'desc'`), unbounded without `limit`; `claim`/`renewClaim` leases |
 | `IStepRepository` | Append-only steps per run |
 | `ICheckpointRepository` | Latest checkpoint per run (highest `stepIndex`; equal index replaces) |
 | `IIdempotencyRepository` | `claim(scope, key, runId, ttl)`: first caller wins |

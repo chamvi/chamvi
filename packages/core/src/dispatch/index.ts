@@ -12,6 +12,7 @@ export {
     DEFAULT_MAX_DISPATCHES_PER_RUN,
     DISPATCH_DEPTH_MAX,
 } from './constants.ts';
+export * from './descendants.ts';
 export * from './start.ts';
 export * from './subscription.ts';
 export type {

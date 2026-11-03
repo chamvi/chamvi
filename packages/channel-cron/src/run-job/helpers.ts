@@ -12,9 +12,9 @@ import type {
     IRunRepository,
     Run,
 } from '@chamvi/core';
-import { DISPATCH_DEPTH_MAX, InvalidAgentDefinitionError } from '@chamvi/core';
+import { InvalidAgentDefinitionError, findApprovalWaitBelow } from '@chamvi/core';
 import { isCronChannel } from '../channel/helpers.ts';
-import { TERMINAL, UNSETTLED } from './constants.ts';
+import { TERMINAL } from './constants.ts';
 
 /**
  * The cron subscription a job fires: `subscriptionId`, or the agent's only
@@ -51,10 +51,7 @@ function isApprovalWait(run: Run): boolean {
  * The run a job returns on, or `false` to keep waiting: the run itself when it
  * finished or waits for a human (an approval); when it waits on its dispatched
  * runs, the first unsettled descendant that waits on an approval
- * (breadth-first over `parentRunId` children and the runs a dispatch wait
- * point names, a deduplicated run another run dispatched too; each run once,
- * at most `DISPATCH_DEPTH_MAX` levels). A dispatch wait
- * alone keeps the job waiting.
+ * (`findApprovalWaitBelow()`). A dispatch wait alone keeps the job waiting.
  */
 export async function isJobSettled(store: Pick<IRunRepository, 'find' | 'findOne'>, run: Run): Promise<Run | false> {
     if (TERMINAL.includes(run.status) || isApprovalWait(run)) {
@@ -65,40 +62,7 @@ export async function isJobSettled(store: Pick<IRunRepository, 'find' | 'findOne
         return false;
     }
 
-    const visited = new Set([run.id]);
-    let level = [run];
-
-    for (let depth = 0; depth < DISPATCH_DEPTH_MAX && level.length > 0; depth++) {
-        const next: Run[] = [];
-        // a level's own children, then the unsettled runs its dispatch waits name (one read)
-        const batches: Array<() => Promise<Run[]>> = [
-            ...level.map((r) => async () => (await store.find({ parentRunId: r.id, status: UNSETTLED })).data),
-            async () => {
-                const ids = [...new Set(level.flatMap((r) => (r.waiting?.kind === 'dispatch' ? r.waiting.runIds : []))).difference(visited)];
-
-                return ids.length > 0 ? (await store.find({ ids, status: UNSETTLED })).data : [];
-            },
-        ];
-
-        for (const batch of batches) {
-            for (const found of await batch()) {
-                if (visited.has(found.id)) {
-                    continue;
-                }
-
-                if (isApprovalWait(found)) {
-                    return found;
-                }
-
-                visited.add(found.id);
-                next.push(found);
-            }
-        }
-
-        level = next;
-    }
-
-    return false;
+    return (await findApprovalWaitBelow(store, run)) ?? false;
 }
 
 /**

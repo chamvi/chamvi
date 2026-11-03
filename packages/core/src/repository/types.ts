@@ -24,6 +24,8 @@ export type RunFindOptions = {
     ids?: readonly string[];
     /** Only the runs dispatched by this run (`Run.parentRunId`). */
     parentRunId?: string;
+    /** Only the runs dispatched by one of these runs (an empty list matches none). */
+    parentRunIds?: readonly string[];
     /** Only the runs dispatched by some run (`true`, `Run.parentRunId` set) or by none (`false`). */
     hasParent?: boolean;
     /** Only the runs whose wait point (`Run.waiting`) is of this kind. */

@@ -717,6 +717,35 @@ export function describeRepositoryContract(
             expect((await store.runs.find({ hasParent: false, parentRunId: 'p1' })).total).toBe(0);
         });
 
+        it('parentRunIds filters the children of several runs, with paging and total', async () => {
+            const { store } = await setup();
+
+            await store.runs.insert(makeRun('p1', { createdAt: new Date(100) }));
+            await store.runs.insert(makeRun('p2', { createdAt: new Date(200) }));
+            await store.runs.insert(makeRun('p3', { createdAt: new Date(300) }));
+            await store.runs.insert(makeChild('c3', 'p2', 3_000));
+            await store.runs.insert(makeChild('c1', 'p1', 1_000));
+            await store.runs.insert(makeChild('c2', 'p3', 2_000));
+            await store.runs.insert(makeChild('c4', 'p1', 4_000));
+            await store.runs.update('c4', { status: RunStatus.RUNNING });
+
+            const children = await store.runs.find({ parentRunIds: ['p1', 'p2'] });
+
+            expect(children.data.map((r) => r.id)).toEqual(['c1', 'c3', 'c4']);
+            expect(children.total).toBe(3);
+            expect((await store.runs.find({ parentRunIds: [] })).data).toEqual([]);
+            expect((await store.runs.find({ parentRunIds: [] })).total).toBe(0);
+
+            const page = await store.runs.find({ parentRunIds: ['p1', 'p2'], limit: 1, offset: 1 });
+
+            expect(page.data.map((r) => r.id)).toEqual(['c3']);
+            expect(page.total).toBe(3);
+            expect((await store.runs.find({ parentRunIds: ['p1', 'p2'], status: [RunStatus.RUNNING] })).data.map((r) => r.id)).toEqual(['c4']);
+            expect((await store.runs.find({ parentRunIds: ['p1', 'p2'], parentRunId: 'p2' })).data.map((r) => r.id)).toEqual(['c3']);
+            expect((await store.runs.find({ parentRunIds: ['p1'], parentRunId: 'p2' })).total).toBe(0);
+            expect((await store.runs.find({ parentRunIds: ['p1'], hasParent: false })).total).toBe(0);
+        });
+
         it('parentRunId comes from trigger.parent, never from the caller (insert or update)', async () => {
             const { store } = await setup();
 

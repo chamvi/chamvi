@@ -41,7 +41,7 @@ Match a foreign key violation on structured fields (an error code and the constr
 
 New in 0.6, for [dispatch](/guide/dispatch):
 
-- **`parentRunId`.** `runs.insert` sets `Run.parentRunId` from `trigger.parent.runId` and ignores a `parentRunId` the caller passes. A parent the store does not hold throws `RunNotFoundError` and writes nothing (Postgres: a self foreign key). Persist it as its own indexed field: `find({ parentRunId })` lists a run's children.
+- **`parentRunId`.** `runs.insert` sets `Run.parentRunId` from `trigger.parent.runId` and ignores a `parentRunId` the caller passes. A parent the store does not hold throws `RunNotFoundError` and writes nothing (Postgres: a self foreign key). Persist it as its own indexed field: `find({ parentRunId })` lists a run's children, `find({ parentRunIds })` the children of several runs at once (an empty list matches none).
 - **`subtreeUsage`.** Optional `Usage`, written by the engine through `update`; persist and copy it like `usage`. `update(id, patch, { keepUpdatedAt: true })` keeps the stored `updatedAt` when the patch sets none (the engine uses it for this derived field).
 - **`ids`.** `find({ ids })` returns only those runs (an empty list matches none), combined with the other filters, in the usual order.
 - **`hasParent`.** `find({ hasParent: true })` returns only runs with a `parentRunId`, `false` only runs without one (the engine's cancel cascade heal lists unsettled children this way each tick: filter on the indexed field).
@@ -70,7 +70,7 @@ The suite covers:
 - lineage: `parentRunId` set from the envelope and refused for an unknown parent, `subtreeUsage` round trips, both wait point kinds with their dates revived, a legacy approval wait point read back with its `id`,
 - checkpoints: the highest `stepIndex` wins, an equal index replaces,
 - locks: exclusive, released by their owner only, taken over after expiry,
-- `find` filters (`agent`, `status`, `concurrencyKey`, `ids`, `parentRunId`, `hasParent`, `waitKind`), `total`, and the `createdAt`/`id` order in both directions (`order: 'asc' | 'desc'`),
+- `find` filters (`agent`, `status`, `concurrencyKey`, `ids`, `parentRunId`, `parentRunIds`, `hasParent`, `waitKind`), `total`, and the `createdAt`/`id` order in both directions (`order: 'asc' | 'desc'`),
 - effect and state round trips, including `where` filters,
 - artifacts: insert-if-absent, metadata and bytes round trips, copies, the `createdAt`/`id` order, unknown ids,
 - agent revisions: upsert, delete (also of a missing marker), the code-point order of `find`, copies with `changedAt` revived as a `Date`,
