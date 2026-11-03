@@ -19,6 +19,8 @@ export type ChatSenderOptions = {
     approvalUrl?: (ref: ChatApprovalRef) => string;
     /** Bound of one send. */
     timeoutMs: number;
+    /** The longest text one send posts (UTF-16 code units). */
+    maxTextChars: number;
     /**
      * The clock of a connected channel, else undefined: an offline channel
      * (not started, stopped, a transport that reports itself down) sends nothing.
@@ -30,5 +32,5 @@ export type ChatSenderOptions = {
     onError: (error: unknown) => void;
 };
 
-/** What renderChatMessage() reads of the options (internal). */
-export type ChatRenderOptions = Pick<ChatSenderOptions, 'approvalUrl'>;
+/** What renderChatMessage() reads of the options (internal); `maxTextChars` defaults to `CHAT_TEXT_MAX_CHARS`. */
+export type ChatRenderOptions = Pick<ChatSenderOptions, 'approvalUrl'> & Partial<Pick<ChatSenderOptions, 'maxTextChars'>>;

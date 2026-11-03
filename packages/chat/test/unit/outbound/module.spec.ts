@@ -84,6 +84,7 @@ function setup(patch: Partial<ChatSenderOptions> = {}) {
         name: 'chat',
         adapters: [adapter],
         timeoutMs: CHAT_TIMEOUT_MS,
+        maxTextChars: CHAT_TEXT_MAX_CHARS,
         online: () => online,
         onError: (error) => {
             errors.push(error);

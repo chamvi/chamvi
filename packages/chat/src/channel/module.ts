@@ -204,6 +204,7 @@ export function createChatChannel(options: ChatChannelOptions, intake: ChatIntak
         adapters: resolved.adapters,
         ...(resolved.approvalUrl ? { approvalUrl: resolved.approvalUrl } : {}),
         timeoutMs: resolved.timeoutMs,
+        maxTextChars: resolved.maxTextChars,
         // started, and connected as far as the transport knows
         online: () => (current?.online && (platform?.online ? platform.online() : true) ? current.context.engine.clock : undefined),
         ...(platform?.prepare ? { prepare: (input: ChatPlatformSend) => platform.prepare!(input) } : {}),

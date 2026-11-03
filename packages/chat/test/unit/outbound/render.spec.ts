@@ -219,3 +219,37 @@ describe('renderChatMessage', () => {
         }
     });
 });
+
+describe('renderChatMessage({ maxTextChars })', () => {
+    it('refuses a plain message above the given bound and sends one at it', () => {
+        const exact = 'a'.repeat(2000);
+
+        expect(renderChatMessage(message({ body: exact }), { maxTextChars: 2000 })).toBe(exact);
+
+        const render = () => renderChatMessage(message({ body: `${exact}b` }), { maxTextChars: 2000 });
+
+        expect(render).toThrow(ValidationError);
+        expect(render).toThrow(/at most 2000/);
+    });
+
+    it('cuts the prose of an approval to fit the given bound exactly, keeping the link', () => {
+        const text = renderChatMessage(approval({ body: 'b'.repeat(5000) }), {
+            approvalUrl: URL_OF,
+            maxTextChars: 2000,
+        });
+
+        expect(text).toHaveLength(2000);
+        expect(text).toMatch(/… \(cut, \d+ more characters\)/);
+        expect(text.endsWith('Approve or deny: https://chamvi.example/ui/approvals?run=run-1&approval=0:call-1:0')).toBe(true);
+    });
+
+    it('refuses an approval whose structure does not fit the given bound, naming it', () => {
+        const options = Array.from({ length: 10 }, (_, index) => ({ id: `option-${index}`, label: 'L'.repeat(200) }));
+        const render = () => renderChatMessage(approval({ options }), { approvalUrl: URL_OF, maxTextChars: 2000 });
+
+        expect(render).toThrow(ValidationError);
+        expect(render).toThrow(/of 2000/);
+        // the same approval fits the default bound
+        expect(() => renderChatMessage(approval({ options }), { approvalUrl: URL_OF })).not.toThrow();
+    });
+});
