@@ -578,6 +578,8 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
             modelCallEnded = true;
         },
         onStepEnd,
+        // the error is the run's, so the AI SDK's default console logging is muted
+        onError: () => {},
         output: agent.definition.output ? withoutPartialOutput(agent.definition.output) : undefined,
     });
 
@@ -585,14 +587,7 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
     const firstStepIndex = stepIndex;
     let streamStep = -1;
     const consume = async () => {
-        // onError is no typed agent stream parameter but reaches streamText; the
-        // error is the run's, so the AI SDK's default console logging is muted
-        const options = {
-            messages: prompt,
-            abortSignal: signal,
-            onError: () => {},
-        };
-        const stream = await loop.stream(options);
+        const stream = await loop.stream({ messages: prompt, abortSignal: signal });
         // the first stream error fails the run, as a rejected generate did
         let streamError: { error: unknown } | undefined;
 
