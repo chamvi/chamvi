@@ -6,6 +6,7 @@
  */
 
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { FlexibleSchema } from 'ai';
 import type { Agent } from '../agent/types.ts';
 import type { ChannelSubscription, DispatchResult } from '../channel/types.ts';
 import type { DispatchEnvelope } from '../engine/types.ts';
@@ -101,4 +102,13 @@ export type DispatchHost = {
     serial<T>(runId: string, fn: () => Promise<T>): Promise<T>;
     /** Dispatches in flight by effect key, so identical parallel calls share one. */
     inflight: Map<string, Promise<DispatchResult>>;
+};
+
+/**
+ * A role schema as a generated tool's input: the AI SDK schema the model
+ * sees and validates against, and how a validated input becomes the payload.
+ */
+export type RoleToolInput = {
+    inputSchema: FlexibleSchema<unknown>;
+    toPayload(input: unknown): unknown;
 };
