@@ -8,7 +8,7 @@ Last checked against the codebase and GitHub on **2026-10-30**.
 
 | Package | Contents |
 |---|---|
-| `@chamvi/core` | `defineAgent()` with channel subscriptions, tool hooks and structured instructions; `IChannel`, `consoleChannel()`, durable runs, checkpoints, budgets, effect tools, agent state, approvals with choices, same-agent run handoff, opt-in conversation recall and notes, scoped skills, shared agent/subscription execution caps, composable repositories and `createMemoryStore()` |
+| `@chamvi/core` | `defineAgent()` with channel subscriptions, tool hooks and structured instructions; `IChannel`, `consoleChannel()`, durable runs, checkpoints, budgets, effect tools, agent state, approvals with choices, dispatch to the own or another agent's roles with durable waits, stored lineage and subtree budgets, opt-in conversation recall and notes, scoped skills, shared agent/subscription execution caps, composable repositories and `createMemoryStore()` |
 | `@chamvi/test-kit` | Repository, conversation and workspace contract suites, `ControllableClock`, `createGitFixture`, `createFakeGithub`, mock models and skill runtime fixtures |
 | `@chamvi/channel-cron` | The cron channel `cronChannel()` and `cron.on()` (one locked hubwire component per subscription, overlap policies, timezones), `runJob()` for one-shot jobs |
 | `@chamvi/store-db` | `createDatabaseStore()` on Postgres, `migrateStore`, `purgeExpired`. See [database store](/repositories/database) |
@@ -31,7 +31,7 @@ The [base image](/deployment/docker), [Helm chart](https://github.com/chamvi/hel
 ## Recently completed
 
 - **Sandbox defaults and bash-first credentials:** safer workspace defaults, credential redaction, removal of dedicated credential-mode Git tools, and a pinned GitHub CLI in the development sandbox image ([#60](https://github.com/chamvi/chamvi/pull/60), [#87](https://github.com/chamvi/chamvi/pull/87)).
-- **Maintainer foundations:** GitHub pull-request tools, approvals with choices and same-agent run handoff ([#64](https://github.com/chamvi/chamvi/pull/64), [#65](https://github.com/chamvi/chamvi/pull/65), [#66](https://github.com/chamvi/chamvi/pull/66)). Cross-agent delegation remains planned.
+- **Maintainer foundations:** GitHub pull-request tools, approvals with choices and same-agent run hand-offs ([#64](https://github.com/chamvi/chamvi/pull/64), [#65](https://github.com/chamvi/chamvi/pull/65), [#66](https://github.com/chamvi/chamvi/pull/66)), extended by [dispatch](/guide/dispatch) ([#129](https://github.com/chamvi/chamvi/issues/129)).
 - **Operational controls:** startup validation, visible agent reload failures, shared agent/subscription execution caps and configurable channel HTTP limits ([#61](https://github.com/chamvi/chamvi/pull/61), [#93](https://github.com/chamvi/chamvi/pull/93)).
 - **Repository context and reusable skills:** scoped repository instructions and verified skill preparation/loading ([#95](https://github.com/chamvi/chamvi/pull/95), [#94](https://github.com/chamvi/chamvi/pull/94)).
 - **Conversation memory:** opt-in, authorized recent-history recall and explicit notes, durable turn ownership and composable persistence repositories ([#96](https://github.com/chamvi/chamvi/pull/96)). This does not include a native chat transport or the broader context-management plan.
@@ -63,7 +63,7 @@ When Renovate opens a pull request, an agent reads the changelog of the bumped p
 ## Remaining framework work
 
 - **Coding and operations:** own-tools coding backend, visual-regression repair on dependency PRs, provider fallback on quota/rate limits and execution-local artifact hydration caching.
-- **Agent composition:** delegation between different agents, remote agents over A2A, UI overrides and agent uploads. Same-agent handoff is already implemented.
+- **Agent composition:** remote agents over A2A, UI overrides and agent uploads. [Dispatch](/guide/dispatch) between the agents of one app, with durable waits, is implemented.
 - **Context and safety:** compaction, prompt-cache controls, deferred tools, central approval policies, automatic permission classification and untrusted-content isolation. Conversation memory, scoped instructions and skills are foundations, not completion of these plans.
 - **Observability:** OpenTelemetry tracing and replay-based evals.
 - **Follow-ups to merged work:** race-free confinement for repository instruction reads ([#92](https://github.com/chamvi/chamvi/issues/92)), replacing the temporary skills SDK fork ([#97](https://github.com/chamvi/chamvi/issues/97)), and tool-accessible conversation reset/deletion ([#98](https://github.com/chamvi/chamvi/issues/98)).

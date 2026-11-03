@@ -251,7 +251,7 @@ trust: {
 },
 ```
 
-The first exposure is persisted as `run.taint: { at: Date, source: string }` before the result reaches the model. It survives checkpoints and restarts; handoffs inherit it and conversation recall conservatively taints the receiving run. Custom stores must preserve this optional field. The database migration also marks pre-existing unfinished runs as tainted because their checkpoints may already contain external content.
+The first exposure is persisted as `run.taint: { at: Date, source: string }` before the result reaches the model. It survives checkpoints and restarts; dispatched runs inherit it, a parent that waits on a tainted child is tainted before the outcome reaches its model, and conversation recall conservatively taints the receiving run. Custom stores must preserve this optional field. The database migration also marks pre-existing unfinished runs as tainted because their checkpoints may already contain external content.
 
 **Upgrade with downtime, not a rolling deployment:** stop all old ingress, workers and approval pollers across every replica and scheduled job, wait for them to exit, then migrate/backfill, then start only new binaries. Do not mix old and new runtimes on the same store. Old pollers can disclose a new automatic approval's private argument-bearing body to its source channel; old workers can create untainted runs after the one-time backfill. Draining executions alone is not sufficient. Custom stores need the same stop/backfill/start sequence. See [Multiple replicas](https://chamvi.dev/deployment/replicas#upgrading-to-untrusted-content-gates).
 

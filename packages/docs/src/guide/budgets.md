@@ -7,6 +7,7 @@ Every agent has a budget. `defineAgent()` fills in the defaults, and your values
 | `maxSteps` | `20` | stop condition | Parent agent-loop steps per run, across all executions |
 | `maxTokens` | none | stop condition | Parent agent-loop input plus output tokens per run, across all executions |
 | `timeoutMs` | `900_000` (15 min) | abort signal | Wall-clock limit **per execution** |
+| `maxSubtreeTokens` | none | dispatch refusal | Input plus output tokens of every run below this one; once reached, no new [dispatch](/guide/dispatch) |
 
 <<< @/snippets/agents.ts#define{25-29}
 
@@ -31,3 +32,19 @@ A resumed approval gets exactly one step beyond `maxSteps`. An approval asked fo
 ## Token usage
 
 `run.usage` holds `{ inputTokens, outputTokens }` summed over every step of the run. Each `llm` step stores its own usage in `output.usage`. A provider that reports no usage counts as zero.
+
+## Subtree tokens
+
+A run's own budget does not cover the runs it [dispatched](/guide/dispatch): each child has its own. `run.subtreeUsage` is the sum of every descendant's `usage` (children, their children, and so on), recomputed from the children whenever one settles, so it is never counted twice.
+
+`budget.maxSubtreeTokens` bounds a whole tree: once the `subtreeUsage` (input plus output tokens) of a run of this agent reached it, `dispatch()` and `dispatchTo()` in that run, and in every run below it, fail with a `BudgetExceeded` tool error (not fatal: the model sees it and can finish with what it has). It is checked when a dispatch starts; children already running go on. A call recorded before the limit (a redo after a crash or a wait) keeps its child.
+
+```ts
+defineAgent({
+    name: 'auditor',
+    // ...
+    budget: { maxSubtreeTokens: 2_000_000 },
+});
+```
+
+The [audit example](/guide/dispatch#waiting-for-the-outcomes) sets it on the agent that fans out.

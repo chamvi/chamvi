@@ -119,14 +119,25 @@ type RunToolResult = {
     deduplicated: boolean;
     output?: unknown;
     error?: { code: string; message: string };
-    waiting?: {
-        toolName: string;
-        title: string;
-        body?: string;
-        options?: ApprovalOption[]; // the choices to answer with approve_run's selected
-        multiple?: boolean; // true when several options may be selected
-        expiresAt: string;
-    };
+    waiting?: RunToolApprovalWait | RunToolDispatchWait;
+};
+type RunToolApprovalWait = { // the run, or a descendant it waits on, waits on an approval
+    kind: 'approval';
+    runId: string; // the run to answer with approve_run
+    agent: string;
+    toolName: string;
+    title: string;
+    body?: string;
+    artifacts?: string[];
+    options?: ApprovalOption[]; // the choices to answer with approve_run's selected
+    multiple?: boolean; // true when several options may be selected
+    expiresAt: string;
+};
+type RunToolDispatchWait = { // the run waits on the runs it dispatched (get_run only: run_<agent> keeps waiting)
+    kind: 'dispatch';
+    toolName: string;
+    runIds: string[];
+    expiresAt: string;
 };
 type ApproveBody = { // POST /runs/:id/approve; approve_run takes the same fields plus runId
     approvalId: string;
@@ -135,6 +146,8 @@ type ApproveBody = { // POST /runs/:id/approve; approve_run takes the same field
     selected?: string[]; // the chosen option ids of a wait point with options, none on a denial
 };
 ```
+
+`GET /runs` takes `filter[parent]=<run id>` (once, else 400 `filter[parent] takes one run id.`) next to `filter[agent]` and `filter[status]`: the runs whose `parentRunId` it is, under the same read rule (an agent-scoped reader adds `filter[agent]`). Runs carry `parentRunId` and `subtreeUsage` when set; `POST /runs/:id/approve` answers a run waiting on dispatched runs with 409 `invalid_run_state`, and `approve_run` refuses it.
 
 `selected` follows `engine.approve()`'s rules (see [Approvals](/guide/approvals) and [HTTP](/guide/http)): a selection that does not fit the wait point is `400 validation_error`.
 

@@ -21,7 +21,7 @@ The full arguments and taint details are visible in the **private approval inbox
 How it survives a restart:
 
 1. The first time, `approve()` has no decision for this call. It records the request and suspends the call; nothing is sent yet.
-2. The step ends. The engine saves the checkpoint with the suspended call **pending** (the assistant message keeps every tool call, the tool message keeps the results of the calls that finished), stores the **wait point** (`run.waiting`: `approvalId`, `toolName`, `toolCallId`, `title`, `body?`, `channel?`, `address?`, `expiresAt`) and moves the run `running` to `waiting`, releasing its claim and slot. A run with a concurrency key keeps the key blocked while it waits.
+2. The step ends. The engine saves the checkpoint with the suspended call **pending** (the assistant message keeps every tool call, the tool message keeps the results of the calls that finished), stores the **wait point** (`run.waiting`: `kind: 'approval'`, `id` (equal to `approvalId`), `approvalId`, `toolName`, `toolCallId`, `title`, `body?`, `channel?`, `address?`, `expiresAt`) and moves the run `running` to `waiting`, releasing its claim and slot. A run with a concurrency key keeps the key blocked while it waits.
 3. An answer records the decision, appends a `wait` step and moves the run to `queued`.
 4. The next execution first runs the pending calls (no model call): the tool starts again from the top, and this time `approve()` returns the recorded decision. Their results join the checkpoint, then the model loop goes on and the model sees the tool's result.
 
@@ -33,6 +33,7 @@ On resume the tool runs from the start. Whatever it did before `approve()` happe
 
 Other rules:
 
+- **One wait per pause.** `run.waiting` is a union on `kind`: `approval`, or `dispatch` for a run that waits on the runs it [dispatched](/guide/dispatch#waiting-for-the-outcomes). Narrow on `kind` before reading approval fields; `engine.approve()` and the inbox handle only `approval`.
 - **One approval per pause.** When several calls of one step suspend, the run waits on the first in call order; the others stay pending and ask again after the resume, before any model call. Calls of the step that finished keep their results and do not run again.
 - **Pending calls get the same checks as the model's.** The `toolPolicy`, the tool's input schema, a third-party tool's context schema and the agent hooks apply again when a pending call runs; a tool the policy now refuses answers `ToolNotAllowedError`.
 - **Budget.** A resumed approval gets one step beyond `maxSteps`, so an approval on the last step is still answered.
@@ -89,7 +90,7 @@ The coding tools, the GitHub tools and any third-party tool have an `execute` yo
 
 <<< @/snippets/approvals.ts#answer
 
-`engine.approve(runId, { approvalId, approved, reason?, approver?, selected? })` answers the run's current wait point, for a caller that authorized the approver itself (the `@chamvi/http` endpoint `POST /runs/:id/approve`, which the dashboard uses). An `approvalId` that is not the current one, an expired wait point (the next `tick()` denies it) or a run that is not `waiting` throws `InvalidRunStateError`.
+`engine.approve(runId, { approvalId, approved, reason?, approver?, selected? })` answers the run's current wait point, for a caller that authorized the approver itself (the `@chamvi/http` endpoint `POST /runs/:id/approve`, which the dashboard uses). An `approvalId` that is not the current one, an expired wait point (the next `tick()` denies it), a run that waits on dispatched runs instead of an approval or a run that is not `waiting` throws `InvalidRunStateError`.
 
 `selected` answers a wait point with options: an approval needs exactly one id (with `multiple` at least one) of the wait point's options; a denial selects nothing (an empty `selected` is dropped). Anything else is a `ValidationError` (400 over HTTP), checked after the state checks above, and the run keeps waiting: `selected` on a plain wait point, an unknown id, several ids for a single choice, an approval without a selection, or a selection that is no array of at most 20 distinct strings (this shape is checked before any store read). The decision and the `wait` step's `output.selected` hold the ids in option order; a timeout and a denial never have a selection.
 
