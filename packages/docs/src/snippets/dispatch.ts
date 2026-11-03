@@ -1,5 +1,5 @@
 import { Output } from 'ai';
-import type { LanguageModel } from 'ai';
+import type { LanguageModel, Tool } from 'ai';
 import { z } from 'zod';
 import {
     Engine,
@@ -15,8 +15,14 @@ import {
 import { cron, cronChannel } from '@chamvi/channel-cron';
 
 declare const model: LanguageModel;
+// stand-ins for real tools (e.g. github_list_pull_requests from @chamvi/github)
+declare const listPullRequests: Tool;
+declare const reviewPullRequest: Tool;
 
 // #region tool
+// The adapter between the model and the engine: dispatch() does the work
+// (schema, effect record, dedupe, limits, lineage, queueing); the tool only
+// decides the child's idempotency key and address.
 const dispatchPr = defineTool({
     description: 'Starts a run of its own for one pull request that needs work.',
     inputSchema: z.object({ pr: z.string().describe('owner/repo#number') }),
@@ -24,7 +30,9 @@ const dispatchPr = defineTool({
         // the day the daily run was fired, not the wall clock: a redo keeps the key
         const day = context.run.trigger.receivedAt.toISOString().slice(0, 10);
 
+        // resolves at once with { runId, deduplicated }: fire and forget
         return dispatch(context, {
+            role: 'pr',
             payload: { pr },
             idempotencyKey: `${pr}@${day}`,
             address: pr,
@@ -34,20 +42,32 @@ const dispatchPr = defineTool({
 // #endregion tool
 
 // #region agent
+// One agent, two kinds of run: the daily run lists and dispatches, each
+// dispatched run works on one pull request with its own context, budget and
+// approvals, in parallel with the others.
 const maintainer = defineAgent({
     name: 'maintainer',
     model,
-    instructions: 'Every morning, dispatch each pull request that needs work.',
+    instructions: [
+        'On the daily schedule: list the open pull requests and call dispatch_pr for each one that needs work.',
+        'When started with a { pr } payload: review that pull request only.',
+    ].join('\n'),
     channels: [
         cron.on('0 6 * * *'),
-        // the opt-in: runs of this agent may start runs of this agent (role 'default')
+        // the opt-in: runs of this agent may start runs of this agent under the role 'pr'
         agent.on({
+            role: 'pr',
             schema: z.object({ pr: z.string() }),
+            // never two runs on one pull request at a time
             concurrencyKey: (p) => p.pr,
             maxPerRun: 20,
         }),
     ],
-    tools: { dispatch_pr: dispatchPr },
+    tools: {
+        list_pull_requests: listPullRequests,
+        dispatch_pr: dispatchPr,
+        review_pull_request: reviewPullRequest,
+    },
 });
 // #endregion agent
 
