@@ -135,6 +135,10 @@ export class MemoryRunRepository implements IRunRepository {
             updatedAt: patch.updatedAt ? copy(patch.updatedAt) : this.clock.now(),
         };
 
+        if (!patch.updatedAt && opts.keepUpdatedAt) {
+            next.updatedAt = run.updatedAt;
+        }
+
         // lineage is fixed at insert: a patch never moves a run to another parent
         if (run.parentRunId === undefined) {
             delete next.parentRunId;

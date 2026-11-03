@@ -269,6 +269,8 @@ describePostgres('two engines sharing TypeORM store', () => {
             expect((await a.store.runs.findOne(parentId))?.waiting?.kind).toBe('dispatch');
         }, WAIT);
 
+        const waited = await a.store.runs.findOneOrFail(parentId);
+
         // B answers and executes the child; its settle answers the parent
         await b.engine.start();
         await b.engine.approve(childId, { approvalId: '0:k1:0', approved: true });
@@ -282,6 +284,8 @@ describePostgres('two engines sharing TypeORM store', () => {
 
         expect(child).toMatchObject({ status: 'completed', output: 'out-a' });
         expect(steps.filter((s) => s.kind === 'wait')).toHaveLength(1);
+        // the child's settle (a subtreeUsage patch) did not move the wait's start
+        expect(steps.find((s) => s.kind === 'wait')?.startedAt).toEqual(waited.updatedAt);
         expect(steps.filter((s) => s.kind === 'tool')[0]?.output).toEqual([{
             runId: childId,
             agent: 'lead',

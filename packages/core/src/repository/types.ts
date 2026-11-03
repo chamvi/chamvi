@@ -32,6 +32,8 @@ export type RunUpdateOptions = {
     expectStatus?: RunStatusLiteral[];
     expectOwner?: string;
     expectWaitId?: string;
+    /** Keep the stored updatedAt when the patch sets none (default: stamped with now), for derived fields such as subtreeUsage. */
+    keepUpdatedAt?: boolean;
 };
 
 export type StateFindOptions = { limit?: number; offset?: number };

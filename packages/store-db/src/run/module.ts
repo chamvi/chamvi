@@ -103,9 +103,16 @@ export class DatabaseRunRepository implements IRunRepository {
             where.claimOwner = opts.expectOwner;
         }
 
+        const values: Partial<Run> = { ...patch, updatedAt: patch.updatedAt ?? (opts.keepUpdatedAt ? undefined : this.now()) };
+
+        if (!values.updatedAt) {
+            // keepUpdatedAt: leave the column out (an undefined value would write null)
+            delete values.updatedAt;
+        }
+
         const query = this.runs.createQueryBuilder()
             .update()
-            .set(toRunValues({ ...patch, updatedAt: patch.updatedAt ?? this.now() }))
+            .set(toRunValues(values))
             .where(where);
 
         if (opts.expectWaitId !== undefined) {

@@ -224,7 +224,11 @@ describe('dispatch cancel cascade', () => {
 
     it('a child settling after its parent was cancelled does nothing', async () => {
         const hold = gate();
-        const { engine, store } = build([turn(call('fan', { payloads: ['a'] }, 'c1'))], async () => {
+        const {
+            engine, 
+            store, 
+            clock, 
+        } = build([turn(call('fan', { payloads: ['a'] }, 'c1'))], async () => {
             await hold.wait();
 
             return text('out-a');
@@ -242,6 +246,8 @@ describe('dispatch cancel cascade', () => {
         }, { expectStatus: ['waiting'] });
         const [a] = await children(store, parentId);
 
+        // the child settles later, so a write stamping updatedAt would show
+        clock.advance(1_000);
         hold.open();
         await engine.idle();
         await engine.tick();

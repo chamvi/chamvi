@@ -39,7 +39,8 @@ function dispatchWaitOf(run: Run | undefined): DispatchWaitPoint | undefined {
  * plus their own subtreeUsage), then of its parent and so on up the lineage
  * (at most DISPATCH_DEPTH_MAX hops). A recompute, never an increment, so a
  * repeated or healed call never counts a run twice. Patched without a status
- * guard and without touching updatedAt (the run's own writes go on).
+ * guard and with `keepUpdatedAt` (the run's own writes go on, and a wait
+ * step's start, taken from updatedAt, stays the wait's start).
  */
 export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: string): Promise<void> {
     let next: string | undefined = runId;
@@ -53,7 +54,7 @@ export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: s
             subtreeUsage.outputTokens += child.usage.outputTokens + (child.subtreeUsage?.outputTokens ?? 0);
         }
 
-        const updated: Run = await ctx.store.runs.update(next, { subtreeUsage });
+        const updated: Run = await ctx.store.runs.update(next, { subtreeUsage }, { keepUpdatedAt: true });
 
         next = updated.parentRunId;
     }

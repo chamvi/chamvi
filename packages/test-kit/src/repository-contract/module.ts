@@ -844,6 +844,30 @@ export function describeRepositoryContract(
             expect(updated.status).toBe(RunStatus.QUEUED);
         });
 
+        it('keepUpdatedAt leaves updatedAt as stored', async () => {
+            const { store, clock } = await setup();
+
+            await store.runs.insert(makeRun('r1'));
+
+            const before = await store.runs.findOneOrFail('r1');
+
+            clock.advance(5_000);
+
+            const kept = await store.runs.update(
+                'r1',
+                { subtreeUsage: { inputTokens: 3, outputTokens: 4 } },
+                { keepUpdatedAt: true },
+            );
+
+            expect(kept.updatedAt).toEqual(before.updatedAt);
+            expect(kept.subtreeUsage).toEqual({ inputTokens: 3, outputTokens: 4 });
+            expect((await store.runs.findOneOrFail('r1')).updatedAt).toEqual(before.updatedAt);
+
+            const stamped = await store.runs.update('r1', { subtreeUsage: { inputTokens: 5, outputTokens: 6 } });
+
+            expect(stamped.updatedAt).toEqual(clock.now());
+        });
+
         it('expectWaitId matches a wait point without id by its approvalId', async () => {
             const { store } = await setup();
             const legacy = {

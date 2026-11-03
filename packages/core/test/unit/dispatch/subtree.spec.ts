@@ -10,6 +10,7 @@ import {
     describe, 
     expect, 
     it, 
+    vi,
 } from 'vitest';
 import { z } from 'zod';
 import {
@@ -145,6 +146,39 @@ describe('subtree usage', () => {
         // a run that dispatched nothing has none
         expect(b.subtreeUsage).toBeUndefined();
         expect(parent?.subtreeUsage).toEqual({ inputTokens: 31, outputTokens: 11 });
+    });
+
+    it('a child settling moves neither the parent\'s updatedAt nor the wait step start', async () => {
+        const clock = new ControllableClock(START);
+        const holdA = gate();
+        const holdB = gate();
+        const { engine, store } = build([turn({ inputTokens: 0, outputTokens: 0 }, call('fan', { payloads: ['a', 'b'] }, 'c1'))], async (payload) => {
+            await (payload === 'a' ? holdA : holdB).wait();
+
+            return text(`out-${String(payload)}`, { inputTokens: 1, outputTokens: 1 });
+        }, { clock });
+        const paused = nextRun(engine, (run) => run.status === 'waiting');
+        const parentId = await root(engine);
+
+        await paused;
+
+        const waited = await store.runs.findOneOrFail(parentId);
+
+        clock.advance(1_000);
+        holdA.open();
+        await vi.waitFor(async () => {
+            expect((await store.runs.findOneOrFail(parentId)).subtreeUsage).toEqual({ inputTokens: 1, outputTokens: 1 });
+        });
+        expect((await store.runs.findOneOrFail(parentId)).updatedAt).toEqual(waited.updatedAt);
+
+        clock.advance(1_000);
+        holdB.open();
+        await engine.idle();
+
+        const wait = (await store.steps.find(parentId)).find((s) => s.kind === 'wait');
+
+        expect((await store.runs.findOneOrFail(parentId)).status).toBe('completed');
+        expect(wait?.startedAt).toEqual(waited.updatedAt);
     });
 
     it('no double count after a lost push and tick heal', async () => {
