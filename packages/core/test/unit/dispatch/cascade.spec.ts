@@ -261,6 +261,43 @@ describe('dispatch cancel cascade', () => {
         expect((await store.steps.find(parentId)).filter((s) => s.kind === 'wait')).toHaveLength(0);
     });
 
+    it('a lost cascade is healed by the next tick', async () => {
+        const { engine, store } = build([turn(call('fan', { payloads: ['a'] }, 'c1'))], (_payload, options) => hanging(options));
+        const started = runningChildren(engine, 1);
+        const paused = nextRun(engine, (run) => run.parentRunId === undefined && run.status === 'waiting');
+        const parentId = await root(engine);
+
+        await Promise.all([started, paused]);
+
+        // the cascade's read of the children fails once
+        const find = store.runs.find.bind(store.runs);
+        let failed = false;
+
+        store.runs.find = async (q) => {
+            if (!failed && q.parentRunId !== undefined && q.status !== undefined) {
+                failed = true;
+
+                throw new Error('store down');
+            }
+
+            return find(q);
+        };
+
+        // the parent waits, so cancel() settles it and runs the cascade before it resolves
+        await engine.cancel(parentId);
+
+        const [a] = await children(store, parentId);
+
+        expect(failed).toBe(true);
+        expect((await store.runs.findOne(parentId))?.status).toBe('cancelled');
+        expect(a?.status).toBe('running');
+
+        await engine.tick();
+        await engine.idle();
+
+        expect((await store.runs.findOne(a!.id))?.status).toBe('cancelled');
+    });
+
     it('registry replacement cascades', async () => {
         const {
             engine, 

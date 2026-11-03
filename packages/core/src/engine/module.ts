@@ -79,7 +79,12 @@ import {
 import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
 import { executeRun } from './execute/module.ts';
 import type { SuspendRequest } from './execute/types.ts';
-import { answerDispatchWait, healDispatchWaits, onRunSettled } from './dispatch/module.ts';
+import {
+    answerDispatchWait,
+    healCancelCascade,
+    healDispatchWaits,
+    onRunSettled,
+} from './dispatch/module.ts';
 import type { DispatchEngineContext, ResumeRecord, ResumeStep } from './dispatch/types.ts';
 import { RunQueue } from './queue/module.ts';
 import { agentCancelReason } from './registry/helpers.ts';
@@ -1229,7 +1234,8 @@ export class Engine implements IEngine {
      * re-sends the approval message of every other approval not delivered
      * yet (a failed send, or a crash between the pause and the send).
      * Answers every dispatch wait whose runs all settled (a lost push) and
-     * expires the ones past their expiresAt. Also runs on every poll.
+     * expires the ones past their expiresAt. Cancels the unsettled runs of a
+     * cancelled parent a lost cascade left. Also runs on every poll.
      */
     async tick(): Promise<void> {
         const now = this.clock.now().getTime();
@@ -1278,6 +1284,9 @@ export class Engine implements IEngine {
         if (await healDispatchWaits(this.dispatchContext(), data, now)) {
             resumed = true;
         }
+
+        // a cancel cascade lost to a failure (onRunSettled is best effort)
+        await healCancelCascade(this.dispatchContext()).catch((error: unknown) => this.onError(error));
 
         // A one-shot job may drain next; finish admission of resumed approvals first.
         if (resumed && this.started) {

@@ -91,7 +91,7 @@ Each call is recorded under the effect key `<runId>:dispatch:<hash of agent, rol
 
 ## Cancelling
 
-Cancelling a run cancels the children it dispatched that have not settled, awaited or not, and theirs in turn (also when a registry change cancels it). A run that completes or fails leaves its fire-and-forget children running. A run another parent dispatched under a shared idempotency key is never cancelled by a run that merely waited on it.
+Cancelling a run cancels the children it dispatched that have not settled, awaited or not, and theirs in turn (also when a registry change cancels it). A cascade lost to a store failure is completed by the engine's next poll, which cancels every unsettled run whose parent was cancelled. A run that completes or fails leaves its fire-and-forget children running. A run another parent dispatched under a shared idempotency key is never cancelled by a run that merely waited on it.
 
 ## Outbound in a child
 

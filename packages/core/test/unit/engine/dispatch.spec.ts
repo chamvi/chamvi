@@ -481,10 +481,10 @@ describe('Engine.dispatch', () => {
         await flush();
         await flush();
 
-        // one chain means one approval expiry check, one recovery and one scheduling pass per poll tick
+        // one chain means one approval expiry check, one cascade heal, one recovery and one scheduling pass per poll tick
         const statuses = list.mock.calls.map(([q]) => q.status?.join());
 
-        expect(statuses).toEqual(['waiting', 'running,interrupted', 'queued']);
+        expect(statuses).toEqual(['waiting', 'queued,running,waiting,interrupted', 'running,interrupted', 'queued']);
     });
 });
 

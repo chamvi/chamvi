@@ -19,6 +19,8 @@ import type { DispatchWaitPoint, Run, Usage } from '../../run/types.ts';
 import type { CancelReason } from '../registry/types.ts';
 import type { DispatchEngineContext } from './types.ts';
 
+const UNSETTLED: Run['status'][] = [RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.WAITING, RunStatus.INTERRUPTED];
+
 /** The outcomes of every run `waiting` lists (one read), undefined while one has not settled. */
 export async function settledOutcomes(
     ctx: DispatchEngineContext,
@@ -227,10 +229,7 @@ export async function healDispatchWaits(ctx: DispatchEngineContext, waiting: Run
  * down from their own settle. A run another run owns is never reached.
  */
 export async function cancelChildren(ctx: DispatchEngineContext, runId: string, reason?: CancelReason): Promise<void> {
-    const { data } = await ctx.store.runs.find({
-        parentRunId: runId,
-        status: [RunStatus.QUEUED, RunStatus.RUNNING, RunStatus.WAITING, RunStatus.INTERRUPTED],
-    });
+    const { data } = await ctx.store.runs.find({ parentRunId: runId, status: UNSETTLED });
 
     for (const child of data) {
         try {
@@ -245,8 +244,42 @@ export async function cancelChildren(ctx: DispatchEngineContext, runId: string, 
 }
 
 /**
+ * tick()'s heal of a lost cancel cascade (onRunSettled() is best effort):
+ * cancels every unsettled run whose parent (`parentRunId`) is `cancelled`,
+ * one listing of the unsettled runs and one batched read of their parents.
+ * A run that got `cancelRequested` already is left to its owner. The
+ * cascade goes on down from each cancel's own settle, or from the next tick.
+ */
+export async function healCancelCascade(ctx: DispatchEngineContext): Promise<void> {
+    const { data } = await ctx.store.runs.find({ status: UNSETTLED });
+    const orphans = data.filter((run) => run.parentRunId !== undefined && !run.cancelRequested);
+
+    if (orphans.length === 0) {
+        return;
+    }
+
+    const { data: parents } = await ctx.store.runs.find({ ids: [...new Set(orphans.map((run) => run.parentRunId!))] });
+    const cancelled = new Set(parents.filter((run) => run.status === RunStatus.CANCELLED).map((run) => run.id));
+
+    for (const child of orphans) {
+        if (!cancelled.has(child.parentRunId!)) {
+            continue;
+        }
+
+        try {
+            await ctx.cancel(child.id);
+        } catch (error) {
+            // settled meanwhile
+            if (!(error instanceof InvalidRunStateError)) {
+                ctx.onError(error, child);
+            }
+        }
+    }
+}
+
+/**
  * Called after every terminal write of a run (best effort, each part's
- * errors go to onError): recomputes the subtree usage up its lineage,
+ * errors go to onError; tick() heals a lost cascade): recomputes the subtree usage up its lineage,
  * cancels its children when it was cancelled, then answers its parent's
  * dispatch wait when this was the last run it waited on.
  */
