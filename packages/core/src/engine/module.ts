@@ -54,10 +54,10 @@ import {
 import { RunStatus } from '../run/constants.ts';
 import { untilAborted } from '../run/helpers.ts';
 import type {
+    ApprovalWaitPoint,
     Run,
     Step,
     Usage,
-    WaitPoint,
 } from '../run/types.ts';
 import { HANDOFF_CONTEXT } from '../handoff/constants.ts';
 import type { HandoffHost } from '../handoff/types.ts';
@@ -1194,7 +1194,7 @@ export class Engine implements IEngine {
 
         const run = await this.store.runs.findOneOrFail(runId);
 
-        if (run.status !== RunStatus.WAITING || !run.waiting) {
+        if (run.status !== RunStatus.WAITING || run.waiting?.kind !== 'approval') {
             throw new InvalidRunStateError(`Run "${run.id}" is ${run.status} and not waiting for an approval.`);
         }
 
@@ -1228,7 +1228,8 @@ export class Engine implements IEngine {
         const { data } = await this.store.runs.find({ status: [RunStatus.WAITING] });
 
         for (const listed of data) {
-            if (!listed.waiting) {
+            // a dispatch wait is neither delivered nor denied here
+            if (listed.waiting?.kind !== 'approval') {
                 continue;
             }
 
@@ -1244,7 +1245,8 @@ export class Engine implements IEngine {
                 // the listing may be stale by now: the run could wait on a newer approval
                 const run = await this.store.runs.findOne(listed.id);
 
-                if (run?.status !== RunStatus.WAITING || !run.waiting || run.waiting.expiresAt.getTime() > now) {
+                if (run?.status !== RunStatus.WAITING || run.waiting?.kind !== 'approval' ||
+                    run.waiting.expiresAt.getTime() > now) {
                     continue;
                 }
 
@@ -1283,7 +1285,7 @@ export class Engine implements IEngine {
      */
     protected async answer(
         run: Run,
-        waiting: WaitPoint,
+        waiting: ApprovalWaitPoint,
         decision: ApprovalDecisionInput,
         stale: () => Error,
     ): Promise<void> {
@@ -1298,7 +1300,7 @@ export class Engine implements IEngine {
 
         try {
             // the run may have moved on to another approval since `waiting` was read
-            if (transitioned.waiting?.approvalId !== waiting.approvalId) {
+            if (transitioned.waiting?.kind !== 'approval' || transitioned.waiting.approvalId !== waiting.approvalId) {
                 throw stale();
             }
 
@@ -1368,10 +1370,11 @@ export class Engine implements IEngine {
 
         const now = this.clock.now();
         const { timeoutMs, ...asked } = request;
-        const waiting: WaitPoint = run.waiting?.approvalId === request.approvalId ?
+        const waiting: ApprovalWaitPoint = run.waiting?.kind === 'approval' && run.waiting.approvalId === request.approvalId ?
             run.waiting :
             {
                 kind: 'approval',
+                id: request.approvalId,
                 ...asked,
                 expiresAt: new Date(now.getTime() + timeoutMs),
             };
@@ -1426,7 +1429,7 @@ export class Engine implements IEngine {
      * engine does not have, goes to onError and is retried by tick() on the
      * next poll; the run keeps waiting.
      */
-    protected async deliverApproval(run: Run, waiting: WaitPoint): Promise<void> {
+    protected async deliverApproval(run: Run, waiting: ApprovalWaitPoint): Promise<void> {
         if (waiting.channel === undefined) {
             return;
         }
@@ -1443,8 +1446,12 @@ export class Engine implements IEngine {
         const lockKey = `notify:${key}`;
         const attempt = randomUUID();
         let acquired = false;
-        const isCurrent = (current: Run | undefined) => current?.status === RunStatus.WAITING &&
-            current.waiting?.approvalId === waiting.approvalId;
+        const currentWait = (current: Run | undefined): ApprovalWaitPoint | undefined => (
+            current?.status === RunStatus.WAITING && current.waiting?.kind === 'approval' &&
+            current.waiting.approvalId === waiting.approvalId ?
+                current.waiting :
+                undefined
+        );
         const controller = new AbortController();
 
         this.deliveryControllers.add(controller);
@@ -1464,7 +1471,7 @@ export class Engine implements IEngine {
             // another attempt may have delivered it since `run` was read
             const current = await this.store.runs.findOne(run.id);
 
-            if (!isCurrent(current) || current?.waiting?.notifiedAt) {
+            if (!currentWait(current) || currentWait(current)?.notifiedAt) {
                 return;
             }
 
@@ -1506,7 +1513,7 @@ export class Engine implements IEngine {
             ]);
 
             // answered meanwhile: nothing left to record
-            if (!isCurrent(await this.store.runs.findOne(run.id))) {
+            if (!currentWait(await this.store.runs.findOne(run.id))) {
                 return;
             }
 

@@ -119,6 +119,8 @@ describe('public api', () => {
         'assertTriggerKey',
         'assertConcurrencyMaxRuns',
         'normalizeEnvelope',
+        'normalizeWaitPoint',
+        'waitIdOf',
         'consoleChannel',
         'ChannelNotFoundError',
         'defineContextKey',
@@ -296,7 +298,7 @@ describe('public api', () => {
             artifacts?: string[]
         }>();
         expectTypeOf<core.ApprovalRequestInput['artifacts']>().toEqualTypeOf<string[] | undefined>();
-        expectTypeOf<core.WaitPoint['artifacts']>().toEqualTypeOf<string[] | undefined>();
+        expectTypeOf<core.ApprovalWaitPoint['artifacts']>().toEqualTypeOf<string[] | undefined>();
         expectTypeOf<core.ApprovalRequestInput['options']>().toEqualTypeOf<core.ApprovalOption[] | undefined>();
         expectTypeOf<core.ApprovalRequestInput['multiple']>().toEqualTypeOf<boolean | undefined>();
     });
@@ -339,7 +341,14 @@ describe('public api', () => {
         expectTypeOf<core.ChannelHandle['approve']>().returns.toEqualTypeOf<Promise<core.ApprovalDecision>>();
         expectTypeOf<Parameters<core.ChannelHandle['approve']>[0]>().toEqualTypeOf<core.ApprovalRequestInput & { address?: string; slot?: string }>();
         expectTypeOf<core.ChannelMessage['slot']>().toEqualTypeOf<string | undefined>();
-        expectTypeOf<core.WaitPoint['slot']>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<core.ApprovalWaitPoint['slot']>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<core.WaitPoint>().toEqualTypeOf<core.ApprovalWaitPoint | core.DispatchWaitPoint>();
+        expectTypeOf<core.DispatchWaitPoint['runIds']>().toEqualTypeOf<string[]>();
+        expectTypeOf<core.Run['parentRunId']>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<core.Run['subtreeUsage']>().toEqualTypeOf<core.Usage | undefined>();
+        expectTypeOf<core.TriggerParent['kind']>().toEqualTypeOf<'dispatch'>();
+        expectTypeOf<core.RunFindOptions['parentRunId']>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<core.RunUpdateOptions['expectWaitId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<core.ConsoleChannelOptions>().toHaveProperty('name').toEqualTypeOf<string | undefined>();
     });
 

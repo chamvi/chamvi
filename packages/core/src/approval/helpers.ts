@@ -7,7 +7,7 @@
 
 import { isObject } from 'smob';
 import { ValidationError } from '../errors/index.ts';
-import type { WaitPoint } from '../run/types.ts';
+import type { ApprovalWaitPoint } from '../run/types.ts';
 import type { Invoker } from '../trigger/types.ts';
 import {
     APPROVAL_ARTIFACTS_MAX,
@@ -219,7 +219,7 @@ export function assertSelectionShape(selected: unknown): asserts selected is str
  * selection that does not fit the wait point.
  */
 export function toSelection(
-    waiting: WaitPoint,
+    waiting: ApprovalWaitPoint,
     approved: boolean,
     selected: string[] | undefined,
 ): string[] | undefined {
@@ -297,6 +297,7 @@ export function fitRecordedDecision(
     try {
         selected = toSelection({
             kind: 'approval',
+            id: request.approvalId,
             approvalId: request.approvalId,
             toolName: '',
             toolCallId: '',

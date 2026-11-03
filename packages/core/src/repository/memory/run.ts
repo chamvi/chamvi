@@ -8,16 +8,25 @@
 import { systemClock } from '../../clock/index.ts';
 import type { IClock } from '../../clock/index.ts';
 import { InvalidRunStateError, RepositoryNotFoundError, RunNotFoundError } from '../../errors/index.ts';
+import { normalizeWaitPoint, waitIdOf } from '../../run/helpers.ts';
 import type { Run } from '../../run/types.ts';
 import { normalizeEnvelope } from '../../trigger/helpers.ts';
-import type { IRunRepository, RunFindOptions } from '../types.ts';
+import type { IRunRepository, RunFindOptions, RunUpdateOptions } from '../types.ts';
 import { copy } from './helpers.ts';
 
-/** A copy of a stored run; an envelope of the pre-channel shape (`source`, `thread`) reads as the current one. */
+/**
+ * A copy of a stored run; an envelope of the pre-channel shape (`source`,
+ * `thread`) reads as the current one, an approval wait point without `id`
+ * reads with `id = approvalId`.
+ */
 function readRun(run: Run): Run {
     const out = copy(run);
 
     out.trigger = normalizeEnvelope(out.trigger as unknown as Record<string, unknown>);
+
+    if (out.waiting) {
+        out.waiting = normalizeWaitPoint(out.waiting as unknown as Record<string, unknown>);
+    }
 
     return out;
 }
@@ -45,7 +54,21 @@ export class MemoryRunRepository implements IRunRepository {
             return false;
         }
 
-        this.runs.set(run.id, copy(run));
+        const parentRunId = run.trigger.parent?.runId;
+
+        if (parentRunId !== undefined && !this.runs.has(parentRunId)) {
+            throw new RunNotFoundError(parentRunId);
+        }
+
+        const stored = copy(run);
+
+        delete stored.parentRunId;
+
+        if (parentRunId !== undefined) {
+            stored.parentRunId = parentRunId;
+        }
+
+        this.runs.set(run.id, stored);
 
         return true;
     }
@@ -79,7 +102,7 @@ export class MemoryRunRepository implements IRunRepository {
     async update(
         id: string,
         patch: Partial<Run>,
-        opts: { expectStatus?: Run['status'][]; expectOwner?: string } = {},
+        opts: RunUpdateOptions = {},
     ): Promise<Run> {
         const run = this.runs.get(id);
 
@@ -99,12 +122,25 @@ export class MemoryRunRepository implements IRunRepository {
             );
         }
 
-        const next = {
+        if (opts.expectWaitId !== undefined && waitIdOf(run.waiting) !== opts.expectWaitId) {
+            throw new InvalidRunStateError(
+                `Run "${id}" does not wait on "${opts.expectWaitId}" (wait: ${waitIdOf(run.waiting) ?? 'none'}).`,
+            );
+        }
+
+        const next: Run = {
             ...run,
             ...copy(patch),
             id,
             updatedAt: patch.updatedAt ? copy(patch.updatedAt) : this.clock.now(),
         };
+
+        // lineage is fixed at insert: a patch never moves a run to another parent
+        if (run.parentRunId === undefined) {
+            delete next.parentRunId;
+        } else {
+            next.parentRunId = run.parentRunId;
+        }
 
         this.runs.set(id, next);
 
@@ -116,7 +152,9 @@ export class MemoryRunRepository implements IRunRepository {
         const matched = this.runs.values().toArray()
             .filter((r) => (q.agent === undefined || r.agent === q.agent) &&
                 (q.status === undefined || q.status.includes(r.status)) &&
-                (q.concurrencyKey === undefined || r.concurrencyKey === q.concurrencyKey))
+                (q.concurrencyKey === undefined || r.concurrencyKey === q.concurrencyKey) &&
+                (q.ids === undefined || q.ids.includes(r.id)) &&
+                (q.parentRunId === undefined || r.parentRunId === q.parentRunId))
             .sort((a, b) => direction * (a.createdAt.getTime() - b.createdAt.getTime() || a.id.localeCompare(b.id, 'en')));
         const offset = q.offset ?? 0;
         const end = q.limit === undefined ? undefined : offset + q.limit;

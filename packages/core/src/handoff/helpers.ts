@@ -112,6 +112,7 @@ function cloneParent(parent: TriggerParent): TriggerParent {
         kind: parent.kind,
         runId: parent.runId,
         agent: parent.agent,
+        role: parent.role,
         depth: parent.depth,
     };
 }

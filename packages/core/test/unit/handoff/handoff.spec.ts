@@ -39,6 +39,7 @@ import type {
 } from '@chamvi/core';
 import { stableHash } from '../../../src/effect/helpers.ts';
 import { MemoryEffectRepository, createMemoryStore } from '../../../src/repository/index.ts';
+import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
@@ -225,13 +226,15 @@ describe('startHandoff()', () => {
             concurrencyKey: 'o/r#5',
             address: 'o/r#5',
             parent: {
-                kind: 'handoff',
+                kind: 'dispatch',
                 runId: parentId,
                 agent: 'maintainer',
+                role: 'handoff',
                 depth: 1,
             },
         });
         expect(child!.concurrencyKey).toBe('o/r#5');
+        expect(child!.parentRunId).toBe(parentId);
         expect(child!.address).toBe('o/r#5');
 
         const [step] = await toolSteps(store, parentId);
@@ -398,9 +401,10 @@ describe('startHandoff()', () => {
         expect(child!.agent).toBe('maintainer');
         expect(child!.trigger.invoker).toEqual(invoker);
         expect(child!.trigger.parent).toEqual({
-            kind: 'handoff',
+            kind: 'dispatch',
             runId: parentId,
             agent: 'maintainer',
+            role: 'handoff',
             depth: 1,
         });
     });
@@ -544,7 +548,7 @@ describe('startHandoff()', () => {
         const paused = await store.runs.findOne(parentId);
 
         expect(paused?.status).toBe('waiting');
-        await engine.approve(parentId, { approvalId: paused!.waiting!.approvalId, approved: true });
+        await engine.approve(parentId, { approvalId: approvalWait(paused)!.approvalId, approved: true });
         await engine.idle();
         expect((await store.runs.findOne(parentId))?.status).toBe('completed');
         expect(await children(store)).toHaveLength(3);

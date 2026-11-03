@@ -31,6 +31,7 @@ import type {
     IEngine,
     ToolContext,
 } from '@chamvi/core';
+import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { stableHash } from '../../../src/effect/helpers.ts';
@@ -387,7 +388,7 @@ describe('channel outbound', () => {
 
         await ctx.engine.idle();
         expect(stored?.status).toBe('waiting');
-        expect(stored?.waiting?.address).toBe('me');
+        expect(approvalWait(stored)?.address).toBe('me');
         expect(owner.calls.map((c) => [c.message.kind, c.address])).toEqual([['message', 'me'], ['approval', 'me']]);
     });
 

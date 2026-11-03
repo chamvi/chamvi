@@ -12,6 +12,7 @@ import {
     it,
 } from 'vitest';
 import { approve } from '@chamvi/core';
+import { approvalWait } from '../../utils/approvals.ts';
 import { concurrencyHarness, subscription } from '../../utils/concurrency.ts';
 
 const harnesses: ReturnType<typeof concurrencyHarness>[] = [];
@@ -53,7 +54,7 @@ describe('nested execution caps', () => {
         expect(request.status).toBe('waiting');
         expect((await h.store.runs.findOne(keyed.runId))?.status).toBe('queued');
         expect((await h.store.runs.findOne(free.runId))?.status).toBe('running');
-        await engine.approve(waiting.runId, { approvalId: request.waiting!.approvalId, approved: true });
+        await engine.approve(waiting.runId, { approvalId: approvalWait(request)!.approvalId, approved: true });
         await h.settle();
         expect((await h.store.runs.findOne(waiting.runId))?.status).toBe('queued');
         h.releases.get(free.runId)!();

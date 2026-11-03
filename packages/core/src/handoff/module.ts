@@ -78,7 +78,7 @@ export async function startHandoff<S extends StateSchema = StateSchema>(
     }
 
     const maxPerRun = maxPerRunOf(run.agent, subscription);
-    const depth = run.parent?.kind === 'handoff' ? run.parent.depth : 0;
+    const depth = run.parent?.kind === 'dispatch' ? run.parent.depth : 0;
 
     if (depth >= MAX_HANDOFF_DEPTH) {
         throw new ValidationError(`A handed-off run cannot hand off again (depth ${MAX_HANDOFF_DEPTH}).`);
@@ -126,9 +126,10 @@ export async function startHandoff<S extends StateSchema = StateSchema>(
             ...(address !== undefined ? { address } : {}),
             ...(invoker ? { invoker: { ...invoker, permissions: [...invoker.permissions] } } : {}),
         }, {
-            kind: 'handoff',
+            kind: 'dispatch',
             runId: run.runId,
             agent: run.agent,
+            role: 'handoff',
             depth: depth + 1,
         });
         const value: HandoffResult = { runId: result.runId, deduplicated: result.deduplicated };

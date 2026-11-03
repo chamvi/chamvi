@@ -24,6 +24,7 @@ import {
     defineTool,
 } from '@chamvi/core';
 import type { AgentDefinition, AgentInstructions, IEngine } from '@chamvi/core';
+import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
 
@@ -307,7 +308,7 @@ describe('structured instructions', () => {
         const second = setup(instructions, [text], { tools: { lookup } }, store);
 
         await second.engine.start();
-        await second.engine.approve(runId, { approvalId: waiting!.waiting!.approvalId, approved: true });
+        await second.engine.approve(runId, { approvalId: approvalWait(waiting)!.approvalId, approved: true });
         await second.engine.idle();
         expect(await store.runs.findOne(runId)).toMatchObject({ status: 'completed', output: 'done' });
         expect(contexts).toHaveLength(2);

@@ -31,6 +31,7 @@ import type {
     ToolContext,
 } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
+import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
@@ -183,6 +184,7 @@ describe('durable approve()', () => {
         expect(run?.claim).toBeUndefined();
         expect(run?.waiting).toMatchObject({
             kind: 'approval',
+            id: '0:c1:0',
             approvalId: '0:c1:0',
             toolCallId: 'c1',
             toolName: 'deploy',
@@ -283,7 +285,7 @@ describe('durable approve()', () => {
         const { store, engine } = setup(model, { tools: { quick, deploy: createDeploy(recorder) } });
         const { runId, run } = await dispatch(engine, store);
 
-        expect(run?.waiting?.approvalId).toBe('0:c2:0');
+        expect(approvalWait(run)?.approvalId).toBe('0:c2:0');
         expect(fast).toBe(1);
         expect((await store.steps.find(runId)).map((s) => s.name ?? s.kind)).toEqual(['mock-model-id', 'quick']);
         expect(resultIds((await store.checkpoints.findOne(runId))!.messages)).toEqual(['c1']);
@@ -320,7 +322,7 @@ describe('durable approve()', () => {
 
         expect(second?.status).toBe('waiting');
         expect(second?.waiting).toMatchObject({ approvalId: '0:c2:0', title: 'Deploy eu?' });
-        expect(second?.waiting?.approvalId).not.toBe(run?.waiting?.approvalId);
+        expect(approvalWait(second)?.approvalId).not.toBe(approvalWait(run)?.approvalId);
         // paused again without a model call
         expect(model.doStreamCalls).toHaveLength(1);
         expect(recorder.deployed).toEqual(['prod']);
@@ -683,7 +685,7 @@ describe('durable approve()', () => {
         });
         const { runId, run } = await dispatch(engine, store);
 
-        expect(run?.waiting?.approvalId).toBe('0:c1:0');
+        expect(approvalWait(run)?.approvalId).toBe('0:c1:0');
         engine.stop();
 
         const { engine: changed } = createEngine(store, clock, model, { tools: { third }, hooks });

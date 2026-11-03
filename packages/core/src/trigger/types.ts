@@ -26,13 +26,16 @@ export type Invoker = {
 };
 
 /**
- * The run that started this one. Only startHandoff() sets it (kind
- * `handoff`); a dispatch never carries one, so no caller forges lineage.
+ * The run that dispatched this one. Only the engine-internal host sets it;
+ * a dispatch() envelope never carries one, so no caller forges lineage.
  */
 export type TriggerParent = {
-    kind: 'handoff';
+    kind: 'dispatch';
     runId: string;
+    /** The parent run's agent. */
     agent: string;
+    /** The dispatch role of the child agent this run was started through. */
+    role: string;
     depth: number;
 };
 
