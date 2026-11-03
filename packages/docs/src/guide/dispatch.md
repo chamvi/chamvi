@@ -105,4 +105,4 @@ The child's `trigger.parent` is `{ kind: 'dispatch', runId, agent, role, depth }
 
 ## Under `chamvi run-job`
 
-A [one-shot job](/guide/scheduler#one-shot-jobs) starts a whole engine over the shared store, so it runs the children its run dispatched too. A job whose run waits on its children does not end until they settle; it ends when the run or one of its descendants waits on an approval (`RunJobResult.waitingRunId` names the descendant). The drain at the end of the job interrupts fire-and-forget children still running; they requeue through recovery on the deployment and go on from their latest checkpoint.
+A [one-shot job](/guide/scheduler#one-shot-jobs) starts a whole engine over the shared store, so it runs the children its run dispatched too. A job whose run waits on its children does not end until they settle; it ends when the run or one of its descendants (also a run it waits on that another run dispatched) waits on an approval (`RunJobResult.waitingRunId` names the descendant). The drain at the end of the job interrupts fire-and-forget children still running; they requeue through recovery on the deployment and go on from their latest checkpoint.

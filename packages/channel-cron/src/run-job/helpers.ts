@@ -50,8 +50,10 @@ function isApprovalWait(run: Run): boolean {
 /**
  * The run a job returns on, or `false` to keep waiting: the run itself when it
  * finished or waits for a human (an approval); when it waits on its dispatched
- * runs, the first unsettled descendant (breadth-first over `parentRunId`, at
- * most `DISPATCH_DEPTH_MAX` levels) that waits on an approval. A dispatch wait
+ * runs, the first unsettled descendant that waits on an approval
+ * (breadth-first over `parentRunId` children and the runs a dispatch wait
+ * point names, a deduplicated run another run dispatched too; each run once,
+ * at most `DISPATCH_DEPTH_MAX` levels). A dispatch wait
  * alone keeps the job waiting.
  */
 export async function isJobSettled(store: Pick<IRunRepository, 'find' | 'findOne'>, run: Run): Promise<Run | false> {
@@ -63,20 +65,33 @@ export async function isJobSettled(store: Pick<IRunRepository, 'find' | 'findOne
         return false;
     }
 
-    let level = [run.id];
+    const visited = new Set([run.id]);
+    let level = [run];
 
     for (let depth = 0; depth < DISPATCH_DEPTH_MAX && level.length > 0; depth++) {
-        const next: string[] = [];
+        const next: Run[] = [];
+        // a level's own children, then the unsettled runs its dispatch waits name (one read)
+        const batches: Array<() => Promise<Run[]>> = [
+            ...level.map((r) => async () => (await store.find({ parentRunId: r.id, status: UNSETTLED })).data),
+            async () => {
+                const ids = [...new Set(level.flatMap((r) => (r.waiting?.kind === 'dispatch' ? r.waiting.runIds : []))).difference(visited)];
 
-        for (const id of level) {
-            const { data } = await store.find({ parentRunId: id, status: UNSETTLED });
+                return ids.length > 0 ? (await store.find({ ids, status: UNSETTLED })).data : [];
+            },
+        ];
 
-            for (const child of data) {
-                if (isApprovalWait(child)) {
-                    return child;
+        for (const batch of batches) {
+            for (const found of await batch()) {
+                if (visited.has(found.id)) {
+                    continue;
                 }
 
-                next.push(child.id);
+                if (isApprovalWait(found)) {
+                    return found;
+                }
+
+                visited.add(found.id);
+                next.push(found);
             }
         }
 

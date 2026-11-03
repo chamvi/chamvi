@@ -178,9 +178,9 @@ describe('findWaitingApproval', () => {
     function engineOver(runs: Run[]) {
         const store = createMemoryStore();
         const engine = new Engine({
-            store, 
-            agents: [], 
-            onError: () => {}, 
+            store,
+            agents: [],
+            onError: () => {},
         });
 
         return {
@@ -208,6 +208,33 @@ describe('findWaitingApproval', () => {
 
         await ready;
         expect((await findWaitingApproval(engine, 'r1'))?.id).toBe('g1');
+    });
+
+    it('follows the runs of the wait point, also one another run dispatched', async () => {
+        // r1 waits on `shared`, a run `other` dispatched (reached through a shared idempotency key)
+        const { engine, ready } = engineOver([
+            buildRun('waiting', { ...DISPATCH_WAIT, runIds: ['shared'] }),
+            buildRun('running', undefined, 'other'),
+            buildRun('waiting', APPROVAL_WAIT, 'shared', 'other'),
+        ]);
+
+        await ready;
+        expect((await findWaitingApproval(engine, 'r1'))?.id).toBe('shared');
+    });
+
+    it('ends on wait points that name each other', async () => {
+        const { engine, ready } = engineOver([
+            buildRun('waiting', { ...DISPATCH_WAIT, runIds: ['x', 'x'] }),
+            buildRun('running', undefined, 'other'),
+            buildRun('waiting', {
+                ...DISPATCH_WAIT,
+                id: '0:x:w0',
+                runIds: ['r1'],
+            }, 'x', 'other'),
+        ]);
+
+        await ready;
+        expect(await findWaitingApproval(engine, 'r1')).toBeUndefined();
     });
 
     it('is undefined without an approval wait, for an unknown run and past the depth cap', async () => {

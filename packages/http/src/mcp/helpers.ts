@@ -99,8 +99,10 @@ const UNSETTLED = [
 
 /**
  * The run itself when it waits on an approval, else the first unsettled
- * descendant (breadth-first over `parentRunId`, at most `DISPATCH_DEPTH_MAX`
- * levels, a settled run's subtree skipped) that does; `undefined` without one.
+ * descendant that does (breadth-first over `parentRunId` children and the
+ * runs a dispatch wait point names, a deduplicated run another run
+ * dispatched too; each run once, at most `DISPATCH_DEPTH_MAX` levels, a
+ * settled run's subtree skipped); `undefined` without one.
  */
 export async function findWaitingApproval(engine: IEngine, runId: string): Promise<Run | undefined> {
     const root = await engine.store.runs.findOne(runId);
@@ -113,20 +115,33 @@ export async function findWaitingApproval(engine: IEngine, runId: string): Promi
         return root;
     }
 
-    let level = [root.id];
+    const visited = new Set([root.id]);
+    let level = [root];
 
     for (let depth = 0; depth < DISPATCH_DEPTH_MAX && level.length > 0; depth++) {
-        const next: string[] = [];
+        const next: Run[] = [];
+        // a level's own children, then the unsettled runs its dispatch waits name (one read)
+        const batches: Array<() => Promise<Run[]>> = [
+            ...level.map((run) => async () => (await engine.store.runs.find({ parentRunId: run.id, status: UNSETTLED })).data),
+            async () => {
+                const ids = [...new Set(level.flatMap((run) => (run.waiting?.kind === 'dispatch' ? run.waiting.runIds : []))).difference(visited)];
 
-        for (const id of level) {
-            const { data } = await engine.store.runs.find({ parentRunId: id, status: UNSETTLED });
+                return ids.length > 0 ? (await engine.store.runs.find({ ids, status: UNSETTLED })).data : [];
+            },
+        ];
 
-            for (const child of data) {
-                if (isApprovalWait(child)) {
-                    return child;
+        for (const batch of batches) {
+            for (const run of await batch()) {
+                if (visited.has(run.id)) {
+                    continue;
                 }
 
-                next.push(child.id);
+                if (isApprovalWait(run)) {
+                    return run;
+                }
+
+                visited.add(run.id);
+                next.push(run);
             }
         }
 

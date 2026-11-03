@@ -180,9 +180,9 @@ describe('runJob through dispatched runs', () => {
         } = delegating(worker);
         let result: Awaited<ReturnType<typeof runJob>> | undefined;
         const job = runJob({
-            engine, 
-            agent, 
-            pollMs: 1_000, 
+            engine,
+            agent,
+            pollMs: 1_000,
         }).then((r) => {
             result = r;
         });
@@ -708,6 +708,36 @@ describe('isJobSettled', () => {
         const found = await isJobSettled(store.runs, root);
 
         expect(found && found.id).toBe('grandchild');
+    });
+    it('follows the runs of the wait point, also one another run dispatched', async () => {
+        const store = createMemoryStore({ clock: new ControllableClock(T) });
+        const root = buildRun('r', 'waiting', { waiting: { ...dispatchWait, runIds: ['shared'] } });
+
+        await store.runs.insert(root);
+        await store.runs.insert(buildRun('other', 'running'));
+        await store.runs.insert(buildRun('shared', 'waiting', { parentRunId: 'other', waiting: approvalWait }));
+
+        const found = await isJobSettled(store.runs, root);
+
+        expect(found && found.id).toBe('shared');
+    });
+
+    it('ends on wait points that name each other', async () => {
+        const store = createMemoryStore({ clock: new ControllableClock(T) });
+        const root = buildRun('r', 'waiting', { waiting: { ...dispatchWait, runIds: ['x', 'x'] } });
+
+        await store.runs.insert(root);
+        await store.runs.insert(buildRun('other', 'running'));
+        await store.runs.insert(buildRun('x', 'waiting', {
+            parentRunId: 'other',
+            waiting: {
+                ...dispatchWait,
+                id: '0:x:w0',
+                runIds: ['r'],
+            },
+        }));
+
+        expect(await isJobSettled(store.runs, root)).toBe(false);
     });
 });
 
