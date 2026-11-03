@@ -9,10 +9,9 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ToolSet } from 'ai';
 import type { Agent } from '../agent/types.ts';
 import { defineTool } from '../tool/define.ts';
-import { findDispatchRole } from './helpers.ts';
+import { dispatchToolTarget, findDispatchRole } from './helpers.ts';
 import { toRoleToolInput } from './schema.ts';
 import { dispatch, dispatchTo } from './start.ts';
-import { dispatchToolTarget } from './tools.ts';
 import type { DispatchToolTarget, RoleToolInput } from './types.ts';
 import { waitForDispatch } from './wait.ts';
 
@@ -51,8 +50,9 @@ async function bindOne(target: DispatchToolTarget, self: Agent, getAgent: (name:
         await inputOf(agent, target.role, options?.schema) :
         await toRoleToolInput(roleLabel(name, target.role), undefined);
     const { wait } = target;
+    // a role's own description cannot know whether this caller waits, so the wait is stated after it
     const description = typeof options?.description === 'string' ?
-        options.description :
+        `${options.description}${wait ? ' The tool waits for the run and returns how it ended.' : ''}` :
         `Starts a run of agent "${name}" role "${target.role}"${wait ? ', then waits for it and returns how it ended' : ''}.`;
 
     return defineTool<unknown, unknown>({

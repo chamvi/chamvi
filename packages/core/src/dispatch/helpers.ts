@@ -7,6 +7,7 @@
 
 import { createHash } from 'node:crypto';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { ToolSet } from 'ai';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
 import { isObject } from 'smob';
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
@@ -24,11 +25,13 @@ import {
     DEFAULT_DISPATCH_MAX_DEPTH,
     DEFAULT_MAX_DISPATCHES_PER_RUN,
     DISPATCH_DEPTH_MAX,
+    DISPATCH_TOOL,
 } from './constants.ts';
 import type {
     DispatchHost,
     DispatchOutcome,
     DispatchRunSnapshot,
+    DispatchToolTarget,
     DispatchWaitRecord,
 } from './types.ts';
 
@@ -391,4 +394,44 @@ export function sumSubtreeUsage(children: readonly Run[], fresh?: { runId: strin
     }
 
     return total;
+}
+
+/** The placeholder's target, if `tool` is a dispatchTools() placeholder. */
+export function dispatchToolTarget(tool: unknown): DispatchToolTarget | undefined {
+    return isObject(tool) ? (tool as { [DISPATCH_TOOL]?: DispatchToolTarget })[DISPATCH_TOOL] : undefined;
+}
+
+/**
+ * Refuses a placeholder for an own role `channels` does not declare
+ * (defineAgent's eager check of a plain tool set).
+ */
+export function assertOwnDispatchRoles(agent: string, channels: ChannelSubscription[] | undefined, tools: ToolSet): void {
+    for (const [name, tool] of Object.entries(tools)) {
+        const target = dispatchToolTarget(tool);
+
+        if (!target || target.agent !== undefined) {
+            continue;
+        }
+
+        const declared = channels?.some((s) => s.channel === AGENT_CHANNEL_NAME && s.id === target.role) ?? false;
+
+        if (!declared) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent}" has no dispatch role "${target.role}" for tool "${name}".`);
+        }
+    }
+}
+
+/**
+ * Refuses a placeholder in `tools` whose name another tool of the merged
+ * set (`others`: state tools, skill tools) carries, instead of one
+ * silently replacing the other.
+ */
+export function assertNoDispatchCollision(agent: string, tools: ToolSet, others: ToolSet[]): void {
+    for (const [name, tool] of Object.entries(tools)) {
+        const taken = others.some((set) => Object.hasOwn(set, name));
+
+        if (taken && dispatchToolTarget(tool)) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent}": dispatch tool "${name}" collides with another tool of that name.`);
+        }
+    }
 }

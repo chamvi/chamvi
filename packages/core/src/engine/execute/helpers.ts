@@ -25,7 +25,7 @@ import { createToolChannels } from '../../channel/helpers.ts';
 import { checkConversation, conversationFor } from '../../conversation/context.ts';
 import { bindProvided } from '../../context/helpers.ts';
 import { bindDispatchTools } from '../../dispatch/bind.ts';
-import { assertNoDispatchCollision } from '../../dispatch/tools.ts';
+import { assertNoDispatchCollision } from '../../dispatch/helpers.ts';
 import { validateToolInput } from '../../effect/helpers.ts';
 import { wrapToolsForRun } from '../../effect/wrap.ts';
 import {

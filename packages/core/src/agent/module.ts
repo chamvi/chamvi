@@ -6,7 +6,7 @@
  */
 
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
-import { assertOwnDispatchRoles } from '../dispatch/tools.ts';
+import { assertOwnDispatchRoles } from '../dispatch/helpers.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { assertInstructions } from '../message/helpers.ts';
 import { assertAgentTrust } from '../trust/asserts.ts';

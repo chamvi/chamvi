@@ -186,7 +186,7 @@ describe('dispatchTools()', () => {
         await startParent(engine);
 
         expect(seen[0]).toEqual({
-            dispatch_pr: 'Reviews one pull request.',
+            dispatch_pr: 'Reviews one pull request. The tool waits for the run and returns how it ended.',
             dispatch_issue: 'Starts a run of agent "lead" role "issue", then waits for it and returns how it ended.',
         });
     });
@@ -262,9 +262,13 @@ describe('dispatchTools()', () => {
     });
 
     it('binds the role schema of a replaced agent', async () => {
-        const engine = setup([lead({ parent: [] })]);
+        // the original runs first, so its converted schema is cached before the replacement binds
+        const engine = setup([lead({ parent: [turn(call('dispatch_pr', { pr: 'o/r#1' })), text('done')] })]);
+        const firstId = await startParent(engine);
+        const [first] = await children(engine.store, firstId);
 
-        await engine.start();
+        expect(first?.trigger.payload).toEqual({ pr: 'o/r#1' });
+
         await engine.putAgent(lead({
             parent: [
                 turn(call('dispatch_pr', { pr: 'x' })),
@@ -318,9 +322,9 @@ describe('dispatchTools()', () => {
         const tool = dispatchTools({ roles: ['pr'] }).dispatch_pr!;
 
         await expect(tool.execute!({ pr: 'x' }, {
-            toolCallId: 't', 
-            messages: [], 
-            context: {} as ToolContext, 
+            toolCallId: 't',
+            messages: [],
+            context: {} as ToolContext,
         } as ToolExecutionOptions<any>))
             .rejects.toBeInstanceOf(InvalidRunStateError);
     });

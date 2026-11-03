@@ -10,10 +10,8 @@ import { jsonSchema } from 'ai';
 import { isObject } from 'smob';
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
 import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
-import type { ChannelSubscription } from '../channel/types.ts';
 import { InvalidAgentDefinitionError, InvalidRunStateError } from '../errors/index.ts';
 import { defineTool } from '../tool/define.ts';
-import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
 import { DISPATCH_TOOL, DISPATCH_TOOL_NAME_MAX_LENGTH } from './constants.ts';
 import type { DispatchToolTarget, DispatchToolsOptions, DispatchWaitOptions } from './types.ts';
 
@@ -113,9 +111,9 @@ export function dispatchTools(options: DispatchToolsOptions): ToolSet {
 
         for (const role of checkRoles(entry.roles, `agent "${name}" roles`)) {
             targets.push([`dispatch_${name}_${role}`, {
-                agent: name, 
-                role, 
-                wait, 
+                agent: name,
+                role,
+                wait,
             }]);
         }
     }
@@ -141,44 +139,4 @@ export function dispatchTools(options: DispatchToolsOptions): ToolSet {
     }
 
     return tools;
-}
-
-/** The placeholder's target, if `tool` is a dispatchTools() placeholder. */
-export function dispatchToolTarget(tool: unknown): DispatchToolTarget | undefined {
-    return isObject(tool) ? (tool as { [DISPATCH_TOOL]?: DispatchToolTarget })[DISPATCH_TOOL] : undefined;
-}
-
-/**
- * Refuses a placeholder for an own role `channels` does not declare
- * (defineAgent's eager check of a plain tool set).
- */
-export function assertOwnDispatchRoles(agent: string, channels: ChannelSubscription[] | undefined, tools: ToolSet): void {
-    for (const [name, tool] of Object.entries(tools)) {
-        const target = dispatchToolTarget(tool);
-
-        if (!target || target.agent !== undefined) {
-            continue;
-        }
-
-        const declared = channels?.some((s) => s.channel === AGENT_CHANNEL_NAME && s.id === target.role) ?? false;
-
-        if (!declared) {
-            throw new InvalidAgentDefinitionError(`Agent "${agent}" has no dispatch role "${target.role}" for tool "${name}".`);
-        }
-    }
-}
-
-/**
- * Refuses a placeholder in `tools` whose name another tool of the merged
- * set (`others`: state tools, skill tools) carries, instead of one
- * silently replacing the other.
- */
-export function assertNoDispatchCollision(agent: string, tools: ToolSet, others: ToolSet[]): void {
-    for (const [name, tool] of Object.entries(tools)) {
-        const taken = others.some((set) => Object.hasOwn(set, name));
-
-        if (taken && dispatchToolTarget(tool)) {
-            throw new InvalidAgentDefinitionError(`Agent "${agent}": dispatch tool "${name}" collides with another tool of that name.`);
-        }
-    }
 }
