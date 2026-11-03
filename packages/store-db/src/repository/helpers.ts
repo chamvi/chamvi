@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunNotFoundError, normalizeEnvelope } from '@chamvi/core';
+import { RunNotFoundError, normalizeEnvelope, normalizeWaitPoint } from '@chamvi/core';
 import { isObject } from 'smob';
 import type {
     AgentRevision,
@@ -41,6 +41,7 @@ const RUN_PROPERTIES: ReadonlySet<string> = new Set([
     'output',
     'error',
     'usage',
+    'subtreeUsage',
     'waiting',
     'taint',
     'cancelRequested',
@@ -53,6 +54,8 @@ const RUN_PROPERTIES: ReadonlySet<string> = new Set([
 /**
  * RunEntity values for the keys present in a run patch (id excluded). A key
  * set to undefined clears its column (null), an absent key is not touched.
+ * `parentRunId` is never taken from a patch: the insert derives it from
+ * `trigger.parent.runId` (`toRunInsertValues`).
  */
 export function toRunValues(patch: Partial<Run>): QueryDeepPartialEntity<RunEntity> {
     const values: Record<string, unknown> = {};
@@ -82,6 +85,15 @@ export function toRunValues(patch: Partial<Run>): QueryDeepPartialEntity<RunEnti
     }
 
     return values as QueryDeepPartialEntity<RunEntity>;
+}
+
+/** RunEntity values for a new run: every column, lineage from `trigger.parent.runId`. */
+export function toRunInsertValues(run: Run): QueryDeepPartialEntity<RunEntity> {
+    return {
+        ...toRunValues(run),
+        id: run.id,
+        parentRunId: run.trigger.parent?.runId ?? null,
+    } as QueryDeepPartialEntity<RunEntity>;
 }
 
 /**
@@ -161,13 +173,14 @@ function reviveTrigger(trigger: Record<string, unknown>): TriggerEnvelope {
     return output;
 }
 
+/** Revive a stored wait point's dates; an approval wait point without `id` reads with `id = approvalId`. */
 function reviveWaiting(waiting: Record<string, unknown>): WaitPoint {
-    const output = {
+    const output = normalizeWaitPoint({
         ...waiting,
         expiresAt: new Date(waiting.expiresAt as string),
-    } as WaitPoint;
+    });
 
-    if (typeof waiting.notifiedAt === 'string') {
+    if (output.kind === 'approval' && typeof waiting.notifiedAt === 'string') {
         output.notifiedAt = new Date(waiting.notifiedAt);
     }
 
@@ -217,6 +230,14 @@ export function toRun(entity: RunEntity): Run {
 
     if (entity.error !== null) {
         run.error = entity.error;
+    }
+
+    if (entity.subtreeUsage !== null) {
+        run.subtreeUsage = entity.subtreeUsage;
+    }
+
+    if (entity.parentRunId !== null) {
+        run.parentRunId = entity.parentRunId;
     }
 
     if (entity.waiting !== null) {

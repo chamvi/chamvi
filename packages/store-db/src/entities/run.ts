@@ -26,6 +26,7 @@ import { ConversationEntity } from './conversation.ts';
 @Index(['agent', 'status', 'concurrencyKey'])
 @Index(['status', 'createdAt', 'id'])
 @Index(['conversationScopeId'])
+@Index(['parentRunId'])
 @Entity({ name: TableName.RUNS })
 export class RunEntity {
     @PrimaryColumn({
@@ -96,6 +97,24 @@ export class RunEntity {
         transformer: OPTIONAL_JSON_TRANSFORMER,
     })
     usage!: Usage;
+
+    @Column({
+        name: 'subtree_usage',
+        type: 'jsonb',
+        nullable: true,
+        transformer: OPTIONAL_JSON_TRANSFORMER,
+    })
+    subtreeUsage!: Usage | null;
+
+    /** The dispatching run (`trigger.parent.runId`), written at insert only. */
+    @Column({
+        name: 'parent_run_id',
+        type: 'varchar',
+        length: 128,
+        collation: 'C',
+        nullable: true,
+    })
+    parentRunId!: string | null;
 
     @Column({
         name: 'waiting',
@@ -219,4 +238,12 @@ export class RunEntity {
     })
     @JoinColumn({ name: 'conversation_scope_id', referencedColumnName: 'id' })
     conversation?: Relation<ConversationEntity> | null;
+
+    @ManyToOne(() => RunEntity, {
+        nullable: true,
+        onDelete: 'NO ACTION',
+        onUpdate: 'NO ACTION',
+    })
+    @JoinColumn({ name: 'parent_run_id', referencedColumnName: 'id' })
+    parent?: Relation<RunEntity> | null;
 }

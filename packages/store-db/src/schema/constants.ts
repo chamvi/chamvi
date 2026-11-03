@@ -29,6 +29,7 @@ import {
     IdempotencyScope1792454400000,
     Init1792195200000,
     KvKeyCollation1792540800000,
+    RunLineage1792800000000,
 } from '../migrations/index.ts';
 
 export const STORE_ENTITIES = [
@@ -55,6 +56,7 @@ export const STORE_MIGRATIONS = [
     KvKeyCollation1792540800000,
     AgentRevisions1792627200000,
     ConversationsRunTaint1792713600000,
+    RunLineage1792800000000,
 ];
 
 export const MIGRATION_LOCK_NAME = 'chamvi:migrations';

@@ -10,13 +10,14 @@ import {
     RepositoryNotFoundError,
     RunNotFoundError,
     systemClock,
+    waitIdOf,
 } from '@chamvi/core';
 import type {
     IClock,
     IRunRepository,
     Run,
     RunFindOptions,
-    RunStatusLiteral,
+    RunUpdateOptions,
 } from '@chamvi/core';
 import {
     In,
@@ -26,7 +27,13 @@ import {
 } from 'typeorm';
 import type { DataSource, FindOptionsWhere, Repository } from 'typeorm';
 import { RunEntity } from '../entities/index.ts';
-import { toEntity, toRun, toRunValues } from '../repository/helpers.ts';
+import {
+    toEntity,
+    toRun,
+    toRunInsertValues,
+    toRunValues,
+    withRunReference,
+} from '../repository/helpers.ts';
 import type { DatabaseStoreOptions } from '../repository/types.ts';
 
 export class DatabaseRunRepository implements IRunRepository {
@@ -48,15 +55,21 @@ export class DatabaseRunRepository implements IRunRepository {
     }
 
     async insert(run: Run): Promise<boolean> {
-        const result = await this.runs.createQueryBuilder()
-            .insert()
-            .values({ id: run.id, ...toRunValues(run) })
-            .orIgnore()
-            .returning(['id'])
-            .updateEntity(false)
-            .execute();
+        const write = async () => {
+            const result = await this.runs.createQueryBuilder()
+                .insert()
+                .values(toRunInsertValues(run))
+                .orIgnore()
+                .returning(['id'])
+                .updateEntity(false)
+                .execute();
 
-        return result.raw.length === 1;
+            return result.raw.length === 1;
+        };
+        const parentRunId = run.trigger.parent?.runId;
+
+        // orIgnore() suppresses only the id conflict: a missing parent still violates the self reference
+        return parentRunId === undefined ? write() : withRunReference(this.dataSource, parentRunId, write);
     }
 
     async findOne(id: string): Promise<Run | undefined> {
@@ -78,7 +91,7 @@ export class DatabaseRunRepository implements IRunRepository {
     async update(
         id: string,
         patch: Partial<Run>,
-        opts: { expectStatus?: RunStatusLiteral[]; expectOwner?: string } = {},
+        opts: RunUpdateOptions = {},
     ): Promise<Run> {
         const where: FindOptionsWhere<RunEntity> = { id };
 
@@ -90,10 +103,17 @@ export class DatabaseRunRepository implements IRunRepository {
             where.claimOwner = opts.expectOwner;
         }
 
-        const result = await this.runs.createQueryBuilder()
+        const query = this.runs.createQueryBuilder()
             .update()
             .set(toRunValues({ ...patch, updatedAt: patch.updatedAt ?? this.now() }))
-            .where(where)
+            .where(where);
+
+        if (opts.expectWaitId !== undefined) {
+            // the ORM has no jsonb field operator; a wait point stored without id matches by approvalId
+            query.andWhere('COALESCE("waiting"->>\'id\', "waiting"->>\'approvalId\') = :waitId', { waitId: opts.expectWaitId });
+        }
+
+        const result = await query
             .returning('*')
             .updateEntity(false)
             .execute();
@@ -120,6 +140,16 @@ export class DatabaseRunRepository implements IRunRepository {
             );
         }
 
+        if (opts.expectWaitId !== undefined) {
+            const waitId = waitIdOf(toRun(current).waiting);
+
+            if (waitId !== opts.expectWaitId) {
+                throw new InvalidRunStateError(
+                    `Run "${id}" does not wait on "${opts.expectWaitId}" (wait: ${waitId ?? 'none'}).`,
+                );
+            }
+        }
+
         throw new InvalidRunStateError(`Run "${id}" changed concurrently.`);
     }
 
@@ -136,6 +166,14 @@ export class DatabaseRunRepository implements IRunRepository {
 
         if (q.concurrencyKey !== undefined) {
             where.concurrencyKey = q.concurrencyKey;
+        }
+
+        if (q.ids !== undefined) {
+            where.id = In([...q.ids]);
+        }
+
+        if (q.parentRunId !== undefined) {
+            where.parentRunId = q.parentRunId;
         }
 
         if (q.limit === 0) {
