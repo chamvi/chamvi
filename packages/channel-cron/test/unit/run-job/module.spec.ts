@@ -23,10 +23,14 @@ import type {
 import {
     Engine,
     InvalidAgentDefinitionError,
+    agentChannel,
+    agent as agentSubscriber,
     approve,
     createMemoryStore,
     defineAgent,
     defineTool,
+    dispatchTo,
+    waitForDispatch,
 } from '@chamvi/core';
 import {
     cron,
@@ -35,7 +39,7 @@ import {
     runJob,
 } from '@chamvi/channel-cron';
 import { ControllableClock } from '@chamvi/test-kit';
-import { isQueuedBehindApproval, isSettling } from '../../../src/run-job/helpers.ts';
+import { isJobSettled, isQueuedBehindApproval } from '../../../src/run-job/helpers.ts';
 import { approvalModel, failingModel, textModel } from '../../utils/model.ts';
 
 const T = new Date('2026-03-01T08:00:00.000Z');
@@ -94,6 +98,149 @@ function setup(
         engine,
     };
 }
+
+/** `sweep` (cron) whose `delegate` dispatches one `worker` run and waits on it. */
+function delegating(worker: ReturnType<typeof defineAgent>) {
+    const clock = new ControllableClock(T);
+    const store = createMemoryStore({ clock });
+    const sweep = defineAgent({
+        name: 'sweep',
+        model: approvalModel('delegate'),
+        instructions: 'x',
+        channels: [cron.on('*/5 * * * *')],
+        tools: () => ({
+            delegate: defineTool({
+                inputSchema: z.object({}),
+                execute: async (_input, { context }) => {
+                    const child = await dispatchTo(context, { agent: 'worker', payload: {} });
+                    const outcome = await waitForDispatch(context, child);
+
+                    return outcome.status;
+                },
+            }),
+        }),
+    });
+    const engine = new Engine({
+        store,
+        agents: [sweep, worker],
+        channels: [cronChannel(), agentChannel()],
+        clock,
+    });
+
+    return {
+        clock,
+        store,
+        agent: sweep,
+        engine,
+    };
+}
+
+/** `worker` (dispatched by `sweep`): `block` returns once `release()` is called. */
+function blockingWorker() {
+    const { promise: released, resolve: release } = Promise.withResolvers<void>();
+    const worker = defineAgent({
+        name: 'worker',
+        model: approvalModel('block'),
+        instructions: 'Work.',
+        channels: [agentSubscriber.on({ from: ['sweep'] })],
+        tools: () => ({
+            block: defineTool({
+                inputSchema: z.object({}),
+                execute: async () => {
+                    await released;
+
+                    return 'unblocked';
+                },
+            }),
+        }),
+    });
+
+    return { worker, release: () => release() };
+}
+
+/** `worker` (dispatched by `sweep`): `deploy` asks for an approval. */
+function approvingWorker() {
+    return defineAgent({
+        name: 'worker',
+        model: approvalModel('deploy'),
+        instructions: 'Work.',
+        channels: [agentSubscriber.on({ from: ['sweep'] })],
+        ...gated(),
+    });
+}
+
+describe('runJob through dispatched runs', () => {
+    it('does not return while the run waits on a dispatch', async () => {
+        const { worker, release } = blockingWorker();
+        const {
+            clock,
+            store,
+            agent,
+            engine,
+        } = delegating(worker);
+        let result: Awaited<ReturnType<typeof runJob>> | undefined;
+        const job = runJob({
+            engine, 
+            agent, 
+            pollMs: 1_000, 
+        }).then((r) => {
+            result = r;
+        });
+
+        await vi.waitFor(async () => expect((await store.runs.find({ agent: 'sweep', status: ['waiting'] })).total).toBe(1));
+
+        const [sweep] = (await store.runs.find({ agent: 'sweep' })).data;
+
+        expect(sweep?.waiting?.kind).toBe('dispatch');
+        clock.advance(5_000);
+        await new Promise((resolve) => {
+            setImmediate(resolve);
+        });
+        expect(result).toBeUndefined();
+
+        release();
+        await job;
+        expect(result).toEqual({
+            runId: sweep!.id,
+            status: 'completed',
+            exitCode: 0,
+        });
+    });
+
+    it('returns waiting when a descendant waits on an approval', async () => {
+        const {
+            store,
+            agent,
+            engine,
+        } = delegating(approvingWorker());
+
+        const result = await runJob({ engine, agent });
+        const [sweep] = (await store.runs.find({ agent: 'sweep' })).data;
+        const [child] = (await store.runs.find({ agent: 'worker' })).data;
+
+        expect(child?.parentRunId).toBe(sweep!.id);
+        expect(child?.waiting?.kind).toBe('approval');
+        expect(result).toEqual({
+            runId: sweep!.id,
+            status: 'waiting',
+            waitingRunId: child!.id,
+            exitCode: 0,
+        });
+    });
+
+    it('returns queued behind a run of its key whose descendant waits on an approval', async () => {
+        const clock = new ControllableClock(T);
+        const store = createMemoryStore({ clock });
+
+        await store.runs.insert(buildRun('a', 'waiting', { concurrencyKey: 'k', waiting: dispatchWait }));
+        await store.runs.insert(buildRun('child', 'waiting', { parentRunId: 'a', waiting: approvalWait }));
+
+        const queued = buildRun('b', 'queued', { concurrencyKey: 'k' });
+
+        await store.runs.insert(queued);
+        expect(await isQueuedBehindApproval(store.runs, queued)).toBe(true);
+    });
+});
 
 describe('runJob', () => {
     it('returns 0 for a completed run', async () => {
@@ -469,7 +616,20 @@ describe('runJob', () => {
     });
 });
 
+/** A run; `parentRunId` in `extra` becomes the trigger's parent (the store derives the column from it). */
 function buildRun(id: string, status: Run['status'], extra: Partial<Run> = {}): Run {
+    const parent = extra.parentRunId === undefined ?
+        {} :
+        {
+            parent: {
+                kind: 'dispatch' as const,
+                runId: extra.parentRunId,
+                agent: 'sweep',
+                role: 'default',
+                depth: 1,
+            },
+        };
+
     return {
         id,
         agent: 'sweep',
@@ -481,6 +641,7 @@ function buildRun(id: string, status: Run['status'], extra: Partial<Run> = {}): 
             channel: 'cron',
             payload: undefined,
             receivedAt: T,
+            ...parent,
         },
         usage: { inputTokens: 0, outputTokens: 0 },
         createdAt: T,
@@ -508,18 +669,45 @@ const approvalWait: WaitPoint = {
     expiresAt: new Date(T.getTime() + 60_000),
 };
 
-describe('isSettling', () => {
-    it('is true for a terminal run and an approval wait', () => {
-        expect(isSettling(buildRun('r', 'completed'))).toBe(true);
-        expect(isSettling(buildRun('r', 'failed'))).toBe(true);
-        expect(isSettling(buildRun('r', 'cancelled'))).toBe(true);
-        expect(isSettling(buildRun('r', 'waiting', { waiting: approvalWait }))).toBe(true);
+describe('isJobSettled', () => {
+    it('returns the run when it is terminal or waits on an approval', async () => {
+        const store = createMemoryStore({ clock: new ControllableClock(T) });
+
+        for (const run of [
+            buildRun('r', 'completed'),
+            buildRun('r', 'failed'),
+            buildRun('r', 'cancelled'),
+            buildRun('r', 'waiting', { waiting: approvalWait }),
+        ]) {
+            expect(await isJobSettled(store.runs, run)).toBe(run);
+        }
     });
 
-    it('is false for a dispatch wait', () => {
-        expect(isSettling(buildRun('r', 'waiting', { waiting: dispatchWait }))).toBe(false);
-        expect(isSettling(buildRun('r', 'running'))).toBe(false);
-        expect(isSettling(buildRun('r', 'queued'))).toBe(false);
+    it('is false for a dispatch wait alone, a running and a queued run', async () => {
+        const store = createMemoryStore({ clock: new ControllableClock(T) });
+
+        const root = buildRun('r', 'waiting', { waiting: dispatchWait });
+
+        await store.runs.insert(root);
+        await store.runs.insert(buildRun('child', 'running', { parentRunId: 'r' }));
+        expect(await isJobSettled(store.runs, root)).toBe(false);
+        expect(await isJobSettled(store.runs, buildRun('r', 'running'))).toBe(false);
+        expect(await isJobSettled(store.runs, buildRun('r', 'queued'))).toBe(false);
+    });
+
+    it('returns a grandchild waiting on an approval', async () => {
+        const store = createMemoryStore({ clock: new ControllableClock(T) });
+
+        const root = buildRun('r', 'waiting', { waiting: dispatchWait });
+
+        await store.runs.insert(root);
+        await store.runs.insert(buildRun('child', 'waiting', { parentRunId: 'r', waiting: dispatchWait }));
+        await store.runs.insert(buildRun('done', 'completed', { parentRunId: 'r' }));
+        await store.runs.insert(buildRun('grandchild', 'waiting', { parentRunId: 'child', waiting: approvalWait }));
+
+        const found = await isJobSettled(store.runs, root);
+
+        expect(found && found.id).toBe('grandchild');
     });
 });
 

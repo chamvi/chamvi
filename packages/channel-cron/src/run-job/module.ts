@@ -7,7 +7,7 @@
 
 import type { Run } from '@chamvi/core';
 import { fireCronSubscription } from '../tick/index.ts';
-import { isQueuedBehindApproval, isSettling, resolveCronSubscription } from './helpers.ts';
+import { isJobSettled, isQueuedBehindApproval, resolveCronSubscription } from './helpers.ts';
 import type { RunJobOptions, RunJobResult } from './types.ts';
 
 /**
@@ -19,8 +19,9 @@ import type { RunJobOptions, RunJobResult } from './types.ts';
  * runs one approval tick, so leftovers of earlier jobs (a run whose pod was
  * killed, an interrupted run, an answered or expired approval) are recovered
  * and executed even when the tick is skipped. It waits for the dispatched run
- * to complete, fail, be cancelled, wait for an approval, or stay queued behind
- * a run of its concurrency key that waits for an approval, then drains the
+ * to complete, fail, be cancelled, wait for an approval (its own, or while it
+ * waits on its dispatched runs, a descendant's: `waitingRunId`), or stay queued
+ * behind a run of its concurrency key that waits for an approval, then drains the
  * engine. An aborted `signal` ends the wait (or, aborted before the call,
  * fires nothing). Never calls process.exit; set `process.exitCode` from `exitCode`.
  *
@@ -74,6 +75,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     let onAbort: (() => void) | undefined;
     let settled = false;
     let run: Run | undefined;
+    let waitingRunId: string | undefined;
 
     try {
         // recovery, the queue and the approval tick also run when the tick was skipped
@@ -91,9 +93,25 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
             const { runId } = tick;
 
             run = await new Promise<Run | undefined>((resolve, reject) => {
-                const done = (candidate: Run | undefined) => {
+                const done = (candidate: Run | undefined, waiting?: Run) => {
                     settled = true;
+
+                    if (candidate && waiting && waiting.id !== candidate.id) {
+                        waitingRunId = waiting.id;
+                    }
+
                     resolve(candidate);
+                };
+
+                /** Settles on `candidate` (the job's run) when it, or a descendant, ends the wait. */
+                const probe = async (candidate: Run): Promise<boolean> => {
+                    const found = await isJobSettled(store.runs, candidate);
+
+                    if (found && !settled) {
+                        done(candidate, found);
+                    }
+
+                    return found !== false;
                 };
 
                 // a signal is a request to stop, not an error: the wait ends and the drain runs
@@ -101,8 +119,17 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
                 signal?.addEventListener('abort', onAbort, { once: true });
                 // the event only shortens the wait; the poll covers a run executed elsewhere
                 unsubscribe = engine.on('run.updated', (e) => {
-                    if (e.type === 'run.updated' && e.run.id === runId && isSettling(e.run)) {
-                        done(e.run);
+                    if (e.type !== 'run.updated' || settled) {
+                        return;
+                    }
+
+                    if (e.run.id === runId) {
+                        probe(e.run).catch(reject);
+                    } else if (e.run.parentRunId !== undefined && e.run.status === 'waiting' && e.run.waiting?.kind === 'approval') {
+                        // a descendant paused for a human: re-check from the job's run
+                        engine.getRun(runId)
+                            .then((candidate) => (candidate && !settled ? probe(candidate) : false))
+                            .catch(reject);
                     }
                 });
 
@@ -117,7 +144,11 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
                         return;
                     }
 
-                    if (candidate && (isSettling(candidate) || await isQueuedBehindApproval(store.runs, candidate))) {
+                    if (candidate && (await probe(candidate) || settled)) {
+                        return;
+                    }
+
+                    if (candidate && await isQueuedBehindApproval(store.runs, candidate)) {
                         done(candidate);
 
                         return;
@@ -164,6 +195,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
     return {
         runId: run.id,
         status: run.status,
+        ...(waitingRunId !== undefined ? { waitingRunId } : {}),
         exitCode: run.status === 'failed' || run.status === 'cancelled' ? 1 : 0,
     };
 }

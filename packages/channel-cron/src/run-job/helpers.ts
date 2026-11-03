@@ -12,9 +12,9 @@ import type {
     IRunRepository,
     Run,
 } from '@chamvi/core';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { DISPATCH_DEPTH_MAX, InvalidAgentDefinitionError } from '@chamvi/core';
 import { isCronChannel } from '../channel/helpers.ts';
-import { TERMINAL } from './constants.ts';
+import { TERMINAL, UNSETTLED } from './constants.ts';
 
 /**
  * The cron subscription a job fires: `subscriptionId`, or the agent's only
@@ -43,24 +43,55 @@ export function resolveCronSubscription(engine: IEngine, agent: Agent, subscript
     return crons[0] as ChannelSubscription;
 }
 
-/**
- * Whether a job returns on the run: it finished, or waits for a human (an
- * approval). A run waiting on its dispatched runs keeps the job waiting.
- */
-export function isSettling(run: Run): boolean {
-    if (TERMINAL.includes(run.status)) {
-        return true;
-    }
-
+function isApprovalWait(run: Run): boolean {
     return run.status === 'waiting' && run.waiting?.kind === 'approval';
 }
 
 /**
- * Whether a queued run is held back by a run of its concurrency key that waits
- * for an approval: it starts only once a human answers (or the approval times
- * out), so a job must not wait for it.
+ * The run a job returns on, or `false` to keep waiting: the run itself when it
+ * finished or waits for a human (an approval); when it waits on its dispatched
+ * runs, the first unsettled descendant (breadth-first over `parentRunId`, at
+ * most `DISPATCH_DEPTH_MAX` levels) that waits on an approval. A dispatch wait
+ * alone keeps the job waiting.
  */
-export async function isQueuedBehindApproval(store: Pick<IRunRepository, 'find'>, run: Run): Promise<boolean> {
+export async function isJobSettled(store: Pick<IRunRepository, 'find' | 'findOne'>, run: Run): Promise<Run | false> {
+    if (TERMINAL.includes(run.status) || isApprovalWait(run)) {
+        return run;
+    }
+
+    if (run.status !== 'waiting' || run.waiting?.kind !== 'dispatch') {
+        return false;
+    }
+
+    let level = [run.id];
+
+    for (let depth = 0; depth < DISPATCH_DEPTH_MAX && level.length > 0; depth++) {
+        const next: string[] = [];
+
+        for (const id of level) {
+            const { data } = await store.find({ parentRunId: id, status: UNSETTLED });
+
+            for (const child of data) {
+                if (isApprovalWait(child)) {
+                    return child;
+                }
+
+                next.push(child.id);
+            }
+        }
+
+        level = next;
+    }
+
+    return false;
+}
+
+/**
+ * Whether a queued run is held back by a run of its concurrency key that waits
+ * for a human (an approval, its own or a descendant's): it starts only once a
+ * human answers (or the approval times out), so a job must not wait for it.
+ */
+export async function isQueuedBehindApproval(store: Pick<IRunRepository, 'find' | 'findOne'>, run: Run): Promise<boolean> {
     if (run.status !== 'queued' || run.concurrencyKey === undefined) {
         return false;
     }
@@ -72,5 +103,11 @@ export async function isQueuedBehindApproval(store: Pick<IRunRepository, 'find'>
         concurrencyKey: run.concurrencyKey,
     });
 
-    return data.some((candidate) => candidate.waiting?.kind === 'approval');
+    for (const candidate of data) {
+        if (await isJobSettled(store, candidate)) {
+            return true;
+        }
+    }
+
+    return false;
 }
