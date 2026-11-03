@@ -166,8 +166,8 @@ export async function approvalFlow(model: LanguageModel) {
     // #region answer
     const run = await engine.getRun(runId);
 
-    if (run?.status === RunStatus.WAITING && run.waiting) {
-        // run.waiting: { approvalId, toolName, toolCallId, title, body?, channel?, address?, expiresAt, ... }
+    if (run?.status === RunStatus.WAITING && run.waiting?.kind === 'approval') {
+        // run.waiting: { kind, id, approvalId, toolName, toolCallId, title, body?, channel?, address?, expiresAt, ... }
         await engine.approve(run.id, {
             approvalId: run.waiting.approvalId,
             approved: false,

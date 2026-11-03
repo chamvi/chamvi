@@ -24,4 +24,4 @@ export const CANCELABLE_STATUSES: readonly RunStatusLiteral[] = ['queued', 'runn
 export const ALL_AGENTS = '*';
 
 /** How the run page names a run's parent, by `trigger.parent.kind`. */
-export const PARENT_LABELS: Readonly<Record<string, string>> = { handoff: 'handed off from' };
+export const PARENT_LABELS: Readonly<Record<string, string>> = { dispatch: 'dispatched from' };

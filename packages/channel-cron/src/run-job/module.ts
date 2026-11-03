@@ -7,8 +7,7 @@
 
 import type { Run } from '@chamvi/core';
 import { fireCronSubscription } from '../tick/index.ts';
-import { SETTLING } from './constants.ts';
-import { isQueuedBehindApproval, resolveCronSubscription } from './helpers.ts';
+import { isQueuedBehindApproval, isSettling, resolveCronSubscription } from './helpers.ts';
 import type { RunJobOptions, RunJobResult } from './types.ts';
 
 /**
@@ -102,7 +101,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
                 signal?.addEventListener('abort', onAbort, { once: true });
                 // the event only shortens the wait; the poll covers a run executed elsewhere
                 unsubscribe = engine.on('run.updated', (e) => {
-                    if (e.type === 'run.updated' && e.run.id === runId && SETTLING.includes(e.run.status)) {
+                    if (e.type === 'run.updated' && e.run.id === runId && isSettling(e.run)) {
                         done(e.run);
                     }
                 });
@@ -118,7 +117,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
                         return;
                     }
 
-                    if (candidate && (SETTLING.includes(candidate.status) || await isQueuedBehindApproval(store.runs, candidate))) {
+                    if (candidate && (isSettling(candidate) || await isQueuedBehindApproval(store.runs, candidate))) {
                         done(candidate);
 
                         return;

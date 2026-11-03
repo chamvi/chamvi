@@ -41,7 +41,7 @@ export type RunJobResult = {
     runId?: string;
     /**
      * The run's status when the job returned: `completed`, `failed`,
-     * `cancelled`, `waiting`, `queued` (behind a run of its concurrency key
+     * `cancelled`, `waiting` (on an approval), `queued` (behind a run of its concurrency key
      * that waits for an approval), or 'skipped' (overlap, or a signal
      * aborted before the call). After an abort while waiting: the status the
      * drain left, usually `interrupted`, or `running` when the drain timed out

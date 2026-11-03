@@ -16,6 +16,7 @@ import {
 import { RouterLink } from 'vue-router';
 import type { RunWire } from '../../api/types.ts';
 import {
+    approvalWaitOf,
     canApprove,
     detailLines,
     jsonBody,
@@ -49,8 +50,10 @@ const reason = ref('');
 const selected = ref<string[]>([]);
 const single = ref<string>();
 
-const options = computed(() => props.run.waiting?.options ?? []);
-const multiple = computed(() => props.run.waiting?.multiple === true);
+/** The run's approval wait point; a dispatch wait renders nothing. */
+const waiting = computed(() => approvalWaitOf(props.run));
+const options = computed(() => waiting.value?.options ?? []);
+const multiple = computed(() => waiting.value?.multiple === true);
 const chosen = computed<string[]>(() => {
     if (multiple.value) {
         return selected.value;
@@ -59,17 +62,17 @@ const chosen = computed<string[]>(() => {
     return single.value !== undefined ? [single.value] : [];
 });
 /** A JSON body (a trust approval: the tool, its input and the taint) is pretty-printed; any other body stays text. */
-const structured = computed(() => (props.run.waiting?.body ? jsonBody(props.run.waiting.body) : undefined));
-const approvable = computed(() => !props.run.waiting || canApprove(props.run.waiting, chosen.value));
+const structured = computed(() => (waiting.value?.body ? jsonBody(waiting.value.body) : undefined));
+const approvable = computed(() => !waiting.value || canApprove(waiting.value, chosen.value));
 
 const { client } = useAppContext();
 /** The images of the wait point: loaded once mounted, reloaded (and the old URLs revoked) per approval id. */
 const artifacts = useArtifactTiles({
     client,
     runId: () => props.run.id,
-    key: () => props.run.waiting?.approvalId,
+    key: () => waiting.value?.approvalId,
     refresh: () => props.run,
-    ids: () => approvalArtifactIds(props.run.waiting),
+    ids: () => approvalArtifactIds(waiting.value),
 });
 const viewing = ref<ArtifactTile>();
 const viewerOpen = ref(false);
@@ -82,7 +85,7 @@ function view(tile: ArtifactTile): void {
 onMounted(artifacts.start);
 
 // another wait point of the run: its options and images are others
-watch(() => props.run.waiting?.approvalId, () => {
+watch(() => waiting.value?.approvalId, () => {
     selected.value = [];
     single.value = undefined;
     viewerOpen.value = false;
@@ -113,19 +116,19 @@ watch(() => props.highlight, reveal);
 
 <template>
     <article
-        v-if="run.waiting"
+        v-if="waiting"
         ref="root"
         :class="['callout', { linked: highlight }]"
         data-testid="approval"
         :data-run="run.id"
         :data-linked="highlight ? 'true' : undefined"
         :tabindex="highlight ? -1 : undefined"
-        :aria-label="highlight ? `Linked approval: ${run.waiting.title}, run ${shortId(run.id)}` : undefined"
+        :aria-label="highlight ? `Linked approval: ${waiting.title}, run ${shortId(run.id)}` : undefined"
     >
         <div class="callout-head">
             <span class="callout-icon"><NavIcon name="hand" /></span>
             <div class="callout-title">
-                <h2><span data-testid="approval-title">{{ run.waiting.title }}</span><StatusChip status="waiting" /></h2>
+                <h2><span data-testid="approval-title">{{ waiting.title }}</span><StatusChip status="waiting" /></h2>
                 <p>
                     <RouterLink
                         :to="{ name: RouteName.AGENT, params: { name: run.agent } }"
@@ -147,7 +150,7 @@ watch(() => props.highlight, reveal);
             </div>
             <div class="timer">
                 <small>Expires in</small>
-                <ExpiryCountdown :until="run.waiting.expiresAt" />
+                <ExpiryCountdown :until="waiting.expiresAt" />
                 <span>then denied</span>
             </div>
         </div>
@@ -169,10 +172,10 @@ watch(() => props.highlight, reveal);
                     <JsonBlock :value="structured" />
                 </div>
                 <p
-                    v-else-if="run.waiting.body"
+                    v-else-if="waiting.body"
                     class="callout-text"
                     data-testid="approval-body"
-                    v-text="run.waiting.body"
+                    v-text="waiting.body"
                 />
                 <p
                     v-else
@@ -181,7 +184,7 @@ watch(() => props.highlight, reveal);
                     No details given.
                 </p>
                 <ArtifactStrip
-                    :tiles="artifacts.tilesOf(run.waiting.artifacts)"
+                    :tiles="artifacts.tilesOf(waiting.artifacts)"
                     @open="view"
                     @download="artifacts.download"
                 />
@@ -242,7 +245,7 @@ watch(() => props.highlight, reveal);
                         class="mono"
                         data-testid="approval-tool"
                     >
-                        {{ run.waiting.toolName }}
+                        {{ waiting.toolName }}
                     </dd>
                     <dt>requested</dt>
                     <dd><VCTimeago :datetime="run.updatedAt" /></dd>

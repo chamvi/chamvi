@@ -244,6 +244,7 @@ describe('useAgentDetail', () => {
                 createdAt: now,
                 waiting: {
                     kind: 'approval',
+                    id: 'a1',
                     approvalId: 'a1',
                     toolName: 'deploy',
                     toolCallId: 'call-1',
@@ -279,6 +280,52 @@ describe('useAgentDetail', () => {
         expect(detail.waitingRuns.value.map((r) => r.id)).toEqual(['w1']);
         expect(detail.activity.value.count).toBe(2);
         expect(detail.notFound.value).toBe(false);
+        scope.stop();
+    });
+
+    it('waitingRuns lists approval waits only', async () => {
+        const runs = [
+            wireRun({
+                id: 'w1',
+                agent: 'deploy',
+                status: 'waiting',
+                createdAt: now,
+                waiting: {
+                    kind: 'approval',
+                    id: 'a1',
+                    approvalId: 'a1',
+                    toolName: 'deploy',
+                    toolCallId: 'call-1',
+                    title: 'Deploy prod?',
+                    expiresAt: now,
+                },
+            }),
+            wireRun({
+                id: 'd1',
+                agent: 'deploy',
+                status: 'waiting',
+                createdAt: now,
+                waiting: {
+                    kind: 'dispatch',
+                    id: '0:call-2:w0',
+                    toolName: 'delegate',
+                    toolCallId: 'call-2',
+                    runIds: ['c1'],
+                    expiresAt: now,
+                },
+            }),
+        ];
+        const client = fakeClient({
+            listAgents: async () => ({ data: AGENTS, issues: [] }),
+            listSchedules: async () => [],
+            listRuns: listRunsOver(runs),
+        });
+        const scope = effectScope();
+        const detail = scope.run(() => useAgentDetail(client, ref('deploy')))!;
+
+        await flush();
+        expect(detail.waitingRuns.value.map((r) => r.id)).toEqual(['w1']);
+        expect(detail.waitingTotal.value).toBe(1);
         scope.stop();
     });
 

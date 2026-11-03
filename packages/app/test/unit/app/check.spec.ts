@@ -150,6 +150,7 @@ async function parkWaiting(store: IStore, clock: ControllableClock, id: string, 
         },
         waiting: {
             kind: 'approval',
+            id: 'a1',
             approvalId: 'a1',
             toolName: 'tool',
             toolCallId: 'c1',

@@ -64,7 +64,7 @@ describe('README example', () => {
             expect(fake.dispatched).toHaveLength(1);
 
             const { message } = fake.dispatched[0]!;
-            const { approvalId } = (await engine.getRun(runId))!.waiting!;
+            const { id: approvalId } = (await engine.getRun(runId))!.waiting!;
 
             expect(message).toContain(`Approve or deny: https://chamvi.example/ui/approvals?run=${runId}&approval=${encodeURIComponent(approvalId)}`);
             expect(message).not.toContain('resume_run');

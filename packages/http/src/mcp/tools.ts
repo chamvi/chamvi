@@ -235,7 +235,7 @@ export function buildRunTool(agent: Agent, options: McpEndpointOptions): McpRunT
                 waitSeconds: {
                     type: 'integer',
                     minimum: 0,
-                    description: `Seconds to wait for the run to finish or pause (at most ${options.maxWaitSeconds}). Default 0.`,
+                    description: `Seconds to wait for the run to finish or pause for an approval (at most ${options.maxWaitSeconds}). Default 0.`,
                 },
             },
             additionalProperties: false,

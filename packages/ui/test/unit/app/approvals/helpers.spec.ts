@@ -22,7 +22,12 @@ describe('pendingApprovals', () => {
         id,
         agent: 'deploy',
         status: 'waiting',
-        waiting: { approvalId, toolName: 'deploy' },
+        waiting: {
+            kind: 'approval',
+            id: approvalId,
+            approvalId,
+            toolName: 'deploy',
+        },
     }) as unknown as RunWire;
 
     it('hides a run whose current approval was answered here', () => {
@@ -62,6 +67,7 @@ describe('pendingApprovals', () => {
 describe('notifiedLine', () => {
     const waiting = {
         kind: 'approval' as const,
+        id: 'call-1:0',
         approvalId: 'call-1:0',
         toolName: 'deploy',
         toolCallId: 'call-1',

@@ -314,6 +314,50 @@ describe('waitForRun', () => {
         await expect(pending).rejects.toBe(failure);
     });
 
+    it('keeps waiting through a dispatch wait and resolves once the run settles', async () => {
+        const {
+            ctx,
+            engine,
+            store,
+            clock,
+        } = context();
+        const { runId } = await engine.dispatch({
+            agent: 'echo',
+            trigger: 'http',
+            channel: 'http',
+            payload: {},
+        });
+
+        await store.runs.update(runId, {
+            status: 'waiting',
+            waiting: {
+                kind: 'dispatch',
+                id: '0:c1:w0',
+                toolName: 'delegate',
+                toolCallId: 'c1',
+                runIds: ['child'],
+                expiresAt: new Date(clock.now().getTime() + 60_000),
+            },
+        });
+
+        let settled = false;
+        const pending = waitForRun(ctx, runId, { timeoutMs: 10_000, pollMs: 1_000 }).then((run) => {
+            settled = true;
+
+            return run;
+        });
+
+        await flush();
+        clock.advance(1_000);
+        await flush();
+        expect(settled).toBe(false);
+
+        await store.runs.update(runId, { status: 'completed', waiting: undefined });
+        clock.advance(1_000);
+
+        expect((await pending).status).toBe('completed');
+    });
+
     it('answers an mcp store failure with a tool error and reports it', async () => {
         const onError = vi.fn();
         const setup = createRunTestApp({ onError });

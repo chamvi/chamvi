@@ -22,6 +22,7 @@ import type {
     ScheduleWire,
     StartRunResult,
 } from '../api/types.ts';
+import { approvalWaitOf } from '../approvals/helpers.ts';
 import { createPoller } from '../polling/module.ts';
 import {
     ACTIVE_LIMIT,
@@ -120,8 +121,8 @@ export function useAgentRollups(client: IApiClient) {
 
 /**
  * One agent's page: its summary and schedules, its newest runs (the 24 h
- * activity, the recent list, the run total), the running total and its waiting
- * runs. `start()` dispatches through the agent's `http.on()` subscription and refreshes.
+ * activity, the recent list, the run total), the running total and its runs
+ * waiting on an approval. `start()` dispatches through the agent's `http.on()` subscription and refreshes.
  */
 export function useAgentDetail(client: IApiClient, name: Ref<string>) {
     const agent = shallowRef<AgentWire>();
@@ -167,8 +168,9 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
             runs.value = recent.data;
             totalRuns.value = recent.meta.total;
             running.value = runningTotal;
-            waitingRuns.value = waiting.data.filter((run) => run.waiting);
-            waitingTotal.value = waiting.meta.total;
+            waitingRuns.value = waiting.data.filter((run) => approvalWaitOf(run));
+            // the page's dispatch waits wait on no person: they leave the total
+            waitingTotal.value = waiting.meta.total - (waiting.data.length - waitingRuns.value.length);
             activity.value = summarizeActivity(recent.data, Date.now(), ACTIVITY_LIMIT);
             error.value = undefined;
 

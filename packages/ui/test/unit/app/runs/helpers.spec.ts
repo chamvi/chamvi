@@ -145,7 +145,7 @@ describe('format', () => {
 });
 
 describe('parentOf', () => {
-    it('names the run a hand-off came from', () => {
+    it('parentOf labels a dispatch parent "dispatched from"', () => {
         const base = wireRun();
         const run = wireRun({
             trigger: {
@@ -153,15 +153,16 @@ describe('parentOf', () => {
                 channel: 'agent',
                 trigger: 'handoff',
                 parent: {
-                    kind: 'handoff',
+                    kind: 'dispatch',
                     runId: 'p1',
                     agent: 'deploy',
+                    role: 'default',
                     depth: 1,
                 },
             },
         });
 
-        expect(parentOf(run)).toEqual({ runId: 'p1', label: 'handed off from' });
+        expect(parentOf(run)).toEqual({ runId: 'p1', label: 'dispatched from' });
     });
 
     it('is undefined without a parent', () => {

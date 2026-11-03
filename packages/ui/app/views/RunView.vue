@@ -11,7 +11,7 @@ import { computed, onScopeDispose, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAgents } from '../agents/composables.ts';
 import { ApiError } from '../api/error.ts';
-import { approvalLinkQuery } from '../approvals/helpers.ts';
+import { approvalLinkQuery, approvalWaitOf } from '../approvals/helpers.ts';
 import JsonBlock from '../components/json-block/JsonBlock.vue';
 import NavIcon from '../components/nav-icon/NavIcon.vue';
 import StatusChip from '../components/status-chip/StatusChip.vue';
@@ -248,14 +248,14 @@ async function onCancel(): Promise<void> {
         </section>
 
         <div
-            v-if="run.status === 'waiting' && run.waiting"
+            v-if="run.status === 'waiting' && approvalWaitOf(run)"
             class="callout"
             style="margin-bottom: 26px"
         >
             <div class="callout-head">
                 <span class="callout-icon"><NavIcon name="hand" /></span>
                 <div class="callout-title">
-                    <h2>{{ run.waiting.toolName }}<StatusChip status="waiting" /></h2>
+                    <h2>{{ approvalWaitOf(run)?.toolName }}<StatusChip status="waiting" /></h2>
                     <p>The run waits for an approval of this tool call.</p>
                 </div>
                 <RouterLink

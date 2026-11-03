@@ -114,7 +114,7 @@ describe('webhook to comment', () => {
         // Same-source replies still run; the other comment is the labels approval request.
         expect((fake.comments.get('octo/demo#5') ?? []).filter(isToolComment)).toHaveLength(1);
 
-        await engine.approve(waiting!.id, { approvalId: waiting!.waiting!.approvalId, approved: true });
+        await engine.approve(waiting!.id, { approvalId: waiting!.waiting!.id, approved: true });
         await engine.idle();
 
         const run = await store.runs.findOne(waiting!.id);
@@ -220,7 +220,7 @@ describe('webhook to comment', () => {
         expect(paused?.waiting?.toolName).toBe('github_create_comment');
         expect(fake.comments.get('octo/demo#5')).toHaveLength(1);
 
-        await engine.approve(runId, { approvalId: paused!.waiting!.approvalId, approved: true });
+        await engine.approve(runId, { approvalId: paused!.waiting!.id, approved: true });
         await engine.idle();
         expect((await store.runs.findOne(runId))?.status).toBe('completed');
         expect(errors).toEqual([]);

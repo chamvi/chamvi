@@ -17,6 +17,8 @@ import type {
     AgentDefinition,
     ChannelSubscription,
     IChannel,
+    Run,
+    WaitPoint,
 } from '@chamvi/core';
 import {
     Engine,
@@ -33,6 +35,7 @@ import {
     runJob,
 } from '@chamvi/channel-cron';
 import { ControllableClock } from '@chamvi/test-kit';
+import { isQueuedBehindApproval, isSettling } from '../../../src/run-job/helpers.ts';
 import { approvalModel, failingModel, textModel } from '../../utils/model.ts';
 
 const T = new Date('2026-03-01T08:00:00.000Z');
@@ -463,5 +466,76 @@ describe('runJob', () => {
 
         expect(result.status).toBe('completed');
         expect(start).not.toHaveBeenCalled();
+    });
+});
+
+function buildRun(id: string, status: Run['status'], extra: Partial<Run> = {}): Run {
+    return {
+        id,
+        agent: 'sweep',
+        status,
+        trigger: {
+            id: `t-${id}`,
+            agent: 'sweep',
+            trigger: 'cron',
+            channel: 'cron',
+            payload: undefined,
+            receivedAt: T,
+        },
+        usage: { inputTokens: 0, outputTokens: 0 },
+        createdAt: T,
+        updatedAt: T,
+        ...extra,
+    };
+}
+
+const dispatchWait: WaitPoint = {
+    kind: 'dispatch',
+    id: '0:c1:w0',
+    toolName: 'delegate',
+    toolCallId: 'c1',
+    runIds: ['child'],
+    expiresAt: new Date(T.getTime() + 60_000),
+};
+
+const approvalWait: WaitPoint = {
+    kind: 'approval',
+    id: '0:c1:0',
+    approvalId: '0:c1:0',
+    toolName: 'deploy',
+    toolCallId: 'c1',
+    title: 'Deploy?',
+    expiresAt: new Date(T.getTime() + 60_000),
+};
+
+describe('isSettling', () => {
+    it('is true for a terminal run and an approval wait', () => {
+        expect(isSettling(buildRun('r', 'completed'))).toBe(true);
+        expect(isSettling(buildRun('r', 'failed'))).toBe(true);
+        expect(isSettling(buildRun('r', 'cancelled'))).toBe(true);
+        expect(isSettling(buildRun('r', 'waiting', { waiting: approvalWait }))).toBe(true);
+    });
+
+    it('is false for a dispatch wait', () => {
+        expect(isSettling(buildRun('r', 'waiting', { waiting: dispatchWait }))).toBe(false);
+        expect(isSettling(buildRun('r', 'running'))).toBe(false);
+        expect(isSettling(buildRun('r', 'queued'))).toBe(false);
+    });
+});
+
+describe('isQueuedBehindApproval', () => {
+    it('a queued run behind a dispatch-waiting run of its key is not behind an approval', async () => {
+        const clock = new ControllableClock(T);
+        const store = createMemoryStore({ clock });
+
+        await store.runs.insert(buildRun('a', 'waiting', { concurrencyKey: 'k', waiting: dispatchWait }));
+
+        const queued = buildRun('b', 'queued', { concurrencyKey: 'k' });
+
+        await store.runs.insert(queued);
+        expect(await isQueuedBehindApproval(store.runs, queued)).toBe(false);
+
+        await store.runs.insert(buildRun('c', 'waiting', { concurrencyKey: 'k', waiting: approvalWait }));
+        expect(await isQueuedBehindApproval(store.runs, queued)).toBe(true);
     });
 });

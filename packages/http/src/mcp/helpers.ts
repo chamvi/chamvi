@@ -61,16 +61,27 @@ export function readRequestExtra(extra: Record<string, unknown> | undefined): Mc
     return extra as unknown as McpRequestExtra;
 }
 
-const WAIT_OVER = new Set<string>([
+const TERMINAL = new Set<string>([
     RunStatus.COMPLETED,
     RunStatus.FAILED,
     RunStatus.CANCELLED,
-    RunStatus.WAITING,
 ]);
 
 /**
+ * Whether a `run_<agent>` wait is over: the run is terminal, or waits on a
+ * human (an approval). A run waiting on its dispatched runs keeps the wait open.
+ */
+export function isWaitOver(run: Run): boolean {
+    if (TERMINAL.has(run.status)) {
+        return true;
+    }
+
+    return run.status === RunStatus.WAITING && run.waiting?.kind === 'approval';
+}
+
+/**
  * Resolves with the run once it is `completed`, `failed`, `cancelled` or
- * `waiting` (seen through `run.updated` or a store poll every `pollMs`, which
+ * `waiting` on an approval (seen through `run.updated` or a store poll every `pollMs`, which
  * covers runs executing on another replica), or with the latest stored run
  * when `timeoutMs` elapses or `signal` aborts. Rejects when the store fails.
  * Always unsubscribes and clears its timers.
@@ -122,7 +133,7 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
                     return;
                 }
 
-                if (!run || WAIT_OVER.has(run.status)) {
+                if (!run || isWaitOver(run)) {
                     stop();
                     settle(run);
 
@@ -146,7 +157,7 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
         }
 
         unsubscribe = ctx.engine.on('run.updated', (e) => {
-            if (e.run.id !== runId || !WAIT_OVER.has(e.run.status)) {
+            if (e.run.id !== runId || !isWaitOver(e.run)) {
                 return;
             }
 
@@ -176,7 +187,7 @@ export function toRunToolResult(run: Run, deduplicated: boolean): RunToolResult 
         result.error = run.error;
     }
 
-    if (run.waiting) {
+    if (run.waiting?.kind === 'approval') {
         result.waiting = {
             toolName: run.waiting.toolName,
             title: run.waiting.title,

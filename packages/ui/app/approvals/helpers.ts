@@ -13,6 +13,7 @@ import { shortId } from '../runs/helpers.ts';
 import { JSON_BODY_MAX_LENGTH } from './constants.ts';
 import type {
     ApprovalLink,
+    ApprovalWaitWire,
     DecidedApproval,
     DetailLine,
     LinkNotice,
@@ -25,6 +26,11 @@ function firstToken(value: unknown): string | undefined {
     const values: unknown[] = Array.isArray(value) ? value : [value];
 
     return values.find((item): item is string => typeof item === 'string' && item.length > 0);
+}
+
+/** The run's approval wait point; `undefined` without one or for a dispatch wait. */
+export function approvalWaitOf(run: Pick<RunWire, 'waiting'> | undefined): ApprovalWaitWire | undefined {
+    return run?.waiting?.kind === 'approval' ? run.waiting : undefined;
 }
 
 /**
@@ -41,7 +47,7 @@ export function pendingApprovals(
     return runs.filter((run) => run.id !== linkRunId && decided.every((d) => !(
         d.result === 'answered' &&
         d.run.id === run.id &&
-        d.run.waiting?.approvalId === run.waiting?.approvalId
+        approvalWaitOf(d.run)?.approvalId === approvalWaitOf(run)?.approvalId
     )));
 }
 
@@ -51,7 +57,7 @@ export function pendingApprovals(
  * else "not sent (retrying)" (the engine re-sends on every poll).
  */
 export function notifiedLine(run: RunWire): NotifiedLine {
-    const { waiting } = run;
+    const waiting = approvalWaitOf(run);
 
     if (!waiting?.channel) {
         return { text: 'inbox only', warn: false };
@@ -83,7 +89,9 @@ export function readApprovalLink(query: Record<string, unknown>): ApprovalLink |
 
 /** The query of a run's approval link, for in-app links to the inbox. */
 export function approvalLinkQuery(run: RunWire): Record<string, string> {
-    return run.waiting ? { run: run.id, approval: run.waiting.approvalId } : { run: run.id };
+    const waiting = approvalWaitOf(run);
+
+    return waiting ? { run: run.id, approval: waiting.approvalId } : { run: run.id };
 }
 
 /**
@@ -126,16 +134,17 @@ export function linkedApprovalState(input: {
         return { kind: 'loading' };
     }
 
-    const approvalId = link.approvalId ?? run.waiting?.approvalId;
+    const waiting = approvalWaitOf(run);
+    const approvalId = link.approvalId ?? waiting?.approvalId;
     const answered = input.decided.some((d) => d.result === 'answered' &&
         d.run.id === run.id &&
-        d.run.waiting?.approvalId === approvalId);
+        approvalWaitOf(d.run)?.approvalId === approvalId);
 
     if (answered) {
         return { kind: 'answered', run };
     }
 
-    if (!run.waiting) {
+    if (!waiting) {
         return {
             kind: 'moved-on',
             reason: 'not-waiting',
@@ -143,7 +152,7 @@ export function linkedApprovalState(input: {
         };
     }
 
-    if (run.waiting.approvalId !== approvalId) {
+    if (waiting.approvalId !== approvalId) {
         return {
             kind: 'moved-on',
             reason: 'other-approval',
@@ -151,7 +160,7 @@ export function linkedApprovalState(input: {
         };
     }
 
-    if (Date.parse(run.waiting.expiresAt) <= input.now) {
+    if (Date.parse(waiting.expiresAt) <= input.now) {
         return {
             kind: 'moved-on',
             reason: 'expired',
@@ -184,7 +193,7 @@ export function linkNotice(state: LinkedApprovalState, link: ApprovalLink): Link
         case 'moved-on': {
             const texts = {
                 'not-waiting': `This run no longer waits on this approval: it is ${state.run.status} now.`,
-                'other-approval': `This run now waits on another approval (${state.run.waiting?.toolName}); it is listed below.`,
+                'other-approval': `This run now waits on another approval (${approvalWaitOf(state.run)?.toolName}); it is listed below.`,
                 expired: 'This approval expired; the engine denies it on its next poll.',
             } as const;
 

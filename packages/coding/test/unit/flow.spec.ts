@@ -248,7 +248,7 @@ describe('repository guidance through Engine checkpoints', () => {
         cleanups.push(() => second.stop());
         secondManager.attach(second);
         await second.start();
-        await second.approve(runId, { approvalId: paused!.waiting!.approvalId, approved: true });
+        await second.approve(runId, { approvalId: paused!.waiting!.id, approved: true });
         await second.idle();
 
         expect(await store.runs.findOne(runId)).toMatchObject({ status: 'completed', output: 'guidance received' });

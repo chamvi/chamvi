@@ -18,13 +18,27 @@ import {
     defineAgent,
     defineTool,
 } from '@chamvi/core';
-import type { ChamviError, IEngine } from '@chamvi/core';
+import type {
+    ApprovalWaitPoint,
+    ChamviError,
+    IEngine,
+    Run,
+} from '@chamvi/core';
 import { github } from '@chamvi/github';
 import type { GithubChannelOptions, IGithubApp } from '@chamvi/github';
 import { createGithubTestApp, deliver } from '../../utils/app.ts';
 import type { GithubTestApp } from '../../utils/app.ts';
 import { mockModel } from '../../utils/model.ts';
 import type { MockResponse } from '../../utils/model.ts';
+
+/** The run's approval wait point; throws when it waits on none. */
+function approvalOf(run: Pick<Run, 'waiting'> | undefined): ApprovalWaitPoint {
+    if (run?.waiting?.kind !== 'approval') {
+        throw new Error('the run waits on no approval');
+    }
+
+    return run.waiting;
+}
 
 const ISSUES_OPENED = readFileSync(new URL('../../fixtures/deliveries/issues-opened.json', import.meta.url), 'utf8');
 const ISSUE = { repo: 'octo/demo', number: 5 };
@@ -165,7 +179,7 @@ describe('github channel with the engine', () => {
             channel: 'github',
             address: 'octo/demo#5',
         });
-        expect(waiting.waiting?.notifiedAt).toBeInstanceOf(Date);
+        expect(approvalOf(waiting).notifiedAt).toBeInstanceOf(Date);
 
         const comments = () => setup.fake.comments.get('octo/demo#5') ?? [];
 
@@ -175,14 +189,14 @@ describe('github channel with the engine', () => {
 
         expect(body).toContain('### Close octo/demo#\u200D5?');
         expect(body).toContain('It duplicates #3.');
-        expect(body).toContain(`Approve or deny: https://chamvi.example/ui/approvals?run=${runId}&approval=${waiting.waiting!.approvalId}&agent=triage`);
+        expect(body).toContain(`Approve or deny: https://chamvi.example/ui/approvals?run=${runId}&approval=${waiting.waiting!.id}&agent=triage`);
         expect(setup.fake.requests.filter((r) => r.method === 'PATCH')).toHaveLength(0);
 
         await setup.engine.tick();
         await setup.engine.tick();
         expect(comments()).toHaveLength(1);
 
-        await setup.engine.approve(runId, { approvalId: waiting.waiting!.approvalId, approved: true });
+        await setup.engine.approve(runId, { approvalId: waiting.waiting!.id, approved: true });
         await setup.engine.idle();
         expect((await setup.engine.getRun(runId))?.status).toBe('completed');
         expect(setup.fake.requests.filter((r) => r.method === 'PATCH')).toHaveLength(1);
@@ -198,7 +212,7 @@ describe('github channel with the engine', () => {
         const firstId = await start(setup);
         const first = await setup.engine.getRun(firstId);
 
-        expect(first?.waiting?.notifiedAt).toBeInstanceOf(Date);
+        expect(approvalOf(first).notifiedAt).toBeInstanceOf(Date);
 
         await setup.engine.cancel(firstId);
         await setup.engine.putAgent(closeAgent(setup.gh, 'maintainer')[0]!);
@@ -218,9 +232,9 @@ describe('github channel with the engine', () => {
 
         expect(secondId).not.toBe(firstId);
         expect(second?.status).toBe('waiting');
-        expect(second?.waiting?.notifiedAt).toBeInstanceOf(Date);
+        expect(approvalOf(second).notifiedAt).toBeInstanceOf(Date);
         expect(comments).toHaveLength(1);
-        expect(comments[0]?.body).toContain(`run=${secondId}&approval=${second!.waiting!.approvalId}&agent=triage`);
+        expect(comments[0]?.body).toContain(`run=${secondId}&approval=${second!.waiting!.id}&agent=triage`);
         expect(comments[0]?.body).not.toContain(`run=${firstId}&approval=`);
         expect(setup.fake.requests.filter((r) => r.method === 'POST' && r.path.endsWith('/comments'))).toHaveLength(1);
         expect(setup.fake.requests.filter((r) => r.method === 'PATCH' && r.path.includes('/issues/comments/'))).toHaveLength(1);
@@ -256,10 +270,10 @@ describe('github channel with the engine', () => {
         expect(setup.errors).toHaveLength(1);
         expect((setup.errors[0] as ChamviError).code).toBe('github_request');
         expect(setup.fake.comments.get('octo/demo#5')).toHaveLength(1);
-        expect((await setup.engine.getRun(runId))?.waiting?.notifiedAt).toBeUndefined();
+        expect(approvalOf(await setup.engine.getRun(runId)).notifiedAt).toBeUndefined();
 
         await setup.engine.tick();
         expect(setup.fake.comments.get('octo/demo#5')).toHaveLength(1);
-        expect((await setup.engine.getRun(runId))?.waiting?.notifiedAt).toBeInstanceOf(Date);
+        expect(approvalOf(await setup.engine.getRun(runId)).notifiedAt).toBeInstanceOf(Date);
     });
 });

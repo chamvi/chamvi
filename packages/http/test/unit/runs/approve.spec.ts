@@ -12,6 +12,7 @@ import {
 } from 'vitest';
 import {
     ADMIN_TOKEN,
+    approvalWaitOf,
     call,
     createRunTestApp,
     tokenFor,
@@ -33,7 +34,7 @@ async function pausedGate(overrides: TestAppOverrides = {}, agent = 'gate') {
     return {
         ...ctx,
         runId,
-        waiting: run!.waiting!,
+        waiting: approvalWaitOf(run),
     };
 }
 

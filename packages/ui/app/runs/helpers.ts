@@ -98,7 +98,7 @@ export function canCancel(run: RunWire, permissions: readonly string[]): boolean
     return CANCELABLE_STATUSES.includes(run.status) && hasPermission(permissions, 'run:cancel');
 }
 
-/** The run this one was started from (a hand-off), with the run page's label; undefined for none or an unknown kind. */
+/** The run this one was dispatched from, with the run page's label; undefined for none or an unknown kind. */
 export function parentOf(run: RunWire): { runId: string; label: string } | undefined {
     const { parent } = run.trigger;
 

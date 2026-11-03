@@ -18,6 +18,7 @@ const waitingRun = (id = 'r1', approvalId = 'a1') => wireRun({
     status: 'waiting',
     waiting: {
         kind: 'approval',
+        id: approvalId,
         approvalId,
         toolName: 'deploy',
         toolCallId: 'call-1',
@@ -66,6 +67,38 @@ describe('useApprovals', () => {
             offset: 0,
         });
         expect(inbox.runs.value.map((run) => run.id)).toEqual(['r1']);
+        scope.stop();
+    });
+
+    it('the inbox skips a dispatch wait', async () => {
+        const dispatching = wireRun({
+            id: 'd1',
+            status: 'waiting',
+            waiting: {
+                kind: 'dispatch',
+                id: '0:call-1:w0',
+                toolName: 'delegate',
+                toolCallId: 'call-1',
+                runIds: ['c1'],
+                expiresAt: '2026-10-22T10:00:00.000Z',
+            },
+        });
+        const client = fakeClient({
+            listRuns: async () => ({
+                data: [dispatching, waitingRun()],
+                meta: {
+                    total: 2,
+                    limit: 100,
+                    offset: 0,
+                },
+            }),
+        });
+        const scope = effectScope();
+        const inbox = scope.run(() => useApprovals(client))!;
+
+        await flush();
+        expect(inbox.runs.value.map((run) => run.id)).toEqual(['r1']);
+        expect(await inbox.answer(dispatching, true)).toBe('already-answered');
         scope.stop();
     });
 

@@ -17,10 +17,20 @@ import {
     it,
 } from 'vitest';
 import { Engine, createMemoryStore } from '@chamvi/core';
+import type { ApprovalWaitPoint, Run } from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { createLocalSandbox } from '@chamvi/sandbox-local';
 import { createCodingAgent } from '../fixtures/readme-example.ts';
 import { mockModel } from '../utils/model.ts';
+
+/** The run's approval wait point; throws when it waits on none. */
+function approvalOf(run: Pick<Run, 'waiting'> | undefined): ApprovalWaitPoint {
+    if (run?.waiting?.kind !== 'approval') {
+        throw new Error('the run waits on no approval');
+    }
+
+    return run.waiting;
+}
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -102,10 +112,10 @@ describe('README example', () => {
 
         expect(waiting?.status).toBe('waiting');
         expect(waiting?.waiting?.toolName).toBe('bash');
-        expect(waiting?.waiting?.body).toBe('rm -rf /workspace');
+        expect(approvalOf(waiting).body).toBe('rm -rf /workspace');
 
         await engine.approve(runId, {
-            approvalId: waiting!.waiting!.approvalId,
+            approvalId: waiting!.waiting!.id,
             approved: false,
             reason: 'no',
         });

@@ -7,5 +7,5 @@
 
 import type { RunStatusLiteral } from '@chamvi/core';
 
-/** Statuses a job returns on: the run finished or waits for a human. */
-export const SETTLING: RunStatusLiteral[] = ['completed', 'failed', 'cancelled', 'waiting'];
+/** Statuses a job always returns on: the run finished. */
+export const TERMINAL: RunStatusLiteral[] = ['completed', 'failed', 'cancelled'];

@@ -14,6 +14,7 @@ import type {
 } from '@chamvi/core';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isCronChannel } from '../channel/helpers.ts';
+import { TERMINAL } from './constants.ts';
 
 /**
  * The cron subscription a job fires: `subscriptionId`, or the agent's only
@@ -43,6 +44,18 @@ export function resolveCronSubscription(engine: IEngine, agent: Agent, subscript
 }
 
 /**
+ * Whether a job returns on the run: it finished, or waits for a human (an
+ * approval). A run waiting on its dispatched runs keeps the job waiting.
+ */
+export function isSettling(run: Run): boolean {
+    if (TERMINAL.includes(run.status)) {
+        return true;
+    }
+
+    return run.status === 'waiting' && run.waiting?.kind === 'approval';
+}
+
+/**
  * Whether a queued run is held back by a run of its concurrency key that waits
  * for an approval: it starts only once a human answers (or the approval times
  * out), so a job must not wait for it.
@@ -52,12 +65,12 @@ export async function isQueuedBehindApproval(store: Pick<IRunRepository, 'find'>
         return false;
     }
 
-    const { total } = await store.find({
+    // every waiting run of the key: a dispatch wait ahead of an approval wait must not hide it
+    const { data } = await store.find({
         agent: run.agent,
         status: ['waiting'],
         concurrencyKey: run.concurrencyKey,
-        limit: 1,
     });
 
-    return total > 0;
+    return data.some((candidate) => candidate.waiting?.kind === 'approval');
 }

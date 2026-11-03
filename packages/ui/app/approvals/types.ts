@@ -7,6 +7,9 @@
 
 import type { RunWire } from '../api/types.ts';
 
+/** A run's approval wait point on the wire (a dispatch wait is no human wait). */
+export type ApprovalWaitWire = Extract<NonNullable<RunWire['waiting']>, { kind: 'approval' }>;
+
 export type AnswerResult = 'answered' | 'already-answered' | 'forbidden';
 
 /** An answer given from the inbox: the run as it was answered, and how it went. */

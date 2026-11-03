@@ -12,6 +12,7 @@ import {
 } from 'vitest';
 import {
     ADMIN_TOKEN,
+    approvalWaitOf,
     call,
     createRunTestApp,
     tokenFor,
@@ -33,7 +34,7 @@ async function waitingGate(agent = 'gate') {
     return {
         ...setup,
         runId,
-        approvalId: run!.waiting!.approvalId,
+        approvalId: approvalWaitOf(run).approvalId,
     };
 }
 
