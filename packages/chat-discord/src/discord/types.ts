@@ -11,6 +11,7 @@ import type {
     APIUser,
     ClientOptions,
 } from 'discord.js';
+import type { DiscordAdapter } from '@chat-adapter/discord';
 import type { IClock } from '@chamvi/core';
 
 /** Who may start runs: Discord ids (snowflakes) only, never names. */
@@ -153,4 +154,27 @@ export type DiscordConnection = {
     connect(ctx: { signal: AbortSignal; clock: IClock }): Promise<void>;
     /** Stops the connection for good: no client is made after it. */
     close(): Promise<void>;
+};
+
+/** One send the chat channel prepares (ChatPlatformSend plus the channel's name). */
+export type DiscordSend = {
+    /** The chat channel's name: part of the nonce, so two channels never share one. */
+    channel: string;
+    /** The adapter thread id the address names. */
+    threadId: string;
+    /** The rendered text, at most DISCORD_TEXT_MAX_CHARS. */
+    text: string;
+    /** `ChannelMessage.key`: the same for every retry of one message. */
+    key: string;
+};
+
+/** What createDiscordSender() needs. */
+export type DiscordSenderOptions = {
+    /** The REST base, e.g. DISCORD_API_URL. */
+    apiUrl: string;
+    /** The bot token, read once per post. */
+    token: () => Promise<string>;
+    fetch: typeof fetch;
+    /** The adapter's public thread-id decoding. */
+    adapter: Pick<DiscordAdapter, 'decodeThreadId'>;
 };
