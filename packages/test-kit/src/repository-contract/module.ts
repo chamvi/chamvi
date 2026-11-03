@@ -707,7 +707,11 @@ export function describeRepositoryContract(
             expect(children.total).toBe(2);
             expect((await store.runs.find({ hasParent: false })).data.map((r) => r.id)).toEqual(['p1', 'r2']);
 
-            const page = await store.runs.find({ hasParent: true, limit: 1, offset: 1 });
+            const page = await store.runs.find({
+                hasParent: true,
+                limit: 1,
+                offset: 1,
+            });
 
             expect(page.data.map((r) => r.id)).toEqual(['r3']);
             expect(page.total).toBe(2);
@@ -736,7 +740,11 @@ export function describeRepositoryContract(
             expect((await store.runs.find({ parentRunIds: [] })).data).toEqual([]);
             expect((await store.runs.find({ parentRunIds: [] })).total).toBe(0);
 
-            const page = await store.runs.find({ parentRunIds: ['p1', 'p2'], limit: 1, offset: 1 });
+            const page = await store.runs.find({
+                parentRunIds: ['p1', 'p2'],
+                limit: 1,
+                offset: 1,
+            });
 
             expect(page.data.map((r) => r.id)).toEqual(['c3']);
             expect(page.total).toBe(3);

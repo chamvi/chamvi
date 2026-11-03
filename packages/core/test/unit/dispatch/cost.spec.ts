@@ -92,7 +92,11 @@ describe('dispatch poll cost', () => {
         const engine = new Engine({
             store,
             clock,
-            agents: [defineAgent({ name: 'solo', instructions: 'You work.', model: mockModel([]) })],
+            agents: [defineAgent({
+                name: 'solo',
+                instructions: 'You work.',
+                model: mockModel([]),
+            })],
             onError: () => {},
         });
 
@@ -148,12 +152,20 @@ describe('subtree recompute cost', () => {
             emit: () => {},
         };
 
-        return { store, finds, ctx };
+        return {
+            store,
+            finds,
+            ctx,
+        };
     }
 
     it('a fan-out of settled leaves costs one children read', async () => {
         const clock = new ControllableClock(START);
-        const { store, finds, ctx } = context(clock);
+        const {
+            store,
+            finds,
+            ctx,
+        } = context(clock);
 
         await store.runs.insert(makeRun('p1', { status: RunStatus.WAITING }));
 
@@ -171,7 +183,11 @@ describe('subtree recompute cost', () => {
 
     it('the re-check reads only the children that may still move', async () => {
         const clock = new ControllableClock(START);
-        const { store, finds, ctx } = context(clock);
+        const {
+            store,
+            finds,
+            ctx,
+        } = context(clock);
 
         await store.runs.insert(makeRun('p1', { status: RunStatus.WAITING }));
 

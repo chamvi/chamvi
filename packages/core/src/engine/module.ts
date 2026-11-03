@@ -1286,7 +1286,9 @@ export class Engine implements IEngine {
         }
 
         // a cancel cascade lost to a failure (onRunSettled is best effort); no role, no parent
-        if (this.listAgents().some((agent) => declaresDispatchRole(agent))) {
+        const hasRoles = this.listAgents().some((agent) => declaresDispatchRole(agent));
+
+        if (hasRoles) {
             await healCancelCascade(this.dispatchContext()).catch((error: unknown) => this.onError(error));
         }
 

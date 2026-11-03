@@ -57,8 +57,7 @@ export async function findApprovalWaitBelow(store: Pick<IRunRepository, 'find'>,
         }
 
         // after the children: a named run found as a child is not read again
-        const named = [...new Set(level.flatMap((r) => (r.waiting?.kind === 'dispatch' ? r.waiting.runIds : [])))]
-            .filter((id) => !visited.has(id));
+        const named = [...new Set(level.flatMap((r) => (r.waiting?.kind === 'dispatch' ? r.waiting.runIds : []))).difference(visited)];
 
         if (named.length > 0) {
             const found = take((await store.find({ ids: named, status: UNSETTLED })).data);
