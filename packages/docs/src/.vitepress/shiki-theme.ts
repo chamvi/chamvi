@@ -12,7 +12,7 @@
  */
 
 const INK = '#dce9f2';
-const KEYWORD = '#b5e3f8';
+const KEYWORD = '#8fd0f2';
 const STRING = '#e7c58c';
 const COMMENT = '#7f95a6';
 

@@ -49,7 +49,7 @@ Sections in order: hero (eyebrow "Self-hosted agents", headline "Agents that kee
 
 ## Alternative palette: Violet (parked)
 
-Glacier is the brand. Violet is the one alternative the owner wants to keep switchable (chosen 2026-10-21 against Slate, Terminal and Ochre in the dashboard mockups): plum-tinted neutrals with a vivid violet accent. Status colours stay as they are (amber waiting, green completed); only `failed` changes, from solid ink to red, since the accent is not red.
+Glacier is the brand. Violet is the one alternative the owner wants to keep switchable (chosen 2026-10-21 against Slate, Terminal and Ochre in the dashboard mockups): plum-tinted neutrals with a vivid violet accent. Status colours stay as they are (amber waiting, green completed, red failed: `#c1272d` light, `#d23a3f` dark).
 
 Everything needed to switch lives in `.github/assets/palettes/violet/`:
 

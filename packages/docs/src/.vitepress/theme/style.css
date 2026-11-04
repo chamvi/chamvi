@@ -295,7 +295,7 @@
 }
 
 .dark {
-    --vp-c-text-3: #6f8292;
+    --vp-c-text-3: #7f95a6;
 }
 
 /* JetBrains Mono would draw `=>` and `!==` as ligatures; samples should show what to type. */
