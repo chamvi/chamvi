@@ -8,7 +8,7 @@
 import { Output, asSchema, generateText } from 'ai';
 import { isObject } from 'smob';
 import type { StateSchema } from '../state/types.ts';
-import { currentToolCall } from '../effect/frame.ts';
+import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
 import { InvalidRunStateError, ValidationError } from '../errors/index.ts';
 import { resolveModel } from '../model/module.ts';
@@ -22,9 +22,9 @@ import type { ExtractOptions } from './types.ts';
  * Extracts only structured output in a separate, tool-less model call. Raw
  * content, model messages and provider errors never enter the parent transcript.
  * Schemas outside the conservative allowlist taint the run, including on replay.
- * Throws InvalidRunStateError outside an executing tool call of this run or
- * without an execution-bound trust context, the taint write's error when it
- * fails, the run signal's reason once the run was aborted, and a generic
+ * Throws InvalidRunStateError outside an executing tool call of this run,
+ * once that call or its execution ended, or without an execution-bound trust
+ * context; the taint write's error when it fails, the run signal's reason once the run was aborted, and a generic
  * ValidationError for every model or validation failure.
  */
 export async function extract<T, S extends StateSchema = StateSchema>(
@@ -36,6 +36,8 @@ export async function extract<T, S extends StateSchema = StateSchema>(
     if (!frame || frame.runId !== ctx.run.runId) {
         throw new InvalidRunStateError('extract() needs an executing tool call for this run.');
     }
+
+    assertFrameActive(frame, 'extract()');
 
     // Trust failures (no execution-bound context, a failed taint write) are the run's, not the output's.
     let trustFailure: { error: unknown } | undefined;

@@ -25,6 +25,7 @@ import {
     defineModelAgent,
     defineTool,
     dispatch,
+    extract,
     wrapToolsForRun,
 } from '@chamvi/core';
 import type {
@@ -253,6 +254,27 @@ describe('detached work after a model tool call returned', () => {
 
         expect(outcome).toBeInstanceOf(InvalidRunStateError);
         expect((await store.runs.findOne(runId))?.status).toBe('completed');
+    });
+
+    it('refuses extract() from work a tool left after returning', async () => {
+        const work = detachedWork();
+        const leave = defineTool({
+            inputSchema: schema,
+            execute: async (_input, { context }) => {
+                work.leave(() => extract(context, { schema: z.object({ title: z.string() }), content: 'late' }));
+
+                return 'ok';
+            },
+        });
+        const { engine, store } = setupEngine({ leave }, [turn(callOf('leave')), text('done')]);
+        const runId = await runOnce(engine);
+
+        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+
+        const [outcome] = await work.release();
+
+        expect(outcome).toBeInstanceOf(InvalidRunStateError);
+        expect((outcome as Error).message).toContain('extract()');
     });
 
     it('refuses detached work while the run is still executing', async () => {
