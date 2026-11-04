@@ -204,7 +204,7 @@ describe('app skills lifecycle', () => {
         expect(ctx.model.doStreamCalls[0]?.tools?.map((tool) => tool.name)).toContain('contributed');
     });
 
-    it('adds app defaults to folder agents as well as agents passed in code', async () => {
+    it('adds app defaults to folder agents as well as code agents', async () => {
         const root = await folder();
 
         await writeTree(root, { 'folder/agent.ts': agentFile('Folder work', 'test/model', 'folder') });

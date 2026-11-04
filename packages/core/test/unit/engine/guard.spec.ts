@@ -180,7 +180,7 @@ describe('execution guard', () => {
         expect(errorsB).toEqual([]);
     });
 
-    it('an agent without a revision is never held back by markers', async () => {
+    it('a code agent is never held back by markers', async () => {
         const { clock, store } = setup();
         const model = answer();
         const triage = defineAgent({

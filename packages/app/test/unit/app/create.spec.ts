@@ -143,7 +143,7 @@ describe('createApp', () => {
 });
 
 describe('createApp package agents', () => {
-    it('takes bare package specifiers beside agents passed in code, without touching the file system', () => {
+    it('takes bare package specifiers beside code agents, without touching the file system', () => {
         const app = createApp({ agents: [agent, '@acme/missing-agents', 'other/sub'] });
 
         expect(app.agents).toEqual([agent]);
