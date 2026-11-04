@@ -36,3 +36,6 @@ export const DISCORD_AUTH_ERROR_CODE = 'discord_auth';
 
 /** The connection gave up: disallowed intents, an invalidated session, or reconnects exhausted. */
 export const DISCORD_CONNECTION_ERROR_CODE = 'discord_connection';
+
+/** Messages of one conversation waiting for their hand-over at most; a later one is dropped and reported. */
+export const DISCORD_HANDOVER_MAX_PENDING = 100;

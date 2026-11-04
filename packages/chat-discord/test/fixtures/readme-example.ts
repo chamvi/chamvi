@@ -26,11 +26,11 @@ export function createDiscordApp(
     const discord = createDiscordChat({
         // a non-secret alias of the bot (the conversation account)
         account: 'assistant',
-        // read when the channel starts and per send; never stored or logged
-        token: DISCORD_BOT_TOKEN,
+        // read from the environment per login and per send; never stored or logged
+        token: async () => process.env.DISCORD_BOT_TOKEN ?? '',
         applicationId: DISCORD_APPLICATION_ID,
         // ids only: these users in this guild, when they mention the bot or reply to it
-        policy: { guilds: [DISCORD_GUILD_ID], users: DISCORD_USER_IDS.split(',') },
+        policy: { guilds: [DISCORD_GUILD_ID], users: DISCORD_USER_IDS.split(',').map((id) => id.trim()) },
         resolveInvoker: (identity) => ({
             id: identity.author,
             kind: 'discord',

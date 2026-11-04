@@ -25,6 +25,7 @@ import type { ChatChannel, ChatPayload } from '@chamvi/chat';
 import { DISCORD_API_URL, DISCORD_TEXT_MAX_CHARS } from '@chamvi/chat-discord';
 import type { DiscordIdentity } from '@chamvi/chat-discord';
 import { mockModel } from '@chamvi/test-kit';
+import { DISCORD_HANDOVER_MAX_PENDING } from '../../../src/discord/constants.ts';
 import { nonceOf } from '../../../src/discord/send.ts';
 import {
     ACCOUNT,
@@ -116,6 +117,98 @@ function send(value: DiscordFixture, item: ChannelMessage, threadId: string): Pr
 }
 
 describe('Discord inbound', () => {
+    it('resolves an unknown thread parent before deciding: one memory, the parent audience', async () => {
+        const value = await started();
+        const partial = publicThread(THREAD, null);
+        let fetches = 0;
+
+        partial.fetch = async () => {
+            fetches += 1;
+
+            return publicThread(THREAD, CHANNEL);
+        };
+
+        value.deliver(discordMessage({ channel: partial }));
+        await settle();
+
+        const runs = await value.runs();
+
+        expect(fetches).toBe(1);
+        expect(runs).toHaveLength(1);
+        expect(payloadOf(runs[0]).threadId).toBe(`discord:400000000000000001:${CHANNEL}:${THREAD}`);
+        expect(payloadOf(runs[0]).channelId).toBe(`discord:400000000000000001:${CHANNEL}`);
+    });
+
+    it('denies a thread whose parent stays unknown, and fetches nothing for a refused author', async () => {
+        const value = await started();
+        const failing = publicThread(THREAD, null);
+        const refused = publicThread(THREAD, null);
+        let refusedFetches = 0;
+
+        failing.fetch = async () => {
+            throw new Error('Missing Access');
+        };
+        refused.fetch = async () => {
+            refusedFetches += 1;
+
+            return publicThread(THREAD, CHANNEL);
+        };
+
+        value.deliver(
+            discordMessage({ channel: failing }),
+            discordMessage({ id: '300000000000000002', channel: publicThread(THREAD, null) }),
+            discordMessage({
+                id: '300000000000000003', 
+                channel: refused, 
+                author: { id: MALLORY }, 
+            }),
+        );
+        await settle();
+
+        expect(await value.runs()).toHaveLength(0);
+        expect(refusedFetches).toBe(0);
+    });
+
+    it('drops a hand-over still waiting when the channel stops, also after a restart', async () => {
+        const value = await started();
+        const stalled = publicThread(THREAD, null);
+        let release!: () => void;
+
+        stalled.fetch = () => new Promise((resolve) => {
+            release = () => resolve(publicThread(THREAD, CHANNEL));
+        });
+
+        value.deliver(discordMessage({ channel: stalled }));
+        await settle();
+        await value.engine.stop();
+        await value.engine.start();
+        value.ready();
+        release();
+        await settle();
+
+        expect(await value.runs()).toHaveLength(0);
+    });
+
+    it('bounds the hand-overs waiting per conversation and reports the dropped message', async () => {
+        const value = await started();
+        const stalled = publicThread(THREAD, null);
+
+        stalled.fetch = () => new Promise(() => {
+            // never settles: every later message waits
+        });
+
+        for (let index = 0; index <= DISCORD_HANDOVER_MAX_PENDING; index += 1) {
+            value.deliver(discordMessage({ id: String(300000000000000100n + BigInt(index)), channel: stalled }));
+        }
+
+        await settle();
+
+        const dropped = value.errors.filter((error) => String((error as Error).message).includes('waiting'));
+
+        expect(dropped).toHaveLength(1);
+        expect(String((dropped[0] as Error).message)).not.toContain(SENTINEL_TOKEN);
+    });
+
     it('starts one tainted run for an allowed mention, with the parsed text and ids only', async () => {
         const value = await started();
 

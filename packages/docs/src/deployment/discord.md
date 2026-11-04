@@ -82,11 +82,11 @@ Every entry is a Discord id (a snowflake). Errors name the option and index, nev
 | Message | Starts runs when |
 |---|---|
 | Guild channel | The guild is in `guilds`, the channel is in `channels` (when given), the author is in `users` or has a role in `roles`, the bot is addressed (unless `requireMention: false`), and `resolveInvoker` names an invoker |
-| Thread | As a guild channel, with `channels` matched against the thread's parent channel; a thread whose parent is unknown never matches a `channels` list |
+| Thread | As a guild channel, with `channels` matched against the thread's parent channel; a thread whose parent discord.js does not know is looked up once (for an author the policy would otherwise allow) and refused when the lookup fails |
 | Direct message | The author is in `dms.users`, and `resolveInvoker` names an invoker; no mention needed |
 | Group DM | Never |
 
-The bot is addressed by a direct mention of its user (`@everyone`, `@here` and role mentions do not count) or by a Discord reply to one of its messages, when the Gateway payload names the replied-to author (chamvi never fetches it). With neither `users` nor `roles`, no guild author passes: there is no open mode. The bot's own messages, other bots and webhooks are ignored. Every refusal is silent and happens before any other work: no run, no reply, no thread, no typing, no Discord call.
+The bot is addressed by a direct mention of its user (`@everyone`, `@here` and role mentions do not count) or by a Discord reply to one of its messages, when the Gateway payload names the replied-to author (chamvi never fetches it). With neither `users` nor `roles`, no guild author passes: there is no open mode. The bot's own messages, other bots, webhooks and system messages are ignored. A policy refusal is silent and happens before any other work: no run, no reply, no thread, no typing, no Discord call. A message the policy allows but that has attachments or no text is refused by the chat intake and reported to `onError` (no run).
 
 The identity (`DiscordIdentity { account, chat, guild?, channel, thread?, privateThread?, author, roles, dm, mentioned }`) is what `resolveInvoker` sees: ids only.
 
@@ -98,7 +98,7 @@ The conversation of a message is `{ account, chat, audience }`: `chat` is the ad
 |---|---|
 | Direct message | `direct:<user id>` |
 | Guild channel, public or announcement thread | `channel:<parent channel id>` |
-| Private thread, or a thread of unknown type or parent | `thread:<thread id>` |
+| Private thread, or a thread of unknown type | `thread:<thread id>` |
 
 ### Delivery
 

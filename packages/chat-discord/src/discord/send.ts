@@ -43,12 +43,12 @@ export function nonceOf(channel: string, target: string, key: string): string {
         .slice(0, NONCE_LENGTH);
 }
 
-/** The error of a non-2xx answer: its status, Discord's error code and message, the body cut. */
-async function refusalOf(response: Response): Promise<ChamviError> {
+/** The error of a non-2xx answer: its status, Discord's error code and message, the body cut, the token redacted. */
+async function refusalOf(response: Response, token: string): Promise<ChamviError> {
     let text = '';
 
     try {
-        text = await response.text();
+        text = (await response.text()).replaceAll(token, '[redacted]');
     } catch {
         // the status alone still names the refusal
     }
@@ -143,7 +143,7 @@ export function createDiscordSender(options: DiscordSenderOptions): (send: Disco
             }
 
             if (!response.ok) {
-                throw await refusalOf(response);
+                throw await refusalOf(response, token);
             }
 
             try {

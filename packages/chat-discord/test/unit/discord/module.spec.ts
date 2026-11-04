@@ -77,6 +77,8 @@ describe('createDiscordChat options', () => {
         ['fetch', { fetch: 'https://discord.com' }],
         ['apiUrl', { apiUrl: 'discord.com/api' }],
         ['apiUrl', { apiUrl: 'ftp://discord.com/api' }],
+        ['apiUrl', { apiUrl: 'https://proxy.example/api/v10?tenant=one' }],
+        ['apiUrl', { apiUrl: 'https://proxy.example/api/v10#x' }],
         ['userName', { userName: '' }],
     ])('refuses an invalid %s', (name, patch) => {
         const options = patch === undefined ? undefined : { ...baseOptions(), ...patch };

@@ -12,6 +12,7 @@ import { isObject } from 'smob';
 import { DISCORD_ADAPTER_NAME } from './constants.ts';
 import type {
     DiscordIdentity,
+    DiscordInboundChannel,
     DiscordInboundMessage,
     DiscordPolicy,
     ResolvedDiscordPolicy,
@@ -106,17 +107,15 @@ function isPrivateThread(type: number): boolean | undefined {
  * and role names are never read. In a thread whose parent channel is unknown
  * (a partial channel), `channel` is the thread's own id and `privateThread`
  * undefined, so neither the policy's channels nor the audience widen to a
- * parent nobody resolved.
+ * parent nobody resolved; isAllowed() refuses such an identity, the caller
+ * resolves the parent first (`channel`: the fetched thread).
  */
 export function identityOf(
     message: DiscordInboundMessage,
     ctx: { account: string; botId: string },
+    channel: DiscordInboundChannel = message.channel,
 ): DiscordIdentity | undefined {
-    const {
-        author, 
-        channel, 
-        mentions, 
-    } = message;
+    const { author, mentions } = message;
 
     if (author.id === ctx.botId || author.bot || message.webhookId) {
         return undefined;
@@ -191,25 +190,15 @@ export function identityOf(
     };
 }
 
-/** Whether the policy lets the identity start runs (resolveInvoker decides next). */
-export function isAllowed(policy: ResolvedDiscordPolicy, identity: DiscordIdentity): boolean {
-    if (identity.dm) {
-        return policy.dmUsers?.has(identity.author) ?? false;
-    }
+/** Whether the identity is of a thread whose parent channel is unknown (a partial channel). */
+export function needsParent(identity: DiscordIdentity): boolean {
+    return identity.thread !== undefined && identity.channel === identity.thread;
+}
 
+/** The checks of a guild identity that do not depend on its channel: guild, author, mention. */
+function passesGuild(policy: ResolvedDiscordPolicy, identity: DiscordIdentity): boolean {
     if (identity.guild === undefined || !policy.guilds.has(identity.guild)) {
         return false;
-    }
-
-    if (policy.channels) {
-        // a thread matches by its parent only: an unknown parent matches nothing
-        if (identity.thread !== undefined && identity.channel === identity.thread) {
-            return false;
-        }
-
-        if (!policy.channels.has(identity.channel)) {
-            return false;
-        }
     }
 
     const byRole = identity.roles.some((role) => policy.roles.has(role));
@@ -219,6 +208,36 @@ export function isAllowed(policy: ResolvedDiscordPolicy, identity: DiscordIdenti
     }
 
     return !policy.requireMention || identity.mentioned;
+}
+
+/**
+ * Whether a thread identity with an unknown parent may have its parent looked
+ * up: everything but the channel passes, so nobody the policy refuses makes
+ * the bot call Discord.
+ */
+export function mayResolveParent(policy: ResolvedDiscordPolicy, identity: DiscordIdentity): boolean {
+    return !identity.dm && needsParent(identity) && passesGuild(policy, identity);
+}
+
+/**
+ * Whether the policy lets the identity start runs (resolveInvoker decides
+ * next). A thread whose parent is unknown is refused: its conversation would
+ * differ from the one of the same thread once the parent is known.
+ */
+export function isAllowed(policy: ResolvedDiscordPolicy, identity: DiscordIdentity): boolean {
+    if (identity.dm) {
+        return policy.dmUsers?.has(identity.author) ?? false;
+    }
+
+    if (needsParent(identity)) {
+        return false;
+    }
+
+    if (policy.channels && !policy.channels.has(identity.channel)) {
+        return false;
+    }
+
+    return passesGuild(policy, identity);
 }
 
 /**

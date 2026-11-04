@@ -175,7 +175,7 @@ Every run a chat channel starts is tainted (`untrusted: true` by default; `false
 ## Limits
 
 - Text only: a message with attachments or without text is refused (reported, no run). No media download.
-- No history (`history: 0`), no message splitting: a message above `CHAT_TEXT_MAX_CHARS` (4096 UTF-16 code units) is refused; an approval cuts only its prose.
+- No history (`history: 0`), no message splitting: a message above `maxTextChars` (default `CHAT_TEXT_MAX_CHARS`, 4096 UTF-16 code units) is refused; an approval cuts only its prose.
 - `ChannelMessage.slot` is ignored: every message is a new chat message.
 - Delivery is at least once: a send is bounded by `timeoutMs` (default `CHAT_TIMEOUT_MS`, 30 s); a send that times out may still be delivered and a retry may send it again. A send while the channel is stopped or draining fails.
 

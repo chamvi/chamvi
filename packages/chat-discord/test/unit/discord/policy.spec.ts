@@ -9,7 +9,13 @@ import type { Message } from 'discord.js';
 import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { MessageType } from 'discord.js';
-import { identityOf, isAllowed, resolvePolicy } from '../../../src/discord/policy.ts';
+import {
+    identityOf,
+    isAllowed,
+    mayResolveParent,
+    needsParent,
+    resolvePolicy,
+} from '../../../src/discord/policy.ts';
 import type { DiscordInboundMessage, DiscordPolicy } from '../../../src/discord/types.ts';
 import {
     ACCOUNT,
@@ -183,8 +189,17 @@ describe('isAllowed: guilds, channels, authors', () => {
         expect(identity!.privateThread).toBeUndefined();
         expect(isAllowed(resolvePolicy({ ...BASE, channels: [CHANNEL] }), identity!)).toBe(false);
         expect(isAllowed(resolvePolicy({ ...BASE, channels: [THREAD] }), identity!)).toBe(false);
-        // without channels the guild and the author decide
-        expect(isAllowed(resolvePolicy(BASE), identity!)).toBe(true);
+        // the parent is resolved first (createDiscordChat): an unresolved one is never allowed
+        expect(isAllowed(resolvePolicy(BASE), identity!)).toBe(false);
+        expect(needsParent(identity!)).toBe(true);
+        expect(mayResolveParent(resolvePolicy(BASE), identity!)).toBe(true);
+        expect(mayResolveParent(resolvePolicy({
+            ...BASE, 
+            users: [], 
+            roles: [], 
+        }), identity!)).toBe(false);
+        expect(mayResolveParent(resolvePolicy({ ...BASE, guilds: [] }), identity!)).toBe(false);
+        expect(identityOf(message, { account: ACCOUNT, botId: BOT }, publicThread(THREAD, CHANNEL))!.chat).toBe(`discord:${GUILD}:${CHANNEL}:${THREAD}`);
 
         const partial = identityOf(discordMessage({ channel: publicThread(THREAD, null) }), { account: ACCOUNT, botId: BOT });
 

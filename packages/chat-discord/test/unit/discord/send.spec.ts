@@ -350,6 +350,22 @@ describe('createDiscordSender', () => {
         expect(fake.calls).toHaveLength(1);
     });
 
+    it('redacts the token from a refusal body that echoes it', async () => {
+        for (const body of [`${TOKEN} leaked`, JSON.stringify({ code: 0, message: `bad ${TOKEN}` })]) {
+            const fake = fakeFetch(() => new Response(body, { status: 500 }));
+            const error = await rejection(sender(fake.fetch)({
+                channel: 'discord',
+                threadId: 'discord:111:222',
+                text: 'hello',
+                key: 'k1',
+            })(new AbortController().signal));
+
+            expect(error).toMatchObject({ code: CHAT_REQUEST_ERROR_CODE });
+            expect((error as Error).message).toContain('500');
+            expect((error as Error).message).not.toContain(TOKEN);
+        }
+    });
+
     it('names the Discord error code of a 4xx', async () => {
         const fake = fakeFetch(() => Response.json({ message: 'Missing Access', code: 50001 }, { status: 403 }));
         const error = await rejection(sender(fake.fetch)({

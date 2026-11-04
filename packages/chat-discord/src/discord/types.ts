@@ -98,11 +98,15 @@ export type DiscordInboundMessage = {
         repliedUser?: { id: string } | null;
     };
     attachments: { values(): Iterable<DiscordInboundAttachment> };
-    channel: {
-        type: number;
-        isThread(): boolean;
-        parentId?: string | null;
-    };
+    channel: DiscordInboundChannel;
+};
+
+/** The channel of an incoming message; `fetch()` loads a partial one (a thread whose parent is unknown). */
+export type DiscordInboundChannel = {
+    type: number;
+    isThread(): boolean;
+    parentId?: string | null;
+    fetch?(): Promise<DiscordInboundChannel>;
 };
 
 /** The fields of a raw Discord API message the adapter's `parseMessage()` reads. */

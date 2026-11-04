@@ -10,17 +10,24 @@ import type { DiscordAdapter } from '@chat-adapter/discord';
 import { Client } from 'discord.js';
 import { Chat, ConsoleLogger } from 'chat';
 import type { ChatInstance, Message } from 'chat';
-import { ChamviError, InvalidAgentDefinitionError } from '@chamvi/core';
+import { ChamviError, InvalidAgentDefinitionError, InvalidRunStateError } from '@chamvi/core';
 import type { Invoker } from '@chamvi/core';
 import { isObject } from 'smob';
 import { CHAT_REQUEST_ERROR_CODE, chatChannel, createChatIngressAdapter } from '@chamvi/chat';
 import type { ChatIncoming } from '@chamvi/chat';
-import { DISCORD_ADAPTER_NAME, DISCORD_API_URL, DISCORD_TEXT_MAX_CHARS } from './constants.ts';
+import {
+    DISCORD_ADAPTER_NAME,
+    DISCORD_API_URL,
+    DISCORD_HANDOVER_MAX_PENDING,
+    DISCORD_TEXT_MAX_CHARS,
+} from './constants.ts';
 import { createDiscordConnection } from './connection.ts';
 import { toChatMessage } from './message.ts';
 import {
     identityOf,
     isAllowed,
+    mayResolveParent,
+    needsParent,
     resolvePolicy,
     toConversationTarget,
 } from './policy.ts';
@@ -50,7 +57,7 @@ function isApiUrl(value: unknown): boolean {
     try {
         const url = new URL(value);
 
-        return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password;
+        return (url.protocol === 'https:' || url.protocol === 'http:') && !url.username && !url.password && !url.search && !url.hash;
     } catch {
         return false;
     }
@@ -97,7 +104,7 @@ function assertOptions(options: DiscordChatOptions): void {
     }
 
     if (options.apiUrl !== undefined && !isApiUrl(options.apiUrl)) {
-        throw invalid('apiUrl must be an absolute http(s) URL without credentials.');
+        throw invalid('apiUrl must be an absolute http(s) URL without credentials, query or fragment.');
     }
 
     if (options.userName !== undefined && !isText(options.userName)) {
@@ -207,40 +214,84 @@ export function createDiscordChat(options: DiscordChatOptions): DiscordChatSetup
     // the identity the policy allowed and the invoker resolveInvoker named, per handed-over message
     const identities = new WeakMap<Message, DiscordIdentity>();
     const invokers = new WeakMap<Message, Invoker>();
-    // the tail of each channel's or thread's hand-over chain
-    const queues = new Map<string, Promise<void>>();
+    // the hand-over chain of each conversation (keyed by the Discord channel or thread id):
+    // its tail and how many messages wait in it
+    const queues = new Map<string, { tail: Promise<void>; pending: number }>();
+    // bumped on every disconnect: a hand-over queued by an earlier connection never reaches a later one
+    let generation = 0;
+    const ctx = () => ({ account: options.account });
 
-    const onMessage = (message: DiscordInboundMessage, botId: string) => {
-        const identity = identityOf(message, { account: options.account, botId });
+    const handOver = async (
+        message: DiscordInboundMessage,
+        botId: string,
+        found: DiscordIdentity,
+        run: number,
+    ): Promise<void> => {
+        let identity: DiscordIdentity | undefined = found;
 
-        // refused before any other work: no parsing, no hand-over, no Discord call
-        if (!identity || !isAllowed(policy, identity)) {
-            return;
+        if (needsParent(identity)) {
+            // a partial thread: its parent decides the conversation, so look it up once
+            // (a read, no visible effect); a failed lookup refuses the message
+            let fetched: DiscordInboundMessage['channel'] | undefined;
+
+            try {
+                fetched = await message.channel.fetch?.();
+            } catch {
+                fetched = undefined;
+            }
+
+            if (!fetched || run !== generation) {
+                return;
+            }
+
+            identity = identityOf(message, { ...ctx(), botId }, fetched);
         }
 
         const instance = facade;
 
-        if (!instance) {
+        if (!identity || !isAllowed(policy, identity) || !instance || run !== generation) {
             return;
         }
 
         const parsed = toChatMessage(adapter, message, identity);
 
         identities.set(parsed, identity);
+        await instance.processMessage(ingress, identity.chat, parsed);
+    };
 
-        const key = identity.chat;
-        // one after another per channel or thread: their runs are created in arrival order;
+    const onMessage = (message: DiscordInboundMessage, botId: string) => {
+        const identity = identityOf(message, { ...ctx(), botId });
+
+        // refused before any other work: no lookup, no parsing, no hand-over, no Discord call
+        if (!identity || !(needsParent(identity) ? mayResolveParent(policy, identity) : isAllowed(policy, identity))) {
+            return;
+        }
+
+        const key = message.channelId;
+        const queue = queues.get(key) ?? { tail: Promise.resolve(), pending: 0 };
+
+        if (queue.pending >= DISCORD_HANDOVER_MAX_PENDING) {
+            onError(new InvalidRunStateError(`A Discord conversation of channel "${channel.name}" has ${DISCORD_HANDOVER_MAX_PENDING} messages waiting for their hand-over; a later message was dropped.`));
+
+            return;
+        }
+
+        const run = generation;
+
+        queue.pending += 1;
+        // one after another per conversation: their runs are created in arrival order;
         // a refused or failed message is the channel's to report
-        const next = (queues.get(key) ?? Promise.resolve())
-            .then(() => instance.processMessage(ingress, identity.chat, parsed))
-            .catch(() => undefined);
+        queue.tail = queue.tail
+            .then(() => (run === generation ? handOver(message, botId, identity, run) : undefined))
+            .catch(() => undefined)
+            .finally(() => {
+                queue.pending -= 1;
 
-        queues.set(key, next);
-        next.then(() => {
-            if (queues.get(key) === next) {
-                queues.delete(key);
-            }
-        });
+                if (queue.pending === 0 && queues.get(key) === queue) {
+                    queues.delete(key);
+                }
+            });
+        queues.set(key, queue);
     };
 
     const connection = createDiscordConnection({
@@ -284,7 +335,12 @@ export function createDiscordChat(options: DiscordChatOptions): DiscordChatSetup
         account: options.account,
         maxTextChars: DISCORD_TEXT_MAX_CHARS,
         connect: (ctx) => connection.connect({ signal: ctx.signal, clock: options.clock ?? ctx.clock }),
-        disconnect: () => connection.close(),
+        disconnect: () => {
+            generation += 1;
+            queues.clear();
+
+            return connection.close();
+        },
         allowMessage,
         resolveInvoker: (incoming) => invokers.get(incoming.message),
         approvalUrl: options.approvalUrl,
