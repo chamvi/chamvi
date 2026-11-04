@@ -337,7 +337,12 @@ export class Engine implements IEngine {
         const trigger: TriggerEnvelope = {
             ...rest,
             ...(snapshot ? { invoker: snapshot } : {}),
-            ...(parent ? { parent: { ...parent } } : {}),
+            ...(parent ? {
+                parent: {
+                    ...parent,
+                    ...(parent.source ? { source: { ...parent.source } } : {}),
+                },
+            } : {}),
             id: envelope.id ?? randomUUID(),
             receivedAt: envelope.receivedAt ?? now,
         };
@@ -469,6 +474,7 @@ export class Engine implements IEngine {
 
         return {
             getAgent: (name) => this.agents.get(name),
+            hasChannel: (name) => this.channels.has(name),
             effects: this.store.effects,
             runs: this.store.runs,
             // a backstop for a parent that settled or paused after dispatch() checked its frame: read

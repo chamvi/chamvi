@@ -191,7 +191,10 @@ describe('public api', () => {
             idempotencyKey?: string;
             concurrencyKey?: string;
             address?: string;
+            source?: core.TriggerSource;
         }>();
+        expectTypeOf<core.TriggerSource>().toEqualTypeOf<{ channel: string; address: string }>();
+        expectTypeOf<core.TriggerParent['source']>().toEqualTypeOf<core.TriggerSource | undefined>();
         expectTypeOf<core.AgentSubscriber['on']>().returns.toEqualTypeOf<core.ChannelSubscription<unknown>>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('maxDepth').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('from').toEqualTypeOf<string[] | undefined>();

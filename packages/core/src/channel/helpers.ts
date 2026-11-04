@@ -103,7 +103,10 @@ function createChannelHandle(
     const capture = conversation && run.trigger.channel === name ? conversation : undefined;
     // The run's own source address and the channel's configured defaultAddress are exempt from the
     // outbound gate: the exemption fixes the destination, not the content.
+    // A dispatched run's `trigger.parent.source` (set only by dispatch() from code) counts as its own source.
+    const handed = run.trigger.parent?.source;
     const isFixedDestination = (target: string) => (name === run.trigger.channel && target === run.trigger.address) ||
+        (handed !== undefined && name === handed.channel && target === handed.address) ||
         target === channel.defaultAddress;
     const send = async (effectKey: string, key: string, message: EmitMessage, target: string) => {
         const stored = await effects.findOne(effectKey);

@@ -674,6 +674,21 @@ export function describeRepositoryContract(
             expect(listed.data[0]?.trigger.parent).toEqual(parent);
         });
 
+        it('trigger.parent.source round-trips', async () => {
+            const { store } = await setup();
+            const run = makeChild('r1', 'p1');
+            const parent = {
+                ...run.trigger.parent!,
+                source: { channel: 'github', address: 'o/r#12' },
+            };
+
+            run.trigger = { ...run.trigger, parent };
+            await store.runs.insert(makeRun('p1'));
+            await store.runs.insert(run);
+            expect((await store.runs.findOne('r1'))?.trigger.parent).toEqual(parent);
+            expect((await store.runs.find({ ids: ['r1'] })).data[0]?.trigger.parent?.source).toEqual(parent.source);
+        });
+
         it('parentRunId is derived from trigger.parent and filters children', async () => {
             const { store } = await setup();
 
