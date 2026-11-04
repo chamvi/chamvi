@@ -51,10 +51,14 @@ export function hasPermission(granted: readonly string[], wanted: string): boole
     });
 }
 
+export type SessionCookieOptions = {
+    path?: string;
+};
+
 export type SessionCookies = {
     cookieGet: (key: string) => unknown;
     cookieSet: (key: string, value: unknown) => void;
-    cookieUnset: (key: string) => void;
+    cookieUnset: (key: string, options?: SessionCookieOptions) => void;
 };
 
 /**
@@ -63,10 +67,15 @@ export type SessionCookies = {
  * never reach `document.cookie`, so no other tab, no browser restart and
  * no request to the server sees them, and sign-out's `clearStorage`
  * removes them. A `null` or `undefined` value unsets.
+ *
+ * Storage has no cookie paths, so an unset aimed at a path other than
+ * `cookiePath` is ignored: on every install the kit drops the cookies
+ * shadowing its pinned path, for each prefix of the page's path, and
+ * those calls must not remove the tab's own tokens.
  */
-export function createSessionCookies(storage: Storage): SessionCookies {
+export function createSessionCookies(storage: Storage, cookiePath?: string): SessionCookies {
     const keyOf = (key: string) => `${AUTHUP_STORAGE_PREFIX}${key}`;
-    const cookieUnset = (key: string) => storage.removeItem(keyOf(key));
+    const remove = (key: string) => storage.removeItem(keyOf(key));
 
     return {
         cookieGet(key) {
@@ -84,11 +93,17 @@ export function createSessionCookies(storage: Storage): SessionCookies {
         },
         cookieSet(key, value) {
             if (value === null || value === undefined) {
-                cookieUnset(key);
+                remove(key);
             } else {
                 storage.setItem(keyOf(key), JSON.stringify(value));
             }
         },
-        cookieUnset,
+        cookieUnset(key, options) {
+            if (options?.path !== undefined && options.path !== cookiePath) {
+                return;
+            }
+
+            remove(key);
+        },
     };
 }
