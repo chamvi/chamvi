@@ -126,4 +126,8 @@ export type CodeToolsOptions = {
     /** Appends the call's step; awaited before the call resolves or rejects. */
     onStep: (step: CodeToolStep) => Promise<void>;
     now: () => Date;
+    /** The calls still running, so the execution lets them finish before it pauses or settles. */
+    inflight: Set<Promise<unknown>>;
+    /** Called with a FatalToolError a tool threw: it fails the run even when run() catches it. */
+    onFatal: (error: unknown) => void;
 };

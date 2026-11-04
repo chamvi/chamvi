@@ -101,7 +101,7 @@ A code agent has `run(payload, ctx)` in place of a model and instructions. The e
 - What `run()` returns (JSON-serialisable) is the run's `output`, so a parent's `waitForDispatch()` gets it. A throw fails the run, a `ValidationError` from `dispatch()` included: there is no model to hand it back to. The run ends with one `tool` step named after the agent.
 - `timeoutMs` bounds each execution; `maxSteps` and `maxTokens` do not apply, and a model `run()` calls itself through `resolveModel()` is not counted in the run's usage.
 - **The replay rule**: a run that paused (an approval, a wait) or was recovered runs `run()` again **from the start**. Effect-recorded calls return their records: `dispatch()` and `dispatchTo()` the same children, `waitForDispatch()` and `approve()` their answers, `emit()` nothing new, an [effect tool](/guide/effect-tools) through `ctx.tools` its first result. Everything else repeats, a read tool through `ctx.tools` too. The approval and wait ids come from counters per execution (`0:run:<n>` and `0:run:w<n>` for calls in `run()`, `0:run:<call>:<n>` inside the `<call>`-th `ctx.tools` call), so keep the order of those calls free of state that can change between executions (the time, randomness, a fresh read): the sweeper above reads its list through an effect tool, so the execution after the wait dispatches and waits on the same runs.
-- A `run()` that catches the pause and returns anyway still pauses.
+- A `run()` that catches the pause and returns anyway still pauses, and one that catches a `FatalToolError` from `ctx.tools` still fails. A `ctx.tools` call `run()` left running finishes before the run pauses or settles, as a model step waits for all its calls.
 
 ## Keys and dedupe across runs
 

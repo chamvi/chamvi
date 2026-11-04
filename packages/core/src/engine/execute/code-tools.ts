@@ -9,7 +9,7 @@ import type { CodeRunContext } from '../../agent/types.ts';
 import { SUSPENDED_RESULT } from '../../approval/constants.ts';
 import { SuspendSignal } from '../../approval/request.ts';
 import { assertFrameActive } from '../../effect/frame.ts';
-import { ValidationError } from '../../errors/index.ts';
+import { FatalToolError, ValidationError } from '../../errors/index.ts';
 import { executePendingCall, toRunError } from './helpers.ts';
 import type { CodeToolsOptions } from './types.ts';
 
@@ -20,7 +20,8 @@ import type { CodeToolsOptions } from './types.ts';
  * the toolPolicy hides (ValidationError), validates the input against the
  * tool's input schema (ValidationError) and runs the wrapped tool as a model
  * call would (hooks, effects, trust); a streaming tool resolves to its last
- * value. The tool's error throws as is. Each call that ran appends a `tool`
+ * value. The tool's error throws as is (a FatalToolError fails the run even
+ * when run() catches it). Each call that ran appends a `tool`
  * step; a suspended one appends none and throws the SuspendSignal of the
  * request the wrapper copied onto the outer frame, so the run pauses
  * whatever run() does with it.
@@ -35,6 +36,8 @@ export function createCodeTools(options: CodeToolsOptions): CodeRunContext['tool
         signal,
         onStep,
         now,
+        inflight,
+        onFatal,
     } = options;
     let ordinal = 0;
     const result: CodeRunContext['tools'] = {};
@@ -46,8 +49,12 @@ export function createCodeTools(options: CodeToolsOptions): CodeRunContext['tool
             assertFrameActive(frame, `Tool "${name}"`);
 
             const toolCallId = `run:${ordinal++}`;
+            const pending = call(name, toolCallId, input);
 
-            return call(name, toolCallId, input);
+            inflight.add(pending);
+            pending.then(() => inflight.delete(pending), () => inflight.delete(pending));
+
+            return pending;
         };
     }
 
@@ -80,6 +87,11 @@ export function createCodeTools(options: CodeToolsOptions): CodeRunContext['tool
         });
 
         if ('error' in outcome) {
+            // as in a model run: a FatalToolError fails the run, whatever run() does with it
+            if (outcome.error instanceof FatalToolError) {
+                onFatal(outcome.error);
+            }
+
             throw outcome.error;
         }
 

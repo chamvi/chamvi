@@ -385,6 +385,7 @@ describe('ctx.tools in code runs', () => {
         const applied: string[] = [];
         const gate = Promise.withResolvers<void>();
         const late = Promise.withResolvers<unknown[]>();
+        const entered = Promise.withResolvers<void>();
         const { store, engine } = setup({
             tools: {
                 send: defineEffectTool({
@@ -398,6 +399,7 @@ describe('ctx.tools in code runs', () => {
             },
             // ignores ctx.run.signal: keeps going after the cancel
             run: async (_payload, ctx) => {
+                entered.resolve();
                 await gate.promise;
 
                 const errors = await Promise.all([
@@ -425,12 +427,6 @@ describe('ctx.tools in code runs', () => {
 
         await engine.start();
 
-        const running = Promise.withResolvers<void>();
-        const off = engine.on('run.updated', ({ run }) => {
-            if (run.agent === 'code' && run.status === 'running') {
-                running.resolve();
-            }
-        });
         const { runId } = await engine.dispatch({
             agent: 'code',
             trigger: 'test',
@@ -438,8 +434,8 @@ describe('ctx.tools in code runs', () => {
             payload: {},
         });
 
-        await running.promise;
-        off();
+        // cancelled once run() is inside its execution (a cancel during tool assembly never starts it)
+        await entered.promise;
         await engine.cancel(runId);
         await engine.idle();
 
@@ -455,6 +451,95 @@ describe('ctx.tools in code runs', () => {
         expect(applied).toEqual([]);
         expect((await store.runs.find({ parentRunId: runId })).data).toEqual([]);
         expect(await store.steps.find(runId)).toEqual([]);
+
+        await engine.stop();
+    });
+
+    it('lets a ctx.tools call still running finish before the run pauses, so the replay applies it once', async () => {
+        let writes = 0;
+        const gate = Promise.withResolvers<void>();
+        const inside = Promise.withResolvers<void>();
+        const { store, engine } = setup({
+            tools: {
+                write: defineEffectTool({
+                    inputSchema: z.object({}),
+                    execute: async () => {
+                        inside.resolve();
+                        await gate.promise;
+                        writes++;
+
+                        return 'written';
+                    },
+                }),
+            },
+            run: async (_payload, ctx) => {
+                const [written, decision] = await Promise.all([
+                    ctx.tools.write!({}),
+                    approve(ctx, { title: 'Go?' }),
+                ]);
+
+                return { written, approved: decision.approved };
+            },
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch({
+            agent: 'code',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+        });
+
+        await inside.promise;
+        // approve() suspended at once, but the effect call is still running: no pause yet
+        await new Promise((resolve) => {
+            setImmediate(resolve);
+        });
+        expect((await store.runs.findOne(runId))?.status).toBe('running');
+
+        gate.resolve();
+        await engine.idle();
+        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+
+        await engine.approve(runId, { approvalId: '0:run:0', approved: true });
+        await engine.idle();
+
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('completed');
+        expect(run?.output).toEqual({ written: 'written', approved: true });
+        expect(writes).toBe(1);
+
+        await engine.stop();
+    });
+
+    it('fails the run on a FatalToolError even when run() catches it', async () => {
+        const { store, engine } = setup({
+            tools: {
+                boom: defineTool({
+                    inputSchema: z.object({}),
+                    execute: async (): Promise<string> => {
+                        throw new FatalToolError('stop', 'boom_code');
+                    },
+                }),
+            },
+            run: async (_payload, ctx) => {
+                try {
+                    await ctx.tools.boom!({});
+                } catch {
+                    // ignored on purpose
+                }
+
+                return 'ignored';
+            },
+        });
+        const runId = await runOnce(engine);
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('failed');
+        expect(run?.error).toEqual({ code: 'boom_code', message: 'stop' });
+        expect(run?.output).toBeUndefined();
 
         await engine.stop();
     });

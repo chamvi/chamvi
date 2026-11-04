@@ -25,7 +25,7 @@ import { createToolChannels } from '../../channel/helpers.ts';
 import { checkConversation, conversationFor } from '../../conversation/context.ts';
 import { bindProvided } from '../../context/helpers.ts';
 import { bindDispatchTools } from '../../dispatch/bind.ts';
-import { assertNoDispatchCollision } from '../../dispatch/helpers.ts';
+import { assertNoDispatchCollision, assertOwnDispatchRoles } from '../../dispatch/helpers.ts';
 import { validateToolInput } from '../../effect/helpers.ts';
 import { wrapToolsForRun } from '../../effect/wrap.ts';
 import {
@@ -235,6 +235,11 @@ export async function assembleTools(
     const ownTools = typeof userTools === 'function' ? userTools(toolContext) : userTools ?? {};
 
     assertNoDispatchCollision(ctx.agent.name, ownTools, [stateTools, ctx.skills?.tools ?? {}]);
+
+    // a factory's set is only known here: its own-role placeholders are checked like defineAgent checks a plain set
+    if (typeof userTools === 'function') {
+        assertOwnDispatchRoles(ctx.agent.name, ctx.agent.definition.channels, ownTools);
+    }
 
     const tools: ToolSet = {
         ...stateTools,

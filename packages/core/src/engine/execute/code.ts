@@ -129,14 +129,21 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
         return write;
     };
     const startedAt = clock.now();
+    const inflight = new Set<Promise<unknown>>();
+    let fatal: { error: unknown } | undefined;
     let outcome: { output: unknown } | { error: unknown };
 
     try {
         // the same ToolContext the tools get, so the provided values bound to it stay reachable through inject()
-        const assembled = await assembleTools(ctx, runContext, (request) => {
+        const assembling = assembleTools(ctx, runContext, (request) => {
             // a suspension inside a tool pauses the run like a direct approve()
             frame.suspended ??= request;
         }, undefined, toolContext);
+
+        // bounded by the run signal like run() itself; never leak its rejection
+        assembling.catch(() => {});
+
+        const assembled = await untilAborted(assembling, signal);
         const codeContext: CodeRunContext = Object.assign(toolContext, {
             tools: createCodeTools({
                 agent: agent.name,
@@ -147,6 +154,10 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
                 signal,
                 onStep: appendStep,
                 now: () => clock.now(),
+                inflight,
+                onFatal: (error) => {
+                    fatal ??= { error };
+                },
             }),
         });
         const work = runToolCall(frame, async () => body(run.trigger.payload, codeContext));
@@ -157,16 +168,25 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
         assertTrust(runContext);
     } catch (error) {
         outcome = { error };
-    } finally {
-        frame.abandoned = true;
-        local.abort();
-        timeout?.clear();
     }
+
+    // the ctx.tools calls run() left running finish first, as a model step waits for all its calls,
+    // so a pause or settle never leaves an effect running that the next execution would apply again
+    while (inflight.size > 0 && !signal.aborted) {
+        await untilAborted(Promise.allSettled([...inflight]), signal).catch(() => {});
+    }
+
+    frame.abandoned = true;
+    local.abort();
+    timeout?.clear();
 
     const usage = { ...run.usage };
 
-    // first: run() may have caught the SuspendSignal and returned (or thrown) anyway
-    if (frame.suspended) {
+    // a FatalToolError fails the run whatever run() did with it, before a pause (as in a model run)
+    if (fatal && !ctx.signal.aborted && !timeout?.signal.aborted) {
+        outcome = { error: fatal.error };
+    } else if (frame.suspended) {
+        // run() may have caught the SuspendSignal and returned (or thrown) anyway
         await ctx.pause(frame.suspended, usage);
 
         return;
