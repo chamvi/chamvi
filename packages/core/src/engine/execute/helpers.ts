@@ -31,6 +31,7 @@ import { wrapToolsForRun } from '../../effect/wrap.ts';
 import {
     BudgetExceededError,
     IncompleteResponseError,
+    InvalidRunStateError,
     ToolNotAllowedError,
     ValidationError,
 } from '../../errors/index.ts';
@@ -48,7 +49,12 @@ import { assertAgentTrust } from '../../trust/asserts.ts';
 import type { ToolContext } from '../../tool/types.ts';
 import type { TriggerEnvelope } from '../../trigger/types.ts';
 import { MAX_ERROR_CAUSE_LENGTH } from './constants.ts';
-import type { ExecuteContext, PendingToolCall, SuspendRequest } from './types.ts';
+import type {
+    ExecuteContext,
+    ExecutionGate,
+    PendingToolCall,
+    SuspendRequest,
+} from './types.ts';
 
 export function renderTrigger(envelope: TriggerEnvelope): string {
     const json = JSON.stringify({
@@ -153,13 +159,20 @@ export function toRunError(error: unknown): { code: string; message: string } {
 
 /**
  * The execution's one ToolContext (`run`, `state`, `artifacts`, `channels`)
- * with the engine's provided values bound, so inject() works on it.
+ * with the engine's provided values bound, so inject() works on it. With a
+ * `gate`, its state and artifact writers refuse (InvalidRunStateError) once
+ * the execution ended, so work a tool left behind writes nothing.
  */
-export function createToolContext(ctx: ExecuteContext, runContext: RunContext): ToolContext {
+export function createToolContext(ctx: ExecuteContext, runContext: RunContext, gate?: ExecutionGate): ToolContext {
+    const assertWritable = gate ? (name: string) => {
+        if (gate.ended) {
+            throw new InvalidRunStateError(`${name} cannot run after the execution of run "${ctx.run.id}" ended.`);
+        }
+    } : undefined;
     const toolContext: ToolContext = {
         run: runContext,
-        state: createAgentState(ctx.agent.name, ctx.agent.definition.state, ctx.store.state),
-        artifacts: createRunArtifacts(ctx.store.artifacts, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock),
+        state: createAgentState(ctx.agent.name, ctx.agent.definition.state, ctx.store.state, assertWritable),
+        artifacts: createRunArtifacts(ctx.store.artifacts, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock, assertWritable),
         channels: createToolChannels(runContext, ctx.store.effects, ctx.engine),
     };
 

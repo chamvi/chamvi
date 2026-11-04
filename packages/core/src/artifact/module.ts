@@ -80,9 +80,11 @@ export function createRunArtifacts(
     store: IArtifactRepository,
     run: { id: string; agent: string },
     clock: IClock,
+    assertWritable?: (name: string) => void,
 ): IRunArtifacts {
     return {
         async put(input) {
+            assertWritable?.('artifacts.put()');
             assertArtifactInput(input);
 
             if (input.key === undefined) {

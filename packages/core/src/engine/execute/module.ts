@@ -39,6 +39,7 @@ import {
 import {
     assembleTools,
     budgetExceeded,
+    createToolContext,
     executePendingCall,
     incompleteOutput,
     initialMessage,
@@ -54,7 +55,7 @@ import {
     withoutPartialOutput,
     withoutResults,
 } from './helpers.ts';
-import type { ExecuteContext, SuspendRequest } from './types.ts';
+import type { ExecuteContext, ExecutionGate, SuspendRequest } from './types.ts';
 
 /**
  * One execution of a claimed, `running` run: first runs the tool calls a
@@ -62,9 +63,20 @@ import type { ExecuteContext, SuspendRequest } from './types.ts';
  * checkpoint (pausing again, without a model call, when one suspends again),
  * then streams a ToolLoopAgent from there (emitting text and reasoning
  * deltas), checkpoints every step and settles the run, or pauses it on the
- * first call that suspended.
+ * first call that suspended. The execution's ToolContext writers refuse
+ * once it ended (its gate), so work a tool left behind writes nothing.
  */
 export async function executeRun(ctx: ExecuteContext): Promise<void> {
+    const gate: ExecutionGate = { ended: false };
+
+    try {
+        await runExecution(ctx, gate);
+    } finally {
+        gate.ended = true;
+    }
+}
+
+async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<void> {
     const {
         run,
         agent,
@@ -178,6 +190,8 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
         bindConversationRun(runContext, ctx.conversation.capability, run);
     }
 
+    const toolContext = createToolContext(ctx, runContext, gate);
+
     // the calls approve() or waitForDispatch() suspended in this execution, in the order they suspended
     const suspended: SuspendRequest[] = [];
     // while the pending calls run they belong to the checkpoint's step, later ones to the step being made
@@ -193,8 +207,9 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
         model = toLanguageModel(ctx.model, ctx.models, agent.name);
         assembled = await assembleTools(ctx, runContext, (request) => {
             suspended.push(request);
-        }, () => (replaying ? checkpoint!.stepIndex : stepIndex));
+        }, () => (replaying ? checkpoint!.stepIndex : stepIndex), toolContext);
     } catch (error) {
+        gate.ended = true;
         local.abort();
         timeout?.clear();
 
@@ -497,6 +512,7 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
             } while (settled !== pendingWrite);
 
             abandoned = true;
+            gate.ended = true;
 
             if (ctx.signal.aborted) {
                 await ctx.finish({ status: RunStatus.CANCELLED, usage });
@@ -526,6 +542,7 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
             // a cancel or the timeout during that wait settles the run, never a pause
             const timedOut = timeout?.signal.aborted === true ? { reason: timeout.signal.reason as unknown } : undefined;
 
+            gate.ended = true;
             local.abort();
             timeout?.clear();
 
@@ -648,6 +665,7 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
         } while (settled !== pendingStepEnd);
 
         abandoned = true;
+        gate.ended = true;
 
         if (ctx.signal.aborted) {
             await ctx.finish({ status: RunStatus.CANCELLED, usage });
@@ -667,6 +685,8 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
 
         return;
     } finally {
+        // after the step-end writes in flight landed (the catch above waits for them)
+        gate.ended = true;
         local.abort();
         timeout?.clear();
     }

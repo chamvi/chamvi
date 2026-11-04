@@ -17,7 +17,7 @@ import { assertTrust, bindTrust } from '../../trust/module.ts';
 import { resolveBudget, timeoutSignal } from '../budget.ts';
 import { createSimpleTools } from './simple-tools.ts';
 import { assembleTools, createToolContext, toRunError } from './helpers.ts';
-import type { ExecuteContext, SimpleToolStep } from './types.ts';
+import type { ExecuteContext, ExecutionGate, SimpleToolStep } from './types.ts';
 
 /** The synthetic tool call a simple run's `run()` executes in: part of its approval and wait ids (`0:run:<n>`). */
 const SIMPLE_RUN_TOOL_CALL_ID = 'run';
@@ -57,9 +57,19 @@ function toJsonOutput(value: unknown): { value: unknown } | undefined {
  * effect-recorded calls return their records. A suspension pauses the run, whatever `run()`
  * did with the signal afterwards; else the returned value completes it (one
  * `tool` step) and a throw fails it. No model call, no `llm` step, no
- * checkpoint.
+ * checkpoint. The ToolContext writers refuse once the execution ended.
  */
 export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
+    const gate: ExecutionGate = { ended: false };
+
+    try {
+        await runSimpleExecution(ctx, gate);
+    } finally {
+        gate.ended = true;
+    }
+}
+
+async function runSimpleExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<void> {
     const {
         run,
         agent,
@@ -95,7 +105,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
 
     bindRunSnapshot(runContext);
 
-    const toolContext = createToolContext(ctx, runContext);
+    const toolContext = createToolContext(ctx, runContext, gate);
     const frame: ToolCallFrame = {
         runId: run.id,
         toolCallId: SIMPLE_RUN_TOOL_CALL_ID,
@@ -178,6 +188,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
     }
 
     frame.abandoned = true;
+    gate.ended = true;
     local.abort();
     timeout?.clear();
 

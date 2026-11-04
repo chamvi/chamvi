@@ -18,6 +18,14 @@ import type { SkillContribution } from '../../skill/types.ts';
 import type { IStore } from '../../repository/types.ts';
 import type { IEngine, RunDelta } from '../types.ts';
 
+/**
+ * The end of one execution (internal): set once it settled or paused, after
+ * the writes of the calls that finished; the ToolContext writers refuse from then on.
+ */
+export type ExecutionGate = {
+    ended: boolean;
+};
+
 /** A tool call of the checkpoint that has no result yet: suspended by approve() or waitForDispatch(). */
 export type PendingToolCall = {
     toolCallId: string;
