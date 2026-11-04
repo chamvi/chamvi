@@ -41,6 +41,7 @@ function approvalOf(run: Pick<Run, 'waiting'> | undefined): ApprovalWaitPoint {
 }
 
 const ISSUES_OPENED = readFileSync(new URL('../../fixtures/deliveries/issues-opened.json', import.meta.url), 'utf8');
+const CHECK_SUITE = readFileSync(new URL('../../fixtures/deliveries/check-suite-completed.json', import.meta.url), 'utf8');
 const ISSUE = { repo: 'octo/demo', number: 5 };
 const APPROVAL_URL: GithubChannelOptions['approvalUrl'] = (ref) => `https://chamvi.example/ui/approvals?run=${ref.runId}&approval=${ref.approvalId}&agent=${ref.agent}`;
 
@@ -275,5 +276,95 @@ describe('github channel with the engine', () => {
         await setup.engine.tick();
         expect(setup.fake.comments.get('octo/demo#5')).toHaveLength(1);
         expect(approvalOf(await setup.engine.getRun(runId)).notifiedAt).toBeInstanceOf(Date);
+    });
+
+    describe('a run a check suite of one pull request started', () => {
+        /** Comments on, then asks on, the pull request `number` of octo/demo. */
+        const ask = defineTool({
+            description: 'Reports on and asks about a pull request.',
+            inputSchema: z.object({ number: z.number() }),
+            execute: async ({ number }, { context }) => {
+                const channel = context.channels.findOneOrFail('github');
+                const address = `octo/demo#${number}`;
+
+                await channel.emit({ body: 'CI failed.' }, address);
+
+                const decision = await channel.approve({ title: 'Retry the failed jobs?', address });
+
+                return decision.approved ? 'retry' : 'keep';
+            },
+        });
+
+        async function startCheck(number: number) {
+            const setup = createGithubTestApp({
+                agents: [defineModelAgent({
+                    name: 'maintainer',
+                    model: mockModel([
+                        {
+                            parts: [{
+                                type: 'tool-call', 
+                                toolName: 'ask', 
+                                input: { number }, 
+                            }], 
+                        },
+                        { parts: [{ type: 'text', text: 'Asked.' }] },
+                    ]),
+                    instructions: 'Ask about failed checks.',
+                    channels: [github.on('check_suite.completed')],
+                    tools: { ask },
+                })],
+                channel: { approvalUrl: APPROVAL_URL },
+            });
+
+            engines.push(setup.engine);
+
+            const { issue } = (JSON.parse(ISSUES_OPENED) as { issue: Record<string, unknown> });
+
+            for (const n of [12, 13]) {
+                setup.fake.issues.set(`octo/demo#${n}`, { ...issue, number: n });
+            }
+
+            const response = await deliver(setup.app, {
+                event: 'check_suite',
+                delivery: 'd-check',
+                body: CHECK_SUITE,
+            });
+            const { runs } = await response.json() as { runs: Array<{ runId: string }> };
+
+            await setup.engine.start();
+            await setup.engine.idle();
+
+            return { setup, run: (await setup.engine.getRun(runs[0]!.runId))! };
+        }
+
+        it('emits to and asks on that pull request without the outbound gate', async () => {
+            const { setup, run } = await startCheck(12);
+
+            expect(run.trigger.address).toBe('octo/demo#12');
+            expect(run.trigger.concurrencyKey).toBe('octo/demo#12');
+            expect(run.taint?.source).toBe('channel:github');
+            expect(run.status).toBe('waiting');
+            expect(approvalOf(run)).toMatchObject({
+                title: 'Retry the failed jobs?',
+                channel: 'github',
+                address: 'octo/demo#12',
+            });
+
+            const comments = setup.fake.comments.get('octo/demo#12') ?? [];
+
+            expect(comments).toHaveLength(2);
+            expect(String(comments[0]!.body)).toContain('CI failed.');
+            expect(String(comments[1]!.body)).toContain('Retry the failed jobs?');
+            expect(setup.errors).toEqual([]);
+        });
+
+        it('still gates another pull request', async () => {
+            const { setup, run } = await startCheck(13);
+
+            expect(run.status).toBe('waiting');
+            expect(approvalOf(run).title).toBe('Approve outbound execution from an untrusted run?');
+            expect(JSON.parse(approvalOf(run).body!)).toMatchObject({ tool: 'channel.emit', input: { address: 'octo/demo#13' } });
+            expect(setup.fake.comments.get('octo/demo#13') ?? []).toHaveLength(0);
+        });
     });
 });
