@@ -1,11 +1,10 @@
 import re, sys, pathlib
-# Crimson brand colour -> Violet counterpart (status colours stay).
+# Glacier brand colour -> Violet counterpart (status colours stay).
 MAP = {
- '#C8303B':'#7C3AED', '#E04652':'#A78BFA', '#B02A34':'#6D28D9', '#FF7B84':'#C4B5FD',
- '#1B1A1C':'#1A1523', '#EDE6E3':'#ECE6F5', '#EFE8E6':'#ECE6F5', '#9A9396':'#9A93A8', '#7D7375':'#7A7189',
- '#201D1F':'#1C1724', '#19171A':'#15111B', '#121012':'#0A0710', '#332E30':'#2E2639', '#2C2729':'#2A2236',
- '#5C5B60':'#5C546A', '#B0A5A4':'#A79DB9', '#E6E6E9':'#E5E0ED', '#F4F4F5':'#F2F0F6', '#F0F0F2':'#EFECF4',
- '#8E8D92':'#8E879C', '#7A6F70':'#776C86', '#E6DFDE':'#E8E2F2',
+ '#1479B0':'#7C3AED', '#9AD8F5':'#A78BFA', '#4DB3E6':'#8B5CF6', '#E6F4FB':'#F1EAFD',
+ '#0B2233':'#1A1523', '#E2F0F8':'#ECE6F5', '#9BB0BF':'#9A93A8', '#5F7A8C':'#7A7189',
+ '#0E1D28':'#1C1724', '#0A1620':'#15111B', '#1E3242':'#2E2639', '#4A5E6D':'#5C546A',
+ '#9DB2C2':'#A79DB9', '#7E909E':'#8E879C', '#EEF5FA':'#F2F0F6', '#DCE6EE':'#E5E0ED',
 }
 KEEP = {'#FFFFFF','#9A6A12','#E7C58C','#2F7D4F','#6FBF8B'}
 root = pathlib.Path(sys.argv[1]); out = pathlib.Path(sys.argv[2])

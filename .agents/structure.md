@@ -56,7 +56,7 @@ chamvi/
 │   ├── node/                        # Dockerfile + README of ghcr.io/chamvi/node:26 (the app base image: node:26-trixie-slim, tini, uid 1000)
 │   └── sandbox-dev/                 # Dockerfile + README of ghcr.io/chamvi/sandbox-dev (Debian, git, build tools, ripgrep, jq, mise; root)
 ├── .github/
-│   ├── assets/                      # logo.svg (+ test-kit and organisation variants), run-lifecycle.svg
+│   ├── assets/                      # logo*.svg, run-lifecycle.svg, avatar/social PNGs, palettes/
 │   ├── actions/{install,build}/     # Composite actions
 │   ├── workflows/{ci,release,docs,images}.yml # CI (one Node 26 check job plus the Chromium e2e job), release-please + npm publish, docs to GitHub Pages, sandbox image (craneship, amd64 + arm64)
 │   ├── ISSUE_TEMPLATE/              # Bug report and feature request templates

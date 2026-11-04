@@ -35,7 +35,7 @@
  * theme's utilities and the vc-* structural rules.
  */
 
-/* ---------- Crimson tokens (palettes.mjs of the mockup) ---------- */
+/* ---------- Glacier tokens (see .agents/design.md) ---------- */
 :root {
     --ch-font-display: "Instrument Sans Variable", ui-sans-serif, system-ui, sans-serif;
     --ch-font-sans: "Instrument Sans Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
@@ -47,78 +47,82 @@
     --ch-radius-lg: 9px;
     --ch-radius-canvas: 12px;
 
-    --ch-bg: #f1f0f1;
-    --ch-canvas: #fafafa;
+    --ch-bg: #edf2f6;
+    --ch-canvas: #f8fafc;
     --ch-surface: #ffffff;
-    --ch-sunken: #f6f5f6;
-    --ch-hover: #f4f2f3;
-    --ch-line: #e6e3e5;
-    --ch-line-strong: #d2cdd0;
+    --ch-sunken: #f3f6f9;
+    --ch-hover: #eef3f7;
+    --ch-line: #dde6ed;
+    --ch-line-strong: #c3d1dc;
     /* form-control boundary, at least 3:1 on surface and sunken (WCAG 1.4.11) */
-    --ch-field-line: #8f8c90;
-    --ch-ink: #1b1a1c;
-    --ch-muted: #5f5b61;
-    --ch-accent: #c8303b;
-    --ch-btn: #c8303b;
-    --ch-btn-hover: #ad2731;
+    --ch-field-line: #7f8e9a;
+    --ch-ink: #0b2233;
+    --ch-muted: #4c606f;
+    --ch-accent: #1479b0;
+    --ch-btn: #1479b0;
+    --ch-btn-hover: #0b5e8c;
     --ch-btn-ink: #ffffff;
-    --ch-accent-text: #ad2731;
-    --ch-accent-tint: #fbecee;
-    --ch-run: #1f5fa8;
-    --ch-run-tint: #e9f0fa;
+    --ch-accent-text: #0b5e8c;
+    --ch-accent-tint: #e6f3fb;
+    --ch-logo: #4db3e6;
+    --ch-logo-seal: #e6f4fb;
+    --ch-run: #0b5e8c;
+    --ch-run-tint: #e3f2fb;
     --ch-wait: #875700;
     --ch-wait-tint: #fbf3e1;
     --ch-ok: #2a7348;
     --ch-ok-tint: #e7f3eb;
-    --ch-fail: #232024;
+    --ch-fail: #c1272d;
     --ch-fail-ink: #ffffff;
-    --ch-fail-tint: #ecebec;
-    --ch-code-bg: #1a171b;
-    --ch-code-ink: #e8e1e0;
-    --ch-code-key: #ff8f97;
+    --ch-fail-tint: #fde8e8;
+    --ch-code-bg: #0a1620;
+    --ch-code-ink: #dce9f2;
+    --ch-code-key: #8fd0f2;
     --ch-code-str: #e7c58c;
-    --ch-code-com: #a0959a;
-    --ch-code-line: #2e292d;
-    --ch-shadow-c: rgba(40, 20, 28, 0.07);
-    --ch-shadow-c2: rgba(40, 20, 28, 0.14);
+    --ch-code-com: #8aa0b0;
+    --ch-code-line: #1a2e3d;
+    --ch-shadow-c: rgba(11, 34, 51, 0.07);
+    --ch-shadow-c2: rgba(11, 34, 51, 0.14);
     --ch-highlight: rgba(255, 255, 255, 0.7);
-    --ch-scrim: rgba(20, 14, 18, 0.45);
+    --ch-scrim: rgba(6, 17, 26, 0.45);
 
     color-scheme: light;
 }
 
 .dark {
-    --ch-bg: #0f0e10;
-    --ch-canvas: #161417;
-    --ch-surface: #1e1b1f;
-    --ch-sunken: #131114;
-    --ch-hover: #252126;
-    --ch-line: #2f2a30;
-    --ch-line-strong: #40393f;
-    --ch-field-line: #736b6f;
-    --ch-ink: #f0eaea;
-    --ch-muted: #aba1a4;
-    --ch-accent: #e04652;
-    --ch-btn: #c8303b;
-    --ch-btn-hover: #d63a45;
+    --ch-bg: #071119;
+    --ch-canvas: #0a1620;
+    --ch-surface: #0e1d28;
+    --ch-sunken: #08141d;
+    --ch-hover: #132634;
+    --ch-line: #1e3242;
+    --ch-line-strong: #2b4559;
+    --ch-field-line: #5f7a8c;
+    --ch-ink: #e2f0f8;
+    --ch-muted: #9db2c2;
+    --ch-accent: #9ad8f5;
+    --ch-btn: #1479b0;
+    --ch-btn-hover: #0f72a8;
     --ch-btn-ink: #ffffff;
-    --ch-accent-text: #ff7f88;
-    --ch-accent-tint: #36191e;
-    --ch-run: #82b6f2;
-    --ch-run-tint: #162436;
+    --ch-accent-text: #b5e3f8;
+    --ch-accent-tint: #10293a;
+    --ch-logo: #9ad8f5;
+    --ch-logo-seal: #0e1d28;
+    --ch-run: #9ad8f5;
+    --ch-run-tint: #10293a;
     --ch-wait: #eac27c;
     --ch-wait-tint: #2c2416;
     --ch-ok: #6fc493;
     --ch-ok-tint: #13271c;
-    --ch-fail: #f0eaea;
-    --ch-fail-ink: #161417;
-    --ch-fail-tint: #2a2629;
-    --ch-code-bg: #0b0a0c;
-    --ch-code-ink: #e6dfde;
-    --ch-code-key: #ff8f97;
+    --ch-fail: #d23a3f;
+    --ch-fail-ink: #ffffff;
+    --ch-fail-tint: #3a1719;
+    --ch-code-bg: #050e15;
+    --ch-code-ink: #dce9f2;
+    --ch-code-key: #8fd0f2;
     --ch-code-str: #e7c58c;
-    --ch-code-com: #9a8f92;
-    --ch-code-line: #231f24;
+    --ch-code-com: #8aa0b0;
+    --ch-code-line: #12222f;
     --ch-shadow-c: rgba(0, 0, 0, 0.35);
     --ch-shadow-c2: rgba(0, 0, 0, 0.55);
     --ch-highlight: rgba(255, 255, 255, 0.045);
@@ -135,17 +139,17 @@
     --ch-btn-sheen: color-mix(in srgb, var(--ch-btn-ink) 16%, transparent);
 
     /* vuecs tokens: the components (toasts, dialogs, pagination) follow the same palette */
-    --vc-color-primary-50: #fdf3f3;
-    --vc-color-primary-100: #fbe5e6;
-    --vc-color-primary-200: #f7cdd0;
-    --vc-color-primary-300: #f0a6ab;
-    --vc-color-primary-400: #e6717a;
-    --vc-color-primary-500: #e04652;
-    --vc-color-primary-600: #c8303b;
-    --vc-color-primary-700: #ad2731;
-    --vc-color-primary-800: #8f242c;
-    --vc-color-primary-900: #76222a;
-    --vc-color-primary-950: #410d12;
+    --vc-color-primary-50: #f1f8fd;
+    --vc-color-primary-100: #e1f1fa;
+    --vc-color-primary-200: #c3e4f6;
+    --vc-color-primary-300: #97d0ef;
+    --vc-color-primary-400: #5bb4e3;
+    --vc-color-primary-500: #2a9ad3;
+    --vc-color-primary-600: #1479b0;
+    --vc-color-primary-700: #0b5e8c;
+    --vc-color-primary-800: #0c5079;
+    --vc-color-primary-900: #0d4262;
+    --vc-color-primary-950: #062a3e;
     --vc-color-on-primary: #ffffff;
     --vc-color-bg: var(--ch-surface);
     --vc-color-bg-muted: var(--ch-sunken);
@@ -292,9 +296,10 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .brand { display: flex; align-items: center; gap: 10px; color: var(--ch-ink); }
 .brand span { font-family: var(--ch-font-display); font-weight: 600; font-size: 20px; letter-spacing: -0.015em; }
 .logo { width: 26px; height: 26px; flex: none; }
-.logo .arch { fill: none; stroke: var(--ch-accent); stroke-width: 2.2; }
-.logo .ink { fill: var(--ch-ink); }
-.logo .pend { fill: var(--ch-accent); opacity: .55; }
+.logo .seal { fill: var(--ch-logo-seal); stroke: var(--ch-logo); stroke-width: 10; stroke-linejoin: round; }
+.logo .chamber { fill: var(--ch-logo); fill-opacity: .35; }
+.logo .arch { fill: none; stroke: var(--ch-ink); stroke-width: 18; stroke-linecap: round; stroke-linejoin: round; }
+.logo .step { fill: var(--ch-logo); }
 
 .shell { display: grid; grid-template-columns: 236px minmax(0, 1fr); }
 .side { padding: 18px 12px 14px 14px; display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0; height: 100vh; }
@@ -538,8 +543,8 @@ table.t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 
     background: var(--ch-sunken); border: 1px solid var(--ch-line); border-radius: var(--ch-radius-sm);
 }
 .option-detail .diff-add { color: var(--ch-ok); background: var(--ch-ok-tint); }
-/* removed lines use the accent, not --ch-fail: Crimson's fail is near-ink and would read as plain text */
-.option-detail .diff-del { color: var(--ch-accent-text); background: var(--ch-accent-tint); }
+/* removed lines: ink on the fail tint with a fail bar; fail-coloured text on the dark tint is only about 3:1 */
+.option-detail .diff-del { color: var(--ch-ink); background: var(--ch-fail-tint); box-shadow: inset 3px 0 var(--ch-fail); }
 .option-detail .diff-hunk { color: var(--ch-run); background: var(--ch-run-tint); }
 /* approval artifacts: a thumbnail strip (request above the options, per option under its label) and a full-size viewer */
 .artifact-strip { display: flex; flex-wrap: wrap; gap: 10px; min-width: 0; margin: 2px 0; }
