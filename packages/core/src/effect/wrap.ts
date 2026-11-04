@@ -32,7 +32,8 @@ function isAsyncGeneratorFunction(fn: unknown): boolean {
 
 /**
  * A streaming result whose iteration a suspended approve() ended (in a
- * hook): its last value is the placeholder instead of the error.
+ * hook): its last value is the placeholder instead of the error. The call's
+ * frame ends once the iteration finished, threw or was returned.
  */
 async function* guardIterable(
     frame: ToolCallFrame,
@@ -40,15 +41,19 @@ async function* guardIterable(
     suspend: () => unknown,
 ): AsyncIterable<unknown> {
     try {
-        yield* iterable;
-    } catch (error) {
-        if (!frame.suspended) {
-            throw error;
+        try {
+            yield* iterable;
+        } catch (error) {
+            if (!frame.suspended) {
+                throw error;
+            }
         }
-    }
 
-    if (frame.suspended) {
-        yield suspend();
+        if (frame.suspended) {
+            yield suspend();
+        }
+    } finally {
+        frame.abandoned = true;
     }
 }
 
@@ -140,12 +145,31 @@ export function wrapToolsForRun(
 
                 return SUSPENDED_RESULT;
             };
-            const result = runToolCall(frame, fn);
+            // the call ends when it settles: work it left behind (a timer, a
+            // callback, an unawaited promise) can no longer act for it
+            const end = () => {
+                frame.abandoned = true;
+            };
+            let result: unknown;
+
+            try {
+                result = runToolCall(frame, fn);
+            } catch (error) {
+                end();
+
+                throw error;
+            }
 
             if (isPromiseLike(result)) {
                 return Promise.resolve(result).then(
-                    (value) => (frame.suspended ? suspend() : value),
+                    (value) => {
+                        end();
+
+                        return frame.suspended ? suspend() : value;
+                    },
                     (error: unknown) => {
+                        end();
+
                         if (frame.suspended) {
                             return suspend();
                         }
@@ -158,6 +182,8 @@ export function wrapToolsForRun(
             if (isAsyncIterable(result)) {
                 return guardIterable(frame, result, suspend);
             }
+
+            end();
 
             return result;
         };
