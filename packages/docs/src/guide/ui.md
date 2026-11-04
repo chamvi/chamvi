@@ -1,6 +1,6 @@
 # Dashboard
 
-`@chamvi/ui` is a dashboard for the agents of an app: see what each agent does, start a run, watch runs live, answer approvals, look into agent state and see when cron subscriptions fire next. It is a prebuilt Vue 3 app (vuecs, the Crimson design) that your own `@chamvi/http` app serves on the same origin, so there is no CORS and no second deployment.
+`@chamvi/ui` is a dashboard for the agents of an app: see what each agent does, start a run, watch runs live, answer approvals, look into agent state and see when cron subscriptions fire next. It is a prebuilt Vue 3 app (vuecs, the Glacier design) that your own `@chamvi/http` app serves on the same origin, so there is no CORS and no second deployment.
 
 ```bash
 npm install @chamvi/ui --save

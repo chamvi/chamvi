@@ -169,8 +169,8 @@ test('fonts are self-hosted, dark mode applies and phones get no sideways scroll
 
     expect(await page.evaluate(() => document.fonts.check('700 16px "Instrument Sans Variable"'))).toBe(true);
     expect(await page.evaluate(() => document.documentElement.classList.contains('dark'))).toBe(true);
-    // the dark page ground of the Crimson tokens
-    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(15, 14, 16)');
+    // the dark page ground of the Glacier tokens
+    expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(7, 17, 25)');
     expect(fonts.length).toBeGreaterThan(0);
     expect(fonts.every((url) => url.startsWith(E2E_ORIGIN))).toBe(true);
     expect(errors).toEqual([]);

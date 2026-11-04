@@ -1,5 +1,5 @@
 /*
- * Violet: the parked alternative to the Crimson brand (see .agents/design.md,
+ * Violet: the parked alternative to the Glacier brand (see .agents/design.md,
  * "Alternative palette: Violet"). Not loaded anywhere; copy the blocks into
  * packages/docs/src/.vitepress/theme/style.css and the UI's token file to switch.
  */
@@ -59,6 +59,8 @@
     --ch-btn-ink: #ffffff;
     --ch-accent-text: #6d28d9;
     --ch-accent-tint: #f1eafd;
+    --ch-logo: #8b5cf6;
+    --ch-logo-seal: #f1eafd;
     --ch-run: #0b6a86;
     --ch-run-tint: #e2f3f7;
     --ch-wait: #875300;
@@ -96,6 +98,8 @@
     --ch-btn-ink: #ffffff;
     --ch-accent-text: #c4b5fd;
     --ch-accent-tint: #291e45;
+    --ch-logo: #a78bfa;
+    --ch-logo-seal: #1c1724;
     --ch-run: #5fcae7;
     --ch-run-tint: #0f262e;
     --ch-wait: #f0c06a;

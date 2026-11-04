@@ -2,16 +2,16 @@
     <title id="rl-title">How a chamvi run moves through its statuses</title>
     <style>
         :root {
-            --fg: #EFE8E6;
-            --muted: #B0A5A4;
-            --panel: #19171A;
-            --panel-edge: #332E30;
-            --card: #201D1F;
-            --rail: #7A6F70;
-            --accent: #E04652;
+            --fg: #E2F0F8;
+            --muted: #9DB2C2;
+            --panel: #0A1620;
+            --panel-edge: #1E3242;
+            --card: #0E1D28;
+            --rail: #5F7A8C;
+            --accent: #9AD8F5;
             --settled: #6FBF8B;
             --waiting: #E7C58C;
-            --interrupted: #B0A5A4;
+            --interrupted: #9DB2C2;
         }
         text { font-family: 'Instrument Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Helvetica, Arial, sans-serif; fill: var(--fg); }
         .muted { fill: var(--muted); }
@@ -34,7 +34,7 @@
 
     <defs>
         <marker id="rl-head" viewBox="0 0 10 10" refX="8" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse">
-            <path d="M0 0 L10 5 L0 10 Z" class="head" fill="#8E8D92"/>
+            <path d="M0 0 L10 5 L0 10 Z" class="head" fill="#7E909E"/>
         </marker>
     </defs>
 
@@ -42,19 +42,19 @@
     <text class="label" x="36" y="42">run lifecycle · Engine + Store</text>
 
     <!-- intake -->
-    <rect class="card s-accent" x="36" y="56" width="170" height="84" rx="12" stroke="#C8303B" stroke-width="1.5"/>
+    <rect class="card s-accent" x="36" y="56" width="170" height="84" rx="12" stroke="#1479B0" stroke-width="1.5"/>
     <text class="title" x="52" y="84">dispatch()</text>
     <text class="code muted" x="52" y="106" font-size="12">trigger envelope</text>
     <text class="code muted" x="52" y="124" font-size="12">idempotencyKey</text>
 
     <!-- queued -->
-    <rect class="card s-accent" x="250" y="56" width="170" height="84" rx="12" stroke="#C8303B" stroke-width="1.5"/>
+    <rect class="card s-accent" x="250" y="56" width="170" height="84" rx="12" stroke="#1479B0" stroke-width="1.5"/>
     <text class="title" x="266" y="84">queued</text>
     <text class="code muted" x="266" y="106" font-size="12">FIFO, one run</text>
     <text class="code muted" x="266" y="124" font-size="12">per concurrencyKey</text>
 
     <!-- running -->
-    <rect class="card s-accent" x="464" y="56" width="220" height="84" rx="12" stroke="#C8303B" stroke-width="2"/>
+    <rect class="card s-accent" x="464" y="56" width="220" height="84" rx="12" stroke="#1479B0" stroke-width="2"/>
     <text class="title" x="480" y="84">running</text>
     <text class="code muted" x="480" y="106" font-size="12">llm | tool step</text>
     <text class="code muted" x="480" y="124" font-size="12">→ checkpoint, budget</text>
@@ -72,7 +72,7 @@
     <text class="code muted" x="480" y="264" font-size="12">answered by approval id</text>
 
     <!-- interrupted -->
-    <rect class="card s-interrupted" x="728" y="196" width="196" height="84" rx="12" stroke="#5C5B60" stroke-width="1.5"/>
+    <rect class="card s-interrupted" x="728" y="196" width="196" height="84" rx="12" stroke="#4A5E6D" stroke-width="1.5"/>
     <text class="title" x="744" y="224">interrupted</text>
     <text class="code muted" x="744" y="246" font-size="12">set by drain()</text>
     <text class="code muted" x="744" y="264" font-size="12">crash: claim lapses</text>
@@ -86,20 +86,20 @@
     <path class="s-waiting" d="M540 140 V192" stroke="#9A6A12" stroke-width="2" marker-end="url(#rl-head)"/>
     <path class="s-waiting" d="M464 238 H380 V144" stroke="#9A6A12" stroke-width="2" marker-end="url(#rl-head)"/>
     <rect class="chip" x="388" y="154" width="64" height="20" rx="10"/>
-    <text class="code" x="420" y="168" font-size="11" text-anchor="middle">resume()</text>
+    <text class="code" x="420" y="168" font-size="11" text-anchor="middle">approve()</text>
 
     <!-- interruption and recovery -->
-    <path class="s-interrupted" d="M660 140 V168 H826 V192" stroke="#5C5B60" stroke-width="2" marker-end="url(#rl-head)"/>
-    <path class="s-interrupted" d="M826 280 V304 H300 V144" stroke="#5C5B60" stroke-width="2" marker-end="url(#rl-head)"/>
+    <path class="s-interrupted" d="M660 140 V168 H826 V192" stroke="#4A5E6D" stroke-width="2" marker-end="url(#rl-head)"/>
+    <path class="s-interrupted" d="M826 280 V304 H300 V144" stroke="#4A5E6D" stroke-width="2" marker-end="url(#rl-head)"/>
     <rect class="chip" x="540" y="294" width="76" height="20" rx="10"/>
     <text class="code" x="578" y="308" font-size="11" text-anchor="middle">recover()</text>
 
-    <!-- a run travelling queued → running → completed: one pass, then hidden -->
+    <!-- a run travelling dispatch → queued → running → completed along the arrows: one pass, then hidden -->
     <g opacity="0">
-        <circle r="9" class="f-accent" fill="#C8303B" fill-opacity="0.25"/>
-        <circle r="4.5" class="f-accent" fill="#C8303B"/>
-        <animateMotion dur="3s" repeatCount="1" fill="freeze" path="M206 56 H728"/>
-        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.1;0.85;1" dur="3s" repeatCount="1" fill="freeze"/>
+        <circle r="9" class="f-accent" fill="#1479B0" fill-opacity="0.25"/>
+        <circle r="4.5" class="f-accent" fill="#1479B0"/>
+        <animateMotion dur="4.5s" repeatCount="1" fill="freeze" path="M206 98 H246 M420 98 H460 M684 98 H724" calcMode="linear" keyPoints="0;0.3333;0.3333;0.6667;0.6667;1;1" keyTimes="0;0.1;0.36;0.46;0.72;0.82;1"/>
+        <animate attributeName="opacity" values="0;1;1;0" keyTimes="0;0.04;0.9;1" dur="4.5s" repeatCount="1" fill="freeze"/>
     </g>
 
     <rect class="panel" x="16" y="342" width="928" height="44" rx="14" stroke-dasharray="5 5"/>
