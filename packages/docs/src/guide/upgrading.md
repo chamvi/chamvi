@@ -11,7 +11,7 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 | Change | Before (0.6) | Replacement (0.7) |
 |---|---|---|
 | `AgentDefinition` | One shape, `instructions` required | A union of `ModelAgentDefinition` and `CodeAgentDefinition`: `agent.definition.instructions`, `model`, `output`, `conversation` and `skills` read as possibly `undefined`, `run` and `description` are new. Check `agent.definition.run === undefined` before reading the model fields: it narrows the type to the model agent (`isCodeAgent(agent)` answers the same at runtime, without narrowing) |
-| Hand-written dispatch tools | A `defineTool()` around `dispatch()` that only forwarded the call | Still works; `dispatchTools({ roles })` generates the same tool from the role, with `agent.on({ idempotencyKey, concurrencyKey, address, description })` deciding what the tool did |
+| Hand-written dispatch tools | A `defineTool()` around `dispatch()` that only forwarded the call | Still works; `dispatchTools({ roles })` generates the same tool from the role, with `agent.on({ idempotencyKey, concurrencyKey, address, description })` deciding what the tool did. The hooks see only the payload: keep the hand-written tool when it derives a key or the address from anything else (the trigger's `receivedAt`, the run), or put that value into the payload |
 
 ## Upgrading to 0.6
 
