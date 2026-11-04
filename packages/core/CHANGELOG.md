@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.1](https://github.com/chamvi/chamvi/compare/v0.7.0...v0.7.1) (2026-11-04)
+
+
+### Features
+
+* **core:** let code name a dispatched run's outbound source ([#152](https://github.com/chamvi/chamvi/issues/152)) ([5cb4172](https://github.com/chamvi/chamvi/commit/5cb41727da7d97d1700878d559db28881a4e0255))
+
+
+### Bug Fixes
+
+* **core:** refuse writes from tool work left running after its execution ended ([#145](https://github.com/chamvi/chamvi/issues/145)) ([2d94254](https://github.com/chamvi/chamvi/commit/2d94254f51abc8adc0531a1dc81b8545b7263104))
+
 ## [0.7.0](https://github.com/chamvi/chamvi/compare/v0.6.1...v0.7.0) (2026-11-04)
 
 

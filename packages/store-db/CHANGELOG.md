@@ -1,5 +1,17 @@
 # Changelog
 
+## [0.7.1](https://github.com/chamvi/chamvi/compare/v0.7.0...v0.7.1) (2026-11-04)
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/core bumped from ^0.7.0 to ^0.7.1
+    * @chamvi/test-kit bumped from ^0.7.0 to ^0.7.1
+  * peerDependencies
+    * @chamvi/core bumped from ^0.7.0 to ^0.7.1
+
 ## [0.7.0](https://github.com/chamvi/chamvi/compare/v0.6.1...v0.7.0) (2026-11-04)
 
 

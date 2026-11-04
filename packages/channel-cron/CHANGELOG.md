@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.1](https://github.com/chamvi/chamvi/compare/v0.7.0...v0.7.1) (2026-11-04)
+
+
+### Bug Fixes
+
+* **deps:** bump the minorandpatch group across 1 directory with 3 updates ([#143](https://github.com/chamvi/chamvi/issues/143)) ([4da222f](https://github.com/chamvi/chamvi/commit/4da222f5a2acc4aa1ca400d18dc01f159596fdc0))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/core bumped from ^0.7.0 to ^0.7.1
+    * @chamvi/test-kit bumped from ^0.7.0 to ^0.7.1
+  * peerDependencies
+    * @chamvi/core bumped from ^0.7.0 to ^0.7.1
+
 ## [0.7.0](https://github.com/chamvi/chamvi/compare/v0.6.1...v0.7.0) (2026-11-04)
 
 

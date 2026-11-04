@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.7.1](https://github.com/chamvi/chamvi/compare/v0.7.0...v0.7.1) (2026-11-04)
+
+
+### Features
+
+* switch the brand to Glacier and the seal logo ([#149](https://github.com/chamvi/chamvi/issues/149)) ([6b79ede](https://github.com/chamvi/chamvi/commit/6b79ede3f5ab2b02b1dfee58ab4e6143e144b02c))
+
+
+### Bug Fixes
+
+* **deps:** bump the minorandpatch group across 1 directory with 3 updates ([#143](https://github.com/chamvi/chamvi/issues/143)) ([4da222f](https://github.com/chamvi/chamvi/commit/4da222f5a2acc4aa1ca400d18dc01f159596fdc0))
+* **ui:** keep the authup session across a reload ([#150](https://github.com/chamvi/chamvi/issues/150)) ([0736e55](https://github.com/chamvi/chamvi/commit/0736e55c2b78268f818a8ad693eec6235fbb5be3))
+* **ui:** pass the authup cookie path in the kit's normalized form ([5f96c67](https://github.com/chamvi/chamvi/commit/5f96c67dfb5d93042e872546905c3ef189d6c66b))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.7.0 to ^0.7.1
+    * @chamvi/channel-cron bumped from ^0.7.0 to ^0.7.1
+    * @chamvi/core bumped from ^0.7.0 to ^0.7.1
+    * @chamvi/http bumped from ^0.7.0 to ^0.7.1
+    * @chamvi/test-kit bumped from ^0.7.0 to ^0.7.1
+  * peerDependencies
+    * @chamvi/app bumped from ^0.7.0 to ^0.7.1
+    * @chamvi/core bumped from ^0.7.0 to ^0.7.1
+    * @chamvi/http bumped from ^0.7.0 to ^0.7.1
+
 ## [0.7.0](https://github.com/chamvi/chamvi/compare/v0.6.1...v0.7.0) (2026-11-04)
 
 

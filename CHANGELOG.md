@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.7.1](https://github.com/chamvi/chamvi/compare/v0.7.0...v0.7.1) (2026-11-04)
+
+
+### Features
+
+* **core:** let code name a dispatched run's outbound source ([#152](https://github.com/chamvi/chamvi/issues/152)) ([5cb4172](https://github.com/chamvi/chamvi/commit/5cb41727da7d97d1700878d559db28881a4e0255))
+* **github:** address check events of one pull request ([#151](https://github.com/chamvi/chamvi/issues/151)) ([be859e3](https://github.com/chamvi/chamvi/commit/be859e357989ab22f0e95c2260912daa947f3ea3))
+* switch the brand to Glacier and the seal logo ([#149](https://github.com/chamvi/chamvi/issues/149)) ([6b79ede](https://github.com/chamvi/chamvi/commit/6b79ede3f5ab2b02b1dfee58ab4e6143e144b02c))
+
+
+### Bug Fixes
+
+* **core:** refuse writes from tool work left running after its execution ended ([#145](https://github.com/chamvi/chamvi/issues/145)) ([2d94254](https://github.com/chamvi/chamvi/commit/2d94254f51abc8adc0531a1dc81b8545b7263104))
+* **deps:** bump the minorandpatch group across 1 directory with 3 updates ([#143](https://github.com/chamvi/chamvi/issues/143)) ([4da222f](https://github.com/chamvi/chamvi/commit/4da222f5a2acc4aa1ca400d18dc01f159596fdc0))
+* **ui:** keep the authup session across a reload ([#150](https://github.com/chamvi/chamvi/issues/150)) ([0736e55](https://github.com/chamvi/chamvi/commit/0736e55c2b78268f818a8ad693eec6235fbb5be3))
+* **ui:** pass the authup cookie path in the kit's normalized form ([5f96c67](https://github.com/chamvi/chamvi/commit/5f96c67dfb5d93042e872546905c3ef189d6c66b))
+
 ## [0.7.0](https://github.com/chamvi/chamvi/compare/v0.6.1...v0.7.0) (2026-11-04)
 
 
