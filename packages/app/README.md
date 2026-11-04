@@ -92,7 +92,7 @@ Agent `instructions` also accept an ordered readonly array of native system/user
 
 ## Approved local skills
 
-Use `createApp({ skills: [common] })` for additive defaults on every code and folder agent. Each `defineAgent({ skills: [...] })` adds scoped extras. The engine appends metadata and provides `load_skill` automatically; user tools named `load_skill` are rejected. This example reuses the `triage` agent from Usage above.
+Use `createApp({ skills: [common] })` for additive defaults on every agent passed in code and every folder agent. Each `defineAgent({ skills: [...] })` adds scoped extras. The engine appends metadata and provides `load_skill` automatically; user tools named `load_skill` are rejected. This example reuses the `triage` agent from Usage above.
 
 ```ts
 import { createApp } from '@chamvi/app';
@@ -116,7 +116,7 @@ export default createApp({
 });
 ```
 
-Replace illustrative pins after independently reviewing all bundle text. `gitSkills` is a pure factory from the skills main entry. Startup prepares globals and code-agent sources before `engineCreated`; folder-agent extras prepare afterward, before channels, HTTP or model work. Verification failures abort startup; failed skill hot reloads retain the old agent, record an agent issue and retry with bounded exponential backoff. Folder edits reset the delay; successful recovery clears the issue. `app.check()` validates static headers without loading providers or installing sources, so remote verification is deferred. Migrate skips preparation.
+Replace illustrative pins after independently reviewing all bundle text. `gitSkills` is a pure factory from the skills main entry. Startup prepares globals and the sources of agents passed in code before `engineCreated`; folder-agent extras prepare afterward, before channels, HTTP or model work. Verification failures abort startup; failed skill hot reloads retain the old agent, record an agent issue and retry with bounded exponential backoff. Folder edits reset the delay; successful recovery clears the issue. `app.check()` validates static headers without loading providers or installing sources, so remote verification is deferred. Migrate skips preparation.
 
 For already deployed files, `loadSkillBundle(descriptor)` returns a ready snapshot. `hashSkillBundle(directory)` is a separate review aid, never approval. The manual `loadSkillBundles(approved)` catalog remains supported: append its instructions and compose its tools explicitly, checking for a `load_skill` collision. The skill types, catalogs and adapters (`defineSkill`, `defineSkillSource`) also belong to `@chamvi/skills`, with no compatibility app exports. Factories already carry their runtime; no module registration is needed. Core/app accept the generic `SkillInput` contract and have no dependency on skills.
 
