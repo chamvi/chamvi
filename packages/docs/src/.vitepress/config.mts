@@ -105,6 +105,7 @@ export default defineConfig({
                         { text: 'Installation', link: '/getting-started/installation' },
                         { text: 'Quick Start', link: '/getting-started/quick-start' },
                         { text: 'Your First Agent', link: '/guide/first-agent' },
+                        { text: 'Compared with Other Runtimes', link: '/getting-started/comparison' },
                     ],
                 },
             ],
@@ -165,7 +166,7 @@ export default defineConfig({
             ],
             '/deployment/': [
                 {
-                    text: 'Deployment (planned)',
+                    text: 'Deployment',
                     items: [
                         { text: 'Overview', link: '/deployment/' },
                         { text: 'Docker Image', link: '/deployment/docker' },
