@@ -45,6 +45,7 @@ export function summarizeAgent(agent: Agent, basePath: string, hookChannels: Rea
 
     return {
         name: agent.name,
+        kind: agent.kind,
         channels: (definition.channels ?? []).map((subscription) => (hookChannels.has(subscription.channel) ?
             {
                 channel: subscription.channel,

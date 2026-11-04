@@ -15,6 +15,7 @@ import { flush } from '../../../utils/timers.ts';
 
 const agent = (name: string, state: string[]): AgentWire => ({
     name,
+    kind: 'model',
     channels: [],
     budget: { maxSteps: 20 },
     state,

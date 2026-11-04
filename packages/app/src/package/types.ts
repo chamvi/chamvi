@@ -24,7 +24,7 @@ export type LoadedPackage = {
     revision: string;
     /** Dev only: the production marker `<name>@<version>`, moved to the dev marker without a cancel. */
     formerRevision?: string;
-    /** The agents of its default export (or of what its factory returned), rebuilt through this copy's defineAgent(). */
+    /** The agents of its default export (or of what its factory returned), rebuilt through this copy's factory of their kind. */
     agents: Agent[];
 };
 
@@ -53,7 +53,7 @@ export type HashAgentPackageOptions = {
     entry?: string;
 };
 
-/** createApp's agent entries split into code agents and package specifiers. */
+/** createApp's agent entries split into agents passed in code and package specifiers. */
 export type AgentEntries = {
     agents: Agent[];
     packages: string[];

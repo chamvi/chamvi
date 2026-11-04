@@ -74,7 +74,7 @@ describe('public api', () => {
         expectTypeOf<core.TextPart>().toEqualTypeOf<sdk.TextPart>();
         expectTypeOf<core.FilePart>().toEqualTypeOf<sdk.FilePart>();
         expectTypeOf<core.AgentInstruction>().toEqualTypeOf<sdk.SystemModelMessage | sdk.UserModelMessage | sdk.AssistantModelMessage>();
-        expectTypeOf<core.AgentDefinition['instructions']>().toEqualTypeOf<string | readonly core.AgentInstruction[]>();
+        expectTypeOf<core.ModelAgentDefinition['instructions']>().toEqualTypeOf<string | readonly core.AgentInstruction[]>();
         expectTypeOf<core.SkillContribution['instructions']>().toEqualTypeOf<core.AgentInstructions>();
         expectTypeOf<sdk.ToolModelMessage>().not.toExtend<core.AgentInstruction>();
         expect(core).not.toHaveProperty('normalizeInstructions');
@@ -84,6 +84,8 @@ describe('public api', () => {
     it.each([
         'createMemoryStore',
         'defineAgent',
+        'defineModelAgent',
+        'defineSimpleAgent',
         'Engine',
         'formatRevision',
         'MemoryAgentRevisionRepository',
@@ -134,7 +136,9 @@ describe('public api', () => {
         'agentChannel',
         'dispatch',
         'dispatchTo',
+        'dispatchTools',
         'findApprovalWaitBelow',
+        'rebaseJsonSchemaRefs',
         'waitForDispatch',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
@@ -142,7 +146,7 @@ describe('public api', () => {
     });
 
     it('exports passive skill contracts', () => {
-        expectTypeOf<core.AgentDefinition['skills']>().toEqualTypeOf<readonly core.SkillInput[] | undefined>();
+        expectTypeOf<core.ModelAgentDefinition['skills']>().toEqualTypeOf<readonly core.SkillInput[] | undefined>();
         expectTypeOf<core.EngineOptions['skills']>().toEqualTypeOf<readonly core.SkillInput[] | undefined>();
         expectTypeOf<core.SkillInput['runtime']>().toEqualTypeOf<core.ISkillRuntimeProvider>();
         expectTypeOf<ReturnType<core.ISkillRuntimeProvider['create']>>().toEqualTypeOf<core.ISkillRuntime>();
@@ -171,6 +175,15 @@ describe('public api', () => {
         expect(core).not.toHaveProperty('bindRunSnapshot');
         expect(core).not.toHaveProperty('findDispatchRole');
         expect(core).not.toHaveProperty('ancestorsOf');
+        expect(core).not.toHaveProperty('DISPATCH_TOOL');
+        expect(core).not.toHaveProperty('bindDispatchTools');
+        expect(core).not.toHaveProperty('toRoleToolInput');
+        expectTypeOf<ReturnType<typeof core.dispatchTools>>().toEqualTypeOf<sdk.ToolSet>();
+        expectTypeOf<core.DispatchToolsOptions>().toEqualTypeOf<{
+            roles?: string[];
+            agents?: { agent: string; roles: string[] }[];
+            wait?: boolean | core.DispatchWaitOptions;
+        }>();
         expectTypeOf<core.TriggerEnvelope>().toHaveProperty('parent').toEqualTypeOf<core.TriggerParent | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatch>>().toEqualTypeOf<Promise<core.DispatchResult>>();
         expectTypeOf<core.DispatchInput>().toEqualTypeOf<{

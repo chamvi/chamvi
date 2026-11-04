@@ -9,7 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { pid } from 'node:process';
 import type { Agent } from '../agent/types.ts';
-import { conversationKey } from '../agent/asserts.ts';
+import { assertAgentKind, conversationKey } from '../agent/asserts.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
 import { attachmentIds, storeArtifact } from '../artifact/module.ts';
@@ -67,6 +67,7 @@ import { checkAgentModel, checkDefaultModel } from '../model/module.ts';
 import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
 import { EngineSkills } from './skills/module.ts';
 import type { IEngineSkills } from './skills/types.ts';
+import type { SkillContribution } from '../skill/types.ts';
 import type { IStore } from '../repository/types.ts';
 import { idempotencyScope, toInvoker } from '../trigger/helpers.ts';
 import { assertTriggerKey } from '../trigger/key.ts';
@@ -77,8 +78,9 @@ import {
     IDEMPOTENCY_TTL_MS,
 } from './constants.ts';
 import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
+import { executeSimpleRun } from './execute/simple.ts';
 import { executeRun } from './execute/module.ts';
-import type { SuspendRequest } from './execute/types.ts';
+import type { ExecuteContext, SuspendRequest } from './execute/types.ts';
 import {
     answerDispatchWait,
     healCancelCascade,
@@ -113,7 +115,7 @@ export class Engine implements IEngine {
 
     protected readonly agents: Map<string, Agent>;
 
-    /** The revision each registered agent was loaded at; undefined for a code agent. */
+    /** The revision each registered agent was loaded at; undefined for an agent without a revision. */
     protected readonly revisions = new Map<string, string | undefined>();
 
     /** Agents whose revision marker this engine is moving: none of their runs starts here meanwhile. */
@@ -614,7 +616,7 @@ export class Engine implements IEngine {
         return Array.from(this.channels.values());
     }
 
-    /** The revision the registered agent was loaded at (undefined for a code agent). */
+    /** The revision the registered agent was loaded at (undefined for an agent without a revision). */
     agentRevision(name: string): string | undefined {
         return this.revisions.get(name);
     }
@@ -1629,6 +1631,13 @@ export class Engine implements IEngine {
             return;
         }
 
+        if (agent.kind === 'simple') {
+            // a simple agent takes no conversation, so it skips admission
+            await executeSimpleRun(this.executeContext(run, agent, skills, signal));
+
+            return;
+        }
+
         let conversation;
 
         if (run.conversation) {
@@ -1674,7 +1683,18 @@ export class Engine implements IEngine {
             conversation = { capability, snapshot: admitted.snapshot };
         }
 
-        await executeRun({
+        await executeRun(this.executeContext(run, agent, skills, signal, conversation));
+    }
+
+    /** What one execution of `run` gets from this engine (an LLM and a simple run alike). */
+    protected executeContext(
+        run: Run,
+        agent: Agent,
+        skills: SkillContribution,
+        signal: AbortSignal,
+        conversation?: ExecuteContext['conversation'],
+    ): ExecuteContext {
+        return {
             engine: this,
             conversation,
             run,
@@ -1702,14 +1722,14 @@ export class Engine implements IEngine {
             pause: (request, usage) => this.pause(run, request, usage),
             ownsRun: () => this.ownsRun(run.id),
             provided: this.provided,
-        });
+        };
     }
 
     /**
      * The start guard of one scheduling pass, built from one read of the
      * revision markers (skipped while no folder agent is registered): a run
      * may start when cancel asked for it, or when its agent is registered
-     * here and is a code agent or loaded at the stored marker's hash.
+     * here and has no revision or is loaded at the stored marker's hash.
      */
     protected async prepareStart(): Promise<(run: Run) => boolean> {
         const folder = this.revisions.values().some((revision) => revision !== undefined);
@@ -1738,7 +1758,7 @@ export class Engine implements IEngine {
         };
     }
 
-    /** Whether the registered agent is a code agent or loaded at the stored marker's hash. */
+    /** Whether the registered agent has no revision or is loaded at the stored marker's hash. */
     protected async isCurrent(name: string): Promise<boolean> {
         if (this.syncing.has(name)) {
             return false;
@@ -1908,12 +1928,18 @@ export class Engine implements IEngine {
     }
 
     /**
-     * Refuses an agent the engine cannot run: one subscribing to a channel it does not have.
+     * Refuses an agent the engine cannot run: one whose kind is unknown or
+     * disagrees with its definition, or one subscribing to a channel it does not have.
      * `commit: false` (checkAgent()) keeps the skill check free of state changes.
      */
     protected assertRegistrable(agent: Agent, options: { commit?: boolean } = {}): void {
         // first: putAgent refuses before syncing, the lock and any store write
-        checkAgentModel(agent, { model: this.model, models: this.models });
+        assertAgentKind(agent);
+
+        if (agent.kind === 'model') {
+            checkAgentModel(agent, { model: this.model, models: this.models });
+        }
+
         assertConcurrencyMaxRuns(agent.definition.concurrencyMaxRuns, `Agent "${agent.name}" concurrencyMaxRuns`);
 
         for (const subscription of agent.definition.channels ?? []) {

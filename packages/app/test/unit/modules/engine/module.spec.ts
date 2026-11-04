@@ -19,6 +19,7 @@ import type {
     Agent,
     IChannel,
     IEngine,
+    ModelAgentDefinition,
     ModelRef,
 } from '@chamvi/core';
 import { ControllableClock, approvalModel, textModel } from '@chamvi/test-kit';
@@ -45,7 +46,7 @@ import type { Harness } from '../../../utils/harness.ts';
 import { createRecordingLogger } from '../../../utils/logger.ts';
 
 
-function agentWith(model: Agent['definition']['model'], extra: Partial<Parameters<typeof defineAgent>[0]> = {}): Agent {
+function agentWith(model: Agent['definition']['model'], extra: Partial<ModelAgentDefinition> = {}): Agent {
     return defineAgent({
         name: 'triage',
         model,
@@ -354,7 +355,7 @@ describe('engineModule', () => {
         expect((await engine.getRun(runId))?.output).toBe('from code object');
     });
 
-    it('a code agent on an unconfigured provider fails setup naming the variable', async () => {
+    it('an agent passed in code on an unconfigured provider fails setup naming the variable', async () => {
         const { harness } = build({ agents: [agentWith('anthropic/m')] });
         const error = await rejectionOf(harness.setup());
 

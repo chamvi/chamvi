@@ -62,7 +62,7 @@ function provider() {
     return customProvider({ languageModels: { model: mockModel(answers), hang: hangingModel() } });
 }
 
-function codeAgent(name: string): Agent {
+function agentInCode(name: string): Agent {
     return defineAgent({
         name,
         model: textModel('from code'),
@@ -75,7 +75,7 @@ async function queueRun(store: IStore, clock: ControllableClock, name: string): 
     const engine = new Engine({
         store,
         clock,
-        agents: [codeAgent(name)],
+        agents: [agentInCode(name)],
     });
     const { runId } = await engine.dispatch({
         agent: name,
@@ -185,6 +185,55 @@ describe('agentsModule', () => {
         expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe(await hashAgentFolder(folder()));
     });
 
+    it('registers a folder exporting a simple agent, which needs no model', async () => {
+        await writeTree(root.path, { 'fan/agent.ts': 'export default { kind: \'simple\', name: \'fan\', definition: { description: \'Fans out.\', run: () => \'ran\' } };\n' });
+
+        const {
+            harness,
+            engine,
+            issues,
+        } = build();
+
+        await harness.setup();
+
+        const fan = engine().getAgent('fan');
+
+        expect(fan?.kind).toBe('simple');
+        expect(fan?.definition.description).toBe('Fans out.');
+        expect(engine().agentRevision('fan')).toBe(await hashAgentFolder(folder('fan')));
+        expect(issues()).toEqual([]);
+    });
+
+    it('rebuilds a folder agent without a kind (an older core) as a model agent', async () => {
+        await writeTree(root.path, { 'greeter/agent.ts': agentFile('v1') });
+
+        const { harness, engine } = build();
+
+        await harness.setup();
+
+        expect(engine().getAgent('greeter')?.kind).toBe('model');
+    });
+
+    it.each([
+        ['run without a kind', '{ name: \'fan\', definition: { run: () => \'ran\' } }', /defineSimpleAgent/],
+        ['an unknown kind', '{ kind: \'code\', name: \'fan\', definition: { run: () => \'ran\' } }', /kind "code"/],
+        ['a simple kind without run', '{ kind: \'simple\', name: \'fan\', definition: { instructions: \'x\' } }', /"run" must be a function/],
+        ['a model kind with run', '{ kind: \'model\', name: \'fan\', definition: { instructions: \'x\', run: () => \'ran\' } }', /defineSimpleAgent/],
+    ])('refuses a folder agent with %s', async (_, declared, message) => {
+        await writeTree(root.path, { 'fan/agent.ts': `export default ${declared};\n` });
+
+        const {
+            harness, 
+            engine, 
+            issues, 
+        } = build();
+
+        await harness.setup();
+
+        expect(engine().getAgent('fan')).toBeUndefined();
+        expect(issues()).toEqual([expect.objectContaining({ agent: 'fan', message: expect.stringMatching(message) })]);
+    });
+
     it('a folder change while stopped cancels the old runs at boot once', async () => {
         await writeTree(root.path, { 'greeter/agent.ts': agentFile('v2') });
 
@@ -280,10 +329,10 @@ describe('agentsModule', () => {
         expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe(await hashAgentFolder(folder()));
     });
 
-    it('a code agent wins a name clash and the folder is an issue', async () => {
+    it('an agent passed in code wins a name clash and the folder is an issue', async () => {
         await writeTree(root.path, { 'greeter/agent.ts': agentFile('v1') });
 
-        const code = codeAgent('greeter');
+        const code = agentInCode('greeter');
         const {
             harness,
             engine,
@@ -297,14 +346,14 @@ describe('agentsModule', () => {
         expect(engine().agentRevision('greeter')).toBeUndefined();
         expect(issues()).toEqual([{
             agent: 'greeter',
-            message: 'greeter: a code agent has this name; the folder is not loaded.',
+            message: 'greeter: an agent passed in code has this name; the folder is not loaded.',
             at: START,
         }]);
         expect(logger.entries).toContainEqual(expect.objectContaining({
             level: 'warn',
             msg: 'agent load failed',
             agent: 'greeter',
-            message: 'greeter: a code agent has this name; the folder is not loaded.',
+            message: 'greeter: an agent passed in code has this name; the folder is not loaded.',
         }));
     });
 
@@ -385,7 +434,7 @@ describe('agentsModule', () => {
         expect(logger.entries.filter((entry) => entry.msg === 'the agents dir is empty; no agent is removed')).toHaveLength(1);
     });
 
-    it('a marker of a code agent is left alone at boot', async () => {
+    it('a marker of an agent passed in code is left alone at boot', async () => {
         const clock = new ControllableClock(START);
         const store = createMemoryStore({ clock });
 
@@ -398,7 +447,7 @@ describe('agentsModule', () => {
         const { harness } = build({
             store,
             clock,
-            agents: [codeAgent('triage')],
+            agents: [agentInCode('triage')],
         });
 
         await harness.setup();
@@ -858,8 +907,8 @@ describe('agentsModule', () => {
         expect(error.message).toBe('CHAMVI_AGENTS_DIR must name a directory.');
     });
 
-    it('without CHAMVI_AGENTS_DIR it does nothing for an app with code agents', async () => {
-        const { harness, engine } = build({ agents: [codeAgent('triage')], env: { CHAMVI_AGENTS_DIR: '' } });
+    it('without CHAMVI_AGENTS_DIR it does nothing for an app with agents passed in code', async () => {
+        const { harness, engine } = build({ agents: [agentInCode('triage')], env: { CHAMVI_AGENTS_DIR: '' } });
 
         await harness.setup();
 
@@ -867,7 +916,7 @@ describe('agentsModule', () => {
         expect(harness.container.has(AppToken.AGENT_ISSUES)).toBe(false);
     });
 
-    it('without CHAMVI_AGENTS_DIR, ./agents and code agents it starts empty and warns', async () => {
+    it('without CHAMVI_AGENTS_DIR, ./agents and agents passed in code it starts empty and warns', async () => {
         const cwd = await createTempDir();
         const spy = vi.spyOn(process, 'cwd').mockReturnValue(cwd.path);
 

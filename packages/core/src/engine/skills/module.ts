@@ -37,9 +37,15 @@ export class EngineSkills implements IEngineSkills {
      * Validates the agent's skill inputs against the engine's runtime (or the
      * first one they would select). With `commit` (default) the inputs are
      * captured once per agent and a first runtime is kept; a check-only call
-     * (`commit: false`) changes nothing.
+     * (`commit: false`) changes nothing. A simple agent is skipped: prepare()
+     * gives it the empty contribution.
      */
     checkAgent(agent: Agent, { commit = true }: { commit?: boolean } = {}): void {
+        // a simple agent takes no skills, global ones included
+        if (agent.kind === 'simple') {
+            return;
+        }
+
         const captured = this.agentSkillInputs.get(agent);
         const supplied = captured ?? agent.definition.skills ?? [];
         const provider = selectSkillProvider(supplied, this.skillProvider);
@@ -78,7 +84,19 @@ export class EngineSkills implements IEngineSkills {
             }
         }
 
-        const unprepared = agents.filter((agent) => !this.preparedSkills.has(agent));
+        const unprepared: Agent[] = [];
+
+        for (const agent of agents) {
+            if (this.preparedSkills.has(agent)) {
+                continue;
+            }
+
+            if (agent.kind === 'simple') {
+                this.preparedSkills.set(agent, EMPTY_SKILL_CONTRIBUTION);
+            } else {
+                unprepared.push(agent);
+            }
+        }
 
         if (this.skillRuntime) {
             const pending = await this.skillRuntime.prepare(unprepared, { signal });

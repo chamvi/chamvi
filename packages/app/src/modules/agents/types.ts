@@ -50,7 +50,7 @@ export type AgentsWatcherOptions = {
     /**
      * What the watcher may do to the store. `start`: register each folder
      * agent at its revision (a changed one cancels its old runs) and remove
-     * the agents with a marker but neither a folder nor a code agent. `job`:
+     * the agents with a marker but neither a folder nor an agent passed in code. `job`:
      * register without ever cancelling (`putAgent(..., { reload: false })`):
      * a missing marker is written, a different one moved only while the agent
      * has no unsettled run, else the agent is a conflict (an issue, not
@@ -64,9 +64,9 @@ export type AgentsWatcherRole = 'start' | 'job' | 'check';
 
 export interface IAgentsWatcher {
     /**
-     * Loads every folder and registers its agent (code agents win a name
+     * Loads every folder and registers its agent (agents passed in code win a name
      * clash), then (role `start`) removes every agent with a revision
-     * marker but neither a folder nor a code agent. Load failures, refused
+     * marker but neither a folder nor an agent passed in code. Load failures, refused
      * checks and failed skill preparations are issues; store failures throw.
      */
     boot(): Promise<void>;
@@ -116,7 +116,7 @@ export type PackageAgentsOptions = {
     /** Dev markers (`<name>@<version>+<hash>`). */
     dev: boolean;
     engine: IEngine;
-    /** The code agents' names: a package agent of such a name is an issue. */
+    /** The names of the agents passed in code: a package agent of such a name is an issue. */
     codeNames: ReadonlySet<string>;
     check: AgentCheck;
     clock: IClock;
@@ -130,7 +130,7 @@ export type PackageAgentsOptions = {
 
 export interface IPackageAgents {
     /**
-     * Loads every package in order and registers its agents (code agents
+     * Loads every package in order and registers its agents (agents passed in code
      * win, an earlier package wins); every failure is an issue, store
      * failures throw. A package agent's name stays reserved against folders
      * even when it failed.

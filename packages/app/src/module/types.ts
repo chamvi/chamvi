@@ -46,7 +46,7 @@ export type AppContext = {
     model?: ModelRef;
     /** createApp's `providers` (env and the config file win per field). */
     providers?: Readonly<Record<string, ProviderConfig>>;
-    /** createApp's agents (the code agents); the live set is `engine.listAgents()`. */
+    /** createApp's agents (the agents passed in code); the live set is `engine.listAgents()`. */
     agents: readonly Agent[];
     /** createApp's agent package specifiers; `chamvi.json` `agents` and `CHAMVI_AGENTS` add theirs in the agents module. */
     packages?: readonly string[];

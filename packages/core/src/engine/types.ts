@@ -84,7 +84,7 @@ export type AgentChange = {
 
 /**
  * The unsettled runs a registry change cancelled: a revision change or a
- * replaced code agent (`agent_replaced`), a removal (`agent_removed`).
+ * replaced agent without a revision (`agent_replaced`), a removal (`agent_removed`).
  * Emitted once per sweep, by the engine that swept (so once across replicas),
  * also with no run ids. `runIds` are the runs whose cancel went through,
  * which is a request for a run executing on another replica (it may still

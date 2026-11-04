@@ -5,6 +5,9 @@ A tool can start runs of its **own agent** or of **another agent** of the app, a
 - `dispatch(ctx, { role?, payload, idempotencyKey?, concurrencyKey?, address? })` starts a run of the calling run's own agent.
 - `dispatchTo(ctx, { agent, role?, payload, ... })` starts a run of `agent` (the calling run's own agent behaves exactly as `dispatch()`).
 - `waitForDispatch(ctx, runs, { timeoutMs? })` pauses the calling run until every listed run settled and returns their outcomes.
+- `dispatchTools({ roles?, agents?, wait? })` generates one tool per role, so a model dispatches without a hand-written tool ([Generated dispatch tools](#generated-dispatch-tools)).
+
+A [simple agent](#simple-agents) (`defineSimpleAgent({ run })`, no model) calls the same functions from plain code.
 
 The new run (the child) has its own budget, its own approvals and its own concurrency key. A dispatch alone is fire and forget: the tool gets `{ runId, deduplicated }` and the calling run (the parent) goes on at once. With `waitForDispatch()` the parent waits durably, across restarts and replicas, and continues with the children's outcomes. A daily run that finds ten pull requests needing work dispatches one run per pull request instead of fixing them all inline under one budget; an audit fans out one run per area, waits for all of them and hands their findings to a reporter agent.
 
@@ -30,14 +33,32 @@ With [`@chamvi/app`](/guide/app) the engine module contributes `agentChannel()`,
 | `concurrencyMaxRuns` | A shared-store execution cap for runs of this role, as on every subscription ([Concurrency](/guide/concurrency#shared-agent-and-subscription-ceilings)) |
 | `concurrencyKey(payload)` | The child's concurrency key when the call gives none |
 | `idempotencyKey(payload)` | The child's idempotency key when the call gives none |
+| `address(payload)` | The child's address when the call gives none. Keep it deterministic: it feeds the dispatch's dedupe key, so another value on a redo is another call |
+| `description` | What the role does: the description of its generated tool |
 
 ## Starting a run
 
-<<< @/snippets/dispatch.ts#tool
+A tool calls `dispatch(ctx, { role, payload })` (the `audit` tool in [Waiting for the outcomes](#waiting-for-the-outcomes) does); the role's hooks fill in what the call leaves out.
 
 - `payload` is required; `role` is a non-empty string; `idempotencyKey`, `concurrencyKey` and `address` are optional non-empty strings without NUL (the concurrency key and the address at most 255 characters). Anything else is a `ValidationError` tool error.
 - The child's envelope is `{ agent: <target>, trigger: <role>, channel: 'agent', payload, idempotencyKey, concurrencyKey?, address?, invoker?, parent }`. The model sees the channel, the role and the payload, like any run.
-- `dispatch()` and `dispatchTo()` run inside a tool call only; in the tools factory they throw `InvalidRunStateError`.
+- `dispatch()` and `dispatchTo()` run inside a tool call or a simple agent's `run()` only; in the tools factory they throw `InvalidRunStateError`.
+
+## Generated dispatch tools
+
+`dispatchTools(options)` returns one tool per role, to spread into an agent's `tools` (as `maintainer` above does):
+
+| Option | Tools |
+|---|---|
+| `roles` | `dispatch_<role>` per role of the calling agent itself, calling `dispatch()` |
+| `agents` | `[{ agent, roles }]`: `dispatch_<agent>_<role>` per role of another agent, calling `dispatchTo()` |
+| `wait` | `true` or `{ timeoutMs }`: each tool waits for its child (`waitForDispatch()`) and returns its `DispatchOutcome` instead of `{ runId, deduplicated }`. The tool keeps its name |
+
+- The tool's input is the role's schema when its JSON Schema is an object, so the payload is the input; any other schema (a string, an array, a union) or no schema becomes `{ payload }`. The tool validates the input with the role's schema for the model's sake but hands the raw input to `dispatch()`, which parses it once (a transforming schema is applied once).
+- The call passes no keys and no address: the role's `idempotencyKey()`, `concurrencyKey()` and `address()` decide them.
+- The tools are bound per execution to the roles as registered then, so a role replaced through `putAgent()` (a folder agent reloaded) gives the next execution its new schema and description. A target agent not registered yet keeps its tool with an untyped `payload`; a call answers with dispatch()'s `ValidationError`.
+- `InvalidAgentDefinitionError`: neither `roles` nor `agents`, a name breaking the agent-name rule, a tool name over 64 characters, an own role a plain tool set names and the agent does not declare (`defineModelAgent()`, `defineSimpleAgent()`), a role listed twice (`tool "<name>" is generated twice`), and, when the tool is bound (the run fails), a role schema that cannot be converted to JSON Schema or a generated name another tool of the agent's state or skills carries. Between your own tools the spread order decides.
+- A child is an internal destination: it inherits the run's taint and invoker, so the tools need no trust classification.
 
 ## Another agent
 
@@ -70,11 +91,23 @@ type DispatchOutcome = {
 - A tainted child taints the parent before its outcome reaches the parent's model ([Tools & Tool Errors](/guide/tools#untrusted-content-and-outbound-tools)).
 - Like `approve()`, it runs in a tool call only (in the tools factory and in a streaming tool's body it throws `InvalidRunStateError`). `engine.approve()` refuses a dispatch wait (`InvalidRunStateError`, HTTP 409); the approval inbox shows only children that wait for a human.
 
+## Simple agents
+
+A simple agent (`defineSimpleAgent()`) has `run(payload, ctx)` in place of a model and instructions. The engine runs it as a durable run: `dispatch()`, `dispatchTo()`, `waitForDispatch()`, `approve()` and `ctx.channels` work as inside a tool call, so its children carry lineage, it can wait on them and `budget.maxSubtreeTokens` applies, all without a model call:
+
+<<< @/snippets/dispatch.ts#simple
+
+- `ctx` is the [tool context](/guide/agents#tools-and-their-context) plus `ctx.tools`: the agent's tools (after `toolPolicy`, state tools included) as functions by name. A call goes through the same wrapper as a model's: input validated against the tool's schema (`ValidationError`), effect-recorded, trust-classified (a tainting tool taints the run and its later children), gated, and it may ask for an approval. A tool error throws to `run()` as the error; a name the agent lacks is a `ValidationError`. Each call that completes (its output or its tool error) appends a `tool` step; a call that pauses the run appends none, and `resume()` appends the `wait` step instead.
+- What `run()` returns (JSON-serialisable) is the run's `output`, so a parent's `waitForDispatch()` gets it. A throw fails the run, a `ValidationError` from `dispatch()` included: there is no model to hand it back to. The run ends with one `tool` step named after the agent.
+- `timeoutMs` bounds each execution; `maxSteps` and `maxTokens` do not apply, and a model `run()` calls itself through `resolveModel()` is not counted in the run's usage.
+- **The replay rule**: a run that paused (an approval, a wait) or was recovered runs `run()` again **from the start**. Effect-recorded calls return their records: `dispatch()` and `dispatchTo()` the same children, `waitForDispatch()` and `approve()` their answers, `emit()` nothing new, an [effect tool](/guide/effect-tools) through `ctx.tools` its first result. Everything else repeats, a read tool through `ctx.tools` too. The approval and wait ids come from counters per execution (`0:run:<n>` and `0:run:w<n>` for calls in `run()`, `0:run:<call>:<n>` inside the `<call>`-th `ctx.tools` call), so keep the order of those calls free of state that can change between executions (the time, randomness, a fresh read): the sweeper above reads its list through an effect tool, so the execution after the wait dispatches and waits on the same runs.
+- A `run()` that catches the pause and returns anyway still pauses, and one that catches a `FatalToolError` from `ctx.tools` still fails. A `ctx.tools` call `run()` left running finishes before the run pauses or settles, as a model step waits for all its calls.
+
 ## Keys and dedupe across runs
 
 The claimed idempotency key is `dispatch:<role>:<key>` (or `sha256:<hex>` of it when it is longer than 255 characters), so two roles of one agent never share a child, where `<key>` is the call's `idempotencyKey`, else the role's `idempotencyKey(payload)`, else `<parent run id>:<hash of agent, role, payload, concurrency key and address>`.
 
-A given key is **not** scoped to the parent run: a second run that dispatches the same key (the job run again, a replica) gets the first child back with `deduplicated: true`. Key it by what makes the work unique, for example the pull request and the day (`${pr}@${day}`), taking the day from `ctx.run.trigger.receivedAt` so a redo keeps the same key. Without a key, the default is scoped to the parent, so another parent with the same payload starts its own child. The idempotency scope is `<target agent>:agent` (plus the invoker), apart from every other channel's. A dispatch whose key deduplicates into the caller itself or a run up its lineage is refused (`ValidationError`): waiting on it would be a cycle that nothing settles.
+A given key is **not** scoped to the parent run: a second run that dispatches the same key (the job run again, a replica) gets the first child back with `deduplicated: true`. Key it by what makes the work unique, for example the pull request and its head commit (`${pr}@${sha}`, as the role's `idempotencyKey` above), so a redo keeps the same key. A role's `idempotencyKey(payload)` sees only the payload: a key derived from the trigger (the day of `ctx.run.trigger.receivedAt`) needs a hand-written tool that passes `idempotencyKey` to `dispatch()`. Without a key, the default is scoped to the parent, so another parent with the same payload starts its own child. The idempotency scope is `<target agent>:agent` (plus the invoker), apart from every other channel's. A dispatch whose key deduplicates into the caller itself or a run up its lineage is refused (`ValidationError`): waiting on it would be a cycle that nothing settles.
 
 That check stops at the lineage. Two runs in different subtrees whose keys deduplicate into each other (run A's dispatch gets run B back, B's dispatch gets A back) can each wait on the other. Nothing settles that cycle; the wait timeout ends it: both waits expire and read the other run as `timeout`, and neither cancels the other, since a run another run dispatched is never cancelled by a wait's expiry. Keep keys deterministic and tied to the work of one subtree (no key a run of another subtree can produce for its own caller), or give such waits a shorter `timeoutMs`.
 
@@ -97,7 +130,7 @@ Cancelling a run cancels the children it dispatched that have not settled, await
 
 ## Outbound in a child
 
-The `agent` channel has no `out`, so `ctx.channels.findOne()` without a name is `undefined` in a child, and its approvals go to the inbox and the API. Tools of a child name their channel and address, for example `ctx.channels.findOneOrFail('github').approve({ address: 'o/r#5', title: 'Merge?' })`. The `address` given to the dispatch becomes the child's `trigger.address` and `run.address` (shown in the dashboard), so a tool can read it back from `ctx.run.trigger.address`.
+The `agent` channel has no `out`, so `ctx.channels.findOne()` without a name is `undefined` in a child, and its approvals go to the inbox and the API. Tools of a child name their channel and address, for example `ctx.channels.findOneOrFail('github').approve({ address: 'o/r#5', title: 'Merge?' })`. The `address` given to the dispatch (else the role's `address(payload)`) becomes the child's `trigger.address` and `run.address` (shown in the dashboard), so a tool can read it back from `ctx.run.trigger.address`.
 
 ## Lineage
 

@@ -23,7 +23,7 @@ function isApp(value: unknown): value is IApp;
 const APP_BRAND: unique symbol; // Symbol.for('chamvi.app')
 ```
 
-Synchronous and side-effect free. `agents` may be omitted or empty: the agents can come from an [agents folder](/guide/agent-folders), and an app with no agent at all still starts (a warning); `app.agents` holds only the code agents, the live set is `engine.listAgents()`. Throws `InvalidAgentDefinitionError` for options that are no object or whose `agents` is no array, a module list entry that is no `IModule` and for two modules of one name (a built-in's name included: list one module to replace a built-in). `isApp` checks the brand, so an app of another installed copy matches.
+Synchronous and side-effect free. `agents` may be omitted or empty: the agents can come from an [agents folder](/guide/agent-folders), and an app with no agent at all still starts (a warning); `app.agents` holds only the agents passed in code, the live set is `engine.listAgents()`. Throws `InvalidAgentDefinitionError` for options that are no object or whose `agents` is no array, a module list entry that is no `IModule` and for two modules of one name (a built-in's name included: list one module to replace a built-in). `isApp` checks the brand, so an app of another installed copy matches.
 
 <<< ../../../app/src/app/types.ts{ts}
 
@@ -210,7 +210,7 @@ The real module lifecycle without `start()` and a port, over exactly `options.mo
 
 ## Approved local skills
 
-`AppOptions.skills?: readonly SkillInput[]` forwards additive defaults for every code and folder agent. An agent's `skills` adds extras. Factory inputs come from `@chamvi/skills`: `gitSkills()` and `loadSkillBundle()` work directly; custom snapshots/loaders use `defineSkill()`/`defineSkillSource()`. Core supplies the generic `SkillInput` protocol; skill data types, validation, catalogs and caches belong to skills. Core/app have no dependency on `@chamvi/skills`, and no skills module registration is needed. Startup verifies globals and code-agent sources before `engineCreated`; folder-agent extras verify afterward, before channels, HTTP and model execution. `check()` skips providers and defers content verification; `migrate()` skips preparation. See [Approved skills](/guide/skills) for lifecycle and replay semantics.
+`AppOptions.skills?: readonly SkillInput[]` forwards additive defaults for every agent passed in code and every folder agent. An agent's `skills` adds extras. Factory inputs come from `@chamvi/skills`: `gitSkills()` and `loadSkillBundle()` work directly; custom snapshots/loaders use `defineSkill()`/`defineSkillSource()`. Core supplies the generic `SkillInput` protocol; skill data types, validation, catalogs and caches belong to skills. Core/app have no dependency on `@chamvi/skills`, and no skills module registration is needed. Startup verifies globals and the sources of agents passed in code before `engineCreated`; folder-agent extras verify afterward, before channels, HTTP and model execution. `check()` skips providers and defers content verification; `migrate()` skips preparation. See [Approved skills](/guide/skills) for lifecycle and replay semantics.
 
 Filesystem review/loading and Git preparation are exported by [`@chamvi/skills`](/reference/skills). App exports no filesystem helpers. Use `loadSkillBundle()` for a ready snapshot or `gitSkills()` for an engine-owned source; the manual `loadSkillBundles()` catalog remains supported by the skills package.
 

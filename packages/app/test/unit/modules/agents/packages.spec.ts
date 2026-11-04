@@ -20,8 +20,8 @@ import { NO_AGENTS_MESSAGE } from '../../../../src/modules/agents/constants.ts';
 import {
     START,
     agentFile,
+    agentInCode,
     buildAgentsDirHarness,
-    codeAgent,
     queueRun,
 } from '../../../utils/agents-dir.ts';
 import type { AgentsDirHarnessOptions } from '../../../utils/agents-dir.ts';
@@ -87,7 +87,7 @@ describe('package agents', () => {
         await installPackage(cwd, 'b', { agents: ['two'] });
         await writeTree(cwd, { 'chamvi.json': JSON.stringify({ agents: ['b'] }) });
 
-        const setup = build({ agents: [codeAgent('one')] });
+        const setup = build({ agents: [agentInCode('one')] });
 
         await setup.harness.setup();
 
@@ -106,17 +106,17 @@ describe('package agents', () => {
         await expect(attempt).rejects.not.toThrow('model settings');
     });
 
-    it('lets a code agent win a name, the package agent being an issue', async () => {
+    it('lets an agent passed in code win a name, the package agent being an issue', async () => {
         await installPackage(cwd, '@s/greeter');
 
-        const setup = build({ packages: ['@s/greeter'], agents: [codeAgent('greeter')] });
+        const setup = build({ packages: ['@s/greeter'], agents: [agentInCode('greeter')] });
 
         await setup.harness.setup();
 
         expect(setup.engine().agentRevision('greeter')).toBeUndefined();
         expect(setup.issues()).toEqual([expect.objectContaining({
             agent: 'greeter',
-            message: 'greeter: a code agent has this name; package @s/greeter is not loaded.',
+            message: 'greeter: an agent passed in code has this name; package @s/greeter is not loaded.',
         })]);
     });
 
@@ -178,7 +178,7 @@ describe('package agents', () => {
         const runId = await queueRun(store, clock, 'elsewhere');
         const setup = build({
             packages: ['@s/missing', 'ok'],
-            agents: [codeAgent('coded')],
+            agents: [agentInCode('coded')],
             clock,
             store,
         });
@@ -230,7 +230,7 @@ describe('package agents', () => {
         expect(setup.harness.container.has(AppToken.AGENT_ISSUES)).toBe(true);
     });
 
-    it('warns without code agents, packages or an agents dir', async () => {
+    it('warns without agents passed in code, packages or an agents dir', async () => {
         const setup = build({});
 
         await setup.harness.setup();

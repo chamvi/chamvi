@@ -7,6 +7,7 @@
 
 import { createHash } from 'node:crypto';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { ToolSet } from 'ai';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
 import { isObject } from 'smob';
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
@@ -24,11 +25,13 @@ import {
     DEFAULT_DISPATCH_MAX_DEPTH,
     DEFAULT_MAX_DISPATCHES_PER_RUN,
     DISPATCH_DEPTH_MAX,
+    DISPATCH_TOOL,
 } from './constants.ts';
 import type {
     DispatchHost,
     DispatchOutcome,
     DispatchRunSnapshot,
+    DispatchToolTarget,
     DispatchWaitRecord,
 } from './types.ts';
 
@@ -89,6 +92,28 @@ export function checkFrom(label: string, value: unknown): string[] | undefined {
     return [...value as string[]];
 }
 
+/** `description` as given; InvalidAgentDefinitionError for a value that is no non-empty string. */
+export function checkDescription(label: string, value: unknown): string | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    if (typeof value !== 'string' || value.trim().length === 0) {
+        throw new InvalidAgentDefinitionError(`${label}: description must be a non-empty string.`);
+    }
+
+    return value;
+}
+
+/** Refuses a role hook (`concurrencyKey`, `idempotencyKey`, `address`) that is given but no function. */
+export function checkHooks(label: string, subscription: Record<string, unknown>): void {
+    for (const hook of ['concurrencyKey', 'idempotencyKey', 'address']) {
+        if (subscription[hook] !== undefined && typeof subscription[hook] !== 'function') {
+            throw new InvalidAgentDefinitionError(`${label}: ${hook} must be a function.`);
+        }
+    }
+}
+
 function roleLabel(agent: string, role: string): string {
     return `Agent "${agent}" role "${role}"`;
 }
@@ -130,7 +155,7 @@ export async function ancestorsOf(host: DispatchHost, runId: string): Promise<Ru
     return chain;
 }
 
-/** Refuses an agent with an invalid role: id, `maxPerRun`, `maxDepth` or `from` (the engine's registration check). */
+/** Refuses an agent with an invalid role: id, `maxPerRun`, `maxDepth`, `from` or `description` (the engine's registration check). */
 export function assertDispatchRoles(agent: Agent): void {
     for (const subscription of agent.definition.channels ?? []) {
         if (subscription.channel !== AGENT_CHANNEL_NAME) {
@@ -145,6 +170,8 @@ export function assertDispatchRoles(agent: Agent): void {
         checkMaxPerRun(label, options?.maxPerRun);
         checkMaxDepth(label, options?.maxDepth);
         checkFrom(label, options?.from);
+        checkDescription(label, options?.description);
+        checkHooks(label, subscription as unknown as Record<string, unknown>);
     }
 }
 
@@ -377,4 +404,44 @@ export function sumSubtreeUsage(children: readonly Run[], fresh?: { runId: strin
     }
 
     return total;
+}
+
+/** The placeholder's target, if `tool` is a dispatchTools() placeholder. */
+export function dispatchToolTarget(tool: unknown): DispatchToolTarget | undefined {
+    return isObject(tool) ? (tool as { [DISPATCH_TOOL]?: DispatchToolTarget })[DISPATCH_TOOL] : undefined;
+}
+
+/**
+ * Refuses a placeholder for an own role `channels` does not declare
+ * (defineAgent's eager check of a plain tool set).
+ */
+export function assertOwnDispatchRoles(agent: string, channels: ChannelSubscription[] | undefined, tools: ToolSet): void {
+    for (const [name, tool] of Object.entries(tools)) {
+        const target = dispatchToolTarget(tool);
+
+        if (!target || target.agent !== undefined) {
+            continue;
+        }
+
+        const declared = channels?.some((s) => s.channel === AGENT_CHANNEL_NAME && s.id === target.role) ?? false;
+
+        if (!declared) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent}" has no dispatch role "${target.role}" for tool "${name}".`);
+        }
+    }
+}
+
+/**
+ * Refuses a placeholder in `tools` whose name another tool of the merged
+ * set (`others`: state tools, skill tools) carries, instead of one
+ * silently replacing the other.
+ */
+export function assertNoDispatchCollision(agent: string, tools: ToolSet, others: ToolSet[]): void {
+    for (const [name, tool] of Object.entries(tools)) {
+        const taken = others.some((set) => Object.hasOwn(set, name));
+
+        if (taken && dispatchToolTarget(tool)) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent}": dispatch tool "${name}" collides with another tool of that name.`);
+        }
+    }
 }

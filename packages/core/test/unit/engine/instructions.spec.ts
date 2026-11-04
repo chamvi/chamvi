@@ -23,7 +23,11 @@ import {
     defineAgent,
     defineTool,
 } from '@chamvi/core';
-import type { AgentDefinition, AgentInstructions, IEngine } from '@chamvi/core';
+import type {
+    AgentInstructions,
+    IEngine,
+    ModelAgentDefinition,
+} from '@chamvi/core';
 import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
@@ -57,7 +61,7 @@ const envelope = {
 function setup(
     instructions: AgentInstructions,
     responses: MockResponse[] = [text],
-    extra: Partial<AgentDefinition> = {},
+    extra: Partial<ModelAgentDefinition> = {},
     store = createMemoryStore(),
 ) {
     const model = mockModel(responses);

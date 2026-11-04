@@ -14,6 +14,8 @@ export type ScheduleOverlap = 'skip' | 'queue-one' | 'allow';
 /** An agent as `GET /agents` lists it. */
 export type AgentSummary = {
     name: string;
+    /** The agent's `kind`: `simple` for a simple agent (defineSimpleAgent()), else `model`. */
+    kind: 'model' | 'simple';
     /**
      * The agent's subscriptions: the channel name and the subscription id;
      * `hook` is the ready-made path of a subscription to a webhook channel

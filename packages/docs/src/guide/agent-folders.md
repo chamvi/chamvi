@@ -5,7 +5,7 @@ An app can load agents from a folder while it runs, next to the agents passed to
 ```
 agents/
   triage/
-    agent.ts             # the one required file: export default defineAgent({ name: 'triage', ... })
+    agent.ts             # the one required file: export default defineModelAgent({ name: 'triage', ... })
     prompt.md            # yours: agent.ts reads it
     tools/
       lookup-issue.ts    # yours: agent.ts imports it
@@ -15,7 +15,7 @@ agents/
 
 Folder code runs in the app's process with the app's full access (store, secrets, provided instances). Only people who may deploy the app should be able to write the folder.
 
-A folder named like a code agent or an [agent package](/guide/agent-packages)'s agent is an issue and never loaded: code agents win, then packages, then folders.
+A folder named like an agent passed in code (`createApp({ agents })`) or an [agent package](/guide/agent-packages)'s agent is an issue and never loaded: agents passed in code win, then packages, then folders.
 
 ## Turning it on
 
@@ -32,7 +32,7 @@ The agents dir may live anywhere, also outside the app (a volume at `/data/agent
 
 ## The folder
 
-An agent folder holds an `agent.ts`, and chamvi enforces nothing else. The folder name is the agent name (`^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters). `agent.ts` default-exports `defineAgent({ name, ... })`'s result, whose `name` must equal the folder name (anything else is an error); a folder without `agent.ts` is reported as an issue (`<name>: has no agent.ts.`).
+An agent folder holds an `agent.ts`, and chamvi enforces nothing else. The folder name is the agent name (`^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters). `agent.ts` default-exports `defineModelAgent({ name, ... })`'s or `defineSimpleAgent({ name, ... })`'s result, whose `name` must equal the folder name (anything else is an error); a folder without `agent.ts` is reported as an issue (`<name>: has no agent.ts.`).
 
 Everything else in the folder is the agent's own: `agent.ts` loads its tools, instructions, subscriptions and helpers with plain imports or file reads, organised however you like. `prompt.md` and `tools/` in the tree above are an example, not a convention.
 
@@ -50,7 +50,7 @@ Packages load natively, as the same instance the app uses, and `@chamvi/*`, `ai`
 
 ## Load errors
 
-A folder that does not load never stops the app. A missing `agent.ts`, a syntax error, a missing default export, a definition `defineAgent()` refuses (a duplicate subscription id), a model string whose provider is not installed, a subscription naming no registered channel, a cron subscription the cron channel cannot schedule (a timezone or an expression it refuses), a `run_<agent>` MCP tool that cannot be built (an agent name above 60 characters with an `http.on()` subscription, a payload schema MCP cannot compile): the agent is reported as failed to load, with a message naming the file relative to the agents dir. Each module checks a folder agent before it is registered (the `AGENT_CHECKS` contributions), so a refused agent writes no marker and cancels nothing.
+A folder that does not load never stops the app. A missing `agent.ts`, a syntax error, a missing default export, a definition the factory of its `kind` refuses (a duplicate subscription id; an agent without `kind`, built by an older core, is rebuilt as a model agent and refused when it has `run`), a model string whose provider is not installed, a subscription naming no registered channel, a cron subscription the cron channel cannot schedule (a timezone or an expression it refuses), a `run_<agent>` MCP tool that cannot be built (an agent name above 60 characters with an `http.on()` subscription, a payload schema MCP cannot compile): the agent is reported as failed to load, with a message naming the file relative to the agents dir. Each module checks a folder agent before it is registered (the `AGENT_CHECKS` contributions), so a refused agent writes no marker and cancels nothing.
 
 - The log gets `agent load failed` with the agent and the message.
 - `GET /agents` lists it in `issues: [{ agent, message, at }]` next to `data`, and the [dashboard](/guide/ui)'s agents page shows a notice.
@@ -91,9 +91,9 @@ A replica whose folder did not change but whose marker another process moved or 
 
 During that window the store keeps them apart: a replica starts (and recovers) a run of a folder agent only while its loaded hash equals the stored marker, and a run of an agent it has not loaded at all (not seen yet, failed to load) stays `queued` for a replica that has it, instead of failing. A run created under the new hash is never cancelled by a replica that lags behind, since the cancel covers only runs created before the marker changed and happens once.
 
-## Code agents win
+## Agents passed in code win
 
-A folder named like an agent passed to `createApp({ agents })` is not loaded: it is reported as an issue (`a code agent has this name; the folder is not loaded.`), and the code agent stays as it is.
+A folder named like an agent passed to `createApp({ agents })` is not loaded: it is reported as an issue (`an agent passed in code has this name; the folder is not loaded.`), and the agent passed in code stays as it is.
 
 ## Without the app
 

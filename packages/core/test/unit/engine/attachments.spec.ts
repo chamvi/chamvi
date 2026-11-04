@@ -25,10 +25,10 @@ import {
     defineTool,
 } from '@chamvi/core';
 import type {
-    AgentDefinition,
     IEngine,
     IRunArtifacts,
     IStore,
+    ModelAgentDefinition,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { MemoryArtifactRepository, createMemoryStore } from '../../../src/repository/index.ts';
@@ -52,7 +52,7 @@ const PNG = new Uint8Array([137, 80, 78, 71]);
 
 function setup(
     responses: MockResponse[],
-    opts: { store?: IStore; definition?: Partial<AgentDefinition> } = {},
+    opts: { store?: IStore; definition?: Partial<ModelAgentDefinition> } = {},
 ) {
     const clock = new ControllableClock(new Date(1_000_000));
     const store = opts.store ?? createMemoryStore({ clock });

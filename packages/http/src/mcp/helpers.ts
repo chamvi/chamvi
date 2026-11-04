@@ -10,6 +10,7 @@ import {
     RunNotFoundError,
     RunStatus,
     findApprovalWaitBelow,
+    rebaseJsonSchemaRefs,
 } from '@chamvi/core';
 import type { IEngine, Run } from '@chamvi/core';
 import { isHTTPError } from '@ebec/http';
@@ -293,37 +294,6 @@ export function toRunToolResult(run: Run, deduplicated: boolean, approval?: Run)
 
 type JsonSchemaCarrier = { '~standard': Partial<StandardJSONSchemaV1.Props> };
 
-/** Keywords whose values are data, not subschemas: a `$ref` key inside them is no reference. */
-const JSON_SCHEMA_DATA_KEYWORDS = new Set(['const', 'default', 'enum', 'examples']);
-
-/**
- * `node` with every local `$ref` (`#`, `#/definitions/...`) re-rooted at
- * `pointer`, so a schema nested there still resolves its own definitions.
- */
-function rebaseRefs(node: unknown, pointer: string): unknown {
-    if (Array.isArray(node)) {
-        return node.map((item) => rebaseRefs(item, pointer));
-    }
-
-    if (!isObject(node)) {
-        return node;
-    }
-
-    const out: Record<string, unknown> = {};
-
-    for (const [key, value] of Object.entries(node)) {
-        if (key === '$ref' && typeof value === 'string' && value.startsWith('#')) {
-            out[key] = `${pointer}${value.slice(1)}`;
-        } else if (JSON_SCHEMA_DATA_KEYWORDS.has(key)) {
-            out[key] = value;
-        } else {
-            out[key] = rebaseRefs(value, pointer);
-        }
-    }
-
-    return out;
-}
-
 /**
  * The JSON Schema (draft-07, without `$schema`) of a Standard Schema's
  * input, for a tool's `payload`; `{}` (anything) without a schema, a
@@ -343,7 +313,7 @@ export function toJsonSchema(schema: StandardSchemaV1 | undefined, pointer = '#'
 
         delete jsonSchema.$schema;
 
-        return rebaseRefs(jsonSchema, pointer) as Record<string, unknown>;
+        return rebaseJsonSchemaRefs(jsonSchema, pointer) as Record<string, unknown>;
     } catch {
         return {};
     }

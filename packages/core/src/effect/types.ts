@@ -53,6 +53,8 @@ export type ToolCallFrame = {
     suspended?: SuspendRequest;
     /** True while a streaming tool's body runs: approve() and waitForDispatch() are refused there. */
     streaming?: boolean;
+    /** Set once the execution the call runs in ended: dispatch, waits, approvals, emits and simple-run tool calls are refused. */
+    abandoned?: boolean;
 };
 
 export type WrapToolsOptions = {

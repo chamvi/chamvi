@@ -17,9 +17,9 @@ import type { CronChannel, CronChannelOptions } from './types.ts';
  * engine's agents naming this channel becomes one hubwire component, guarded
  * by a per-tick lock in the engine's store, so replicas sharing the store
  * dispatch each tick once (never on start). It follows the engine's
- * `agents.changed` events. A code agent's subscription hubwire cannot
- * schedule fails `engine.start()` (InvalidAgentDefinitionError); a folder
- * agent's goes to `onError` and leaves that agent unscheduled.
+ * `agents.changed` events. A subscription hubwire cannot schedule fails
+ * `engine.start()` (InvalidAgentDefinitionError) for an agent passed in
+ * code; a folder agent's goes to `onError` and leaves that agent unscheduled.
  * `engine.drain()`/`stop()` stop it first and wait for ticks in flight.
  * Throws InvalidAgentDefinitionError for an invalid `lockTtlMs` or `owner`.
  */

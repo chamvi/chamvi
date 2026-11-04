@@ -18,6 +18,7 @@ import type {
     Agent,
     IEngine,
     IStore,
+    ModelAgentDefinition,
     Run,
 } from '@chamvi/core';
 import { createWorkspaceManager, injectSandboxContext, provideSandboxContext } from '@chamvi/sandbox';
@@ -134,7 +135,7 @@ function fakeManager(events: string[]): IWorkspaceManager & { engines: unknown[]
     };
 }
 
-function agent(extra: Partial<Parameters<typeof defineAgent>[0]> = {}): Agent {
+function agent(extra: Partial<ModelAgentDefinition> = {}): Agent {
     return defineAgent({
         name: 'coder',
         model: textModel(),

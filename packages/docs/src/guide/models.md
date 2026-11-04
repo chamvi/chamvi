@@ -25,7 +25,7 @@ A `ModelRef` is a string or an AI SDK `LanguageModel` object:
 - `'anthropic/claude-sonnet-5-5'`: provider `anthropic`, model `claude-sonnet-5-5`. The string is split at the **first** `/`, so `'router/cc/claude-opus-4-6'` is provider `router`, model `cc/claude-opus-4-6` (routers such as 9router and OmniRoute use ids like that).
 - `anthropic('claude-sonnet-5-5')` from `@ai-sdk/anthropic`, or any other `LanguageModel`: used as is, no provider settings involved.
 
-An agent's `model` is optional. Without it the agent takes the app default (`CHAMVI_MODEL`, the config file's `model` or `createApp({ model })`). The engine checks every agent when it is registered: an agent with no model and no default, or a string naming a provider that is not configured, fails `start` for a code agent (`chamvi start` exits 2) and becomes a load issue for a [folder agent](/guide/agent-folders), which is then not registered:
+An agent's `model` is optional. Without it the agent takes the app default (`CHAMVI_MODEL`, the config file's `model` or `createApp({ model })`). The engine checks every model agent when it is registered (a [simple agent](/guide/dispatch#simple-agents) has no model and skips the check): an agent with no model and no default, or a string naming a provider that is not configured, fails `start` for an agent passed in code (`createApp({ agents })`; `chamvi start` exits 2) and becomes a load issue for a [folder agent](/guide/agent-folders), which is then not registered:
 
 ```
 Agent "triage" has no model and the engine sets no default (EngineOptions.model; CHAMVI_MODEL in @chamvi/app).
@@ -152,7 +152,7 @@ Sources, highest first: **env**, then **the config file**, then **`createApp()` 
 
 ## Check before you deploy
 
-`chamvi start --check` runs the start path of the built entry up to the start itself and exits: it reads the same settings (env, config file, code), builds the providers, connects to the store, sets every module up and loads every [agent folder](/guide/agent-folders) with the checks a start runs (the model, the channels an agent subscribes to, the built-in scheduler's cron subscriptions, the built-in http module's MCP tool unless `mcp: false`). Code agents get the same checks. It starts no engine, channel or server, runs nothing and writes nothing to the store: no migration, no revision marker, no cancel. Skill headers are checked statically; skill sources are never loaded and remote content verification is deferred until startup. Of a module's lifecycle hooks only `engineCreated` and `drained` run (never `started` or `stopping`).
+`chamvi start --check` runs the start path of the built entry up to the start itself and exits: it reads the same settings (env, config file, code), builds the providers, connects to the store, sets every module up and loads every [agent folder](/guide/agent-folders) with the checks a start runs (the model, the channels an agent subscribes to, the built-in scheduler's cron subscriptions, the built-in http module's MCP tool unless `mcp: false`). Agents passed in code get the same checks. It starts no engine, channel or server, runs nothing and writes nothing to the store: no migration, no revision marker, no cancel. Skill headers are checked statically; skill sources are never loaded and remote content verification is deferred until startup. Of a module's lifecycle hooks only `engineCreated` and `drained` run (never `started` or `stopping`).
 
 ```bash
 npx chamvi build && npx chamvi start --check
@@ -168,6 +168,6 @@ It needs what a start needs (`CHAMVI_TOKENS`, the provider keys, `DATABASE_URL`)
 |---|---|
 | `0` | Clean: `chamvi: start check passed` on stdout |
 | `1` | A runtime failure: the store is unreachable, or it has pending migrations and `CHAMVI_MIGRATE` is off (`store_not_migrated`) |
-| `2` | A configuration error (a provider that is not configured, a missing key or authenticator, a code agent on an unknown channel), or an agent folder with a load issue, each on its own stderr line |
+| `2` | A configuration error (a provider that is not configured, a missing key or authenticator, an agent passed in code on an unknown channel), or an agent folder with a load issue, each on its own stderr line |
 
 Errors name the variable to set, never a value. The same check is `await app.check({ env })` in code ([reference](/reference/app#createapp)), resolving `{ issues }`.

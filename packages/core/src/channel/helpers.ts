@@ -10,7 +10,7 @@ import { gateOutbound } from '../trust/module.ts';
 import { isObject } from 'smob';
 import { requestApproval, reserveApproval } from '../approval/request.ts';
 import type { ApprovalDecision, ApprovalRequestInput } from '../approval/types.ts';
-import { currentToolCall } from '../effect/frame.ts';
+import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import { matchesEmitReceipt } from '../conversation/helpers.ts';
 import { assertConversationText } from '../conversation/persistence/module.ts';
 import { stableHash } from '../effect/helpers.ts';
@@ -154,9 +154,13 @@ function createChannelHandle(
     };
 
     const emit = async (message: EmitMessage, to?: string): Promise<void> => {
-        if (!currentToolCall()) {
+        const frame = currentToolCall();
+
+        if (!frame) {
             throw new InvalidRunStateError(`emit() on channel "${name}" runs inside a tool call, not in the tools factory.`);
         }
+
+        assertFrameActive(frame, `emit() on channel "${name}"`);
 
         assertEmitMessage(message);
 

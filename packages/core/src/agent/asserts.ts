@@ -8,9 +8,81 @@
 import type { ToolSet } from 'ai';
 import { isObject } from 'smob';
 import { CONVERSATION_FIELD_MAX_LENGTH } from '../conversation/constants.ts';
-import type { AgentDefinition } from './types.ts';
+import type {
+    Agent,
+    AgentDefinition,
+    ModelAgentDefinition,
+    SimpleAgentDefinition,
+} from './types.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { hasToolContext } from '../tool/helpers.ts';
+
+/** Fields a simple agent does not take. */
+const SIMPLE_AGENT_REFUSED = ['model', 'instructions', 'skills', 'output', 'conversation', 'toolsContext'] as const;
+
+/**
+ * A simple agent's `run` is a function, it declares none of the model-only
+ * fields and its `tools` is a plain set (InvalidAgentDefinitionError).
+ */
+export function assertSimpleAgent(def: SimpleAgentDefinition): void {
+    if (typeof def.run !== 'function') {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": "run" must be a function.`);
+    }
+
+    const fields = def as Record<string, unknown>;
+
+    for (const field of SIMPLE_AGENT_REFUSED) {
+        if (fields[field] !== undefined) {
+            throw new InvalidAgentDefinitionError(`Agent "${def.name}": "${field}" is not allowed on a simple agent.`);
+        }
+    }
+
+    if (typeof def.tools === 'function') {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": "tools" of a simple agent must be a plain tool set, not a factory.`);
+    }
+}
+
+/** A model agent declares no `run`: that is a simple agent (InvalidAgentDefinitionError). */
+export function assertModelAgent(def: ModelAgentDefinition): void {
+    if ((def as { run?: unknown }).run !== undefined) {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": "run" is not allowed on a model agent; build a simple agent with defineSimpleAgent().`);
+    }
+}
+
+/**
+ * An agent's `kind` is `model` or `simple` and agrees with its definition:
+ * a simple agent has a function `run`, a model agent none
+ * (InvalidAgentDefinitionError).
+ */
+export function assertAgentKind(agent: Agent): void {
+    const { kind } = agent as { kind: unknown };
+    const { run } = agent.definition as { run?: unknown };
+
+    if (kind === 'simple') {
+        if (typeof run !== 'function') {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" is a simple agent without a "run" function.`);
+        }
+
+        return;
+    }
+
+    if (kind === 'model') {
+        if (run !== undefined) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" is a model agent with "run"; build it with defineSimpleAgent().`);
+        }
+
+        return;
+    }
+
+    throw new InvalidAgentDefinitionError(`Agent "${agent.name}" has kind ${JSON.stringify(kind) ?? 'undefined'}; build it with defineModelAgent() or defineSimpleAgent().`);
+}
+
+/** `description`, when given, is a non-empty string. */
+export function assertDescription(def: AgentDefinition): void {
+    if (def.description !== undefined && (typeof def.description !== 'string' || def.description.trim().length === 0)) {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": "description" must be a non-empty string.`);
+    }
+}
 
 /**
  * Every own key of `toolsContext` must name a tool of `tools` that is not a

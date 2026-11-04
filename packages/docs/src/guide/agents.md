@@ -1,13 +1,14 @@
 # Agents
 
-An agent is a typed config object passed to `defineAgent()`. It names a model, its instructions, the channels that may start it, its tools and tool hooks, a budget and typed state.
+An agent is a typed config object passed to `defineModelAgent()` (or, for a [simple agent](#simple-agents) that runs a function in place of a model, `defineSimpleAgent()`). It names a model, its instructions, the channels that may start it, its tools and tool hooks, a budget and typed state.
 
 <<< @/snippets/agents.ts#define
 
-## What `defineAgent()` checks
+## What `defineModelAgent()` checks
 
-`defineAgent()` validates the definition and returns `{ name, definition }` with defaults applied. It throws `InvalidAgentDefinitionError` when:
+`defineModelAgent()` validates the definition and returns `{ kind: 'model', name, definition }` with defaults applied (`defineAgent()` is its deprecated alias, removed in a later release; the example above still uses it). It throws `InvalidAgentDefinitionError` when:
 
+- the definition has `run` (build a [simple agent](#simple-agents) with `defineSimpleAgent()` instead),
 - the name does not match `^[a-z0-9]+(-[a-z0-9]+)*$` (lowercase words joined by single hyphens), or is longer than 64 characters,
 - instructions are neither a string nor an array of native system/user/assistant messages (tool roles are refused),
 - two subscriptions of the agent share an id,
@@ -27,6 +28,8 @@ The engine checks the rest when you construct it: agent names must be unique wit
 | `name` | `string` | required | Unique per engine, lowercase words joined by `-`, at most 64 characters |
 | `model` | `ModelRef` | `EngineOptions.model` | A `'<provider>/<model id>'` string resolved through `EngineOptions.models`, or any AI SDK `LanguageModel` |
 | `instructions` | `AgentInstructions` | required | A string or an ordered readonly array of native system/user/assistant messages |
+| `description` | `string` | the leading system instruction | The text of the agent's MCP run tool (its first line; without one and without a system instruction: `Starts a run of agent "<name>".`) |
+| `run` | `(payload, ctx) => unknown` | none | `defineSimpleAgent()` only, in place of `model` and `instructions`: a [simple agent](#simple-agents) |
 | `concurrencyMaxRuns` | `number \| false` | none | Shared-store ceiling for this agent's running runs; positive safe integer, or `false` for no additional ceiling |
 | `channels` | `ChannelSubscription[]` | none | From `http.on()`, `webhook.on()`, `cron.on()`, `github.on()`. See [Channels](/guide/channels) |
 | `tools` | `ToolSet \| (ctx) => ToolSet` | none | A plain tool set, or a factory called for each execution. See [Tools and their context](#tools-and-their-context) |
@@ -90,6 +93,10 @@ A run can start with files ([attachments](/guide/channels#attachments)) and tool
 <<< @/snippets/agents.ts#artifacts
 
 `put()` is not an effect by itself: a recovered run repeats the step in progress, so call it inside a [`defineEffectTool`](/guide/effect-tools) to store a file exactly once. Or give it a `key` (1 to 255 characters, no NUL): `put({ key, mediaType, data })` stores the file under an id derived from the run and the key (`keyedArtifactId(runId, key)`), and a later `put()` with the same key replaces the bytes and metadata instead of adding a second file, so a repeated or replayed call stores it once. Over HTTP, `GET /runs/:id/artifacts` lists them and `GET /runs/:id/artifacts/:artifactId` downloads one (see [HTTP API](/guide/http#files)).
+
+## Simple agents
+
+`defineSimpleAgent()` builds a **simple agent** (`kind: 'simple'`), one with `run(payload, ctx)` in place of `model` and `instructions`: the engine runs the function as a durable run, with no model call. It takes `name`, `description` (the text of its MCP run tool), `channels`, `concurrencyMaxRuns`, a plain `tools` set, `trust`, `hooks`, `toolPolicy`, `state` and `budget`; `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext` or a tools factory next to `run` are an `InvalidAgentDefinitionError`. Of the budget only `timeoutMs` and `maxSubtreeTokens` apply. `agent.kind` (`'model'` or `'simple'`) tells the two kinds apart and narrows `agent.definition`; the engine refuses an agent whose `kind` is neither or disagrees with its definition. A simple agent fans out runs that its function can wait on, see [Simple agents](/guide/dispatch#simple-agents).
 
 ## Many agents per engine
 

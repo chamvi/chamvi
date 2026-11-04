@@ -12,12 +12,12 @@ import {
     createMemoryStore,
     defineAgent,
 } from '@chamvi/core';
-import type { Agent, AgentDefinition, ChannelSubscription } from '@chamvi/core';
+import type { Agent, ChannelSubscription, ModelAgentDefinition } from '@chamvi/core';
 import { mockModel } from '../../utils/mock-model.ts';
 
 const invalid = [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, true, null, '2'];
 
-function definition(): AgentDefinition {
+function definition(): ModelAgentDefinition {
     return {
         name: 'maintainer',
         instructions: 'Maintain.',
@@ -78,6 +78,7 @@ describe('agent concurrency configuration', () => {
                 },
             });
             const agent: Agent = {
+                kind: 'model',
                 name: 'maintainer',
                 definition: {
                     ...definition(),

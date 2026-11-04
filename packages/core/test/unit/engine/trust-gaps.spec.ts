@@ -18,9 +18,9 @@ import {
     runSource,
 } from '@chamvi/core';
 import type {
-    AgentDefinition,
     ChannelMessage,
     IChannel,
+    ModelAgentDefinition,
     ToolContext,
 } from '@chamvi/core';
 import { createRunArtifacts } from '../../../src/artifact/module.ts';
@@ -45,7 +45,7 @@ const call = (toolName: string, input = {}) => ({
 });
 const done = { parts: [{ type: 'text' as const, text: 'done' }] };
 
-function setup(definition: Omit<AgentDefinition, 'name' | 'instructions'>, extra: IChannel[] = []) {
+function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>, extra: IChannel[] = []) {
     const sent: Array<{ message: ChannelMessage; address: string }> = [];
     const source: IChannel = {
         name: 'source',

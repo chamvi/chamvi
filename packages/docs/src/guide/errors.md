@@ -29,7 +29,7 @@ A run the registry cancelled stores why in `run.error` too, with a code that has
 
 | `ErrorCode` | Code | Stored when |
 |---|---|---|
-| `AGENT_REPLACED` | `agent_replaced` | A folder change (a new revision) or a replaced code agent cancelled the run while it was unsettled |
+| `AGENT_REPLACED` | `agent_replaced` | A folder change (a new revision) or a replaced agent without a revision cancelled the run while it was unsettled |
 | `AGENT_REMOVED` | `agent_removed` | The agent was removed (its folder deleted) while the run was unsettled |
 
 A run cancelled on another replica keeps the reason once its owner settles it; a run that completes anyway ends without one. A user's cancel stores no error.

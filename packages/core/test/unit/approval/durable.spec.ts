@@ -28,6 +28,7 @@ import type {
     IChannel,
     IEngine,
     Invoker,
+    ModelAgentDefinition,
     ToolContext,
 } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
@@ -97,7 +98,7 @@ function createEngine(
     store: ReturnType<typeof createMemoryStore>,
     clock: ControllableClock,
     model: LanguageModel,
-    definition: Partial<AgentDefinition>,
+    definition: Partial<ModelAgentDefinition>,
     channels: IChannel[] = [],
 ) {
     const errors: unknown[] = [];
@@ -122,7 +123,7 @@ function createEngine(
     return { engine, errors };
 }
 
-function setup(model: LanguageModel, definition: Partial<AgentDefinition>) {
+function setup(model: LanguageModel, definition: Partial<ModelAgentDefinition>) {
     const clock = new ControllableClock(new Date(START));
     const store = createMemoryStore({ clock });
 

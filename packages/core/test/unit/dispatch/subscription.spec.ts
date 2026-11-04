@@ -65,6 +65,25 @@ describe('agent.on()', () => {
         expect(subscription).not.toHaveProperty('idempotencyKey');
     });
 
+    it('copies the address hook and keeps the description', () => {
+        const address = (p: { pr: string }) => p.pr;
+        const subscription = agent.on({
+            role: 'pr',
+            address,
+            description: 'Reviews one pull request.',
+        });
+
+        expect(subscription.address).toBe(address);
+        expect(subscription.options).toMatchObject({ description: 'Reviews one pull request.' });
+        expect(agent.on()).not.toHaveProperty('address');
+        expect(agent.on().options).not.toHaveProperty('description');
+    });
+
+    it.each(['', ' '.repeat(3), 5])('refuses the description %j', (value) => {
+        expect(() => agent.on({ description: value as string })).toThrow(InvalidAgentDefinitionError);
+        expect(() => agent.on({ description: value as string })).toThrow(/description/);
+    });
+
     it.each([0, 1.5, '3', -1])('maxPerRun must be a positive integer (%s)', (value) => {
         expect(() => agent.on({ maxPerRun: value as number })).toThrow(InvalidAgentDefinitionError);
         expect(() => agent.on({ maxPerRun: value as number })).toThrow(/maxPerRun/);
@@ -132,6 +151,9 @@ describe('agent.on()', () => {
         [{ maxDepth: 9 }, /maxDepth/],
         [{ maxDepth: 0 }, /maxDepth/],
         [{ from: ['A'] }, /from/],
+        [{ description: 5 }, /description/],
+        [{ description: '' }, /description/],
+        [{ description: '  ' }, /description/],
     ])('the engine refuses a hand-built role with %j', (options, message) => {
         const subscription: ChannelSubscription = {
             channel: 'agent',
@@ -158,6 +180,21 @@ describe('agent.on()', () => {
             agents: [define([subscription])],
             channels: [agentChannel()],
         })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('refuses a role hook that is no function', () => {
+        expect(() => agent.on({ role: 'pr', address: 'o/r#1' as never })).toThrow('agent.on(): address must be a function.');
+        expect(() => agent.on({ role: 'pr', concurrencyKey: 1 as never })).toThrow(InvalidAgentDefinitionError);
+        expect(() => new Engine({
+            store: createMemoryStore(),
+            agents: [define([{
+                channel: 'agent',
+                id: 'pr',
+                options: {},
+                idempotencyKey: 'k' as never,
+            }])],
+            channels: [agentChannel()],
+        })).toThrow('Agent "maintainer" role "pr": idempotencyKey must be a function.');
     });
 
     it('agentChannel() has neither in nor out', () => {

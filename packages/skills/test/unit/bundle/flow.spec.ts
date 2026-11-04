@@ -15,7 +15,12 @@ import {
     createMemoryStore,
     defineAgent,
 } from '@chamvi/app';
-import type { Agent, AgentDefinition, IEngine } from '@chamvi/app';
+import type {
+    Agent,
+    AgentDefinition,
+    IEngine,
+    ModelAgentDefinition,
+} from '@chamvi/app';
 import { loadSkillBundles } from '@chamvi/skills';
 import type { ApprovedSkill } from '@chamvi/skills';
 import { ControllableClock, mockModel } from '@chamvi/test-kit';
@@ -66,7 +71,7 @@ function createEngine(agents: Agent[], store: ReturnType<typeof createMemoryStor
     return { engine, errors };
 }
 
-function skillAgent(approved: ApprovedSkill, model: ReturnType<typeof mockModel>, definition: Partial<AgentDefinition> = {}) {
+function skillAgent(approved: ApprovedSkill, model: ReturnType<typeof mockModel>, definition: Partial<ModelAgentDefinition> = {}) {
     const catalog = loadSkillBundles([approved]);
 
     return defineAgent({

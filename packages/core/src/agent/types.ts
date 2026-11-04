@@ -73,8 +73,16 @@ export type AgentInstruction = SystemModelMessage | UserModelMessage | Assistant
 /** A string is shorthand for one system message. Arrays retain their authored order. */
 export type AgentInstructions = string | readonly AgentInstruction[];
 
-export type AgentDefinition<S extends StateSchema = StateSchema> = {
+/** An agent whose runs call a language model: defineModelAgent()'s input. */
+export type ModelAgentDefinition<S extends StateSchema = StateSchema> = {
     name: string;
+
+    /** The text of the agent's MCP run tool; default: its leading system instruction. */
+    description?: string;
+
+    /** Only a simple agent has it (defineSimpleAgent()). */
+    run?: never;
+
     /**
      * `'<provider>/<model id>'` (resolved through EngineOptions.models) or a
      * LanguageModel object; without it the agent uses EngineOptions.model.
@@ -110,7 +118,7 @@ export type AgentDefinition<S extends StateSchema = StateSchema> = {
      * third-party tool with its own `contextSchema`), passed through unchanged
      * by reference to every call of every run: treat it as immutable. An entry
      * naming a chamvi tool or no tool is an InvalidAgentDefinitionError (at
-     * defineAgent for a plain set, a failed run for a factory).
+     * defineModelAgent for a plain set, a failed run for a factory).
      */
     toolsContext?: Record<string, unknown>;
 
@@ -146,10 +154,74 @@ export type AgentDefinition<S extends StateSchema = StateSchema> = {
     };
 };
 
-export type Agent<S extends StateSchema = StateSchema> = {
-    readonly name: string;
-    readonly definition: Required<Pick<AgentDefinition<S>, 'budget'>> & AgentDefinition<S>;
+/**
+ * What a simple agent's `run()` gets: the ToolContext its tools would get, plus
+ * its own tools (wrapped like a model's calls: effect-recorded,
+ * trust-classified, gated) as plain functions by name.
+ */
+export type SimpleRunContext<S extends StateSchema = StateSchema> = ToolContext<S> & {
+    tools: Record<string, (input: unknown) => Promise<unknown>>;
 };
+
+/**
+ * A model-free agent, defineSimpleAgent()'s input: the engine runs `run(payload, ctx)` as a durable run
+ * inside one tool-call frame, so dispatch(), waitForDispatch(), approve(),
+ * ctx.channels and the agent's tools work as inside a tool call. A suspended
+ * run re-runs `run()` from the start on resume (the replay rule).
+ */
+export type SimpleAgentDefinition<S extends StateSchema = StateSchema> = {
+    name: string;
+
+    /** The run's body; its JSON-serialisable return value is the run's `output`. */
+    run(payload: unknown, ctx: SimpleRunContext<S>): unknown | Promise<unknown>;
+
+    /** The text of the agent's MCP run tool. */
+    description?: string;
+
+    channels?: ChannelSubscription[];
+
+    concurrencyMaxRuns?: number | false;
+
+    /** A plain set only: a factory is refused. */
+    tools?: ToolSet;
+
+    trust?: AgentTrust;
+
+    hooks?: AgentHooks;
+
+    toolPolicy?: ToolPolicy;
+
+    state?: S;
+
+    /** `timeoutMs` and the subtree budget apply; `maxSteps` and `maxTokens` do not. */
+    budget?: Partial<Budget>;
+
+    model?: never;
+    instructions?: never;
+    readonly skills?: never;
+    output?: never;
+    conversation?: never;
+    toolsContext?: never;
+};
+
+export type AgentDefinition<S extends StateSchema = StateSchema> = ModelAgentDefinition<S> | SimpleAgentDefinition<S>;
+
+/** defineModelAgent()'s result: its definition with the budget defaults applied. */
+export type ModelAgent<S extends StateSchema = StateSchema> = {
+    readonly kind: 'model';
+    readonly name: string;
+    readonly definition: Required<Pick<ModelAgentDefinition<S>, 'budget'>> & ModelAgentDefinition<S>;
+};
+
+/** defineSimpleAgent()'s result: its definition with the budget defaults applied. */
+export type SimpleAgent<S extends StateSchema = StateSchema> = {
+    readonly kind: 'simple';
+    readonly name: string;
+    readonly definition: Required<Pick<SimpleAgentDefinition<S>, 'budget'>> & SimpleAgentDefinition<S>;
+};
+
+/** A registrable agent; `kind` tells the two apart and narrows the definition. */
+export type Agent<S extends StateSchema = StateSchema> = ModelAgent<S> | SimpleAgent<S>;
 
 /**
  * The revision marker of a folder agent: the content hash of its folder

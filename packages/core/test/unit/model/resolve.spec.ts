@@ -21,10 +21,10 @@ import {
     resolveModel,
 } from '@chamvi/core';
 import type {
-    AgentDefinition,
     EngineOptions,
     IEngine,
     IModelResolver,
+    ModelAgentDefinition,
     ToolContext,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
@@ -73,7 +73,7 @@ function recordingResolver(models: Record<string, LanguageModel>): IModelResolve
 }
 
 function setup(
-    definition: Partial<AgentDefinition>,
+    definition: Partial<ModelAgentDefinition>,
     options: Partial<EngineOptions> = {},
 ) {
     const clock = new ControllableClock(new Date(1_000_000));

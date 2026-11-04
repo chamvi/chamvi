@@ -373,7 +373,7 @@ describe('Engine agent registry', () => {
         await expect(engine.dispatch(env())).rejects.toThrow(AgentNotFoundError);
     });
 
-    it('removeAgent of a code agent cancels its runs', async () => {
+    it('removeAgent of an agent without a revision cancels its runs', async () => {
         const { engine } = make();
         const { runId } = await engine.dispatch(env());
 
@@ -576,7 +576,7 @@ describe('cancel reasons', () => {
         });
     });
 
-    it('replacing a code agent stores agent_replaced without a revision', async () => {
+    it('replacing an agent without a revision stores agent_replaced', async () => {
         const { engine, clock } = make();
         const { runId } = await engine.dispatch(env());
 

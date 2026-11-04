@@ -25,6 +25,6 @@ export type RegistryContext = {
 export type DropRevisionOptions = {
     /** The agent was registered on this engine (no replica may run it any more once its marker is gone). */
     registered: boolean;
-    /** The revision this engine had it at (undefined for a code agent or one not registered here). */
+    /** The revision this engine had it at (undefined for an agent without a revision or one not registered here). */
     revision?: string;
 };

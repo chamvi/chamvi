@@ -17,6 +17,8 @@ import {
     InvalidAgentDefinitionError,
     createMemoryStore,
     defineAgent,
+    defineModelAgent,
+    defineSimpleAgent,
 } from '@chamvi/core';
 import { assertMcpRunTool, http, httpChannel } from '@chamvi/http';
 import {
@@ -119,6 +121,33 @@ describe('mcp run_<agent>', () => {
 
         expect(tools.find((entry) => entry.name === 'run_structured')?.description).toBe('Structured runs.');
         expect(tools.find((entry) => entry.name === 'run_examples')?.description).toBe('Starts a run of agent "examples".');
+        await client.close();
+    });
+
+    it('describes an agent by its description, a simple agent included', async () => {
+        const agents = [defineSimpleAgent({
+            name: 'fan',
+            description: 'Fans out reviews.',
+            channels: [http.on()],
+            run: () => 'ok',
+        }), defineSimpleAgent({
+            name: 'plain',
+            channels: [http.on()],
+            run: () => 'ok',
+        }), defineModelAgent({
+            name: 'described',
+            description: 'Described runs.',
+            model: textModel(),
+            instructions: 'Instruction runs.',
+            channels: [http.on()],
+        })];
+        const { app } = createRunTestApp({ agents });
+        const client = await connectMcp(app, ADMIN_TOKEN);
+        const { tools } = await client.listTools();
+
+        expect(tools.find((entry) => entry.name === 'run_fan')?.description).toBe('Fans out reviews.');
+        expect(tools.find((entry) => entry.name === 'run_plain')?.description).toBe('Starts a run of agent "plain".');
+        expect(tools.find((entry) => entry.name === 'run_described')?.description).toBe('Described runs.');
         await client.close();
     });
 

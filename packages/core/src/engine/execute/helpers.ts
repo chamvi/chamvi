@@ -24,6 +24,8 @@ import { createRunArtifacts } from '../../artifact/module.ts';
 import { createToolChannels } from '../../channel/helpers.ts';
 import { checkConversation, conversationFor } from '../../conversation/context.ts';
 import { bindProvided } from '../../context/helpers.ts';
+import { bindDispatchTools } from '../../dispatch/bind.ts';
+import { assertNoDispatchCollision, assertOwnDispatchRoles } from '../../dispatch/helpers.ts';
 import { validateToolInput } from '../../effect/helpers.ts';
 import { wrapToolsForRun } from '../../effect/wrap.ts';
 import {
@@ -150,6 +152,25 @@ export function toRunError(error: unknown): { code: string; message: string } {
 }
 
 /**
+ * The execution's one ToolContext (`run`, `state`, `artifacts`, `channels`)
+ * with the engine's provided values bound, so inject() works on it.
+ */
+export function createToolContext(ctx: ExecuteContext, runContext: RunContext): ToolContext {
+    const toolContext: ToolContext = {
+        run: runContext,
+        state: createAgentState(ctx.agent.name, ctx.agent.definition.state, ctx.store.state),
+        artifacts: createRunArtifacts(ctx.store.artifacts, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock),
+        channels: createToolChannels(runContext, ctx.store.effects, ctx.engine),
+    };
+
+    if (ctx.provided) {
+        bindProvided(toolContext, ctx.provided);
+    }
+
+    return toolContext;
+}
+
+/**
  * The tools handed to the agent: generated state tools (when the agent declares
  * `state`) merged with the user's tools (a plain set or the factory's result),
  * which win on a name clash. Every tool stays executable, so a call pending
@@ -162,19 +183,25 @@ export function toRunError(error: unknown): { code: string; message: string } {
  * maps every chamvi tool
  * (policy-hidden ones included) to the execution's one ToolContext, plus the
  * agent's own `toolsContext` entries for the other tools, by reference.
- * Throws InvalidAgentDefinitionError for a misconfigured `toolsContext` and
- * for a tool declaring `needsApproval`.
+ * dispatchTools() placeholders among the user's tools are bound to the
+ * roles registered now (bindDispatchTools).
+ * Throws InvalidAgentDefinitionError for a misconfigured `toolsContext`,
+ * for a tool declaring `needsApproval`, for a placeholder whose name a state
+ * or skill tool carries and for a role schema that cannot be converted.
+ * `shared` is the execution's ToolContext when the caller built one already
+ * (a simple run hands the same object to run()).
  */
-export function assembleTools(
+export async function assembleTools(
     ctx: ExecuteContext,
     runContext: RunContext,
     onSuspend?: (request: SuspendRequest) => void,
     stepIndex?: () => number,
-): {
+    shared?: ToolContext,
+): Promise<{
     tools: ToolSet;
     activeTools?: string[];
     toolsContext: Record<string, unknown>;
-} {
+}> {
     const {
         tools: userTools,
         state: schema,
@@ -202,21 +229,21 @@ export function assembleTools(
         return { tools: {}, toolsContext: {} };
     }
 
-    const toolContext: ToolContext = {
-        run: runContext,
-        state: createAgentState(ctx.agent.name, schema, ctx.store.state),
-        artifacts: createRunArtifacts(ctx.store.artifacts, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock),
-        channels: createToolChannels(runContext, ctx.store.effects, ctx.engine),
-    };
-
     // before the factory, so inject() works there, in execute and in the effect hooks
-    if (ctx.provided) {
-        bindProvided(toolContext, ctx.provided);
+    const toolContext = shared ?? createToolContext(ctx, runContext);
+    const stateTools = schema ? createStateTools(schema) : {};
+    const ownTools = typeof userTools === 'function' ? userTools(toolContext) : userTools ?? {};
+
+    assertNoDispatchCollision(ctx.agent.name, ownTools, [stateTools, ctx.skills?.tools ?? {}]);
+
+    // a factory's set is only known here: its own-role placeholders are checked like defineAgent checks a plain set
+    if (typeof userTools === 'function') {
+        assertOwnDispatchRoles(ctx.agent.name, ctx.agent.definition.channels, ownTools);
     }
 
     const tools: ToolSet = {
-        ...(schema ? createStateTools(schema) : {}),
-        ...(typeof userTools === 'function' ? userTools(toolContext) : userTools),
+        ...stateTools,
+        ...await bindDispatchTools(ownTools, ctx.agent, (name) => ctx.engine.getAgent(name)),
     };
 
     ctx.skills?.checkTools(tools);
@@ -449,6 +476,8 @@ export async function executePendingCall(input: {
     toolsContext: Record<string, unknown>;
     messages: ModelMessage[];
     signal: AbortSignal;
+    /** How a validation error names the input, default `the pending call's input`. */
+    inputLabel?: string;
 }): Promise<{ output: unknown } | { error: unknown }> {
     const {
         call,
@@ -469,7 +498,7 @@ export async function executePendingCall(input: {
     let parsed: unknown;
 
     try {
-        parsed = await validateToolInput(call.toolName, tool.inputSchema, call.input, 'the pending call\'s input');
+        parsed = await validateToolInput(call.toolName, tool.inputSchema, call.input, input.inputLabel ?? 'the pending call\'s input');
     } catch (error) {
         return { error };
     }

@@ -13,14 +13,17 @@ export {
     DISPATCH_DEPTH_MAX,
 } from './constants.ts';
 export * from './descendants.ts';
+export { rebaseJsonSchemaRefs } from './schema.ts';
 export * from './start.ts';
 export * from './subscription.ts';
+export { dispatchTools } from './tools.ts';
 export type {
     AgentSubscriber,
     AgentSubscriptionOptions,
     DispatchInput,
     DispatchOutcome,
     DispatchToInput,
+    DispatchToolsOptions,
     DispatchWaitOptions,
 } from './types.ts';
 export * from './wait.ts';

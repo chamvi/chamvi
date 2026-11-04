@@ -12,6 +12,7 @@ import {
     vi,
 } from 'vitest';
 import { defineAgent } from '@chamvi/core';
+import type { Agent } from '@chamvi/core';
 import { EngineSkills } from '../../../src/engine/skills/module.ts';
 import type { IEngineSkills } from '../../../src/engine/skills/types.ts';
 import { EMPTY_SKILL_CONTRIBUTION } from '../../../src/skill/constants.ts';
@@ -78,7 +79,7 @@ describe('EngineSkills', () => {
     });
 
     it('rechecks earlier empty captures when a later agent selects the first runtime', async () => {
-        const checks: { candidate: ReturnType<typeof agent>; inputs: readonly unknown[] }[] = [];
+        const checks: { candidate: Agent; inputs: readonly unknown[] }[] = [];
         const fake = fakeSkillRuntime({
             contribution,
             check: (candidate, inputs) => {

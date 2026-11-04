@@ -32,6 +32,7 @@ const ago = (hours: number) => new Date(NOW - hours * 3_600_000).toISOString();
 
 const agent = (overrides: Partial<AgentWire> = {}): AgentWire => ({
     name: 'triage',
+    kind: 'model',
     channels: [],
     budget: { maxSteps: 20 },
     state: [],

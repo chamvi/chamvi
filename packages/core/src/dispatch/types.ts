@@ -6,6 +6,7 @@
  */
 
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { FlexibleSchema } from 'ai';
 import type { Agent } from '../agent/types.ts';
 import type { ChannelSubscription, DispatchResult } from '../channel/types.ts';
 import type { DispatchEnvelope } from '../engine/types.ts';
@@ -29,6 +30,10 @@ export type AgentSubscriptionOptions<P = unknown> = {
     concurrencyKey?(payload: P): string | undefined;
     /** The child's idempotency key when the call gives none. */
     idempotencyKey?(payload: P): string | undefined;
+    /** The child's address when the call gives none; deterministic (it feeds the dispatch's dedupe key). */
+    address?(payload: P): string | undefined;
+    /** What the role does, for a generated dispatch tool's description. */
+    description?: string;
 };
 
 /** Makes a role of the `agent` channel (subscription id = role): the opt-in for dispatch(). */
@@ -97,4 +102,29 @@ export type DispatchHost = {
     serial<T>(runId: string, fn: () => Promise<T>): Promise<T>;
     /** Dispatches in flight by effect key, so identical parallel calls share one. */
     inflight: Map<string, Promise<DispatchResult>>;
+};
+
+/**
+ * A role schema as a generated tool's input: the AI SDK schema the model
+ * sees and validates against, and how a validated input becomes the payload.
+ */
+export type RoleToolInput = {
+    inputSchema: FlexibleSchema<unknown>;
+    toPayload(input: unknown): unknown;
+};
+
+export type DispatchToolsOptions = {
+    /** Roles of the calling agent: one `dispatch_<role>` tool each, calling dispatch(). */
+    roles?: string[];
+    /** Roles of other agents: one `dispatch_<agent>_<role>` tool each, calling dispatchTo(). */
+    agents?: { agent: string; roles: string[] }[];
+    /** Every generated tool waits for its child (waitForDispatch()) and returns the DispatchOutcome. */
+    wait?: boolean | DispatchWaitOptions;
+};
+
+/** What a dispatchTools() placeholder stands for (internal): `agent` unset for the calling agent. */
+export type DispatchToolTarget = {
+    agent?: string;
+    role: string;
+    wait: false | DispatchWaitOptions;
 };

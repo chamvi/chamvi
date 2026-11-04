@@ -10,7 +10,7 @@ import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
 import { SuspendSignal } from '../approval/request.ts';
 import type { DispatchResult } from '../channel/types.ts';
 import { inject } from '../context/module.ts';
-import { currentToolCall } from '../effect/frame.ts';
+import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import type { DispatchWaitRequest } from '../engine/execute/types.ts';
 import { InvalidRunStateError, ValidationError } from '../errors/index.ts';
 import type { StateSchema } from '../state/types.ts';
@@ -116,6 +116,8 @@ async function waitFor(ctx: ToolContext<any>, runs: unknown, options: unknown): 
     if (!frame) {
         throw new InvalidRunStateError('waitForDispatch() runs inside a tool call (its execute or the agent hooks), not in the tools factory.');
     }
+
+    assertFrameActive(frame, 'waitForDispatch()');
 
     if (frame.streaming) {
         throw new InvalidRunStateError(`waitForDispatch() cannot run in the body of the streaming tool "${frame.toolName}".`);

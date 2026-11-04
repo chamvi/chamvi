@@ -98,6 +98,8 @@ export type ChannelSubscription<P = unknown> = {
     // method signatures (bivariant): a ChannelSubscription<P> fits AgentDefinition.channels
     concurrencyKey?(payload: P): string | undefined;
     idempotencyKey?(payload: P): string | undefined;
+    /** The run's address from its payload; read by the agent channel only (`agent.on()`). */
+    address?(payload: P): string | undefined;
 };
 
 /** A message a tool emits; `key` overrides the content-addressed dedupe key. */

@@ -23,8 +23,8 @@ import {
     sep,
 } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
-import type { Agent, AgentDefinition } from '@chamvi/core';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import type { Agent, ModelAgentDefinition, SimpleAgentDefinition } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent, defineSimpleAgent } from '@chamvi/core';
 import { createJiti } from 'jiti';
 import type { Jiti } from 'jiti';
 import { locateMany } from 'locter';
@@ -274,9 +274,29 @@ export function isDeclaredAgent(value: unknown): value is DeclaredAgent {
     return isObject(value) && typeof value.name === 'string' && isObject(value.definition);
 }
 
-/** A declared agent rebuilt through this copy of defineAgent(), so its checks and budget defaults apply. */
+/**
+ * A declared agent rebuilt through this copy's factory of its `kind`
+ * (defineModelAgent() or defineSimpleAgent()), so its checks and budget
+ * defaults apply. One without a kind (built by an older core) is a model
+ * agent; with `run` it is refused.
+ */
 export function rebuildAgent(declared: DeclaredAgent): Agent {
-    return defineAgent({ ...declared.definition, name: declared.name } as AgentDefinition);
+    const { kind } = declared as DeclaredAgent & { kind?: unknown };
+    const definition = { ...declared.definition, name: declared.name };
+
+    if (kind === 'simple') {
+        return defineSimpleAgent(definition as SimpleAgentDefinition);
+    }
+
+    if (kind === undefined && declared.definition.run !== undefined) {
+        throw new InvalidAgentDefinitionError(`Agent "${declared.name}" declares "run" but no kind; build it with defineSimpleAgent().`);
+    }
+
+    if (kind !== undefined && kind !== 'model') {
+        throw new InvalidAgentDefinitionError(`Agent "${declared.name}" has kind ${JSON.stringify(kind) ?? String(kind)}; build it with defineModelAgent() or defineSimpleAgent().`);
+    }
+
+    return defineModelAgent(definition as ModelAgentDefinition);
 }
 
 /**

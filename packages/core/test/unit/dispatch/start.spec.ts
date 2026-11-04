@@ -517,6 +517,72 @@ describe('dispatch()', () => {
         expect(byPr.b!.trigger).toMatchObject({ idempotencyKey: 'dispatch:default:mine', concurrencyKey: 'own' });
     });
 
+    it("the subscription's address applies, the input's wins", async () => {
+        const subscription = agent.on<{ pr: string }>({ address: (p) => p.pr });
+        const { engine, store } = setup({
+            parent: [turn(call({ payload: { pr: 'o/r#1' } }, 'c1'), call({ payload: { pr: 'o/r#2' }, address: 'own' }, 'c2')), text('done')],
+            subscription,
+        });
+
+        await dispatchParent(engine);
+
+        const all = await children(store);
+        const byPr = Object.fromEntries(all.map((run) => [(run.trigger.payload as { pr: string }).pr, run]));
+
+        expect(byPr['o/r#1']!.address).toBe('o/r#1');
+        expect(byPr['o/r#1']!.trigger.address).toBe('o/r#1');
+        expect(byPr['o/r#2']!.address).toBe('own');
+    });
+
+    it('an address hook result over 255 characters is a tool error', async () => {
+        const subscription = agent.on({ address: () => 'a'.repeat(300) });
+        const { engine, store } = setup({ parent: [turn(call({ payload: 1 })), text('done')], subscription });
+        const parentId = await dispatchParent(engine);
+        const [step] = await toolSteps(store, parentId);
+
+        expect(step?.error).toMatchObject({ code: 'validation_error', message: expect.stringMatching(/address/) });
+        expect(await children(store)).toHaveLength(0);
+    });
+
+    it('the address hook feeds the default key: a different address on replay is a different call', async () => {
+        let n = 0;
+        const subscription = agent.on({ address: () => `a${n++}` });
+        const { engine, store } = setup({
+            parent: [turn(call({ payload: 1 }, 'c1')), turn(call({ payload: 1 }, 'c2')), text('done')],
+            subscription,
+        });
+        const parentId = await dispatchParent(engine);
+        const all = await children(store);
+
+        expect(all.map((run) => run.address).sort()).toEqual(['a0', 'a1']);
+
+        const steps = await toolSteps(store, parentId);
+
+        expect(steps.map((s) => (s.output as { deduplicated: boolean }).deduplicated)).toEqual([false, false]);
+    });
+
+    it('a lost record redoes a deduplicating dispatch with the address of the hook', async () => {
+        const store = { ...createMemoryStore({ clock: new ControllableClock(START) }), effects: new LossyRepository() };
+
+        store.effects.lose = true;
+
+        const subscription = agent.on<{ pr: string }>({ address: (p) => p.pr });
+        const { engine } = setup({
+            parent: [turn(call({ payload: { pr: 'o/r#1' } }, 'c1')), turn(call({ payload: { pr: 'o/r#1' } }, 'c2')), text('done')],
+            subscription,
+            store,
+        });
+        const parentId = await dispatchParent(engine);
+        const all = await children(store);
+
+        expect(all).toHaveLength(1);
+        expect(all[0]!.address).toBe('o/r#1');
+
+        const steps = await toolSteps(store, parentId);
+
+        expect(steps[1]?.output).toEqual({ runId: all[0]!.id, deduplicated: true });
+    });
+
     it('the payload is parsed by the schema', async () => {
         const subscription = agent.on({ schema: z.object({ pr: z.string() }).transform((p) => ({ pr: p.pr.toUpperCase() })) });
         const { engine, store } = setup({

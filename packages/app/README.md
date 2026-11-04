@@ -86,13 +86,13 @@ export default createApp({
 
 `env` defaults to `process.env`. An app runs one lifecycle (`check` counts as one); a second one rejects with `app_in_use`. `isApp(value)` recognizes an app, also one of another installed copy of the package.
 
-`agents` also takes bare package specifiers beside code agents: `createApp({ agents: [triage, '@acme/review-agent'] })` loads the package's default export (an agent, an array of agents, or a sync or async factory returning one of those) at start, with `@chamvi/*`, `ai` and `@ai-sdk/*` resolved to the app's copies. `chamvi.json` `agents` and `CHAMVI_AGENTS` (comma-separated) add packages from the deployment. A package agent's revision is its version (`<name>@<version>`; in dev plus a content hash), so a version bump cancels its unsettled runs once. Code agents win a name, then packages, then folders. See [Agent Packages](https://chamvi.dev/guide/agent-packages).
+`agents` also takes bare package specifiers beside the agents passed in code: `createApp({ agents: [triage, '@acme/review-agent'] })` loads the package's default export (an agent, an array of agents, or a sync or async factory returning one of those) at start, with `@chamvi/*`, `ai` and `@ai-sdk/*` resolved to the app's copies. `chamvi.json` `agents` and `CHAMVI_AGENTS` (comma-separated) add packages from the deployment. A package agent's revision is its version (`<name>@<version>`; in dev plus a content hash), so a version bump cancels its unsettled runs once. Agents passed in code win a name, then packages, then folders. See [Agent Packages](https://chamvi.dev/guide/agent-packages).
 
 Agent `instructions` also accept an ordered readonly array of native system/user/assistant messages. `AgentInstructions`, `SystemModelMessage`, `UserModelMessage`, `AssistantModelMessage` and the native content types are exported by `@chamvi/core` and re-exported by this package. Strings remain compatible. See the [typed instructions example](https://chamvi.dev/guide/agents#instructions) for role-specific content, provider options and transient checkpoint behavior.
 
 ## Approved local skills
 
-Use `createApp({ skills: [common] })` for additive defaults on every code and folder agent. Each `defineAgent({ skills: [...] })` adds scoped extras. The engine appends metadata and provides `load_skill` automatically; user tools named `load_skill` are rejected. This example reuses the `triage` agent from Usage above.
+Use `createApp({ skills: [common] })` for additive defaults on every agent passed in code and every folder agent. Each `defineAgent({ skills: [...] })` adds scoped extras. The engine appends metadata and provides `load_skill` automatically; user tools named `load_skill` are rejected. This example reuses the `triage` agent from Usage above.
 
 ```ts
 import { createApp } from '@chamvi/app';
@@ -116,7 +116,7 @@ export default createApp({
 });
 ```
 
-Replace illustrative pins after independently reviewing all bundle text. `gitSkills` is a pure factory from the skills main entry. Startup prepares globals and code-agent sources before `engineCreated`; folder-agent extras prepare afterward, before channels, HTTP or model work. Verification failures abort startup; failed skill hot reloads retain the old agent, record an agent issue and retry with bounded exponential backoff. Folder edits reset the delay; successful recovery clears the issue. `app.check()` validates static headers without loading providers or installing sources, so remote verification is deferred. Migrate skips preparation.
+Replace illustrative pins after independently reviewing all bundle text. `gitSkills` is a pure factory from the skills main entry. Startup prepares globals and the sources of agents passed in code before `engineCreated`; folder-agent extras prepare afterward, before channels, HTTP or model work. Verification failures abort startup; failed skill hot reloads retain the old agent, record an agent issue and retry with bounded exponential backoff. Folder edits reset the delay; successful recovery clears the issue. `app.check()` validates static headers without loading providers or installing sources, so remote verification is deferred. Migrate skips preparation.
 
 For already deployed files, `loadSkillBundle(descriptor)` returns a ready snapshot. `hashSkillBundle(directory)` is a separate review aid, never approval. The manual `loadSkillBundles(approved)` catalog remains supported: append its instructions and compose its tools explicitly, checking for a `load_skill` collision. The skill types, catalogs and adapters (`defineSkill`, `defineSkillSource`) also belong to `@chamvi/skills`, with no compatibility app exports. Factories already carry their runtime; no module registration is needed. Core/app accept the generic `SkillInput` contract and have no dependency on skills.
 

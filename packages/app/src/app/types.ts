@@ -19,7 +19,7 @@ import type { APP_BRAND } from './constants.ts';
 
 export type AppOptions = {
     /**
-     * The code agents and agent packages: an `Agent`, or a bare package
+     * The agents passed in code and agent packages: an `Agent`, or a bare package
      * specifier (`'@acme/agents'`, `'@acme/agents/triage'`) whose default
      * export is an agent or an array of agents, resolved from the working
      * directory at start. May be omitted or empty when an agents dir,
@@ -74,7 +74,7 @@ export type AppRunJobResult = {
  */
 export interface IApp {
     readonly [APP_BRAND]: true;
-    /** The code agents (createApp's `agents` that are no string); package and folder agents are in the engine's live set. */
+    /** The agents passed in code (createApp's `agents` that are no string); package and folder agents are in the engine's live set. */
     readonly agents: readonly Agent[];
     /** createApp's package specifiers, in order (`chamvi.json` and `CHAMVI_AGENTS` add theirs at start). */
     readonly packages: readonly string[];
