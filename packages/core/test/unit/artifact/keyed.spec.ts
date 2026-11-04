@@ -49,6 +49,24 @@ function setup() {
 }
 
 describe('keyed artifacts', () => {
+    it('refuses a put with a bad mediaType or non-Uint8Array data and stores nothing', async () => {
+        const { store, artifacts } = setup();
+
+        await expect(artifacts.put({ mediaType: 'nope', data: new Uint8Array([1]) })).rejects.toThrow(ValidationError);
+        await expect(artifacts.put({
+            key: 'k',
+            mediaType: 'nope',
+            data: new Uint8Array([1]),
+        })).rejects.toThrow(ValidationError);
+        await expect(artifacts.put({ mediaType: 'text/plain', data: [1] as unknown as Uint8Array })).rejects.toThrow(ValidationError);
+        await expect(artifacts.put({
+            key: 'k',
+            mediaType: 'text/plain',
+            data: 'text' as unknown as Uint8Array,
+        })).rejects.toThrow(ValidationError);
+        expect(await store.artifacts.find(RUN.id)).toHaveLength(0);
+    });
+
     it('derives the id of a put with a key from run and key', async () => {
         const { artifacts } = setup();
         const artifact = await artifacts.put({
