@@ -29,13 +29,13 @@ Each specifier resolves from the app's working directory like Node resolves an `
 
 ## The package
 
-The package's entry (the specifier's `exports` target) default-exports `defineAgent()`'s result or a non-empty array of them:
+The package's entry (the specifier's `exports` target) default-exports `defineModelAgent()`'s or `defineSimpleAgent()`'s result or a non-empty array of them:
 
 ```ts
 // @acme/review-agent, src/index.ts
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 
-export default defineAgent({
+export default defineModelAgent({
     name: 'review',
     instructions: 'Review the pull request.',
     tools: { /* ... */ },
@@ -52,7 +52,7 @@ export default async function review() {
 
 - **Peers.** `@chamvi/*`, `ai` and `@ai-sdk/*` always resolve to the app's copies, also when the package installed copies of its own, so context keys, `instanceof` checks and the engine are shared. Declare them as `peerDependencies`.
 - **Built JavaScript.** A published package ships JavaScript: Node does not strip TypeScript below `node_modules` (the error says to build the package). A workspace package linked into `node_modules` may export its `.ts` source, which Node runs from its real path with its own type stripping, not the transpiler agent folders load through: relative imports name the file with its `.ts` extension (`import './helper.ts'`, TypeScript's `allowImportingTsExtensions` or `rewriteRelativeImportExtensions`; `./helper.js` and `./helper` fail), and only erasable syntax works (no `enum`, `namespace` or constructor parameter properties).
-- **Checked like folder agents.** Each agent is checked structurally (another `@chamvi/core` copy's agent passes) and rebuilt through the app's `defineAgent()`, then passes the same checks as a folder agent (channels, cron, MCP, model, skills).
+- **Checked like folder agents.** Each agent is checked structurally (another `@chamvi/core` copy's agent passes) and rebuilt through the app's factory of its `kind` (`defineModelAgent()` or `defineSimpleAgent()`), then passes the same checks as a folder agent (channels, cron, MCP, model, skills).
 - **`package.json` needs a `version`**: it is the agent's revision (below).
 
 ## Names

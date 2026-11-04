@@ -25,7 +25,7 @@ A `ModelRef` is a string or an AI SDK `LanguageModel` object:
 - `'anthropic/claude-sonnet-5-5'`: provider `anthropic`, model `claude-sonnet-5-5`. The string is split at the **first** `/`, so `'router/cc/claude-opus-4-6'` is provider `router`, model `cc/claude-opus-4-6` (routers such as 9router and OmniRoute use ids like that).
 - `anthropic('claude-sonnet-5-5')` from `@ai-sdk/anthropic`, or any other `LanguageModel`: used as is, no provider settings involved.
 
-An agent's `model` is optional. Without it the agent takes the app default (`CHAMVI_MODEL`, the config file's `model` or `createApp({ model })`). The engine checks every model agent when it is registered (a [code agent](/guide/dispatch#code-agents) has no model and skips the check): an agent with no model and no default, or a string naming a provider that is not configured, fails `start` for an agent passed in code (`createApp({ agents })`; `chamvi start` exits 2) and becomes a load issue for a [folder agent](/guide/agent-folders), which is then not registered:
+An agent's `model` is optional. Without it the agent takes the app default (`CHAMVI_MODEL`, the config file's `model` or `createApp({ model })`). The engine checks every model agent when it is registered (a [simple agent](/guide/dispatch#simple-agents) has no model and skips the check): an agent with no model and no default, or a string naming a provider that is not configured, fails `start` for an agent passed in code (`createApp({ agents })`; `chamvi start` exits 2) and becomes a load issue for a [folder agent](/guide/agent-folders), which is then not registered:
 
 ```
 Agent "triage" has no model and the engine sets no default (EngineOptions.model; CHAMVI_MODEL in @chamvi/app).

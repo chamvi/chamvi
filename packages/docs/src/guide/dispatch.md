@@ -7,7 +7,7 @@ A tool can start runs of its **own agent** or of **another agent** of the app, a
 - `waitForDispatch(ctx, runs, { timeoutMs? })` pauses the calling run until every listed run settled and returns their outcomes.
 - `dispatchTools({ roles?, agents?, wait? })` generates one tool per role, so a model dispatches without a hand-written tool ([Generated dispatch tools](#generated-dispatch-tools)).
 
-A [code agent](#code-agents) (`defineAgent({ run })`, no model) calls the same functions from plain code.
+A [simple agent](#simple-agents) (`defineSimpleAgent({ run })`, no model) calls the same functions from plain code.
 
 The new run (the child) has its own budget, its own approvals and its own concurrency key. A dispatch alone is fire and forget: the tool gets `{ runId, deduplicated }` and the calling run (the parent) goes on at once. With `waitForDispatch()` the parent waits durably, across restarts and replicas, and continues with the children's outcomes. A daily run that finds ten pull requests needing work dispatches one run per pull request instead of fixing them all inline under one budget; an audit fans out one run per area, waits for all of them and hands their findings to a reporter agent.
 
@@ -42,7 +42,7 @@ A tool calls `dispatch(ctx, { role, payload })` (the `audit` tool in [Waiting fo
 
 - `payload` is required; `role` is a non-empty string; `idempotencyKey`, `concurrencyKey` and `address` are optional non-empty strings without NUL (the concurrency key and the address at most 255 characters). Anything else is a `ValidationError` tool error.
 - The child's envelope is `{ agent: <target>, trigger: <role>, channel: 'agent', payload, idempotencyKey, concurrencyKey?, address?, invoker?, parent }`. The model sees the channel, the role and the payload, like any run.
-- `dispatch()` and `dispatchTo()` run inside a tool call or a code agent's `run()` only; in the tools factory they throw `InvalidRunStateError`.
+- `dispatch()` and `dispatchTo()` run inside a tool call or a simple agent's `run()` only; in the tools factory they throw `InvalidRunStateError`.
 
 ## Generated dispatch tools
 
@@ -57,7 +57,7 @@ A tool calls `dispatch(ctx, { role, payload })` (the `audit` tool in [Waiting fo
 - The tool's input is the role's schema when its JSON Schema is an object, so the payload is the input; any other schema (a string, an array, a union) or no schema becomes `{ payload }`. The tool validates the input with the role's schema for the model's sake but hands the raw input to `dispatch()`, which parses it once (a transforming schema is applied once).
 - The call passes no keys and no address: the role's `idempotencyKey()`, `concurrencyKey()` and `address()` decide them.
 - The tools are bound per execution to the roles as registered then, so a role replaced through `putAgent()` (a folder agent reloaded) gives the next execution its new schema and description. A target agent not registered yet keeps its tool with an untyped `payload`; a call answers with dispatch()'s `ValidationError`.
-- `InvalidAgentDefinitionError`: neither `roles` nor `agents`, a name breaking the agent-name rule, a tool name over 64 characters, an own role a plain tool set names and the agent does not declare (`defineAgent()`), a role listed twice (`tool "<name>" is generated twice`), and, when the tool is bound (the run fails), a role schema that cannot be converted to JSON Schema or a generated name another tool of the agent's state or skills carries. Between your own tools the spread order decides.
+- `InvalidAgentDefinitionError`: neither `roles` nor `agents`, a name breaking the agent-name rule, a tool name over 64 characters, an own role a plain tool set names and the agent does not declare (`defineModelAgent()`, `defineSimpleAgent()`), a role listed twice (`tool "<name>" is generated twice`), and, when the tool is bound (the run fails), a role schema that cannot be converted to JSON Schema or a generated name another tool of the agent's state or skills carries. Between your own tools the spread order decides.
 - A child is an internal destination: it inherits the run's taint and invoker, so the tools need no trust classification.
 
 ## Another agent
@@ -91,11 +91,11 @@ type DispatchOutcome = {
 - A tainted child taints the parent before its outcome reaches the parent's model ([Tools & Tool Errors](/guide/tools#untrusted-content-and-outbound-tools)).
 - Like `approve()`, it runs in a tool call only (in the tools factory and in a streaming tool's body it throws `InvalidRunStateError`). `engine.approve()` refuses a dispatch wait (`InvalidRunStateError`, HTTP 409); the approval inbox shows only children that wait for a human.
 
-## Code agents
+## Simple agents
 
-A code agent has `run(payload, ctx)` in place of a model and instructions. The engine runs it as a durable run: `dispatch()`, `dispatchTo()`, `waitForDispatch()`, `approve()` and `ctx.channels` work as inside a tool call, so its children carry lineage, it can wait on them and `budget.maxSubtreeTokens` applies, all without a model call:
+A simple agent (`defineSimpleAgent()`) has `run(payload, ctx)` in place of a model and instructions. The engine runs it as a durable run: `dispatch()`, `dispatchTo()`, `waitForDispatch()`, `approve()` and `ctx.channels` work as inside a tool call, so its children carry lineage, it can wait on them and `budget.maxSubtreeTokens` applies, all without a model call:
 
-<<< @/snippets/dispatch.ts#code
+<<< @/snippets/dispatch.ts#simple
 
 - `ctx` is the [tool context](/guide/agents#tools-and-their-context) plus `ctx.tools`: the agent's tools (after `toolPolicy`, state tools included) as functions by name. A call goes through the same wrapper as a model's: input validated against the tool's schema (`ValidationError`), effect-recorded, trust-classified (a tainting tool taints the run and its later children), gated, and it may ask for an approval. A tool error throws to `run()` as the error; a name the agent lacks is a `ValidationError`. Each call that completes (its output or its tool error) appends a `tool` step; a call that pauses the run appends none, and `resume()` appends the `wait` step instead.
 - What `run()` returns (JSON-serialisable) is the run's `output`, so a parent's `waitForDispatch()` gets it. A throw fails the run, a `ValidationError` from `dispatch()` included: there is no model to hand it back to. The run ends with one `tool` step named after the agent.

@@ -3,7 +3,7 @@
 The public API of `@chamvi/core`, taken from `packages/core/src/index.ts`. Contract interfaces carry an `I` prefix (`IRunRepository`, `IClock`, `IChannel`, `IAgentState`); data shapes are unprefixed types.
 
 ```ts
-import { Engine, defineAgent } from '@chamvi/core';
+import { Engine, defineModelAgent } from '@chamvi/core';
 ```
 
 Test helpers live in [`@chamvi/test-kit`](/reference/test-kit).
@@ -11,16 +11,18 @@ Test helpers live in [`@chamvi/test-kit`](/reference/test-kit).
 ## Agents
 
 ```ts
-function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefinition<S>): Agent<S>;
-function isCodeAgent(agent: Agent | AgentDefinition): boolean; // a definition with run (no model)
+function defineModelAgent<S extends StateSchema = StateSchema>(def: ModelAgentDefinition<S>): ModelAgent<S>;
+function defineSimpleAgent<S extends StateSchema = StateSchema>(def: SimpleAgentDefinition<S>): SimpleAgent<S>;
+/** @deprecated Use defineModelAgent(); removed in a later release. */
+function defineAgent<S extends StateSchema = StateSchema>(def: ModelAgentDefinition<S>): ModelAgent<S>;
 
 const DEFAULT_MAX_STEPS: 20;
 const DEFAULT_TIMEOUT_MS: 900_000; // 15 minutes
 ```
 
-Throws `InvalidAgentDefinitionError` for an invalid name, instruction outer shape or role, duplicate subscription ids, a tool with `needsApproval` or a `toolsContext` entry naming a chamvi tool or no tool of a plain tool set (both in a plain tool set; a tools factory fails the run instead). A code agent (`AgentDefinition` is `ModelAgentDefinition | CodeAgentDefinition`; `run` set) also throws for a non-function `run`, a tools factory or any of `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext`; its `run(payload, ctx: CodeRunContext)` gets the tool context plus `ctx.tools`. See [Agents](/guide/agents#code-agents).
+Throws `InvalidAgentDefinitionError` for an invalid name, instruction outer shape or role, duplicate subscription ids, a tool with `needsApproval` or a `toolsContext` entry naming a chamvi tool or no tool of a plain tool set (both in a plain tool set; a tools factory fails the run instead), `defineModelAgent()` also for `run`. `Agent` is `ModelAgent | SimpleAgent`, told apart (and narrowed, the definition too) by `kind` (`'model'` or `'simple'`); `AgentDefinition` is `ModelAgentDefinition | SimpleAgentDefinition`. The engine refuses an agent whose `kind` is neither or disagrees with its definition (a simple agent needs a function `run`, a model agent has none). `defineSimpleAgent()` also throws for a non-function `run`, a tools factory or any of `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext`; its `run(payload, ctx: SimpleRunContext)` gets the tool context plus `ctx.tools`. See [Agents](/guide/agents#simple-agents).
 
-A folder agent's `agent.ts` default-exports `defineAgent()`'s result, named like its folder; `AgentRevision` is the store's revision marker of a folder agent (see [Agent Folders](/guide/agent-folders)):
+A folder agent's `agent.ts` default-exports `defineModelAgent()`'s or `defineSimpleAgent()`'s result, named like its folder (rebuilt through the factory of its `kind`; one without `kind`, from an older core, as a model agent unless it has `run`); `AgentRevision` is the store's revision marker of a folder agent (see [Agent Folders](/guide/agent-folders)):
 
 <<< ../../../core/src/agent/types.ts{ts}
 
@@ -273,7 +275,7 @@ const DEFAULT_DISPATCH_WAIT_TIMEOUT_MS: 86_400_000; // 24 hours
 
 <<< ../../../core/src/dispatch/types.ts{ts}
 
-`dispatch()`, `dispatchTo()` and `waitForDispatch()` run inside a tool call (or a code agent's `run()`) only (`InvalidRunStateError` elsewhere; `waitForDispatch()` also in a streaming tool's body). A missing role, a caller not in `from`, a too deep child, the per-run limit, an invoker without `agent:<target>:run`, a held concurrency key and a run this run did not dispatch are `ValidationError` tool errors (a code agent's run fails instead); a reached `budget.maxSubtreeTokens` is a `BudgetExceededError` tool error. `dispatchTools()` throws `InvalidAgentDefinitionError` for no role, a bad name, a name over 64 characters, a role listed twice or a bad `wait`. See [Dispatch](/guide/dispatch) and [Generated dispatch tools](/guide/dispatch#generated-dispatch-tools).
+`dispatch()`, `dispatchTo()` and `waitForDispatch()` run inside a tool call (or a simple agent's `run()`) only (`InvalidRunStateError` elsewhere; `waitForDispatch()` also in a streaming tool's body). A missing role, a caller not in `from`, a too deep child, the per-run limit, an invoker without `agent:<target>:run`, a held concurrency key and a run this run did not dispatch are `ValidationError` tool errors (a simple agent's run fails instead); a reached `budget.maxSubtreeTokens` is a `BudgetExceededError` tool error. `dispatchTools()` throws `InvalidAgentDefinitionError` for no role, a bad name, a name over 64 characters, a role listed twice or a bad `wait`. See [Dispatch](/guide/dispatch) and [Generated dispatch tools](/guide/dispatch#generated-dispatch-tools).
 
 ## State
 

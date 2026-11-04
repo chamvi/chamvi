@@ -6,8 +6,9 @@ import {
     agent,
     agentChannel,
     createMemoryStore,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
+    defineSimpleAgent,
     defineTool,
     dispatch,
     dispatchTo,
@@ -27,7 +28,7 @@ declare function fetchOpenPullRequests(label: string): Promise<{ pr: string; sha
 // One agent, two kinds of run: the daily run lists and dispatches, each
 // dispatched run works on one pull request with its own context, budget and
 // approvals, in parallel with the others.
-const maintainer = defineAgent({
+const maintainer = defineModelAgent({
     name: 'maintainer',
     model,
     instructions: [
@@ -63,9 +64,9 @@ const maintainer = defineAgent({
 });
 // #endregion agent
 
-// #region code
+// #region simple
 // No model: run() lists, dispatches one child per pull request and waits.
-const sweeper = defineAgent({
+const sweeper = defineSimpleAgent({
     name: 'sweeper',
     description: 'Reviews every open pull request labelled "ready" in a run of its own.',
     channels: [cron.on('0 7 * * *')],
@@ -93,7 +94,7 @@ const sweeper = defineAgent({
         return outcomes.map(({ runId, status }) => ({ runId, status }));
     },
 });
-// #endregion code
+// #endregion simple
 
 // #region fan-out
 const audit = defineTool({
@@ -121,7 +122,7 @@ const audit = defineTool({
     },
 });
 
-const auditor = defineAgent({
+const auditor = defineModelAgent({
     name: 'auditor',
     model,
     instructions: 'Every Monday, audit the repository area by area.',
@@ -138,7 +139,7 @@ const auditor = defineAgent({
     tools: { audit },
 });
 
-const reporter = defineAgent({
+const reporter = defineModelAgent({
     name: 'reporter',
     model,
     instructions: 'Draft an audit report from the findings in the payload.',

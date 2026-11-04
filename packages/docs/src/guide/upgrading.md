@@ -6,11 +6,13 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 ### Breaking changes
 
-[Code agents](/guide/dispatch#code-agents) (`defineAgent({ run })`, no model) and [generated dispatch tools](/guide/dispatch#generated-dispatch-tools) arrived ([#131](https://github.com/chamvi/chamvi/issues/131)).
+[Simple agents](/guide/dispatch#simple-agents) (`defineSimpleAgent({ run })`, no model) and [generated dispatch tools](/guide/dispatch#generated-dispatch-tools) arrived ([#131](https://github.com/chamvi/chamvi/issues/131)).
 
 | Change | Before (0.6) | Replacement (0.7) |
 |---|---|---|
-| `AgentDefinition` | One shape, `instructions` required | A union of `ModelAgentDefinition` and `CodeAgentDefinition`: `agent.definition.instructions`, `model`, `output`, `conversation` and `skills` read as possibly `undefined`, `run` and `description` are new. Check `agent.definition.run === undefined` before reading the model fields: it narrows the type to the model agent (`isCodeAgent(agent)` answers the same at runtime, without narrowing) |
+| `defineAgent()` | Builds every agent | `defineModelAgent()`, same input and checks; `defineAgent()` stays as its deprecated alias and is removed in a later release. A definition with `run` is refused there: build it with `defineSimpleAgent()` |
+| `Agent` | `{ name, definition }` | A union of `ModelAgent` and `SimpleAgent`, told apart by `agent.kind` (`'model'` or `'simple'`), which narrows `agent.definition` as well. An agent built by hand needs `kind`: the engine refuses one whose `kind` is neither or disagrees with its definition. A folder or package agent built by an older core (no `kind`) loads as a model agent |
+| `AgentDefinition` | One shape, `instructions` required | A union of `ModelAgentDefinition` and `SimpleAgentDefinition`: on the union, `agent.definition.instructions`, `model`, `output`, `conversation` and `skills` read as possibly `undefined`, `run` and `description` are new. Check `agent.kind === 'model'` before reading the model fields |
 | Hand-written dispatch tools | A `defineTool()` around `dispatch()` that only forwarded the call | Still works; `dispatchTools({ roles })` generates the same tool from the role, with `agent.on({ idempotencyKey, concurrencyKey, address, description })` deciding what the tool did. The hooks see only the payload: keep the hand-written tool when it derives a key or the address from anything else (the trigger's `receivedAt`, the run), or put that value into the payload |
 
 ## Upgrading to 0.6
