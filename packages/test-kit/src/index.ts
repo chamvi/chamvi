@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+// The package entry composes the folder barrels.
 export * from './clock/index.ts';
 export * from './conversation-contract/index.ts';
 export * from './git-fixture/index.ts';
