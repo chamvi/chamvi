@@ -19,6 +19,7 @@ import { z } from 'zod';
 import {
     Engine,
     ErrorCode,
+    InvalidRunStateError,
     ValidationError,
     artifactFilePart,
     defineModelAgent,
@@ -473,7 +474,8 @@ describe('tool artifacts', () => {
         expect(await ofB!.list()).toEqual([]);
         expect(await ofB!.get(saved.id)).toBeUndefined();
         expect(await ofB!.get('missing')).toBeUndefined();
-        await expect(ofA!.put({ mediaType: 'nope', data: new Uint8Array() })).rejects.toBeInstanceOf(ValidationError);
+        // the run settled: its tools' artifacts refuse writes, reads still answer
+        await expect(ofA!.put({ mediaType: 'text/plain', data: new Uint8Array() })).rejects.toBeInstanceOf(InvalidRunStateError);
     });
 });
 

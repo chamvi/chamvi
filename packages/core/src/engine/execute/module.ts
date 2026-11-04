@@ -39,6 +39,7 @@ import {
 import {
     assembleTools,
     budgetExceeded,
+    createToolContext,
     executePendingCall,
     incompleteOutput,
     initialMessage,
@@ -54,7 +55,7 @@ import {
     withoutPartialOutput,
     withoutResults,
 } from './helpers.ts';
-import type { ExecuteContext, SuspendRequest } from './types.ts';
+import type { ExecuteContext, ExecutionGate, SuspendRequest } from './types.ts';
 
 /**
  * One execution of a claimed, `running` run: first runs the tool calls a
@@ -62,9 +63,35 @@ import type { ExecuteContext, SuspendRequest } from './types.ts';
  * checkpoint (pausing again, without a model call, when one suspends again),
  * then streams a ToolLoopAgent from there (emitting text and reasoning
  * deltas), checkpoints every step and settles the run, or pauses it on the
- * first call that suspended.
+ * first call that suspended. Its ToolContext writes nothing once the
+ * execution ended (its gate, set where it settles or pauses and on a throw),
+ * except from a call that has not settled yet.
  */
 export async function executeRun(ctx: ExecuteContext): Promise<void> {
+    const gate: ExecutionGate = { ended: false };
+    // every settle and pause runs after the step-end and pending-call writes in flight landed
+    const gated: ExecuteContext = {
+        ...ctx,
+        finish: (patch) => {
+            gate.ended = true;
+
+            return ctx.finish(patch);
+        },
+        pause: (request, usage) => {
+            gate.ended = true;
+
+            return ctx.pause(request, usage);
+        },
+    };
+
+    try {
+        await runExecution(gated, gate);
+    } finally {
+        gate.ended = true;
+    }
+}
+
+async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<void> {
     const {
         run,
         agent,
@@ -178,6 +205,8 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
         bindConversationRun(runContext, ctx.conversation.capability, run);
     }
 
+    const toolContext = createToolContext(ctx, runContext, gate);
+
     // the calls approve() or waitForDispatch() suspended in this execution, in the order they suspended
     const suspended: SuspendRequest[] = [];
     // while the pending calls run they belong to the checkpoint's step, later ones to the step being made
@@ -191,9 +220,14 @@ export async function executeRun(ctx: ExecuteContext): Promise<void> {
         }
 
         model = toLanguageModel(ctx.model, ctx.models, agent.name);
-        assembled = await assembleTools(ctx, runContext, (request) => {
-            suspended.push(request);
-        }, () => (replaying ? checkpoint!.stepIndex : stepIndex));
+        assembled = await assembleTools(ctx, runContext, {
+            toolContext,
+            gate,
+            onSuspend: (request) => {
+                suspended.push(request);
+            },
+            stepIndex: () => (replaying ? checkpoint!.stepIndex : stepIndex),
+        });
     } catch (error) {
         local.abort();
         timeout?.clear();

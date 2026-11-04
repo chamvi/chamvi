@@ -17,7 +17,7 @@ import { assertTrust, bindTrust } from '../../trust/module.ts';
 import { resolveBudget, timeoutSignal } from '../budget.ts';
 import { createSimpleTools } from './simple-tools.ts';
 import { assembleTools, createToolContext, toRunError } from './helpers.ts';
-import type { ExecuteContext, SimpleToolStep } from './types.ts';
+import type { ExecuteContext, ExecutionGate, SimpleToolStep } from './types.ts';
 
 /** The synthetic tool call a simple run's `run()` executes in: part of its approval and wait ids (`0:run:<n>`). */
 const SIMPLE_RUN_TOOL_CALL_ID = 'run';
@@ -57,7 +57,9 @@ function toJsonOutput(value: unknown): { value: unknown } | undefined {
  * effect-recorded calls return their records. A suspension pauses the run, whatever `run()`
  * did with the signal afterwards; else the returned value completes it (one
  * `tool` step) and a throw fails it. No model call, no `llm` step, no
- * checkpoint.
+ * checkpoint. Its ToolContext writes nothing once the execution ended (the
+ * gate ends with run()'s frame), except from a `ctx.tools` call that has not
+ * settled yet.
  */
 export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
     const {
@@ -95,7 +97,9 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
 
     bindRunSnapshot(runContext);
 
-    const toolContext = createToolContext(ctx, runContext);
+    // ended together with run()'s frame, before its steps and the settle
+    const gate: ExecutionGate = { ended: false };
+    const toolContext = createToolContext(ctx, runContext, gate);
     const frame: ToolCallFrame = {
         runId: run.id,
         toolCallId: SIMPLE_RUN_TOOL_CALL_ID,
@@ -136,10 +140,14 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
 
     try {
         // the same ToolContext the tools get, so the provided values bound to it stay reachable through inject()
-        const assembling = assembleTools(ctx, runContext, (request) => {
-            // a suspension inside a tool pauses the run like a direct approve()
-            frame.suspended ??= request;
-        }, undefined, toolContext);
+        const assembling = assembleTools(ctx, runContext, {
+            toolContext,
+            gate,
+            onSuspend: (request) => {
+                // a suspension inside a tool pauses the run like a direct approve()
+                frame.suspended ??= request;
+            },
+        });
 
         // bounded by the run signal like run() itself; never leak its rejection
         assembling.catch(() => {});
@@ -178,6 +186,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
     }
 
     frame.abandoned = true;
+    gate.ended = true;
     local.abort();
     timeout?.clear();
 

@@ -22,7 +22,7 @@ A `tools` factory receives `state`, typed by the declared schema. A tool built w
 | `state.collection(name).upsert(id, doc)` | Validates `doc` with the collection's schema, then creates or replaces it |
 | `state.collection(name).remove(id)` | Deletes a document |
 
-`upsert` stores the schema's output. A document that fails validation throws `ValidationError` and nothing is stored; its `issues` hold the validation issues with their paths. Only declared collections are writable.
+`upsert` stores the schema's output. A document that fails validation throws `ValidationError` and nothing is stored; its `issues` hold the validation issues with their paths. Only declared collections are writable. Once the execution ended (the run settled or paused), a write from work a tool left behind throws `InvalidRunStateError` and stores nothing; a call that has not returned yet, such as a cleanup after the abort, can still write. Reads stay open.
 
 <<< @/snippets/state.ts#invalid
 

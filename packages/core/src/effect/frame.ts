@@ -29,11 +29,19 @@ export function currentToolCall(): ToolCallFrame | undefined {
     return storage.getStore();
 }
 
-/** Refuses `name` in a frame whose execution ended (work a simple run's run() left behind after its settle). */
-export function assertFrameActive(frame: ToolCallFrame, name: string): void {
-    if (frame.abandoned) {
-        throw new InvalidRunStateError(`${name} cannot run after the execution of run "${frame.runId}" ended.`);
+/** Refuses `name` (InvalidRunStateError) once the execution of run `runId` it belongs to `ended`. */
+export function assertExecutionActive(ended: boolean, runId: string, name: string): void {
+    if (ended) {
+        throw new InvalidRunStateError(`${name} cannot run after the execution of run "${runId}" ended.`);
     }
+}
+
+/**
+ * Refuses `name` in a frame whose call or execution ended: work a call left
+ * behind after it settled, or a call still running after its execution ended.
+ */
+export function assertFrameActive(frame: ToolCallFrame, name: string): void {
+    assertExecutionActive(frame.abandoned === true || frame.ended?.() === true, frame.runId, name);
 }
 
 function bindIterable(frame: ToolCallFrame, iterable: AsyncIterable<unknown>): AsyncIterable<unknown> {

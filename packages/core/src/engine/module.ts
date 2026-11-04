@@ -471,7 +471,17 @@ export class Engine implements IEngine {
             getAgent: (name) => this.agents.get(name),
             effects: this.store.effects,
             runs: this.store.runs,
-            createRun: (envelope, parent) => this.createRun(envelope, parent),
+            // a backstop for a parent that settled or paused after dispatch() checked its frame: read
+            // before createRun, so a refused child skips the idempotency claim (a read, not a guarded write)
+            createRun: async (envelope, parent) => {
+                const stored = await this.store.runs.findOne(parent.runId);
+
+                if (stored?.status !== RunStatus.RUNNING) {
+                    throw new InvalidRunStateError(`Run "${parent.runId}" is not running: it cannot dispatch a run.`);
+                }
+
+                return this.createRun(envelope, parent);
+            },
             serial: (runId, fn) => {
                 const previous = chains.get(runId) ?? Promise.resolve();
                 const next = previous.then(fn, fn);
