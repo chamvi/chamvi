@@ -75,6 +75,22 @@ describe('createSessionCookies', () => {
         clearStorage(storage);
         expect(storage.length).toBe(0);
     });
+
+    it('ignores an unset aimed at another cookie path, so a reload keeps the tokens', () => {
+        const storage = new MemoryStorage();
+        const cookies = createSessionCookies(storage, '/ui/');
+
+        cookies.cookieSet('access_token', 'at');
+
+        // the kit drops cookies shadowing the pinned path on every install,
+        // for each prefix of the page's path (`/ui` for `/ui/`)
+        cookies.cookieUnset('access_token', { path: '/ui' });
+        cookies.cookieUnset('access_token', { path: '/ui/runs' });
+        expect(cookies.cookieGet('access_token')).toBe('at');
+
+        cookies.cookieUnset('access_token', { path: '/ui/' });
+        expect(cookies.cookieGet('access_token')).toBeUndefined();
+    });
 });
 
 describe('createAuthupAdapter', () => {
@@ -102,6 +118,13 @@ describe('createAuthupAdapter', () => {
         expect(typeof options.cookieUnset).toBe('function');
         (options.cookieSet as (key: string, value: unknown, opts: unknown) => void)('refresh_token', 'rt', { path: '/ui/' });
         expect(storage.getItem(`${AUTHUP_STORAGE_PREFIX}refresh_token`)).toBe('"rt"');
+
+        const unset = options.cookieUnset as (key: string, opts: unknown) => void;
+
+        unset('refresh_token', { path: '/ui' });
+        expect(storage.getItem(`${AUTHUP_STORAGE_PREFIX}refresh_token`)).toBe('"rt"');
+        unset('refresh_token', { path: options.cookiePath });
+        expect(storage.getItem(`${AUTHUP_STORAGE_PREFIX}refresh_token`)).toBeNull();
     });
 
     it('refresh is true while a token is in place, also when another call already rotated it', async () => {

@@ -34,6 +34,7 @@ export function createAuthupAdapter(
     storage: Storage = window.sessionStorage,
 ): IAuthupAdapter {
     const pinia = createPinia();
+    const cookiePath = `${uiBase}/`;
 
     app.use(pinia);
     install(app, {
@@ -41,9 +42,9 @@ export function createAuthupAdapter(
         pinia,
         components: false,
         realtime: false,
-        cookiePath: `${uiBase}/`,
+        cookiePath,
         cookieSecure: window.location.protocol === 'https:',
-        ...createSessionCookies(storage),
+        ...createSessionCookies(storage, cookiePath),
     });
 
     const store = injectStore(pinia, app);
