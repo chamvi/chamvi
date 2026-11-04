@@ -17,13 +17,13 @@ import {
     InvalidAgentDefinitionError,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { ChannelSubscription } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 
-const define = (channels: ChannelSubscription<any>[]) => defineAgent({
+const define = (channels: ChannelSubscription<any>[]) => defineModelAgent({
     name: 'maintainer',
     instructions: 'You maintain.',
     model: mockModel([]),
@@ -115,13 +115,13 @@ describe('agent.on()', () => {
         expect(subscription.options.from).toEqual(['auditor']);
     });
 
-    it('defineAgent refuses two subscriptions with one role', () => {
+    it('defineModelAgent refuses two subscriptions with one role', () => {
         expect(() => define([agent.on(), agent.on()])).toThrow(InvalidAgentDefinitionError);
         expect(() => define([agent.on({ role: 'hunt' }), agent.on({ role: 'hunt' })])).toThrow(/duplicate subscription id "hunt"/);
         expect(() => define([agent.on({ role: 'hunt' }), agent.on({ role: 'verify' })])).not.toThrow();
     });
 
-    it('defineAgent refuses a role named like another subscription id', () => {
+    it('defineModelAgent refuses a role named like another subscription id', () => {
         const httpOn: ChannelSubscription = {
             channel: 'http',
             id: 'http',

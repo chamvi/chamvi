@@ -9,7 +9,7 @@ import { cron } from '@chamvi/channel-cron';
 import {
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { IModule } from 'orkos';
 import {
@@ -25,7 +25,7 @@ import {
 } from '@chamvi/app';
 import { textModel } from '@chamvi/test-kit';
 
-const agent = defineAgent({
+const agent = defineModelAgent({
     name: 'sweep',
     model: textModel(),
     instructions: 'x',
@@ -143,7 +143,7 @@ describe('createApp', () => {
 });
 
 describe('createApp package agents', () => {
-    it('takes bare package specifiers beside code agents, without touching the file system', () => {
+    it('takes bare package specifiers beside agents passed in code, without touching the file system', () => {
         const app = createApp({ agents: [agent, '@acme/missing-agents', 'other/sub'] });
 
         expect(app.agents).toEqual([agent]);

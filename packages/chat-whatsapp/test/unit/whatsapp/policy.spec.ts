@@ -11,7 +11,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type { IEngine, Run } from '@chamvi/core';
 import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
 import type { WhatsAppChatOptions, WhatsAppIdentity } from '@chamvi/chat-whatsapp';
@@ -194,7 +194,7 @@ describe('WhatsApp sender and group policy', () => {
                     requireGroupMention: false,
                 },
             },
-            agents: (channel) => [defineAgent({
+            agents: (channel) => [defineModelAgent({
                 name: 'assistant',
                 model: textModel(),
                 instructions: 'Answer.',
@@ -474,7 +474,7 @@ describe('WhatsApp conversation target', () => {
 
     it('binds a conversation agent through the mapped target, one memory per group', async () => {
         const value = await started({
-            agents: (channel) => [defineAgent({
+            agents: (channel) => [defineModelAgent({
                 name: 'assistant',
                 model: textModel(),
                 instructions: 'Answer.',

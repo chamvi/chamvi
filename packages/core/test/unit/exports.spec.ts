@@ -83,7 +83,6 @@ describe('public api', () => {
 
     it.each([
         'createMemoryStore',
-        'defineAgent',
         'defineModelAgent',
         'defineSimpleAgent',
         'Engine',

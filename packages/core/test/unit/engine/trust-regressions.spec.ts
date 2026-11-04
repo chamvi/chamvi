@@ -16,8 +16,8 @@ import {
     Engine,
     approve,
     createMemoryStore,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { ModelAgentDefinition, ToolContext } from '@chamvi/core';
@@ -51,7 +51,7 @@ function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>) 
     const store = createMemoryStore();
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             ...definition,

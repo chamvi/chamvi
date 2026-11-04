@@ -9,7 +9,7 @@ import { jsonSchema } from 'ai';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -33,7 +33,7 @@ export function concurrencyHarness() {
     const entered: string[] = [];
     const errors: unknown[] = [];
     function agent(name = 'worker', cap?: number | false, channels: ChannelSubscription[] = []) {
-        return defineAgent({
+        return defineModelAgent({
             name,
             instructions: 'Hold one tool call.',
             concurrencyMaxRuns: cap,

@@ -20,7 +20,7 @@ import {
     Engine,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import { codingTools } from '@chamvi/coding';
 import { createWorkspaceManager } from '@chamvi/sandbox';
@@ -67,7 +67,7 @@ describe('coding flow (local)', () => {
 
         cleanups.push(() => manager.close());
 
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'coder',
             instructions: 'You run the tests of a repository.',
             model: mockModel([
@@ -159,7 +159,7 @@ describe('repository guidance through Engine checkpoints', () => {
             call('read_file', { path: 'src/a.ts' }),
             { parts: [{ type: 'text', text: 'guidance received' }] },
         ]);
-        const agentFor = (manager: IWorkspaceManager) => defineAgent({
+        const agentFor = (manager: IWorkspaceManager) => defineModelAgent({
             name: 'instruction-coder',
             instructions: 'Read the repository guidance.',
             model,

@@ -17,7 +17,7 @@ import { z } from 'zod';
 import {
     Engine,
     ValidationError,
-    defineAgent,
+    defineModelAgent,
     requireToolPermission,
 } from '@chamvi/core';
 import type {
@@ -69,7 +69,7 @@ type Setup = {
 function setup(s: Setup) {
     const clock = new ControllableClock(new Date(1_000_000));
     const store = createMemoryStore({ clock });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'release',
         instructions: 'You release.',
         model: s.model,
@@ -509,7 +509,7 @@ describe('tool policy', () => {
         // redeployed with a tighter policy: deploy is refused now
         const tightened = new Engine({
             store,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'release',
                 instructions: 'You release.',
                 model,

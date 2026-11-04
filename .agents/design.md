@@ -40,7 +40,7 @@ Keep text contrast at 4.5:1 or more; the primary button and code comment colours
 
 ## Landing page
 
-Sections in order: hero (eyebrow "Self-hosted agents", headline "Agents that keep the keys.", README pitch, typechecked `defineAgent` sample) → feature row → how a run flows (lifecycle diagram) → packages (shipped vs planned) → closing call to action → site-wide dark footer. The nav is transparent over the hero at the top of the page.
+Sections in order: hero (eyebrow "Self-hosted agents", headline "Agents that keep the keys.", README pitch, typechecked `defineModelAgent` sample) → feature row → how a run flows (lifecycle diagram) → packages (shipped vs planned) → closing call to action → site-wide dark footer. The nav is transparent over the hero at the top of the page.
 
 ## Alternative palette: Violet (parked)
 

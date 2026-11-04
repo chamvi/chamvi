@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
     AppToken,
     createApp,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     hasConversation,
     memoryTools,
@@ -17,7 +17,7 @@ export function conversationApp(model: LanguageModel, chat: IChannel, authorize:
         inputSchema: z.object({ text: z.string() }),
         execute: async ({ text }, { context }) => context.channels.findOneOrFail(chat.name).emit({ body: text }),
     });
-    const helper = defineAgent({
+    const helper = defineModelAgent({
         name: 'helper',
         model,
         conversation: { key: 'helper' }, // keep this key when renaming the agent

@@ -34,7 +34,7 @@ describe('the default module reader', () => {
         const dir = join(root.path, 'triage');
 
         await writeTree(dir, {
-            'agent.ts': 'import { defineAgent } from \'@chamvi/core\';\nimport { text } from \'./_text.ts\';\nexport default defineAgent({ name: \'triage\', model: \'test/model\', instructions: text });\n',
+            'agent.ts': 'import { defineModelAgent } from \'@chamvi/core\';\nimport { text } from \'./_text.ts\';\nexport default defineModelAgent({ name: \'triage\', model: \'test/model\', instructions: text });\n',
             '_text.ts': 'export const text: string = \'one\';\n',
         });
 
@@ -49,7 +49,7 @@ describe('the default module reader', () => {
         const dir = join(root.path, 'triage');
 
         await writeTree(dir, {
-            'agent.ts': 'import { defineAgent } from \'@chamvi/core\';\nimport echo from \'./tools/echo.ts\';\nimport { text } from \'./_text.mts\';\nexport default defineAgent({ name: \'triage\', model: \'test/model\', instructions: text, tools: { echo } });\n',
+            'agent.ts': 'import { defineModelAgent } from \'@chamvi/core\';\nimport echo from \'./tools/echo.ts\';\nimport { text } from \'./_text.mts\';\nexport default defineModelAgent({ name: \'triage\', model: \'test/model\', instructions: text, tools: { echo } });\n',
             'tools/echo.ts': 'import { text } from \'../_text.mts\';\nexport default { description: text, inputSchema: { type: \'object\' } };\n',
             '_text.mts': 'export const text: string = \'one\';\n',
         });
@@ -71,7 +71,7 @@ describe('the default module reader', () => {
         const dir = join(root.path, 'triage');
 
         await writeTree(dir, {
-            'agent.ts': 'import { defineAgent } from \'@chamvi/core\';\nimport data from \'./_data.json\';\nexport default defineAgent({ name: \'triage\', model: \'test/model\', instructions: data.text });\n',
+            'agent.ts': 'import { defineModelAgent } from \'@chamvi/core\';\nimport data from \'./_data.json\';\nexport default defineModelAgent({ name: \'triage\', model: \'test/model\', instructions: data.text });\n',
             '_data.json': JSON.stringify({ text: 'one' }),
         });
 
@@ -155,7 +155,7 @@ describe('the default module reader', () => {
     it('a TypeScript enum loads', async () => {
         const dir = join(root.path, 'triage');
 
-        await writeTree(dir, { 'agent.ts': 'import { defineAgent } from \'@chamvi/core\';\nenum Kind { Sort = \'sort the inbox\' }\nexport default defineAgent({ name: \'triage\', model: \'test/model\', instructions: Kind.Sort });\n' });
+        await writeTree(dir, { 'agent.ts': 'import { defineModelAgent } from \'@chamvi/core\';\nenum Kind { Sort = \'sort the inbox\' }\nexport default defineModelAgent({ name: \'triage\', model: \'test/model\', instructions: Kind.Sort });\n' });
 
         expect((await loadAgent(dir)).agent.definition.instructions).toBe('sort the inbox');
     });

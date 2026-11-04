@@ -54,7 +54,7 @@ If the agent should follow it, it is a skill; if it should look it up, it is kno
 
 ```typescript
 import type { EmbeddingModel, LanguageModel } from 'ai';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import {
     createKnowledge,
     createMemoryKnowledgeRepository,
@@ -82,7 +82,7 @@ export function createSupport(input: {
     });
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'support',
             model: input.model,
             instructions: 'Answer customer questions. Search the handbook first; ' +
@@ -105,14 +105,14 @@ export function createSupport(input: {
 `knowledgeModule()` from `@chamvi/knowledge/module` declares the app's collections. String models resolve through the app's providers and keys (`CHAMVI_PROVIDER_*`, `OPENAI_API_KEY`, ...), like chat models:
 
 ```ts
-import { createApp, defineAgent } from '@chamvi/app';
+import { createApp, defineModelAgent } from '@chamvi/app';
 import { folder, knowledgeCollection, knowledgeTools } from '@chamvi/knowledge';
 import { knowledgeModule } from '@chamvi/knowledge/module';
 
 export default createApp({
     // the agents' default chat model; OPENAI_API_KEY configures the provider for both
     model: 'openai/gpt-5-mini',
-    agents: [defineAgent({
+    agents: [defineModelAgent({
         name: 'support',
         instructions: 'Answer customer questions. Search the handbook first.',
         tools: knowledgeTools({ collections: ['handbook'] }),

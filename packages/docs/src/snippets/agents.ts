@@ -2,7 +2,7 @@ import { Output } from 'ai';
 import type { LanguageModel } from 'ai';
 import { z } from 'zod';
 import { cron } from '@chamvi/channel-cron';
-import { defineAgent, defineEffectTool, defineTool } from '@chamvi/core';
+import { defineEffectTool, defineModelAgent, defineTool } from '@chamvi/core';
 import { http } from '@chamvi/http';
 
 declare const model: LanguageModel;
@@ -26,7 +26,7 @@ const saveReport = defineTool({
     },
 });
 
-export const reporter = defineAgent({
+export const reporter = defineModelAgent({
     name: 'weekly-report',
     model,
     instructions: 'Summarize the open work items in the trigger payload.',
@@ -45,7 +45,7 @@ export const reporter = defineAgent({
 
 export function inspectDefaults() {
     // #region defaults
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'echo',
         model,
         instructions: 'Repeat the payload.',
@@ -60,7 +60,7 @@ export function inspectDefaults() {
 
 export function createLabeler() {
     // #region output
-    const labeler = defineAgent({
+    const labeler = defineModelAgent({
         name: 'labeler',
         model,
         instructions: 'Label the issue in the trigger payload.',
@@ -94,7 +94,7 @@ const saveChart = defineEffectTool({
     },
 });
 
-export const charter = defineAgent({
+export const charter = defineModelAgent({
     name: 'charter',
     model,
     instructions: 'Chart the numbers in the attached CSV.',

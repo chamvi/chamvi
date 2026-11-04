@@ -8,7 +8,7 @@
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { Agent, IStore } from '@chamvi/core';
 import { ControllableClock, mockModel, textModel } from '@chamvi/test-kit';
@@ -31,7 +31,7 @@ export const START = new Date('2026-10-22T00:00:00Z');
 export const POLL_MS = 1_000;
 
 /**
- * An `agent.ts` default-exporting `defineAgent()`'s shape (structural, so the
+ * An `agent.ts` default-exporting `defineModelAgent()`'s shape (structural, so the
  * fixture does not depend on the built @chamvi/core); `channels` are
  * subscription source expressions (`HTTP_TRIGGER`, `cronTrigger()`).
  */
@@ -59,7 +59,7 @@ export function provider() {
 }
 
 export function agentInCode(name: string): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name,
         model: textModel('from code'),
         instructions: 'x',

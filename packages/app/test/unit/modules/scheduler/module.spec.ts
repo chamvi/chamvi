@@ -6,7 +6,7 @@
  */
 
 import { cron } from '@chamvi/channel-cron';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import {
     afterEach,
@@ -32,7 +32,7 @@ import { mockModel } from '@chamvi/test-kit';
 
 
 function sweep(): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'sweep',
         model: mockModel(Array.from({ length: 10 }, () => ({ parts: [{ type: 'text' as const, text: 'swept' }] }))),
         instructions: 'sweep',

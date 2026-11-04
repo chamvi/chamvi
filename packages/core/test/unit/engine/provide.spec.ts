@@ -17,9 +17,9 @@ import {
     ContextNotProvidedError,
     Engine,
     InvalidAgentDefinitionError,
-    defineAgent,
     defineContextKey,
     defineEffectTool,
+    defineModelAgent,
     defineTool,
     inject,
     tryInject,
@@ -60,7 +60,7 @@ function setup(model: LanguageModel, tools: AgentDefinition['tools']) {
     const clock = new ControllableClock(new Date(1_000_000));
     const store = createMemoryStore({ clock });
     const errors: unknown[] = [];
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'ops',
         instructions: 'You operate.',
         model,

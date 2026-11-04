@@ -17,8 +17,8 @@ import { z } from 'zod';
 import {
     Engine,
     approve,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { IChannel, IEngine } from '@chamvi/core';
@@ -62,7 +62,7 @@ function createEngine(
         clock,
         claimTtlMs: 30,
         channels,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'release',
             instructions: 'You release.',
             model,

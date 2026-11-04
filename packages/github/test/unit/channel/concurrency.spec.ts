@@ -9,7 +9,7 @@ import { readFileSync } from 'node:fs';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
@@ -45,7 +45,7 @@ describe('GitHub burst admission', () => {
         const releases = new Map<string, () => void>();
         let active = 0;
         let peak = 0;
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'triage',
             instructions: 'Inspect the issue.',
             concurrencyMaxRuns: 2,
@@ -88,7 +88,7 @@ describe('GitHub burst admission', () => {
                 }),
             }),
         });
-        const other = defineAgent({
+        const other = defineModelAgent({
             name: 'other',
             instructions: 'Respond.',
             model: textModel(),

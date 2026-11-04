@@ -413,7 +413,7 @@ export function dispatchToolTarget(tool: unknown): DispatchToolTarget | undefine
 
 /**
  * Refuses a placeholder for an own role `channels` does not declare
- * (defineAgent's eager check of a plain tool set).
+ * (defineModelAgent's eager check of a plain tool set).
  */
 export function assertOwnDispatchRoles(agent: string, channels: ChannelSubscription[] | undefined, tools: ToolSet): void {
     for (const [name, tool] of Object.entries(tools)) {

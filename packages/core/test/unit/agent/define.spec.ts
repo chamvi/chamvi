@@ -16,7 +16,7 @@ import {
 import { z } from 'zod';
 import {
     InvalidAgentDefinitionError,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -28,9 +28,9 @@ import type {
 const model = {} as LanguageModel;
 const base = { model, instructions: 'do things' };
 
-describe('defineAgent', () => {
+describe('defineModelAgent', () => {
     it.each([null, undefined, 42, {}, { role: 'system', content: 'single' }, [null], ['text'], new Array(1), [{ role: 'tool', content: [] }], [{ role: 'developer', content: 'no' }]].map((instructions) => [instructions]))('rejects invalid instruction outer shapes and roles: %j', (instructions) => {
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             ...base,
             name: 'a',
             instructions: instructions as unknown as ModelAgentDefinition['instructions'],
@@ -39,17 +39,17 @@ describe('defineAgent', () => {
 
     it('rejects invalid names', () => {
         for (const name of ['Triage', 'a--b', 'a'.repeat(65), '', '-a', 'a-']) {
-            expect(() => defineAgent({ ...base, name })).toThrow(InvalidAgentDefinitionError);
+            expect(() => defineModelAgent({ ...base, name })).toThrow(InvalidAgentDefinitionError);
         }
     });
 
     it('accepts valid names', () => {
-        expect(defineAgent({ ...base, name: 'triage-2' }).name).toBe('triage-2');
-        expect(() => defineAgent({ ...base, name: 'a'.repeat(64) })).not.toThrow();
+        expect(defineModelAgent({ ...base, name: 'triage-2' }).name).toBe('triage-2');
+        expect(() => defineModelAgent({ ...base, name: 'a'.repeat(64) })).not.toThrow();
     });
 
     it('applies budget defaults', () => {
-        const agent = defineAgent({ ...base, name: 'a' });
+        const agent = defineModelAgent({ ...base, name: 'a' });
 
         expect(agent.definition.budget.maxSteps).toBe(20);
         expect(agent.definition.budget.timeoutMs).toBe(900_000);
@@ -57,7 +57,7 @@ describe('defineAgent', () => {
     });
 
     it('keeps budget overrides', () => {
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             ...base,
             name: 'a',
             budget: { maxSteps: 3, maxTokens: 10 },
@@ -77,12 +77,12 @@ describe('defineAgent', () => {
             options: {},
         });
 
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             ...base,
             name: 'a',
             channels: [on('cron', 'cron:x'), on('cron', 'cron:x')],
         })).toThrow(/duplicate subscription id "cron:x"/);
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             ...base,
             name: 'a',
             channels: [on('cron', 'cron:x'), on('http', 'http'), on('webhook', 'webhook:/a'), on('webhook', 'webhook:/b')],
@@ -100,7 +100,7 @@ describe('defineAgent', () => {
 
         expectTypeOf(github).toExtend<ChannelSubscription>();
 
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             ...base,
             name: 'a',
             channels: [github],
@@ -113,7 +113,7 @@ describe('defineAgent', () => {
     it('accepts a plain tool set', () => {
         const tools = { lookup: defineTool({ inputSchema: z.object({}), execute: async () => 'ok' }) };
 
-        expect(defineAgent({
+        expect(defineModelAgent({
             ...base,
             name: 'a',
             tools,
@@ -124,7 +124,7 @@ describe('defineAgent', () => {
         const entry = { token: 't' };
         const map = { third: entry };
         const third = tool({ inputSchema: z.object({}), execute: async () => 'ok' });
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             ...base,
             name: 'a',
             tools: { third },
@@ -136,7 +136,7 @@ describe('defineAgent', () => {
     });
 
     it('checks toolsContext only for a plain set', () => {
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             ...base,
             name: 'a',
             tools: () => ({}),
@@ -145,25 +145,25 @@ describe('defineAgent', () => {
     });
 
     it('agent_opt_in_validated', () => {
-        expect(defineAgent({ ...base, name: 'a' }).definition.conversation).toBeUndefined();
-        expect(defineAgent({
+        expect(defineModelAgent({ ...base, name: 'a' }).definition.conversation).toBeUndefined();
+        expect(defineModelAgent({
             ...base,
             name: 'a',
             conversation: false,
         }).definition.conversation).toBe(false);
-        expect(defineAgent({
+        expect(defineModelAgent({
             ...base,
             name: 'a',
             conversation: true,
         }).definition.conversation).toBe(true);
-        expect(defineAgent({
+        expect(defineModelAgent({
             ...base,
             name: 'a',
             conversation: { key: 'stable-helper' },
         }).definition.conversation).toEqual({ key: 'stable-helper' });
 
         for (const value of ['true', 1, 0, null, {}, [], { key: '' }, { key: ' ' }, { key: 3 }, { key: 'x'.repeat(256) }, { key: 'bad\0key' }, { key: '\ud800' }]) {
-            expect(() => defineAgent({
+            expect(() => defineModelAgent({
                 ...base,
                 name: 'a',
                 conversation: value as never,

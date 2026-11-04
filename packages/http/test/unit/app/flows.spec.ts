@@ -14,7 +14,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import {
     authup,
     createShutdown,
@@ -80,7 +80,7 @@ describe('acceptance flows', () => {
         return createRunTestApp({
             agents: [
                 ...createRunAgents(),
-                defineAgent({
+                defineModelAgent({
                     name: 'intake',
                     model: textModel(),
                     instructions: 'Intake.',

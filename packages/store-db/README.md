@@ -58,7 +58,7 @@ Create the data source with the store's entities and migrations, run the migrati
 
 ```typescript
 import type { LanguageModel } from 'ai';
-import { Engine, defineAgent } from '@chamvi/core';
+import { Engine, defineModelAgent } from '@chamvi/core';
 import {
     STORE_ENTITIES,
     STORE_MIGRATIONS,
@@ -68,7 +68,7 @@ import {
 import { DataSource } from 'typeorm';
 
 export async function startEngine(model: LanguageModel) {
-    const triage = defineAgent({
+    const triage = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Triage the issue.',

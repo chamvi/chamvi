@@ -27,7 +27,7 @@ import {
     agent as agentSubscriber,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatchTo,
     waitForDispatch,
@@ -74,7 +74,7 @@ function setup(
     const clock = new ControllableClock(T);
     const store = createMemoryStore({ clock });
     const channel = cronChannel();
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'sweep',
         model,
         instructions: 'x',
@@ -100,10 +100,10 @@ function setup(
 }
 
 /** `sweep` (cron) whose `delegate` dispatches one `worker` run and waits on it. */
-function delegating(worker: ReturnType<typeof defineAgent>) {
+function delegating(worker: ReturnType<typeof defineModelAgent>) {
     const clock = new ControllableClock(T);
     const store = createMemoryStore({ clock });
-    const sweep = defineAgent({
+    const sweep = defineModelAgent({
         name: 'sweep',
         model: approvalModel('delegate'),
         instructions: 'x',
@@ -138,7 +138,7 @@ function delegating(worker: ReturnType<typeof defineAgent>) {
 /** `worker` (dispatched by `sweep`): `block` returns once `release()` is called. */
 function blockingWorker() {
     const { promise: released, resolve: release } = Promise.withResolvers<void>();
-    const worker = defineAgent({
+    const worker = defineModelAgent({
         name: 'worker',
         model: approvalModel('block'),
         instructions: 'Work.',
@@ -160,7 +160,7 @@ function blockingWorker() {
 
 /** `worker` (dispatched by `sweep`): `deploy` asks for an approval. */
 function approvingWorker() {
-    return defineAgent({
+    return defineModelAgent({
         name: 'worker',
         model: approvalModel('deploy'),
         instructions: 'Work.',
@@ -583,7 +583,7 @@ describe('runJob', () => {
         const clock = new ControllableClock(T);
         const store = createMemoryStore({ clock });
         const eu = cronChannel({ name: 'cron-eu' });
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'sweep',
             model: textModel(),
             instructions: 'x',

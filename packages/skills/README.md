@@ -9,7 +9,7 @@ npm install @chamvi/skills @chamvi/core
 Use `gitSkills()` from the main entry for first-class engine/app defaults or agent extras:
 
 ```ts
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import { gitSkills } from '@chamvi/skills';
 
 const common = gitSkills({
@@ -26,7 +26,7 @@ const engine = new Engine({
     store: createMemoryStore(),
     model: yourLanguageModel,
     skills: [common],
-    agents: [defineAgent({ name: 'reviewer', instructions: 'Review the requested scope.' })],
+    agents: [defineModelAgent({ name: 'reviewer', instructions: 'Review the requested scope.' })],
 });
 await engine.start();
 ```

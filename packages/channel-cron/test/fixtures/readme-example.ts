@@ -2,12 +2,12 @@ import type { LanguageModel } from 'ai';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 
 export async function startScheduling(model: LanguageModel) {
-    const sweep = defineAgent({
+    const sweep = defineModelAgent({
         name: 'sweep',
         model,
         instructions: 'Close stale issues older than 30 days.',

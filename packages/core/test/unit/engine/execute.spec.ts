@@ -17,7 +17,7 @@ import {
     vi,
 } from 'vitest';
 import { z } from 'zod';
-import { Engine, FatalToolError, defineAgent } from '@chamvi/core';
+import { Engine, FatalToolError, defineModelAgent } from '@chamvi/core';
 import type {
     Budget,
     EngineOptions,
@@ -96,7 +96,7 @@ type TestAgent = {
 
 function make(def: TestAgent, opts: Partial<EngineOptions> & { store?: IStore } = {}) {
     const store = opts.store ?? createMemoryStore({ clock: opts.clock });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'triage',
         instructions: 'You triage.',
         model: def.model,

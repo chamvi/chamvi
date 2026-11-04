@@ -21,7 +21,7 @@ import {
     ErrorCode,
     ValidationError,
     artifactFilePart,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -57,7 +57,7 @@ function setup(
     const clock = new ControllableClock(new Date(1_000_000));
     const store = opts.store ?? createMemoryStore({ clock });
     const model = mockModel(responses);
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'vision',
         instructions: 'You look at files.',
         model,

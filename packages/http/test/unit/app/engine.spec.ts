@@ -10,7 +10,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
@@ -32,13 +32,13 @@ function setup() {
     const clock = new ControllableClock(new Date(1_000_000));
     const store = createMemoryStore({ clock });
     const agents = [
-        defineAgent({
+        defineModelAgent({
             name: 'echo',
             model: textModel(),
             instructions: 'Echo.',
             channels: [http.on()],
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'other',
             model: textModel(),
             instructions: 'Other.',
@@ -162,7 +162,7 @@ describe('createHttpApp over the engine', () => {
     it('serves an agent registered after the app was built', async () => {
         const { app, engine } = setup();
 
-        await engine.putAgent(defineAgent({
+        await engine.putAgent(defineModelAgent({
             name: 'late',
             model: textModel(),
             instructions: 'Late.',
@@ -180,7 +180,7 @@ describe('createHttpApp over the engine', () => {
     it('answers 404 after the agent was removed', async () => {
         const { app, engine } = setup();
 
-        await engine.putAgent(defineAgent({
+        await engine.putAgent(defineModelAgent({
             name: 'hooked',
             model: textModel(),
             instructions: 'Hooked.',
@@ -226,7 +226,7 @@ describe('createHttpApp over the engine', () => {
             rateLimit: false,
         });
 
-        await engine.putAgent(defineAgent({
+        await engine.putAgent(defineModelAgent({
             name: 'late',
             model: textModel(),
             instructions: 'Late.',

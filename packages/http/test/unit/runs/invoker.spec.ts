@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { webhook } from '@chamvi/http';
 import type { Principal } from '@chamvi/http';
 import {
@@ -117,7 +117,7 @@ describe('run invoker over REST', () => {
     it('dispatches webhook runs without an invoker', async () => {
         const agents = [
             ...createRunAgents(),
-            defineAgent({
+            defineModelAgent({
                 name: 'intake',
                 model: textModel(),
                 instructions: 'Intake.',

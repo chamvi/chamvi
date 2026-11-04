@@ -1,5 +1,5 @@
 // src/index.ts
-import { createApp, defineAgent } from '@chamvi/app';
+import { createApp, defineModelAgent } from '@chamvi/app';
 import {
     defineKnowledgeSource,
     folder,
@@ -27,7 +27,7 @@ const releases = defineKnowledgeSource({
     },
 });
 
-const support = defineAgent({
+const support = defineModelAgent({
     name: 'support',
     instructions: 'Answer customer questions. Search the handbook and the release notes first.',
     // knowledge_search over these two collections, and no other

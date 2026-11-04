@@ -1,5 +1,5 @@
 import type { LanguageModel } from 'ai';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import { webTools } from '@chamvi/tool-web';
 
@@ -10,7 +10,7 @@ export function createUpgradeResearch(model: LanguageModel) {
         allowUrl: (url) => (url.hostname === 'wiki.internal' ? true : undefined),
     });
 
-    return defineAgent({
+    return defineModelAgent({
         name: 'upgrade-research',
         model,
         // POST /agents/upgrade-research/runs and MCP run_upgrade-research start a run

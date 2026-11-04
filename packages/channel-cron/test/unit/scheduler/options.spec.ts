@@ -15,7 +15,7 @@ import {
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 import { ControllableClock } from '@chamvi/test-kit';
@@ -28,7 +28,7 @@ function setup() {
     const clock = new ControllableClock(T);
     const store = createMemoryStore({ clock });
     const subscription = cron.on('0 9 * * *', { timezone: 'Europe/Berlin' });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'sweep',
         model: textModel(),
         instructions: 'x',

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createMemoryStore, defineAgent } from '@chamvi/core';
+import { createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type { Agent, IStore, Run } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
@@ -126,7 +126,7 @@ async function envFor(extra: Record<string, string> = {}) {
     };
 }
 
-const triage = defineAgent({
+const triage = defineModelAgent({
     name: 'triage',
     model: textModel(),
     instructions: 'x',
@@ -246,8 +246,8 @@ describe('App.check', () => {
         expect(issues[0]?.message).toContain('unknown channel "github".');
     });
 
-    it('rejects a code agent on an unknown channel with invalid_agent_definition', async () => {
-        const lonely = defineAgent({
+    it('rejects an agent passed in code on an unknown channel with invalid_agent_definition', async () => {
+        const lonely = defineModelAgent({
             name: 'lonely',
             model: textModel(),
             instructions: 'x',
@@ -265,8 +265,8 @@ describe('App.check', () => {
         expect(error.code).toBe('invalid_agent_definition');
     });
 
-    it('rejects a code agent with a cron subscription croner refuses, as start does', async () => {
-        const nightly = defineAgent({
+    it('rejects an agent passed in code with a cron subscription croner refuses, as start does', async () => {
+        const nightly = defineModelAgent({
             name: 'nightly',
             model: textModel(),
             instructions: 'x',
@@ -298,7 +298,7 @@ describe('App.check', () => {
     });
 
     it('rejects a missing provider key', async () => {
-        const keyless = defineAgent({
+        const keyless = defineModelAgent({
             name: 'keyless',
             model: 'anthropic/claude-x',
             instructions: 'x',

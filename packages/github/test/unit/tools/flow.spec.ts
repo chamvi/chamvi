@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { ToolDeniedError, approve, defineAgent } from '@chamvi/core';
+import { ToolDeniedError, approve, defineModelAgent } from '@chamvi/core';
 import type { AgentHooks } from '@chamvi/core';
 import type { IGithubApp } from '@chamvi/github';
 import { github } from '@chamvi/github';
@@ -37,7 +37,7 @@ function gate(tool: string, gated: (input: unknown) => boolean = () => true): Ag
 }
 
 function triage(script: MockResponse[]) {
-    return (gh: IGithubApp) => [defineAgent({
+    return (gh: IGithubApp) => [defineModelAgent({
         name: 'triage',
         model: mockModel(script),
         instructions: 'Triage new issues.',
@@ -183,7 +183,7 @@ describe('webhook to comment', () => {
             }],
         });
         const setup = createGithubTestApp({
-            agents: (gh) => [defineAgent({
+            agents: (gh) => [defineModelAgent({
                 name: 'triage',
                 model: mockModel([comment('zero'), comment('first'), comment('second'), { parts: [{ type: 'text', text: 'Done.' }] }]),
                 instructions: 'Triage new issues.',

@@ -54,7 +54,7 @@ import type { HashAgentPackageOptions, LoadAgentPackageOptions, LoadedPackage } 
  * `@chamvi/*`, `ai` and `@ai-sdk/*` for its imports and imports its entry.
  * The default export is an agent or a non-empty array of agents, checked
  * structurally (another `@chamvi/core` copy's agents pass) and rebuilt
- * through this copy's defineAgent(). The revision is `<name>@<version>`, in
+ * through this copy's defineModelAgent(). The revision is `<name>@<version>`, in
  * dev `<name>@<version>+<12 hex of hashAgentPackage(root, { entry })>`. Every failure
  * is an InvalidAgentDefinitionError naming the specifier, paths relative to
  * `cwd`.
@@ -171,7 +171,7 @@ async function produce(spec: string, mod: unknown): Promise<unknown> {
 function buildAgents(spec: string, declared: unknown): Agent[] {
     const list = Array.isArray(declared) ? declared : [declared];
     const shapeError = new InvalidAgentDefinitionError(
-        `${spec}: the default export must be defineAgent(...)'s result, a non-empty array of them, or a function returning (or resolving to) one of those.`,
+        `${spec}: the default export must be the result of defineModelAgent() or defineSimpleAgent(), a non-empty array of them, or a function returning (or resolving to) one of those.`,
     );
 
     if (list.length === 0) {

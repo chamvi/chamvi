@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { github } from '@chamvi/github';
 import type { GithubSubscriptionOptions } from '@chamvi/github';
@@ -20,7 +20,7 @@ const BOT = {
 };
 
 function agent(name: string, events: string[], options: GithubSubscriptionOptions = {}): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name,
         model: textModel(),
         instructions: name,
@@ -108,7 +108,7 @@ describe('the bot\'s own deliveries', () => {
 
     it('dispatch to a later subscription that opts in when the first does not', async () => {
         const { app, engine } = createGithubTestApp({
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'maintainer',
                 model: textModel(),
                 instructions: 'maintainer',
@@ -146,7 +146,7 @@ describe('the bot\'s own deliveries', () => {
             engine,
             errors,
         } = createGithubTestApp({
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'maintainer',
                 model: textModel(),
                 instructions: 'maintainer',

@@ -12,7 +12,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { Agent, IStore } from '@chamvi/core';
 import { ControllableClock, mockModel, textModel } from '@chamvi/test-kit';
@@ -63,7 +63,7 @@ function provider() {
 }
 
 function agentInCode(name: string): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name,
         model: textModel('from code'),
         instructions: 'x',

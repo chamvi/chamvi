@@ -90,7 +90,7 @@ Everything the tool returns is written by strangers, and a page can carry instru
 A fetch on an already tainted run is **not** gated. Its URL is chosen by the model and reaches the target host (and its logs), so a model steered by an earlier page can carry data out in a query string. Agents that hold anything worth exfiltrating make every later fetch wait for approval:
 
 ```ts
-defineAgent({
+defineModelAgent({
     // ...
     tools: webTools(),
     trust: { tools: { web_fetch: { guardWhenTainted: true } } },
@@ -120,7 +120,7 @@ A tool from another library may declare its own `contextSchema` and expect its c
 
 - chamvi passes each entry unchanged, by reference, to the tool of that name: to every call of every run of the agent, so the value must be safe to share. It is never cloned, validated or stored; the tool's own `contextSchema` validates it.
 - A tool without any `contextSchema` gets its entry too (the AI SDK hands it over unvalidated).
-- An entry naming a chamvi tool (built with `defineTool()`/`defineEffectTool()`, the state tools included) or no tool of the agent is a misconfiguration: with a plain tool set `defineAgent()` throws `InvalidAgentDefinitionError`; with a factory (whose set is only known per execution) the run fails with that error (`invalid_agent_definition`) before any model call. A factory that returns a tool only sometimes must leave its entry out and close over the value instead.
+- An entry naming a chamvi tool (built with `defineTool()`/`defineEffectTool()`, the state tools included) or no tool of the agent is a misconfiguration: with a plain tool set `defineModelAgent()` throws `InvalidAgentDefinitionError`; with a factory (whose set is only known per execution) the run fails with that error (`invalid_agent_definition`) before any model call. A factory that returns a tool only sometimes must leave its entry out and close over the value instead.
 - Without an entry, a tool whose `contextSchema` requires a value fails the run (the AI SDK validates the context outside its tool-error handling); an optional schema gets `undefined`.
 - An entry the tool's `contextSchema` rejects fails the run the same way, with `validation_error`. The run error names the tool and the failing paths only, never the entry's value, so a key in it is not stored or served with the run.
 

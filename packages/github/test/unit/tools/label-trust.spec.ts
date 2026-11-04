@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { Tool } from 'ai';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type { ToolContext, ToolTrust } from '@chamvi/core';
 import { createGithubFixture } from '../../utils/app.ts';
 import { mockModel } from '../../utils/model.ts';
@@ -52,7 +52,7 @@ describe('existing-label trust exemption', () => {
             body: [{ name: externalLabel }, { name: 'bug' }],
         }));
 
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'triage',
             instructions: 'Triage issues.',
             model: mockModel([

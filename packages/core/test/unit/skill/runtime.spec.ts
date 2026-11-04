@@ -16,14 +16,14 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import { fakeSkillRuntime } from '../../utils/skill-runtime.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 
-const agent = (input?: ReturnType<typeof fakeSkillRuntime>['input']) => defineAgent({
+const agent = (input?: ReturnType<typeof fakeSkillRuntime>['input']) => defineModelAgent({
     name: 'test',
     instructions: 'role',
     skills: input ? [input] : [],
@@ -182,7 +182,7 @@ describe('skill runtime integration', () => {
     });
     it('does not adopt a first candidate runtime when subsequent synchronous checks fail', () => {
         const bad = fakeSkillRuntime({ protocol: 'bad/v1' }); const good = fakeSkillRuntime(); const e = engine();
-        const invalid = defineAgent({
+        const invalid = defineModelAgent({
             name: 'bad',
             instructions: '',
             skills: [bad.input],
@@ -199,7 +199,7 @@ describe('skill runtime integration', () => {
     });
     it('keeps empty captured agents runnable after the first late runtime', async () => {
         const model = mockModel([{ parts: [{ type: 'text', text: 'empty' }] }, { parts: [{ type: 'text', text: 'contributed' }] }]);
-        const empty = defineAgent({ name: 'empty', instructions: 'empty role' });
+        const empty = defineModelAgent({ name: 'empty', instructions: 'empty role' });
         const e = new Engine({
             store: createMemoryStore(),
             agents: [empty],
@@ -258,7 +258,7 @@ describe('skill runtime integration', () => {
         expect(fake.calls.prepares).toBe(2); expect(fake.calls.creates).toBe(1); await e.stop();
     });
     it('validates descriptors synchronously without creating a runtime', () => {
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             name: 'test',
             instructions: '',
             skills: [{} as never],
@@ -295,7 +295,7 @@ describe('skill runtime integration', () => {
         const e = new Engine({
             store: createMemoryStore(),
             model,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: 'role',
                 skills: [fake.input],
@@ -407,7 +407,7 @@ describe('skill runtime integration', () => {
     it('checks all descriptor protocols before invoking a snapshot callback', () => {
         const first = fakeSkillRuntime(); const incompatible = fakeSkillRuntime({ protocol: 'other/v2' });
 
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             name: 'test',
             instructions: '',
             skills: [first.input, incompatible.input],
@@ -477,7 +477,7 @@ describe('skill runtime integration', () => {
 
         Object.assign(empty.definition, { skills: [incompatible.input] });
 
-        const candidate = defineAgent({
+        const candidate = defineModelAgent({
             name: 'late',
             instructions: '',
             skills: [original.input],

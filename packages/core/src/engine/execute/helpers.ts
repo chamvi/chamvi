@@ -236,7 +236,7 @@ export async function assembleTools(
 
     assertNoDispatchCollision(ctx.agent.name, ownTools, [stateTools, ctx.skills?.tools ?? {}]);
 
-    // a factory's set is only known here: its own-role placeholders are checked like defineAgent checks a plain set
+    // a factory's set is only known here: its own-role placeholders are checked like defineModelAgent checks a plain set
     if (typeof userTools === 'function') {
         assertOwnDispatchRoles(ctx.agent.name, ctx.agent.definition.channels, ownTools);
     }
@@ -249,7 +249,7 @@ export async function assembleTools(
     ctx.skills?.checkTools(tools);
     Object.assign(tools, ctx.skills?.tools);
 
-    // a factory's set is only known here: refused like defineAgent refuses a plain one
+    // a factory's set is only known here: refused like defineModelAgent refuses a plain one
     assertNoNeedsApproval(ctx.agent.name, tools);
     assertAgentTrust(ctx.agent.definition.trust, tools);
 

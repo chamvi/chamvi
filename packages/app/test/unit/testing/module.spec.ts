@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { Agent, IEngine } from '@chamvi/core';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
 import {
@@ -28,7 +28,7 @@ import { recording, rejectionOf } from '../../utils/app.ts';
 import { createRecordingLogger } from '../../utils/logger.ts';
 
 function triage(): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'triage',
         model: textModel('triaged'),
         instructions: 'triage',

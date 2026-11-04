@@ -1,6 +1,6 @@
 # Budgets & Timeouts
 
-Every agent has a budget. `defineAgent()` fills in the defaults, and your values are merged over them.
+Every agent has a budget. `defineModelAgent()` fills in the defaults, and your values are merged over them.
 
 | Field | Default | Kind | Effect |
 |---|---|---|---|
@@ -40,7 +40,7 @@ A run's own budget does not cover the runs it [dispatched](/guide/dispatch): eac
 `budget.maxSubtreeTokens` bounds a whole tree: once the `subtreeUsage` (input plus output tokens) of a run of this agent reached it, `dispatch()` and `dispatchTo()` in that run, and in every run below it, fail with a `BudgetExceeded` tool error (not fatal: the model sees it and can finish with what it has). It is checked when a dispatch starts, against totals summed from the children at that moment (a stored `subtreeUsage` a failed update left behind cannot let a dispatch through); children already running go on. A call recorded before the limit (a redo after a crash or a wait) keeps its child.
 
 ```ts
-defineAgent({
+defineModelAgent({
     name: 'auditor',
     // ...
     budget: { maxSubtreeTokens: 2_000_000 },

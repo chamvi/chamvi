@@ -5,7 +5,7 @@ import type { IStore } from '@chamvi/core';
 import {
     Engine,
     ToolDeniedError,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     requireToolPermission,
 } from '@chamvi/core';
@@ -39,7 +39,7 @@ export function createTriage(model: LanguageModel, store: IStore) {
     // #endregion app
 
     // #region agent
-    const triage = defineAgent({
+    const triage = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Label new issues and ask for missing details in one comment.',

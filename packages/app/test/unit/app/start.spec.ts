@@ -10,7 +10,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
@@ -40,7 +40,7 @@ import {
 import { createRecordingLogger } from '../../utils/logger.ts';
 import { closeServer, freePort, listenOn } from '../../utils/port.ts';
 
-const agent = defineAgent({
+const agent = defineModelAgent({
     name: 'triage',
     model: textModel(),
     instructions: 'x',
@@ -225,7 +225,7 @@ describe('App.start', () => {
                 return doStream(options);
             };
 
-            const queued = defineAgent({
+            const queued = defineModelAgent({
                 name: 'queued',
                 model: counting,
                 instructions: 'x',

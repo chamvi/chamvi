@@ -13,7 +13,7 @@ import {
     ToolDeniedError,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/app';
 import type {
     Agent,
@@ -74,7 +74,7 @@ function createEngine(agents: Agent[], store: ReturnType<typeof createMemoryStor
 function skillAgent(approved: ApprovedSkill, model: ReturnType<typeof mockModel>, definition: Partial<ModelAgentDefinition> = {}) {
     const catalog = loadSkillBundles([approved]);
 
-    return defineAgent({
+    return defineModelAgent({
         name: 'reviewer',
         instructions: `Review the requested code.\n${catalog.instructions}`,
         tools: () => ({ ...catalog.tools }),

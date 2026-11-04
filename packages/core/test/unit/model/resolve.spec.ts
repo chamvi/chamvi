@@ -16,7 +16,7 @@ import { z } from 'zod';
 import {
     ContextNotProvidedError,
     Engine,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     resolveModel,
 } from '@chamvi/core';
@@ -78,7 +78,7 @@ function setup(
 ) {
     const clock = new ControllableClock(new Date(1_000_000));
     const store = createMemoryStore({ clock });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'ops',
         instructions: 'You operate.',
         ...definition,
@@ -215,7 +215,7 @@ describe('resolveModel', () => {
         const seen: unknown[] = [];
         const { engine, store } = setup({ model: first, tools: { use: seeingTool(seen) } });
 
-        await engine.putAgent(defineAgent({
+        await engine.putAgent(defineModelAgent({
             name: 'ops',
             instructions: 'You operate.',
             model: second,

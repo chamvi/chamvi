@@ -18,7 +18,7 @@ import {
     MemoryConversationRepository,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { IChannel, IEngine, ToolContext } from '@chamvi/core';
@@ -79,7 +79,7 @@ function setup(
     const engine = new Engine({
         store: { ...store, conversations },
         clock,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'helper',
             instructions: 'help',
             conversation: true,
@@ -309,7 +309,7 @@ describe('source emit journal', () => {
         const channel = { name: 'chat' };
         const peer = new Engine({
             store: { ...first.store, conversations: first.conversations },
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'helper',
                 model,
                 instructions: 'help',

@@ -47,7 +47,7 @@ chamvi is that layer as a library, with no orchestrator server and no Redis:
 | **Shutdown** | Runs die with the process | `drain()` waits for in-flight runs, then marks the rest `interrupted` for another replica |
 | **Running code** | Model-written commands run wherever your process runs | `create_workspace` gives the run a disposable container or pod with the repository checked out; the coding tools work inside it, and it is removed when the run settles |
 
-Models, messages and tools stay AI SDK types: `defineAgent()` takes a `LanguageModel` and plain AI SDK tools (`tool()`, or `defineTool()` for tools that read the run context), and nothing is wrapped in a chamvi type.
+Models, messages and tools stay AI SDK types: `defineModelAgent()` takes a `LanguageModel` and plain AI SDK tools (`tool()`, or `defineTool()` for tools that read the run context), and nothing is wrapped in a chamvi type.
 
 <p align="center">
     <img src="./.github/assets/run-lifecycle.svg" alt="dispatch() stores a queued run, deduplicated by idempotency key. The engine claims it and runs it: every LLM or tool step is followed by a checkpoint in the store. A run ends completed, failed or cancelled. A tool call that needs approval pauses the run in waiting until it is answered; approving or denying it requeues the run. drain() or a crashed process leaves a run interrupted or with an expired claim; recover() requeues it, and the next execution continues from the latest checkpoint." width="100%" />
@@ -117,12 +117,12 @@ import {
     createMemoryStore,
     Engine,
     consoleChannel,
-    defineAgent,
+    defineModelAgent,
     defineEffectTool,
     replyChannel,
 } from '@chamvi/core';
 
-const triage = defineAgent({
+const triage = defineModelAgent({
     name: 'triage',
     model: anthropic('claude-sonnet-5-5'),
     instructions: 'Label the issue in the payload as bug, feature or question.',
@@ -183,7 +183,7 @@ const workspaces = createWorkspaceManager({
     allowRepo: (url) => url.startsWith('https://github.com/acme/'),
 });
 
-const repro = defineAgent({
+const repro = defineModelAgent({
     name: 'repro',
     model: anthropic('claude-sonnet-5-5'),
     instructions: 'Check out the repository from the payload, write a failing test for the reported bug ' +

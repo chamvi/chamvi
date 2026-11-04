@@ -13,8 +13,8 @@ import { afterEach, expect, it } from 'vitest';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { IStore } from '@chamvi/core';
 import { mockEmbeddingModel, mockModel } from '@chamvi/test-kit';
@@ -80,7 +80,7 @@ async function setup(source: IKnowledgeSource, options: { index?: boolean } = {}
     const store = createMemoryStore();
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'reader',
             instructions: 'Answer from the wiki.',
             model: mockModel([call('knowledge_search', { query: 'refund policy' }), call('send'), done]),

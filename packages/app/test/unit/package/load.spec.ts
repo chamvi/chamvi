@@ -38,7 +38,7 @@ describe('loadAgentPackage', () => {
         await tmp.remove();
     });
 
-    it('resolves from the cwd and builds a single agent through defineAgent', async () => {
+    it('resolves from the cwd and builds a single agent through defineModelAgent', async () => {
         const dir = await installPackage(cwd, '@s/greeter');
         const loaded = await loadAgentPackage('@s/greeter', { cwd });
 
@@ -52,7 +52,7 @@ describe('loadAgentPackage', () => {
         expect(loaded.root.endsWith(join('node_modules', '@s', 'greeter'))).toBe(true);
         expect(loaded.root).toContain(dir.slice(dir.indexOf('node_modules')));
         expect(loaded.agents.map((agent) => agent.name)).toEqual(['greeter']);
-        // the budget defaults of this defineAgent
+        // the budget defaults of this defineModelAgent
         expect(loaded.agents[0]!.definition.budget).toMatchObject({ maxSteps: 20 });
     });
 
@@ -134,8 +134,8 @@ describe('loadAgentPackage', () => {
 
     it.each([
         ['no default export', 'export const agent = 1;\n', '@s/bad: has no default export.'],
-        ['an empty array', 'export default [];\n', '@s/bad: the default export must be defineAgent(...)\'s result, a non-empty array of them, or a function returning (or resolving to) one of those.'],
-        ['another shape', 'export default { name: 1 };\n', '@s/bad: the default export must be defineAgent(...)\'s result, a non-empty array of them, or a function returning (or resolving to) one of those.'],
+        ['an empty array', 'export default [];\n', '@s/bad: the default export must be defineModelAgent(...)\'s result, a non-empty array of them, or a function returning (or resolving to) one of those.'],
+        ['another shape', 'export default { name: 1 };\n', '@s/bad: the default export must be defineModelAgent(...)\'s result, a non-empty array of them, or a function returning (or resolving to) one of those.'],
         [
             'one name twice',
             'const a = { name: \'a\', definition: { model: \'m/x\', instructions: \'x\' } };\nexport default [a, a];\n',
@@ -147,7 +147,7 @@ describe('loadAgentPackage', () => {
         await expect(loadAgentPackage('@s/bad', { cwd })).rejects.toThrow(message);
     });
 
-    it('refuses an agent defineAgent refuses', async () => {
+    it('refuses an agent defineModelAgent refuses', async () => {
         await installPackage(cwd, '@s/bad', { files: { 'index.mjs': 'export default { name: \'Bad Name\', definition: { model: \'m/x\', instructions: \'x\' } };\n' } });
 
         const attempt = loadAgentPackage('@s/bad', { cwd });

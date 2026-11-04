@@ -142,7 +142,7 @@ Write tools are [effect tools](/guide/effect-tools). A comment embeds an [`effec
 The GitHub channel is untrusted ingress: every run a delivery starts is tainted from its first step (issue text is written by strangers). `github_create_issue`, `github_create_pull_request`, `github_merge_pull_request` and `github_propose_change` are classified `guardWhenTainted`, so in such a run each of them waits for an [approval](/guide/approvals#automatic-outbound-gates) before it runs, and the source issue gets a generic "An outbound operation requires review" comment (never the arguments). This is intended: a model steered by issue text should not open, merge or propose on its own. An agent whose own policy already decides (an auto-merge maintainer that checks authors and checks itself) opts out per tool:
 
 ```ts
-defineAgent({
+defineModelAgent({
     // ...
     trust: {
         tools: {

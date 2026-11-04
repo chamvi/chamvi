@@ -9,7 +9,7 @@ import { createHmac } from 'node:crypto';
 import { readFileSync } from 'node:fs';
 import {
     InvalidAgentDefinitionError,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import {
@@ -344,7 +344,7 @@ describe('githubModule', () => {
 
     it('end to end', async () => {
         const port = await freePort();
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'triage',
             model: textModel(),
             instructions: 'triage',
@@ -392,7 +392,7 @@ describe('githubModule', () => {
     it('logs the failed agents of a delivery through the app logger', async () => {
         const port = await freePort();
         const logger = createRecordingLogger();
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'triage',
             model: textModel(),
             instructions: 'triage',
@@ -452,7 +452,7 @@ describe('githubModule', () => {
                 return 'ok';
             },
         });
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'probe',
             model: mockModel([
                 {
@@ -511,7 +511,7 @@ describe('githubModule', () => {
         };
         const harness = await createModuleHarness({
             env: {},
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'probe',
                 model: textModel('ok'),
                 instructions: 'probe',

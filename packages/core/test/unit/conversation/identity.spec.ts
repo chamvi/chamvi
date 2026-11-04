@@ -16,7 +16,7 @@ import {
     Engine,
     MemoryConversationRepository,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { mockModel } from '../../utils/mock-model.ts';
@@ -45,7 +45,7 @@ function setup(
     const model = mockModel([{ parts: [{ type: 'text', text: 'answer' }] }]);
     const authorize = vi.fn(() => true);
     const channel = { name: 'chat' };
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name,
         model,
         instructions: 'help',

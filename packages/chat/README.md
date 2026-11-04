@@ -56,7 +56,7 @@ import type { Adapter, StateAdapter } from 'chat';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { IClock, IEngine } from '@chamvi/core';
@@ -116,7 +116,7 @@ export function createChatEngine(
         },
     });
 
-    const assistant = defineAgent({
+    const assistant = defineModelAgent({
         name: 'assistant',
         model,
         instructions: 'You are the team\'s assistant. Answer with the reply tool.',

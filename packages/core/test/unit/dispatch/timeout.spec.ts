@@ -16,7 +16,7 @@ import {
     Engine,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
     waitForDispatch,
@@ -67,7 +67,7 @@ describe('dispatch wait timeout', () => {
             new Promise<MockResponse>((_resolve, reject) => {
                 options.abortSignal?.addEventListener('abort', () => reject(options.abortSignal?.reason));
             }));
-        const lead = defineAgent({
+        const lead = defineModelAgent({
             name: 'lead',
             instructions: 'You lead.',
             model: treeModel([
@@ -140,7 +140,7 @@ describe('dispatch wait timeout', () => {
         async function setup() {
             const clock = new ControllableClock(START);
             const store = createMemoryStore({ clock });
-            const lead = defineAgent({
+            const lead = defineModelAgent({
                 name: 'lead',
                 instructions: 'You lead.',
                 model: treeModel([

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createApp, defineAgent, http } from '@chamvi/app';
+import { createApp, defineModelAgent, http } from '@chamvi/app';
 import { gitSkills, loadSkillBundle } from '@chamvi/skills';
 
 const common = gitSkills({
@@ -19,7 +19,7 @@ const common = gitSkills({
     }],
 });
 
-const security = defineAgent({
+const security = defineModelAgent({
     name: 'security',
     instructions: 'Audit only the operator-approved scope.',
     // This agent also receives the app defaults. A ready snapshot is an optional extra.

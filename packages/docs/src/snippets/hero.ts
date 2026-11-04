@@ -3,8 +3,8 @@ import { z } from 'zod';
 import { cron } from '@chamvi/channel-cron';
 import {
     ToolDeniedError,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import { webhook } from '@chamvi/http';
@@ -14,7 +14,7 @@ declare function addLabel(issue: number, label: string): Promise<void>;
 declare function closeIssue(issue: number): Promise<void>;
 
 // #region agent
-export const triage = defineAgent({
+export const triage = defineModelAgent({
     name: 'triage',
     model,
     instructions: 'Label new issues and close duplicates.',

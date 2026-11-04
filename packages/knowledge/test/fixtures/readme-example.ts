@@ -1,5 +1,5 @@
 import type { EmbeddingModel, LanguageModel } from 'ai';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import {
     createKnowledge,
     createMemoryKnowledgeRepository,
@@ -27,7 +27,7 @@ export function createSupport(input: {
     });
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'support',
             model: input.model,
             instructions: 'Answer customer questions. Search the handbook first; ' +

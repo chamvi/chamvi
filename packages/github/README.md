@@ -61,7 +61,7 @@ import {
     Engine,
     ToolDeniedError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import { createGithubApp, github, githubChannel } from '@chamvi/github';
 import type { GithubAppOptions } from '@chamvi/github';
@@ -91,7 +91,7 @@ export async function createTriageServer(
     // deliveries in, issue comments out
     const channel = githubChannel({ app: gh, clock: options.clock });
 
-    const triage = defineAgent({
+    const triage = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Label new issues and thank the author in one comment.',
@@ -308,7 +308,7 @@ const workspaces = createWorkspaceManager({
 ```ts
 import { injectGithubContext, provideGithubContext } from '@chamvi/github';
 
-const triage = defineAgent({
+const triage = defineModelAgent({
     name: 'triage',
     model,
     instructions: 'Label the issue.',

@@ -21,7 +21,7 @@ import type { AgentSubscriber } from './types.ts';
 /**
  * The opt-in for dispatch(): each `agent.on({ role })` in an agent's
  * channels is one role (channel `agent`, subscription id = role, so the role
- * shares the id namespace of the agent's other subscriptions and defineAgent()
+ * shares the id namespace of the agent's other subscriptions and defineModelAgent()
  * refuses a duplicate). Pure data, like `http.on()`.
  */
 export const agent: AgentSubscriber = {

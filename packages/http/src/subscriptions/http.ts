@@ -13,7 +13,7 @@ import type { HttpSubscriber } from './types.ts';
  * The control-plane subscription: REST `POST /agents/:name/runs` and the UI
  * start runs through it (channel `http`), MCP `run_<agent>` too (channel
  * `mcp`). Its id is `http`, so an agent declares it at most once (the
- * duplicate id check of `defineAgent`). Pure data: agent folders use it
+ * duplicate id check of `defineModelAgent`). Pure data: agent folders use it
  * without a channel instance.
  */
 export const http: HttpSubscriber = {

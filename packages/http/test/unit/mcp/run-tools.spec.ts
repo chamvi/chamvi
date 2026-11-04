@@ -16,7 +16,6 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
     defineModelAgent,
     defineSimpleAgent,
 } from '@chamvi/core';
@@ -41,7 +40,7 @@ const TreeNodeSchema: z.ZodType<TreeNode> = z.object({
 });
 
 function recursiveAgent() {
-    return defineAgent({
+    return defineModelAgent({
         name: 'tree',
         model: textModel(),
         instructions: 'Tree runs.',
@@ -79,7 +78,7 @@ function resolveRefs(root: unknown, node: unknown = root): unknown[] {
 }
 
 function typedAgent() {
-    return defineAgent({
+    return defineModelAgent({
         name: 'typed',
         model: textModel(),
         instructions: 'Typed runs.\nSecond line.',
@@ -89,7 +88,7 @@ function typedAgent() {
 
 describe('mcp run_<agent>', () => {
     it('describes structured instructions using only the first nonblank system line', async () => {
-        const agents = [defineAgent({
+        const agents = [defineModelAgent({
             name: 'structured',
             model: textModel(),
             channels: [http.on()],
@@ -99,7 +98,7 @@ describe('mcp run_<agent>', () => {
                 { role: 'assistant', content: 'private answer' },
                 { role: 'system', content: '\n  Structured runs.  \nMore.' },
             ],
-        }), defineAgent({
+        }), defineModelAgent({
             name: 'examples',
             model: textModel(),
             channels: [http.on()],
@@ -286,7 +285,7 @@ describe('mcp run_<agent>', () => {
     it('converts the payload schema once, not per request', async () => {
         const schema = z.object({ n: z.number() });
         const input = vi.spyOn(schema['~standard'].jsonSchema!, 'input');
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'counted',
             model: textModel(),
             instructions: 'Counted.',
@@ -306,7 +305,7 @@ describe('mcp run_<agent>', () => {
     });
 
     it('fails the app when run_<agent> would exceed the 64 characters MCP allows', () => {
-        const long = defineAgent({
+        const long = defineModelAgent({
             name: 'a'.repeat(61),
             model: textModel(),
             instructions: 'Long.',
@@ -316,13 +315,13 @@ describe('mcp run_<agent>', () => {
         expect(() => createRunTestApp({ agents: [long] })).toThrow(InvalidAgentDefinitionError);
         expect(() => createRunTestApp({ agents: [long], mcp: false })).not.toThrow();
 
-        const fits = defineAgent({ ...long.definition, name: 'a'.repeat(60) });
+        const fits = defineModelAgent({ ...long.definition, name: 'a'.repeat(60) });
 
         expect(() => createRunTestApp({ agents: [fits] })).not.toThrow();
     });
 
     it('reports a folder agent whose run_<agent> cannot be built instead of failing the app', async () => {
-        const long = defineAgent({
+        const long = defineModelAgent({
             name: 'a'.repeat(61),
             model: textModel(),
             instructions: 'Long.',
@@ -354,7 +353,7 @@ describe('mcp run_<agent>', () => {
     });
 
     it('assertMcpRunTool refuses what createHttpApp refuses', () => {
-        const agent = (name: string) => defineAgent({
+        const agent = (name: string) => defineModelAgent({
             name,
             model: textModel(),
             instructions: 'x',
@@ -363,7 +362,7 @@ describe('mcp run_<agent>', () => {
 
         expect(() => assertMcpRunTool(agent('a'.repeat(61)))).toThrow(InvalidAgentDefinitionError);
         expect(() => assertMcpRunTool(agent('a'.repeat(60)))).not.toThrow();
-        expect(() => assertMcpRunTool(defineAgent({
+        expect(() => assertMcpRunTool(defineModelAgent({
             name: 'a'.repeat(64),
             model: textModel(),
             instructions: 'x',
@@ -402,7 +401,7 @@ describe('mcp run_<agent>', () => {
         const schema = z.object({ s: z.string() });
         const input = vi.spyOn(schema['~standard'].jsonSchema!, 'input');
 
-        await engine.putAgent(defineAgent({
+        await engine.putAgent(defineModelAgent({
             name: 'typed',
             model: textModel(),
             instructions: 'Retyped runs.',
@@ -431,13 +430,13 @@ describe('mcp run_<agent>', () => {
         const schema = z.object({ n: z.number() });
 
         vi.spyOn(schema['~standard'].jsonSchema!, 'input').mockReturnValue({ type: 'nonsense' });
-        await engine.putAgent(defineAgent({
+        await engine.putAgent(defineModelAgent({
             name: 'broken',
             model: textModel(),
             instructions: 'Broken.',
             channels: [http.on({ schema })],
         }));
-        await engine.putAgent(defineAgent({
+        await engine.putAgent(defineModelAgent({
             name: 'a'.repeat(61),
             model: textModel(),
             instructions: 'Long.',

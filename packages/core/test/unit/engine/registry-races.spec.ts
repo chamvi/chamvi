@@ -6,14 +6,14 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { Engine, defineAgent } from '@chamvi/core';
+import { Engine, defineModelAgent } from '@chamvi/core';
 import type { EngineOptions, IEngine, IStore } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { MemoryAgentRevisionRepository, createMemoryStore } from '../../../src/repository/index.ts';
 
 const answers = (text: string) => Array.from({ length: 5 }, () => ({ parts: [{ type: 'text' as const, text }] }));
-const agent = (text: string) => defineAgent({
+const agent = (text: string) => defineModelAgent({
     name: 'triage',
     model: mockModel(answers(text)),
     instructions: 'x',

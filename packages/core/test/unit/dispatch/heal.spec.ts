@@ -17,7 +17,7 @@ import {
     agent,
     agentChannel,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
     dispatchTo,
@@ -119,26 +119,26 @@ function build(parent: ParentTurn[], child: ChildTurn = answer, options: Options
     const clock = options.clock ?? new ControllableClock(START);
     const store = options.store ?? createMemoryStore({ clock });
     const errors: unknown[] = [];
-    const lead = defineAgent({
+    const lead = defineModelAgent({
         name: 'lead',
         instructions: 'You lead.',
         model: treeModel([...parent, ...done()], child),
         channels: [agent.on()],
         tools: { fan, ask },
     });
-    const worker = defineAgent({
+    const worker = defineModelAgent({
         name: 'worker',
         instructions: 'You work.',
         model: treeModel(done(), options.worker ?? answer),
         channels: [agent.on({ from: ['p1', 'p2'] })],
     });
-    const p1 = defineAgent({
+    const p1 = defineModelAgent({
         name: 'p1',
         instructions: 'You are p1.',
         model: treeModel([...options.p1 ?? [], ...done()], answer),
         tools: { share },
     });
-    const p2 = defineAgent({
+    const p2 = defineModelAgent({
         name: 'p2',
         instructions: 'You are p2.',
         model: treeModel([...options.p2 ?? [], ...done()], answer),

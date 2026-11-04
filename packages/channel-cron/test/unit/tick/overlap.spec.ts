@@ -10,7 +10,7 @@ import type { ChannelSubscription, RunStatusLiteral } from '@chamvi/core';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { CronTickResult } from '@chamvi/channel-cron';
 import { cron, cronChannel, fireCronSubscription } from '@chamvi/channel-cron';
@@ -23,7 +23,7 @@ const at = (tick: number) => new Date(T.getTime() + tick * 300_000);
 function setup(subscriptions: ChannelSubscription[]) {
     const clock = new ControllableClock(T);
     const store = createMemoryStore({ clock });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'sweep',
         model: textModel(),
         instructions: 'x',

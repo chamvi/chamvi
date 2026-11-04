@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createMemoryStore, defineAgent } from '@chamvi/core';
+import { createMemoryStore, defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import type { IEngine } from '@chamvi/core';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
@@ -34,7 +34,7 @@ import {
 import { createRecordingLogger } from '../../utils/logger.ts';
 import { closeServer, freePort, listenOn } from '../../utils/port.ts';
 
-const agent = defineAgent({
+const agent = defineModelAgent({
     name: 'triage',
     model: textModel(),
     instructions: 'x',

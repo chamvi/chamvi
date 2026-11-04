@@ -245,7 +245,7 @@ A provider implements `ISandboxProvider` (`name`, `create(options)`, `find(runId
 import { injectSandboxContext, provideSandboxContext } from '@chamvi/sandbox';
 import { codingTools } from '@chamvi/coding';
 
-const coder = defineAgent({
+const coder = defineModelAgent({
     name: 'coder',
     model,
     instructions: 'Fix the failing test.',

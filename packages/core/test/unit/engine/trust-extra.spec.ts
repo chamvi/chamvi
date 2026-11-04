@@ -20,8 +20,8 @@ import {
     agent,
     agentChannel,
     createMemoryStore,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
     defineTool,
     dispatch,
 } from '@chamvi/core';
@@ -62,7 +62,7 @@ afterEach(async () => {
 function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>, store = createMemoryStore()) {
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             ...definition,
@@ -370,7 +370,7 @@ it('inherits a tainted parent into a dispatched run and blocks child outbound ef
     const childModel = mockModel([call('send'), done]);
     const send = vi.fn(async () => 'sent');
     const store = createMemoryStore();
-    const tester = defineAgent({
+    const tester = defineModelAgent({
         name: 'test',
         instructions: 'test',
         channels: [agent.on()],
@@ -443,7 +443,7 @@ it('taints conversation recall before the next model call and gates outbound too
         store: { ...store, conversations },
         channels: [channel],
         conversations: { authorize: () => true },
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             conversation: true,

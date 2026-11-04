@@ -11,7 +11,7 @@ import { join } from 'node:path';
 import {
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -136,7 +136,7 @@ function fakeManager(events: string[]): IWorkspaceManager & { engines: unknown[]
 }
 
 function agent(extra: Partial<ModelAgentDefinition> = {}): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'coder',
         model: textModel(),
         instructions: 'code',

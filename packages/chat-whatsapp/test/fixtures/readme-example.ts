@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
@@ -47,7 +47,7 @@ export function createWhatsAppEngine(
         },
     });
 
-    const assistant = defineAgent({
+    const assistant = defineModelAgent({
         name: 'assistant',
         model,
         instructions: 'You are the owner\'s assistant on WhatsApp. Answer with the reply tool.',

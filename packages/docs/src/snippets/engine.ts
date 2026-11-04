@@ -3,17 +3,17 @@ import {
     Engine,
     consoleChannel,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 
 export function createEngine(model: LanguageModel) {
     // #region many
-    const triage = defineAgent({
+    const triage = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Triage the issue.',
     });
-    const digest = defineAgent({
+    const digest = defineModelAgent({
         name: 'digest',
         model,
         instructions: 'Summarize the day.',

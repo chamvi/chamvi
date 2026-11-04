@@ -4,8 +4,8 @@ import { z } from 'zod';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
     defineContextKey,
+    defineModelAgent,
     defineTool,
     inject,
     tryInject,
@@ -35,7 +35,7 @@ const deploy = defineTool({
 
 const AUDIT = defineContextKey<{ write(line: string): void }>('audit');
 
-export const ops = defineAgent({
+export const ops = defineModelAgent({
     name: 'ops',
     model,
     instructions: 'Operate the service.',

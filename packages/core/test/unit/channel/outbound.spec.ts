@@ -19,7 +19,7 @@ import {
     Engine,
     InvalidRunStateError,
     consoleChannel,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -111,7 +111,7 @@ function setup(
     const errors: unknown[] = [];
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'ops',
             instructions: 'You operate.',
             model,

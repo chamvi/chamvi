@@ -16,7 +16,7 @@ import {
 } from 'vitest';
 import {
     InvalidAgentDefinitionError,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { ChamviError, IEngine } from '@chamvi/core';
 import { createHttpApp, staticTokens } from '@chamvi/http';
@@ -43,7 +43,7 @@ type HttpFixture = IntakeFixture & {
 };
 
 function agentOf(channel: ChatChannel) {
-    return defineAgent({
+    return defineModelAgent({
         name: 'assistant',
         model: textModel(),
         instructions: 'Answer.',
@@ -345,7 +345,7 @@ describe('chat channel webhooks', () => {
 
     it('answers the adapter\'s 2xx when every agent refused the message terminally', async () => {
         const fixture = await serve({
-            agents: (channel) => [defineAgent({
+            agents: (channel) => [defineModelAgent({
                 name: 'assistant',
                 model: textModel(),
                 instructions: 'Answer.',

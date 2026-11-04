@@ -49,7 +49,7 @@ const requireCache = createRequire(import.meta.url).cache;
 
 /**
  * Loads one agent folder (`dir`, whose name is the agent's): its `agent.ts`,
- * default-exporting `defineAgent()`'s result named like the folder. The rest
+ * default-exporting `defineModelAgent()`'s result named like the folder. The rest
  * of the folder is the agent's own: `agent.ts` imports or reads it. Every failure is an InvalidAgentDefinitionError naming the
  * file relative to the agents dir (the folder's parent), also a folder whose
  * content changed while it was read.
@@ -215,12 +215,12 @@ async function buildAgent(dir: string, load: (path: string) => Promise<unknown>)
     const declared = defaultExportOf(mod, rel);
 
     if (!isDeclaredAgent(declared)) {
-        throw new InvalidAgentDefinitionError(`${rel}: the default export must be defineAgent(...)'s result.`);
+        throw new InvalidAgentDefinitionError(`${rel}: the default export must be the result of defineModelAgent() or defineSimpleAgent().`);
     }
 
     if (declared.name !== name) {
         throw new InvalidAgentDefinitionError(
-            `${rel}: defineAgent names "${declared.name}", but the folder is "${name}"; the names must match.`,
+            `${rel}: the agent is named "${declared.name}", but the folder is "${name}"; the names must match.`,
         );
     }
 

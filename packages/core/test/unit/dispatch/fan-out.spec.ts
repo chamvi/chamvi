@@ -11,7 +11,7 @@ import {
     Engine,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
     waitForDispatch,
@@ -47,7 +47,7 @@ const fan = defineTool({
 });
 
 function build(store: IStore, clock: ControllableClock, parent: ParentTurn[], child: ChildTurn) {
-    const lead = defineAgent({
+    const lead = defineModelAgent({
         name: 'lead',
         instructions: 'You lead.',
         model: treeModel(parent, child),

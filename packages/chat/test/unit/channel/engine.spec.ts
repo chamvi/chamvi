@@ -13,7 +13,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { defineAgent, defineTool } from '@chamvi/core';
+import { defineModelAgent, defineTool } from '@chamvi/core';
 import type {
     Agent,
     ApprovalWaitPoint,
@@ -58,7 +58,7 @@ function agentWith(channel: ChatChannel, act: Act, turns: MockResponse[] = []): 
         execute: async (_input, { context }) => act(context),
     });
 
-    return defineAgent({
+    return defineModelAgent({
         name: 'helper',
         model: mockModel([
             {

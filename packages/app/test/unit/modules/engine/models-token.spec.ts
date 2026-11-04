@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createMemoryStore, defineAgent } from '@chamvi/core';
+import { createMemoryStore, defineModelAgent } from '@chamvi/core';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
 import { customProvider } from 'ai';
 import { MockEmbeddingModelV4 } from 'ai/test';
@@ -42,7 +42,7 @@ function build(options: { mode?: AppMode; check?: boolean } = {}): Harness {
         ...(options.check !== undefined && { check: options.check }),
         // migrate mode needs a URL; the given store means nothing connects
         env: options.mode === 'migrate' ? { DATABASE_URL: 'postgres://u@127.0.0.1:1/x' } : {},
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'triage', 
             model: 'fake/m', 
             instructions: 'triage', 
@@ -96,7 +96,7 @@ describe('AppToken.MODELS', () => {
             original(ref, agent);
         };
 
-        engine.checkAgent(defineAgent({
+        engine.checkAgent(defineModelAgent({
             name: 'other', 
             model: 'fake/m', 
             instructions: 'other', 

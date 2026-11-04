@@ -19,7 +19,7 @@ import {
     InvalidRunStateError,
     ValidationError,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -88,7 +88,7 @@ function setup(model: LanguageModel, channels: IChannel[] = []) {
     });
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'release',
             instructions: 'You release.',
             model,
@@ -596,7 +596,7 @@ describe('replaying an answered approval with options', () => {
                 store,
                 clock: engineClock,
                 claimTtlMs: 30,
-                agents: [defineAgent({
+                agents: [defineModelAgent({
                     name: 'release',
                     instructions: 'You release.',
                     model,

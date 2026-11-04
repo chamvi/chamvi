@@ -19,7 +19,7 @@ import {
     Engine,
     TRIGGER_KEY_MAX_LENGTH,
     ValidationError,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type {
     EngineOptions,
@@ -33,7 +33,7 @@ import { createMemoryStoreWithRuns } from '../../utils/store.ts';
 import { MemoryRunRepository, createMemoryStore } from '../../../src/repository/index.ts';
 
 const model = {} as LanguageModel;
-const agent = defineAgent({
+const agent = defineModelAgent({
     name: 'triage',
     model,
     instructions: 'x',
@@ -185,7 +185,7 @@ describe('Engine.dispatch', () => {
     });
 
     it('rejects two agents with the same name', () => {
-        const other = defineAgent({
+        const other = defineModelAgent({
             name: 'triage',
             model,
             instructions: 'y',

@@ -17,7 +17,7 @@ import {
     Engine,
     MemoryConversationRepository,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 
 const channel = { name: 'chat' };
@@ -45,7 +45,7 @@ function setup(allowed: boolean | (() => Promise<boolean>) = true, optIn = true)
     const authorize = vi.fn<(access: ConversationAccess) => boolean | Promise<boolean>>(() => typeof allowed === 'function' ? allowed() : allowed);
     const engine = new Engine({
         store: { ...store, conversations },
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'helper',
             model: {} as LanguageModel,
             instructions: 'help',
@@ -214,7 +214,7 @@ describe('trusted conversation intake', () => {
         expect(resolve).not.toHaveBeenCalled();
     });
     it('checks capability in constructor, putAgent and checkAgent', async () => {
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'memory',
             model: {} as LanguageModel,
             conversation: true,

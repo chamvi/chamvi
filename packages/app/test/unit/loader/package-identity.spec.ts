@@ -45,14 +45,14 @@ function agentSource(name: string, typed: boolean): string {
 
     return [
         'import { cron } from \'@chamvi/channel-cron\';',
-        'import { defineAgent, defineTool, inject } from \'@chamvi/core\';',
+        'import { defineModelAgent, defineTool, inject } from \'@chamvi/core\';',
         'import { jsonSchema } from \'ai\';',
         'const greet = defineTool({',
         '    description: \'Greets.\',',
         '    inputSchema: jsonSchema({ type: \'object\' }),',
         `    execute: async (_input${typed ? ': unknown' : ''}, { context }) => inject(context, (globalThis${any}).chamviGreetingKey),`,
         '});',
-        `export default defineAgent({ name: '${name}', model: (globalThis${any}).chamviModels['${name}'], instructions: 'Greet.', tools: { greet }, channels: [cron.on('0 9 * * *')] });`,
+        `export default defineModelAgent({ name: '${name}', model: (globalThis${any}).chamviModels['${name}'], instructions: 'Greet.', tools: { greet }, channels: [cron.on('0 9 * * *')] });`,
         '',
     ].join('\n');
 }

@@ -18,7 +18,7 @@ import {
     ChannelNotFoundError,
     Engine,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -107,7 +107,7 @@ function createEngine(store: ReturnType<typeof createMemoryStore>, clock: Contro
     const errors: unknown[] = [];
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'release',
             instructions: 'You release.',
             model: askModel(),

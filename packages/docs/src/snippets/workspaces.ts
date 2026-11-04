@@ -4,7 +4,7 @@ import {
     Engine,
     ToolDeniedError,
     approve,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import { http, httpChannel } from '@chamvi/http';
 import { codingTools } from '@chamvi/coding';
@@ -23,7 +23,7 @@ export async function serve(store: IStore, model: LanguageModel, provider: ISand
         limits: { maxLifetimeMs: 20 * 60_000 },
     });
 
-    const repro = defineAgent({
+    const repro = defineModelAgent({
         name: 'repro',
         model,
         instructions: 'Check out the repository from the payload, write a failing test for the reported bug, ' +

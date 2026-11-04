@@ -11,7 +11,7 @@ import {
     ModuleName,
     createApp,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     storeModule,
 } from '@chamvi/app';
 import type { IEngine } from '@chamvi/core';
@@ -43,7 +43,7 @@ it('prepares real app defaults before engineCreated and combines factory extras 
     ]);
     const store = createMemoryStore();
     const app = createApp({
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'reviewer',
             model,
             instructions: '',

@@ -9,7 +9,7 @@ import { cron } from '@chamvi/channel-cron';
 import {
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { ControllableClock, failingModel, textModel } from '@chamvi/test-kit';
@@ -52,7 +52,7 @@ afterEach(async () => {
 });
 
 function sweep(model: Agent['definition']['model'], channels = [cron.on('*/5 * * * *')]): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'sweep',
         model,
         instructions: 'x',
@@ -131,7 +131,7 @@ describe('App.runJob', () => {
     });
 
     it('throws InvalidAgentDefinitionError listing the agents for an unknown agent', async () => {
-        const other = defineAgent({
+        const other = defineModelAgent({
             name: 'digest',
             model: textModel(),
             instructions: 'x',

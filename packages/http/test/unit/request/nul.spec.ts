@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { webhook } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -41,7 +41,7 @@ describe('a NUL character', () => {
     });
 
     it('in a key a webhook derives from the payload answers 400', async () => {
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'keyed',
             model: textModel(),
             instructions: 'Keyed.',

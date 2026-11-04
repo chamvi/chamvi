@@ -17,7 +17,7 @@ import {
     SandboxError,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type {
     AgentHooks,
@@ -87,7 +87,7 @@ async function run(s: Setup) {
             errors.push(error);
         },
     });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'coder',
         instructions: 'You code.',
         model: mockModel(s.script),

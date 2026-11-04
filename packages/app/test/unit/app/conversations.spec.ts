@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { MemoryConversationRepository, createMemoryStore, defineAgent } from '@chamvi/core';
+import { MemoryConversationRepository, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type { IConversationRepository, IEngine } from '@chamvi/core';
 import { ControllableClock, textModel  } from '@chamvi/test-kit';
 import type { IContainer } from 'eldin';
@@ -44,7 +44,7 @@ function build(conversations?: AppOptions['conversations'], store?: IConversatio
     const logger = createRecordingLogger(clock);
     let container: IContainer;
     const app = createApp({
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'helper',
             instructions: 'Help.',
             model: textModel(),

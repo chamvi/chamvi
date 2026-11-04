@@ -1,8 +1,8 @@
 import type { LanguageModel } from 'ai';
 import { z } from 'zod';
 import {
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
     effectMarker,
 } from '@chamvi/core';
 
@@ -29,7 +29,7 @@ const comment = defineEffectTool({
     ),
 });
 
-export const responder = defineAgent({
+export const responder = defineModelAgent({
     name: 'responder',
     model,
     instructions: 'Answer new issues.',

@@ -21,7 +21,7 @@ import {
     agent,
     agentChannel,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
     waitForDispatch,
@@ -111,7 +111,7 @@ function setup(options: {
 }) {
     const clock = new ControllableClock(START);
     const store = options.store ?? createMemoryStore({ clock });
-    const maintainer = defineAgent({
+    const maintainer = defineModelAgent({
         name: 'maintainer',
         instructions: 'You maintain.',
         model: options.model,
@@ -504,8 +504,8 @@ describe('dispatch guards', () => {
         });
     });
 
-    it.each([0, 1.5, -1, NaN])('defineAgent refuses maxSubtreeTokens %s', (value) => {
-        expect(() => defineAgent({
+    it.each([0, 1.5, -1, NaN])('defineModelAgent refuses maxSubtreeTokens %s', (value) => {
+        expect(() => defineModelAgent({
             name: 'maintainer',
             instructions: 'You maintain.',
             model: mockModel([]),
@@ -513,8 +513,8 @@ describe('dispatch guards', () => {
         })).toThrow(new InvalidAgentDefinitionError('Agent "maintainer": budget.maxSubtreeTokens must be a positive integer.'));
     });
 
-    it('defineAgent keeps a valid maxSubtreeTokens', () => {
-        const defined = defineAgent({
+    it('defineModelAgent keeps a valid maxSubtreeTokens', () => {
+        const defined = defineModelAgent({
             name: 'maintainer',
             instructions: 'You maintain.',
             model: mockModel([]),

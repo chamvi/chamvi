@@ -18,7 +18,7 @@ import {
     ErrorCode,
     InvalidRunStateError,
     ValidationError,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { IEngine, Invoker } from '@chamvi/core';
 import { CHAT_INTAKE_FAILED_ERROR_CODE } from '@chamvi/chat';
@@ -37,7 +37,7 @@ afterEach(async () => {
 
 async function started(input: Partial<IntakeFixtureInput> = {}): Promise<IntakeFixture> {
     const fixture = createIntakeFixture({
-        agents: (channel) => [defineAgent({
+        agents: (channel) => [defineModelAgent({
             name: 'assistant',
             model: textModel(),
             instructions: 'Answer.',
@@ -394,7 +394,7 @@ describe('chat intake delivery', () => {
     it('treats a throwing filter as a terminal failure of its agent only', async () => {
         const fixture = await started({
             agents: (channel) => [
-                defineAgent({
+                defineModelAgent({
                     name: 'broken',
                     model: textModel(),
                     instructions: 'Answer.',
@@ -404,7 +404,7 @@ describe('chat intake delivery', () => {
                         },
                     })],
                 }),
-                defineAgent({
+                defineModelAgent({
                     name: 'working',
                     model: textModel(),
                     instructions: 'Answer.',

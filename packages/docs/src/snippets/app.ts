@@ -4,11 +4,11 @@ import {
     consoleChannelModule,
     createApp,
     cron,
-    defineAgent,
+    defineModelAgent,
     http,
 } from '@chamvi/app';
 
-const digest = defineAgent({
+const digest = defineModelAgent({
     name: 'digest',
     // no model: the app's default below
     instructions: 'Summarize what happened since the last digest.',

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { AgentTrust } from '@chamvi/core';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import { httpChannel } from '@chamvi/http';
 import { webTools } from '@chamvi/tool-web';
 import { mockModel } from '../../utils/model.ts';
@@ -28,7 +28,7 @@ async function twoFetches(trust?: AgentTrust) {
             toolCallId: id,
         }],
     });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'research',
         instructions: 'Research.',
         model: mockModel([

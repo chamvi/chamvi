@@ -14,7 +14,7 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
-import { Engine, ValidationError, defineAgent } from '@chamvi/core';
+import { Engine, ValidationError, defineModelAgent } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { EFFECT } from '../../../src/effect/constants.ts';
 import { wrapToolsForRun } from '../../../src/effect/wrap.ts';
@@ -72,10 +72,10 @@ afterEach(() => {
     engines.length = 0;
 });
 
-async function runOnce(store: ReturnType<typeof createMemoryStore>, agent: Parameters<typeof defineAgent>[0]) {
+async function runOnce(store: ReturnType<typeof createMemoryStore>, agent: Parameters<typeof defineModelAgent>[0]) {
     const engine = new Engine({
         store,
-        agents: [defineAgent(agent)],
+        agents: [defineModelAgent(agent)],
         onError: () => {},
     });
 

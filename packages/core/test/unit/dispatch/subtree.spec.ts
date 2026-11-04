@@ -17,7 +17,7 @@ import {
     Engine,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
     waitForDispatch,
@@ -75,7 +75,7 @@ function build(parent: ParentTurn[], child: ChildTurn, options: {
     const clock = options.clock ?? new ControllableClock(START);
     const store = options.store ?? createMemoryStore({ clock });
     const errors: unknown[] = [];
-    const lead = defineAgent({
+    const lead = defineModelAgent({
         name: 'lead',
         instructions: 'You lead.',
         model: treeModel([...parent, ...done()], child),

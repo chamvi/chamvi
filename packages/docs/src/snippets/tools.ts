@@ -5,7 +5,7 @@ import {
     FatalToolError,
     ToolDeniedError,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     hasPermission,
     requireToolPermission,
@@ -18,7 +18,7 @@ declare function deployVersion(version: string, requestedBy: string, signal: Abo
 declare function search(query: string, apiKey: string): Promise<string[]>;
 
 // #region fatal
-export const reader = defineAgent({
+export const reader = defineModelAgent({
     name: 'reader',
     model,
     instructions: 'Answer questions about the repository.',
@@ -68,7 +68,7 @@ const byPermission = requireToolPermission();
 // exceptions wrap the built-in policy: status is open to every invoker
 const toolPolicy: ToolPolicy = (toolName, ctx) => toolName === 'status' || byPermission(toolName, ctx);
 
-export const ops = defineAgent({
+export const ops = defineModelAgent({
     name: 'ops',
     model,
     instructions: 'Operate the service.',
@@ -105,7 +105,7 @@ const searchTool = tool({
     execute: async (input, { context }) => search(input.q, context.apiKey),
 });
 
-export const researcher = defineAgent({
+export const researcher = defineModelAgent({
     name: 'researcher',
     model,
     instructions: 'Research the question in the trigger payload.',

@@ -17,7 +17,7 @@ import {
     MemoryConversationRepository,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import { jsonSchema } from 'ai';
@@ -74,7 +74,7 @@ function setup(options: {
     const conversations = options.conversations ?? new MemoryConversationRepository({ clock: options.clock });
     const model = options.model ?? mockModel([{ parts: [{ type: 'text', text: 'answer' }] }]);
     const channel = { name: 'chat' };
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'helper',
         model,
         conversation: true,
@@ -339,7 +339,7 @@ describe('conversation execution admission', () => {
             ]),
         });
 
-        await s.engine.putAgent(defineAgent({
+        await s.engine.putAgent(defineModelAgent({
             name: 'peer',
             model: s.model,
             conversation: { key: 'helper' },

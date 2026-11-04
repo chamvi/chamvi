@@ -18,13 +18,13 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { CronChannelOptions } from '@chamvi/channel-cron';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 import { textModel } from '../../utils/model.ts';
 
-const agentWith = (channels: ChannelSubscription[], name = 'sweep') => defineAgent({
+const agentWith = (channels: ChannelSubscription[], name = 'sweep') => defineModelAgent({
     name,
     model: textModel(),
     instructions: 'x',
@@ -149,7 +149,7 @@ describe('cronChannel', () => {
         expect(await runs(store)).toHaveLength(1);
     });
 
-    it('fails engine.start() for a code agent subscription hubwire cannot schedule', async () => {
+    it('fails engine.start() for a subscription of an agent passed in code hubwire cannot schedule', async () => {
         const { engine } = make([quiet()], [agentWith([cron.on('0 0 * * 1/2')])]);
 
         const started = engine.start();

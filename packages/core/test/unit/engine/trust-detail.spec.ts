@@ -12,7 +12,7 @@ import {
     InvalidAgentDefinitionError,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     outboundApproved,
 } from '@chamvi/core';
@@ -67,7 +67,7 @@ function setup(untrusted: boolean) {
     const engine = new Engine({
         store,
         channels: [source],
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             model: mockModel([call('push', { branch: 'fix' }), done]),

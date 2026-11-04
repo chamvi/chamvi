@@ -8,7 +8,7 @@
 import {
     createApp,
     cron,
-    defineAgent,
+    defineModelAgent,
     http,
 } from '@chamvi/app';
 import { MockLanguageModelV4 } from 'ai/test';
@@ -33,7 +33,7 @@ const hangingModel = new MockLanguageModelV4({
     },
 });
 
-const hang = defineAgent({
+const hang = defineModelAgent({
     name: 'hang',
     model: hangingModel,
     instructions: 'Never answer.',

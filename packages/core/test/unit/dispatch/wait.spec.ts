@@ -18,7 +18,7 @@ import {
     InvalidRunStateError,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
     waitForDispatch,
@@ -122,7 +122,7 @@ class TestEngine extends Engine {
 function setup(parent: ParentTurn[], child: ChildTurn = answer, options: { store?: IStore; clock?: ControllableClock } = {}) {
     const clock = options.clock ?? new ControllableClock(START);
     const store = options.store ?? createMemoryStore({ clock });
-    const lead = defineAgent({
+    const lead = defineModelAgent({
         name: 'lead',
         instructions: 'You lead.',
         model: treeModel([...parent, ...done()], child),
@@ -136,7 +136,7 @@ function setup(parent: ParentTurn[], child: ChildTurn = answer, options: { store
             fetchPage,
         },
     });
-    const other = defineAgent({
+    const other = defineModelAgent({
         name: 'other',
         instructions: 'You do other things.',
         model: treeModel(done(), answer),

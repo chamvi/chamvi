@@ -24,7 +24,7 @@ import {
     agent,
     agentChannel,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
 } from '@chamvi/core';
@@ -153,7 +153,7 @@ function setup(options: {
     const clock = new ControllableClock(START);
     const store = options.store ?? createMemoryStore({ clock });
     const errors: unknown[] = [];
-    const maintainer = defineAgent({
+    const maintainer = defineModelAgent({
         name: 'maintainer',
         instructions: 'You maintain.',
         model: options.model ?? routedModel(options.parent, options.child),
@@ -1032,7 +1032,7 @@ describe('dispatch lineage', () => {
         const engine = new Engine({
             store,
             clock,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'maintainer',
                 instructions: 'You maintain.',
                 model: mockModel([text('done')]),

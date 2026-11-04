@@ -6,7 +6,7 @@ This guide describes `@chamvi/core` as it is built today. Every sample on these 
 
 | Concept | In core | What it is |
 |---|---|---|
-| **Agent** | `defineAgent()` | A model, instructions, channel subscriptions, tools, hooks, a budget and state |
+| **Agent** | `defineModelAgent()` | A model, instructions, channel subscriptions, tools, hooks, a budget and state |
 | **Channel** | `IChannel`, `ctx.channels` | Anything a run comes from or talks to (cron, HTTP, MCP, webhooks, GitHub, OpenClaw, the console). Intake is normalized into a `TriggerEnvelope`; tools send through it |
 | **Run** | `Run` | One execution of an agent for one envelope, with a status, usage and output |
 | **Step** | `Step` | An `llm`, `tool` or `wait` record, appended as the run progresses |

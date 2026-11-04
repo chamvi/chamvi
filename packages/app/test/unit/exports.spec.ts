@@ -54,7 +54,8 @@ describe('public api', () => {
         'schedulerModule',
         'httpModule',
         // the common surface of @chamvi/core and @chamvi/http
-        'defineAgent',
+        'defineModelAgent',
+        'defineSimpleAgent',
         'approve',
         'defineTool',
         'defineEffectTool',

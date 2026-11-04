@@ -16,7 +16,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     checkAgentModel,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type {
     Agent,
@@ -57,7 +57,7 @@ function recordingResolver(refused: string[] = []): IModelResolver & { checks: A
 
 /** An agent whose definition carries any model value, as a folder agent's agent.ts may export. */
 function withModel(model: unknown, name = 'triage'): Agent {
-    const agent = defineAgent({ name, instructions: 'x' });
+    const agent = defineModelAgent({ name, instructions: 'x' });
 
     return { ...agent, definition: { ...agent.definition, model: model as LanguageModel } as ModelAgent['definition'] };
 }
@@ -94,7 +94,7 @@ function make(opts: Partial<EngineOptions> = {}) {
 
 describe('model registration', () => {
     it('refuses an agent without model and default', async () => {
-        const agent = defineAgent({ name: 'triage', instructions: 'x' });
+        const agent = defineModelAgent({ name: 'triage', instructions: 'x' });
 
         expect(() => make({ agents: [agent] })).toThrow(InvalidAgentDefinitionError);
         expect(() => make({ agents: [agent] })).toThrow(NO_MODEL);
@@ -106,7 +106,7 @@ describe('model registration', () => {
     });
 
     it('an agent without model inherits the default', async () => {
-        const agent = defineAgent({ name: 'triage', instructions: 'x' });
+        const agent = defineModelAgent({ name: 'triage', instructions: 'x' });
         const { engine } = make({ agents: [agent], model: mockModel([]) });
 
         expect(engine.getAgent('triage')).toBe(agent);

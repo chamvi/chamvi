@@ -15,7 +15,7 @@ import {
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { SkillInput } from '@chamvi/core';
 import type { RunJobResult } from '@chamvi/channel-cron';
@@ -41,7 +41,7 @@ function hangingModel() {
 function setup(skills?: SkillInput[]) {
     const clock = new ControllableClock(T);
     const store = createMemoryStore({ clock });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'sweep',
         model: hangingModel(),
         instructions: 'x',

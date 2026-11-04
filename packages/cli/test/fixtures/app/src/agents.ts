@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { cron, defineAgent, http } from '@chamvi/app';
+import { cron, defineModelAgent, http } from '@chamvi/app';
 import { simulateReadableStream } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 
@@ -48,7 +48,7 @@ function echoModel(text: string) {
     });
 }
 
-export const echo = defineAgent({
+export const echo = defineModelAgent({
     name: 'echo',
     model: echoModel('echo'),
     instructions: 'Echo the payload back.',

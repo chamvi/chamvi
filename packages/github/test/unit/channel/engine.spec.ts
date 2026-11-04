@@ -15,7 +15,7 @@ import {
 import { z } from 'zod';
 import {
     ToolDeniedError,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -62,7 +62,7 @@ const reply = defineTool({
 });
 
 function replyAgent(script: MockResponse[]) {
-    return () => [defineAgent({
+    return () => [defineModelAgent({
         name: 'triage',
         model: mockModel(script),
         instructions: 'Answer on the issue.',
@@ -73,7 +73,7 @@ function replyAgent(script: MockResponse[]) {
 
 /** Closing an issue waits for the owner, asked on the issue itself. */
 function closeAgent(gh: IGithubApp, slot?: string) {
-    return [defineAgent({
+    return [defineModelAgent({
         name: 'triage',
         model: mockModel([
             {
