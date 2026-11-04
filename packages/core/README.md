@@ -84,8 +84,8 @@ import {
     Engine,
     consoleChannel,
     createMemoryStore,
-    defineModelAgent,
     defineEffectTool,
+    defineModelAgent,
 } from '@chamvi/core';
 
 export async function triageIssue(model: LanguageModel) {

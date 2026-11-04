@@ -176,7 +176,7 @@ const discord = createDiscordChat({
 // #endregion discord
 
 // #region discord-module
-export const discordAssistant = defineAgent({
+export const discordAssistant = defineModelAgent({
     name: 'assistant',
     model,
     instructions: 'Answer with the reply tool.',

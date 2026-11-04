@@ -17,7 +17,7 @@ import type {
     QueueEntry,
     StateAdapter,
 } from 'chat';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type {
     Agent,
     ConversationAccess,
@@ -509,7 +509,7 @@ export function createDiscordFixture(input: DiscordFixtureInput = {}): DiscordFi
     const memory = createMemoryStore({ clock });
     const engine = new Engine({
         store: memory,
-        agents: input.agents ? input.agents(channel) : [defineAgent({
+        agents: input.agents ? input.agents(channel) : [defineModelAgent({
             name: 'assistant',
             model: textModel(),
             instructions: 'Answer.',

@@ -134,8 +134,8 @@ describe('loadAgentPackage', () => {
 
     it.each([
         ['no default export', 'export const agent = 1;\n', '@s/bad: has no default export.'],
-        ['an empty array', 'export default [];\n', '@s/bad: the default export must be defineModelAgent(...)\'s result, a non-empty array of them, or a function returning (or resolving to) one of those.'],
-        ['another shape', 'export default { name: 1 };\n', '@s/bad: the default export must be defineModelAgent(...)\'s result, a non-empty array of them, or a function returning (or resolving to) one of those.'],
+        ['an empty array', 'export default [];\n', '@s/bad: the default export must be the result of defineModelAgent() or defineSimpleAgent(), a non-empty array of them, or a function returning (or resolving to) one of those.'],
+        ['another shape', 'export default { name: 1 };\n', '@s/bad: the default export must be the result of defineModelAgent() or defineSimpleAgent(), a non-empty array of them, or a function returning (or resolving to) one of those.'],
         [
             'one name twice',
             'const a = { name: \'a\', definition: { model: \'m/x\', instructions: \'x\' } };\nexport default [a, a];\n',
