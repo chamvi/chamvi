@@ -57,19 +57,11 @@ function toJsonOutput(value: unknown): { value: unknown } | undefined {
  * effect-recorded calls return their records. A suspension pauses the run, whatever `run()`
  * did with the signal afterwards; else the returned value completes it (one
  * `tool` step) and a throw fails it. No model call, no `llm` step, no
- * checkpoint. The ToolContext writers refuse once the execution ended.
+ * checkpoint. Its ToolContext writes nothing once the execution ended (the
+ * gate ends with run()'s frame), except from a `ctx.tools` call that has not
+ * settled yet.
  */
 export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
-    const gate: ExecutionGate = { ended: false };
-
-    try {
-        await runSimpleExecution(ctx, gate);
-    } finally {
-        gate.ended = true;
-    }
-}
-
-async function runSimpleExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<void> {
     const {
         run,
         agent,
@@ -105,6 +97,8 @@ async function runSimpleExecution(ctx: ExecuteContext, gate: ExecutionGate): Pro
 
     bindRunSnapshot(runContext);
 
+    // ended together with run()'s frame, before its steps and the settle
+    const gate: ExecutionGate = { ended: false };
     const toolContext = createToolContext(ctx, runContext, gate);
     const frame: ToolCallFrame = {
         runId: run.id,
@@ -146,10 +140,14 @@ async function runSimpleExecution(ctx: ExecuteContext, gate: ExecutionGate): Pro
 
     try {
         // the same ToolContext the tools get, so the provided values bound to it stay reachable through inject()
-        const assembling = assembleTools(ctx, runContext, (request) => {
-            // a suspension inside a tool pauses the run like a direct approve()
-            frame.suspended ??= request;
-        }, undefined, toolContext, gate);
+        const assembling = assembleTools(ctx, runContext, {
+            toolContext,
+            gate,
+            onSuspend: (request) => {
+                // a suspension inside a tool pauses the run like a direct approve()
+                frame.suspended ??= request;
+            },
+        });
 
         // bounded by the run signal like run() itself; never leak its rejection
         assembling.catch(() => {});

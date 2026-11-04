@@ -53,7 +53,11 @@ export type ToolCallFrame = {
     suspended?: SuspendRequest;
     /** True while a streaming tool's body runs: approve() and waitForDispatch() are refused there. */
     streaming?: boolean;
-    /** Set once the call or the execution it runs in ended: dispatch, waits, approvals, emits and simple-run tool calls are refused. */
+    /**
+     * Set once the call or the execution it runs in ended: dispatch, waits,
+     * approvals, emits, extract() and simple-run tool calls are refused, and
+     * ToolContext writes once the execution ended too.
+     */
     abandoned?: boolean;
     /** True once the execution the call runs in ended, though the call itself may still run (it ignored its signal): refused like `abandoned`. */
     ended?: () => boolean;

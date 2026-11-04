@@ -20,18 +20,18 @@ import { NoSuchToolError, TypeValidationError, asSchema } from 'ai';
 import { isObject } from 'smob';
 import { assertNoNeedsApproval, assertToolsContext } from '../../agent/asserts.ts';
 import { toFilePart } from '../../artifact/helpers.ts';
-import { createRunArtifacts } from '../../artifact/module.ts';
+import { createGuardedRunArtifacts } from '../../artifact/module.ts';
 import { createToolChannels } from '../../channel/helpers.ts';
 import { checkConversation, conversationFor } from '../../conversation/context.ts';
 import { bindProvided } from '../../context/helpers.ts';
 import { bindDispatchTools } from '../../dispatch/bind.ts';
 import { assertNoDispatchCollision, assertOwnDispatchRoles } from '../../dispatch/helpers.ts';
+import { assertExecutionActive, currentToolCall } from '../../effect/frame.ts';
 import { validateToolInput } from '../../effect/helpers.ts';
 import { wrapToolsForRun } from '../../effect/wrap.ts';
 import {
     BudgetExceededError,
     IncompleteResponseError,
-    InvalidRunStateError,
     ToolNotAllowedError,
     ValidationError,
 } from '../../errors/index.ts';
@@ -41,7 +41,7 @@ import type {
     RunContext,
     WaitPoint,
 } from '../../run/types.ts';
-import { createAgentState } from '../../state/module.ts';
+import { createGuardedAgentState } from '../../state/module.ts';
 import { createStateTools } from '../../state/tools.ts';
 import { TOOL_CONTEXT_MISSING } from '../../tool/constants.ts';
 import { hasToolContext } from '../../tool/helpers.ts';
@@ -50,6 +50,7 @@ import type { ToolContext } from '../../tool/types.ts';
 import type { TriggerEnvelope } from '../../trigger/types.ts';
 import { MAX_ERROR_CAUSE_LENGTH } from './constants.ts';
 import type {
+    AssembleToolsOptions,
     ExecuteContext,
     ExecutionGate,
     PendingToolCall,
@@ -159,20 +160,26 @@ export function toRunError(error: unknown): { code: string; message: string } {
 
 /**
  * The execution's one ToolContext (`run`, `state`, `artifacts`, `channels`)
- * with the engine's provided values bound, so inject() works on it. With a
- * `gate`, its state and artifact writers refuse (InvalidRunStateError) once
- * the execution ended, so work a tool left behind writes nothing.
+ * with the engine's provided values bound, so inject() works on it. Its state
+ * and artifact writers write nothing once the execution ended (`gate`,
+ * InvalidRunStateError), except from a tool call of this run that has not
+ * settled yet (a cleanup after the abort): work a settled call left behind,
+ * and writes outside any call, are refused. Reads stay open.
  */
-export function createToolContext(ctx: ExecuteContext, runContext: RunContext, gate?: ExecutionGate): ToolContext {
-    const assertWritable = gate ? (name: string) => {
-        if (gate.ended) {
-            throw new InvalidRunStateError(`${name} cannot run after the execution of run "${ctx.run.id}" ended.`);
+export function createToolContext(ctx: ExecuteContext, runContext: RunContext, gate: ExecutionGate): ToolContext {
+    const assertWritable = (name: string) => {
+        const frame = currentToolCall();
+
+        if (frame?.runId === ctx.run.id && !frame.abandoned) {
+            return;
         }
-    } : undefined;
+
+        assertExecutionActive(gate.ended, ctx.run.id, name);
+    };
     const toolContext: ToolContext = {
         run: runContext,
-        state: createAgentState(ctx.agent.name, ctx.agent.definition.state, ctx.store.state, assertWritable),
-        artifacts: createRunArtifacts(ctx.store.artifacts, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock, assertWritable),
+        state: createGuardedAgentState(ctx.agent.name, ctx.agent.definition.state, ctx.store.state, assertWritable),
+        artifacts: createGuardedRunArtifacts(ctx.store.artifacts, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock, assertWritable),
         channels: createToolChannels(runContext, ctx.store.effects, ctx.engine),
     };
 
@@ -201,18 +208,14 @@ export function createToolContext(ctx: ExecuteContext, runContext: RunContext, g
  * Throws InvalidAgentDefinitionError for a misconfigured `toolsContext`,
  * for a tool declaring `needsApproval`, for a placeholder whose name a state
  * or skill tool carries and for a role schema that cannot be converted.
- * `shared` is the execution's ToolContext when the caller built one already
- * (a simple run hands the same object to run()). With a `gate`, a call still
- * running once the execution ended (it ignored its signal) can no longer
- * dispatch, wait, approve or emit.
+ * `toolContext` is the execution's ToolContext (a simple run hands the same
+ * object to run()); once its `gate` ended, a call still running (it ignored
+ * its signal) can no longer dispatch, wait, approve or emit.
  */
 export async function assembleTools(
     ctx: ExecuteContext,
     runContext: RunContext,
-    onSuspend?: (request: SuspendRequest) => void,
-    stepIndex?: () => number,
-    shared?: ToolContext,
-    gate?: ExecutionGate,
+    options: AssembleToolsOptions,
 ): Promise<{
     tools: ToolSet;
     activeTools?: string[];
@@ -225,6 +228,12 @@ export async function assembleTools(
         toolsContext: agentToolsContext,
         hooks: agentHooks,
     } = ctx.agent.definition;
+    const {
+        toolContext,
+        gate,
+        onSuspend,
+        stepIndex,
+    } = options;
     const hooks = conversationFor(runContext) ? {
         ...agentHooks,
         beforeToolExecution: async (...args: Parameters<NonNullable<NonNullable<typeof agentHooks>['beforeToolExecution']>>) => {
@@ -245,8 +254,6 @@ export async function assembleTools(
         return { tools: {}, toolsContext: {} };
     }
 
-    // before the factory, so inject() works there, in execute and in the effect hooks
-    const toolContext = shared ?? createToolContext(ctx, runContext);
     const stateTools = schema ? createStateTools(schema) : {};
     const ownTools = typeof userTools === 'function' ? userTools(toolContext) : userTools ?? {};
 
@@ -270,7 +277,7 @@ export async function assembleTools(
     assertAgentTrust(ctx.agent.definition.trust, tools);
 
     const toolsContext: Record<string, unknown> = {};
-    const ended = gate ? () => gate.ended : undefined;
+    const ended = () => gate.ended;
 
     for (const [name, tool] of Object.entries(tools)) {
         if (hasToolContext(tool)) {

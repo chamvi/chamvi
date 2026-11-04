@@ -16,14 +16,28 @@ import type { IModelResolver, ModelRef } from '../../model/types.ts';
 import type { Run, Step, Usage } from '../../run/types.ts';
 import type { SkillContribution } from '../../skill/types.ts';
 import type { IStore } from '../../repository/types.ts';
+import type { ToolContext } from '../../tool/types.ts';
 import type { IEngine, RunDelta } from '../types.ts';
 
 /**
- * The end of one execution (internal): set once it settled or paused, after
- * the writes of the calls that finished; the ToolContext writers refuse from then on.
+ * The end of one execution (internal): set when it settles or pauses, after
+ * the writes of the calls that finished; from then on the ToolContext writers
+ * refuse, except from a call that has not settled yet.
  */
 export type ExecutionGate = {
     ended: boolean;
+};
+
+/** What assembleTools() wraps the agent's tools with (internal). */
+export type AssembleToolsOptions = {
+    /** The execution's one ToolContext, mapped to every chamvi tool. */
+    toolContext: ToolContext;
+    /** The execution's end: a call still running after it can no longer dispatch, wait, approve or emit. */
+    gate: ExecutionGate;
+    /** Called with the request of a call approve() or waitForDispatch() suspended. */
+    onSuspend?: (request: SuspendRequest) => void;
+    /** The checkpoint step index of the step whose calls run now (read per call); default 0. */
+    stepIndex?: () => number;
 };
 
 /** A tool call of the checkpoint that has no result yet: suspended by approve() or waitForDispatch(). */

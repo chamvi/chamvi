@@ -63,14 +63,29 @@ import type { ExecuteContext, ExecutionGate, SuspendRequest } from './types.ts';
  * checkpoint (pausing again, without a model call, when one suspends again),
  * then streams a ToolLoopAgent from there (emitting text and reasoning
  * deltas), checkpoints every step and settles the run, or pauses it on the
- * first call that suspended. The execution's ToolContext writers refuse
- * once it ended (its gate), so work a tool left behind writes nothing.
+ * first call that suspended. Its ToolContext writes nothing once the
+ * execution ended (its gate, set where it settles or pauses and on a throw),
+ * except from a call that has not settled yet.
  */
 export async function executeRun(ctx: ExecuteContext): Promise<void> {
     const gate: ExecutionGate = { ended: false };
+    // every settle and pause runs after the step-end and pending-call writes in flight landed
+    const gated: ExecuteContext = {
+        ...ctx,
+        finish: (patch) => {
+            gate.ended = true;
+
+            return ctx.finish(patch);
+        },
+        pause: (request, usage) => {
+            gate.ended = true;
+
+            return ctx.pause(request, usage);
+        },
+    };
 
     try {
-        await runExecution(ctx, gate);
+        await runExecution(gated, gate);
     } finally {
         gate.ended = true;
     }
@@ -205,11 +220,15 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
         }
 
         model = toLanguageModel(ctx.model, ctx.models, agent.name);
-        assembled = await assembleTools(ctx, runContext, (request) => {
-            suspended.push(request);
-        }, () => (replaying ? checkpoint!.stepIndex : stepIndex), toolContext, gate);
+        assembled = await assembleTools(ctx, runContext, {
+            toolContext,
+            gate,
+            onSuspend: (request) => {
+                suspended.push(request);
+            },
+            stepIndex: () => (replaying ? checkpoint!.stepIndex : stepIndex),
+        });
     } catch (error) {
-        gate.ended = true;
         local.abort();
         timeout?.clear();
 
@@ -512,7 +531,6 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
             } while (settled !== pendingWrite);
 
             abandoned = true;
-            gate.ended = true;
 
             if (ctx.signal.aborted) {
                 await ctx.finish({ status: RunStatus.CANCELLED, usage });
@@ -542,7 +560,6 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
             // a cancel or the timeout during that wait settles the run, never a pause
             const timedOut = timeout?.signal.aborted === true ? { reason: timeout.signal.reason as unknown } : undefined;
 
-            gate.ended = true;
             local.abort();
             timeout?.clear();
 
@@ -665,7 +682,6 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
         } while (settled !== pendingStepEnd);
 
         abandoned = true;
-        gate.ended = true;
 
         if (ctx.signal.aborted) {
             await ctx.finish({ status: RunStatus.CANCELLED, usage });
@@ -685,8 +701,6 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
 
         return;
     } finally {
-        // after the step-end writes in flight landed (the catch above waits for them)
-        gate.ended = true;
         local.abort();
         timeout?.clear();
     }

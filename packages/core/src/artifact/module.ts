@@ -80,11 +80,24 @@ export function createRunArtifacts(
     store: IArtifactRepository,
     run: { id: string; agent: string },
     clock: IClock,
-    assertWritable?: (name: string) => void,
+): IRunArtifacts {
+    return createGuardedRunArtifacts(store, run, clock, () => {});
+}
+
+/**
+ * createRunArtifacts() with `assertWritable` called with the writer's name
+ * before every put (an execution's ToolContext); a throw refuses it and
+ * nothing is stored. Reads are never checked.
+ */
+export function createGuardedRunArtifacts(
+    store: IArtifactRepository,
+    run: { id: string; agent: string },
+    clock: IClock,
+    assertWritable: (name: string) => void,
 ): IRunArtifacts {
     return {
         async put(input) {
-            assertWritable?.('artifacts.put()');
+            assertWritable('artifacts.put()');
             assertArtifactInput(input);
 
             if (input.key === undefined) {

@@ -13,19 +13,30 @@ import type { IAgentState, Infer, StateSchema } from './types.ts';
  * Repository-backed IAgentState scoped to one agent. With a schema, collection
  * documents are validated (and stored as the schema's output) on upsert, and
  * only declared collections are writable; without one, nothing is validated.
- * `assertWritable` is called with the writer's name before every write (a
- * throw refuses it, nothing is stored); reads are never checked.
  */
 export function createAgentState<S extends StateSchema = StateSchema>(
     agent: string,
     schema: S | undefined,
     store: IStateRepository,
-    assertWritable?: (name: string) => void,
+): IAgentState<S> {
+    return createGuardedAgentState(agent, schema, store, () => {});
+}
+
+/**
+ * createAgentState() with `assertWritable` called with the writer's name
+ * before every write (internal: an execution's ToolContext); a throw refuses
+ * it and nothing is stored. Reads are never checked.
+ */
+export function createGuardedAgentState<S extends StateSchema = StateSchema>(
+    agent: string,
+    schema: S | undefined,
+    store: IStateRepository,
+    assertWritable: (name: string) => void,
 ): IAgentState<S> {
     return {
         get: async <T = unknown>(key: string) => await store.findOne(agent, key) as T | undefined,
         set: async (key, value) => {
-            assertWritable?.('state.set()');
+            assertWritable('state.set()');
 
             await store.set(agent, key, value);
         },
@@ -39,17 +50,17 @@ export function createAgentState<S extends StateSchema = StateSchema>(
                 return rows.map(({ id, doc }) => ({ ...(doc as object), id }) as { id: string } & Infer<S[K]>);
             },
             upsert: async (id: string, doc: Infer<S[K]>) => {
-                assertWritable?.(`state.collection("${name}").upsert()`);
+                assertWritable(`state.collection("${name}").upsert()`);
 
                 const value = await validate(agent, name, schema, doc);
 
                 // the execution may have ended during an async validation
-                assertWritable?.(`state.collection("${name}").upsert()`);
+                assertWritable(`state.collection("${name}").upsert()`);
 
                 await store.upsertDocument(agent, name, id, value);
             },
             remove: async (id: string) => {
-                assertWritable?.(`state.collection("${name}").remove()`);
+                assertWritable(`state.collection("${name}").remove()`);
 
                 await store.deleteDocument(agent, name, id);
             },

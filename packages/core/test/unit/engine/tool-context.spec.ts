@@ -99,6 +99,7 @@ type Setup = {
     store?: ReturnType<typeof createMemoryStore>;
     owner?: string;
     claimTtlMs?: number;
+    budget?: AgentDefinition['budget'];
 };
 
 function setup(s: Setup) {
@@ -113,6 +114,7 @@ function setup(s: Setup) {
         toolPolicy: s.toolPolicy,
         hooks: s.hooks,
         toolsContext: s.toolsContext,
+        ...(s.budget ? { budget: s.budget } : {}),
     });
     const engine = new Engine({
         store,
@@ -979,5 +981,127 @@ describe('writes after the execution ended', () => {
         await engine.idle();
         expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
         expect(await store.state.findOne('release', 'k')).toBe(1);
+    });
+});
+
+/**
+ * A tool that honours the abort: it waits for the run signal, then cleans
+ * up in its finally (released by the test, after the run settled) with a
+ * state and an artifact write, and leaves one more write behind.
+ */
+function cleanupTool() {
+    const entered = Promise.withResolvers<void>();
+    const cleanup = Promise.withResolvers<void>();
+    const settled = Promise.withResolvers<unknown[]>();
+    const work = detachedWork();
+    const honour = defineTool({
+        inputSchema: z.object({}),
+        execute: async (_input, { context }) => {
+            const outcomes: unknown[] = [];
+
+            try {
+                entered.resolve();
+                await new Promise((_resolve, reject) => {
+                    context.run.signal.addEventListener('abort', () => reject(context.run.signal.reason));
+                });
+            } finally {
+                await cleanup.promise;
+
+                for (const write of [
+                    () => context.state.set('cleanup', 1),
+                    () => context.artifacts.put({ mediaType: 'text/plain', data: new Uint8Array([1]) }),
+                ]) {
+                    outcomes.push(await write().then(() => 'done', (error: unknown) => error));
+                }
+
+                work.leave(() => context.state.set('late', 1));
+                settled.resolve(outcomes);
+            }
+
+            return 'unreachable';
+        },
+    });
+
+    return {
+        honour,
+        entered: entered.promise,
+        /** Runs the finally's writes; resolves their outcomes once the call settled. */
+        async clean(): Promise<unknown[]> {
+            cleanup.resolve();
+
+            const outcomes = await settled.promise;
+
+            // the wrapper ends the frame when the call's promise settles
+            await new Promise((resolve) => {
+                setImmediate(resolve);
+            });
+
+            return outcomes;
+        },
+        release: () => work.release(),
+    };
+}
+
+describe('writes from a live call after the execution ended', () => {
+    it('keeps the cleanup writes of a tool that honours a cancel', async () => {
+        const tool = cleanupTool();
+        const { engine, store } = setup({
+            model: mockModel([callTool('honour'), text('done')]),
+            tools: { honour: tool.honour },
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch(env());
+
+        await tool.entered;
+        await engine.cancel(runId);
+        await engine.idle();
+        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+
+        expect(await tool.clean()).toEqual(['done', 'done']);
+        expect(await store.state.findOne('release', 'cleanup')).toBe(1);
+        expect(await store.artifacts.find(runId)).toHaveLength(1);
+
+        // work that call left behind after it settled stays refused
+        const [late] = await tool.release();
+
+        expect(late).toBeInstanceOf(InvalidRunStateError);
+        expect(await store.state.findOne('release', 'late')).toBeUndefined();
+    });
+
+    it('keeps the cleanup writes of a tool that honours the timeout', async () => {
+        const tool = cleanupTool();
+        const {
+            engine,
+            store,
+            clock,
+        } = setup({
+            model: mockModel([callTool('honour'), text('done')]),
+            tools: { honour: tool.honour },
+            budget: { timeoutMs: 1000 },
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch(env());
+
+        await tool.entered;
+        clock.advance(1000);
+        await engine.idle();
+
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('failed');
+        expect(run?.error?.code).toBe('Timeout');
+
+        expect(await tool.clean()).toEqual(['done', 'done']);
+        expect(await store.state.findOne('release', 'cleanup')).toBe(1);
+        expect(await store.artifacts.find(runId)).toHaveLength(1);
+
+        const [late] = await tool.release();
+
+        expect(late).toBeInstanceOf(InvalidRunStateError);
+        expect(await store.state.findOne('release', 'late')).toBeUndefined();
     });
 });
