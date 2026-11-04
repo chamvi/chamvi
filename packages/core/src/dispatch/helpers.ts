@@ -105,6 +105,15 @@ export function checkDescription(label: string, value: unknown): string | undefi
     return value;
 }
 
+/** Refuses a role hook (`concurrencyKey`, `idempotencyKey`, `address`) that is given but no function. */
+export function checkHooks(label: string, subscription: Record<string, unknown>): void {
+    for (const hook of ['concurrencyKey', 'idempotencyKey', 'address']) {
+        if (subscription[hook] !== undefined && typeof subscription[hook] !== 'function') {
+            throw new InvalidAgentDefinitionError(`${label}: ${hook} must be a function.`);
+        }
+    }
+}
+
 function roleLabel(agent: string, role: string): string {
     return `Agent "${agent}" role "${role}"`;
 }
@@ -162,6 +171,7 @@ export function assertDispatchRoles(agent: Agent): void {
         checkMaxDepth(label, options?.maxDepth);
         checkFrom(label, options?.from);
         checkDescription(label, options?.description);
+        checkHooks(label, subscription as unknown as Record<string, unknown>);
     }
 }
 

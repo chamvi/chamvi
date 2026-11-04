@@ -182,6 +182,21 @@ describe('agent.on()', () => {
         })).toThrow(InvalidAgentDefinitionError);
     });
 
+    it('refuses a role hook that is no function', () => {
+        expect(() => agent.on({ role: 'pr', address: 'o/r#1' as never })).toThrow('agent.on(): address must be a function.');
+        expect(() => agent.on({ role: 'pr', concurrencyKey: 1 as never })).toThrow(InvalidAgentDefinitionError);
+        expect(() => new Engine({
+            store: createMemoryStore(),
+            agents: [define([{
+                channel: 'agent',
+                id: 'pr',
+                options: {},
+                idempotencyKey: 'k' as never,
+            }])],
+            channels: [agentChannel()],
+        })).toThrow('Agent "maintainer" role "pr": idempotencyKey must be a function.');
+    });
+
     it('agentChannel() has neither in nor out', () => {
         const channel = agentChannel();
 

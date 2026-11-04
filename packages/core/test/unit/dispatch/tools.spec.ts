@@ -373,4 +373,22 @@ describe('dispatchTools()', () => {
             message: 'Agent "lead": dispatch tool "state_notes_list" collides with another tool of that name.',
         });
     });
+
+    it('refuses an own-role placeholder of a tools factory whose role the agent does not declare', async () => {
+        const engine = setup([defineAgent({
+            name: 'lead',
+            instructions: 'You lead.',
+            model: treeModel(done(), answer),
+            channels: [prRole()],
+            tools: () => ({ ...dispatchTools({ roles: ['nope'] }) }),
+        })]);
+        const parentId = await startParent(engine);
+        const run = await engine.store.runs.findOne(parentId);
+
+        expect(run?.status).toBe('failed');
+        expect(run?.error).toEqual({
+            code: 'invalid_agent_definition',
+            message: 'Agent "lead" has no dispatch role "nope" for tool "dispatch_nope".',
+        });
+    });
 });

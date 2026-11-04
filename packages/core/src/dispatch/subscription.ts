@@ -12,6 +12,7 @@ import { DEFAULT_DISPATCH_ROLE } from './constants.ts';
 import {
     checkDescription,
     checkFrom,
+    checkHooks,
     checkMaxDepth,
     checkMaxPerRun,
 } from './helpers.ts';
@@ -37,6 +38,8 @@ export const agent: AgentSubscriber = {
         const from = checkFrom(label, options.from);
         const description = checkDescription(label, options.description);
 
+        checkHooks(label, options as Record<string, unknown>);
+
         return {
             channel: AGENT_CHANNEL_NAME,
             id: role,
@@ -48,9 +51,9 @@ export const agent: AgentSubscriber = {
                 ...(from ? { from } : {}),
                 ...(description !== undefined ? { description } : {}),
             },
-            ...(options.concurrencyKey ? { concurrencyKey: options.concurrencyKey } : {}),
-            ...(options.idempotencyKey ? { idempotencyKey: options.idempotencyKey } : {}),
-            ...(options.address ? { address: options.address } : {}),
+            ...(options.concurrencyKey !== undefined ? { concurrencyKey: options.concurrencyKey } : {}),
+            ...(options.idempotencyKey !== undefined ? { idempotencyKey: options.idempotencyKey } : {}),
+            ...(options.address !== undefined ? { address: options.address } : {}),
         };
     },
 };
