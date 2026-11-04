@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { DEFAULT_MAX_STEPS, isCodeAgent } from '@chamvi/core';
+import { DEFAULT_MAX_STEPS } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { BadRequestError, NotFoundError } from '@ebec/http';
 import { defineSchema } from '@rapiq/core';
@@ -45,7 +45,7 @@ export function summarizeAgent(agent: Agent, basePath: string, hookChannels: Rea
 
     return {
         name: agent.name,
-        kind: isCodeAgent(agent) ? 'code' : 'model',
+        kind: agent.kind,
         channels: (definition.channels ?? []).map((subscription) => (hookChannels.has(subscription.channel) ?
             {
                 channel: subscription.channel,

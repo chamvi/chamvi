@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defineAgent } from '@chamvi/core';
+import { defineSimpleAgent } from '@chamvi/core';
 import {
     READER_TOKEN,
     call,
@@ -46,13 +46,13 @@ describe('GET /agents', () => {
         ]);
     });
 
-    it('marks a code agent', async () => {
-        const fan = defineAgent({ name: 'fan', run: () => 'ok' });
+    it('marks a simple agent', async () => {
+        const fan = defineSimpleAgent({ name: 'fan', run: () => 'ok' });
         const { app } = createTestApp({ agents: [fan] });
         const response = await call(app, 'GET', '/agents', { token: READER_TOKEN });
         const { data } = await response.json();
 
-        expect(data).toEqual([expect.objectContaining({ name: 'fan', kind: 'code' })]);
+        expect(data).toEqual([expect.objectContaining({ name: 'fan', kind: 'simple' })]);
     });
 
     it('prefixes the hook path with basePath', async () => {

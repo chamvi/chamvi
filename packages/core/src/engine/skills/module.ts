@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isCodeAgent } from '../../agent/module.ts';
 import type { Agent } from '../../agent/types.ts';
 import { EMPTY_SKILL_CONTRIBUTION } from '../../skill/constants.ts';
 import { selectSkillProvider, snapshotSkillInputs } from '../../skill/helpers.ts';
@@ -38,12 +37,12 @@ export class EngineSkills implements IEngineSkills {
      * Validates the agent's skill inputs against the engine's runtime (or the
      * first one they would select). With `commit` (default) the inputs are
      * captured once per agent and a first runtime is kept; a check-only call
-     * (`commit: false`) changes nothing. A code agent is skipped: prepare()
+     * (`commit: false`) changes nothing. A simple agent is skipped: prepare()
      * gives it the empty contribution.
      */
     checkAgent(agent: Agent, { commit = true }: { commit?: boolean } = {}): void {
-        // a code agent takes no skills, global ones included
-        if (isCodeAgent(agent)) {
+        // a simple agent takes no skills, global ones included
+        if (agent.kind === 'simple') {
             return;
         }
 
@@ -92,7 +91,7 @@ export class EngineSkills implements IEngineSkills {
                 continue;
             }
 
-            if (isCodeAgent(agent)) {
+            if (agent.kind === 'simple') {
                 this.preparedSkills.set(agent, EMPTY_SKILL_CONTRIBUTION);
             } else {
                 unprepared.push(agent);

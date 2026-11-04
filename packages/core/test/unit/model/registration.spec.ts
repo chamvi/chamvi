@@ -24,6 +24,7 @@ import type {
     EngineOptions,
     IEngine,
     IModelResolver,
+    ModelAgent,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
@@ -58,7 +59,7 @@ function recordingResolver(refused: string[] = []): IModelResolver & { checks: A
 function withModel(model: unknown, name = 'triage'): Agent {
     const agent = defineAgent({ name, instructions: 'x' });
 
-    return { ...agent, definition: { ...agent.definition, model: model as LanguageModel } as Agent['definition'] };
+    return { ...agent, definition: { ...agent.definition, model: model as LanguageModel } as ModelAgent['definition'] };
 }
 
 const engines: IEngine[] = [];

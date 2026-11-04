@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { CodeRunContext } from '../../agent/types.ts';
+import type { SimpleRunContext } from '../../agent/types.ts';
 import { bindRunSnapshot } from '../../dispatch/helpers.ts';
 import { runToolCall } from '../../effect/frame.ts';
 import type { ToolCallFrame } from '../../effect/types.ts';
@@ -15,12 +15,12 @@ import { untilAborted } from '../../run/helpers.ts';
 import type { RunContext, Step } from '../../run/types.ts';
 import { assertTrust, bindTrust } from '../../trust/module.ts';
 import { resolveBudget, timeoutSignal } from '../budget.ts';
-import { createCodeTools } from './code-tools.ts';
+import { createSimpleTools } from './simple-tools.ts';
 import { assembleTools, createToolContext, toRunError } from './helpers.ts';
-import type { CodeToolStep, ExecuteContext } from './types.ts';
+import type { ExecuteContext, SimpleToolStep } from './types.ts';
 
-/** The synthetic tool call a code run's `run()` executes in: part of its approval and wait ids (`0:run:<n>`). */
-const CODE_RUN_TOOL_CALL_ID = 'run';
+/** The synthetic tool call a simple run's `run()` executes in: part of its approval and wait ids (`0:run:<n>`). */
+const SIMPLE_RUN_TOOL_CALL_ID = 'run';
 
 /**
  * `value` as plain JSON (undefined stays undefined), so every store keeps
@@ -48,29 +48,30 @@ function toJsonOutput(value: unknown): { value: unknown } | undefined {
 }
 
 /**
- * One execution of a claimed, `running` run of a code agent: runs
+ * One execution of a claimed, `running` run of a simple agent: runs
  * `run(payload, ctx)` inside one synthetic tool-call frame (`toolCallId`
  * `run`, `toolName` the agent, step index 0), so dispatch(),
  * waitForDispatch(), approve() and ctx.channels work as inside a tool
  * call. `ctx.tools` holds the agent's tools wrapped as for a model run
- * (createCodeTools). Each execution re-runs `run()` from the start; its
+ * (createSimpleTools). Each execution re-runs `run()` from the start; its
  * effect-recorded calls return their records. A suspension pauses the run, whatever `run()`
  * did with the signal afterwards; else the returned value completes it (one
  * `tool` step) and a throw fails it. No model call, no `llm` step, no
  * checkpoint.
  */
-export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
+export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
     const {
         run,
         agent,
         store,
         clock,
     } = ctx;
-    const { run: body } = agent.definition;
 
-    if (typeof body !== 'function') {
-        throw new InvalidAgentDefinitionError(`Agent "${agent.name}" is not a code agent.`);
+    if (agent.kind !== 'simple') {
+        throw new InvalidAgentDefinitionError(`Agent "${agent.name}" is not a simple agent.`);
     }
+
+    const { run: body } = agent.definition;
 
     const budget = resolveBudget(agent);
     const timeout = budget.timeoutMs === undefined ? undefined : timeoutSignal(clock, budget.timeoutMs);
@@ -97,7 +98,7 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
     const toolContext = createToolContext(ctx, runContext);
     const frame: ToolCallFrame = {
         runId: run.id,
-        toolCallId: CODE_RUN_TOOL_CALL_ID,
+        toolCallId: SIMPLE_RUN_TOOL_CALL_ID,
         toolName: agent.name,
         stepIndex: 0,
         approvals: 0,
@@ -106,7 +107,7 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
     };
     // one write at a time, so concurrent ctx.tools calls get distinct step indexes
     let steps: Promise<void> = Promise.resolve();
-    const appendStep = (step: CodeToolStep): Promise<void> => {
+    const appendStep = (step: SimpleToolStep): Promise<void> => {
         const write = steps.then(async () => {
             // work run() left behind after its execution ended writes nothing more
             if (local.signal.aborted || (ctx.ownsRun && !await ctx.ownsRun())) {
@@ -144,8 +145,8 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
         assembling.catch(() => {});
 
         const assembled = await untilAborted(assembling, signal);
-        const codeContext: CodeRunContext = Object.assign(toolContext, {
-            tools: createCodeTools({
+        const simpleContext: SimpleRunContext = Object.assign(toolContext, {
+            tools: createSimpleTools({
                 agent: agent.name,
                 tools: assembled.tools,
                 activeTools: assembled.activeTools,
@@ -160,7 +161,7 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
                 },
             }),
         });
-        const work = runToolCall(frame, async () => body(run.trigger.payload, codeContext));
+        const work = runToolCall(frame, async () => body(run.trigger.payload, simpleContext));
 
         // run() may keep going after an abort; never leak its rejection
         work.catch(() => {});
@@ -207,7 +208,7 @@ export async function executeCodeRun(ctx: ExecuteContext): Promise<void> {
     if ('output' in outcome) {
         const json = toJsonOutput(outcome.output);
 
-        outcome = json ? { output: json.value } : { error: new ValidationError(`The output of code agent "${agent.name}" is not JSON-serialisable.`) };
+        outcome = json ? { output: json.value } : { error: new ValidationError(`The output of simple agent "${agent.name}" is not JSON-serialisable.`) };
     }
 
     // after the steps of the ctx.tools calls; a run another owner took over gets no step from this execution

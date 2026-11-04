@@ -189,7 +189,7 @@ export function createToolContext(ctx: ExecuteContext, runContext: RunContext): 
  * for a tool declaring `needsApproval`, for a placeholder whose name a state
  * or skill tool carries and for a role schema that cannot be converted.
  * `shared` is the execution's ToolContext when the caller built one already
- * (a code run hands the same object to run()).
+ * (a simple run hands the same object to run()).
  */
 export async function assembleTools(
     ctx: ExecuteContext,

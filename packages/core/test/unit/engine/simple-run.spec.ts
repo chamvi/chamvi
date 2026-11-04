@@ -10,26 +10,26 @@ import {
     Engine,
     ValidationError,
     approve,
-    defineAgent,
+    defineSimpleAgent,
 } from '@chamvi/core';
 import type {
-    CodeAgentDefinition,
     IChannel,
     IStore,
     Run,
+    SimpleAgentDefinition,
 } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
-function setup(def: Omit<CodeAgentDefinition, 'name'>, channels: IChannel[] = []) {
+function setup(def: Omit<SimpleAgentDefinition, 'name'>, channels: IChannel[] = []) {
     const clock = new ControllableClock(START);
     const store: IStore = createMemoryStore({ clock });
     const engine = new Engine({
         store,
         clock,
-        agents: [defineAgent({ name: 'code', ...def } as CodeAgentDefinition)],
+        agents: [defineSimpleAgent({ name: 'simple', ...def })],
         channels,
         onError: () => {},
     });
@@ -45,7 +45,7 @@ async function runOnce(engine: Engine, payload: unknown = { n: 1 }): Promise<str
     await engine.start();
 
     const { runId } = await engine.dispatch({
-        agent: 'code',
+        agent: 'simple',
         trigger: 'test',
         channel: 'test',
         payload,
@@ -77,7 +77,7 @@ function waitFor(engine: Engine, match: (run: Run) => boolean): Promise<Run> {
     return promise;
 }
 
-describe('code run execution', () => {
+describe('simple run execution', () => {
     it('completes with the returned value, one tool step and no checkpoint', async () => {
         const { store, engine } = setup({ run: (payload) => ({ ok: 1, payload }) });
         const runId = await runOnce(engine, { n: 2 });
@@ -91,7 +91,7 @@ describe('code run execution', () => {
         expect(steps).toHaveLength(1);
         expect(steps[0]).toMatchObject({
             kind: 'tool',
-            name: 'code',
+            name: 'simple',
             input: { n: 2 },
             output: { ok: 1, payload: { n: 2 } },
         });
@@ -117,7 +117,7 @@ describe('code run execution', () => {
         expect(steps).toHaveLength(1);
         expect(steps[0]).toMatchObject({
             kind: 'tool', 
-            name: 'code', 
+            name: 'simple', 
             error: { code: 'validation_error', message: 'x' }, 
         });
 
@@ -142,7 +142,7 @@ describe('code run execution', () => {
         expect(waiting?.waiting).toMatchObject({
             kind: 'approval', 
             approvalId: '0:run:0', 
-            toolName: 'code', 
+            toolName: 'simple', 
         });
         expect(await store.steps.find(runId)).toHaveLength(0);
 
@@ -221,7 +221,7 @@ describe('code run execution', () => {
 
         const running = entered.promise;
         const { runId } = await engine.dispatch({
-            agent: 'code',
+            agent: 'simple',
             trigger: 'test',
             channel: 'test',
             payload: {},
@@ -246,7 +246,7 @@ describe('code run execution', () => {
 
         const running = waitFor(engine, (run) => run.status === 'running');
         const { runId } = await engine.dispatch({
-            agent: 'code',
+            agent: 'simple',
             trigger: 'test',
             channel: 'test',
             payload: {},
@@ -303,7 +303,7 @@ describe('code run execution', () => {
         const engine = new Engine({
             store,
             clock,
-            agents: [defineAgent({ name: 'code', run: () => value } as CodeAgentDefinition)],
+            agents: [defineSimpleAgent({ name: 'simple', run: () => value })],
             onError: (error) => {
                 errors.push(error);
             },
@@ -312,7 +312,7 @@ describe('code run execution', () => {
         const run = await store.runs.findOne(runId);
 
         expect(run?.status).toBe('failed');
-        expect(run?.error).toEqual({ code: 'validation_error', message: 'The output of code agent "code" is not JSON-serialisable.' });
+        expect(run?.error).toEqual({ code: 'validation_error', message: 'The output of simple agent "simple" is not JSON-serialisable.' });
         expect(await store.steps.find(runId)).toEqual([expect.objectContaining({ kind: 'tool', error: expect.objectContaining({ code: 'validation_error' }) })]);
         expect(errors).toEqual([]);
 

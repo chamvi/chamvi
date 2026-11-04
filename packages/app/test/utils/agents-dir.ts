@@ -58,7 +58,7 @@ export function provider() {
     return customProvider({ languageModels: { model: mockModel(answers), hang: hangingModel() } });
 }
 
-export function inCodeAgent(name: string): Agent {
+export function agentInCode(name: string): Agent {
     return defineAgent({
         name,
         model: textModel('from code'),
@@ -71,7 +71,7 @@ export async function queueRun(store: IStore, clock: ControllableClock, name: st
     const engine = new Engine({
         store,
         clock,
-        agents: [inCodeAgent(name)],
+        agents: [agentInCode(name)],
     });
     const { runId } = await engine.dispatch({
         agent: name,

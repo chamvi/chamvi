@@ -20,8 +20,8 @@ import { NO_AGENTS_MESSAGE } from '../../../../src/modules/agents/constants.ts';
 import {
     START,
     agentFile,
+    agentInCode,
     buildAgentsDirHarness,
-    inCodeAgent,
     queueRun,
 } from '../../../utils/agents-dir.ts';
 import type { AgentsDirHarnessOptions } from '../../../utils/agents-dir.ts';
@@ -87,7 +87,7 @@ describe('package agents', () => {
         await installPackage(cwd, 'b', { agents: ['two'] });
         await writeTree(cwd, { 'chamvi.json': JSON.stringify({ agents: ['b'] }) });
 
-        const setup = build({ agents: [inCodeAgent('one')] });
+        const setup = build({ agents: [agentInCode('one')] });
 
         await setup.harness.setup();
 
@@ -109,7 +109,7 @@ describe('package agents', () => {
     it('lets an agent passed in code win a name, the package agent being an issue', async () => {
         await installPackage(cwd, '@s/greeter');
 
-        const setup = build({ packages: ['@s/greeter'], agents: [inCodeAgent('greeter')] });
+        const setup = build({ packages: ['@s/greeter'], agents: [agentInCode('greeter')] });
 
         await setup.harness.setup();
 
@@ -178,7 +178,7 @@ describe('package agents', () => {
         const runId = await queueRun(store, clock, 'elsewhere');
         const setup = build({
             packages: ['@s/missing', 'ok'],
-            agents: [inCodeAgent('coded')],
+            agents: [agentInCode('coded')],
             clock,
             store,
         });

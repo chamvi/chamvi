@@ -9,8 +9,7 @@ import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { pid } from 'node:process';
 import type { Agent } from '../agent/types.ts';
-import { conversationKey } from '../agent/asserts.ts';
-import { isCodeAgent } from '../agent/module.ts';
+import { assertAgentKind, conversationKey } from '../agent/asserts.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
 import { attachmentIds, storeArtifact } from '../artifact/module.ts';
@@ -79,7 +78,7 @@ import {
     IDEMPOTENCY_TTL_MS,
 } from './constants.ts';
 import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
-import { executeCodeRun } from './execute/code.ts';
+import { executeSimpleRun } from './execute/simple.ts';
 import { executeRun } from './execute/module.ts';
 import type { ExecuteContext, SuspendRequest } from './execute/types.ts';
 import {
@@ -1632,9 +1631,9 @@ export class Engine implements IEngine {
             return;
         }
 
-        if (isCodeAgent(agent)) {
-            // a code agent takes no conversation, so it skips admission
-            await executeCodeRun(this.executeContext(run, agent, skills, signal));
+        if (agent.kind === 'simple') {
+            // a simple agent takes no conversation, so it skips admission
+            await executeSimpleRun(this.executeContext(run, agent, skills, signal));
 
             return;
         }
@@ -1687,7 +1686,7 @@ export class Engine implements IEngine {
         await executeRun(this.executeContext(run, agent, skills, signal, conversation));
     }
 
-    /** What one execution of `run` gets from this engine (an LLM and a code run alike). */
+    /** What one execution of `run` gets from this engine (an LLM and a simple run alike). */
     protected executeContext(
         run: Run,
         agent: Agent,
@@ -1929,12 +1928,15 @@ export class Engine implements IEngine {
     }
 
     /**
-     * Refuses an agent the engine cannot run: one subscribing to a channel it does not have.
+     * Refuses an agent the engine cannot run: one whose kind is unknown or
+     * disagrees with its definition, or one subscribing to a channel it does not have.
      * `commit: false` (checkAgent()) keeps the skill check free of state changes.
      */
     protected assertRegistrable(agent: Agent, options: { commit?: boolean } = {}): void {
         // first: putAgent refuses before syncing, the lock and any store write
-        if (!isCodeAgent(agent)) {
+        assertAgentKind(agent);
+
+        if (agent.kind === 'model') {
             checkAgentModel(agent, { model: this.model, models: this.models });
         }
 

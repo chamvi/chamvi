@@ -10,14 +10,15 @@ import {
     Engine,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
+    defineSimpleAgent,
     dispatchTo,
     waitForDispatch,
 } from '@chamvi/core';
 import type {
-    CodeRunContext,
     DispatchResult,
     IStore,
+    SimpleRunContext,
 } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
@@ -32,15 +33,15 @@ const text = (t: string, usage?: MockResponse['usage']): MockResponse => ({
     ...(usage ? { usage } : {}),
 });
 
-type FanRun = (payload: unknown, ctx: CodeRunContext) => unknown;
+type FanRun = (payload: unknown, ctx: SimpleRunContext) => unknown;
 
 function build(store: IStore, clock: ControllableClock, run: FanRun, child: ChildTurn, maxSubtreeTokens?: number) {
-    const fan = defineAgent({
+    const fan = defineSimpleAgent({
         name: 'fan',
         run,
         ...(maxSubtreeTokens !== undefined ? { budget: { maxSubtreeTokens } } : {}),
     });
-    const worker = defineAgent({
+    const worker = defineModelAgent({
         name: 'worker',
         instructions: 'You work.',
         model: treeModel([], child),
@@ -69,7 +70,7 @@ async function root(engine: Engine): Promise<string> {
     return runId;
 }
 
-describe('code agent fan-out', () => {
+describe('simple agent fan-out', () => {
     it('dispatches two children, waits and completes with both outcomes', async () => {
         const clock = new ControllableClock(START);
         const store = createMemoryStore({ clock });

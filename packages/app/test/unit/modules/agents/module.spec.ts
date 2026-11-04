@@ -13,7 +13,6 @@ import {
     InvalidAgentDefinitionError,
     createMemoryStore,
     defineAgent,
-    isCodeAgent,
 } from '@chamvi/core';
 import type { Agent, IStore } from '@chamvi/core';
 import { ControllableClock, mockModel, textModel } from '@chamvi/test-kit';
@@ -63,7 +62,7 @@ function provider() {
     return customProvider({ languageModels: { model: mockModel(answers), hang: hangingModel() } });
 }
 
-function inCodeAgent(name: string): Agent {
+function agentInCode(name: string): Agent {
     return defineAgent({
         name,
         model: textModel('from code'),
@@ -76,7 +75,7 @@ async function queueRun(store: IStore, clock: ControllableClock, name: string): 
     const engine = new Engine({
         store,
         clock,
-        agents: [inCodeAgent(name)],
+        agents: [agentInCode(name)],
     });
     const { runId } = await engine.dispatch({
         agent: name,
@@ -186,8 +185,42 @@ describe('agentsModule', () => {
         expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe(await hashAgentFolder(folder()));
     });
 
-    it('registers a folder exporting a code agent, which needs no model', async () => {
-        await writeTree(root.path, { 'fan/agent.ts': 'export default { name: \'fan\', definition: { description: \'Fans out.\', run: () => \'ran\' } };\n' });
+    it('registers a folder exporting a simple agent, which needs no model', async () => {
+        await writeTree(root.path, { 'fan/agent.ts': 'export default { kind: \'simple\', name: \'fan\', definition: { description: \'Fans out.\', run: () => \'ran\' } };\n' });
+
+        const {
+            harness,
+            engine,
+            issues,
+        } = build();
+
+        await harness.setup();
+
+        const fan = engine().getAgent('fan');
+
+        expect(fan?.kind).toBe('simple');
+        expect(fan?.definition.description).toBe('Fans out.');
+        expect(engine().agentRevision('fan')).toBe(await hashAgentFolder(folder('fan')));
+        expect(issues()).toEqual([]);
+    });
+
+    it('rebuilds a folder agent without a kind (an older core) as a model agent', async () => {
+        await writeTree(root.path, { 'greeter/agent.ts': agentFile('v1') });
+
+        const { harness, engine } = build();
+
+        await harness.setup();
+
+        expect(engine().getAgent('greeter')?.kind).toBe('model');
+    });
+
+    it.each([
+        ['run without a kind', '{ name: \'fan\', definition: { run: () => \'ran\' } }', /defineSimpleAgent/],
+        ['an unknown kind', '{ kind: \'code\', name: \'fan\', definition: { run: () => \'ran\' } }', /kind "code"/],
+        ['a simple kind without run', '{ kind: \'simple\', name: \'fan\', definition: { instructions: \'x\' } }', /"run" must be a function/],
+        ['a model kind with run', '{ kind: \'model\', name: \'fan\', definition: { instructions: \'x\', run: () => \'ran\' } }', /defineSimpleAgent/],
+    ])('refuses a folder agent with %s', async (_, declared, message) => {
+        await writeTree(root.path, { 'fan/agent.ts': `export default ${declared};\n` });
 
         const {
             harness, 
@@ -197,13 +230,8 @@ describe('agentsModule', () => {
 
         await harness.setup();
 
-        const fan = engine().getAgent('fan');
-
-        expect(fan).toBeDefined();
-        expect(isCodeAgent(fan!)).toBe(true);
-        expect(fan?.definition.description).toBe('Fans out.');
-        expect(engine().agentRevision('fan')).toBe(await hashAgentFolder(folder('fan')));
-        expect(issues()).toEqual([]);
+        expect(engine().getAgent('fan')).toBeUndefined();
+        expect(issues()).toEqual([expect.objectContaining({ agent: 'fan', message: expect.stringMatching(message) })]);
     });
 
     it('a folder change while stopped cancels the old runs at boot once', async () => {
@@ -304,7 +332,7 @@ describe('agentsModule', () => {
     it('an agent passed in code wins a name clash and the folder is an issue', async () => {
         await writeTree(root.path, { 'greeter/agent.ts': agentFile('v1') });
 
-        const code = inCodeAgent('greeter');
+        const code = agentInCode('greeter');
         const {
             harness,
             engine,
@@ -419,7 +447,7 @@ describe('agentsModule', () => {
         const { harness } = build({
             store,
             clock,
-            agents: [inCodeAgent('triage')],
+            agents: [agentInCode('triage')],
         });
 
         await harness.setup();
@@ -880,7 +908,7 @@ describe('agentsModule', () => {
     });
 
     it('without CHAMVI_AGENTS_DIR it does nothing for an app with agents passed in code', async () => {
-        const { harness, engine } = build({ agents: [inCodeAgent('triage')], env: { CHAMVI_AGENTS_DIR: '' } });
+        const { harness, engine } = build({ agents: [agentInCode('triage')], env: { CHAMVI_AGENTS_DIR: '' } });
 
         await harness.setup();
 

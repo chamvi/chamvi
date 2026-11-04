@@ -19,39 +19,64 @@ import {
     NAME_PATTERN,
 } from './constants.ts';
 import {
-    assertCodeAgent,
     assertDescription,
+    assertModelAgent,
     assertNoNeedsApproval,
+    assertSimpleAgent,
     assertSubtreeBudget,
     assertToolsContext,
     conversationKey,
 } from './asserts.ts';
-import type { Agent, AgentDefinition } from './types.ts';
+import type {
+    AgentDefinition,
+    ModelAgent,
+    ModelAgentDefinition,
+    SimpleAgent,
+    SimpleAgentDefinition,
+} from './types.ts';
 
-/** Whether the agent (or definition) is a code agent: one with `run` and no model. */
-export function isCodeAgent(agent: Agent | AgentDefinition): boolean {
-    const definition: AgentDefinition = 'definition' in agent ? agent.definition : agent;
+/** An agent whose runs call a language model, with the budget defaults applied. */
+export function defineModelAgent<S extends StateSchema = StateSchema>(def: ModelAgentDefinition<S>): ModelAgent<S> {
+    assertName(def.name);
+    assertModelAgent(def);
+    assertInstructions(def.instructions);
 
-    return typeof definition.run === 'function';
+    return { kind: 'model', ...build(def) } as ModelAgent<S>;
 }
 
-export function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefinition<S>): Agent<S> {
+/**
+ * A model-free agent whose `run(payload, ctx)` the engine runs as a durable
+ * run, with the budget defaults applied.
+ */
+export function defineSimpleAgent<S extends StateSchema = StateSchema>(def: SimpleAgentDefinition<S>): SimpleAgent<S> {
+    assertName(def.name);
+    assertSimpleAgent(def);
+
+    return { kind: 'simple', ...build(def) } as SimpleAgent<S>;
+}
+
+/**
+ * @deprecated Use defineModelAgent(); defineAgent() is removed in a later
+ * release. A definition with `run` is refused: use defineSimpleAgent().
+ */
+export function defineAgent<S extends StateSchema = StateSchema>(def: ModelAgentDefinition<S>): ModelAgent<S> {
+    return defineModelAgent(def);
+}
+
+function assertName(name: unknown): void {
     if (
-        typeof def.name !== 'string' ||
-        def.name.length > NAME_MAX_LENGTH ||
-        !NAME_PATTERN.test(def.name)
+        typeof name !== 'string' ||
+        name.length > NAME_MAX_LENGTH ||
+        !NAME_PATTERN.test(name)
     ) {
         throw new InvalidAgentDefinitionError(
-            `Invalid agent name "${String(def.name)}": must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+            `Invalid agent name "${String(name)}": must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
         );
     }
+}
 
-    if (def.run !== undefined) {
-        assertCodeAgent(def);
-    } else {
-        assertInstructions(def.instructions);
-    }
-
+/** The checks both kinds share, then the definition with its budget defaults. */
+function build<S extends StateSchema>(def: AgentDefinition<S>): { name: string; definition: AgentDefinition<S> } {
     assertDescription(def);
 
     // Factories, state and skills can add tools; validate their names after assembly.
@@ -93,7 +118,7 @@ export function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefin
         }
     }
 
-    // the spread keeps the definition's kind; TypeScript cannot narrow a spread union
+    // the spread keeps the definition's kind; the factories cast to their own
     const definition = {
         ...def,
         ...(def.skills !== undefined && { skills }),
@@ -102,7 +127,7 @@ export function defineAgent<S extends StateSchema = StateSchema>(def: AgentDefin
             timeoutMs: DEFAULT_TIMEOUT_MS,
             ...def.budget,
         },
-    } as Agent<S>['definition'];
+    } as AgentDefinition<S>;
 
     return { name: def.name, definition };
 }

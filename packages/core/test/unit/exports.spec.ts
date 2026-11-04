@@ -84,7 +84,8 @@ describe('public api', () => {
     it.each([
         'createMemoryStore',
         'defineAgent',
-        'isCodeAgent',
+        'defineModelAgent',
+        'defineSimpleAgent',
         'Engine',
         'formatRevision',
         'MemoryAgentRevisionRepository',

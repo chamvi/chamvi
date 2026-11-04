@@ -14,16 +14,17 @@ import {
     agent,
     agentChannel,
     approve,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
+    defineSimpleAgent,
     defineTool,
     dispatchTo,
 } from '@chamvi/core';
 import type {
-    AgentDefinition,
-    CodeAgentDefinition,
     IChannel,
     IStore,
+    ModelAgentDefinition,
+    SimpleAgentDefinition,
 } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';
@@ -32,13 +33,13 @@ import { mockModel } from '../../utils/mock-model.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
-function setup(def: Omit<CodeAgentDefinition, 'name'>, options: { channels?: IChannel[]; agents?: AgentDefinition[] } = {}) {
+function setup(def: Omit<SimpleAgentDefinition, 'name'>, options: { channels?: IChannel[]; agents?: ModelAgentDefinition[] } = {}) {
     const clock = new ControllableClock(START);
     const store: IStore = createMemoryStore({ clock });
     const engine = new Engine({
         store,
         clock,
-        agents: [defineAgent({ name: 'code', ...def } as CodeAgentDefinition), ...(options.agents ?? []).map((a) => defineAgent(a))],
+        agents: [defineSimpleAgent({ name: 'simple', ...def }), ...(options.agents ?? []).map((a) => defineModelAgent(a))],
         channels: options.channels ?? [],
         onError: () => {},
     });
@@ -50,7 +51,7 @@ async function runOnce(engine: Engine, payload: unknown = {}, channel = 'test'):
     await engine.start();
 
     const { runId } = await engine.dispatch({
-        agent: 'code',
+        agent: 'simple',
         trigger: 'test',
         channel,
         payload,
@@ -61,7 +62,7 @@ async function runOnce(engine: Engine, payload: unknown = {}, channel = 'test'):
     return runId;
 }
 
-describe('ctx.tools in code runs', () => {
+describe('ctx.tools in simple runs', () => {
     it('runs a tool with validated input and records a tool step per call', async () => {
         const { store, engine } = setup({
             tools: {
@@ -80,7 +81,7 @@ describe('ctx.tools in code runs', () => {
 
         const steps = await store.steps.find(runId);
 
-        expect(steps.map((s) => [s.index, s.kind, s.name])).toEqual([[0, 'tool', 'double'], [1, 'tool', 'code']]);
+        expect(steps.map((s) => [s.index, s.kind, s.name])).toEqual([[0, 'tool', 'double'], [1, 'tool', 'simple']]);
         expect(steps[0]).toMatchObject({ input: { n: '21' }, output: 42 });
 
         await engine.stop();
@@ -233,7 +234,7 @@ describe('ctx.tools in code runs', () => {
                 name: 'worker',
                 instructions: 'You work.',
                 model: mockModel([{ parts: [{ type: 'text', text: 'done' }] }]),
-                channels: [agent.on({ role: 'item', from: ['code'] })],
+                channels: [agent.on({ role: 'item', from: ['simple'] })],
             }],
         });
         const runId = await runOnce(engine);
@@ -319,7 +320,7 @@ describe('ctx.tools in code runs', () => {
 
         expect((await unknown.store.runs.findOne(unknownId))?.error).toEqual({
             code: 'validation_error',
-            message: 'Tool "missing" is not available to agent "code".',
+            message: 'Tool "missing" is not available to agent "simple".',
         });
         await unknown.engine.stop();
 
@@ -332,7 +333,7 @@ describe('ctx.tools in code runs', () => {
 
         expect((await policy.store.runs.findOne(policyId))?.error).toEqual({
             code: 'validation_error',
-            message: 'Tool "hidden" is not available to agent "code".',
+            message: 'Tool "hidden" is not available to agent "simple".',
         });
         await policy.engine.stop();
 
@@ -421,14 +422,14 @@ describe('ctx.tools in code runs', () => {
                 name: 'worker',
                 instructions: 'You work.',
                 model: mockModel([{ parts: [{ type: 'text', text: 'done' }] }]),
-                channels: [agent.on({ role: 'item', from: ['code'] })],
+                channels: [agent.on({ role: 'item', from: ['simple'] })],
             }],
         });
 
         await engine.start();
 
         const { runId } = await engine.dispatch({
-            agent: 'code',
+            agent: 'simple',
             trigger: 'test',
             channel: 'test',
             payload: {},
@@ -485,7 +486,7 @@ describe('ctx.tools in code runs', () => {
         await engine.start();
 
         const { runId } = await engine.dispatch({
-            agent: 'code',
+            agent: 'simple',
             trigger: 'test',
             channel: 'test',
             payload: {},

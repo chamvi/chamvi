@@ -19,7 +19,7 @@ import {
     InvalidRunStateError,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatchTools,
 } from '@chamvi/core';
@@ -71,7 +71,7 @@ function lead(options: {
     channels?: ChannelSubscription<any>[];
     tools?: ReturnType<typeof dispatchTools>;
 }) {
-    return defineAgent({
+    return defineModelAgent({
         name: 'lead',
         instructions: 'You lead.',
         model: treeModel([...options.parent, ...done()], options.child ?? answer),
@@ -80,7 +80,7 @@ function lead(options: {
     });
 }
 
-function setup(agents: ReturnType<typeof defineAgent>[], store?: IStore) {
+function setup(agents: ReturnType<typeof defineModelAgent>[], store?: IStore) {
     const clock = new ControllableClock(START);
     const engine = new Engine({
         store: store ?? createMemoryStore({ clock }),
@@ -217,7 +217,7 @@ describe('dispatchTools()', () => {
     });
 
     it('dispatches to another agent listing the caller in from', async () => {
-        const reporter = defineAgent({
+        const reporter = defineModelAgent({
             name: 'reporter',
             instructions: 'You report.',
             model: treeModel(done(), () => text('drafted')),
@@ -235,7 +235,7 @@ describe('dispatchTools()', () => {
     });
 
     it('a target role without from is a tool error', async () => {
-        const reporter = defineAgent({
+        const reporter = defineModelAgent({
             name: 'reporter',
             instructions: 'You report.',
             model: treeModel(done(), () => text('drafted')),
@@ -314,7 +314,7 @@ describe('dispatchTools()', () => {
     });
 
     it('binds the placeholders a tools factory returns', async () => {
-        const engine = setup([defineAgent({
+        const engine = setup([defineModelAgent({
             name: 'lead',
             instructions: 'You lead.',
             model: treeModel([turn(call('dispatch_pr', { pr: 'o/r#3' })), ...done()], answer),
@@ -335,7 +335,7 @@ describe('dispatchTools()', () => {
         expect(() => dispatchTools({ agents: [{ agent: 'Nope!', roles: ['x'] }] })).toThrow(InvalidAgentDefinitionError);
         expect(() => dispatchTools({ roles: ['pr', 'pr'] })).toThrow(InvalidAgentDefinitionError);
         expect(() => dispatchTools({ roles: ['pr'], wait: 'yes' as never })).toThrow(InvalidAgentDefinitionError);
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             name: 'lead',
             instructions: 'You lead.',
             channels: [prRole()],
@@ -356,7 +356,7 @@ describe('dispatchTools()', () => {
 
     it('a placeholder colliding with a state tool is refused at binding', async () => {
         const placeholder = dispatchTools({ roles: ['pr'] }).dispatch_pr!;
-        const engine = setup([defineAgent({
+        const engine = setup([defineModelAgent({
             name: 'lead',
             instructions: 'You lead.',
             model: treeModel(done(), answer),
@@ -375,7 +375,7 @@ describe('dispatchTools()', () => {
     });
 
     it('refuses an own-role placeholder of a tools factory whose role the agent does not declare', async () => {
-        const engine = setup([defineAgent({
+        const engine = setup([defineModelAgent({
             name: 'lead',
             instructions: 'You lead.',
             model: treeModel(done(), answer),

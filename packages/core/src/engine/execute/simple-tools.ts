@@ -5,16 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { CodeRunContext } from '../../agent/types.ts';
+import type { SimpleRunContext } from '../../agent/types.ts';
 import { SUSPENDED_RESULT } from '../../approval/constants.ts';
 import { SuspendSignal } from '../../approval/request.ts';
 import { assertFrameActive } from '../../effect/frame.ts';
 import { FatalToolError, ValidationError } from '../../errors/index.ts';
 import { executePendingCall, toRunError } from './helpers.ts';
-import type { CodeToolsOptions } from './types.ts';
+import type { SimpleToolsOptions } from './types.ts';
 
 /**
- * A code run's `ctx.tools`: one function per tool of the wrapped set. A call
+ * A simple run's `ctx.tools`: one function per tool of the wrapped set. A call
  * takes its ordinal synchronously (`toolCallId` `run:<n>`, part of the ids of
  * the approvals inside it, so they replay), refuses a tool the set lacks or
  * the toolPolicy hides (ValidationError), validates the input against the
@@ -26,7 +26,7 @@ import type { CodeToolsOptions } from './types.ts';
  * request the wrapper copied onto the outer frame, so the run pauses
  * whatever run() does with it.
  */
-export function createCodeTools(options: CodeToolsOptions): CodeRunContext['tools'] {
+export function createSimpleTools(options: SimpleToolsOptions): SimpleRunContext['tools'] {
     const {
         agent,
         tools,
@@ -40,7 +40,7 @@ export function createCodeTools(options: CodeToolsOptions): CodeRunContext['tool
         onFatal,
     } = options;
     let ordinal = 0;
-    const result: CodeRunContext['tools'] = {};
+    const result: SimpleRunContext['tools'] = {};
 
     // the set the model would be offered: a policy-hidden tool is absent
     for (const name of Object.keys(tools).filter((n) => !activeTools || activeTools.includes(n))) {

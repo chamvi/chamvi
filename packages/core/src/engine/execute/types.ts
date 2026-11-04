@@ -108,12 +108,12 @@ export type DispatchWaitRequest = {
 /** What a suspended tool call waits on (internal). */
 export type SuspendRequest = ApprovalRequest | DispatchWaitRequest;
 
-/** A tool call `ctx.tools` made in a code run, appended as a `tool` step (internal). */
-export type CodeToolStep = Pick<Step, 'name' | 'input' | 'output' | 'error' | 'startedAt' | 'finishedAt'>;
+/** A tool call `ctx.tools` made in a simple run, appended as a `tool` step (internal). */
+export type SimpleToolStep = Pick<Step, 'name' | 'input' | 'output' | 'error' | 'startedAt' | 'finishedAt'>;
 
-/** What createCodeTools() builds a code run's `ctx.tools` from (internal). */
-export type CodeToolsOptions = {
-    /** The code agent's name, for the refusal of an unavailable tool. */
+/** What createSimpleTools() builds a simple run's `ctx.tools` from (internal). */
+export type SimpleToolsOptions = {
+    /** The simple agent's name, for the refusal of an unavailable tool. */
     agent: string;
     /** The wrapped set (wrapToolsForRun), whose suspensions reach the outer frame. */
     tools: ToolSet;
@@ -124,7 +124,7 @@ export type CodeToolsOptions = {
     frame: ToolCallFrame;
     signal: AbortSignal;
     /** Appends the call's step; awaited before the call resolves or rejects. */
-    onStep: (step: CodeToolStep) => Promise<void>;
+    onStep: (step: SimpleToolStep) => Promise<void>;
     now: () => Date;
     /** The calls still running, so the execution lets them finish before it pauses or settles. */
     inflight: Set<Promise<unknown>>;
