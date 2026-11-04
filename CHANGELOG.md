@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.7.0](https://github.com/chamvi/chamvi/compare/v0.6.1...v0.7.0) (2026-11-04)
+
+
+### ⚠ BREAKING CHANGES
+
+* replace defineAgent with defineModelAgent ([#140](https://github.com/chamvi/chamvi/issues/140))
+* **core:** generated dispatch tools and simple agents ([#136](https://github.com/chamvi/chamvi/issues/136))
+
+### Features
+
+* **chat-discord:** add the Discord chat channel ([#135](https://github.com/chamvi/chamvi/issues/135)) ([e2f8694](https://github.com/chamvi/chamvi/commit/e2f8694421a3641a9b7d1b4dc64d7df25bf9ab07))
+* **core:** generated dispatch tools and simple agents ([#136](https://github.com/chamvi/chamvi/issues/136)) ([711ea7a](https://github.com/chamvi/chamvi/commit/711ea7abbe3126817222793d1f3a38edca30b95a))
+
+
+### Bug Fixes
+
+* ensure consistent version for release ([#141](https://github.com/chamvi/chamvi/issues/141)) ([a8ca715](https://github.com/chamvi/chamvi/commit/a8ca715dd19fed6a9ed83d9827a0a02791a22565))
+
+
+### Code Refactoring
+
+* replace defineAgent with defineModelAgent ([#140](https://github.com/chamvi/chamvi/issues/140)) ([96a0aa1](https://github.com/chamvi/chamvi/commit/96a0aa188da9af5f78ff65c41df0f0314e57418f))
+
 ## [0.6.1](https://github.com/chamvi/chamvi/compare/v0.6.0...v0.6.1) (2026-11-03)
 
 
