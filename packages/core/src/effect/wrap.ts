@@ -147,8 +147,8 @@ export function wrapToolsForRun(
 
                 return SUSPENDED_RESULT;
             };
-            // the call ends when it settles: work it left behind (a timer, a
-            // callback, an unawaited promise) can no longer act for it
+            // the call ends when it settles: a dispatch, emit or approve that
+            // work it left behind (a timer, a callback) starts afterwards is refused
             const end = () => {
                 frame.abandoned = true;
             };

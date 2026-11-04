@@ -43,6 +43,9 @@ export function createAgentState<S extends StateSchema = StateSchema>(
 
                 const value = await validate(agent, name, schema, doc);
 
+                // the execution may have ended during an async validation
+                assertWritable?.(`state.collection("${name}").upsert()`);
+
                 await store.upsertDocument(agent, name, id, value);
             },
             remove: async (id: string) => {
