@@ -18,6 +18,7 @@ import { z } from 'zod';
 import {
     Engine,
     InvalidAgentDefinitionError,
+    InvalidRunStateError,
     agent,
     agentChannel,
     approve,
@@ -32,7 +33,9 @@ import type {
     IEngine,
     IStore,
     Run,
+    TriggerParent,
 } from '@chamvi/core';
+import type { DispatchHost } from '../../../src/dispatch/types.ts';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
@@ -93,6 +96,12 @@ function markedModel(scripts: [string, MockResponse[]][]) {
 
 const engines: IEngine[] = [];
 
+class HostEngine extends Engine {
+    host(): DispatchHost {
+        return this.createDispatchHost();
+    }
+}
+
 afterEach(() => {
     for (const e of engines) {
         e.stop();
@@ -119,7 +128,7 @@ function setup(options: {
         tools: options.tools ?? { fan },
         ...(options.maxSubtreeTokens !== undefined ? { budget: { maxSubtreeTokens: options.maxSubtreeTokens } } : {}),
     });
-    const engine = new Engine({
+    const engine = new HostEngine({
         store,
         clock,
         agents: [maintainer],
@@ -138,6 +147,24 @@ async function children(store: IStore): Promise<Run[]> {
 
     return data.filter((run) => run.trigger.channel === 'agent');
 }
+
+function parentOf(runId: string): TriggerParent {
+    return {
+        kind: 'dispatch',
+        runId,
+        agent: 'maintainer',
+        role: 'default',
+        depth: 1,
+    };
+}
+
+const childEnvelope = {
+    agent: 'maintainer',
+    trigger: 'default',
+    channel: 'agent',
+    payload: 'job',
+    idempotencyKey: 'child-key',
+};
 
 async function toolSteps(store: IStore, runId: string) {
     return (await store.steps.find(runId)).filter((step) => step.kind === 'tool');
@@ -452,6 +479,106 @@ describe('dispatch guards', () => {
 
         expect(all).toHaveLength(1);
         expect(step?.output).toEqual({ runId: all[0]!.id, deduplicated: false });
+        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+    });
+
+    it('refuses a child for a parent that is not running', async () => {
+        const hold = Promise.withResolvers<void>();
+        const entered = Promise.withResolvers<void>();
+        const gated = defineTool({
+            inputSchema: z.object({}),
+            execute: async (_input, { context }) => {
+                await approve(context, { title: 'go on?' });
+
+                return 'ok';
+            },
+        });
+        const holding = defineTool({
+            inputSchema: z.object({}),
+            execute: async () => {
+                entered.resolve();
+                await hold.promise;
+
+                return 'held';
+            },
+        });
+        const { engine, store } = setup({
+            model: markedModel([
+                ['wait', [turn(call({}, 'c1', 'gated')), text('done')]],
+                ['hold', [turn(call({}, 'c1', 'holding')), text('done')]],
+                ['', [text('done')]],
+            ]),
+            channels: [agent.on()],
+            tools: { gated, holding },
+        });
+
+        await engine.start();
+
+        const dispatchRoot = async (payload: string) => (await engine.dispatch({
+            agent: 'maintainer',
+            trigger: 'test',
+            channel: 'test',
+            payload,
+        })).runId;
+        const completedId = await dispatchRoot('done');
+        const waitingId = await dispatchRoot('wait');
+
+        await engine.idle();
+        expect((await store.runs.findOne(completedId))?.status).toBe('completed');
+        expect((await store.runs.findOne(waitingId))?.status).toBe('waiting');
+
+        const host = engine.host();
+
+        for (const parentId of [completedId, waitingId]) {
+            await expect(host.createRun(childEnvelope, parentOf(parentId))).rejects.toThrow(
+                new InvalidRunStateError(`Run "${parentId}" is not running: it cannot dispatch a run.`),
+            );
+            expect((await store.runs.find({ parentRunId: parentId })).data).toHaveLength(0);
+        }
+
+        // nothing claimed the key: a running parent's dispatch under it creates the child
+        const runningId = await dispatchRoot('hold');
+
+        await entered.promise;
+        expect((await store.runs.findOne(runningId))?.status).toBe('running');
+
+        const created = await host.createRun(childEnvelope, parentOf(runningId));
+
+        expect(created.deduplicated).toBe(false);
+        expect((await store.runs.findOne(created.runId))?.parentRunId).toBe(runningId);
+
+        hold.resolve();
+        await engine.idle();
+    });
+
+    it('keeps the wait, resume and replay of a dispatch deduplicated', async () => {
+        const { engine, store } = setup({
+            model: markedModel([
+                ['job', [text('child done')]],
+                ['', [turn(call({ payload: 'job' }, 'c1', 'fanWait')), text('done')]],
+            ]),
+            channels: [agent.on()],
+            tools: { fanWait },
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch({
+            agent: 'maintainer',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+        });
+
+        await engine.idle();
+
+        const all = await children(store);
+        const [step] = await toolSteps(store, runId);
+        const waits = (await store.steps.find(runId)).filter((s) => s.kind === 'wait');
+
+        expect(waits).toHaveLength(1);
+        expect(all).toHaveLength(1);
+        expect(step?.output).toMatchObject({ runId: all[0]!.id, status: 'completed' });
         expect((await store.runs.findOne(runId))?.status).toBe('completed');
     });
 
