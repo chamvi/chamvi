@@ -78,17 +78,17 @@ describe('createSessionCookies', () => {
 
     it('ignores an unset aimed at another cookie path, so a reload keeps the tokens', () => {
         const storage = new MemoryStorage();
-        const cookies = createSessionCookies(storage, '/ui/');
+        const cookies = createSessionCookies(storage, '/ui');
 
         cookies.cookieSet('access_token', 'at');
 
-        // the kit drops cookies shadowing the pinned path on every install,
-        // for each prefix of the page's path (`/ui` for `/ui/`)
-        cookies.cookieUnset('access_token', { path: '/ui' });
+        // the kit drops cookies shadowing the pinned path on install, for
+        // each prefix of the page's path other than the pinned one
+        cookies.cookieUnset('access_token', { path: '/' });
         cookies.cookieUnset('access_token', { path: '/ui/runs' });
         expect(cookies.cookieGet('access_token')).toBe('at');
 
-        cookies.cookieUnset('access_token', { path: '/ui/' });
+        cookies.cookieUnset('access_token', { path: '/ui' });
         expect(cookies.cookieGet('access_token')).toBeUndefined();
     });
 });
@@ -116,14 +116,16 @@ describe('createAuthupAdapter', () => {
         expect(typeof options.cookieGet).toBe('function');
         expect(typeof options.cookieSet).toBe('function');
         expect(typeof options.cookieUnset).toBe('function');
-        (options.cookieSet as (key: string, value: unknown, opts: unknown) => void)('refresh_token', 'rt', { path: '/ui/' });
+        (options.cookieSet as (key: string, value: unknown, opts: unknown) => void)('refresh_token', 'rt', { path: '/ui' });
         expect(storage.getItem(`${AUTHUP_STORAGE_PREFIX}refresh_token`)).toBe('"rt"');
 
         const unset = options.cookieUnset as (key: string, opts: unknown) => void;
 
-        unset('refresh_token', { path: '/ui' });
+        // the kit's normalized form, the path its own unsets carry
+        expect(options.cookiePath).toBe('/ui');
+        unset('refresh_token', { path: '/ui/runs' });
         expect(storage.getItem(`${AUTHUP_STORAGE_PREFIX}refresh_token`)).toBe('"rt"');
-        unset('refresh_token', { path: options.cookiePath });
+        unset('refresh_token', { path: '/ui' });
         expect(storage.getItem(`${AUTHUP_STORAGE_PREFIX}refresh_token`)).toBeNull();
     });
 

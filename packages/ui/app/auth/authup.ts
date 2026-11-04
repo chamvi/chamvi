@@ -34,7 +34,9 @@ export function createAuthupAdapter(
     storage: Storage = window.sessionStorage,
 ): IAuthupAdapter {
     const pinia = createPinia();
-    const cookiePath = `${uiBase}/`;
+    // no trailing slash: the kit normalizes the path to this form, so its
+    // own unsets carry exactly this value before and after authup#3799
+    const cookiePath = uiBase || '/';
 
     app.use(pinia);
     install(app, {

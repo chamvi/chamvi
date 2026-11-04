@@ -69,9 +69,10 @@ export type SessionCookies = {
  * removes them. A `null` or `undefined` value unsets.
  *
  * Storage has no cookie paths, so an unset aimed at a path other than
- * `cookiePath` is ignored: on every install the kit drops the cookies
- * shadowing its pinned path, for each prefix of the page's path, and
- * those calls must not remove the tab's own tokens.
+ * `cookiePath` is ignored: a kit that drops the cookies shadowing its
+ * pinned path on install (each prefix of the page's path) must not remove
+ * the tab's own tokens. `cookiePath` must be given in the kit's normalized
+ * form (leading `/`, no trailing `/`), the path its own unsets carry.
  */
 export function createSessionCookies(storage: Storage, cookiePath?: string): SessionCookies {
     const keyOf = (key: string) => `${AUTHUP_STORAGE_PREFIX}${key}`;
