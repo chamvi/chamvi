@@ -93,6 +93,12 @@ export type ChatChannelOptions = {
     history?: 0;
     /** Bound of one outbound send; default `CHAT_TIMEOUT_MS` (30 s). */
     timeoutMs?: number;
+    /**
+     * The longest text one send posts, in UTF-16 code units: an integer of 1
+     * to `CHAT_TEXT_MAX_CHARS` (the default), e.g. a platform's own message
+     * limit. A longer message is refused, an approval's prose cut to fit.
+     */
+    maxTextChars?: number;
     /** Failures nobody awaits (refused and failed messages, stop); default console.error. */
     onError?: (error: unknown) => void;
     /** A platform package's hooks (IChatPlatform); none by default. */
@@ -117,6 +123,7 @@ export type ResolvedChatChannelOptions = {
     resolveInvoker?: ChatChannelOptions['resolveInvoker'];
     approvalUrl?: ChatChannelOptions['approvalUrl'];
     timeoutMs: number;
+    maxTextChars: number;
     onError: (error: unknown) => void;
     platform?: IChatPlatform;
 };
@@ -127,7 +134,7 @@ export type ChatPlatformSend = {
     adapter: string;
     /** The thread the address names, as the adapter encodes it. */
     threadId: string;
-    /** The text the channel rendered (title, body, approval link), at most `CHAT_TEXT_MAX_CHARS`. */
+    /** The text the channel rendered (title, body, approval link), at most the channel's `maxTextChars`. */
     text: string;
     /** `ChannelMessage.key`: the same for every retry of one message, so a transport may derive its own message id from it. */
     key: string;

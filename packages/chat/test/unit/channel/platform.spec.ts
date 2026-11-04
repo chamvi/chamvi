@@ -26,7 +26,12 @@ import type {
     IEngine,
     TriggerEnvelope,
 } from '@chamvi/core';
-import { CHAT_REQUEST_ERROR_CODE, CHAT_TIMEOUT_MS, chatAddress } from '@chamvi/chat';
+import {
+    CHAT_REQUEST_ERROR_CODE,
+    CHAT_TEXT_MAX_CHARS,
+    CHAT_TIMEOUT_MS,
+    chatAddress,
+} from '@chamvi/chat';
 import type {
     ChatChannel,
     ChatChannelOptions,
@@ -381,5 +386,75 @@ describe('chatChannel({ platform })', () => {
                 patch: { platform: platform as never },
             }), JSON.stringify(platform)).toThrow(InvalidAgentDefinitionError);
         }
+    });
+});
+
+describe('chatChannel({ maxTextChars })', () => {
+    const URL_OF = (ref: { runId: string; approvalId: string }) => `https://chamvi.example/ui/approvals?run=${ref.runId}&approval=${ref.approvalId}`;
+
+    it('hands the platform at most maxTextChars and refuses one more before prepare', async () => {
+        const platform = new FakePlatform();
+        const fixture = await started({ agents: () => [], patch: { platform, maxTextChars: 2000 } });
+
+        await fixture.channel.out!(message({ body: 'a'.repeat(2000) }), SOURCE, opts());
+
+        expect(platform.sent.map((send) => send.text.length)).toEqual([2000]);
+
+        const error = await fixture.channel.out!(message({ body: 'a'.repeat(2001) }), SOURCE, opts())
+            .catch((caught: unknown) => caught);
+
+        expect(error).toBeInstanceOf(ValidationError);
+        expect((error as Error).message).toMatch(/at most 2000/);
+        expect(platform.prepared).toHaveLength(1);
+        expect(platform.sent).toHaveLength(1);
+    });
+
+    it('cuts an approval\'s prose to fit maxTextChars', async () => {
+        const platform = new FakePlatform();
+        const fixture = await started({
+            agents: () => [],
+            patch: {
+                platform, 
+                maxTextChars: 2000, 
+                approvalUrl: URL_OF, 
+            },
+        });
+
+        await fixture.channel.out!(message({
+            kind: 'approval',
+            key: 'run-1:0:call-1:0',
+            title: 'Deploy to prod?',
+            body: 'b'.repeat(5000),
+            approvalId: '0:call-1:0',
+        }), SOURCE, opts());
+
+        const [send] = platform.sent;
+
+        expect(send?.text).toHaveLength(2000);
+        expect(send?.text.endsWith('Approve or deny: https://chamvi.example/ui/approvals?run=run-1&approval=0:call-1:0')).toBe(true);
+    });
+
+    it('defaults to CHAT_TEXT_MAX_CHARS', async () => {
+        const platform = new FakePlatform();
+        const fixture = await started({ agents: () => [], patch: { platform } });
+
+        await fixture.channel.out!(message({ body: 'a'.repeat(CHAT_TEXT_MAX_CHARS) }), SOURCE, opts());
+
+        expect(platform.sent.map((send) => send.text.length)).toEqual([CHAT_TEXT_MAX_CHARS]);
+    });
+
+    it('refuses a bound that is no integer of 1 to CHAT_TEXT_MAX_CHARS', () => {
+        for (const maxTextChars of [0, CHAT_TEXT_MAX_CHARS + 1, 1.5, '2000', -1, NaN]) {
+            const create = () => createIntakeFixture({
+                agents: () => [],
+                patch: { maxTextChars: maxTextChars as never },
+            });
+
+            expect(create, String(maxTextChars)).toThrow(InvalidAgentDefinitionError);
+            expect(create, String(maxTextChars)).toThrow(/maxTextChars/);
+        }
+
+        expect(() => createIntakeFixture({ agents: () => [], patch: { maxTextChars: 1 } })).not.toThrow();
+        expect(() => createIntakeFixture({ agents: () => [], patch: { maxTextChars: CHAT_TEXT_MAX_CHARS } })).not.toThrow();
     });
 });

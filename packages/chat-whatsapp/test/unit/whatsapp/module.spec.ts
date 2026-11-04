@@ -49,7 +49,7 @@ describe('@chamvi/chat-whatsapp', () => {
         expect(Object.keys(pkg).filter((key) => /whatsapp/i.test(key))).toEqual([]);
     });
 
-    it('builds a chat 4.43.0 Adapter without a cast, and takes Baileys\' makeWASocket as the default factory', () => {
+    it('builds a chat 4.44.0 Adapter without a cast, and takes Baileys\' makeWASocket as the default factory', () => {
         expectTypeOf(createWhatsAppAdapter).returns.toMatchTypeOf<Adapter>();
         expectTypeOf(makeWASocket).toMatchTypeOf<WhatsAppSocketFactory>();
     });

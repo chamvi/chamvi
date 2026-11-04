@@ -93,23 +93,23 @@ function cutProse(text: string, max: number): string | undefined {
     return `${text.slice(0, end)}${cutNote(text.length - end)}`;
 }
 
-function renderPlain(message: ChannelMessage): string {
+function renderPlain(message: ChannelMessage, max: number): string {
     const text = [message.title, message.body].filter((part) => !!part).join('\n\n');
 
     if (text.length === 0) {
         throw new ValidationError('A chat message needs a title or a body.');
     }
 
-    if (text.length > CHAT_TEXT_MAX_CHARS) {
+    if (text.length > max) {
         throw new ValidationError(
-            `The chat message has ${text.length} characters; a chat channel sends at most ${CHAT_TEXT_MAX_CHARS} and never splits a message.`,
+            `The chat message has ${text.length} characters; the chat channel sends at most ${max} and never splits a message.`,
         );
     }
 
     return text;
 }
 
-function renderApproval(message: ChannelMessage, options: ChatRenderOptions): string {
+function renderApproval(message: ChannelMessage, options: ChatRenderOptions, max: number): string {
     if (!options.approvalUrl) {
         throw new InvalidAgentDefinitionError(
             'chatChannel: approvalUrl is required to send an approval; it is answered in the chamvi UI only.',
@@ -143,9 +143,9 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions): st
 
     const structure = tail.join('\n\n');
     const prose = [message.title, message.body].filter((part) => !!part).join('\n\n');
-    const budget = CHAT_TEXT_MAX_CHARS - structure.length - (prose ? 2 : 0);
+    const budget = max - structure.length - (prose ? 2 : 0);
     const refused = (reason: string) => new ValidationError(
-        `The approval's options, expiry and link need ${structure.length} characters ${reason} of a chat message of ${CHAT_TEXT_MAX_CHARS}.`,
+        `The approval's options, expiry and link need ${structure.length} characters ${reason} of a chat message of ${max}.`,
     );
 
     if (!prose) {
@@ -171,7 +171,7 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions): st
 
 /**
  * The text one send posts, as is (no markdown conversion), at most
- * `CHAT_TEXT_MAX_CHARS` characters. A message is its title and body; one
+ * `maxTextChars` characters (default `CHAT_TEXT_MAX_CHARS`). A message is its title and body; one
  * above the bound is a ValidationError (never split or cut). An approval is
  * its title and body (cut Unicode-safely when they do not fit, the only cut),
  * the options as `- <id>: <label>` (never a detail), the expiry and the
@@ -180,11 +180,12 @@ function renderApproval(message: ChannelMessage, options: ChatRenderOptions): st
  * an InvalidAgentDefinitionError. Nothing else of the run is rendered.
  */
 export function renderChatMessage(message: ChannelMessage, options: ChatRenderOptions): string {
-    const text = message.kind === 'approval' ? renderApproval(message, options) : renderPlain(message);
+    const max = options.maxTextChars ?? CHAT_TEXT_MAX_CHARS;
+    const text = message.kind === 'approval' ? renderApproval(message, options, max) : renderPlain(message, max);
 
     // the bound holds by construction; this keeps it so should the arithmetic above ever slip
-    if (text.length > CHAT_TEXT_MAX_CHARS) {
-        throw new ValidationError(`The rendered chat message has ${text.length} characters; at most ${CHAT_TEXT_MAX_CHARS} are sent.`);
+    if (text.length > max) {
+        throw new ValidationError(`The rendered chat message has ${text.length} characters; at most ${max} are sent.`);
     }
 
     return text;

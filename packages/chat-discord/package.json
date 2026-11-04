@@ -1,0 +1,72 @@
+{
+    "name": "@chamvi/chat-discord",
+    "version": "0.6.1",
+    "type": "module",
+    "description": "Discord through the Gateway as a chat channel for chamvi agents.",
+    "author": {
+        "name": "Peter Placzek",
+        "email": "contact@tada5hi.net",
+        "url": "https://github.com/tada5hi"
+    },
+    "homepage": "https://chamvi.dev",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/chamvi/chamvi.git",
+        "directory": "packages/chat-discord"
+    },
+    "main": "dist/index.mjs",
+    "types": "dist/index.d.mts",
+    "exports": {
+        "./package.json": "./package.json",
+        ".": {
+            "types": "./dist/index.d.mts",
+            "import": "./dist/index.mjs"
+        }
+    },
+    "files": [
+        "dist",
+        "NOTICE"
+    ],
+    "engines": {
+        "node": ">=26.0.0"
+    },
+    "scripts": {
+        "build:types": "tsc --noEmit -p tsconfig.build.json",
+        "build:js": "tsdown",
+        "build": "npm run build:types && npm run build:js",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test": "vitest --config test/vitest.config.ts --run",
+        "test:coverage": "vitest --config test/vitest.config.ts --run --coverage"
+    },
+    "keywords": [
+        "chamvi",
+        "chat",
+        "discord",
+        "channel"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "license": "Apache-2.0",
+    "dependencies": {
+        "smob": "^1.6.2"
+    },
+    "devDependencies": {
+        "@chamvi/app": "^0.6.1",
+        "@chamvi/chat": "^0.6.1",
+        "@chamvi/core": "^0.6.1",
+        "@chamvi/test-kit": "^0.6.1",
+        "@chat-adapter/discord": "4.44.0",
+        "ai": "^7.0.159",
+        "chat": "^4.44.0",
+        "discord.js": "^14.25.1",
+        "zod": "^4.6.7"
+    },
+    "peerDependencies": {
+        "@chamvi/chat": "^0.6.1",
+        "@chamvi/core": "^0.6.1",
+        "@chat-adapter/discord": "4.44.0",
+        "chat": "^4.44.0",
+        "discord.js": "^14.25.1"
+    }
+}

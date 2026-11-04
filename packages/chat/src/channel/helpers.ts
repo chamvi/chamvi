@@ -20,6 +20,7 @@ import {
     CHANNEL_NAME_PATTERN,
     CHAT_ADDRESS_PREFIX,
     CHAT_CHANNEL_NAME,
+    CHAT_TEXT_MAX_CHARS,
     CHAT_TIMEOUT_MS,
     PLATFORM_HOOKS,
     TIMER_MAX_MS,
@@ -219,6 +220,12 @@ export function resolveOptions(options: ChatChannelOptions): ResolvedChatChannel
         throw invalid(`timeoutMs must be a positive integer of at most ${TIMER_MAX_MS}.`);
     }
 
+    const maxTextChars = options.maxTextChars ?? CHAT_TEXT_MAX_CHARS;
+
+    if (!isPositiveInteger(maxTextChars) || maxTextChars > CHAT_TEXT_MAX_CHARS) {
+        throw invalid(`maxTextChars must be a positive integer of at most ${CHAT_TEXT_MAX_CHARS}.`);
+    }
+
     if (options.defaultAddress !== undefined) {
         try {
             decodeChatAddress(options.defaultAddress, adapterNames);
@@ -248,6 +255,7 @@ export function resolveOptions(options: ChatChannelOptions): ResolvedChatChannel
         ...(options.resolveInvoker ? { resolveInvoker: options.resolveInvoker } : {}),
         ...(options.approvalUrl ? { approvalUrl: options.approvalUrl } : {}),
         timeoutMs,
+        maxTextChars,
         // eslint-disable-next-line no-console
         onError: options.onError ?? ((error) => console.error('[chamvi]', error)),
         ...(options.platform !== undefined ? { platform: options.platform } : {}),

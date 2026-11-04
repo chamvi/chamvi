@@ -12,6 +12,7 @@ import {
 import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
 import type { IChatPlatform } from '@chamvi/chat';
 import { chatModule } from '@chamvi/chat/module';
+import { createDiscordChat } from '@chamvi/chat-discord';
 import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
 import type { IWhatsAppAuthProvider } from '@chamvi/chat-whatsapp';
 
@@ -25,6 +26,8 @@ declare const platformAdapter: Adapter;
 // a platform client of your own
 declare const client: { connected: boolean; send(threadId: string, text: string, messageId: string, signal: AbortSignal): Promise<void> };
 declare function showQr(qr: string): void;
+// the bot token from your secret store, read per login and per send
+declare function readDiscordToken(): Promise<string>;
 
 const approvalUrl = ({ runId, approvalId }: { runId: string; approvalId: string }) => `https://chamvi.example/ui/approvals?run=${encodeURIComponent(runId)}&approval=${encodeURIComponent(approvalId)}`;
 
@@ -145,3 +148,47 @@ export const whatsappApp = createApp({
     conversations: { authorize: ({ agent }) => agent === 'assistant' },
 });
 // #endregion whatsapp-module
+
+// #region discord
+const discord = createDiscordChat({
+    // a non-secret alias of the bot (the conversation account)
+    account: 'assistant',
+    token: readDiscordToken,
+    // placeholder snowflakes: the bot's application id, a guild, a channel, users and a role
+    applicationId: '100000000000000001',
+    state,
+    // ids only; guild messages must mention the bot or reply to it by default
+    policy: {
+        guilds: ['400000000000000001'],
+        channels: ['200000000000000001'],
+        users: ['500000000000000001'],
+        roles: ['800000000000000001'],
+        dms: { users: ['500000000000000001'] },
+    },
+    // undefined denies the message
+    resolveInvoker: (identity) => ({
+        id: identity.author,
+        kind: 'discord',
+        permissions: [],
+    }),
+    approvalUrl,
+});
+// #endregion discord
+
+// #region discord-module
+export const discordAssistant = defineAgent({
+    name: 'assistant',
+    model,
+    instructions: 'Answer with the reply tool.',
+    // one memory per thread and one per channel's top-level messages
+    conversation: true,
+    channels: [discord.channel.on()],
+    tools: { reply },
+});
+
+export const discordApp = createApp({
+    agents: [discordAssistant],
+    modules: [chatModule({ channel: discord.channel })],
+    conversations: { authorize: ({ agent }) => agent === 'assistant' },
+});
+// #endregion discord-module

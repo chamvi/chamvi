@@ -14,6 +14,7 @@
     "packages/coding": "0.6.1",
     "packages/channel-openclaw": "0.6.1",
     "packages/chat": "0.6.1",
+    "packages/chat-discord": "0.6.1",
     "packages/chat-whatsapp": "0.6.1",
     "packages/ui": "0.6.1",
     "packages/app": "0.6.1",

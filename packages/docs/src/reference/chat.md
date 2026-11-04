@@ -6,7 +6,7 @@ Chat channels on the [Chat SDK](https://www.npmjs.com/package/chat). The public 
 npm install @chamvi/chat @chamvi/core @chamvi/http chat --save
 ```
 
-`@chamvi/core`, `@chamvi/http` and `chat` (`^4.43.0`) are peer dependencies; `@chamvi/app` is an optional peer, imported only by `@chamvi/chat/module`. The package imports no platform SDK: platforms ship as their own packages on the public [platform seam](#platform-packages), WhatsApp Web as [`@chamvi/chat-whatsapp`](/deployment/whatsapp).
+`@chamvi/core`, `@chamvi/http` and `chat` (`^4.44.0`) are peer dependencies; `@chamvi/app` is an optional peer, imported only by `@chamvi/chat/module`. The package imports no platform SDK: platforms ship as their own packages on the public [platform seam](#platform-packages), WhatsApp Web as [`@chamvi/chat-whatsapp`](/deployment/whatsapp), Discord as [`@chamvi/chat-discord`](/deployment/discord).
 
 ## chatChannel
 
@@ -41,6 +41,7 @@ const CHAT_STOP_TIMEOUT_ERROR_CODE: 'chat_stop_timeout';
 | `approvalUrl(ref)` | Required to send an approval |
 | `history` | Only `0`: no platform history is fetched |
 | `timeoutMs` | One send's bound, default `CHAT_TIMEOUT_MS` |
+| `maxTextChars` | The longest message sent (UTF-16 code units), an integer from 1 to `CHAT_TEXT_MAX_CHARS`, default `CHAT_TEXT_MAX_CHARS` (Discord passes 2000) |
 | `onError` | Failures nobody awaits (refused and failed messages, stop) |
 | `platform` | A platform package's hooks (`IChatPlatform`, [below](#platform-packages)); none by default |
 
@@ -88,7 +89,7 @@ channel.on(options?), channel.to({ adapter, threadId }): string;
 
 ### Outbound
 
-`emit()` sends `title`, a blank line and `body`, refused above `CHAT_TEXT_MAX_CHARS` (no splitting). `approve()` sends the title and body (only this prose is cut, surrogate-safe), the options (`- <id>: <label>`, no detail), `Expires: <ISO>` and `Approve or deny: <approvalUrl>` (with options `Choose and approve or deny: <approvalUrl>`); the owner answers in the UI, there are no native buttons. `ChannelMessage.slot` is ignored: every message is a new chat message. A send is bounded by `timeoutMs`; a timeout fails with `chat_request` saying the message may still be delivered, a late completion is reported, and the engine's retry may send it again (at least once). A send while the channel is stopped or draining fails.
+`emit()` sends `title`, a blank line and `body`, refused above `maxTextChars` (default `CHAT_TEXT_MAX_CHARS`; no splitting). `approve()` sends the title and body (only this prose is cut, surrogate-safe), the options (`- <id>: <label>`, no detail), `Expires: <ISO>` and `Approve or deny: <approvalUrl>` (with options `Choose and approve or deny: <approvalUrl>`); the owner answers in the UI, there are no native buttons. `ChannelMessage.slot` is ignored: every message is a new chat message. A send is bounded by `timeoutMs`; a timeout fails with `chat_request` saying the message may still be delivered, a late completion is reported, and the engine's retry may send it again (at least once). A send while the channel is stopped or draining fails.
 
 ### Memory and trust
 
@@ -108,4 +109,4 @@ Contributes the prebuilt channel to `AppToken.CHANNELS`; the engine starts and s
 
 ## Not supported yet
 
-Media (incoming attachments, outbound files), platform history, message splitting, native approval buttons and actions, and verified webhook platforms beyond the generic adapter contract. For WhatsApp's own gaps see [WhatsApp](/deployment/whatsapp#what-is-not-guaranteed).
+Media (incoming attachments, outbound files), platform history, message splitting, native approval buttons and actions, and verified webhook platforms beyond the generic adapter contract. For WhatsApp's own gaps see [WhatsApp](/deployment/whatsapp#what-is-not-guaranteed), for Discord's [Discord](/deployment/discord#what-is-not-guaranteed).

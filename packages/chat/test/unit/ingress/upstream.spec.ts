@@ -7,7 +7,7 @@
 
 
 // Characterization of the external boundary (Task 1 gate), against the real npm
-// package chat 4.43.0 (the chat-adapter-baileys 2.1.0 findings are history in
+// package chat 4.44.0 (the chat-adapter-baileys 2.1.0 findings are history in
 // .agents/references/chat-sdk.md; WhatsApp is chamvi's own adapter on Baileys).
 // Tests prefixed "native:" record upstream behaviour as it is, limitations included;
 // the others pin what the ingress facade adds on top of the public seams.
@@ -61,7 +61,7 @@ function buildChat(adapters: Record<string, Adapter>) {
     };
 }
 
-describe('chat 4.43.0 native message processing', () => {
+describe('chat 4.44.0 native message processing', () => {
     it('native: a handler failure after the pre-handler dedupe drops the redelivery', async () => {
         const adapter = createFakeAdapter();
         const {
