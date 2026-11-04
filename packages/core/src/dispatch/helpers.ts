@@ -20,7 +20,7 @@ import { RunStatus } from '../run/constants.ts';
 import type { Run, RunContext, Usage } from '../run/types.ts';
 import { describeIssues } from '../state/helpers.ts';
 import { TRIGGER_KEY_MAX_LENGTH } from '../trigger/constants.ts';
-import type { Invoker, TriggerParent } from '../trigger/types.ts';
+import type { Invoker, TriggerParent, TriggerSource } from '../trigger/types.ts';
 import {
     DEFAULT_DISPATCH_MAX_DEPTH,
     DEFAULT_MAX_DISPATCHES_PER_RUN,
@@ -223,6 +223,37 @@ export function assertDispatchKey(name: string, value: unknown, bounded: boolean
 
     const bound = bounded ? ` of at most ${TRIGGER_KEY_MAX_LENGTH} characters` : '';
     throw new ValidationError(`The dispatch ${name} must be a non-empty string${bound} without NUL.`);
+}
+
+/**
+ * `dispatch()`'s `source` checked and copied: an object of exactly a
+ * registered `channel` and a non-empty `address` within the trigger key
+ * limits; undefined when not given.
+ */
+export function readDispatchSource(value: unknown, hasChannel: (name: string) => boolean): TriggerSource | undefined {
+    if (value === undefined) {
+        return undefined;
+    }
+
+    const hasOtherKey = isObject(value) && Object.keys(value).some((key) => key !== 'channel' && key !== 'address');
+
+    if (!isObject(value) || hasOtherKey) {
+        throw new ValidationError('The dispatch source must be an object of a channel and an address.');
+    }
+
+    const { channel, address } = value as Record<string, unknown>;
+
+    if (typeof channel !== 'string' || !hasChannel(channel)) {
+        throw new ValidationError(`The dispatch source channel "${String(channel)}" is not registered.`);
+    }
+
+    assertDispatchKey('source address', address, true);
+
+    if (address === undefined) {
+        throw new ValidationError('The dispatch source needs an address.');
+    }
+
+    return { channel, address };
 }
 
 // the engine's copy of each execution's run, taken before any tool runs

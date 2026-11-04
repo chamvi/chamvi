@@ -11,7 +11,7 @@ import type { Agent } from '../agent/types.ts';
 import type { ChannelSubscription, DispatchResult } from '../channel/types.ts';
 import type { DispatchEnvelope } from '../engine/types.ts';
 import type { IEffectRepository, IRunRepository } from '../repository/types.ts';
-import type { Invoker, TriggerParent } from '../trigger/types.ts';
+import type { Invoker, TriggerParent, TriggerSource } from '../trigger/types.ts';
 
 export type AgentSubscriptionOptions<P = unknown> = {
     /** The role (the subscription id), following the channel-name rule; default `default`. */
@@ -51,6 +51,15 @@ export type DispatchInput = {
     concurrencyKey?: string;
     /** The child's `trigger.address` (and `Run.address`). */
     address?: string;
+    /**
+     * A channel and address the child may `emit()` and `approve()` to
+     * without the outbound gate, as if it were the child's own source
+     * (stored as `trigger.parent.source`). The exemption is only as safe as
+     * the code choosing it: take the address from trusted data (an API
+     * response read in code), never from model input. Generated dispatch
+     * tools never set it.
+     */
+    source?: TriggerSource;
 };
 
 /** dispatchTo()'s input: a dispatch to the `agent.on()` role of `agent`. */
@@ -94,6 +103,8 @@ export type DispatchRunSnapshot = {
 /** The engine side of dispatch() (internal, provided under DISPATCH_CONTEXT). */
 export type DispatchHost = {
     getAgent(name: string): Agent | undefined;
+    /** True for a channel registered on the engine. */
+    hasChannel(name: string): boolean;
     effects: IEffectRepository;
     runs: Pick<IRunRepository, 'findOne' | 'find'>;
     /** Creates the run with `parent` as its lineage (engine.dispatch() never sets one). */

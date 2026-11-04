@@ -2,7 +2,7 @@
 
 A tool can start runs of its **own agent** or of **another agent** of the app, and can wait for them to settle:
 
-- `dispatch(ctx, { role?, payload, idempotencyKey?, concurrencyKey?, address? })` starts a run of the calling run's own agent.
+- `dispatch(ctx, { role?, payload, idempotencyKey?, concurrencyKey?, address?, source? })` starts a run of the calling run's own agent.
 - `dispatchTo(ctx, { agent, role?, payload, ... })` starts a run of `agent` (the calling run's own agent behaves exactly as `dispatch()`).
 - `waitForDispatch(ctx, runs, { timeoutMs? })` pauses the calling run until every listed run settled and returns their outcomes.
 - `dispatchTools({ roles?, agents?, wait? })` generates one tool per role, so a model dispatches without a hand-written tool ([Generated dispatch tools](#generated-dispatch-tools)).
@@ -40,7 +40,7 @@ With [`@chamvi/app`](/guide/app) the engine module contributes `agentChannel()`,
 
 A tool calls `dispatch(ctx, { role, payload })` (the `audit` tool in [Waiting for the outcomes](#waiting-for-the-outcomes) does); the role's hooks fill in what the call leaves out.
 
-- `payload` is required; `role` is a non-empty string; `idempotencyKey`, `concurrencyKey` and `address` are optional non-empty strings without NUL (the concurrency key and the address at most 255 characters). Anything else is a `ValidationError` tool error.
+- `payload` is required; `role` is a non-empty string; `idempotencyKey`, `concurrencyKey` and `address` are optional non-empty strings without NUL (the concurrency key and the address at most 255 characters); `source` is an optional `{ channel, address }` of a registered channel and an address of the same limits, nothing else ([Outbound in a child](#outbound-in-a-child)). Anything else is a `ValidationError` tool error.
 - The child's envelope is `{ agent: <target>, trigger: <role>, channel: 'agent', payload, idempotencyKey, concurrencyKey?, address?, invoker?, parent }`. The model sees the channel, the role and the payload, like any run.
 - `dispatch()` and `dispatchTo()` run inside a tool call or a simple agent's `run()` only; in the tools factory they throw `InvalidRunStateError`.
 
@@ -55,7 +55,7 @@ A tool calls `dispatch(ctx, { role, payload })` (the `audit` tool in [Waiting fo
 | `wait` | `true` or `{ timeoutMs }`: each tool waits for its child (`waitForDispatch()`) and returns its `DispatchOutcome` instead of `{ runId, deduplicated }`. The tool keeps its name |
 
 - The tool's input is the role's schema when its JSON Schema is an object, so the payload is the input; any other schema (a string, an array, a union) or no schema becomes `{ payload }`. The tool validates the input with the role's schema for the model's sake but hands the raw input to `dispatch()`, which parses it once (a transforming schema is applied once).
-- The call passes no keys and no address: the role's `idempotencyKey()`, `concurrencyKey()` and `address()` decide them.
+- The call passes no keys, no address and never a `source`: the role's `idempotencyKey()`, `concurrencyKey()` and `address()` decide them.
 - The tools are bound per execution to the roles as registered then, so a role replaced through `putAgent()` (a folder agent reloaded) gives the next execution its new schema and description. A target agent not registered yet keeps its tool with an untyped `payload`; a call answers with dispatch()'s `ValidationError`.
 - `InvalidAgentDefinitionError`: neither `roles` nor `agents`, a name breaking the agent-name rule, a tool name over 64 characters, an own role a plain tool set names and the agent does not declare (`defineModelAgent()`, `defineSimpleAgent()`), a role listed twice (`tool "<name>" is generated twice`), and, when the tool is bound (the run fails), a role schema that cannot be converted to JSON Schema or a generated name another tool of the agent's state or skills carries. Between your own tools the spread order decides.
 - A child is an internal destination: it inherits the run's taint and invoker, so the tools need no trust classification.
@@ -132,9 +132,30 @@ Cancelling a run cancels the children it dispatched that have not settled, await
 
 The `agent` channel has no `out`, so `ctx.channels.findOne()` without a name is `undefined` in a child, and its approvals go to the inbox and the API. Tools of a child name their channel and address, for example `ctx.channels.findOneOrFail('github').approve({ address: 'o/r#5', title: 'Merge?' })`. The `address` given to the dispatch (else the role's `address(payload)`) becomes the child's `trigger.address` and `run.address` (shown in the dashboard), so a tool can read it back from `ctx.run.trigger.address`.
 
+A child inherits its parent's [taint](/guide/tools#untrusted-content-and-outbound-tools), so every such `emit()` and `approve()` of a tainted child waits for the owner in the inbox first ("Approve outbound execution from an untrusted run?"). The `address` does not change that: a role's `address(payload)` reads the payload, which a generated tool takes from the model.
+
+`source: { channel, address }` names the one destination the child may use without that gate, as if the child had come in there:
+
+```typescript
+// a daily sweep: the pull requests come from the GitHub API, read in code
+for (const pull of await listOpenPulls(octokit, repo)) {
+    await dispatch(ctx, {
+        role: 'pr',
+        payload: { repo, number: pull.number },
+        source: { channel: 'github', address: `${repo}#${pull.number}` },
+    });
+}
+```
+
+The child stores it as `trigger.parent.source`, so a resumed or replayed child keeps it, and its `emit()` and `approve()` to exactly that channel and address skip the outbound gate; every other destination is gated as before, and a child without `source` behaves as without this option. Classified tools (`github_create_comment` and the like) still exempt only the run's own source.
+
+::: warning The source is only as safe as the code that picks it
+chamvi cannot tell where the address came from. Take it from trusted data your code read (an API response, configuration), never from model input: a tool that copies a model argument into `source` lets an injected prompt choose where the child posts unasked. The [generated dispatch tools](#generated-dispatch-tools) never set it, a role has no hook for it, and `engine.dispatch()` drops it with `parent`. The exemption fixes the destination, not the content.
+:::
+
 ## Lineage
 
-The child's `trigger.parent` is `{ kind: 'dispatch', runId, agent, role, depth }` (`TriggerParent`), and the store keeps the parent's id as `run.parentRunId`. Only `dispatch()` and `dispatchTo()` set it: `engine.dispatch()` and a channel's `ctx.dispatch()` drop a `parent` a caller passes, so nobody forges lineage.
+The child's `trigger.parent` is `{ kind: 'dispatch', runId, agent, role, depth, source? }` (`TriggerParent`), and the store keeps the parent's id as `run.parentRunId`. Only `dispatch()` and `dispatchTo()` set it: `engine.dispatch()` and a channel's `ctx.dispatch()` drop a `parent` a caller passes, so nobody forges lineage.
 
 `run.subtreeUsage` is the sum of every descendant's token usage, recomputed from the children when one settles. `GET /runs?filter[parent]=<id>` lists a run's children ([HTTP API](/guide/http#routes)), and the [dashboard](/guide/ui)'s run page links the parent, lists the children and shows the subtree total.
 

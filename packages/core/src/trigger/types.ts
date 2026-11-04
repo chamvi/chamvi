@@ -37,6 +37,18 @@ export type TriggerParent = {
     /** The dispatch role of the child agent this run was started through. */
     role: string;
     depth: number;
+    /**
+     * The one channel and address the dispatching code named for this run
+     * (`dispatch(ctx, { source })`): its outbound gate exempts that
+     * destination like a run's own source. Never from a generated dispatch tool.
+     */
+    source?: TriggerSource;
+};
+
+/** A channel and an address on it, as `dispatch()`'s `source` names it. */
+export type TriggerSource = {
+    channel: string;
+    address: string;
 };
 
 export type TriggerEnvelope<P = unknown> = {

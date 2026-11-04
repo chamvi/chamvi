@@ -28,6 +28,7 @@ import {
     maxPerRunOf,
     readChildren,
     readCount,
+    readDispatchSource,
     runSnapshotOf,
     sumSubtreeUsage,
     validatePayload,
@@ -124,6 +125,7 @@ async function start(
     assertDispatchKey('concurrency key', input.concurrencyKey, true);
     assertDispatchKey('address', input.address, true);
 
+    const source = readDispatchSource(input.source, (channel) => host.hasChannel(channel));
     const target = targetAgent(input) ?? run.agent;
     const role = input.role ?? DEFAULT_DISPATCH_ROLE;
     const agent = host.getAgent(target);
@@ -184,6 +186,7 @@ async function start(
         payload,
         concurrencyKey,
         address,
+        ...(source ? { source } : {}),
     })}`);
     const callHash = stableHash({
         agent: target,
@@ -192,6 +195,7 @@ async function start(
         key,
         concurrencyKey,
         address,
+        ...(source ? { source } : {}),
     });
     const effectKey = `${run.runId}:dispatch:${callHash}`;
 
@@ -220,6 +224,7 @@ async function start(
             agent: run.agent,
             role,
             depth,
+            ...(source ? { source } : {}),
         });
         const value: DispatchResult = { runId: result.runId, deduplicated: result.deduplicated };
 
