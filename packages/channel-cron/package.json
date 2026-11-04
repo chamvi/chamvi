@@ -50,7 +50,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "cron-parser": "^5.10.2",
+        "cron-parser": "^5.10.3",
         "hubwire": "^0.2.2"
     },
     "devDependencies": {
