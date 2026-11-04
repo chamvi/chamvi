@@ -207,7 +207,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
         model = toLanguageModel(ctx.model, ctx.models, agent.name);
         assembled = await assembleTools(ctx, runContext, (request) => {
             suspended.push(request);
-        }, () => (replaying ? checkpoint!.stepIndex : stepIndex), toolContext);
+        }, () => (replaying ? checkpoint!.stepIndex : stepIndex), toolContext, gate);
     } catch (error) {
         gate.ended = true;
         local.abort();

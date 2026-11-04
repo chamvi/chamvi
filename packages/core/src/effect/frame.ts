@@ -29,9 +29,12 @@ export function currentToolCall(): ToolCallFrame | undefined {
     return storage.getStore();
 }
 
-/** Refuses `name` in a frame whose execution ended (work a simple run's run() left behind after its settle). */
+/**
+ * Refuses `name` in a frame whose call or execution ended: work a call left
+ * behind after it settled, or a call still running after its execution ended.
+ */
 export function assertFrameActive(frame: ToolCallFrame, name: string): void {
-    if (frame.abandoned) {
+    if (frame.abandoned || frame.ended?.()) {
         throw new InvalidRunStateError(`${name} cannot run after the execution of run "${frame.runId}" ended.`);
     }
 }

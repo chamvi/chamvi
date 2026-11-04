@@ -202,7 +202,9 @@ export function createToolContext(ctx: ExecuteContext, runContext: RunContext, g
  * for a tool declaring `needsApproval`, for a placeholder whose name a state
  * or skill tool carries and for a role schema that cannot be converted.
  * `shared` is the execution's ToolContext when the caller built one already
- * (a simple run hands the same object to run()).
+ * (a simple run hands the same object to run()). With a `gate`, a call still
+ * running once the execution ended (it ignored its signal) can no longer
+ * dispatch, wait, approve or emit.
  */
 export async function assembleTools(
     ctx: ExecuteContext,
@@ -210,6 +212,7 @@ export async function assembleTools(
     onSuspend?: (request: SuspendRequest) => void,
     stepIndex?: () => number,
     shared?: ToolContext,
+    gate?: ExecutionGate,
 ): Promise<{
     tools: ToolSet;
     activeTools?: string[];
@@ -267,6 +270,7 @@ export async function assembleTools(
     assertAgentTrust(ctx.agent.definition.trust, tools);
 
     const toolsContext: Record<string, unknown> = {};
+    const ended = gate ? () => gate.ended : undefined;
 
     for (const [name, tool] of Object.entries(tools)) {
         if (hasToolContext(tool)) {
@@ -289,6 +293,7 @@ export async function assembleTools(
                 trust: ctx.agent.definition.trust,
                 onSuspend,
                 stepIndex,
+                ended,
             }),
             toolsContext,
         };
@@ -303,6 +308,7 @@ export async function assembleTools(
             trust: ctx.agent.definition.trust,
             onSuspend,
             stepIndex,
+            ended,
         }),
         activeTools: Object.keys(tools).filter(allow),
         toolsContext,

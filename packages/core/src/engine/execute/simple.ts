@@ -149,7 +149,7 @@ async function runSimpleExecution(ctx: ExecuteContext, gate: ExecutionGate): Pro
         const assembling = assembleTools(ctx, runContext, (request) => {
             // a suspension inside a tool pauses the run like a direct approve()
             frame.suspended ??= request;
-        }, undefined, toolContext);
+        }, undefined, toolContext, gate);
 
         // bounded by the run signal like run() itself; never leak its rejection
         assembling.catch(() => {});

@@ -55,6 +55,8 @@ export type ToolCallFrame = {
     streaming?: boolean;
     /** Set once the call or the execution it runs in ended: dispatch, waits, approvals, emits and simple-run tool calls are refused. */
     abandoned?: boolean;
+    /** True once the execution the call runs in ended, though the call itself may still run (it ignored its signal): refused like `abandoned`. */
+    ended?: () => boolean;
 };
 
 export type WrapToolsOptions = {
@@ -71,4 +73,9 @@ export type WrapToolsOptions = {
     onSuspend?: (request: SuspendRequest) => void;
     /** The checkpoint step index of the step whose calls run now (read per call); default 0. */
     stepIndex?: () => number;
+    /**
+     * True once the execution ended: a call still running then (it ignored
+     * its signal) can no longer dispatch, wait, approve or emit.
+     */
+    ended?: () => boolean;
 };

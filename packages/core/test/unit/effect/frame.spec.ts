@@ -12,6 +12,7 @@ import {
     describe,
     expect,
     it,
+    vi,
 } from 'vitest';
 import { z } from 'zod';
 import {
@@ -137,7 +138,7 @@ function detachedWork() {
     };
 }
 
-function setupEngine(tools: ToolSet, responses: MockResponse[], hooks?: AgentHooks) {
+function setupEngine(tools: ToolSet, responses: MockResponse[], hooks?: AgentHooks, budget?: { timeoutMs?: number }) {
     const clock = new ControllableClock(new Date(1_000_000));
     const store = createMemoryStore({ clock });
     const sent: ChannelMessage[] = [];
@@ -157,6 +158,7 @@ function setupEngine(tools: ToolSet, responses: MockResponse[], hooks?: AgentHoo
             channels: [agent.on()],
             tools,
             hooks,
+            budget,
         })],
         channels: [slack, agentChannel()],
         onError: () => {},
@@ -168,6 +170,7 @@ function setupEngine(tools: ToolSet, responses: MockResponse[], hooks?: AgentHoo
         engine,
         store,
         sent,
+        clock,
     };
 }
 
@@ -377,5 +380,88 @@ describe('detached work after a model tool call returned', () => {
         expect((await store.runs.findOne(runId))?.status).toBe('completed');
         expect(step?.output).toBe('sent');
         expect(sent.map((m) => (m as { body?: string }).body)).toEqual(['reconcile', 'after']);
+    });
+
+    /** A tool that hangs, ignoring its signal, and emits once released. */
+    function hungEmitter() {
+        const release = Promise.withResolvers<void>();
+        const started = Promise.withResolvers<void>();
+        let outcome: unknown;
+        const hang = defineTool({
+            inputSchema: schema,
+            execute: async (_input, { context }) => {
+                started.resolve();
+                await release.promise;
+
+                try {
+                    await context.channels.findOneOrFail('slack').emit({ body: 'late' }, 'C1');
+                    outcome = 'sent';
+                } catch (error) {
+                    outcome = error;
+                }
+
+                return 'ok';
+            },
+        });
+
+        return {
+            hang,
+            started: started.promise,
+            async release(): Promise<unknown> {
+                release.resolve();
+                await vi.waitFor(() => expect(outcome).toBeDefined());
+
+                return outcome;
+            },
+        };
+    }
+
+    async function startRun(engine: IEngine): Promise<string> {
+        await engine.start();
+
+        const { runId } = await engine.dispatch({
+            agent: 'ops',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+        });
+
+        return runId;
+    }
+
+    it('refuses emit() from a call still running after its execution timed out', async () => {
+        const hung = hungEmitter();
+        const {
+            engine,
+            store,
+            sent,
+            clock,
+        } = setupEngine({ hang: hung.hang }, [turn(callOf('hang')), text('done')], undefined, { timeoutMs: 1000 });
+        const runId = await startRun(engine);
+
+        await hung.started;
+        clock.advance(2000);
+        await vi.waitFor(async () => expect((await store.runs.findOne(runId))?.status).toBe('failed'));
+        expect((await store.runs.findOne(runId))?.error?.code).toBe('Timeout');
+
+        expect(await hung.release()).toBeInstanceOf(InvalidRunStateError);
+        expect(sent).toHaveLength(0);
+    });
+
+    it('refuses emit() from a call still running after its run was cancelled', async () => {
+        const hung = hungEmitter();
+        const {
+            engine, 
+            store, 
+            sent, 
+        } = setupEngine({ hang: hung.hang }, [turn(callOf('hang')), text('done')]);
+        const runId = await startRun(engine);
+
+        await hung.started;
+        await engine.cancel(runId);
+        await vi.waitFor(async () => expect((await store.runs.findOne(runId))?.status).toBe('cancelled'));
+
+        expect(await hung.release()).toBeInstanceOf(InvalidRunStateError);
+        expect(sent).toHaveLength(0);
     });
 });

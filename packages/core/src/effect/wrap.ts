@@ -111,6 +111,7 @@ export function wrapToolsForRun(
 ): ToolSet {
     const {
         allow,
+        ended,
         hooks = {},
         onSuspend,
         stepIndex,
@@ -139,6 +140,7 @@ export function wrapToolsForRun(
                 approvals: 0,
                 effects: store,
                 artifacts: ctx.artifacts,
+                ended,
             };
             const suspend = () => {
                 onSuspend?.(frame.suspended!);
