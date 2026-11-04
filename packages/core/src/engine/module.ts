@@ -471,7 +471,8 @@ export class Engine implements IEngine {
             getAgent: (name) => this.agents.get(name),
             effects: this.store.effects,
             runs: this.store.runs,
-            // before the idempotency claim: a refused child claims nothing
+            // a backstop for a parent that settled or paused after dispatch() checked its frame: read
+            // before createRun, so a refused child skips the idempotency claim (a read, not a guarded write)
             createRun: async (envelope, parent) => {
                 const stored = await this.store.runs.findOne(parent.runId);
 

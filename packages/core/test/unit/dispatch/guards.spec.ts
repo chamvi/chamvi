@@ -551,6 +551,70 @@ describe('dispatch guards', () => {
         await engine.idle();
     });
 
+    it('refuses a dispatch whose execution ended while it was awaiting, without spending a slot', async () => {
+        const store = createMemoryStore({ clock: new ControllableClock(START) });
+        const blocked = Promise.withResolvers<void>();
+        const reached = Promise.withResolvers<void>();
+        const findOne = store.effects.findOne.bind(store.effects);
+        let blocking = true;
+
+        // the dispatch's first record lookup waits until the test released it
+        store.effects.findOne = async (key) => {
+            if (blocking && key.includes(':dispatch:')) {
+                blocking = false;
+                reached.resolve();
+                await blocked.promise;
+            }
+
+            return findOne(key);
+        };
+
+        let outcome: unknown;
+        const settled = Promise.withResolvers<void>();
+        const late = defineTool({
+            inputSchema: z.object({}),
+            execute: async (_input, { context }) => {
+                try {
+                    outcome = await dispatch(context, { payload: 'job' });
+                } catch (error) {
+                    outcome = error;
+                } finally {
+                    settled.resolve();
+                }
+
+                return 'ok';
+            },
+        });
+        const { engine } = setup({
+            model: markedModel([['', [turn(call({}, 'c1', 'late')), text('done')]]]),
+            channels: [agent.on({ maxPerRun: 1 })],
+            tools: { late },
+            store,
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch({
+            agent: 'maintainer',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+        });
+
+        await reached.promise;
+        await engine.cancel(runId);
+        await engine.idle();
+        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+
+        blocked.resolve();
+        await settled.promise;
+
+        expect(outcome).toBeInstanceOf(InvalidRunStateError);
+        expect((outcome as Error).message).toContain('dispatch()');
+        expect(await children(store)).toHaveLength(0);
+        expect(await findOne(`dispatch-count:${runId}:maintainer:default`)).toBeUndefined();
+    });
+
     it('keeps the wait, resume and replay of a dispatch deduplicated', async () => {
         const { engine, store } = setup({
             model: markedModel([

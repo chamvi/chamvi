@@ -258,6 +258,10 @@ async function start(
         }
 
         return host.serial(run.runId, async (): Promise<DispatchResult> => {
+            // the execution may have ended while this call awaited (a cancel, the timeout, a pause):
+            // refused before its count spends a slot
+            assertFrameActive(frame, name);
+
             // again behind the run's earlier calls: one of them may have recorded it meanwhile
             const again = await host.effects.findOne(effectKey);
 
