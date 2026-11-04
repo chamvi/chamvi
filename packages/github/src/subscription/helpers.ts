@@ -6,6 +6,7 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { isObject } from 'smob';
 import type { ChannelSubscription } from '@chamvi/core';
 import { REPO_PATTERN } from '../tools/constants.ts';
 import { GITHUB_EVENT_PATTERN, SELF_EVENTS_REFUSED } from './constants.ts';
@@ -57,7 +58,7 @@ export function matchesGithubSubscription(subscription: ChannelSubscription, cha
     return filter ? filter(event) : true;
 }
 
-/** `<full_name>#<issue or pull request number>`, else `<full_name>`, else none. */
+/** `<full_name>#<eventNumber()>`, else `<full_name>`, else none. */
 export function defaultConcurrencyKey(event: GithubEvent): string | undefined {
     const repo = event.payload.repository?.full_name;
 
@@ -65,15 +66,51 @@ export function defaultConcurrencyKey(event: GithubEvent): string | undefined {
         return undefined;
     }
 
-    const number = event.payload.issue?.number ?? event.payload.pull_request?.number;
+    const number = eventNumber(event);
 
     return typeof number === 'number' ? `${repo}#${number}` : repo;
 }
 
-/** The address of the event's issue or pull request (`<full_name>#<n>`), if it names one. */
+/**
+ * The number of the one pull request a `check_suite` or `check_run` delivery
+ * lists, when that list holds exactly one entry and its base repository is
+ * the delivery's repository (by id; GitHub lists pull requests of other
+ * repositories whose head matches too). None for zero, several, a foreign
+ * or an unreadable entry.
+ */
+function checkPullNumber(event: GithubEvent): number | undefined {
+    if (event.name !== 'check_suite' && event.name !== 'check_run') {
+        return undefined;
+    }
+
+    const check = event.payload[event.name];
+
+    if (!isObject(check) || !Array.isArray(check.pull_requests) || check.pull_requests.length !== 1) {
+        return undefined;
+    }
+
+    const [pull] = check.pull_requests as unknown[];
+    const repoId = event.payload.repository?.id;
+
+    if (!isObject(pull) || !isObject(pull.base) || !isObject(pull.base.repo) || !isPositiveInteger(repoId) || pull.base.repo.id !== repoId) {
+        return undefined;
+    }
+
+    return isPositiveInteger(pull.number) ? pull.number : undefined;
+}
+
+/**
+ * The number of the event's issue or pull request, else of the one pull
+ * request of its repository a check suite or check run lists.
+ */
+function eventNumber(event: GithubEvent): number | undefined {
+    return event.payload.issue?.number ?? event.payload.pull_request?.number ?? checkPullNumber(event);
+}
+
+/** The address of the event's issue or pull request (`<full_name>#<n>`, see eventNumber()), if it names one. */
 export function eventAddress(event: GithubEvent): string | undefined {
     const repo = event.payload.repository?.full_name;
-    const number = event.payload.issue?.number ?? event.payload.pull_request?.number;
+    const number = eventNumber(event);
 
     return isRepo(repo) && isPositiveInteger(number) ? `${repo}#${number}` : undefined;
 }

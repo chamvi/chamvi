@@ -11,7 +11,11 @@ import type { ChannelSubscription } from '@chamvi/core';
 export type GithubPayload = {
     action?: string;
     installation?: { id: number };
-    repository?: { full_name: string; [key: string]: unknown };
+    repository?: {
+        id?: number;
+        full_name: string;
+        [key: string]: unknown
+    };
     sender?: {
         login: string;
         type: string;
@@ -46,7 +50,10 @@ export type GithubSubscriptionOptions = {
      * derive the key from the content on an exposed endpoint.
      */
     idempotencyKey?: (event: GithubEvent) => string | undefined;
-    /** Default: `<full_name>#<issue|pull_request number>`, else `<full_name>`. */
+    /**
+     * Default: `<full_name>#<issue|pull_request number>` (a check suite or
+     * check run: its one pull request of the repository), else `<full_name>`.
+     */
     concurrencyKey?: (event: GithubEvent) => string | undefined;
     /**
      * Events (`name` or `name.action`) the App's own bot may start this
