@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import {
     http,
     webhook,
@@ -27,7 +27,7 @@ const RAW = '/channels/webhook/raw/raw';
 
 function setup() {
     const agents = [
-        defineAgent({
+        defineModelAgent({
             name: 'intake',
             model: textModel(),
             instructions: 'Intake.',
@@ -40,7 +40,7 @@ function setup() {
                 }),
             ],
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'raw',
             model: textModel(),
             instructions: 'Raw.',
@@ -222,7 +222,7 @@ describe('POST /channels/webhook/:agent/<path>', () => {
 
     it('answers 404 while the http app does not mount the channel', async () => {
         const { app } = createTestApp({
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'raw',
                 model: textModel(),
                 instructions: 'Raw.',
@@ -245,7 +245,7 @@ describe('webhookChannel()', () => {
         });
 
         return createTestApp({
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'raw',
                 model: textModel(),
                 instructions: 'Raw.',

@@ -21,7 +21,7 @@ import {
     RunNotFoundError,
     ValidationError,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -92,7 +92,7 @@ function setup(s: Setup) {
             return `deployed ${input.env}`;
         },
     });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'release',
         instructions: 'You release.',
         model: s.model,

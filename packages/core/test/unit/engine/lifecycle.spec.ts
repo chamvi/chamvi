@@ -22,7 +22,7 @@ import {
     Engine,
     InvalidRunStateError,
     LeaseLostError,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -113,7 +113,7 @@ function make(
     const store = opts.store ?? createMemoryStore({ clock: opts.clock });
     const errors: unknown[] = [];
     const events: RunEvent[] = [];
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'triage',
         instructions: 'You triage.',
         model,
@@ -213,7 +213,7 @@ describe('graceful drain', () => {
             inputSchema: z.object({}),
             execute: async (_input, { context }) => context.channels.findOneOrFail().approve({ title: 'Approve?' }),
         });
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'a',
             instructions: 'Test',
             model: mockModel([{
@@ -226,7 +226,7 @@ describe('graceful drain', () => {
             tools: { ask },
         });
         const engine = new Engine({
-            agents: [agent, defineAgent({
+            agents: [agent, defineModelAgent({
                 name: 'worker',
                 instructions: 'Test',
                 model: new MockLanguageModelV4({ doStream: async () => new Promise(() => {}) }),

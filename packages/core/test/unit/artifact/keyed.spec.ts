@@ -15,7 +15,7 @@ import {
 import {
     Engine,
     ValidationError,
-    defineAgent,
+    defineModelAgent,
     keyedArtifactId,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
@@ -153,7 +153,7 @@ describe('keyed artifacts', () => {
         const engine = new Engine({
             store,
             clock,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'vision', 
                 instructions: 'x', 
                 model: mockModel([]), 

@@ -120,7 +120,7 @@ const shown = computed(() => agents.value.filter((agent) => matchesName(agent, q
             <EmptyState
                 icon="agents"
                 title="No agents"
-                text="This app registers no agent. Pass them to the Engine with defineAgent()."
+                text="This app registers no agent. Pass them to the Engine with defineModelAgent()."
             />
         </div>
     </template>

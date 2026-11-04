@@ -19,7 +19,7 @@ import {
     InvalidRunStateError,
     ToolDeniedError,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -104,7 +104,7 @@ function createEngine(
     const errors: unknown[] = [];
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'release',
             instructions: 'You release.',
             model,

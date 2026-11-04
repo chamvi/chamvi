@@ -25,7 +25,7 @@ import {
     agent,
     agentChannel,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
     waitForDispatch,
@@ -152,7 +152,7 @@ describePostgres('two engines sharing TypeORM store', () => {
     ) {
         const store = createDatabaseStore({ dataSource });
         const errors: unknown[] = [];
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'triage',
             instructions: 'You triage.',
             model,
@@ -235,7 +235,7 @@ describePostgres('two engines sharing TypeORM store', () => {
     });
 
     it('the child settles on B and the parent on A resumes once', async () => {
-        const lead = () => defineAgent({
+        const lead = () => defineModelAgent({
             name: 'lead',
             instructions: 'You lead.',
             model: treeModel(),

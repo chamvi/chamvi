@@ -16,7 +16,7 @@ import {
 import {
     ChamviError,
     ErrorCode,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type {
     Agent,
@@ -40,7 +40,7 @@ afterEach(async () => {
 });
 
 function plain(channel: ChatChannel, name: string): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name,
         model: textModel(),
         instructions: 'Answer.',
@@ -182,7 +182,7 @@ describe('chat intake on an engine', () => {
         expect((await fixture.runs()).map((run) => run.agent)).toEqual(['alpha']);
 
         // alpha replaced by a version listening to group chatter only
-        await fixture.engine.putAgent(defineAgent({
+        await fixture.engine.putAgent(defineModelAgent({
             name: 'alpha',
             model: textModel(),
             instructions: 'Answer.',
@@ -207,7 +207,7 @@ describe('chat intake on an engine', () => {
 
 describe('chat intake with conversations', () => {
     function remembering(channel: ChatChannel, model = textModel()): Agent {
-        return defineAgent({
+        return defineModelAgent({
             name: 'remembering',
             model,
             instructions: 'Answer.',

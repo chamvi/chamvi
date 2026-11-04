@@ -15,7 +15,7 @@ import {
     Engine,
     MemoryConversationRepository,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     toolContextSchema,
 } from '@chamvi/core';
 import type {
@@ -123,7 +123,7 @@ function setup(options: {
     };
     const engine = new Engine({
         store: { ...store, conversations },
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'helper',
             model,
             instructions: 'help',
@@ -263,7 +263,7 @@ describe('scoped memory tools', () => {
             owner: 'old',
             store,
             channels: [channel],
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'helper',
                 instructions: 'help',
                 conversation: true,
@@ -301,7 +301,7 @@ describe('scoped memory tools', () => {
             owner: 'peer',
             store,
             channels: [channel],
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'helper',
                 instructions: 'help',
                 conversation: true,

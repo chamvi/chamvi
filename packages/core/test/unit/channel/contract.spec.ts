@@ -18,7 +18,7 @@ import {
     InvalidAgentDefinitionError,
     TRIGGER_KEY_MAX_LENGTH,
     ValidationError,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type {
     ChannelContext,
@@ -39,7 +39,7 @@ const subscription = (channel: string, id = channel): ChannelSubscription => ({
     options: {},
 });
 
-const agent = defineAgent({
+const agent = defineModelAgent({
     name: 'triage',
     model,
     instructions: 'x',
@@ -130,7 +130,7 @@ describe('channels on the engine', () => {
     });
 
     it('refuses a subscription naming an unregistered channel (constructor and putAgent)', async () => {
-        const subscribed = defineAgent({
+        const subscribed = defineModelAgent({
             name: 'digest',
             model,
             instructions: 'x',
@@ -294,7 +294,7 @@ describe('channels on the engine', () => {
     it('start receives the engine channel context with trusted conversation intake', async () => {
         const chat = recording('chat', []);
         const engine = make({
-            agents: [defineAgent({ ...agent.definition as ModelAgentDefinition, conversation: true })],
+            agents: [defineModelAgent({ ...agent.definition as ModelAgentDefinition, conversation: true })],
             channels: [chat],
             conversations: { authorize: () => true },
         });

@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { IStore } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import {
@@ -135,7 +135,7 @@ describe('GET /runs', () => {
 
     it('lets a principal filter to an agent named like a number', async () => {
         const { app } = createTestApp({
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: '007',
                 model: textModel(),
                 instructions: 'Count.',

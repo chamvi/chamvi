@@ -19,7 +19,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
-    defineAgent,
+    defineModelAgent,
     formatRevision,
 } from '@chamvi/core';
 import type {
@@ -36,12 +36,12 @@ import { mockModel } from '../../utils/mock-model.ts';
 import { MemoryAgentRevisionRepository, createMemoryStore } from '../../../src/repository/index.ts';
 
 const model = mockModel([]);
-const triage = defineAgent({
+const triage = defineModelAgent({
     name: 'triage',
     model,
     instructions: 'x',
 });
-const digest = defineAgent({
+const digest = defineModelAgent({
     name: 'digest',
     model,
     instructions: 'y',
@@ -176,7 +176,7 @@ describe('Engine agent registry', () => {
 
     it('putAgent replaces in place and emits replaced', async () => {
         const { engine, changes } = make({ agents: [triage, digest] });
-        const next = defineAgent({
+        const next = defineModelAgent({
             name: 'triage',
             model,
             instructions: 'z',
@@ -196,7 +196,7 @@ describe('Engine agent registry', () => {
         const { runId: before } = await engine.dispatch(env());
 
         clock.advance(1_000);
-        await engine.putAgent(defineAgent({
+        await engine.putAgent(defineModelAgent({
             name: 'triage',
             model,
             instructions: 'z',
@@ -210,7 +210,7 @@ describe('Engine agent registry', () => {
 
     it('putAgent refuses an unknown channel', async () => {
         const { engine, changes } = make();
-        const broken = defineAgent({
+        const broken = defineModelAgent({
             name: 'digest',
             model,
             instructions: 'y',
@@ -260,7 +260,7 @@ describe('Engine agent registry', () => {
         await parkWaiting(store, clock, 'waiting-run');
         clock.advance(1_000);
 
-        const next = defineAgent({
+        const next = defineModelAgent({
             name: 'triage',
             model,
             instructions: 'v2',
@@ -513,7 +513,7 @@ describe('cancel reasons', () => {
         code: 'agent_replaced',
         message: 'Agent "triage" was reloaded at revision bbbbbbbbbbbb; its unsettled runs were cancelled.',
     };
-    const next = defineAgent({
+    const next = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'v2',
@@ -593,7 +593,7 @@ describe('cancel reasons', () => {
 
     it('a running local execution settles cancelled with the reason', async () => {
         const gated = gatedModel();
-        const hanging = defineAgent({
+        const hanging = defineModelAgent({
             name: 'triage',
             model: gated.model,
             instructions: 'x',
@@ -616,7 +616,7 @@ describe('cancel reasons', () => {
         const clock = new ControllableClock(new Date(1_000_000));
         const store = createCountingStore({ clock });
         const gated = gatedModel();
-        const hanging = defineAgent({
+        const hanging = defineModelAgent({
             name: 'triage',
             model: gated.model,
             instructions: 'x',
@@ -663,7 +663,7 @@ describe('cancel reasons', () => {
         const clock = new ControllableClock(new Date(1_000_000));
         const store = createCountingStore({ clock });
         const gated = gatedModel();
-        const hanging = defineAgent({
+        const hanging = defineModelAgent({
             name: 'triage',
             model: gated.model,
             instructions: 'x',
@@ -751,7 +751,7 @@ describe('cancel reasons', () => {
 describe('checkAgent and putAgent reload: false', () => {
     const revA = 'a'.repeat(64);
     const revB = 'b'.repeat(64);
-    const next = defineAgent({
+    const next = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'v2',
@@ -774,7 +774,7 @@ describe('checkAgent and putAgent reload: false', () => {
 
         Object.defineProperty(engine, 'store', { value: spied });
 
-        const broken = defineAgent({
+        const broken = defineModelAgent({
             name: 'x',
             model,
             instructions: 'y',
@@ -793,7 +793,7 @@ describe('checkAgent and putAgent reload: false', () => {
 
     it('checkAgent refuses a model string without a resolver and passes a valid agent', () => {
         const { engine } = make();
-        const stringly = defineAgent({
+        const stringly = defineModelAgent({
             name: 'x',
             model: 'anthropic/claude',
             instructions: 'y',
@@ -906,7 +906,7 @@ describe('putAgent formerRevision', () => {
     const revA = 'a'.repeat(64);
     const revB = 'b'.repeat(64);
     const revC = 'c'.repeat(64);
-    const next = defineAgent({
+    const next = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'v2',

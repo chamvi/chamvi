@@ -17,7 +17,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { AgentDefinition, IEngine } from '@chamvi/core';
@@ -41,7 +41,7 @@ function setup(model: LanguageModel, tools: AgentDefinition['tools']) {
     const errors: unknown[] = [];
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'triage',
             instructions: 'Triage.',
             model,

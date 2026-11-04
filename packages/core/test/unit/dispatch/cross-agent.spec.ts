@@ -18,7 +18,7 @@ import {
     Engine,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
     dispatchTo,
@@ -103,14 +103,14 @@ function setup(options: {
 }) {
     const clock = new ControllableClock(START);
     const store = createMemoryStore({ clock });
-    const auditor = defineAgent({
+    const auditor = defineModelAgent({
         name: 'auditor',
         instructions: 'You audit.',
         model: routedModel(options.auditor),
         channels: options.auditorChannels ?? [],
         tools: { send, own },
     });
-    const reporter = defineAgent({
+    const reporter = defineModelAgent({
         name: 'reporter',
         instructions: 'You report.',
         model: mockModel(done()),
@@ -339,7 +339,7 @@ describe('dispatchTo()', () => {
         const engine = new Engine({
             store,
             clock,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'auditor',
                 instructions: 'You audit.',
                 model: mockModel([turn(call({}, 'c1', 'bare')), text('done')]),

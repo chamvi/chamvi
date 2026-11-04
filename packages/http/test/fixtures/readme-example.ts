@@ -1,5 +1,5 @@
 import type { LanguageModel } from 'ai';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import {
     createHttpApp,
     createShutdown,
@@ -10,7 +10,7 @@ import {
 } from '@chamvi/http';
 
 export async function createAgentServer(model: LanguageModel) {
-    const echo = defineAgent({
+    const echo = defineModelAgent({
         name: 'echo',
         model,
         instructions: 'Answer with a short summary of the payload.',

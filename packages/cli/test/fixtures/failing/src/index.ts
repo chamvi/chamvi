@@ -10,7 +10,7 @@ import {
     FatalToolError,
     createApp,
     cron,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/app';
 import type { ILifecycleHook } from '@chamvi/app';
@@ -59,7 +59,7 @@ const explode = defineTool({
     },
 });
 
-const fail = defineAgent({
+const fail = defineModelAgent({
     name: 'fail',
     model,
     instructions: 'Call explode.',

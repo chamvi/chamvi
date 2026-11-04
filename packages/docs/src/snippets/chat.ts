@@ -6,7 +6,7 @@ import { createApp } from '@chamvi/app';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
@@ -85,7 +85,7 @@ const reply = defineTool({
     },
 });
 
-export const assistant = defineAgent({
+export const assistant = defineModelAgent({
     name: 'assistant',
     model,
     instructions: 'Answer with the reply tool.',
@@ -133,7 +133,7 @@ const whatsapp = createWhatsAppChat({
 // #endregion whatsapp
 
 // #region whatsapp-module
-export const whatsappAssistant = defineAgent({
+export const whatsappAssistant = defineModelAgent({
     name: 'assistant',
     model,
     instructions: 'Answer with the reply tool.',
@@ -176,7 +176,7 @@ const discord = createDiscordChat({
 // #endregion discord
 
 // #region discord-module
-export const discordAssistant = defineAgent({
+export const discordAssistant = defineModelAgent({
     name: 'assistant',
     model,
     instructions: 'Answer with the reply tool.',

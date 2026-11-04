@@ -12,7 +12,7 @@ import {
     vi,
 } from 'vitest';
 import { z } from 'zod';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { http, staticTokens } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -175,7 +175,7 @@ describe('POST /agents/:name/runs', () => {
     });
 
     it('validates the payload with the subscription schema', async () => {
-        const typed = defineAgent({
+        const typed = defineModelAgent({
             name: 'typed',
             model: textModel(),
             instructions: 'Typed.',

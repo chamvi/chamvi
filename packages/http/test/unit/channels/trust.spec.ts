@@ -10,7 +10,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { IChannel } from '@chamvi/core';
 import { http, httpChannel, mcpChannel } from '@chamvi/http';
@@ -21,7 +21,7 @@ async function taintOf(channel: IChannel) {
     const engine = new Engine({
         store,
         channels: channel.name === 'http' ? [channel] : [httpChannel(), channel],
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'echo',
             model: textModel(),
             instructions: 'Echo.',

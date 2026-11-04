@@ -6,7 +6,7 @@
  */
 
 import { z } from 'zod';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { http, webhook } from '@chamvi/http';
 import { deployTool } from './app.ts';
@@ -15,13 +15,13 @@ import { textModel } from './model.ts';
 /** `echo` (http only) and `intake` (a webhook, a tool asking for approvals, an `issues` collection). */
 export function inventoryAgents(): Agent[] {
     return [
-        defineAgent({
+        defineModelAgent({
             name: 'echo',
             model: textModel(),
             instructions: 'Echo.',
             channels: [http.on()],
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'intake',
             model: textModel(),
             instructions: 'Intake.',

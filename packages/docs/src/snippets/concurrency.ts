@@ -6,13 +6,13 @@
  */
 
 import type { LanguageModel } from 'ai';
-import { defineAgent, httpModule } from '@chamvi/app';
+import { defineModelAgent, httpModule } from '@chamvi/app';
 import { github } from '@chamvi/github';
 import { cron } from '@chamvi/channel-cron';
 
 export function cappedAgent(model: LanguageModel) {
     // #region caps
-    return defineAgent({
+    return defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Inspect the issue or perform the scheduled sweep.',

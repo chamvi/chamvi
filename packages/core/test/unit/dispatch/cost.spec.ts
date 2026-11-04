@@ -16,7 +16,7 @@ import {
     RunStatus,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { IEngine, Run } from '@chamvi/core';
 import { recomputeSubtreeUsage } from '../../../src/engine/dispatch/module.ts';
@@ -92,7 +92,7 @@ describe('dispatch poll cost', () => {
         const engine = new Engine({
             store,
             clock,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'solo',
                 instructions: 'You work.',
                 model: mockModel([]),
@@ -113,7 +113,7 @@ describe('dispatch poll cost', () => {
         const engine = new Engine({
             store,
             clock,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'lead',
                 instructions: 'You lead.',
                 model: mockModel([]),

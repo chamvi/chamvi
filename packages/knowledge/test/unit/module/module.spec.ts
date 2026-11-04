@@ -17,7 +17,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { InvalidAgentDefinitionError, createMemoryStore, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type { Agent, IClock } from '@chamvi/core';
 import { mockEmbeddingModel, mockModel } from '@chamvi/test-kit';
 import {
@@ -134,7 +134,7 @@ async function docsDir(): Promise<string> {
 }
 
 function readerAgent(): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'reader',
         instructions: 'Answer from the docs.',
         model: mockModel([call('knowledge_search', { query: 'refund policy' }), done]),

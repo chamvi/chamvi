@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
@@ -21,7 +21,7 @@ import { textModel } from '../../utils/model.ts';
 function setup() {
     const clock = new ControllableClock(new Date('2026-10-19T10:30:00Z'));
     const agents = [
-        defineAgent({
+        defineModelAgent({
             name: 'sweep',
             model: textModel(),
             instructions: 'Sweep.',
@@ -30,7 +30,7 @@ function setup() {
                 cronOn('0 9 * * *', { timezone: 'Europe/Berlin', overlap: 'queue-one' }),
             ],
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'echo',
             model: textModel(),
             instructions: 'Echo.',

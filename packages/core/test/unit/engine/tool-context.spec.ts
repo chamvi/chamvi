@@ -21,8 +21,8 @@ import { z } from 'zod';
 import {
     Engine,
     InvalidAgentDefinitionError,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
     defineTool,
     requireToolPermission,
     toolContextSchema,
@@ -101,7 +101,7 @@ type Setup = {
 function setup(s: Setup) {
     const clock = new ControllableClock(new Date(1_000_000));
     const store = s.store ?? createMemoryStore({ clock });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'release',
         instructions: 'You release.',
         model: s.model,
@@ -365,14 +365,14 @@ describe('tool context', () => {
     it('rejects a toolsContext entry naming a chamvi tool', async () => {
         const model = mockModel([text('never')]);
 
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             name: 'release',
             instructions: 'x',
             model,
             tools: { lookup },
             toolsContext: { lookup: {} },
         })).toThrow(InvalidAgentDefinitionError);
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             name: 'release',
             instructions: 'x',
             model,
@@ -402,7 +402,7 @@ describe('tool context', () => {
     it('rejects a toolsContext entry naming no tool', async () => {
         const model = mockModel([text('never')]);
 
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             name: 'release',
             instructions: 'x',
             model,

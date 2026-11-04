@@ -11,7 +11,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { Engine, defineAgent } from '@chamvi/core';
+import { Engine, defineModelAgent } from '@chamvi/core';
 import type { EngineOptions, IEngine, Run } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
@@ -108,7 +108,7 @@ describe('execution guard', () => {
     it('a queued run of an unknown agent stays queued', async () => {
         const { clock, store } = setup();
         const model = answer();
-        const triage = defineAgent({
+        const triage = defineModelAgent({
             name: 'triage',
             model,
             instructions: 'x',
@@ -135,12 +135,12 @@ describe('execution guard', () => {
         const { clock, store } = setup();
         const modelA = answer();
         const modelB = answer();
-        const triageA = defineAgent({
+        const triageA = defineModelAgent({
             name: 'triage',
             model: modelA,
             instructions: 'x',
         });
-        const triageB = defineAgent({
+        const triageB = defineModelAgent({
             name: 'triage',
             model: modelB,
             instructions: 'x',
@@ -180,10 +180,10 @@ describe('execution guard', () => {
         expect(errorsB).toEqual([]);
     });
 
-    it('a code agent is never held back by markers', async () => {
+    it('an agent without a revision is never held back by markers', async () => {
         const { clock, store } = setup();
         const model = answer();
-        const triage = defineAgent({
+        const triage = defineModelAgent({
             name: 'triage',
             model,
             instructions: 'x',
@@ -232,7 +232,7 @@ describe('execution guard', () => {
     it('a run whose agent is removed between claim and execute goes back to queued', async () => {
         const { clock, store } = setup();
         const model = answer();
-        const triage = defineAgent({
+        const triage = defineModelAgent({
             name: 'triage',
             model,
             instructions: 'x',
@@ -270,7 +270,7 @@ describe('execution guard', () => {
     it('a run whose marker moves between claim and execute goes back to queued', async () => {
         const { clock, store } = setup();
         const model = answer();
-        const triage = defineAgent({
+        const triage = defineModelAgent({
             name: 'triage',
             model,
             instructions: 'x',

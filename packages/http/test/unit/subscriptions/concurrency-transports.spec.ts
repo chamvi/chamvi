@@ -8,7 +8,7 @@
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
@@ -46,7 +46,7 @@ describe('HTTP subscription execution cap', () => {
         const entered: string[] = [];
         const releases = new Map<string, () => void>();
         const errors: unknown[] = [];
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'worker',
             instructions: 'Work once.',
             channels: [http.on({ concurrencyMaxRuns: 1 })],

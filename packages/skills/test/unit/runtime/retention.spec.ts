@@ -11,7 +11,7 @@ import {
     it,
     vi,
 } from 'vitest';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import { SkillRuntime } from '../../../src/runtime/module.ts';
 import { skillRuntimeProvider } from '../../../src/runtime/provider.ts';
 import type { ISkillRuntimeProvider, SkillInput } from '@chamvi/core';
@@ -29,7 +29,7 @@ const skill = (overrides: Partial<Skill> = {}): Skill & SkillInput => defineSkil
     references: { 'references/a.md': 'reference' },
     ...overrides,
 });
-const candidate = (skills: Parameters<typeof defineAgent>[0]['skills']) => defineAgent({
+const candidate = (skills: Parameters<typeof defineModelAgent>[0]['skills']) => defineModelAgent({
     name: 'test',
     instructions: '',
     skills,

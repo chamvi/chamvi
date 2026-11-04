@@ -11,14 +11,14 @@ import {
     it,
     vi,
 } from 'vitest';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { EngineSkills } from '../../../src/engine/skills/module.ts';
 import type { IEngineSkills } from '../../../src/engine/skills/types.ts';
 import { EMPTY_SKILL_CONTRIBUTION } from '../../../src/skill/constants.ts';
 import { fakeSkillRuntime } from '../../utils/skill-runtime.ts';
 
-const agent = (input?: ReturnType<typeof fakeSkillRuntime>['input']) => defineAgent({
+const agent = (input?: ReturnType<typeof fakeSkillRuntime>['input']) => defineModelAgent({
     name: 'test',
     instructions: 'role',
     skills: input ? [input] : [],

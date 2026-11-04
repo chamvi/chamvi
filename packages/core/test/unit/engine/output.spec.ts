@@ -17,7 +17,7 @@ import {
 } from 'vitest';
 import { MockLanguageModelV4 } from 'ai/test';
 import { z } from 'zod';
-import { Engine, defineAgent } from '@chamvi/core';
+import { Engine, defineModelAgent } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
@@ -47,7 +47,7 @@ function make(model: LanguageModel, opts: {
     output?: typeof output
 } = {}) {
     const store = createMemoryStore();
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'triage',
         instructions: 'You triage.',
         model,

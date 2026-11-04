@@ -6,7 +6,7 @@ An agent is a typed config object passed to `defineModelAgent()` (or, for a [sim
 
 ## What `defineModelAgent()` checks
 
-`defineModelAgent()` validates the definition and returns `{ kind: 'model', name, definition }` with defaults applied (`defineAgent()` is its deprecated alias, removed in a later release; the example above still uses it). It throws `InvalidAgentDefinitionError` when:
+`defineModelAgent()` validates the definition and returns `{ kind: 'model', name, definition }` with defaults applied. It throws `InvalidAgentDefinitionError` when:
 
 - the definition has `run` (build a [simple agent](#simple-agents) with `defineSimpleAgent()` instead),
 - the name does not match `^[a-z0-9]+(-[a-z0-9]+)*$` (lowercase words joined by single hyphens), or is longer than 64 characters,

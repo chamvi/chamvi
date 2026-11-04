@@ -6,7 +6,7 @@
  */
 
 import { fileURLToPath } from 'node:url';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import {
     afterEach,
@@ -49,7 +49,7 @@ async function served(env: Record<string, string> = {}, basePath = '') {
             PORT: String(port),
             ...(basePath && { CHAMVI_BASE_PATH: basePath }),
         },
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'triage',
             model: textModel(),
             instructions: 'triage',

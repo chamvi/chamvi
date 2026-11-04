@@ -10,7 +10,7 @@ A project needs three packages and one provider package (an optional peer of `@c
 npm install @chamvi/app @chamvi/cli ai @ai-sdk/anthropic
 ```
 
-An agent is a folder below `agents/` holding an `agent.ts` that default-exports `defineAgent()`'s result. The folder name is the agent name, and `name` must equal it:
+An agent is a folder below `agents/` holding an `agent.ts` that default-exports `defineModelAgent()`'s result. The folder name is the agent name, and `name` must equal it:
 
 <<< @/snippets/first-agent/agent.ts#agent
 

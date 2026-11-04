@@ -18,7 +18,7 @@ import { InvalidAgentDefinitionError, loadAgent } from '@chamvi/app';
 import { createTempDir, writeTree } from '../../utils/folder.ts';
 
 const agentTs = (body = 'model: \'test/model\', instructions: \'x\'', name = 'triage') =>
-    `import { defineAgent } from '@chamvi/core';\nexport default defineAgent({ name: '${name}', ${body} });\n`;
+    `import { defineModelAgent } from '@chamvi/core';\nexport default defineModelAgent({ name: '${name}', ${body} });\n`;
 
 describe('loadAgent', () => {
     let root: { path: string; remove: () => Promise<void> };
@@ -47,10 +47,10 @@ describe('loadAgent', () => {
             'agent.ts': [
                 'import { readFileSync } from \'node:fs\';',
                 'import { cron } from \'@chamvi/channel-cron\';',
-                'import { defineAgent } from \'@chamvi/core\';',
+                'import { defineModelAgent } from \'@chamvi/core\';',
                 'import { tools } from \'./lib/tools.ts\';',
                 '',
-                'export default defineAgent({',
+                'export default defineModelAgent({',
                 '    name: \'triage\',',
                 '    model: \'test/model\',',
                 '    instructions: readFileSync(new URL(\'./prompt.md\', import.meta.url), \'utf8\'),',
@@ -79,7 +79,7 @@ describe('loadAgent', () => {
         expect(loaded.agent.definition.channels?.map((s) => s.id)).toEqual(['cron:0 9 * * *']);
     });
 
-    it('applies the budget defaults of defineAgent to a structural agent', async () => {
+    it('applies the budget defaults of defineModelAgent to a structural agent', async () => {
         const dir = join(root.path, 'triage');
 
         await writeTree(dir, { 'agent.ts': 'export default { name: \'triage\', definition: { model: \'test/model\', instructions: \'x\' } };\n' });
@@ -97,17 +97,17 @@ describe('loadAgent', () => {
         await expectRefused({ 'agent.mts': agentTs() }, /^triage: has no agent\.ts\.$/);
     });
 
-    it('a defineAgent name that differs from the folder is refused', async () => {
+    it('a defineModelAgent name that differs from the folder is refused', async () => {
         await expectRefused(
             { 'agent.ts': agentTs(undefined, 'other') },
-            /^triage\/agent\.ts: defineAgent names "other", but the folder is "triage"; the names must match\.$/,
+            /^triage\/agent\.ts: the agent is named "other", but the folder is "triage"; the names must match\.$/,
         );
     });
 
     it('a plain config object is refused', async () => {
         await expectRefused(
             { 'agent.ts': 'export default { model: \'test/model\', instructions: \'x\' };\n' },
-            /^triage\/agent\.ts: the default export must be defineAgent\(\.\.\.\)'s result\.$/,
+            /^triage\/agent\.ts: the default export must be the result of defineModelAgent\(\) or defineSimpleAgent\(\)\.$/,
         );
     });
 
@@ -119,7 +119,7 @@ describe('loadAgent', () => {
         await expectRefused({ 'agent.ts': 'export const config = {};\n' }, /default export/);
     });
 
-    it('an agent definition defineAgent refuses is refused', async () => {
+    it('an agent definition defineModelAgent refuses is refused', async () => {
         await expectRefused({ 'agent.ts': 'export default { name: \'triage\', definition: { model: \'test/model\', instructions: \'x\', channels: [{ channel: \'http\', id: \'http\', options: {} }, { channel: \'http\', id: \'http\', options: {} }] } };\n' }, /duplicate subscription id/);
     });
 

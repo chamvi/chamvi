@@ -9,7 +9,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { preparationInput } from '../../utils/skill-runtime.ts';
@@ -76,7 +76,7 @@ function build(options: Partial<AppOptions> = {}) {
         },
     };
     const app = createApp({
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'code',
             model,
             instructions: 'Work',
@@ -146,7 +146,7 @@ describe('app skills lifecycle', () => {
         const model = textModel();
         const ctx = build({
             skills: [source],
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'job',
                 model,
                 instructions: 'Work',
@@ -204,7 +204,7 @@ describe('app skills lifecycle', () => {
         expect(ctx.model.doStreamCalls[0]?.tools?.map((tool) => tool.name)).toContain('contributed');
     });
 
-    it('adds app defaults to folder agents as well as code agents', async () => {
+    it('adds app defaults to folder agents as well as agents passed in code', async () => {
         const root = await folder();
 
         await writeTree(root, { 'folder/agent.ts': agentFile('Folder work', 'test/model', 'folder') });
@@ -245,7 +245,7 @@ describe('app skills lifecycle', () => {
         });
         const ctx = build({
             skills: [source],
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'code',
                 model: textModel(),
                 instructions: 'Work',

@@ -19,9 +19,9 @@ import {
     FatalToolError,
     InvalidAgentDefinitionError,
     ToolDeniedError,
-    defineAgent,
     defineContextKey,
     defineEffectTool,
+    defineModelAgent,
     defineTool,
     inject,
 } from '@chamvi/core';
@@ -65,7 +65,7 @@ async function runOnce(
     const store = createMemoryStore({ clock });
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'ops',
             instructions: 'You operate.',
             model,
@@ -312,14 +312,14 @@ describe('agent hooks', () => {
         expect(tools[0]?.output).toBe('final two');
     });
 
-    it('defineAgent refuses a tool with needsApproval', () => {
+    it('defineModelAgent refuses a tool with needsApproval', () => {
         const gated = tool({
             inputSchema: z.object({}),
             needsApproval: true,
             execute: async () => 'ok',
         });
 
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             name: 'ops',
             instructions: 'x',
             model: mockModel([]),

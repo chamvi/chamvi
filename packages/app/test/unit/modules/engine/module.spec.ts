@@ -10,7 +10,7 @@ import {
     InvalidAgentDefinitionError,
     agent as agentRoles,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     resolveModel,
 } from '@chamvi/core';
@@ -47,7 +47,7 @@ import { createRecordingLogger } from '../../../utils/logger.ts';
 
 
 function agentWith(model: Agent['definition']['model'], extra: Partial<ModelAgentDefinition> = {}): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'triage',
         model,
         instructions: 'triage',

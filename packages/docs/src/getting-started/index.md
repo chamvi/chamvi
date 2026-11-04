@@ -56,7 +56,7 @@ Each of these is a better fit in some setups: if you already run Inngest or Trig
 
 `@chamvi/core` contains:
 
-- [`defineAgent()`](/guide/agents) with [channel subscriptions](/guide/channels) and agent hooks
+- [`defineModelAgent()`](/guide/agents) with [channel subscriptions](/guide/channels) and agent hooks
 - the [`Engine`](/reference/#runengine): dispatch, scheduling, execution, checkpoints, budgets, durable [approvals](/guide/approvals), cancel, drain and recovery
 - [effect tools](/guide/effect-tools) and [agent state](/guide/state)
 - the [store contract](/repositories/) and [`createMemoryStore()`](/repositories/memory)

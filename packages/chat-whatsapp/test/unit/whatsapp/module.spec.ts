@@ -16,7 +16,7 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import {
     configModule,
     createApp,
@@ -160,7 +160,7 @@ describe('chatModule under start --check', () => {
             socketFactory: sockets.factory,
         });
         const app = createApp({
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'assistant',
                 model: textModel(),
                 instructions: 'Answer.',

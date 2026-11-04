@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, ValidationError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, ValidationError, defineModelAgent } from '@chamvi/core';
 import { github, githubChannel } from '@chamvi/github';
 import type { GithubEvent } from '@chamvi/github';
 import { defaultConcurrencyKey, matchesGithubSubscription } from '../../../src/subscription/helpers.ts';
@@ -209,14 +209,14 @@ describe('agents', () => {
             instructions: 'Triage.',
         };
 
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             ...base,
             channels: [
                 github.on('issues.opened'),
                 github.on('issues.opened', { id: 'github:other' }),
             ],
         })).not.toThrow();
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             ...base,
             channels: [
                 github.on('issues.opened'),

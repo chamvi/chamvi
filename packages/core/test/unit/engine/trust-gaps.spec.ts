@@ -12,8 +12,8 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
     defineTool,
     runSource,
 } from '@chamvi/core';
@@ -58,7 +58,7 @@ function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>, 
     const engine = new Engine({
         store,
         channels: [source, ...extra],
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             ...definition,

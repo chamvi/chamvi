@@ -18,7 +18,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import { assertSchedulable, cron, cronChannel } from '@chamvi/channel-cron';
 import { createScheduler } from '../../../src/scheduler/module.ts';
@@ -34,7 +34,7 @@ const otherOn = (id: string): ChannelSubscription => ({
 });
 const channels = () => [cronChannel(), cronChannel({ name: 'cron-eu' }), other];
 
-const agentWith = (subscriptions: ChannelSubscription[]) => defineAgent({
+const agentWith = (subscriptions: ChannelSubscription[]) => defineModelAgent({
     name: 'sweep',
     model: textModel(),
     instructions: 'x',
@@ -241,7 +241,7 @@ describe('createScheduler', () => {
     });
 
     describe('agents changed at runtime', () => {
-        const another = () => defineAgent({
+        const another = () => defineModelAgent({
             name: 'other',
             model: textModel(),
             instructions: 'x',

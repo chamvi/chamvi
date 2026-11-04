@@ -1,6 +1,6 @@
 import type { LanguageModel } from 'ai';
 import { z } from 'zod';
-import { createApp, defineAgent, defineTool } from '@chamvi/app';
+import { createApp, defineModelAgent, defineTool } from '@chamvi/app';
 import type { IApp } from '@chamvi/app';
 import { chatModule } from '@chamvi/chat/module';
 import { createDiscordChat } from '@chamvi/chat-discord';
@@ -52,7 +52,7 @@ export function createDiscordApp(
         },
     });
 
-    const assistant = defineAgent({
+    const assistant = defineModelAgent({
         name: 'assistant',
         model,
         instructions: 'You are the team\'s assistant on Discord. Answer with the reply tool.',

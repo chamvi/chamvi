@@ -8,7 +8,7 @@ import {
     approve,
     consoleChannel,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 
@@ -101,7 +101,7 @@ const shell = tool({
 });
 
 export function createOperator(model: LanguageModel) {
-    return defineAgent({
+    return defineModelAgent({
         name: 'operator',
         model,
         instructions: 'Keep the service healthy.',
@@ -134,7 +134,7 @@ export function createOperator(model: LanguageModel) {
 
 export async function approvalFlow(model: LanguageModel) {
     // #region engine
-    const deployer = defineAgent({
+    const deployer = defineModelAgent({
         name: 'deployer',
         model,
         instructions: 'Deploy the requested version.',

@@ -13,7 +13,7 @@ import {
     vi,
 } from 'vitest';
 import { jsonSchema } from 'ai';
-import { defineAgent, defineTool, memoryTools } from '@chamvi/core';
+import { defineModelAgent, defineTool, memoryTools } from '@chamvi/core';
 import type { IChannel } from '@chamvi/core';
 import { DatabaseConversationRepository, STORE_ENTITIES, STORE_MIGRATIONS } from '@chamvi/store-db';
 import { ControllableClock, mockModel, textModel  } from '@chamvi/test-kit';
@@ -125,7 +125,7 @@ describePostgres('app conversation PostgreSQL lifecycle', () => {
         });
         const harness = buildModuleHarness({
             env: { DATABASE_URL: await createTestDatabaseUrl() },
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'helper',
                 instructions: 'help',
                 conversation: true,
@@ -205,7 +205,7 @@ describePostgres('app conversation PostgreSQL lifecycle', () => {
         const clock = new ControllableClock();
         const harness = buildModuleHarness({
             env: { DATABASE_URL: await createTestDatabaseUrl() },
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'helper',
                 model: textModel(),
                 instructions: 'Help.',

@@ -6,7 +6,7 @@
  */
 
 // #region instructions
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type {
     AgentInstructions,
     AssistantModelMessage,
@@ -29,5 +29,5 @@ const answer: AssistantModelMessage = {
 };
 const instructions: AgentInstructions = [policy, example, answer];
 
-export const reporter = defineAgent({ name: 'reporter', instructions });
+export const reporter = defineModelAgent({ name: 'reporter', instructions });
 // #endregion instructions

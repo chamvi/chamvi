@@ -2,7 +2,7 @@
 
 # chamvi: Agent Guide
 
-chamvi is a TypeScript framework for building self-hosted, channel-driven AI agents. Agents are declared with `defineAgent()`, subscribe to channels (cron, http, mcp, webhook, github, chat, WhatsApp Web; OpenClaw and the console are out-only channels) that start their runs, and execute as durable runs whose steps are checkpointed in a pluggable store, so runs survive restarts and approval pauses. Outbound is tool-driven (`injectChannel`, `replyChannel`), and a tool asks for a human with a durable `approve()`. LLM access goes through the Vercel AI SDK; its types (`ToolSet`, `LanguageModel`, `ModelMessage`) pass through unchanged and are never re-wrapped.
+chamvi is a TypeScript framework for building self-hosted, channel-driven AI agents. Agents are declared with `defineModelAgent()` or `defineSimpleAgent()`, subscribe to channels (cron, http, mcp, webhook, github, chat, WhatsApp Web; OpenClaw and the console are out-only channels) that start their runs, and execute as durable runs whose steps are checkpointed in a pluggable store, so runs survive restarts and approval pauses. Outbound is tool-driven (`injectChannel`, `replyChannel`), and a tool asks for a human with a durable `approve()`. LLM access goes through the Vercel AI SDK; its types (`ToolSet`, `LanguageModel`, `ModelMessage`) pass through unchanged and are never re-wrapped.
 
 ## Quick Reference
 

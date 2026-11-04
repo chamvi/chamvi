@@ -48,11 +48,11 @@ import {
     consoleChannelModule,
     createApp,
     cron,
-    defineAgent,
+    defineModelAgent,
     http,
 } from '@chamvi/app';
 
-const triage = defineAgent({
+const triage = defineModelAgent({
     name: 'triage',
     // no model: the app's default below
     instructions: 'Triage the reported issue: label it and summarize the next step.',
@@ -92,7 +92,7 @@ Agent `instructions` also accept an ordered readonly array of native system/user
 
 ## Approved local skills
 
-Use `createApp({ skills: [common] })` for additive defaults on every agent passed in code and every folder agent. Each `defineAgent({ skills: [...] })` adds scoped extras. The engine appends metadata and provides `load_skill` automatically; user tools named `load_skill` are rejected. This example reuses the `triage` agent from Usage above.
+Use `createApp({ skills: [common] })` for additive defaults on every agent passed in code and every folder agent. Each `defineModelAgent({ skills: [...] })` adds scoped extras. The engine appends metadata and provides `load_skill` automatically; user tools named `load_skill` are rejected. This example reuses the `triage` agent from Usage above.
 
 ```ts
 import { createApp } from '@chamvi/app';

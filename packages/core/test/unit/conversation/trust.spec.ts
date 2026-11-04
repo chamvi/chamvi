@@ -16,7 +16,7 @@ import {
     Engine,
     MemoryConversationRepository,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { IChannel, RunTaint } from '@chamvi/core';
@@ -62,7 +62,7 @@ it.each(['chat', 'other'])('denies a tainted conversation emit to an arbitrary a
         store: { ...store, conversations: new MemoryConversationRepository() },
         channels: [channel, { name: 'other', out }],
         conversations: { authorize: () => true },
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             conversation: true,
@@ -107,7 +107,7 @@ it.each(['memory_get', 'memory_list'])('taints explicit %s retrieval even when r
             // Both the prior user turn and the note exceed these recall budgets.
             limits: { maxHistoryBytes: 1, maxNotesBytes: 1 },
         },
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             conversation: true,

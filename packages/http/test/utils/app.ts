@@ -10,7 +10,7 @@ import {
     Engine,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -82,7 +82,7 @@ export function createTestApp(overrides: TestAppOverrides = {}) {
     const engine = engineOverride ?? new Engine({
         store: storeOverride ?? createMemoryStore({ clock }),
         agents: agentsOverride ?? [
-            defineAgent({
+            defineModelAgent({
                 name: 'echo',
                 model: textModel(),
                 instructions: 'Echo.',
@@ -238,7 +238,7 @@ export function shotsTool() {
 
 /** `shots` (http, `shots` asks with keyed images); not part of `createRunAgents()`. */
 export function shotsAgent(): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'shots',
         model: approvalModel('shots'),
         instructions: 'Shots.',
@@ -268,33 +268,33 @@ export async function approvalIdOf(store: IStore, runId: string): Promise<string
  */
 export function createRunAgents(): Agent[] {
     return [
-        defineAgent({
+        defineModelAgent({
             name: 'echo',
             model: textModel(),
             instructions: 'Echo.',
             channels: [http.on()],
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'gate',
             model: approvalModel('deploy'),
             instructions: 'Deploy.',
             channels: [http.on()],
             tools: () => ({ deploy: deployTool() }),
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'choose',
             model: approvalModel('pick'),
             instructions: 'Choose.',
             channels: [http.on()],
             tools: () => ({ pick: pickTool() }),
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'sweep',
             model: textModel(),
             instructions: 'Sweep.',
             channels: [cronOn('0 * * * *')],
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'hooked',
             model: textModel(),
             instructions: 'Hooked.',

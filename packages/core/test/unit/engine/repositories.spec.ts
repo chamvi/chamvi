@@ -16,7 +16,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import { mockModel } from '../../utils/mock-model.ts';
@@ -47,7 +47,7 @@ describe('engine persistence capabilities', () => {
         ]);
         const engine = new Engine({
             store,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'helper',
                 instructions: 'Help.',
                 conversation: true,

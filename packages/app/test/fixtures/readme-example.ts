@@ -2,11 +2,11 @@ import {
     consoleChannelModule,
     createApp,
     cron,
-    defineAgent,
+    defineModelAgent,
     http,
 } from '@chamvi/app';
 
-const triage = defineAgent({
+const triage = defineModelAgent({
     name: 'triage',
     // no model: the app's default below
     instructions: 'Triage the reported issue: label it and summarize the next step.',

@@ -1,8 +1,8 @@
 // #region agent
 // agents/greeter/agent.ts: the folder name is the agent name
-import { cron, defineAgent, http } from '@chamvi/app';
+import { cron, defineModelAgent, http } from '@chamvi/app';
 
-export default defineAgent({
+export default defineModelAgent({
     name: 'greeter',
     // no model: the app's default (CHAMVI_MODEL)
     instructions: 'Greet whoever sent the payload, in one sentence.',

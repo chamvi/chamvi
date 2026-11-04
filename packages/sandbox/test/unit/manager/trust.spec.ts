@@ -11,7 +11,7 @@ import type { Tool, ToolSet } from 'ai';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { ApprovalWaitPoint, Run, ToolTrust } from '@chamvi/core';
@@ -86,7 +86,7 @@ describe('workspace tool trust classification', () => {
                     input,
                 }],
             });
-            const agent = defineAgent({
+            const agent = defineModelAgent({
                 name: 'test',
                 instructions: 'test',
                 trust: { onTainted: 'deny' },
@@ -203,7 +203,7 @@ describe('workspace tool trust classification', () => {
             },
             { parts: [{ type: 'text', text: 'done' }] },
         ]);
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'test',
             instructions: 'test',
             trust: { onTainted: 'deny' },
@@ -263,7 +263,7 @@ describe('workspace tool trust classification', () => {
         });
         const manager = createWorkspaceManager({ provider, push: { mode: 'auto', allowBranch: () => true } });
         const store = createMemoryStore();
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'test',
             instructions: 'test',
             trust: { onTainted: 'deny' },
@@ -361,7 +361,7 @@ describe('workspace tool trust classification', () => {
             });
             const engine = new Engine({
                 store,
-                agents: [defineAgent({
+                agents: [defineModelAgent({
                     name: 'test',
                     instructions: 'test',
                     trust: { onTainted: 'deny' },
@@ -426,7 +426,7 @@ describe('workspace tool trust classification', () => {
             });
             const engine = new Engine({
                 store,
-                agents: [defineAgent({
+                agents: [defineModelAgent({
                     name: 'test',
                     instructions: 'test',
                     model: mockModel([
@@ -515,7 +515,7 @@ describe('workspace tool trust classification', () => {
         });
         const engine = new Engine({
             store,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: 'test',
                 model: mockModel([
@@ -608,7 +608,7 @@ describe('workspace tool trust classification', () => {
         });
         const engine = new Engine({
             store,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: 'test',
                 model: mockModel([
@@ -749,7 +749,7 @@ describe('workspace tool trust classification', () => {
                     sent.push(message.kind);
                 },
             }],
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: 'test',
                 model: mockModel([

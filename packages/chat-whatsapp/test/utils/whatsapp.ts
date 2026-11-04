@@ -16,7 +16,7 @@ import type {
     UserFacingSocketConfig,
     WAMessage,
 } from 'baileys';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type {
     Agent,
     ConversationAccess,
@@ -297,7 +297,7 @@ export function createWhatsAppFixture(input: WhatsAppFixtureInput = {}): WhatsAp
     const memory = createMemoryStore({ clock });
     const engine = new Engine({
         store: memory,
-        agents: input.agents ? input.agents(channel) : [defineAgent({
+        agents: input.agents ? input.agents(channel) : [defineModelAgent({
             name: 'assistant',
             model: textModel(),
             instructions: 'Answer.',

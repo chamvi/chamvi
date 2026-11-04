@@ -53,7 +53,7 @@ export function summarizeAgent(agent: Agent, basePath: string, hookChannels: Rea
                 hook: webhookUrl(basePath, subscription.channel, agent.name, String(subscription.options.path)),
             } :
             { channel: subscription.channel, id: subscription.id })),
-        // defineAgent applied the defaults; the type keeps them optional
+        // defineModelAgent applied the defaults; the type keeps them optional
         budget: { maxSteps: DEFAULT_MAX_STEPS, ...definition.budget },
         state: Object.keys(definition.state ?? {}),
     };

@@ -11,7 +11,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import {
     AppToken,
     configModule,
@@ -48,7 +48,7 @@ async function harnessWith(modules: IModule[]): Promise<ModuleHarness> {
     const harness = await createModuleHarness({
         mode: 'start',
         env: {},
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'coder',
             model: textModel('done'),
             instructions: 'x',

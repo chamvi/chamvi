@@ -17,7 +17,7 @@ import {
     Engine,
     agent,
     agentChannel,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatch,
     dispatchTo,
@@ -81,7 +81,7 @@ afterEach(() => {
 });
 
 function leadAgent(parent: ParentTurn[], child: ChildTurn) {
-    return defineAgent({
+    return defineModelAgent({
         name: 'lead',
         instructions: 'You lead.',
         model: treeModel([...parent, ...done()], child),
@@ -102,7 +102,7 @@ function build(parent: ParentTurn[], child: ChildTurn, worker: ChildTurn = (_p, 
         clock,
         agents: [
             leadAgent(parent, child),
-            defineAgent({
+            defineModelAgent({
                 name: 'worker',
                 instructions: 'You work.',
                 model: treeModel(done(), worker),

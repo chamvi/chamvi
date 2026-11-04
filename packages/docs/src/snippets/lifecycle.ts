@@ -2,11 +2,11 @@ import type { LanguageModel } from 'ai';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 
 export async function watchRuns(model: LanguageModel) {
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'echo',
         model,
         instructions: 'Repeat the payload.',

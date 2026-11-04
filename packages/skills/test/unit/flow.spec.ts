@@ -9,7 +9,7 @@ import { join } from 'node:path';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/app';
 import type { IEngine } from '@chamvi/app';
 import { hashSkillBundle } from '@chamvi/skills';
@@ -101,7 +101,7 @@ it('prepares reviewed bytes for metadata-only initial context and body/reference
 
     try {
         const catalog = await prepareCatalog(options, { audit: hash });
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'reviewer',
             instructions: catalog.instructions,
             tools: catalog.tools,

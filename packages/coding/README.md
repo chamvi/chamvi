@@ -43,11 +43,11 @@ ESM only, Node.js `>=26.0.0`. `@chamvi/core`, `@chamvi/sandbox` and `ai` are pee
 ```typescript
 import type { LanguageModel } from 'ai';
 import { codingTools } from '@chamvi/coding';
-import { ToolDeniedError, approve, defineAgent } from '@chamvi/core';
+import { ToolDeniedError, approve, defineModelAgent } from '@chamvi/core';
 import type { IWorkspaceManager } from '@chamvi/sandbox';
 
 export function createCodingAgent(model: LanguageModel, workspaces: IWorkspaceManager) {
-    return defineAgent({
+    return defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Check out the repository named in the payload, reproduce the reported bug ' +

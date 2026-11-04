@@ -11,7 +11,7 @@ import {
     it,
     vi,
 } from 'vitest';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import { defineSkill, defineSkillSource } from '@chamvi/skills';
 import { mockModel } from '@chamvi/test-kit';
 import { SkillRuntime } from '../../../src/runtime/module.ts';
@@ -25,7 +25,7 @@ const ready = () => defineSkill({
     body: 'content',
     references: {},
 });
-const candidate = (inputs: Parameters<typeof defineAgent>[0]['skills']) => defineAgent({
+const candidate = (inputs: Parameters<typeof defineModelAgent>[0]['skills']) => defineModelAgent({
     name: 'test',
     instructions: '',
     skills: inputs,
@@ -167,7 +167,7 @@ describe('runtime structural interchange', () => {
 
         Object.assign(empty.definition, { skills: [original] });
 
-        const late = defineAgent({
+        const late = defineModelAgent({
             name: 'late',
             instructions: '',
             skills: [original],

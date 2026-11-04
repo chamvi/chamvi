@@ -5,7 +5,7 @@ import {
     ValidationError,
     createAgentState,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 
 // #region schema
@@ -18,7 +18,7 @@ const loop = z.object({
 
 export function createDigest(model: LanguageModel) {
     // #region agent
-    const digest = defineAgent({
+    const digest = defineModelAgent({
         name: 'digest',
         model,
         instructions: 'Track open loops across days.',

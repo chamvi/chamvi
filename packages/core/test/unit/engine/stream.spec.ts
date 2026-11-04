@@ -17,7 +17,7 @@ import {
     vi,
 } from 'vitest';
 import { z } from 'zod';
-import { Engine, defineAgent } from '@chamvi/core';
+import { Engine, defineModelAgent } from '@chamvi/core';
 import type { IEngine, RunDelta } from '@chamvi/core';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
@@ -42,7 +42,7 @@ const env = {
 
 function make(model: LanguageModel, tools?: () => ToolSet) {
     const store = createMemoryStore();
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'triage',
         instructions: 'You triage.',
         model,
@@ -479,7 +479,7 @@ describe('streaming', () => {
         const store = createMemoryStore();
         const engine = new Engine({
             store,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'triage',
                 instructions: 'You triage.',
                 model,

@@ -6,7 +6,7 @@
  */
 
 import { cron } from '@chamvi/channel-cron';
-import { InvalidAgentDefinitionError, createMemoryStore, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type { Agent, IChannel } from '@chamvi/core';
 import { http, webhook } from '@chamvi/http';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
@@ -45,7 +45,7 @@ afterEach(async () => {
 });
 
 function triage(): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'triage',
         model: textModel(),
         instructions: 'triage',
@@ -207,7 +207,7 @@ describe('channels', () => {
     });
 
     it('a subscription of a channel no module contributes fails setup', async () => {
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'triage',
             model: textModel(),
             instructions: 'triage',
@@ -229,7 +229,7 @@ describe('channels', () => {
         const events: string[] = [];
         const clock = new ControllableClock(new Date('2026-10-21T08:00:00Z'));
         const app = createApp({
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'sweep',
                 model: textModel(),
                 instructions: 'x',

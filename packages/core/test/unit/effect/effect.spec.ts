@@ -15,7 +15,7 @@ import {
     vi,
 } from 'vitest';
 import { z } from 'zod';
-import { Engine, ToolNotAllowedError, defineAgent } from '@chamvi/core';
+import { Engine, ToolNotAllowedError, defineModelAgent } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import {
     EFFECT,
@@ -192,7 +192,7 @@ describe('effect tools', () => {
         const make = (model: ReturnType<typeof mockModel>) => {
             const engine = new Engine({
                 store,
-                agents: [defineAgent({
+                agents: [defineModelAgent({
                     name: 'triage',
                     instructions: 'x',
                     model,

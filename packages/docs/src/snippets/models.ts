@@ -2,7 +2,7 @@
 // src/index.ts
 import {
     createApp,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     http,
     resolveModel,
@@ -26,7 +26,7 @@ const summarize = defineTool({
     },
 });
 
-const triage = defineAgent({
+const triage = defineModelAgent({
     name: 'triage',
     // no model: the app's default below
     instructions: 'Triage the reported issue: label it and summarize the next step.',
@@ -34,7 +34,7 @@ const triage = defineAgent({
     tools: { summarize },
 });
 
-const review = defineAgent({
+const review = defineModelAgent({
     name: 'review',
     // provider "team-a", model "claude-opus-4-6": split at the first '/'
     model: 'team-a/claude-opus-4-6',

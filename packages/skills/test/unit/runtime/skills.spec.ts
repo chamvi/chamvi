@@ -16,7 +16,7 @@ import {
     Engine,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { SkillInput } from '@chamvi/core';
@@ -33,7 +33,7 @@ const skill = (name = 'common', body = 'SECRET BODY'): Skill & SkillInput => def
     body,
     references: { 'references/a.md': 'reference' },
 });
-const agent = (skills: Parameters<typeof defineAgent>[0]['skills'] = []) => defineAgent({
+const agent = (skills: Parameters<typeof defineModelAgent>[0]['skills'] = []) => defineModelAgent({
     name: 'test',
     instructions: 'role',
     skills,
@@ -76,7 +76,7 @@ describe('first class skills', () => {
             store: createMemoryStore(),
             model,
             skills: [skill()],
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: [
                     { role: 'system', content: 'base' },
@@ -143,7 +143,7 @@ describe('first class skills', () => {
         expect(() => engine([skill()], [agent([skill()])])).not.toThrow();
         expect(() => engine([skill()], [agent([defineSkill({ ...skill(), version: '2' })])])).toThrow(/skill/i);
         expect(() => engine(Array.from({ length: 17 }, (_, i) => skill(`skill-${i}`)))).toThrow(/16/);
-        expect(() => engine([], [agent([skill()]), defineAgent({
+        expect(() => engine([], [agent([skill()]), defineModelAgent({
             name: 'other',
             instructions: '',
             skills: [defineSkill({ ...skill(), version: '2' })],
@@ -366,7 +366,7 @@ describe('first class skills', () => {
         await expect(e.start()).rejects.toThrow('channel failed'); expect(stop).toHaveBeenCalledOnce(); await e.stop();
     });
     it('rejects static and factory load_skill collisions', async () => {
-        expect(() => agent([skill()]) && engine([skill()], [defineAgent({
+        expect(() => agent([skill()]) && engine([skill()], [defineModelAgent({
             name: 'test',
             instructions: '',
             tools: { load_skill: defineTool({ inputSchema: jsonSchema({ type: 'object' }), execute: async () => null }) },
@@ -375,7 +375,7 @@ describe('first class skills', () => {
         const model = mockModel([{ parts: [{ type: 'text', text: 'must not run' }] }]);
         const e = new Engine({
             store: createMemoryStore(),
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: '',
                 tools: () => ({ load_skill: defineTool({ inputSchema: jsonSchema({ type: 'object' }), execute: async () => null }) }),
@@ -416,7 +416,7 @@ describe('first class skills', () => {
     });
     it('rejects conflicting content under the same identity from otherwise isolated providers', async () => {
         const a = agent([defineSkillSource({ skills: [skill()], load: async () => [skill()] })]);
-        const b = defineAgent({
+        const b = defineModelAgent({
             name: 'other',
             instructions: '',
             skills: [defineSkillSource({ skills: [skill()], load: async () => [skill('common', 'different content')] })],
@@ -428,7 +428,7 @@ describe('first class skills', () => {
     });
     it('loads a repeated original source once across globals and separate agent snapshots', async () => {
         const load = vi.fn(async () => [skill()]); const source = defineSkillSource({ skills: [skill()], load });
-        const e = engine([source], [agent([source]), defineAgent({
+        const e = engine([source], [agent([source]), defineModelAgent({
             name: 'other',
             instructions: '',
             skills: [source],
@@ -521,7 +521,7 @@ describe('first class skills', () => {
             store: createMemoryStore(),
             model,
             skills: [skill()],
-            agents: [agent(), defineAgent({
+            agents: [agent(), defineModelAgent({
                 name: 'other',
                 instructions: '',
                 skills: [skill('private')],
@@ -564,7 +564,7 @@ describe('first class skills', () => {
         const a = new Engine({
             store,
             model: first,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: '',
                 skills: [skill('common', 'OLD')],
@@ -591,7 +591,7 @@ describe('first class skills', () => {
         const b = new Engine({
             store,
             model: second,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: '',
                 skills: [skill('common', 'NEW')],
@@ -615,7 +615,7 @@ describe('first class skills', () => {
         const e = new Engine({
             store: createMemoryStore(),
             model,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: '',
                 skills: [skill()],
@@ -851,7 +851,7 @@ describe('first class skills', () => {
         const e = new Engine({
             store: createMemoryStore(),
             model,
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'test',
                 instructions: '',
                 skills: [skill()],

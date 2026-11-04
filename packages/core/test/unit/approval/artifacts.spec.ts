@@ -15,7 +15,7 @@ import { z } from 'zod';
 import {
     Engine,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     keyedArtifactId,
 } from '@chamvi/core';
@@ -103,7 +103,7 @@ function setup(request: Record<string, unknown>, opts: { channels?: IChannel[] }
     });
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'visual',
             instructions: 'You compare.',
             model: mockModel([ask(request), text('done')]),
@@ -266,7 +266,7 @@ describe('approve() with artifacts', () => {
             store,
             clock,
             channels: [channel],
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'visual',
                 instructions: 'x',
                 model: mockModel([{

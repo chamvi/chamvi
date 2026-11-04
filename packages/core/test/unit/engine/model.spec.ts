@@ -11,7 +11,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { Engine, defineAgent } from '@chamvi/core';
+import { Engine, defineModelAgent } from '@chamvi/core';
 import type { IEngine, IModelResolver, ModelRef } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createMemoryStore } from '../../../src/repository/index.ts';
@@ -51,7 +51,7 @@ async function runAgent(options: {
 }) {
     const clock = new ControllableClock(new Date(1_000_000));
     const store = createMemoryStore({ clock });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'ops',
         instructions: 'You operate.',
         ...(options.model === undefined ? {} : { model: options.model }),

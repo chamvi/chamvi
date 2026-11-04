@@ -7,7 +7,7 @@
 
 import { UnauthorizedError } from '@ebec/http';
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import type {
     Authenticator,
@@ -566,7 +566,7 @@ describe('prefix routes, headers and byte bodies', () => {
             })],
         });
 
-        await engine.putAgent(defineAgent({
+        await engine.putAgent(defineModelAgent({
             name: 'late',
             model: textModel(),
             instructions: 'Late.',

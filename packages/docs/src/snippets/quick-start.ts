@@ -4,14 +4,14 @@ import {
     Engine,
     consoleChannel,
     createMemoryStore,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
 } from '@chamvi/core';
 
 export async function triageIssue(model: LanguageModel) {
     const labels: string[] = [];
 
-    const triage = defineAgent({
+    const triage = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Label the issue in the trigger payload as bug, feature or question.',

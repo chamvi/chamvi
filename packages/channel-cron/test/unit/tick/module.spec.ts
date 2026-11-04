@@ -11,7 +11,7 @@ import {
     Engine,
     InvalidAgentDefinitionError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import {
     cron,
@@ -28,7 +28,7 @@ const T_ISO = '2026-03-01T08:00:00.000Z';
 function setup(subscription: ChannelSubscription = cron.on('*/5 * * * *')) {
     const clock = new ControllableClock(T);
     const store = createMemoryStore({ clock });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'sweep',
         model: textModel(),
         instructions: 'x',

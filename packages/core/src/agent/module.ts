@@ -55,14 +55,6 @@ export function defineSimpleAgent<S extends StateSchema = StateSchema>(def: Simp
     return { kind: 'simple', ...build(def) } as SimpleAgent<S>;
 }
 
-/**
- * @deprecated Use defineModelAgent(); defineAgent() is removed in a later
- * release. A definition with `run` is refused: use defineSimpleAgent().
- */
-export function defineAgent<S extends StateSchema = StateSchema>(def: ModelAgentDefinition<S>): ModelAgent<S> {
-    return defineModelAgent(def);
-}
-
 function assertName(name: unknown): void {
     if (
         typeof name !== 'string' ||

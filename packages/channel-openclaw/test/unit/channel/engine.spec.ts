@@ -22,7 +22,7 @@ import type {
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import { openclawChannel } from '@chamvi/channel-openclaw';
@@ -83,7 +83,7 @@ function setup(
             return 'sent';
         },
     });
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'deployer',
         model,
         instructions: 'Deploy.',

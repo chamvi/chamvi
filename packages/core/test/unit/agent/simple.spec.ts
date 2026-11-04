@@ -19,7 +19,6 @@ import {
     InvalidAgentDefinitionError,
     agent,
     agentChannel,
-    defineAgent,
     defineModelAgent,
     defineSimpleAgent,
 } from '@chamvi/core';
@@ -65,16 +64,8 @@ describe('simple agents', () => {
         expect(model.definition.budget.maxSteps).toBeGreaterThan(0);
     });
 
-    it('keeps defineAgent as an alias of defineModelAgent', () => {
-        const model = defineAgent({ name: 'm', instructions: 'x' });
-
-        expect(model.kind).toBe('model');
-        expect(model.definition.instructions).toBe('x');
-    });
-
     it.each([
         ['defineModelAgent', defineModelAgent],
-        ['defineAgent', defineAgent],
     ])('%s refuses run, pointing at defineSimpleAgent', (_, define) => {
         const def = {
             name: 'fan',
@@ -225,7 +216,7 @@ describe('simple agents', () => {
         expectTypeOf<Agent>().toEqualTypeOf<ModelAgent | SimpleAgent>();
         expectTypeOf(defineModelAgent).returns.toEqualTypeOf<ModelAgent>();
         expectTypeOf(defineSimpleAgent).returns.toEqualTypeOf<SimpleAgent>();
-        expectTypeOf(defineAgent).parameter(0).toEqualTypeOf<ModelAgentDefinition>();
+        expectTypeOf(defineModelAgent).parameter(0).toEqualTypeOf<ModelAgentDefinition>();
 
         const read = (agent: Agent) => {
             if (agent.kind === 'simple') {

@@ -10,8 +10,8 @@ import { z } from 'zod';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { AgentDefinition, IChannel } from '@chamvi/core';
@@ -34,12 +34,12 @@ const call = (toolName: string, input = {}) => ({
 const done = { parts: [{ type: 'text' as const, text: 'done' }] };
 
 it('rejects invalid trust policies rather than silently allowing outbound calls', () => {
-    expect(() => defineAgent({
+    expect(() => defineModelAgent({
         name: 'test',
         instructions: 'test',
         trust: { onTainted: 'allow' as never },
     })).toThrow('trust.onTainted');
-    expect(() => defineAgent({
+    expect(() => defineModelAgent({
         name: 'test',
         instructions: 'test',
         tools: {},
@@ -48,7 +48,7 @@ it('rejects invalid trust policies rather than silently allowing outbound calls'
 });
 
 it.each([undefined, {}])('rejects unknown trust names without dynamic tools (%j)', (tools) => {
-    expect(() => defineAgent({
+    expect(() => defineModelAgent({
         name: 'test',
         instructions: 'test',
         tools,
@@ -67,17 +67,17 @@ it.each(['state', 'skill', 'factory'] as const)('defers %s tool names but always
         ...(source === 'factory' ? { tools: () => ({}) } : {}),
     };
 
-    expect(() => defineAgent({
+    expect(() => defineModelAgent({
         ...definition,
         trust: { tools: { deferred: { guardWhenTainted: true, taint: false } } },
     })).not.toThrow();
-    expect(() => defineAgent({
+    expect(() => defineModelAgent({
         ...definition,
         trust: { onTainted: 'allow' as never },
     })).toThrow('trust.onTainted');
 
     for (const flags of [{ guardWhenTainted: 'true' }, { taint: () => true }, { unknown: true }]) {
-        expect(() => defineAgent({
+        expect(() => defineModelAgent({
             ...definition,
             trust: { tools: { deferred: flags as never } },
         })).toThrow('deferred');
@@ -107,7 +107,7 @@ it.each(['state', 'skill'] as const)('classifies assembled %s tools and rejects 
             { skills: [skill.input] }),
     };
     const store = createMemoryStore();
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         ...definition,
         model: mockModel([call(toolName), done]),
         trust: { tools: { [toolName]: { taint: true } } },
@@ -135,7 +135,7 @@ it.each(['state', 'skill'] as const)('classifies assembled %s tools and rejects 
     const invalidStore = createMemoryStore();
     const invalidEngine = new Engine({
         store: invalidStore,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             ...definition,
             model: invalidModel,
             trust: { tools: { missing: { guardWhenTainted: true } } },
@@ -164,7 +164,7 @@ it.each(['state', 'skill'] as const)('classifies assembled %s tools and rejects 
 it('persists untrusted result taint and denies subsequent outbound effects', async () => {
     let writes = 0;
     const store = createMemoryStore();
-    const agent = defineAgent({
+    const agent = defineModelAgent({
         name: 'test',
         instructions: 'test',
         trust: { onTainted: 'deny' },
@@ -221,7 +221,7 @@ it('binds automatic approval to final input and keeps arguments out of channel n
     const engine = new Engine({
         store,
         channels: [source],
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             model: mockModel([call('send', { text: 'secret' }), done]),
@@ -297,7 +297,7 @@ it.each(['plain', 'effect', 'reconciliation', 'stream'] as const)('taints extern
 
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             trust: { onTainted: 'deny' },
@@ -347,7 +347,7 @@ it('does not expose content or checkpoint it when persisting taint fails', async
     const model = mockModel([call('read'), done]);
     const engine = new Engine({
         store,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             model,
@@ -384,7 +384,7 @@ it('rechecks approval after a hook changes the final input on resume', async () 
     const engine = new Engine({
         store,
         channels: [{ name: 'source', untrusted: true }],
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             model: mockModel([call('send', { text: 'original' }), done]),
@@ -441,7 +441,7 @@ it('gates direct channel emits to model-selected destinations but permits source
     const engine = new Engine({
         store,
         channels: [source],
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
             trust: { onTainted: 'deny' },

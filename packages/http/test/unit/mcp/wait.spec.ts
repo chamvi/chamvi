@@ -18,7 +18,7 @@ import {
     agent,
     agentChannel,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
     dispatchTo,
     keyedArtifactId,
@@ -78,7 +78,7 @@ afterEach(() => {
 
 /** `lead` (http) whose `delegate` dispatches one `worker` run and waits on it. */
 function leadAgent(): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'lead',
         model: approvalModel('delegate'),
         instructions: 'Lead.',
@@ -99,7 +99,7 @@ function leadAgent(): Agent {
 
 /** `worker` (dispatched by `lead`): `deploy` asks for an approval. */
 function approvingWorker(): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'worker',
         model: approvalModel('deploy'),
         instructions: 'Work.',
@@ -111,7 +111,7 @@ function approvingWorker(): Agent {
 /** `worker` (dispatched by `lead`): `block` returns once `release()` is called. */
 function blockingWorker() {
     const { promise: released, resolve: release } = Promise.withResolvers<void>();
-    const worker = defineAgent({
+    const worker = defineModelAgent({
         name: 'worker',
         model: approvalModel('block'),
         instructions: 'Work.',

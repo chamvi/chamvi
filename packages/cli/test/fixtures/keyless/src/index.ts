@@ -5,10 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createApp, defineAgent, http } from '@chamvi/app';
+import { createApp, defineModelAgent, http } from '@chamvi/app';
 
 // a model string of a provider whose API key is not set
-const triage = defineAgent({
+const triage = defineModelAgent({
     name: 'triage',
     model: 'anthropic/claude-sonnet-5-5',
     instructions: 'Triage the issue.',

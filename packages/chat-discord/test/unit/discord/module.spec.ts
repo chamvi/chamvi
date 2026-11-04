@@ -12,7 +12,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import {
     configModule,
     createApp,
@@ -188,7 +188,7 @@ describe('chatModule under start --check', () => {
             fetch: fetch.fetch,
         });
         const app = createApp({
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'assistant',
                 model: textModel(),
                 instructions: 'Answer.',

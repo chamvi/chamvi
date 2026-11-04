@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { IChannel } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
@@ -49,7 +49,7 @@ describe('httpModule channel policies', () => {
                 PORT: String(port),
                 CHAMVI_TOKENS: TOKENS,
             },
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'echo',
                 instructions: 'Echo.',
                 model: textModel(),

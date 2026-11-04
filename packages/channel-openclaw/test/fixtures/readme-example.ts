@@ -3,7 +3,7 @@ import { z } from 'zod';
 import {
     Engine,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
@@ -51,7 +51,7 @@ export function createApprovalEngine(
         },
     });
 
-    const deployer = defineAgent({
+    const deployer = defineModelAgent({
         name: 'deployer',
         model,
         instructions: 'Deploy the release the user asks for.',

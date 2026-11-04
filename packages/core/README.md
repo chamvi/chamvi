@@ -46,7 +46,7 @@ The AI SDK runs the model and its tool loop, and stops there. An agent that reac
 | **Limits** | `stopWhen` per call | `maxSteps`, `maxTokens` and `timeoutMs` per run, settled as `completed` or `failed` |
 | **Shutdown** | Runs die with the process | `drain()` waits for in-flight runs, then marks the rest `interrupted` for another replica |
 
-Models, messages and tools stay AI SDK types: `defineAgent()` takes a `LanguageModel` (or a `'<provider>/<model id>'` string the engine resolves through `EngineOptions.models`) and a plain `ToolSet` (tools built with `tool()`, or `defineTool()` for tools that read the run context), and nothing is wrapped in a chamvi type.
+Models, messages and tools stay AI SDK types: `defineModelAgent()` takes a `LanguageModel` (or a `'<provider>/<model id>'` string the engine resolves through `EngineOptions.models`) and a plain `ToolSet` (tools built with `tool()`, or `defineTool()` for tools that read the run context), and nothing is wrapped in a chamvi type.
 
 <p align="center">
     <img src="https://raw.githubusercontent.com/chamvi/chamvi/master/.github/assets/run-lifecycle.svg" alt="dispatch() stores a queued run, deduplicated by idempotency key. The engine claims it and runs it: every LLM or tool step is followed by a checkpoint in the store. A run ends completed, failed or cancelled. A tool that awaits approve() pauses the run in waiting; approving or denying it requeues the run, and the call runs again with the decision. drain() or a crashed process leaves a run interrupted or with an expired claim; recover() requeues it, and the next execution continues from the latest checkpoint." width="100%" />
@@ -84,15 +84,15 @@ import {
     Engine,
     consoleChannel,
     createMemoryStore,
-    defineAgent,
     defineEffectTool,
+    defineModelAgent,
 } from '@chamvi/core';
 
 export async function triageIssue(model: LanguageModel) {
     const labels: string[] = [];
     const lines: string[] = [];
 
-    const triage = defineAgent({
+    const triage = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Label the issue in the trigger payload as bug, feature or question.',
@@ -148,7 +148,7 @@ The run settles `completed`, and its `output` is the text of the model's last an
 
 ### Agents and channels
 
-- `defineAgent()` checks the name (`^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters) and that subscription ids are unique, and fills in the default budget (`maxSteps: 20`, `timeoutMs: 900_000`).
+- `defineModelAgent()` checks the name (`^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64 characters) and that subscription ids are unique, and fills in the default budget (`maxSteps: 20`, `timeoutMs: 900_000`).
 - `tools` is a plain AI SDK `ToolSet`, defined once at module scope, or a factory `(ctx) => ToolSet` for dynamic sets (called once per execution). Tools built with `defineTool()` (or `defineEffectTool()`) read the run context as `context` in `execute`: `run` (`runId`, `agent`, `trigger`, `signal`), the agent's `state` and the run's `artifacts`. One context per execution, shared by every call and by the factory; treat it as immutable.
 
 ```typescript
@@ -158,7 +158,7 @@ const lookup = defineTool({
 });
 ```
 
-- Only tools whose `contextSchema` is chamvi's `toolContextSchema` get that context. A third-party tool with its own `contextSchema` gets its entry of the agent's `toolsContext`, passed through by reference. An entry the tool's schema rejects fails the run with `validation_error`, without recording the value. An entry naming a chamvi tool or no tool is an `InvalidAgentDefinitionError` (thrown by `defineAgent()` for a plain set, a failed run for a factory).
+- Only tools whose `contextSchema` is chamvi's `toolContextSchema` get that context. A third-party tool with its own `contextSchema` gets its entry of the agent's `toolsContext`, passed through by reference. An entry the tool's schema rejects fails the run with `validation_error`, without recording the value. An entry naming a chamvi tool or no tool is an `InvalidAgentDefinitionError` (thrown by `defineModelAgent()` for a plain set, a failed run for a factory).
 
 ```typescript
 tools: { search: searchTool },
@@ -189,7 +189,7 @@ const comment = defineEffectTool({
     ),
 });
 
-const agent = defineAgent({
+const agent = defineModelAgent({
     name: 'responder',
     model,
     instructions: 'Answer new issues.',
@@ -215,7 +215,7 @@ const deploy = defineTool({
     },
 });
 
-const deployer = defineAgent({
+const deployer = defineModelAgent({
     name: 'deployer',
     model,
     instructions: 'Deploy the requested version.',
@@ -266,7 +266,7 @@ After exposure, outbound tools require durable approval (or are denied). The gat
 A run can carry its invoker: who started it, as an authenticator resolved it (`@chamvi/http` sets it from the request's principal). `toolPolicy` decides per tool whether the run may use it; a refused tool is not offered to the model.
 
 ```typescript
-const ops = defineAgent({
+const ops = defineModelAgent({
     name: 'ops',
     model,
     instructions: 'Operate the service.',
@@ -307,7 +307,7 @@ await engine.approve(runId, { approvalId, approved: true, approver: { id: 'u-7',
 ### Agent state
 
 ```typescript
-const digest = defineAgent({
+const digest = defineModelAgent({
     name: 'digest',
     model,
     instructions: 'Track open loops across days.',
@@ -375,7 +375,7 @@ A missing value throws `ContextNotProvidedError` (`context_not_provided`, naming
 | `clock` | `IClock` | `systemClock` | Time source, replaceable in tests |
 | `onError` | `(error, run?) => void` | `console.error` | Errors with no caller to throw to, such as a lost lease |
 
-`defineAgent(definition)`:
+`defineModelAgent(definition)`:
 
 | Field | Type | Default | Description |
 |---|---|---|---|
@@ -396,13 +396,13 @@ A missing value throws `ContextNotProvidedError` (`context_not_provided`, naming
 Strings remain shorthand for one system message. Native message types are available directly from core:
 
 ```ts
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { AgentInstructions, SystemModelMessage, UserModelMessage } from '@chamvi/core';
 
 const policy: SystemModelMessage = { role: 'system', content: 'Summarize the report.' };
 const example: UserModelMessage = { role: 'user', content: [{ type: 'text', text: 'All checks passed.' }] };
 const instructions: AgentInstructions = [policy, example, { role: 'assistant', content: 'Ready to release.' }];
-const agent = defineAgent({ name: 'reporter', instructions });
+const agent = defineModelAgent({ name: 'reporter', instructions });
 ```
 
 System content is a string; user/assistant content and `providerOptions` use their native SDK types. Leading system blocks go through SDK `instructions`; the remaining messages stay in order before the run transcript, including any later system blocks. First-class skills append a separate metadata system block. These configured messages are transient: they hydrate artifact markers for model/tool context, stay out of checkpoints and conversation history, and never become pending replay calls. Recalled conversation messages follow this configured prefix, and approval resume uses the captured conversation snapshot. Resumed executions rebuild them from the current definition. Stored transcript system roles are rejected before replay/model work. Manual `SkillCatalog.instructions` remains a string for explicit composition.
@@ -416,7 +416,7 @@ See the [instructions guide](https://chamvi.dev/guide/agents#instructions) for t
 | `AgentInstruction`, `AgentInstructions` | type | Native system/user/assistant message union and string-or-readonly-array configuration |
 | `SystemModelMessage`, `UserModelMessage`, `AssistantModelMessage`, `ModelMessage` | type | Identity-preserving native SDK message types |
 | `UserContent`, `AssistantContent`, `TextPart`, `ImagePart`, `FilePart` | type | Native SDK content and part types |
-| `defineAgent` | function | Validates an agent definition and applies defaults |
+| `defineModelAgent` | function | Validates an agent definition and applies defaults |
 | `DEFAULT_MAX_STEPS`, `DEFAULT_TIMEOUT_MS` | constant | The default budget: `20` steps, `900_000` ms |
 | `Engine` | class | `store`, `clock`, `getAgent`, `listAgents`, `putAgent`, `removeAgent`, `getChannel`, `listChannels`, `provide`, `start`, `dispatch`, `getRun`, `on`, `approve`, `cancel`, `recover`, `tick`, `idle`, `stop`, `drain` |
 | `createMemoryStore()` | function | Assembles independent in-memory repositories, including conversations |

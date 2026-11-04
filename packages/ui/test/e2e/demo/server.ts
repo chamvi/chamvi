@@ -10,7 +10,7 @@ import {
     Engine,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { IChannel } from '@chamvi/core';
@@ -41,7 +41,7 @@ const store = createMemoryStore();
 const engine = new Engine({
     store,
     agents: [
-        defineAgent({
+        defineModelAgent({
             name: 'deploy',
             model: createDemoModel(),
             instructions: 'Deploy the requested environment.',
@@ -62,7 +62,7 @@ const engine = new Engine({
                 }),
             },
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'release',
             model: createDemoModel(120, 'pick_version', {}),
             instructions: 'Release the version the owner picks.',
@@ -97,7 +97,7 @@ const engine = new Engine({
                 }),
             },
         }),
-        defineAgent({
+        defineModelAgent({
             name: 'digest',
             model: createDemoModel(),
             instructions: 'Write the morning digest.',

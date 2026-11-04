@@ -46,7 +46,7 @@ ESM only, Node.js `>=26.0.0`. `@chamvi/core` is a peer dependency; [routup](http
 
 ```typescript
 import type { LanguageModel } from 'ai';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import {
     createHttpApp,
     createShutdown,
@@ -57,7 +57,7 @@ import {
 } from '@chamvi/http';
 
 export async function createAgentServer(model: LanguageModel) {
-    const echo = defineAgent({
+    const echo = defineModelAgent({
         name: 'echo',
         model,
         instructions: 'Answer with a short summary of the payload.',
@@ -194,7 +194,7 @@ auth: [
 
 ## Channels
 
-Agents subscribe to channels (`defineAgent({ channels: [...] })`, see `@chamvi/core`); the engine holds the channel instances (`new Engine({ channels })`). This package ships three:
+Agents subscribe to channels (`defineModelAgent({ channels: [...] })`, see `@chamvi/core`); the engine holds the channel instances (`new Engine({ channels })`). This package ships three:
 
 - **`httpChannel()`** (name `http`) and **`mcpChannel()`** (name `mcp`): no `in`, no `out`. **`http.on({ schema? })`** is the control-plane subscription (id `http`, at most one per agent): REST `POST /agents/:name/runs` starts runs through it as channel `http`, and MCP `run_<name>` as channel `mcp`, so the two keep separate idempotency scopes. An agent without it answers 404 on REST and gets no MCP tool. `schema` (any Standard Schema) validates the payload; failures answer 400 with `issues`. The engine refuses an `http.on()` subscription unless it holds `httpChannel()`.
 - **`webhookChannel({ auth, name?, bodyLimit? })`** (name `webhook` by default): **`webhook.on(path, { schema?, idempotencyKey?, concurrencyKey? })`** (id `webhook:<path>`, many per agent) is served on its own path under the agent: `webhook.on('/issues')` on agent `intake` is `POST /channels/webhook/intake/issues`, a path of `/` is `/channels/webhook/intake` (`GET /agents` lists each `hook` URL). The match is exact, a trailing slash included. A delivery needs a principal of `auth` (one authenticator or a chain, as the app's `auth`; required, since the app never authenticates channel routes) holding `agent:<agent>:run`, checked before the body is read. The body is any JSON value of at most `bodyLimit` bytes (default 1 MiB; 413 above, 415 for another media type) and is the payload. The idempotency key comes from the `Idempotency-Key` header, else from `idempotencyKey(payload)`; retried deliveries with one key create one run. It answers 202 right away and never runs the agent synchronously; runs carry no invoker. A second instance (`webhookChannel({ name: 'hooks', auth })`) makes its subscriptions with its own `on()`. Signature-verified webhooks (GitHub) are `@chamvi/github`'s channel.

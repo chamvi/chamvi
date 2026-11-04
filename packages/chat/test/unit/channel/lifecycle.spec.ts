@@ -20,7 +20,7 @@ import {
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { IClock, IEngine } from '@chamvi/core';
 import {
@@ -97,7 +97,7 @@ function setup(input: {
     const engine = new Engine({
         store: createMemoryStore({ clock }),
         agents: [
-            defineAgent({
+            defineModelAgent({
                 name: 'assistant',
                 model: textModel(),
                 instructions: 'Answer.',

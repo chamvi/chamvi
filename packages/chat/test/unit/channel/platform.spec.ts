@@ -16,7 +16,7 @@ import {
 import {
     InvalidAgentDefinitionError,
     ValidationError,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type {
     Agent,
@@ -144,7 +144,7 @@ class FakePlatform implements IChatPlatform {
 }
 
 function remembering(channel: ChatChannel): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'remembering',
         model: textModel(),
         instructions: 'Answer.',

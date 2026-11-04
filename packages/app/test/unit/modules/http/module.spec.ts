@@ -8,7 +8,7 @@
 import {
     InvalidAgentDefinitionError,
     approve,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type { Agent, IEngine } from '@chamvi/core';
@@ -53,7 +53,7 @@ const TOKENS = JSON.stringify([{
 }]);
 
 function triage(model: Agent['definition']['model'] = textModel()): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name: 'triage',
         model,
         instructions: 'triage',
@@ -344,7 +344,7 @@ describe('httpModule', () => {
     });
 
     it('an open SSE stream does not block teardown', async () => {
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'triage',
             model: approvalModel('deploy'),
             instructions: 'triage',

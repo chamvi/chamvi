@@ -3,7 +3,7 @@
 import {
     ToolDeniedError,
     createApp,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/app';
 import { githubModule } from '@chamvi/github/module';
 import { openclawModule } from '@chamvi/channel-openclaw/module';
@@ -21,7 +21,7 @@ const sandbox = sandboxModule({
     allowRepo: (url) => url.startsWith('https://github.com/acme/'),
 });
 
-const repro = defineAgent({
+const repro = defineModelAgent({
     name: 'repro',
     instructions: 'Reproduce the reported bug with a failing test and comment the result.',
     channels: [github.on('issues.labeled')],

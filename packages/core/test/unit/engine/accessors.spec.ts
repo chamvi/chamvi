@@ -7,17 +7,17 @@
 
 import type { LanguageModel } from 'ai';
 import { describe, expect, it } from 'vitest';
-import { Engine, defineAgent, systemClock } from '@chamvi/core';
+import { Engine, defineModelAgent, systemClock } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 
 const model = {} as LanguageModel;
-const triage = defineAgent({
+const triage = defineModelAgent({
     name: 'triage',
     model,
     instructions: 'x',
 });
-const digest = defineAgent({
+const digest = defineModelAgent({
     name: 'digest',
     model,
     instructions: 'x',

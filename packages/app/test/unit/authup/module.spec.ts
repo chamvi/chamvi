@@ -6,7 +6,7 @@
  */
 
 import type { ITokenVerifier } from '@authup/server-adapter-kit';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import {
     afterEach,
@@ -79,7 +79,7 @@ async function served(verifier: ITokenVerifier) {
             HOST: '127.0.0.1',
             PORT: String(port),
         },
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'triage',
             model: textModel(),
             instructions: 'triage',

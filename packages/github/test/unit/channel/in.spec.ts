@@ -7,7 +7,7 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { Engine, createMemoryStore, defineAgent } from '@chamvi/core';
+import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { github, githubChannel } from '@chamvi/github';
 import type { GithubEvent, GithubSubscriptionOptions } from '@chamvi/github';
@@ -21,7 +21,7 @@ const BOT_COMMENT = readFileSync(new URL('../../fixtures/deliveries/issue-commen
 type Subscription = GithubSubscriptionOptions & { events: string[] };
 
 function agent(name: string, ...subscriptions: Subscription[]): Agent {
-    return defineAgent({
+    return defineModelAgent({
         name,
         model: textModel(),
         instructions: name,
@@ -395,13 +395,13 @@ describe('github channel in', () => {
         const engine = new Engine({
             store,
             agents: [
-                defineAgent({
+                defineModelAgent({
                     name: 'ent',
                     model: textModel(),
                     instructions: 'ent',
                     channels: [enterprise.on('issues.opened')],
                 }),
-                defineAgent({
+                defineModelAgent({
                     name: 'public',
                     model: textModel(),
                     instructions: 'public',

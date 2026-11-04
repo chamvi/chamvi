@@ -11,7 +11,7 @@ import {
     FatalToolError,
     ValidationError,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     wrapToolsForRun,
 } from '@chamvi/core';
 import type { ToolSet } from 'ai';
@@ -877,7 +877,7 @@ describe('read tools', () => {
             gh,
         } = createGithubFixture();
         const store = createMemoryStore({ clock });
-        const agent = defineAgent({
+        const agent = defineModelAgent({
             name: 'triage',
             model: mockModel([
                 {

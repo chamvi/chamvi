@@ -14,7 +14,7 @@ eve is a compiled, filesystem-first framework: an `agent/` folder (`agent.ts`, `
 
 | eve | chamvi | Differences / notes |
 |---|---|---|
-| Agent folder compiled by `eve build`, `defineDynamic` for runtime changes | `defineAgent()` object, `Engine` composed in code | chamvi is a library; eve cannot be embedded in another Node app. |
+| Agent folder compiled by `eve build`, `defineDynamic` for runtime changes | `defineModelAgent()` object, `Engine` composed in code | chamvi is a library; eve cannot be embedded in another Node app. |
 | Session = one workflow run, turns inside (`execution/session/program.ts:93`) | Run per trigger, `thread` for continuation | eve is conversation-centric (channels), chamvi trigger-centric. |
 | Durable step: Workflow `"use step"` memo + replay; checkpoint `DurableSessionState` (`execution/durable-session-store.ts:24-71`) | Step rows + latest checkpoint in `ICheckpointRepository`, leases, `recover()` | eve replays code: after an upgrade, sessions on non-Vercel worlds are "stranded" and must be reset (docs/concepts/execution-model-and-durability.mdx:46-80). chamvi's checkpoints are data only. |
 | Interrupted step re-runs; tools must be idempotent | `defineEffectTool`, `alreadyApplied`, `effectMarker` | eve has no exactly-once effect mechanism. |

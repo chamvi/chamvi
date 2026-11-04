@@ -7,7 +7,7 @@ import {
     ValidationError,
     consoleChannel,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -28,7 +28,7 @@ import type { Authenticator } from '@chamvi/http';
 
 export async function dispatchExamples(model: LanguageModel, auth: Authenticator) {
     // #region subscriptions
-    const triage = defineAgent({
+    const triage = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Triage the issue in the payload.',
@@ -112,7 +112,7 @@ export const resolve = defineTool({
 export function createEngine(model: LanguageModel) {
     return new Engine({
         store: createMemoryStore(),
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'fixer',
             model,
             instructions: 'Fix the issue, then report it.',

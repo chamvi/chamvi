@@ -8,7 +8,7 @@ Last checked against the codebase and GitHub on **2026-10-30**.
 
 | Package | Contents |
 |---|---|
-| `@chamvi/core` | `defineAgent()` with channel subscriptions, tool hooks and structured instructions; `IChannel`, `consoleChannel()`, durable runs, checkpoints, budgets, effect tools, agent state, approvals with choices, dispatch to the own or another agent's roles with durable waits, stored lineage and subtree budgets, opt-in conversation recall and notes, scoped skills, shared agent/subscription execution caps, composable repositories and `createMemoryStore()` |
+| `@chamvi/core` | `defineModelAgent()` with channel subscriptions, tool hooks and structured instructions; `IChannel`, `consoleChannel()`, durable runs, checkpoints, budgets, effect tools, agent state, approvals with choices, dispatch to the own or another agent's roles with durable waits, stored lineage and subtree budgets, opt-in conversation recall and notes, scoped skills, shared agent/subscription execution caps, composable repositories and `createMemoryStore()` |
 | `@chamvi/test-kit` | Repository, conversation and workspace contract suites, `ControllableClock`, `createGitFixture`, `createFakeGithub`, mock models and skill runtime fixtures |
 | `@chamvi/channel-cron` | The cron channel `cronChannel()` and `cron.on()` (one locked hubwire component per subscription, overlap policies, timezones), `runJob()` for one-shot jobs |
 | `@chamvi/store-db` | `createDatabaseStore()` on Postgres, `migrateStore`, `purgeExpired`. See [database store](/repositories/database) |

@@ -6,7 +6,7 @@
  */
 
 import { cron } from '@chamvi/channel-cron';
-import { InvalidAgentDefinitionError, defineAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
 import { DataSource } from 'typeorm';
 import {
@@ -19,7 +19,7 @@ import { rejectionOf } from '../../utils/app.ts';
 import { createTestDatabaseUrl, describePostgres } from '../../utils/database.ts';
 import { createRecordingLogger } from '../../utils/logger.ts';
 
-const agent = defineAgent({
+const agent = defineModelAgent({
     name: 'sweep',
     model: textModel(),
     instructions: 'x',

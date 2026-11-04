@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defineAgent, defineTool } from '@chamvi/core';
+import { defineModelAgent, defineTool } from '@chamvi/core';
 import { z } from 'zod';
 import {
     ADMIN_TOKEN,
@@ -23,7 +23,7 @@ describe('automatic approvals with long provider call ids', () => {
         const toolCallId = `call_${'x'.repeat(195)}`;
         const setup = createRunTestApp({
             engineChannels: [{ name: 'source', untrusted: true }],
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'gate',
                 instructions: 'test',
                 model: mockModel([

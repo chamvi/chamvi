@@ -12,7 +12,7 @@ import {
     InvalidAgentDefinitionError,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { gitSkills, hashSkillBundle } from '@chamvi/skills';
@@ -59,11 +59,11 @@ it('installs Git defaults and agent extras at startup and scopes real load_skill
         const engine = new Engine({
             store,
             skills: [source('common')],
-            agents: [defineAgent({
+            agents: [defineModelAgent({
                 name: 'reader',
                 instructions: '',
                 model: reader,
-            }), defineAgent({
+            }), defineModelAgent({
                 name: 'maintainer',
                 instructions: '',
                 model: maintainer,
@@ -135,7 +135,7 @@ it('rejects changed Git bytes under an old content pin before recovery and prese
     };
     const firstModel = mockModel([load('audit'), load('audit', 'references/checks.md')]);
     const resumedModel = mockModel([done]);
-    const agent = (model: typeof firstModel) => defineAgent({
+    const agent = (model: typeof firstModel) => defineModelAgent({
         name: 'reviewer',
         instructions: '',
         model,

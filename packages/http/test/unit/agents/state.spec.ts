@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { defineAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -21,7 +21,7 @@ import { inventoryAgents } from '../../utils/agents.ts';
 function setup() {
     const agents = [
         ...inventoryAgents(),
-        defineAgent({
+        defineModelAgent({
             name: 'loose',
             model: textModel(),
             instructions: 'Loose.',

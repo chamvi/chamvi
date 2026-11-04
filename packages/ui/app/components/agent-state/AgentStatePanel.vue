@@ -179,7 +179,7 @@ function toggle(which: 'kv' | 'doc', key: string): void {
                 <EmptyState
                     icon="lock"
                     title="No collections"
-                    :text="`${agent} declares no state collections in defineAgent({ state }).`"
+                    :text="`${agent} declares no state collections in defineModelAgent({ state }).`"
                 />
             </div>
             <div

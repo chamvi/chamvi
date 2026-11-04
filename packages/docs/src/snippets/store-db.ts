@@ -1,5 +1,5 @@
 import type { LanguageModel } from 'ai';
-import { Engine, defineAgent } from '@chamvi/core';
+import { Engine, defineModelAgent } from '@chamvi/core';
 import {
     STORE_ENTITIES,
     STORE_MIGRATIONS,
@@ -9,7 +9,7 @@ import {
 import { DataSource } from 'typeorm';
 
 export async function createEngine(model: LanguageModel) {
-    const triage = defineAgent({
+    const triage = defineModelAgent({
         name: 'triage',
         model,
         instructions: 'Triage the issue.',

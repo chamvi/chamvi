@@ -13,7 +13,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ValidationError, defineAgent, defineTool } from '@chamvi/core';
+import { ValidationError, defineModelAgent, defineTool } from '@chamvi/core';
 import type {
     Agent,
     ChannelMessage,
@@ -81,7 +81,7 @@ function agentWith(channel: ChatChannel, act: Act): Agent {
         execute: async (_input, { context }) => act(context),
     });
 
-    return defineAgent({
+    return defineModelAgent({
         name: 'helper',
         model: mockModel([
             {
@@ -244,7 +244,7 @@ describe('Discord inbound', () => {
 
     it('binds a conversation agent to the account alias, the adapter thread and the narrowest audience', async () => {
         const value = await started({
-            agents: (channel) => [defineAgent({
+            agents: (channel) => [defineModelAgent({
                 name: 'assistant',
                 model: mockModel([
                     { parts: [{ type: 'text', text: 'a' }] },

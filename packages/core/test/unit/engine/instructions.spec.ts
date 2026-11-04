@@ -20,7 +20,7 @@ import {
     ErrorCode,
     approve,
     createMemoryStore,
-    defineAgent,
+    defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
@@ -68,7 +68,7 @@ function setup(
     const engine = new Engine({
         store,
         model,
-        agents: [defineAgent({
+        agents: [defineModelAgent({
             name: 'test',
             instructions,
             ...extra,
