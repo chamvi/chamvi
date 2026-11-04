@@ -1,8 +1,6 @@
-# Docker Image <Badge type="warning" text="Planned" />
+# Docker Image
 
-::: warning Planned
-The template repository does not exist yet. The [base image](#base-image), the [`chamvi build`](/reference/cli#build-output) command and the [sandbox image](#sandbox-image) do.
-:::
+The [agent template](https://github.com/chamvi/agent-template) ships the two-stage Dockerfile described here, on the [base image](#base-image).
 
 ## Base image
 

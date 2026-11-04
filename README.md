@@ -23,12 +23,12 @@
     ·
     <a href="#quick-start">Quick start</a>
     ·
-    <a href="#development">Development</a>
+    <a href="#deployment">Deployment</a>
+    ·
+    <a href="https://chamvi.dev">Docs</a>
 </p>
 
 ---
-
-> chamvi is at an early stage. The engine, the cron, HTTP, GitHub and OpenClaw channels, the TypeORM store, sandbox, coding, web tools, dashboard, app and CLI packages exist; the base image, Helm chart and template repository are planned.
 
 ## Why chamvi?
 
@@ -42,7 +42,7 @@ chamvi is that layer as a library, with no orchestrator server and no Redis:
 | **Concurrency** | Two webhooks for the same issue race each other | One run at a time per `concurrencyKey`, enforced through the store across replicas |
 | **Durability** | A crash loses the conversation | A checkpoint after every step; a recovered run continues from the latest one |
 | **Side effects** | A retried tool call posts again | `defineEffectTool()` records each result per effect key and can check the remote system before acting |
-| **Approvals** | You build the pause, the storage and the callback | The run waits in `waiting`; `approve(runId, { approvalId, approved })` continues it |
+| **Approvals** | You build the pause, the storage and the callback | `await approve(ctx, { title })` inside the tool pauses the run in `waiting`, across restarts; the answer replays the call |
 | **Limits** | `stopWhen` per call | `maxSteps`, `maxTokens` and `timeoutMs` per run, settled as `completed` or `failed` |
 | **Shutdown** | Runs die with the process | `drain()` waits for in-flight runs, then marks the rest `interrupted` for another replica |
 | **Running code** | Model-written commands run wherever your process runs | `create_workspace` gives the run a disposable container or pod with the repository checked out; the coding tools work inside it, and it is removed when the run settles |
@@ -55,52 +55,50 @@ Models, messages and tools stay AI SDK types: `defineModelAgent()` takes a `Lang
 
 A run moves from `queued` to `running` and settles `completed`, `failed` or `cancelled`. A tool that awaits `approve()` parks it in `waiting` until the answer requeues it (the call then runs again with the decision); `drain()` or a crash leaves it `interrupted` (or with a lapsed claim) until `recover()` requeues it. Every requeued run continues from its latest checkpoint.
 
-### Compared with other durable runtimes
-
-Other tools also make agent runs durable. They differ in where the runs live and in how much of the agent-specific work (tool side effects, approvals, who may call which tool) they take off your hands. As of October 2026, going by each project's own docs:
-
-| | chamvi | [Workflow DevKit][wf] + `WorkflowAgent` | [Mastra][mastra] | [Inngest][inngest] | [Trigger.dev][trigger] |
-|---|---|---|---|---|---|
-| **Runs in** | Your Node process, one PostgreSQL database | Your process with the Postgres World (a reference implementation), or Vercel | Your process or a Mastra server, with a storage adapter | The Inngest server, which calls your app's endpoint | The Trigger.dev platform (cloud, or self-hosted with Postgres, Redis, ClickHouse and more) |
-| **Checkpoint per LLM and tool step** | Yes | LLM calls; tools only when marked `"use step"` | Durable agents (beta) resume from a snapshot, per step only when enabled | Yes, with `step.ai` | No, a retry restarts the task; waits are snapshotted |
-| **Tool side effects after a crash** | Recorded per effect key, `alreadyApplied` checks the remote system | Completed steps memoized; pass `stepId` to the API | May run twice, unless on the Inngest runner | Completed steps memoized; pass a stable key | Repeat in the parent task; child tasks deduped |
-| **Approval that waits for days** | `await approve(ctx, { title })` inside the tool, durable across restarts; approver needs `agent:<name>:approve` | Hook tokens, which are not credentials; your route authorizes | Resume by `runId` and `toolCallId` | `waitForEvent` with a timeout | Wait tokens |
-| **Deduplicated intake** | Per agent, channel and caller, 7 days | A pattern you build with hooks | Not documented | Yes, 24 hours | Yes, 30 days by default |
-| **One run at a time per key** | `concurrencyKey` | Not documented | Not documented | `concurrency.key` | `concurrencyKey` |
-| **Cron across replicas** | Once per tick, overlap `skip`, `queue-one` or `allow` | No cron | Yes, overlap not documented | Yes, overlap through concurrency settings | Yes, no skip-if-running policy |
-| **Agents as an MCP server** | `/mcp`, one `run_<agent>` tool per agent | No | `MCPServer` | No | No (its MCP server is developer tooling) |
-| **Tools restricted per caller** | `requireToolPermission()` reads the run's invoker | No | Tool-level checks are Enterprise | No | No |
-| **License** | Apache-2.0 | Apache-2.0 | Apache-2.0, `ee/` source-available | Server SSPL (delayed Apache-2.0) | Apache-2.0 |
-
-Pick one of the others when you want what chamvi does not have yet: a hosted service, a hosted run dashboard, or Mastra's memory, RAG and evals. Pick chamvi when the agent lives next to your app and its database, and when a webhook that fires twice must not post twice.
-
-[wf]: https://workflow-sdk.dev/docs/ai/human-in-the-loop
-[mastra]: https://mastra.ai/docs/long-running-agents/durable-agents
-[inngest]: https://www.inngest.com/docs/self-hosting
-[trigger]: https://trigger.dev/docs/how-it-works
+Workflow DevKit, Mastra, Inngest and Trigger.dev also make agent runs durable. How they differ in where runs live, step checkpoints, tool side effects, approvals and intake is on [Compared with other runtimes](https://chamvi.dev/getting-started/comparison).
 
 ## Packages
 
+**Runtime**
+
 | Package | Version | Description |
 |---|---|---|
-| [`@chamvi/core`](./packages/core) | [![npm](https://img.shields.io/npm/v/@chamvi/core)](https://www.npmjs.com/package/@chamvi/core) | Agents, the channel contract, the run engine, checkpoints, effect tools, durable approvals, agent hooks, agent state and the in-memory store |
-| [`@chamvi/http`](./packages/http) | [![npm](https://img.shields.io/npm/v/@chamvi/http)](https://www.npmjs.com/package/@chamvi/http) | REST, server-sent events, an MCP endpoint, the `http`, `mcp` and `webhook` channels and the `/channels/<name>` mount, with bearer, authup and OIDC authentication |
+| [`@chamvi/core`](./packages/core) | [![npm](https://img.shields.io/npm/v/@chamvi/core)](https://www.npmjs.com/package/@chamvi/core) | Agents, the channel contract, the run engine, checkpoints, effect tools, durable approvals, dispatch between agents, hooks, agent state and the in-memory store |
+| [`@chamvi/store-db`](./packages/store-db) | [![npm](https://img.shields.io/npm/v/@chamvi/store-db)](https://www.npmjs.com/package/@chamvi/store-db) | PostgreSQL store (TypeORM): durable runs, leases, agent state and conversations across replicas, with migrations |
+| [`@chamvi/app`](./packages/app) | [![npm](https://img.shields.io/npm/v/@chamvi/app)](https://www.npmjs.com/package/@chamvi/app) | `createApp()`: config, store, engine, channels and HTTP as modules booted from env and `chamvi.json`, plus agent folders and agent packages |
+| [`@chamvi/cli`](./packages/cli) | [![npm](https://img.shields.io/npm/v/@chamvi/cli)](https://www.npmjs.com/package/@chamvi/cli) | The `chamvi` bin: `dev`, `build`, `start` (`--check`), `run-job`, `migrate` |
+
+**Channels**
+
+| Package | Version | Description |
+|---|---|---|
+| [`@chamvi/http`](./packages/http) | [![npm](https://img.shields.io/npm/v/@chamvi/http)](https://www.npmjs.com/package/@chamvi/http) | REST control API, server-sent events, an MCP endpoint, the `http`, `mcp` and `webhook` channels and the `/channels/<name>` mount, with bearer, authup and OIDC authentication |
 | [`@chamvi/channel-cron`](./packages/channel-cron) | [![npm](https://img.shields.io/npm/v/@chamvi/channel-cron)](https://www.npmjs.com/package/@chamvi/channel-cron) | The cron channel: fires `cron.on()` subscriptions once per tick across replicas, with overlap policies, timezones and one-shot jobs |
-| [`@chamvi/store-db`](./packages/store-db) | [![npm](https://img.shields.io/npm/v/@chamvi/store-db)](https://www.npmjs.com/package/@chamvi/store-db) | TypeORM store (PostgreSQL): durable runs, leases and agent state across replicas |
-| [`@chamvi/github`](./packages/github) | [![npm](https://img.shields.io/npm/v/@chamvi/github)](https://www.npmjs.com/package/@chamvi/github) | GitHub App authentication, the GitHub channel (verified deliveries in, deduplicated by delivery id; issue comments out), and issue, label, comment, search, release and compare tools |
-| [`@chamvi/channel-openclaw`](./packages/channel-openclaw) | [![npm](https://img.shields.io/npm/v/@chamvi/channel-openclaw)](https://www.npmjs.com/package/@chamvi/channel-openclaw) | The OpenClaw channel: messages and approval requests into an OpenClaw chat |
-| [`@chamvi/sandbox`](./packages/sandbox) | [![npm](https://img.shields.io/npm/v/@chamvi/sandbox)](https://www.npmjs.com/package/@chamvi/sandbox) | Sandbox contracts and the workspace manager: one workspace per run and repository, `create_workspace` / `dispose_workspace` tools, cleanup when the run settles |
+| [`@chamvi/github`](./packages/github) | [![npm](https://img.shields.io/npm/v/@chamvi/github)](https://www.npmjs.com/package/@chamvi/github) | GitHub App authentication, the GitHub channel (verified deliveries in, deduplicated issue comments out), and issue, label, comment, search, release and compare tools |
+| [`@chamvi/chat`](./packages/chat) | [![npm](https://img.shields.io/npm/v/@chamvi/chat)](https://www.npmjs.com/package/@chamvi/chat) | Chat channels over Chat SDK adapters: conversation binding, text replies and approval links |
+| [`@chamvi/chat-discord`](./packages/chat-discord) | [![npm](https://img.shields.io/npm/v/@chamvi/chat-discord)](https://www.npmjs.com/package/@chamvi/chat-discord) | Discord through the Gateway as a chat channel |
+| [`@chamvi/chat-whatsapp`](./packages/chat-whatsapp) | [![npm](https://img.shields.io/npm/v/@chamvi/chat-whatsapp)](https://www.npmjs.com/package/@chamvi/chat-whatsapp) | WhatsApp Web (Baileys) as a chat channel |
+| [`@chamvi/channel-openclaw`](./packages/channel-openclaw) | [![npm](https://img.shields.io/npm/v/@chamvi/channel-openclaw)](https://www.npmjs.com/package/@chamvi/channel-openclaw) | The OpenClaw channel (out only): messages and approval requests into an OpenClaw chat |
+
+**Tools and workspaces**
+
+| Package | Version | Description |
+|---|---|---|
+| [`@chamvi/sandbox`](./packages/sandbox) | [![npm](https://img.shields.io/npm/v/@chamvi/sandbox)](https://www.npmjs.com/package/@chamvi/sandbox) | Sandbox contracts and the workspace manager: one workspace per run and repository, `create_workspace` / `dispose_workspace`, cleanup when the run settles, repository instructions |
 | [`@chamvi/sandbox-local`](./packages/sandbox-local) | [![npm](https://img.shields.io/npm/v/@chamvi/sandbox-local)](https://www.npmjs.com/package/@chamvi/sandbox-local) | Workspaces in a temporary directory, for development and tests (no isolation) |
-| [`@chamvi/sandbox-docker`](./packages/sandbox-docker) | [![npm](https://img.shields.io/npm/v/@chamvi/sandbox-docker)](https://www.npmjs.com/package/@chamvi/sandbox-docker) | One container per workspace: root inside so package managers work, a few capabilities, resource limits, a shared package cache |
-| [`@chamvi/sandbox-k8s`](./packages/sandbox-k8s) | [![npm](https://img.shields.io/npm/v/@chamvi/sandbox-k8s)](https://www.npmjs.com/package/@chamvi/sandbox-k8s) | One pod per workspace: the same, without a service account token |
-| [`@chamvi/coding`](./packages/coding) | [![npm](https://img.shields.io/npm/v/@chamvi/coding)](https://www.npmjs.com/package/@chamvi/coding) | `read_file`, `write_file`, `edit_file`, `grep`, `list_files`, `bash` and `git_diff` inside a workspace |
-| [`@chamvi/skills`](./packages/skills) | Unreleased | Verified passive skills, pinned Git sources and filesystem bundle review |
-| [`@chamvi/knowledge`](./packages/knowledge) | Unreleased | Knowledge collections searched by meaning through `knowledge_search`: declared in code, embedded in the background, re-embedded per generation on a model change |
-| [`@chamvi/tool-web`](./packages/tool-web) | [![npm](https://img.shields.io/npm/v/@chamvi/tool-web)](https://www.npmjs.com/package/@chamvi/tool-web) | `web_fetch`: any public page as markdown through a hapic client, behind an address check |
-| [`@chamvi/ui`](./packages/ui) | [![npm](https://img.shields.io/npm/v/@chamvi/ui)](https://www.npmjs.com/package/@chamvi/ui) | The dashboard: an agents overview with runs started from the agent page, runs with live steps, an approvals inbox, agent state and schedules, served by `uiRoutes()` |
-| [`@chamvi/app`](./packages/app) | [![npm](https://img.shields.io/npm/v/@chamvi/app)](https://www.npmjs.com/package/@chamvi/app) | `createApp()`: config, store, engine, channels and HTTP as modules booted from env |
-| [`@chamvi/cli`](./packages/cli) | [![npm](https://img.shields.io/npm/v/@chamvi/cli)](https://www.npmjs.com/package/@chamvi/cli) | The `chamvi` bin: `dev`, `build`, `start`, `run-job`, `migrate` |
-| [`@chamvi/test-kit`](./packages/test-kit) | [![npm](https://img.shields.io/npm/v/@chamvi/test-kit)](https://www.npmjs.com/package/@chamvi/test-kit) | `ControllableClock`, the store and workspace contract suites, and a git fixture |
+| [`@chamvi/sandbox-docker`](./packages/sandbox-docker) | [![npm](https://img.shields.io/npm/v/@chamvi/sandbox-docker)](https://www.npmjs.com/package/@chamvi/sandbox-docker) | One container per workspace: root inside so package managers work, resource limits, a hardened mode, a package cache |
+| [`@chamvi/sandbox-k8s`](./packages/sandbox-k8s) | [![npm](https://img.shields.io/npm/v/@chamvi/sandbox-k8s)](https://www.npmjs.com/package/@chamvi/sandbox-k8s) | One pod per workspace: the same on Kubernetes, without a service account token |
+| [`@chamvi/coding`](./packages/coding) | [![npm](https://img.shields.io/npm/v/@chamvi/coding)](https://www.npmjs.com/package/@chamvi/coding) | `read_file`, `write_file`, `edit_file`, `multi_edit`, `grep`, `glob`, `list_files`, `bash` (with background jobs) and `git_diff` inside a workspace |
+| [`@chamvi/tool-web`](./packages/tool-web) | [![npm](https://img.shields.io/npm/v/@chamvi/tool-web)](https://www.npmjs.com/package/@chamvi/tool-web) | `web_fetch`: a public page as markdown, text or raw, behind an address check |
+| [`@chamvi/knowledge`](./packages/knowledge) | [![npm](https://img.shields.io/npm/v/@chamvi/knowledge)](https://www.npmjs.com/package/@chamvi/knowledge) | Knowledge collections searched by meaning through `knowledge_search`: declared in code, embedded in the background, re-embedded on a model change |
+| [`@chamvi/skills`](./packages/skills) | [![npm](https://img.shields.io/npm/v/@chamvi/skills)](https://www.npmjs.com/package/@chamvi/skills) | Skills from pinned Git sources and local bundles, verified before they load |
+
+**Operations and testing**
+
+| Package | Version | Description |
+|---|---|---|
+| [`@chamvi/ui`](./packages/ui) | [![npm](https://img.shields.io/npm/v/@chamvi/ui)](https://www.npmjs.com/package/@chamvi/ui) | The dashboard: agents, runs with live steps, an approvals inbox, agent state and schedules, served by `uiRoutes()` |
+| [`@chamvi/test-kit`](./packages/test-kit) | [![npm](https://img.shields.io/npm/v/@chamvi/test-kit)](https://www.npmjs.com/package/@chamvi/test-kit) | `ControllableClock`, mock models, the store and workspace contract suites, a git fixture and a fake GitHub |
 
 ## Quick start
 
@@ -119,7 +117,6 @@ import {
     consoleChannel,
     defineModelAgent,
     defineEffectTool,
-    replyChannel,
 } from '@chamvi/core';
 
 const triage = defineModelAgent({
@@ -133,7 +130,7 @@ const triage = defineModelAgent({
             inputSchema: z.object({ label: z.enum(['bug', 'feature', 'question']) }),
             execute: async ({ label }, { context }) => {
                 // answers where the run came from, once per message
-                await replyChannel(context)?.emit({ body: `Labelled as ${label}.` });
+                await context.channels.findOne()?.emit({ body: `Labelled as ${label}.` });
                 return { added: label };
             },
         }),
@@ -143,7 +140,7 @@ const triage = defineModelAgent({
 const engine = new Engine({
     store: createMemoryStore(),
     agents: [triage],
-    // channels are what runs come from and talk to: cron, HTTP, GitHub, OpenClaw, ...
+    // channels are what runs come from and talk to: cron, HTTP, GitHub, chat, ...
     channels: [consoleChannel()],
 });
 await engine.start();
@@ -162,7 +159,7 @@ console.log(await engine.getRun(runId)); // status: 'completed', output: the mod
 await engine.drain();
 ```
 
-`createMemoryStore()` keeps everything in process memory; it is for development and tests. Channels, effect tools, approvals, hooks, agent state, budgets and the full option reference are in the [`@chamvi/core` README](./packages/core#readme).
+`createMemoryStore()` keeps everything in process memory; it is for development and tests. Use `@chamvi/store-db` for durable runs. Channels, effect tools, approvals, hooks, agent state, budgets and the full option reference are in the [`@chamvi/core` README](./packages/core#readme) and the [guide](https://chamvi.dev/guide/).
 
 ### Give the agent a workspace
 
@@ -208,6 +205,16 @@ await workspaces.close();
 
 `createLocalSandbox()` from `@chamvi/sandbox-local` runs workspaces in a temporary directory for development; `createKubernetesSandbox({ namespace })` from `@chamvi/sandbox-k8s` runs one pod per workspace. Limits, the image and the hardening are in the [`@chamvi/sandbox` README](./packages/sandbox#readme).
 
+## Deployment
+
+An app built on [`@chamvi/app`](./packages/app) runs through the `chamvi` CLI (`chamvi start`), configured from env. Three pieces outside the packages take it to production:
+
+- **[chamvi/agent-template](https://github.com/chamvi/agent-template)**: a GitHub template repository with one example agent, a two-stage Dockerfile, CI and Flux examples.
+- **`ghcr.io/chamvi/node:26`** ([`images/node`](./images/node)): the base image, `node:26-trixie-slim` with tini as PID 1 and uid 1000.
+- **[chamvi/helm](https://github.com/chamvi/helm)**: the `agent-app` chart (`oci://ghcr.io/chamvi/helm/agent-app`) with probes, graceful drain, run-job CronJobs and the sandbox RBAC.
+
+The [deployment guide](https://chamvi.dev/deployment/) covers Docker, Kubernetes, multiple replicas and the channel setups.
+
 ## Development
 
 ```bash
@@ -218,7 +225,7 @@ npm run typecheck
 npm run lint
 ```
 
-The packages live in `packages/*`, built with tsdown and orchestrated by nx. Commits follow Conventional Commits; release-please versions each package.
+The packages live in `packages/*`, built with tsdown and orchestrated by nx. Commits follow Conventional Commits; release-please releases every package under one linked version.
 
 ## Contributing
 

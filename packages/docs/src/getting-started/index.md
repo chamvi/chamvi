@@ -5,7 +5,7 @@ chamvi is a TypeScript framework for **self-hosted, channel-driven AI agents**. 
 The LLM side is the [Vercel AI SDK](https://ai-sdk.dev) v7. chamvi adds what the AI SDK leaves out on purpose: channels, a run queue, persistence, concurrency control, approvals and a graceful shutdown.
 
 ::: info Status
-chamvi is pre-1.0. [`@chamvi/core`](/reference/), the cron channel [`@chamvi/channel-cron`](/reference/channel-cron), the HTTP and MCP API [`@chamvi/http`](/reference/http), the [database store](/repositories/database), the GitHub channel and tools [`@chamvi/github`](/reference/github), [sandboxes and coding tools](/guide/workspaces), the web tools [`@chamvi/tool-web`](/reference/tool-web), the OpenClaw channel [`@chamvi/channel-openclaw`](/reference/channel-openclaw), the [dashboard](/guide/ui), the [knowledge collections](/guide/knowledge) [`@chamvi/knowledge`](/reference/knowledge) (unreleased), the app and CLI [`@chamvi/app`](/reference/app) and [`@chamvi/cli`](/reference/cli) and the test helpers, [`@chamvi/test-kit`](/reference/test-kit), exist today. The base image, the Helm chart and the template repository are planned; the [roadmap](/roadmap) lists them. Pages about planned work carry a <Badge type="warning" text="Planned" /> badge.
+chamvi is pre-1.0: minor versions may break the API, and the [upgrading guide](/guide/upgrading) lists what changed. Every package in the [reference](/reference/) is published, and the deployment kit (the base image, the [Helm chart](https://github.com/chamvi/helm) and the [template repository](https://github.com/chamvi/agent-template)) exists. Work still ahead is on the [roadmap](/roadmap); pages about it carry a <Badge type="warning" text="Planned" /> badge.
 :::
 
 ## Why chamvi?
