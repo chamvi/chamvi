@@ -7,7 +7,7 @@
  */
 
 import { ACTIVITY_LIMIT } from '../../agents/constants.ts';
-import { formatBudgetTime } from '../../agents/helpers.ts';
+import { agentReadPermission, formatBudgetTime } from '../../agents/helpers.ts';
 import type { AgentRollup, ChannelChip as Chip } from '../../agents/types.ts';
 import type { AgentWire } from '../../api/types.ts';
 import { RouteName } from '../../router/constants.ts';
@@ -42,6 +42,12 @@ defineProps<{
                     {{ agent.name }}
                 </RouterLink>
             </h2>
+            <span
+                v-if="agent.private"
+                class="tag"
+                data-testid="agent-private"
+                :title="`Private: reading its runs and state needs ${agentReadPermission(agent.name)}`"
+            ><NavIcon name="lock" />private</span>
             <NavIcon name="go" />
         </div>
         <div class="trigs">

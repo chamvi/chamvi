@@ -9,6 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { ACTIVITY_WINDOW_MS } from '../../../../app/agents/constants.ts';
 import {
     activityLabel,
+    agentReadPermission,
     channelChips,
     createStartKeys,
     failedSummary,
@@ -36,6 +37,7 @@ const agent = (overrides: Partial<AgentWire> = {}): AgentWire => ({
     channels: [],
     budget: { maxSteps: 20 },
     state: [],
+    private: false,
     ...overrides,
 });
 
@@ -213,6 +215,10 @@ describe('activityLabel', () => {
 });
 
 describe('agent helpers', () => {
+    it('agentReadPermission names the grant a private agent\'s content needs', () => {
+        expect(agentReadPermission('alfred')).toBe('agent:alfred:read');
+    });
+
     it('hasHttpSubscription', () => {
         expect(hasHttpSubscription(agent({ channels: [{ channel: 'http', id: 'http' }] }))).toBe(true);
         expect(hasHttpSubscription(agent({ channels: [{ channel: 'cron', id: 'c' }] }))).toBe(false);

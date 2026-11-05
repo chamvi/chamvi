@@ -32,6 +32,7 @@ const AGENTS: AgentWire[] = [
         channels: [{ channel: 'http', id: 'http' }],
         budget: { maxSteps: 20 },
         state: [],
+        private: false,
     },
     {
         name: 'digest',
@@ -39,6 +40,15 @@ const AGENTS: AgentWire[] = [
         channels: [{ channel: 'cron', id: 'cron:0 8 * * *' }],
         budget: { maxSteps: 12 },
         state: ['sent'],
+        private: false,
+    },
+    {
+        name: 'alfred',
+        kind: 'model',
+        channels: [{ channel: 'http', id: 'http' }],
+        budget: { maxSteps: 20 },
+        state: ['inbox'],
+        private: true,
     },
 ];
 
@@ -105,7 +115,7 @@ describe('useAgentRollups', () => {
         const state = scope.run(() => useAgentRollups(client))!;
 
         await flush();
-        expect(state.agents.value.map((a) => a.name)).toEqual(['deploy', 'digest']);
+        expect(state.agents.value.map((a) => a.name)).toEqual(['deploy', 'digest', 'alfred']);
 
         const deploy = state.rollups.value.deploy!;
 
@@ -136,7 +146,7 @@ describe('useAgentRollups', () => {
 
         await flush();
         expect(state.issues.value).toEqual([issue]);
-        expect(state.agents.value.map((a) => a.name)).toEqual(['deploy', 'digest']);
+        expect(state.agents.value.map((a) => a.name)).toEqual(['deploy', 'digest', 'alfred']);
         scope.stop();
     });
 
@@ -385,6 +395,45 @@ describe('useAgentDetail', () => {
 
         await flush();
         expect(detail.notFound.value).toBe(true);
+        scope.stop();
+    });
+
+    it('a private agent whose runs answer 403 is forbidden, not failed', async () => {
+        const client = fakeClient({
+            listAgents: async () => ({ data: AGENTS, issues: [] }),
+            listSchedules: async () => [],
+            listRuns: async () => {
+                throw apiError(403, 'forbidden');
+            },
+        });
+        const scope = effectScope();
+        const detail = scope.run(() => useAgentDetail(client, ref('alfred')))!;
+
+        await flush();
+        expect(detail.agent.value?.name).toBe('alfred');
+        expect(detail.forbidden.value).toBe('Reading this agent\'s runs needs agent:alfred:read');
+        expect(detail.error.value).toBeUndefined();
+        expect(detail.runs.value).toEqual([]);
+        expect(detail.totalRuns.value).toBe(0);
+        expect(detail.notFound.value).toBe(false);
+        await expect(detail.refresh()).resolves.toBeUndefined();
+        scope.stop();
+    });
+
+    it('a 403 on a public agent\'s runs stays an error', async () => {
+        const client = fakeClient({
+            listAgents: async () => ({ data: AGENTS, issues: [] }),
+            listSchedules: async () => [],
+            listRuns: async () => {
+                throw apiError(403, 'forbidden');
+            },
+        });
+        const scope = effectScope();
+        const detail = scope.run(() => useAgentDetail(client, ref('deploy')))!;
+
+        await flush();
+        expect(detail.error.value?.status).toBe(403);
+        expect(detail.forbidden.value).toBeUndefined();
         scope.stop();
     });
 

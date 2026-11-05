@@ -4,7 +4,7 @@
 
 App, Agent, Channel, Run, Step, State, Tool, Workspace, Repository. Keep the concept surface at about ten. chamvi never wraps the AI SDK: models (`LanguageModel`), messages (`ModelMessage`) and tool sets (`ToolSet`) are passed through as-is.
 
-`@chamvi/core` holds: agent definitions with channel subscriptions and tool hooks, the `IChannel` contract and the tool-driven outbound (`ToolContext.channels`, `consoleChannel()`), the `Engine`, step checkpoints, budgets, effect tools, durable approvals (`approve()`, answered by run and approval id), recovery and drain, agent state, streaming deltas, structured output, run artifacts (attachments and tool files), the `IStore` aggregate, `createMemoryStore()`. Everything time-based goes through an injectable `IClock` (`systemClock`; `ControllableClock` in tests). The public surface is `src/index.ts`. `@chamvi/test-kit` exports `describeRepositoryContract` and `ControllableClock`.
+`@chamvi/core` holds: agent definitions with channel subscriptions and tool hooks, the `IChannel` contract and the tool-driven outbound (`ToolContext.channels`, `consoleChannel()`), the `Engine`, step checkpoints, budgets, effect tools, durable approvals (`approve()`, answered by run and approval id), recovery and drain, agent state, streaming deltas, structured output, run artifacts (attachments and tool files), the `IStore` aggregate, `createMemoryStore()`. Everything time-based goes through an injectable `IClock` (`systemClock`; `ControllableClock` in tests). The public surface is `src/index.ts`.
 
 ## Engine
 
@@ -18,7 +18,7 @@ The live agent registry (`putAgent`, `removeAgent`, revision markers) and model 
 
 Each rule has its detail in a topic file; these are the ones a change outside that area breaks silently.
 
-- **Agents** ([agents.md](topics/agents.md)): `defineModelAgent()` and `defineSimpleAgent()` return `{ kind, name, definition }` with budget defaults; names match `^[a-z0-9]+(-[a-z0-9]+)*$` (at most 64). One `ToolContext { run, state, artifacts, channels }` per execution, passed only to chamvi tools (`contextSchema === toolContextSchema`); nothing provided through `engine.provide()` is stored, cloned or serialized, and `inject(ctx, key)` works only on the context the engine passed. Tool code reaches a model through `resolveModel(ctx, ref?)`: never a string model to the AI SDK, never its global provider. An AI SDK `needsApproval` tool is refused. `toolPolicy` shapes `activeTools`; `wrapToolsForRun` re-checks every call.
+- **Agents** ([agents.md](topics/agents.md)): `defineModelAgent()` and `defineSimpleAgent()` return `{ kind, name, definition }` with budget defaults; names match `^[a-z0-9]+(-[a-z0-9]+)*$` (at most 64). One `ToolContext { run, state, artifacts, channels }` per execution, passed only to chamvi tools (`contextSchema === toolContextSchema`); nothing provided through `engine.provide()` is stored, cloned or serialized, and `inject(ctx, key)` works only on the context the engine passed. Tool code reaches a model through `resolveModel(ctx, ref?)`: never a string model to the AI SDK, never its global provider. An AI SDK `needsApproval` tool is refused. `toolPolicy` shapes `activeTools`; `wrapToolsForRun` re-checks every call. A `private` agent's runs and state need `agent:<name>:read` ([http.md](topics/http.md)).
 - **Live registry** ([agents.md](topics/agents.md)): `putAgent`/`removeAgent` run under the store lock `agents:<name>` and cancel unsettled runs of a changed revision once across replicas; a queued run whose agent revision this replica does not hold stays `queued`, never fails with `unknown agent`.
 - **Channels** ([channels.md](topics/channels.md)): the presence of `start`, `in` and `out` is a channel's only capability. Outbound is tool-driven: the engine sends nothing of its own except the approval requests a tool asked for. `ChannelHandle.emit()` is an effect keyed by run, channel and canonical message, so `out` must be idempotent on `message.key`. Dispatches (#129) reach `agent.on()` roles of the caller's or another agent (`from`), depth per role up to 8; lineage (`parent`, `parentRunId`) is never forgeable through `engine.dispatch()`.
 - **Trust** ([trust.md](topics/trust.md)): `Run.taint` is durable first-exposure provenance, persisted before an untrusted result or error reaches the model (a failed write fails the execution). `guardWhenTainted` runs after the before hook and before effect lookup; trust approval arguments stay in the private inbox/API, the source channel gets only a generic notification. Destination exemptions (source address, `defaultAddress`) fix the destination, not the content. Shell is not gated; this is no sandbox, DLP or injection defense.
@@ -83,14 +83,14 @@ All errors extend `ChamviError` (ebec `BaseError`) with a `code`: `InvalidAgentD
 
 ## Deploy Kit (outside this repo)
 
-The deploy kit has four parts: `@chamvi/app` + `@chamvi/cli` (above), the base image `ghcr.io/chamvi/node:26` (`images/node`: `node:26-trixie-slim`, tini entrypoint, uid 1000, workdir `/app`), and two repos of their own. Both follow this repo's contract, so changes here are checked against them ([Downstream Repos](../AGENTS.md#downstream-repos)).
+The deploy kit has four parts: `@chamvi/app` + `@chamvi/cli` (above), the base image `ghcr.io/chamvi/node:26` (`images/node`: `node:26-trixie-slim`, tini entrypoint, uid 1000, workdir `/app`), and two repos of their own; changes here are checked against both ([Downstream Repos](../AGENTS.md#downstream-repos)).
 
 - **Chart `agent-app`** ([chamvi/helm](https://github.com/chamvi/helm), `oci://ghcr.io/chamvi/helm/agent-app`, 0.1.x; map in [references/helm.md](references/helm.md)): Deployment (Recreate, probes under `basePath`, preStop sleep 5 s, grace 120 s, guard `preStop + CHAMVI_FORCE_EXIT_MS < grace`), Service, optional Ingress with a derived `CHAMVI_PUBLIC_URL` (origin only), optional run-job CronJobs (`Forbid`, `backoffLimit: 0`; they set `CHAMVI_SCHEDULER=false` everywhere), sandbox Role/RoleBinding and an egress NetworkPolicy (DNS plus TCP 443 to public addresses) or, opt-in, a CiliumNetworkPolicy, optional ServiceMonitor, a helm test hook. Value `command` renders into `args`, so tini stays PID 1. Released by release-please plus `tada5hi/hevi`.
 - **Template** ([chamvi/agent-template](https://github.com/chamvi/agent-template), a GitHub template repository; map in [references/agent-template.md](references/agent-template.md)): one example agent on `@chamvi/app`, a two-stage Dockerfile on `ghcr.io/chamvi/node:26` (by digest), CI with a read-only docker smoke, Flux examples (`OCIRepository`, `HelmRelease`, image automation) for the chart, image tags `main-<sha7>-<commit unix ts>` and `<semver>`.
 
 ## Topic Files
 
-Read on demand, never imported by `CLAUDE.md`. Read the matching file before changing that area.
+Read on demand (never imported by `CLAUDE.md`) before changing that area.
 
 | File | Covers |
 |------|--------|

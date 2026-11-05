@@ -78,7 +78,8 @@ An app holds at most `stream.maxOpen` (1000) open streams plus waiting MCP `run_
 
 | Permission | Grants |
 |---|---|
-| `agent:<name>:run` | Start the agent's runs and read them |
+| `agent:<name>:run` | Start the agent's runs and read them (start only, for a [private agent](#private-agents)) |
+| `agent:<name>:read` | Read a private agent's runs and state |
 | `agent:<name>:approve` | Answer the agent's approvals (`POST /runs/:id/approve`, MCP `approve_run`) |
 | `run:read` | Read and list every run, agents and schedules |
 | `run:cancel` | Cancel runs |
@@ -87,6 +88,10 @@ An app holds at most `stream.maxOpen` (1000) open streams plus waiting MCP `run_
 | `*` | Everything |
 
 A `*` segment matches exactly one segment (`agent:*:run`). A client that may start an agent's runs can follow them without `run:read`, but to list runs it must filter to that agent.
+
+### Private agents
+
+An agent defined with `private: true` keeps its runs and state from everyone without `agent:<name>:read` (`*`, `agent:*:*` and `agent:*:read` grant it; `run:read`, `agent:<name>:run`, `state:read` and `state:write` do not). Such a principal gets 404 for the agent's runs (`GET /runs/:id`, `/stream`, `/artifacts*`, MCP `get_run`), as for an unknown run, so run ids cannot be probed. `GET /runs` and MCP `list_runs` leave the agent's runs out (`filter[agent]=<name>` is 403), its state routes answer 403, and MCP `run_<agent>` returns only `{ runId, status, deduplicated }`. A run whose agent the app no longer registers is treated as private. `agent:<name>:run` still starts runs, and `agent:<name>:approve` still answers approvals. `GET /agents` lists each agent's `private` flag.
 
 `POST /runs/:id/approve` needs the approve permission for the run's agent (no read permission); it loads the run (404), checks the permission (403) and only then reads the body, and passes the `approvalId` it was shown, so a stale or concurrent answer is a 409 rather than an answer to a newer call.
 

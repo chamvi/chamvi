@@ -156,7 +156,8 @@ async function onCancel(): Promise<void> {
             Run <b class="mono">{{ runId }}</b> does not exist.
         </template>
         <template v-else-if="error.status === 403">
-            Reading this run needs <b class="mono">run:read</b> or <b class="mono">agent:&lt;agent&gt;:run</b>.
+            Reading this run needs <b class="mono">run:read</b> or <b class="mono">agent:&lt;agent&gt;:run</b>;
+            a private agent's run needs <b class="mono">agent:&lt;agent&gt;:read</b>.
         </template>
         <template v-else>
             {{ error.code }} · {{ error.message }}
