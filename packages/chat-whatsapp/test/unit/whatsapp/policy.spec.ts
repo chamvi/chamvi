@@ -77,6 +77,8 @@ describe('createWhatsAppChat options', () => {
         ['policy', { policy: { senders: [ALICE], open: true } }],
         ['policy.senders', { policy: { senders: ['491701111111'] } }],
         ['policy.senders', { policy: { senders: ['491701111111:12@s.whatsapp.net'] } }],
+        ['policy.senders', { policy: { senders: ['alice@s.whatsapp.net'] } }],
+        ['policy.senders', { policy: { senders: ['@s.whatsapp.net'] } }],
         // a group jid is no participant id
         ['policy.senders', { policy: { senders: [GROUP] } }],
         ['policy.groups', { policy: { senders: [ALICE], groups: [ALICE] } }],

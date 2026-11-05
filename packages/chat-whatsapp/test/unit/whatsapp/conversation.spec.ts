@@ -105,7 +105,7 @@ describe('WhatsAppChatSetup.conversation()', () => {
     it('refuses anything but a normalized phone number or group jid', () => {
         const value = createWhatsAppFixture();
 
-        for (const chat of ['491701111111:4@s.whatsapp.net', '900000000000@lid', 'alice', '', 42]) {
+        for (const chat of ['491701111111:4@s.whatsapp.net', '900000000000@lid', 'alice', 'alice@s.whatsapp.net', '@s.whatsapp.net', '', 42]) {
             expect(() => value.setup.conversation({ chat } as never)).toThrow(InvalidAgentDefinitionError);
         }
 

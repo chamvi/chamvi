@@ -45,7 +45,7 @@ Throws `InvalidAgentDefinitionError` for an expression cron-parser refuses, an u
 function runJob(opts: RunJobOptions): Promise<RunJobResult>;
 ```
 
-Starts the engine with `start({ channels: false })`. It does not return while the run waits on runs it [dispatched](/guide/dispatch); it returns `waiting` when the run or one of its descendants waits on an approval, with `waitingRunId` naming the descendant. Rejects with `InvalidAgentDefinitionError` when the subscription is missing or ambiguous, the engine holds no cron channel for it, or its `conversation` names a channel the engine does not hold or an agent without `conversation`.
+Starts the engine with `start({ channels: false })`. It does not return while the run waits on runs it [dispatched](/guide/dispatch); it returns `waiting` when the run or one of its descendants waits on an approval, with `waitingRunId` naming the descendant. Rejects with `InvalidAgentDefinitionError` when the subscription is missing or ambiguous, the engine holds no cron channel for it, or it has a `conversation` (a job starts no channel to deliver to; such a subscription runs only in the app's scheduler).
 
 <<< ../../../channel-cron/src/run-job/types.ts{ts}
 

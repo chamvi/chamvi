@@ -373,17 +373,12 @@ describe('fireCronSubscription with a conversation', () => {
         await expect(s.engine.start()).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
     });
 
-    it('runJob starts the run inside the conversation', async () => {
+    it('runJob refuses a conversation subscription: a job starts no channel to deliver to', async () => {
         const s = setup({ responses: [call('send', { body: 'Briefing' }), done] });
-        const result = await runJob({ engine: s.engine, agent: s.agent });
 
-        expect(result).toMatchObject({ status: 'completed', exitCode: 0 });
-
-        const run = await runOf(s, result.runId!);
-
-        expect(run.conversation?.text).toBe(TEXT);
-        expect(run.trigger.channel).toBe('chat');
-        expect(s.out.mock.calls[0]?.[1]).toBe('dm-1');
+        await expect(runJob({ engine: s.engine, agent: s.agent })).rejects.toThrow(/runs only in the app's scheduler/);
+        expect((await s.store.runs.find({ agent: 'briefer' })).data).toHaveLength(0);
+        expect(s.out).not.toHaveBeenCalled();
     });
 
     it('runJob refuses a conversation on a channel the engine does not hold', async () => {

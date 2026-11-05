@@ -47,7 +47,7 @@ The run is dispatched through that channel's trusted conversation intake (`dispa
 - The idempotency key and the overlap policy work as above, but the run carries the conversation's concurrency key (one run per conversation at a time), never the subscription id; a `concurrencyKey()` on the subscription is not used.
 - `conversations.authorize` decides as for a message, with no invoker (the access names the agent and the identity). A refusal creates no run and reaches `onError`. The platform's message policy (`allowMessage`, `resolveInvoker`) is not consulted: the reference is app code, never input.
 
-`conversation` and `text` go together (`InvalidAgentDefinitionError` at `cron.on()` otherwise, also for a blank field). The agent must enable `conversation`, and the engine must hold the named channel: both are checked when the channel schedules the subscription and by `runJob()`, which honours the option the same way.
+`conversation` and `text` go together (`InvalidAgentDefinitionError` at `cron.on()` otherwise, also for a blank field). The agent must enable `conversation`, and the engine must hold the named channel: both are checked when the channel schedules the subscription. Such a subscription runs only in the app's scheduler: `runJob()` (and `chamvi run-job`) refuses it, since a job starts no channel to deliver the replies.
 
 ## Timezones
 

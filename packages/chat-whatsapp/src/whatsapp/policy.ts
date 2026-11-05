@@ -24,13 +24,16 @@ import type {
     WhatsAppSocket,
 } from './types.ts';
 
+/** A phone number jid: digits only before the server (Baileys' `isPnUser` checks the server alone). */
+const PHONE_JID = /^\d+@s\.whatsapp\.net$/;
+
 function invalid(message: string): InvalidAgentDefinitionError {
     return new InvalidAgentDefinitionError(`createWhatsAppChat: ${message}`);
 }
 
 /** A phone number jid without a device suffix. */
 function isNormalizedPhoneJid(value: unknown): value is string {
-    return typeof value === 'string' && isPnUser(value) === true && jidNormalizedUser(value) === value;
+    return typeof value === 'string' && PHONE_JID.test(value) && isPnUser(value) === true && jidNormalizedUser(value) === value;
 }
 
 function isNormalizedGroupJid(value: unknown): value is string {
