@@ -87,7 +87,7 @@ Read by `readConfig(env, { mode, dev })` once per lifecycle; the optional module
 | `CHAMVI_SANDBOX_NAMESPACE` | `sandboxModule` | string | none | provider `kubernetes` |
 | `CHAMVI_SANDBOX_IMAGE` | `sandboxModule` | image ref | `ghcr.io/chamvi/sandbox-dev:trixie` | never |
 | `CHAMVI_SANDBOX_IMAGES` | `sandboxModule` | comma list of image refs | none (also a list without an entry): `create_workspace` offers no `image` | never |
-| `CHAMVI_SANDBOX_SUSPEND_AFTER_MS` | `sandboxModule` | int (ms) | the `suspendAfterMs` option, else `1800000` (30 min); `0` suspends nothing | never |
+| `CHAMVI_SANDBOX_SUSPEND_AFTER_MS` | `sandboxModule` | int (ms) | the `suspendAfterMs` option, else `1800000` (30 min); `0` turns off the default rule (an `isSuspendable` option replaces the rule and still applies) | never |
 | `CHAMVI_SANDBOX_PERSISTENCE` | `sandboxModule` | `true`, `false`, `1`, `0` | whether the `persistence` option is set; read only for provider `kubernetes` | never |
 | `CHAMVI_SANDBOX_DOCKER_SUSPEND` | `sandboxModule` | `true`, `false`, `1`, `0` | the `suspend` option, else `false`; read only for provider `docker` | never |
 | `CHAMVI_SANDBOX_STORAGE_CLASS` | `sandboxModule` | storage class name | the `persistence.storageClassName` option, else the cluster default; only with persistence | never |
