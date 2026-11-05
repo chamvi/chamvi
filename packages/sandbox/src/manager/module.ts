@@ -14,7 +14,7 @@ import {
 import type { ToolSet } from 'ai';
 import { assertImage } from '../image/module.ts';
 import { DEFAULT_DEPLOYMENT } from '../provider/constants.ts';
-import type { GarbageCollectOptions, WorkspaceCreateOptions } from '../provider/types.ts';
+import type { GarbageCollectOptions, WorkspaceCreateOptions, WorkspaceFindOptions } from '../provider/types.ts';
 import { assertGitRef, normalizeRepo } from '../repo/module.ts';
 import type { IWorkspace } from '../workspace/types.ts';
 import { CLOSE_TIMEOUT_MS, GC_INTERVAL_MS, MAX_WORKSPACES_PER_RUN } from './constants.ts';
@@ -83,7 +83,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
     const maxPerRun = options.maxWorkspacesPerRun ?? MAX_WORKSPACES_PER_RUN;
     const gcIntervalMs = options.gcIntervalMs ?? GC_INTERVAL_MS;
     const deployment = options.deployment ?? DEFAULT_DEPLOYMENT;
-    const { isSettled } = options;
+    const { isSettled, isSuspendable } = options;
     // eslint-disable-next-line no-console
     const onError = options.onError ?? ((error: unknown) => console.error('[chamvi]', error));
 
@@ -190,6 +190,31 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         return { expired, gone };
     };
 
+    /** The env and limits of every create, also what `find` gets to rebuild a workspace. */
+    const rebuild: NonNullable<WorkspaceFindOptions['rebuild']> = {};
+
+    if (options.env !== undefined || options.author !== undefined) {
+        rebuild.env = { ...options.env, ...authorEnv(options.author) };
+    }
+
+    if (options.limits !== undefined) {
+        rebuild.limits = options.limits;
+    }
+
+    const findOptions = (): WorkspaceFindOptions => {
+        if (rebuild.env === undefined && rebuild.limits === undefined) {
+            return { deployment };
+        }
+
+        return {
+            deployment,
+            rebuild: {
+                ...(rebuild.env !== undefined && { env: { ...rebuild.env } }),
+                ...(rebuild.limits !== undefined && { limits: rebuild.limits }),
+            },
+        };
+    };
+
     const heldEntries = (runId: string): Entry[] => [...runs.get(runId)?.values() ?? []]
         .filter((entry) => entry.workspace !== undefined);
 
@@ -229,10 +254,41 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
             }
         }
 
+        if (isSuspendable) {
+            for (const runId of runs.keys().toArray()) {
+                const entries = runs.get(runId);
+                const creating = entries?.values().some((entry) => entry.pending !== undefined) ?? false;
+
+                // released meanwhile, or a create in flight is about to hand its workspace out
+                if (!entries || creating) {
+                    continue;
+                }
+
+                try {
+                    if (!await isSuspendable(runId)) {
+                        continue;
+                    }
+                } catch (error) {
+                    onError(error);
+
+                    continue;
+                }
+
+                // the provider suspends them: never dispose, the next get finds them again
+                for (const entry of heldEntries(runId)) {
+                    forget(runId, entry);
+                }
+            }
+        }
+
         const gcOptions: GarbageCollectOptions = { deployment };
 
         if (isSettled) {
             gcOptions.isSettled = isSettled;
+        }
+
+        if (isSuspendable) {
+            gcOptions.isSuspendable = isSuspendable;
         }
 
         return counted + settled + await provider.collectGarbage(gcOptions);
@@ -270,12 +326,12 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
             createOptions.image = image;
         }
 
-        if (options.env !== undefined || options.author !== undefined) {
-            createOptions.env = { ...options.env, ...authorEnv(options.author) };
+        if (rebuild.env !== undefined) {
+            createOptions.env = { ...rebuild.env };
         }
 
-        if (options.limits !== undefined) {
-            createOptions.limits = options.limits;
+        if (rebuild.limits !== undefined) {
+            createOptions.limits = rebuild.limits;
         }
 
         createOptions.deployment = deployment;
@@ -396,7 +452,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
             let found: IWorkspace[];
 
             try {
-                found = await provider.find(runId, { deployment });
+                found = await provider.find(runId, findOptions());
             } catch (error) {
                 throw toSandboxError(error, 'workspace lookup failed');
             }
@@ -673,7 +729,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
 
         // what other processes created for the run (or this one before a restart)
         const ids = new Set(held.map((workspace) => workspace.id));
-        const rest = await provider.find(runId, { deployment }).then(
+        const rest = await provider.find(runId, findOptions()).then(
             (found) => Promise.allSettled(found
                 .filter((workspace) => !ids.has(workspace.id) && workspace.info.runId === runId)
                 .map((workspace) => disposeOrThrow(workspace))),

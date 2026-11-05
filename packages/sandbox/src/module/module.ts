@@ -7,6 +7,7 @@
 
 import {
     AppToken,
+    envInteger,
     envJson,
     envOneOf,
     envString,
@@ -18,7 +19,7 @@ import type {
     IContainer,
     IModule,
 } from '@chamvi/app';
-import { InvalidAgentDefinitionError, MemoryRunRepository } from '@chamvi/core';
+import { InvalidAgentDefinitionError, MemoryRunRepository, RunStatus } from '@chamvi/core';
 import type { IClock, IEngine } from '@chamvi/core';
 import { isObject } from 'smob';
 import { provideSandboxContext } from '../context/module.ts';
@@ -35,6 +36,7 @@ import {
     SANDBOX_PROVIDER_IDS,
     SANDBOX_PROVIDER_NAMES,
     SANDBOX_PROVIDER_PACKAGES,
+    SUSPEND_AFTER_MS,
 } from './constants.ts';
 import { isPackageNotFound, loadPackage, readImageAllowList } from './helpers.ts';
 import { createLazyProvider } from './provider.ts';
@@ -74,6 +76,9 @@ export class SandboxModule implements IModule {
      * apps share the default deployment on one host.
      */
     protected ownsDeployment = false;
+
+    /** How long a run waits before its workspaces are suspended; 0 suspends nothing. */
+    protected suspendAfterMs: number = SUSPEND_AFTER_MS;
 
     /** Interval of the start-mode collector (`gcIntervalMs` or `GC_INTERVAL_MS`); 0 runs none. */
     protected gcIntervalMs: number = GC_INTERVAL_MS;
@@ -133,6 +138,7 @@ export class SandboxModule implements IModule {
             namespace,
             image,
             workspaceEnv,
+            suspendAfterMs,
             env: input,
             ...managerOptions
         } = options;
@@ -140,6 +146,12 @@ export class SandboxModule implements IModule {
         this.gcIntervalMs = managerOptions.gcIntervalMs ?? GC_INTERVAL_MS;
 
         const env = input ?? process.env;
+
+        if (suspendAfterMs !== undefined && (!Number.isSafeInteger(suspendAfterMs) || suspendAfterMs < 0)) {
+            throw new InvalidAgentDefinitionError(`suspendAfterMs must be a non-negative integer, got ${JSON.stringify(suspendAfterMs)}.`);
+        }
+
+        this.suspendAfterMs = envInteger(env, 'CHAMVI_SANDBOX_SUSPEND_AFTER_MS') ?? suspendAfterMs ?? SUSPEND_AFTER_MS;
 
         if (envString(env, 'CHAMVI_GIT_CREDENTIAL_MODE') !== undefined) {
             // removed in 0.4: ignoring it would hand bash the write token a `tools` deployment kept out
@@ -186,6 +198,9 @@ export class SandboxModule implements IModule {
         }
 
         const credentials = this.credentialSources(env, managerOptions.credentials);
+        // 0 suspends nothing: the provider is not asked at all
+        const isSuspendable = managerOptions.isSuspendable ??
+            (this.suspendAfterMs > 0 ? (runId: string) => this.isSuspendable(runId) : undefined);
         const allowImage = readImageAllowList(env) ?? managerOptions.allowImage;
 
         try {
@@ -197,6 +212,7 @@ export class SandboxModule implements IModule {
                 ...(workspaceEnv && { env: workspaceEnv }),
                 ...(deployment !== undefined && { deployment }),
                 isSettled: managerOptions.isSettled ?? ((runId) => this.isSettled(runId)),
+                ...(isSuspendable && { isSuspendable }),
                 onError: managerOptions.onError ?? ((error) => this.reportError(error)),
             });
         } catch (error) {
@@ -354,6 +370,25 @@ export class SandboxModule implements IModule {
         }
 
         return isTerminal(run.status);
+    }
+
+    /**
+     * A run `waiting` since at least `suspendAfterMs` (its `updatedAt`, the
+     * pause write), on the engine's clock; never a run in another status or
+     * one that does not exist. False before the engine exists.
+     */
+    protected async isSuspendable(runId: string): Promise<boolean> {
+        if (!this.engine) {
+            return false;
+        }
+
+        const run = await this.engine.getRun(runId);
+
+        if (!run || run.status !== RunStatus.WAITING) {
+            return false;
+        }
+
+        return run.updatedAt.getTime() + this.suspendAfterMs <= this.engine.clock.now().getTime();
     }
 
     protected reportError(error: unknown): void {

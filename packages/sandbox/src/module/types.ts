@@ -16,7 +16,8 @@ export type SandboxProviderName = 'local' | 'docker' | 'kubernetes';
  * `createWorkspaceManager()` options; the manager's `env` is `workspaceEnv`
  * here, since `env` is the process env the factory reads. `deployment`:
  * `CHAMVI_DEPLOYMENT` wins; `isSettled` defaults to the engine's `getRun`
- * (a settled run, and with a named deployment also a missing one).
+ * (a settled run, and with a named deployment also a missing one), and
+ * `isSuspendable` to a run `waiting` for at least `suspendAfterMs`.
  * `allowImage`: `CHAMVI_SANDBOX_IMAGES` (a comma list of exact image
  * references) wins; without either, `create_workspace` offers no `image`.
  */
@@ -31,6 +32,14 @@ export type SandboxModuleOptions = Omit<WorkspaceManagerOptions, 'provider' | 'e
     image?: string;
     /** Added to every workspace's environment. */
     workspaceEnv?: Record<string, string>;
+    /**
+     * How long a run waits (status `waiting`, since its `updatedAt`) before
+     * the collection suspends its workspaces, in ms; `0` disables it.
+     * `CHAMVI_SANDBOX_SUSPEND_AFTER_MS` wins, default `SUSPEND_AFTER_MS`.
+     * Takes effect with the start-mode collector, so up to `gcIntervalMs`
+     * later.
+     */
+    suspendAfterMs?: number;
     /** Default `process.env`, read when the factory is called. */
     env?: Env;
 };

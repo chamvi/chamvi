@@ -264,25 +264,28 @@ export function readWorkspaceInfo(values: Readonly<Record<string, string | undef
 }
 
 /**
- * `isSettled` for one garbage collection pass, asked once per run: true or
- * false, or a SandboxError naming the run when it rejected (the workspace is
- * kept and the failure reported). Always false without `isSettled`.
+ * A run question for one garbage collection pass, asked once per run: true
+ * or false, or a SandboxError naming the run and `subject` when it rejected.
+ * Always false without `ask`.
  */
-export function createSettledCheck(isSettled: GarbageCollectOptions['isSettled']): (runId: string) => Promise<boolean | SandboxError> {
+function createRunCheck(
+    ask: ((runId: string) => Promise<boolean>) | undefined,
+    subject: string,
+): (runId: string) => Promise<boolean | SandboxError> {
     const answers = new Map<string, Promise<boolean | SandboxError>>();
 
     return (runId) => {
-        if (!isSettled) {
+        if (!ask) {
             return Promise.resolve(false);
         }
 
         let answer = answers.get(runId);
 
         if (!answer) {
-            answer = isSettled(runId).then(
-                (settled) => settled === true,
+            answer = ask(runId).then(
+                (yes) => yes === true,
                 (error: unknown) => new SandboxError(
-                    `cannot tell whether run ${runId} settled: ${Error.isError(error) ? error.message : String(error)}`,
+                    `cannot tell whether run ${runId} ${subject}: ${Error.isError(error) ? error.message : String(error)}`,
                     { cause: error },
                 ),
             );
@@ -291,4 +294,23 @@ export function createSettledCheck(isSettled: GarbageCollectOptions['isSettled']
 
         return answer;
     };
+}
+
+/**
+ * `isSettled` for one garbage collection pass, asked once per run: true or
+ * false, or a SandboxError naming the run when it rejected (the workspace is
+ * kept and the failure reported). Always false without `isSettled`.
+ */
+export function createSettledCheck(isSettled: GarbageCollectOptions['isSettled']): (runId: string) => Promise<boolean | SandboxError> {
+    return createRunCheck(isSettled, 'settled');
+}
+
+/**
+ * `isSuspendable` for one garbage collection pass, asked once per run: true
+ * or false, or a SandboxError naming the run when it rejected (the workspace
+ * keeps running and the failure is reported). Always false without
+ * `isSuspendable`.
+ */
+export function createSuspendableCheck(isSuspendable: GarbageCollectOptions['isSuspendable']): (runId: string) => Promise<boolean | SandboxError> {
+    return createRunCheck(isSuspendable, 'can be suspended');
 }

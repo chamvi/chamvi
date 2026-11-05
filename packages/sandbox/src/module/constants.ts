@@ -24,3 +24,6 @@ export const SANDBOX_PROVIDER_IDS: Readonly<Record<SandboxProviderName, string>>
     docker: 'docker',
     kubernetes: 'k8s',
 };
+
+/** How long a run waits before the collection suspends its workspaces (30 min). */
+export const SUSPEND_AFTER_MS = 30 * 60_000;

@@ -93,6 +93,14 @@ export type WorkspaceManagerOptions = {
      */
     isSettled?: (runId: string) => Promise<boolean>;
     /**
+     * True when a run has waited long enough to give up its compute: the
+     * garbage collection forgets the run's held workspaces without disposing
+     * them and passes it to the provider, which may suspend them (their next
+     * `get` or `acquire` finds them again through `provider.find`). Without
+     * it nothing is suspended.
+     */
+    isSuspendable?: (runId: string) => Promise<boolean>;
+    /**
      * Git credentials for private repositories and pushes: the first source
      * that answers wins, none answering is anonymous.
      */
@@ -195,8 +203,10 @@ export interface IWorkspaceManager {
     tools(): ToolSet;
     /**
      * Disposes the manager's expired workspaces and, with `isSettled`, the
-     * ones of settled runs, then runs the provider's collection (deployment
-     * and `isSettled` passed on); returns how many went.
+     * ones of settled runs; with `isSuspendable`, forgets (never disposes)
+     * the held workspaces of suspendable runs; then runs the provider's
+     * collection (deployment, `isSettled` and `isSuspendable` passed on);
+     * returns how many went.
      */
     collectGarbage(): Promise<number>;
     /**
