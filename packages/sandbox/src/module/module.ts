@@ -140,6 +140,7 @@ export class SandboxModule implements IModule {
             namespace,
             image,
             persistence,
+            suspend,
             workspaceEnv,
             suspendAfterMs,
             env: input,
@@ -155,6 +156,10 @@ export class SandboxModule implements IModule {
         }
 
         this.suspendAfterMs = envInteger(env, 'CHAMVI_SANDBOX_SUSPEND_AFTER_MS') ?? suspendAfterMs ?? SUSPEND_AFTER_MS;
+
+        if (suspend !== undefined && typeof suspend !== 'boolean') {
+            throw new InvalidAgentDefinitionError(`suspend must be a boolean, got ${JSON.stringify(suspend)}.`);
+        }
 
         if (envString(env, 'CHAMVI_GIT_CREDENTIAL_MODE') !== undefined) {
             // removed in 0.4: ignoring it would hand bash the write token a `tools` deployment kept out
@@ -205,6 +210,11 @@ export class SandboxModule implements IModule {
                         ...(storageClassName !== undefined && { storageClassName }),
                     };
                 }
+            }
+
+            // a stopped container frees nothing Docker reserved: suspension is opt-in there
+            if (selected === 'docker' && (envBoolean(env, 'CHAMVI_SANDBOX_DOCKER_SUSPEND') ?? suspend ?? false)) {
+                resolved.suspend = true;
             }
 
             this.lazy = createLazyProvider(
@@ -343,7 +353,7 @@ export class SandboxModule implements IModule {
             case 'docker': {
                 const { createDockerSandbox } = await this.importPackage<DockerProviderPackage>(specifier);
 
-                return createDockerSandbox({ image: options.image });
+                return createDockerSandbox({ image: options.image, ...(options.suspend && { suspend: true }) });
             }
             case 'kubernetes': {
                 const { createKubernetesSandbox } = await this.importPackage<KubernetesProviderPackage>(specifier);

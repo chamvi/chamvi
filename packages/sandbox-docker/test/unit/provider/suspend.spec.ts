@@ -46,10 +46,11 @@ describeDocker('docker suspension', () => {
     }
 
     /** A provider and a deployment of its own, so no workspace of a spec running alongside is in the pass. */
-    function setup(clock?: ControllableClock) {
+    function setup(clock?: ControllableClock, suspend = true) {
         return {
             provider: createDockerSandbox({
                 ...dockerOptions,
+                suspend,
                 ...(clock ? { clock, limits: { maxLifetimeMs: 600_000 } } : {}),
             }),
             deployment: `test-${randomUUID().slice(0, 8)}`,
@@ -73,6 +74,41 @@ describeDocker('docker suspension', () => {
         const { State: state } = await containerOf(workspace).inspect();
 
         expect(state.Status).toBe('exited');
+    });
+
+    it('stops nothing without the suspend option', async () => {
+        const {
+            provider,
+            deployment,
+            runId,
+        } = setup(undefined, false);
+        const workspace = await provider.create({ runId, deployment });
+
+        workspaces.push(workspace);
+
+        expect(await provider.collectGarbage({ deployment, isSuspendable: async () => true })).toBe(0);
+        expect((await containerOf(workspace).inspect()).State.Running).toBe(true);
+        expect((await workspace.exec(['true'])).exitCode).toBe(0);
+    });
+
+    it('find without restore hands out a suspended workspace stopped, and its dispose removes it', async () => {
+        const {
+            provider,
+            deployment,
+            runId,
+        } = setup();
+        const workspace = await provider.create({ runId, deployment });
+
+        workspaces.push(workspace);
+        await provider.collectGarbage({ deployment, isSuspendable: async () => true });
+
+        const found = await provider.find(runId, { deployment, restore: false });
+
+        expect(found.map((item) => item.id)).toEqual([workspace.id]);
+        expect((await containerOf(workspace).inspect()).State.Status).toBe('exited');
+
+        await found[0]!.dispose();
+        await expect(containerOf(workspace).inspect()).rejects.toSatisfy((error) => statusCode(error) === 404);
     });
 
     it('find restarts a suspended workspace with its files through a fresh handle', async () => {

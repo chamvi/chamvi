@@ -45,6 +45,13 @@ export type DockerSandboxOptions = {
      * point a non-root `user` at a volume a root workspace wrote to.
      */
     cache?: { volume: string };
+    /**
+     * Stop the running container of a suspendable run in `collectGarbage`
+     * (its volume and root filesystem kept, `/tmp` and background jobs
+     * lost); `find` starts it again. Default false: a sleeping container
+     * reserves nothing on Docker, so it keeps running.
+     */
+    suspend?: boolean;
     /** Size of the `/tmp` tmpfs; default `TMP_SIZE` (`'1Gi'`). */
     tmpSize?: string;
     clock?: IClock;

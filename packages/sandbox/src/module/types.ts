@@ -46,6 +46,13 @@ export type SandboxModuleOptions = Omit<WorkspaceManagerOptions, 'provider' | 'e
      * the cluster's default class); `size` default the storage limit.
      */
     persistence?: SandboxPersistence;
+    /**
+     * Docker only: stop the containers of long-waiting runs (files kept,
+     * `/tmp` and background jobs lost). `CHAMVI_SANDBOX_DOCKER_SUSPEND`
+     * (`true`/`false`) wins; default false, since a sleeping container
+     * reserves nothing.
+     */
+    suspend?: boolean;
     /** Added to every workspace's environment. */
     workspaceEnv?: Record<string, string>;
     /**
@@ -72,7 +79,7 @@ export type LazyProvider = ISandboxProvider & {
  */
 export type LocalProviderPackage = { createLocalSandbox(): ISandboxProvider };
 
-export type DockerProviderPackage = { createDockerSandbox(options: { image: string }): ISandboxProvider };
+export type DockerProviderPackage = { createDockerSandbox(options: { image: string; suspend?: boolean }): ISandboxProvider };
 
 export type KubernetesProviderPackage = {
     createKubernetesSandbox(options: {
@@ -87,4 +94,6 @@ export type ProviderSettings = {
     image: string;
     namespace?: string;
     persistence?: SandboxPersistence;
+    /** Docker only: suspension enabled. */
+    suspend?: boolean;
 };

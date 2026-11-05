@@ -66,10 +66,12 @@ const PROVIDER_NAME = 'docker';
  * checkout and, for a non-root `user`, opens the cache to it (`openCache`);
  * `pull` applies to every image, also one a run asked for. `find` lists a run's
  * containers by label, starts a stopped one again (its volume holds the
- * work) and rebuilds the info from the labels. `collectGarbage` suspends
- * the running container of a suspendable run by stopping it (its volume and
- * root filesystem kept) and drops its held handle, so the next `find` starts
- * it again behind a fresh one. The client connects lazily,
+ * work) and rebuilds the info from the labels; with `restore: false` it
+ * starts nothing and hands out a handle only to dispose. With `suspend`,
+ * `collectGarbage` suspends the running container of a suspendable run by
+ * stopping it (its volume and root filesystem kept) and drops its held
+ * handle, so the next `find` starts it again behind a fresh one; without it
+ * no container is stopped. The client connects lazily,
  * so creating the provider never contacts the daemon.
  */
 export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandboxProvider {
@@ -84,6 +86,7 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
     const cacheVolume = options.cache?.volume;
     const tmpSize = options.tmpSize ?? TMP_SIZE;
     const clock = options.clock ?? systemClock;
+    const suspending = options.suspend ?? false;
     const live = new Map<string, IWorkspace>();
     /** The workspaces whose dispose was called: never found again, also while or after a removal fails. */
     const disposing = new WeakSet<IWorkspace>();
@@ -380,7 +383,8 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
 
                     // not probed yet: its container may have stopped all the same,
                     // and the same container started again serves the held handle
-                    if (held.info.expiresAt.getTime() > now && await restart(docker.getContainer(item.Id))) {
+                    // (a lookup to remove it starts nothing)
+                    if (held.info.expiresAt.getTime() > now && (findOptions.restore === false || await restart(docker.getContainer(item.Id)))) {
                         found.push(held);
                     }
 
@@ -399,6 +403,13 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
                 }
 
                 const container = docker.getContainer(item.Id);
+
+                if (findOptions.restore === false) {
+                    // a lookup to remove it: never started, the handle's dispose removes the container
+                    found.push(open(id, info, createDockerTransport(docker, container, clock, user)));
+
+                    continue;
+                }
 
                 if (!await restart(container)) {
                     continue;
@@ -446,7 +457,7 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
 
                     if (answer !== true) {
                         // a removal always wins: suspension only for a kept, running one
-                        if (answer === false && container.State === 'running') {
+                        if (suspending && answer === false && container.State === 'running') {
                             const failure = await suspend(container, await isSuspendable(runId));
 
                             if (failure) {

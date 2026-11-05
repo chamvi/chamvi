@@ -199,4 +199,42 @@ describe('sandboxModule: provider factory options', () => {
 
         expect(await module.load()).toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE }]]);
     });
+
+    it('passes CHAMVI_SANDBOX_DOCKER_SUSPEND to the docker provider', async () => {
+        const module = new FactoryRecordingModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'docker', CHAMVI_SANDBOX_DOCKER_SUSPEND: 'true' } });
+
+        expect(await module.load()).toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE, suspend: true }]]);
+    });
+
+    it('docker suspends nothing by default', async () => {
+        const module = new FactoryRecordingModule({ provider: 'docker' });
+
+        expect(await module.load()).toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE }]]);
+    });
+
+    it('the suspend option, with CHAMVI_SANDBOX_DOCKER_SUSPEND=false winning', async () => {
+        expect(await new FactoryRecordingModule({ provider: 'docker', suspend: true }).load())
+            .toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE, suspend: true }]]);
+        expect(await new FactoryRecordingModule({
+            provider: 'docker',
+            suspend: true,
+            env: { CHAMVI_SANDBOX_DOCKER_SUSPEND: 'false' },
+        }).load()).toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE }]]);
+    });
+
+    it('an invalid CHAMVI_SANDBOX_DOCKER_SUSPEND names the variable', () => {
+        expect(() => new FactoryRecordingModule({ env: { CHAMVI_SANDBOX_PROVIDER: 'docker', CHAMVI_SANDBOX_DOCKER_SUSPEND: 'yes' } }))
+            .toThrow(new InvalidAgentDefinitionError('CHAMVI_SANDBOX_DOCKER_SUSPEND must be one of true, false, 1, 0.'));
+    });
+
+    it('refuses a suspend option that is no boolean', () => {
+        expect(() => new FactoryRecordingModule({ provider: 'docker', suspend: 'yes' as never }))
+            .toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('ignores CHAMVI_SANDBOX_DOCKER_SUSPEND for another provider', async () => {
+        const module = kubernetes({ CHAMVI_SANDBOX_DOCKER_SUSPEND: 'yes' });
+
+        expect(await module.load()).toEqual([['kubernetes', { namespace: 'sb', image: DEFAULT_SANDBOX_IMAGE }]]);
+    });
 });
