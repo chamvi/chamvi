@@ -34,6 +34,21 @@ Starting or restarting a replica fires nothing: the first dispatch is at the nex
 
 The default concurrency key makes `queue-one` wait: the engine starts one run per agent and key at a time (see [Concurrency](/guide/concurrency)), so the queued run starts when the active one settles. It also makes a race harmless: when a tick checks while the previous tick's dispatch is still in flight, the second run waits instead of running alongside. A `concurrencyKey(payload)` on the subscription wins over the default.
 
+## Inside a conversation
+
+`cron.on(expression, { conversation, text })` starts each run inside an existing conversation of another channel, for example a briefing in a user's Discord DM. `conversation` is a `ConversationRef` (from `@chamvi/core`: `{ channel, account, chat, audience, address? }`) naming the registered channel and the conversation identity its intake computes for a message in that chat; `text` is the user turn of each run. Build the reference with the platform setup's `conversation()` helper ([Discord](/deployment/discord#cron-runs-in-a-conversation), [WhatsApp](/deployment/whatsapp#cron-runs-in-a-conversation)), so it names the same conversation a message from that chat does:
+
+<<< @/snippets/chat.ts#discord-cron
+
+The run is dispatched through that channel's trusted conversation intake (`dispatchConversation`) instead of a plain dispatch:
+
+- Its source is the conversation's channel and `address`: a reply emitted there needs no [outbound approval](/guide/tools#untrusted-content-and-outbound-tools), even after the run read untrusted content, while an emit to another address still waits for one.
+- `text` becomes the user turn and the sent reply the assistant turn of the conversation, so a later chat message there [recalls](/guide/conversations#what-is-remembered) both. The first firing creates the conversation when no message did.
+- The idempotency key and the overlap policy work as above, but the run carries the conversation's concurrency key (one run per conversation at a time), never the subscription id; a `concurrencyKey()` on the subscription is not used.
+- `conversations.authorize` decides as for a message, with no invoker (the access names the agent and the identity). A refusal creates no run and reaches `onError`. The platform's message policy (`allowMessage`, `resolveInvoker`) is not consulted: the reference is app code, never input.
+
+`conversation` and `text` go together (`InvalidAgentDefinitionError` at `cron.on()` otherwise, also for a blank field). The agent must enable `conversation`, and the engine must hold the named channel: both are checked when the channel schedules the subscription. Such a subscription runs only in the app's scheduler: `runJob()` (and `chamvi run-job`) refuses it, since a job starts no channel to deliver the replies.
+
 ## Timezones
 
 `cron.on(expression, { timezone })` takes an IANA zone; without one, the process's local zone applies. A local time that occurs twice at the fall-back change fires once, at its first occurrence. A local time the spring-forward change skips fires once, an hour later in local time.

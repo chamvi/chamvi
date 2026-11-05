@@ -20,6 +20,7 @@ export type {
     WhatsAppChatOptions,
     WhatsAppChatSetup,
     WhatsAppConnectionStatus,
+    WhatsAppConversationInput,
     WhatsAppIdentity,
     WhatsAppPairing,
     WhatsAppPolicy,

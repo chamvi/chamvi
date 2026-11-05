@@ -13,9 +13,14 @@ import type { Invoker } from '@chamvi/core';
 import { isObject } from 'smob';
 import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
 import type { ChatIncoming, ChatPlatformPost } from '@chamvi/chat';
-import { createWhatsAppAdapter } from './adapter.ts';
+import { createWhatsAppAdapter, encodeWhatsAppThread } from './adapter.ts';
 import { MESSAGE_ID_PREFIX, WHATSAPP_ADAPTER_NAME } from './constants.ts';
-import { isAllowed, resolvePolicy, toConversationTarget } from './policy.ts';
+import {
+    isAllowed,
+    resolvePolicy,
+    toConversationRef,
+    toConversationTarget,
+} from './policy.ts';
 import type { WhatsAppChatOptions, WhatsAppChatSetup } from './types.ts';
 
 function invalid(message: string): InvalidAgentDefinitionError {
@@ -170,5 +175,10 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
         ingress,
         channel,
         status: () => adapter.connection.status(),
+        conversation: (input) => toConversationRef(input, {
+            account: options.account,
+            channel: channel.name,
+            address: (jid) => channel.to({ adapter: WHATSAPP_ADAPTER_NAME, threadId: encodeWhatsAppThread(jid) }),
+        }),
     };
 }

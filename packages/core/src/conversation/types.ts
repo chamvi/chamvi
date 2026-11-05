@@ -47,6 +47,24 @@ export type ConversationTarget = {
     text: string;
 };
 
+/**
+ * App code's reference to an existing conversation of a registered channel:
+ * the identity fields the channel's intake computes for that chat (the engine
+ * adds the agent's memory key) and, optionally, the address replies go to.
+ * Built by a platform setup or by hand, never from a payload; a scheduler
+ * that starts a run inside the conversation hands it to that channel's
+ * trusted intake.
+ */
+export type ConversationRef = {
+    /** The registered channel whose intake owns the conversation. */
+    channel: string;
+    account: string;
+    chat: string;
+    audience: string;
+    /** The run's source address on that channel (where its replies go). */
+    address?: string;
+};
+
 /** A run's conversation (`Run.conversation`): set by the trusted intake only, never by a dispatch envelope. */
 export type ConversationBinding = {
     scope: ConversationScope;

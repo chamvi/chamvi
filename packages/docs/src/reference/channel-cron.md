@@ -37,7 +37,7 @@ const cron: CronSubscriber; // cron.on(expression, options?): a subscription of 
 
 <<< ../../../channel-cron/src/subscription/types.ts{ts}
 
-Throws `InvalidAgentDefinitionError` for an expression cron-parser refuses, an unknown timezone, an unknown `overlap` or an empty `id`. The id defaults to `cron:<expression>`.
+Throws `InvalidAgentDefinitionError` for an expression cron-parser refuses, an unknown timezone, an unknown `overlap`, an empty `id`, or a `conversation` without a non-blank `text` (and vice versa) or with a blank field. The id defaults to `cron:<expression>`. See [Inside a conversation](/guide/scheduler#inside-a-conversation).
 
 ## runJob
 
@@ -45,7 +45,7 @@ Throws `InvalidAgentDefinitionError` for an expression cron-parser refuses, an u
 function runJob(opts: RunJobOptions): Promise<RunJobResult>;
 ```
 
-Starts the engine with `start({ channels: false })`. It does not return while the run waits on runs it [dispatched](/guide/dispatch); it returns `waiting` when the run or one of its descendants waits on an approval, with `waitingRunId` naming the descendant. Rejects with `InvalidAgentDefinitionError` when the subscription is missing or ambiguous, or the engine holds no cron channel for it.
+Starts the engine with `start({ channels: false })`. It does not return while the run waits on runs it [dispatched](/guide/dispatch); it returns `waiting` when the run or one of its descendants waits on an approval, with `waitingRunId` naming the descendant. Rejects with `InvalidAgentDefinitionError` when the subscription is missing or ambiguous, the engine holds no cron channel for it, or it has a `conversation` (a job starts no channel to deliver to; such a subscription runs only in the app's scheduler).
 
 <<< ../../../channel-cron/src/run-job/types.ts{ts}
 
@@ -57,6 +57,6 @@ function readCronOptions(agent: Agent, subscription: ChannelSubscription): CronO
 function createRepositoryScheduleLock(store: ILockRepository, owner: string): IScheduleLock;
 ```
 
-`fireCronSubscription` is one tick (overlap check and dispatch) for an explicit `scheduledAt`; the channel and `runJob` both call it. `createRepositoryScheduleLock` adapts core's `ILockRepository` to hubwire's `IScheduleLock`.
+`fireCronSubscription` is one tick (overlap check and dispatch, through the conversation channel's intake for a subscription with `conversation`) for an explicit `scheduledAt`; the channel and `runJob` both call it. `createRepositoryScheduleLock` adapts core's `ILockRepository` to hubwire's `IScheduleLock`.
 
 <<< ../../../channel-cron/src/tick/types.ts{ts}

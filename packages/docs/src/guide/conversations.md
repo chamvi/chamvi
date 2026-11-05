@@ -30,6 +30,10 @@ Use the exact registered channel object with `engine.channelContext(chat)`. Chan
 
 For a private chat, the policy should check the authenticated caller's access to the account and chat. For a group, choose an audience that represents the actual authorized membership or view, and recheck it when membership changes. Do not reuse a private audience for a group or infer authorization from a concurrency key. The policy runs before admission and again for recall/resume and memory-tool calls. A later denial cannot retract content already sent to providers or tools.
 
+## Scheduled runs in a conversation
+
+A cron subscription can start its runs inside a conversation: `cron.on(expression, { conversation, text })` hands a `ConversationRef` (`{ channel, account, chat, audience, address? }`) and the user turn `text` to that channel's `dispatchConversation`, so the run recalls the chat and its replies become turns of it. The reference is app code, built by a platform setup's `conversation()` helper or by hand, never read from a payload or request, which is what makes this a trusted intake. `authorize` sees the dispatch without an invoker; allow it by agent or by `identity`. See [Cron Scheduling](/guide/scheduler#inside-a-conversation).
+
 ## What is remembered
 
 Only accepted user text and ordinary messages emitted to the source channel and exact source address enter recent context. Emit with a tool such as `reply` above: returning final model text alone does not send or capture a reply. Approval notifications, other destinations, reasoning, tool results and attachments are not recalled as transcript messages.

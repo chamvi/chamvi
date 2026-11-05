@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ChannelSubscription } from '@chamvi/core';
+import type { ChannelSubscription, ConversationRef } from '@chamvi/core';
 
 /** What a tick does while a run of the same subscription is active. */
 export type OverlapPolicy = 'skip' | 'queue-one' | 'allow';
@@ -21,6 +21,16 @@ export type CronSubscriptionOptions = {
     payload?: unknown;
     /** The subscription id, unique per agent; default `cron:<expression>`. */
     id?: string;
+    /**
+     * Starts each run inside this conversation of a registered channel,
+     * through that channel's trusted intake (the agent needs `conversation`
+     * enabled): the run's source is the conversation's channel and address,
+     * so its replies there need no tainted-outbound approval and become turns
+     * of the conversation. Needs `text`.
+     */
+    conversation?: ConversationRef;
+    /** The user turn of a conversation run (non-blank); only with `conversation`. */
+    text?: string;
 };
 
 /** Makes cron subscriptions for one channel name. */

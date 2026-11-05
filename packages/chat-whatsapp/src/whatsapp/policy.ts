@@ -14,14 +14,18 @@ import {
 } from 'baileys';
 import type { WAMessage, WAMessageContent } from 'baileys';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { ConversationTarget } from '@chamvi/core';
+import type { ConversationRef, ConversationTarget } from '@chamvi/core';
 import { isObject } from 'smob';
 import type {
     ResolvedWhatsAppPolicy,
+    WhatsAppConversationInput,
     WhatsAppIdentity,
     WhatsAppPolicy,
     WhatsAppSocket,
 } from './types.ts';
+
+/** A phone number jid: digits only before the server (Baileys' `isPnUser` checks the server alone). */
+const PHONE_JID = /^\d+@s\.whatsapp\.net$/;
 
 function invalid(message: string): InvalidAgentDefinitionError {
     return new InvalidAgentDefinitionError(`createWhatsAppChat: ${message}`);
@@ -29,7 +33,7 @@ function invalid(message: string): InvalidAgentDefinitionError {
 
 /** A phone number jid without a device suffix. */
 function isNormalizedPhoneJid(value: unknown): value is string {
-    return typeof value === 'string' && isPnUser(value) === true && jidNormalizedUser(value) === value;
+    return typeof value === 'string' && PHONE_JID.test(value) && isPnUser(value) === true && jidNormalizedUser(value) === value;
 }
 
 function isNormalizedGroupJid(value: unknown): value is string {
@@ -217,5 +221,43 @@ export function toConversationTarget(identity: WhatsAppIdentity, text: string): 
         chat: identity.chat,
         audience: identity.group ? `group:${identity.chat}` : `direct:${identity.sender}`,
         text,
+    };
+}
+
+/**
+ * The conversation reference of a direct chat or a group, through the
+ * identity intake computes for a message there (toConversationTarget()), so
+ * both name one conversation; `address` the chat's source address.
+ */
+export function toConversationRef(
+    input: WhatsAppConversationInput,
+    ctx: {
+        account: string;
+        channel: string;
+        address: (jid: string) => string;
+    },
+): ConversationRef {
+    const chat = isObject(input) ? input.chat : undefined;
+    const group = isNormalizedGroupJid(chat);
+
+    if (!group && !isNormalizedPhoneJid(chat)) {
+        throw new InvalidAgentDefinitionError('WhatsAppChatSetup.conversation: chat must be a phone number jid (<digits>@s.whatsapp.net) or a group jid (<id>@g.us), normalized.');
+    }
+
+    const target = toConversationTarget({
+        account: ctx.account,
+        chat,
+        // a direct chat is with its sender; a group's audience names no sender
+        sender: group ? '' : chat,
+        group,
+        mentioned: false,
+    }, '');
+
+    return {
+        channel: ctx.channel,
+        account: target.account,
+        chat: target.chat,
+        audience: target.audience,
+        address: ctx.address(chat),
     };
 }

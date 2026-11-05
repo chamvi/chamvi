@@ -9,6 +9,7 @@ import type {
     Agent,
     ChannelContext,
     ChannelSubscription,
+    ConversationRef,
     IEngine,
 } from '@chamvi/core';
 import type { OverlapPolicy } from '../subscription/types.ts';
@@ -19,6 +20,9 @@ export type CronOptions = {
     timezone?: string;
     overlap: OverlapPolicy;
     payload?: unknown;
+    /** Set together with `text`: the conversation each run starts in. */
+    conversation?: ConversationRef;
+    text?: string;
 };
 
 export type CronTickContext = {
@@ -29,7 +33,9 @@ export type CronTickContext = {
     scheduledAt: Date;
     /**
      * The channel's dispatch (sets the channel name itself). Default
-     * engine.dispatch with `channel` = the subscription's channel.
+     * engine.dispatch with `channel` = the subscription's channel. Not
+     * used for a subscription with a conversation, which dispatches through
+     * the conversation channel's intake.
      */
     dispatch?: ChannelContext['dispatch'];
 };
@@ -40,9 +46,13 @@ export type CronTickDispatched = {
     deduplicated: boolean;
 };
 
+/**
+ * `overlap`: the policy held the tick back; `channel`: the engine holds no
+ * channel named by the subscription's conversation.
+ */
 export type CronTickSkipped = {
     dispatched: false;
-    reason: 'overlap';
+    reason: 'overlap' | 'channel';
 };
 
 export type CronTickResult = CronTickDispatched | CronTickSkipped;

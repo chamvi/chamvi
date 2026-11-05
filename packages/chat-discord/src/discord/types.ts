@@ -12,7 +12,7 @@ import type {
     ClientOptions,
 } from 'discord.js';
 import type { DiscordAdapter } from '@chat-adapter/discord';
-import type { IClock, Invoker } from '@chamvi/core';
+import type { ConversationRef, IClock, Invoker } from '@chamvi/core';
 import type {
     Chat,
     Logger,
@@ -226,9 +226,25 @@ export type DiscordChatOptions = {
     fetch?: typeof fetch;
 };
 
+/** The chat of a conversation reference (DiscordChatSetup.conversation()). */
+export type DiscordConversationInput = {
+    /** The adapter thread id: `discord:@me:<DM channel id>` or `discord:<guild>:<channel>` (no thread). */
+    threadId: string;
+    /** For a DM: the user id the DM is with; refused for a guild channel. */
+    user?: string;
+};
+
 export type DiscordChatSetup = {
     chat: Chat;
     ingress: ChatIngress;
     channel: ChatChannel;
     status(): DiscordConnectionStatus;
+    /**
+     * The reference of a conversation of this channel (e.g. for
+     * `cron.on(expr, { conversation, text })`): the identity intake computes
+     * for a message in that chat and its address. InvalidAgentDefinitionError
+     * for a malformed id, a DM without its user, a user outside a DM or a
+     * thread (its audience depends on its type).
+     */
+    conversation(input: DiscordConversationInput): ConversationRef;
 };

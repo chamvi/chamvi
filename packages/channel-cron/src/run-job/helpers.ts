@@ -14,14 +14,32 @@ import type {
 } from '@chamvi/core';
 import { InvalidAgentDefinitionError, findApprovalWaitBelow } from '@chamvi/core';
 import { isCronChannel } from '../channel/helpers.ts';
+import { readCronOptions } from '../tick/index.ts';
 import { TERMINAL } from './constants.ts';
 
 /**
  * The cron subscription a job fires: `subscriptionId`, or the agent's only
  * subscription of a cron channel the engine holds. Throws
- * InvalidAgentDefinitionError when it is missing or ambiguous.
+ * InvalidAgentDefinitionError when it is missing or ambiguous, malformed, or
+ * runs inside a conversation: a job starts no channel (`channels: false`), so
+ * the conversation's channel could not deliver the run's replies; such a
+ * subscription runs only in the app's scheduler.
  */
 export function resolveCronSubscription(engine: IEngine, agent: Agent, subscriptionId?: string): ChannelSubscription {
+    const subscription = findCronSubscription(engine, agent, subscriptionId);
+    const { conversation } = readCronOptions(agent, subscription);
+
+    if (conversation) {
+        throw new InvalidAgentDefinitionError(
+            `Agent "${agent.name}": cron subscription "${subscription.id}" runs inside a conversation of channel ` +
+            `"${conversation.channel}"; a job starts no channel to deliver to, so it runs only in the app's scheduler.`,
+        );
+    }
+
+    return subscription;
+}
+
+function findCronSubscription(engine: IEngine, agent: Agent, subscriptionId?: string): ChannelSubscription {
     const crons = (agent.definition.channels ?? []).filter((s) => isCronChannel(engine.getChannel(s.channel)));
 
     if (subscriptionId !== undefined) {
