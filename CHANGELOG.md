@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.7.3](https://github.com/chamvi/chamvi/compare/v0.7.2...v0.7.3) (2026-11-05)
+
+
+### Features
+
+* run cron subscriptions inside a chat conversation ([#163](https://github.com/chamvi/chamvi/issues/163)) ([ca8a9ed](https://github.com/chamvi/chamvi/commit/ca8a9ede297d26e85cd5a4c04ae85c94573fe019))
+
 ## [0.7.2](https://github.com/chamvi/chamvi/compare/v0.7.1...v0.7.2) (2026-11-05)
 
 

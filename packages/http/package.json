@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/http",
-    "version": "0.7.2",
+    "version": "0.7.3",
     "type": "module",
     "description": "REST, SSE, webhooks and MCP for chamvi agents, on routup.",
     "author": {
@@ -74,14 +74,14 @@
         "vouchly": "^0.1.1"
     },
     "devDependencies": {
-        "@chamvi/core": "^0.7.2",
-        "@chamvi/test-kit": "^0.7.2",
+        "@chamvi/core": "^0.7.3",
+        "@chamvi/test-kit": "^0.7.3",
         "@modelcontextprotocol/client": "^2.4.0",
         "ai": "^7.0.163",
         "jose": "^6.2.15",
         "zod": "^4.6.7"
     },
     "peerDependencies": {
-        "@chamvi/core": "^0.7.2"
+        "@chamvi/core": "^0.7.3"
     }
 }
