@@ -22,6 +22,7 @@ import {
     collectionError,
     createRemoteWorkspace,
     createSettledCheck,
+    createSuspendableCheck,
     isExpiredAt,
     isRootUser,
     prepareWorkspace,
@@ -65,7 +66,10 @@ const PROVIDER_NAME = 'docker';
  * checkout and, for a non-root `user`, opens the cache to it (`openCache`);
  * `pull` applies to every image, also one a run asked for. `find` lists a run's
  * containers by label, starts a stopped one again (its volume holds the
- * work) and rebuilds the info from the labels. The client connects lazily,
+ * work) and rebuilds the info from the labels. `collectGarbage` suspends
+ * the running container of a suspendable run by stopping it (its volume and
+ * root filesystem kept) and drops its held handle, so the next `find` starts
+ * it again behind a fresh one. The client connects lazily,
  * so creating the provider never contacts the daemon.
  */
 export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandboxProvider {
@@ -162,7 +166,11 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             async dispose() {
                 disposing.add(workspace);
                 await remote.dispose();
-                live.delete(id);
+
+                // a handle dropped by a suspension never unregisters the fresh one
+                if (live.get(id) === workspace) {
+                    live.delete(id);
+                }
             },
         };
 
@@ -184,6 +192,39 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
         } catch (error) {
             throw new SandboxError(`cannot list the workspace containers: ${dockerMessage(error)}`, { cause: error });
         }
+    }
+
+    /**
+     * Stops the container of a suspendable run (`answer` true) without
+     * removing it, after dropping its held handle (never disposed), so the
+     * next `find` restarts it behind a fresh handle; a SandboxError for a
+     * rejected `isSuspendable` or a failed stop (the container keeps running).
+     */
+    async function suspend(item: Docker.ContainerInfo, answer: boolean | SandboxError): Promise<SandboxError | undefined> {
+        if (answer !== true) {
+            return answer === false ? undefined : answer;
+        }
+
+        const id = item.Labels?.[WORKSPACE_LABEL] ?? '';
+        const held = live.get(id);
+
+        // one being disposed is removed, never suspended
+        if (held && disposing.has(held)) {
+            return undefined;
+        }
+
+        live.delete(id);
+
+        try {
+            await docker.getContainer(item.Id).stop();
+        } catch (error) {
+            // stopped or removed meanwhile
+            if (!isStatus(error, 304) && !isStatus(error, 404)) {
+                return new SandboxError(`cannot suspend workspace container ${item.Id}: ${dockerMessage(error)}`, { cause: error });
+            }
+        }
+
+        return undefined;
     }
 
     return {
@@ -390,18 +431,29 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             // one container that cannot go never keeps the others
             const failures: SandboxError[] = [];
             const isSettled = createSettledCheck(gcOptions.isSettled);
+            const isSuspendable = createSuspendableCheck(gcOptions.isSuspendable);
 
             for (const container of containers) {
                 const labels = container.Labels ?? {};
 
                 if (!isExpiredAt(labels[EXPIRES_AT_KEY], now)) {
-                    const answer = await isSettled(labels[RUN_LABEL] ?? '');
+                    const runId = labels[RUN_LABEL] ?? '';
+                    const answer = await isSettled(runId);
 
                     if (answer instanceof SandboxError) {
                         failures.push(answer);
                     }
 
                     if (answer !== true) {
+                        // a removal always wins: suspension only for a kept, running one
+                        if (answer === false && container.State === 'running') {
+                            const failure = await suspend(container, await isSuspendable(runId));
+
+                            if (failure) {
+                                failures.push(failure);
+                            }
+                        }
+
                         continue;
                     }
                 }
