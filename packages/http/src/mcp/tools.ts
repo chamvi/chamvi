@@ -166,7 +166,7 @@ function registerReadTools(server: McpServer, ctx: HttpContext, principal: Princ
 
     server.registerTool('list_runs', {
         title: 'List runs',
-        description: 'Lists runs, oldest first. Without run:read, agent must name an agent you may run. A private agent\'s runs need agent:<agent>:read.',
+        description: 'Lists runs, oldest first. agent:*:read lists every run; run:read lists the runs of every agent you may read. Otherwise agent must name an agent whose runs you may read (agent:<agent>:read, or for a public agent agent:<agent>:run). A private agent\'s runs need agent:<agent>:read.',
         inputSchema: LIST_RUNS_INPUT,
         annotations: { readOnlyHint: true },
     }, (args) => runTool(ctx, async () => {

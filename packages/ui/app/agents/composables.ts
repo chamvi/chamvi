@@ -183,7 +183,8 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
 
             const found = list.data.find((a) => a.name === agentName);
 
-            if (!Array.isArray(listed) && !found?.private) {
+            // a missing agent's runs also answer 403: it renders as not found
+            if (!Array.isArray(listed) && found && !found.private) {
                 throw listed[FORBIDDEN];
             }
 
@@ -207,7 +208,7 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
                 waitingRuns.value = [];
                 waitingTotal.value = 0;
                 activity.value = summarizeActivity([], Date.now(), ACTIVITY_LIMIT);
-                forbidden.value = `Reading this agent's runs needs ${agentReadPermission(agentName)}`;
+                forbidden.value = found ? `Reading this agent's runs needs ${agentReadPermission(agentName)}` : undefined;
             }
 
             error.value = undefined;

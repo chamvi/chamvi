@@ -420,6 +420,24 @@ describe('useAgentDetail', () => {
         scope.stop();
     });
 
+    it('an agent the app does not hold is not found, even when its runs answer 403', async () => {
+        const client = fakeClient({
+            listAgents: async () => ({ data: AGENTS, issues: [] }),
+            listSchedules: async () => [],
+            listRuns: async () => {
+                throw apiError(403, 'forbidden');
+            },
+        });
+        const scope = effectScope();
+        const detail = scope.run(() => useAgentDetail(client, ref('ghost')))!;
+
+        await flush();
+        expect(detail.notFound.value).toBe(true);
+        expect(detail.error.value).toBeUndefined();
+        expect(detail.forbidden.value).toBeUndefined();
+        scope.stop();
+    });
+
     it('a 403 on a public agent\'s runs stays an error', async () => {
         const client = fakeClient({
             listAgents: async () => ({ data: AGENTS, issues: [] }),

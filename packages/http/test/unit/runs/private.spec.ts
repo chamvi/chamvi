@@ -228,6 +228,24 @@ describe('private agents: GET /runs', () => {
         await ctx.engine.drain();
     });
 
+    it('lists the runs of an agent the app does not hold for a run:read principal with its read grant', async () => {
+        const ctx = await setup();
+        const ghost = await insertGhostRun(ctx.store);
+
+        for (const token of [tokenFor('run:read', 'agent:ghost:read'), tokenFor('run:read', 'agent:ghost:*')]) {
+            const body = await (await call(ctx.app, 'GET', '/runs', { token })).json() as ListBody;
+
+            expect(body.data.map((run) => run.id)).toContain(ghost);
+            expect(body.data.map((run) => run.agent).sort()).toEqual(['bob', 'ghost']);
+            expect(body.meta.total).toBe(2);
+        }
+
+        const plain = await (await call(ctx.app, 'GET', '/runs', { token: READER_TOKEN })).json() as ListBody;
+
+        expect(plain.data.map((run) => run.agent)).toEqual(['bob']);
+        await ctx.engine.drain();
+    });
+
     it('answers 403 for filter[agent] naming a private agent without the read grant', async () => {
         const ctx = await setup();
 

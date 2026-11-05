@@ -22,6 +22,8 @@ defineProps<{
     agent: AgentWire;
     chips: Chip[];
     rollup?: AgentRollup;
+    /** Set when the principal may not read the agent's runs: shown instead of the rollup. */
+    hidden?: string;
 }>();
 
 </script>
@@ -57,7 +59,14 @@ defineProps<{
                 :chip="chip"
             />
         </div>
-        <template v-if="rollup">
+        <p
+            v-if="hidden"
+            class="hidden-runs"
+            data-testid="agent-runs-hidden"
+        >
+            <NavIcon name="lock" />{{ hidden }}
+        </p>
+        <template v-else-if="rollup">
             <div class="nums">
                 <div :class="['n-run', { zero: !rollup.running }]">
                     <small>Running</small><b>{{ rollup.running }}</b>

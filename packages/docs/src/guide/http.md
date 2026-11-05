@@ -28,8 +28,8 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 | Method and path | Permission | Answer |
 |---|---|---|
 | `POST /agents/:name/runs` | `agent:<name>:run` | `202 { runId, deduplicated }`; body `{ payload?, idempotencyKey?, address?, attachments? }` (or an `Idempotency-Key` header); runs carry channel `http` |
-| `GET /runs` | `run:read`, or `agent:<agent>:run` with `filter[agent]=<agent>` | `200 { data, meta: { total, limit, offset } }` |
-| `GET /runs/:id` | `run:read` or `agent:<run.agent>:run` | The run with its `steps` |
+| `GET /runs` | `run:read` (the runs of every agent it may read) or `agent:*:read`, or `agent:<agent>:read` (or `agent:<agent>:run` for a public agent) with `filter[agent]=<agent>` | `200 { data, meta: { total, limit, offset } }` |
+| `GET /runs/:id` | `agent:<run.agent>:read`, or for a public agent also `run:read` or `agent:<run.agent>:run` ([private agents](#private-agents)) | The run with its `steps` |
 | `GET /runs/:id/stream` | as `GET /runs/:id` | SSE |
 | `GET /runs/:id/artifacts` | as `GET /runs/:id` | `200 { data: Artifact[] }` |
 | `GET /runs/:id/artifacts/:artifactId` | as `GET /runs/:id` | The bytes, as a download |
@@ -87,7 +87,7 @@ An app holds at most `stream.maxOpen` (1000) open streams plus waiting MCP `run_
 | `tool:<agent>:<tool>` | Read by `requireToolPermission()`: the agent offers the tool to this principal's runs |
 | `*` | Everything |
 
-A `*` segment matches exactly one segment (`agent:*:run`). A client that may start an agent's runs can follow them without `run:read`, but to list runs it must filter to that agent.
+A `*` segment matches exactly one segment (`agent:*:run`). A client that may start a public agent's runs, or holds `agent:<name>:read`, can follow them without `run:read`, but to list runs it must filter to that agent.
 
 ### Private agents
 

@@ -126,9 +126,32 @@ export function canReadRun(principal: Principal, run: Run, agents: HttpAgents): 
     return canReadAgentContent(principal, run.agent, agents);
 }
 
-/** The names of the app's agents whose runs the principal may read, in registration order. */
+/**
+ * The agents whose runs the principal may read: the app's agents in
+ * registration order, then the agents the app does not hold that a grant
+ * names explicitly (`agent:<name>:read` or `agent:<name>:*`), so the listing
+ * agrees with the single-run reads.
+ */
 export function readableAgents(principal: Principal, agents: HttpAgents): string[] {
-    return agents.names().filter((name) => canReadAgentContent(principal, name, agents));
+    const names = agents.names().filter((name) => canReadAgentContent(principal, name, agents));
+
+    for (const permission of principal.permissions) {
+        const [scope, name, action, ...rest] = permission.split(':');
+
+        if (
+            scope === 'agent' &&
+            name !== undefined &&
+            name !== '*' &&
+            rest.length === 0 &&
+            (action === 'read' || action === '*') &&
+            !agents.get(name) &&
+            !names.includes(name)
+        ) {
+            names.push(name);
+        }
+    }
+
+    return names;
 }
 
 /**

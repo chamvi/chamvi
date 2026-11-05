@@ -11,6 +11,7 @@ import type {
     RunWire,
     ScheduleWire,
 } from '../api/types.ts';
+import { hasPermission } from '../auth/helpers.ts';
 import { ACTIVITY_WINDOW_MS } from './constants.ts';
 import type {
     Activity,
@@ -164,12 +165,25 @@ export function tokenShares(runs: readonly RunWire[]): string {
         .join(' · ');
 }
 
-/** The agent subscribes to the `http` channel, so REST (and the UI) can start it. */
 /** The grant reading a private agent's runs and state needs (`agent:<name>:read`). */
 export function agentReadPermission(name: string): string {
     return `agent:${name}:read`;
 }
 
+/**
+ * Why the agent's runs are hidden from the principal: a private agent
+ * without `agent:<name>:read`, whose runs the server leaves out of every
+ * listing (its rollup would read as zero); else `undefined`.
+ */
+export function hiddenRunsNotice(agent: AgentWire, permissions: readonly string[]): string | undefined {
+    if (!agent.private || hasPermission(permissions, agentReadPermission(agent.name))) {
+        return undefined;
+    }
+
+    return `Runs hidden: reading them needs ${agentReadPermission(agent.name)}`;
+}
+
+/** The agent subscribes to the `http` channel, so REST (and the UI) can start it. */
 export function hasHttpSubscription(agent: AgentWire): boolean {
     return agent.channels.some((subscription) => subscription.channel === 'http');
 }
