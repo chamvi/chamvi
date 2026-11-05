@@ -18,6 +18,8 @@ import type {
 
 export type RunFindOptions = {
     agent?: string;
+    /** Only the runs of these agents (an empty list matches none; an AND with `agent`). */
+    agents?: readonly string[];
     status?: RunStatusLiteral[];
     concurrencyKey?: string;
     /** Only these run ids (an empty list matches none). */
