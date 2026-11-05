@@ -1,5 +1,21 @@
 # Changelog
 
+## [0.7.2](https://github.com/chamvi/chamvi/compare/v0.7.1...v0.7.2) (2026-11-05)
+
+
+### Features
+
+* private agents readable only with agent:&lt;name&gt;:read ([#157](https://github.com/chamvi/chamvi/issues/157)) ([b0500ae](https://github.com/chamvi/chamvi/commit/b0500ae86e37e2fd78c3f4f48107a401ebe4bbda))
+* **sandbox:** suspend the workspaces of long-waiting runs ([#161](https://github.com/chamvi/chamvi/issues/161)) ([f0abd3e](https://github.com/chamvi/chamvi/commit/f0abd3e292562d07d316c89fb61b1602dc36afe3))
+* **tool-calendar:** add read-only CalDAV calendar tools ([#159](https://github.com/chamvi/chamvi/issues/159)) ([a4f1ced](https://github.com/chamvi/chamvi/commit/a4f1ced2d54570dc04b06eadad289e1009fdbb13))
+* **tool-mail:** add read-only IMAP mail tools ([#158](https://github.com/chamvi/chamvi/issues/158)) ([b545dd4](https://github.com/chamvi/chamvi/commit/b545dd4f83eaf8b60532d4b74e59bee1a855bb32))
+
+
+### Bug Fixes
+
+* **deps:** bump minor and patch dependencies ([ea05be6](https://github.com/chamvi/chamvi/commit/ea05be6b3069e818d9c57c036186213d3ccff266))
+* **ui:** add the logo as favicon ([#153](https://github.com/chamvi/chamvi/issues/153)) ([ceb2de6](https://github.com/chamvi/chamvi/commit/ceb2de6a332307caba7f8e0046c5171c3a37a6e2))
+
 ## [0.7.1](https://github.com/chamvi/chamvi/compare/v0.7.0...v0.7.1) (2026-11-04)
 
 
