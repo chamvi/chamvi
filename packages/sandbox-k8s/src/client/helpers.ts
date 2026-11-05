@@ -192,5 +192,24 @@ export function createPodClientFrom(parts: PodClientParts): IPodClient {
             async () => (await core.listNamespacedPod({ namespace, labelSelector })).items,
         ),
         exec: (name, input) => execOnce(parts, name, input),
+        createClaim: (claim) => call(
+            `create claim ${claim.metadata?.name ?? ''}`.trim(),
+            () => core.createNamespacedPersistentVolumeClaim({ namespace, body: claim }),
+        ),
+        async deleteClaim(name) {
+            try {
+                await core.deleteNamespacedPersistentVolumeClaim({ name, namespace });
+            } catch (error) {
+                if (isApiStatus(error, 404)) {
+                    return;
+                }
+
+                throw new SandboxError(`cannot delete claim ${name}: ${apiMessage(error)}`, { cause: error });
+            }
+        },
+        listClaims: (labelSelector) => call(
+            'list the workspace claims',
+            async () => (await core.listNamespacedPersistentVolumeClaim({ namespace, labelSelector })).items,
+        ),
     };
 }

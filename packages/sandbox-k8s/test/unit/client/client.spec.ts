@@ -9,7 +9,7 @@ import { EventEmitter } from 'node:events';
 import type { Readable } from 'node:stream';
 import { Writable } from 'node:stream';
 import { ApiException, KubeConfig } from '@kubernetes/client-node';
-import type { V1Pod, V1Status } from '@kubernetes/client-node';
+import type { V1PersistentVolumeClaim, V1Pod, V1Status } from '@kubernetes/client-node';
 import { describe, expect, it } from 'vitest';
 import { SandboxError } from '@chamvi/core';
 import { createPodClient } from '@chamvi/sandbox-k8s';
@@ -51,10 +51,14 @@ function setup(script: ExecScript = ({ status }) => status({ status: 'Success' }
         read: [],
         delete: [],
         list: [],
+        createClaim: [],
+        deleteClaim: [],
+        listClaims: [],
     };
     const execs: ExecCall[] = [];
     const sockets: FakeSocket[] = [];
     let deleteError: unknown;
+    let deleteClaimError: unknown;
     let connectError: unknown;
 
     const core = {
@@ -81,6 +85,25 @@ function setup(script: ExecScript = ({ status }) => status({ status: 'Success' }
             calls.list!.push(param);
 
             return { items: [{ metadata: { name: 'a' } }, { metadata: { name: 'b' } }] };
+        },
+        async createNamespacedPersistentVolumeClaim(param: unknown) {
+            calls.createClaim!.push(param);
+
+            return { metadata: { name: 'c' } } as V1PersistentVolumeClaim;
+        },
+        async deleteNamespacedPersistentVolumeClaim(param: unknown) {
+            calls.deleteClaim!.push(param);
+
+            if (deleteClaimError) {
+                throw deleteClaimError;
+            }
+
+            return {} as V1PersistentVolumeClaim;
+        },
+        async listNamespacedPersistentVolumeClaim(param: unknown) {
+            calls.listClaims!.push(param);
+
+            return { items: [{ metadata: { name: 'c' } }] };
         },
     };
     const exec = {
@@ -138,6 +161,9 @@ function setup(script: ExecScript = ({ status }) => status({ status: 'Success' }
         sockets,
         failDelete(error: unknown) {
             deleteError = error;
+        },
+        failDeleteClaim(error: unknown) {
+            deleteClaimError = error;
         },
         failConnect(error: unknown) {
             connectError = error;
@@ -220,6 +246,38 @@ describe('pod client: api calls', () => {
         expect(thrown).toBeInstanceOf(SandboxError);
         expect((thrown as SandboxError).message).toContain('etcd unavailable');
         expect((thrown as SandboxError).cause).toBe(error);
+    });
+});
+
+describe('pod client: claims', () => {
+    it('creates, lists and deletes claims in the namespace', async () => {
+        const { calls, client } = setup();
+        const body: V1PersistentVolumeClaim = { metadata: { name: 'c' } };
+
+        await expect(client.createClaim!(body)).resolves.toEqual({ metadata: { name: 'c' } });
+        expect(calls.createClaim).toEqual([{ namespace: 'agents', body }]);
+
+        const claims = await client.listClaims!('a=b');
+
+        expect(claims.map((claim) => claim.metadata?.name)).toEqual(['c']);
+        expect(calls.listClaims).toEqual([{ namespace: 'agents', labelSelector: 'a=b' }]);
+
+        await client.deleteClaim!('c');
+        expect(calls.deleteClaim).toEqual([{ name: 'c', namespace: 'agents' }]);
+    });
+
+    it('ignores a missing claim on delete and turns other errors into SandboxError', async () => {
+        const { client, failDeleteClaim } = setup();
+
+        failDeleteClaim(new ApiException(404, 'not found', '{"message":"not found"}', {}));
+        await expect(client.deleteClaim!('c')).resolves.toBeUndefined();
+
+        failDeleteClaim(new ApiException(403, 'forbidden', '{"message":"persistentvolumeclaims is forbidden"}', {}));
+
+        const thrown = await client.deleteClaim!('c').catch((e: unknown) => e);
+
+        expect(thrown).toBeInstanceOf(SandboxError);
+        expect((thrown as Error).message).toContain('persistentvolumeclaims is forbidden');
     });
 });
 
@@ -420,7 +478,16 @@ describe('createPodClient', () => {
 
         const client = createPodClient({ kubeConfig, namespace: 'agents' });
 
-        expect(Object.keys(client).sort()).toEqual(['create', 'delete', 'exec', 'list', 'read']);
+        expect(Object.keys(client).sort()).toEqual([
+            'create',
+            'createClaim',
+            'delete',
+            'deleteClaim',
+            'exec',
+            'list',
+            'listClaims',
+            'read',
+        ]);
         await expect(client.read('p')).rejects.toBeInstanceOf(SandboxError);
     });
 });
