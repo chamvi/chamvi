@@ -129,3 +129,7 @@ Checked `main` at `80bd0bf0` (2026-11-02): `src/modules.ts` lists `uiModule()` a
 ## Agent packages (#118)
 
 Checked against this file's contract map only (no fresh downstream checkout). `createApp({ agents })` widens compatibly to `(Agent | string)[]` (bare package specifiers); `IApp.packages` is additive. The new optional env variable `CHAMVI_AGENTS` and the `chamvi.json` `agents` field are opt-in, and the template's existing `createApp({ agents: [example], ... })` is unchanged. No template PR is required; a documentation follow-up (the package form, `CHAMVI_AGENTS` in `.env.example` if its env-example test lists every variable) is optional.
+
+## Private agents, mail and calendar tools (#157, #158, #159; 0.7.2)
+
+Checked `main` at `3664d9e7` (after agent-template#24): `src/modules.ts`, `.env.example`, `deploy/flux/secret.example.yaml`. No template change. Both example tokens hold `*`, which grants `agent:<name>:read`, so a `private: true` agent stays readable with the starter setup; the example agent reads no mail. `src/modules.ts` lists only github, sandbox, openclaw and console as commented examples (knowledge and tool-web are not listed either), so `toolMailModule()`/`toolCalendarModule()` stay out; `env-example.spec.ts` checks only the variables `.env.example` lists.
