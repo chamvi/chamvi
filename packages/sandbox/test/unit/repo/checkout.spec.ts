@@ -401,3 +401,37 @@ describe('readCheckout', () => {
         expect(workspace.calls).toHaveLength(CHECKOUT_READ_ATTEMPTS);
     });
 });
+
+describe('readCheckout with failOnError', () => {
+    it('keeps undefined for a missing record, read once', async () => {
+        const workspace = createScriptedWorkspace(() => ({ exitCode: 1 }), { repo: url });
+
+        await expect(readCheckout(workspace, undefined, immediateClock, { failOnError: true })).resolves.toBeUndefined();
+        expect(workspace.calls).toHaveLength(1);
+    });
+
+    it('throws a SandboxError once the reads are exhausted, never undefined', async () => {
+        const workspace = createScriptedWorkspace(() => ({ exitCode: 126 }), { repo: url });
+
+        await expect(readCheckout(workspace, undefined, immediateClock, { failOnError: true }))
+            .rejects.toThrow(SandboxError);
+        expect(workspace.calls).toHaveLength(CHECKOUT_READ_ATTEMPTS);
+
+        const broken = createScriptedWorkspace();
+
+        broken.exec = async () => {
+            throw new SandboxError('workspace disposed');
+        };
+        await expect(readCheckout(broken, undefined, immediateClock, { failOnError: true }))
+            .rejects.toThrow(/checkout/);
+    });
+
+    it('throws for an aborted read', async () => {
+        const controller = new AbortController();
+        const workspace = createScriptedWorkspace(() => ({ exitCode: 126 }), { repo: url });
+
+        controller.abort();
+        await expect(readCheckout(workspace, controller.signal, immediateClock, { failOnError: true }))
+            .rejects.toThrow(SandboxError);
+    });
+});

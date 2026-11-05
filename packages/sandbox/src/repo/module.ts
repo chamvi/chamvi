@@ -272,14 +272,25 @@ export async function prepareWorkspace(
  * fit `workspace.info.repo`: such a workspace is not found again. A read that
  * fails otherwise (the exec throws, another exit code, a timeout; a container
  * restarted a moment ago) is retried on `clock` every `CHECKOUT_READ_RETRY_MS`,
- * at most `CHECKOUT_READ_ATTEMPTS` reads, then undefined too.
+ * at most `CHECKOUT_READ_ATTEMPTS` reads, then undefined too; with
+ * `failOnError` such an unreadable workspace (or an aborted read) is a
+ * SandboxError instead, so a caller can tell it from a missing record.
  */
 export async function readCheckout(
     workspace: IWorkspace,
     signal?: AbortSignal,
     clock: IClock = systemClock,
+    options: { failOnError?: boolean } = {},
 ): Promise<{ commit?: string; defaultBranch?: string } | undefined> {
     let stdout: string | undefined;
+    let failure: unknown;
+    const giveUp = () => {
+        if (!options.failOnError) {
+            return undefined;
+        }
+
+        throw new SandboxError(`cannot read the checkout of workspace ${workspace.id}`, { cause: failure });
+    };
 
     for (let attempt = 1; stdout === undefined; attempt++) {
         try {
@@ -292,9 +303,12 @@ export async function readCheckout(
 
             if (result.exitCode === 0 && !result.timedOut) {
                 ({ stdout } = result);
+            } else {
+                failure = new SandboxError(result.timedOut ? 'git config timed out' : `git config exited ${result.exitCode}`);
             }
-        } catch {
+        } catch (error) {
             // the exec itself failed: read again below
+            failure = error;
         }
 
         if (stdout !== undefined) {
@@ -302,13 +316,15 @@ export async function readCheckout(
         }
 
         if (attempt >= CHECKOUT_READ_ATTEMPTS || signal?.aborted) {
-            return undefined;
+            return giveUp();
         }
 
         try {
             await delay(clock, CHECKOUT_READ_RETRY_MS, signal, () => new SandboxError('checkout read aborted'));
-        } catch {
-            return undefined;
+        } catch (error) {
+            failure = error;
+
+            return giveUp();
         }
     }
 
