@@ -6,7 +6,7 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { Agent, ChannelSubscription } from '@chamvi/core';
+import type { Agent, ChannelSubscription, IEngine } from '@chamvi/core';
 import type { IScheduleLock, IScheduledComponent, ScheduledComponentOptions } from 'hubwire';
 import { defineScheduledComponent } from 'hubwire';
 import type { CronChannelErrorContext } from '../channel/types.ts';
@@ -25,7 +25,15 @@ export function buildComponentOptions(
     agent: Agent,
     subscription: ChannelSubscription,
 ): ScheduledComponentOptions {
-    const { expression, timezone } = readCronOptions(agent, subscription);
+    const {
+        expression,
+        timezone,
+        conversation,
+    } = readCronOptions(agent, subscription);
+
+    if (conversation) {
+        assertConversationChannel(ctx.engine, agent, subscription, conversation.channel);
+    }
 
     return {
         name: `cron:${agent.name}:${subscription.id}`,
@@ -98,4 +106,17 @@ export function toDefinitionError(agent: Agent, subscription: ChannelSubscriptio
     return new InvalidAgentDefinitionError(
         `Agent "${agent.name}" subscription "${subscription.id}": ${Error.isError(e) ? e.message : String(e)}`,
     );
+}
+
+/**
+ * Throws InvalidAgentDefinitionError when the engine holds no channel named
+ * `channel` (a conversation's); the engine's channels are fixed, so a
+ * subscription that passes never fires with reason `channel`.
+ */
+export function assertConversationChannel(engine: Pick<IEngine, 'getChannel'>, agent: Agent, subscription: ChannelSubscription, channel: string): void {
+    if (!engine.getChannel(channel)) {
+        throw new InvalidAgentDefinitionError(
+            `Agent "${agent.name}" subscription "${subscription.id}": its conversation names unknown channel "${channel}".`,
+        );
+    }
 }

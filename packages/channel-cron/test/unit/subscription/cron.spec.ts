@@ -62,3 +62,62 @@ describe('cron.on', () => {
         expect(() => cronChannel({ name: 'cron-eu' }).on('nope')).toThrow(InvalidAgentDefinitionError);
     });
 });
+
+describe('cron.on with a conversation', () => {
+    const ref = {
+        channel: 'chat',
+        account: 'main',
+        chat: 'dm-1',
+        audience: 'direct:u-1',
+        address: 'dm-1',
+    };
+
+    it('keeps the conversation and the text', () => {
+        const s = cron.on('0 7 * * *', { conversation: ref, text: 'Brief me' });
+
+        expect(s.options).toMatchObject({ conversation: ref, text: 'Brief me' });
+        expect(s.options.conversation).not.toBe(ref);
+    });
+
+    it('takes a conversation without an address', () => {
+        const rest = {
+            channel: ref.channel,
+            account: ref.account,
+            chat: ref.chat,
+            audience: ref.audience,
+        };
+
+        expect(cron.on('0 7 * * *', { conversation: rest, text: 'Brief me' }).options.conversation).toEqual(rest);
+    });
+
+    it('rejects a conversation without text and text without a conversation', () => {
+        expect(() => cron.on('0 7 * * *', { conversation: ref })).toThrow(InvalidAgentDefinitionError);
+        expect(() => cron.on('0 7 * * *', { text: 'Brief me' })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it.each(['', ' '.repeat(3), 42])('rejects the text %j', (text) => {
+        expect(() => cron.on('0 7 * * *', { conversation: ref, text: text as string })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it.each(['channel', 'account', 'chat', 'audience', 'address'] as const)('rejects an empty %s', (field) => {
+        expect(() => cron.on('0 7 * * *', {
+            conversation: { ...ref, [field]: '' },
+            text: 'Brief me',
+        })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it.each(['channel', 'account', 'chat', 'audience'] as const)('rejects a missing %s', (field) => {
+        const conversation: Record<string, unknown> = { ...ref };
+
+        delete conversation[field];
+
+        expect(() => cron.on('0 7 * * *', {
+            conversation: conversation as never,
+            text: 'Brief me',
+        })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('rejects a conversation that is not an object', () => {
+        expect(() => cron.on('0 7 * * *', { conversation: 'chat' as never, text: 'Brief me' })).toThrow(InvalidAgentDefinitionError);
+    });
+});

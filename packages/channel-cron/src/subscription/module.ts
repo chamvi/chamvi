@@ -10,12 +10,15 @@ import { InvalidAgentDefinitionError, assertConcurrencyMaxRuns } from '@chamvi/c
 import { CronExpressionParser } from 'cron-parser';
 import { CRON_CHANNEL_NAME } from '../channel/constants.ts';
 import { OVERLAP_POLICIES } from './constants.ts';
+import { readCronConversation } from './helpers.ts';
 import type { CronSubscriber, CronSubscriptionOptions } from './types.ts';
 
 /**
  * A subscription of `channel` (a cron channel's name) firing on
  * `expression`. Throws InvalidAgentDefinitionError for an expression or
- * timezone cron-parser refuses, an unknown overlap policy or an empty id.
+ * timezone cron-parser refuses, an unknown overlap policy, an empty id, or a
+ * `conversation` without a non-blank `text` (and vice versa) or with a blank
+ * field.
  */
 export function createCronSubscription(
     channel: string,
@@ -51,6 +54,12 @@ export function createCronSubscription(
         throw new InvalidAgentDefinitionError(`Cron "${expression}" needs a non-empty id.`);
     }
 
+    const conversation = readCronConversation(
+        options.conversation,
+        options.text,
+        (reason) => new InvalidAgentDefinitionError(`Cron "${expression}" ${reason}`),
+    );
+
     return {
         channel,
         id: options.id ?? `cron:${expression}`,
@@ -60,6 +69,7 @@ export function createCronSubscription(
             timezone: options.timezone,
             overlap,
             payload: options.payload,
+            ...conversation,
         },
     };
 }

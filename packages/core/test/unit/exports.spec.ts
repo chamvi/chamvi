@@ -277,6 +277,13 @@ describe('public api', () => {
             audience: string;
             text: string;
         }>();
+        expectTypeOf<core.ConversationRef>().toEqualTypeOf<{
+            channel: string;
+            account: string;
+            chat: string;
+            audience: string;
+            address?: string;
+        }>();
         expectTypeOf<core.ConversationBinding>().toEqualTypeOf<{ scope: core.ConversationScope; text: string }>();
         expectTypeOf<core.ConversationAccess>().toEqualTypeOf<{
             agent: string;
