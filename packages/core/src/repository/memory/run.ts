@@ -155,6 +155,7 @@ export class MemoryRunRepository implements IRunRepository {
         const direction = q.order === 'desc' ? -1 : 1;
         const matched = this.runs.values().toArray()
             .filter((r) => (q.agent === undefined || r.agent === q.agent) &&
+                (q.agents === undefined || q.agents.includes(r.agent)) &&
                 (q.status === undefined || q.status.includes(r.status)) &&
                 (q.concurrencyKey === undefined || r.concurrencyKey === q.concurrencyKey) &&
                 (q.ids === undefined || q.ids.includes(r.id)) &&

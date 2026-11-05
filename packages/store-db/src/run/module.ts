@@ -165,8 +165,15 @@ export class DatabaseRunRepository implements IRunRepository {
     async find(q: RunFindOptions): Promise<{ data: Run[]; total: number }> {
         const where: FindOptionsWhere<RunEntity> = {};
 
-        if (q.agent !== undefined) {
-            where.agent = q.agent;
+        const agents = q.agent === undefined ? q.agents : [q.agent].filter((agent) => q.agents?.includes(agent) ?? true);
+
+        if (agents !== undefined && agents.length === 0) {
+            // no agent left to match
+            return { data: [], total: 0 };
+        }
+
+        if (agents !== undefined) {
+            where.agent = agents.length === 1 ? agents[0] : In([...agents]);
         }
 
         if (q.status !== undefined) {

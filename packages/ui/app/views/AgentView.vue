@@ -11,6 +11,7 @@ import { computed, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAgentDetail } from '../agents/composables.ts';
 import {
+    agentReadPermission,
     channelChips,
     failedSummary,
     formatBudgetTime,
@@ -146,6 +147,12 @@ function scheduleOf(chip: Chip) {
                     <h1 class="display">
                         {{ agent.name }}
                     </h1>
+                    <span
+                        v-if="agent.private"
+                        class="tag"
+                        data-testid="agent-private"
+                        :title="`Private: reading its runs and state needs ${agentReadPermission(agent.name)}`"
+                    ><NavIcon name="lock" />private</span>
                     <div class="head-actions">
                         <VCButton
                             v-if="canStart"
@@ -239,13 +246,23 @@ function scheduleOf(chip: Chip) {
             role="tabpanel"
             :aria-labelledby="tabId('agent', tab)"
         >
-            <AgentRuns
-                v-if="tab === 'runs'"
-                :agent="agent"
-            />
+            <div
+                v-if="detail.forbidden.value && tab !== 'state' && tab !== 'schedules'"
+                class="card notice"
+                data-testid="agent-forbidden"
+            >
+                Reading this agent's runs needs <b class="mono">{{ agentReadPermission(agent.name) }}</b>.
+            </div>
+            <template v-if="tab === 'runs'">
+                <AgentRuns
+                    v-if="!detail.forbidden.value"
+                    :agent="agent"
+                />
+            </template>
             <AgentStatePanel
                 v-else-if="tab === 'state'"
                 :agent="agent.name"
+                :is-private="agent.private"
                 :state="state"
             />
             <template v-else-if="tab === 'schedules'">
@@ -274,7 +291,10 @@ function scheduleOf(chip: Chip) {
                 </div>
             </template>
             <template v-else>
-                <div class="stats">
+                <div
+                    v-if="!detail.forbidden.value"
+                    class="stats"
+                >
                     <div class="card stat stat-run">
                         <small>Runs · 24 h</small>
                         <b data-testid="runs-24h">{{ activity.count }}{{ activity.saturated ? '+' : '' }}</b>
@@ -299,7 +319,10 @@ function scheduleOf(chip: Chip) {
                 </div>
                 <div class="ov">
                     <div class="ov-col">
-                        <section class="card panel">
+                        <section
+                            v-if="!detail.forbidden.value"
+                            class="card panel"
+                        >
                             <div class="panel-head">
                                 <h3>Recent runs</h3>
                                 <RouterLink
@@ -348,7 +371,10 @@ function scheduleOf(chip: Chip) {
                         </section>
                     </div>
                     <div class="ov-col">
-                        <section class="card panel">
+                        <section
+                            v-if="!detail.forbidden.value"
+                            class="card panel"
+                        >
                             <div class="panel-head">
                                 <h3>
                                     Waiting for approval<span

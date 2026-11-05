@@ -808,6 +808,24 @@ export function describeRepositoryContract(
             expect(await store.runs.find({ ids: [] })).toEqual({ data: [], total: 0 });
         });
 
+        it('find({ agents }) returns only the runs of the listed agents, an AND with agent', async () => {
+            const { store } = await setup();
+
+            await store.runs.insert(makeRun('r1', { agent: 'a', createdAt: new Date(1_000) }));
+            await store.runs.insert(makeRun('r2', { agent: 'b', createdAt: new Date(2_000) }));
+            await store.runs.insert(makeRun('r3', { agent: 'c', createdAt: new Date(3_000) }));
+            await store.runs.insert(makeRun('r4', { agent: 'a', createdAt: new Date(4_000) }));
+
+            const listed = await store.runs.find({ agents: ['a', 'c'] });
+
+            expect(listed.data.map((r) => r.id)).toEqual(['r1', 'r3', 'r4']);
+            expect(listed.total).toBe(3);
+            expect(await store.runs.find({ agents: [] })).toEqual({ data: [], total: 0 });
+            expect(await store.runs.find({ agent: 'a', agents: ['b'] })).toEqual({ data: [], total: 0 });
+            expect((await store.runs.find({ agent: 'a', agents: ['a', 'b'] })).data.map((r) => r.id)).toEqual(['r1', 'r4']);
+            expect(await store.runs.find({ agents: ['a'], limit: 0 })).toEqual({ data: [], total: 2 });
+        });
+
         it('subtreeUsage round-trips and survives unrelated updates', async () => {
             const { store } = await setup();
             const subtreeUsage = { inputTokens: 10, outputTokens: 5 };

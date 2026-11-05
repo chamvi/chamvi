@@ -13,6 +13,7 @@ An agent is a typed config object passed to `defineModelAgent()` (or, for a [sim
 - instructions are neither a string nor an array of native system/user/assistant messages (tool roles are refused),
 - two subscriptions of the agent share an id,
 - the agent's or a subscription's `concurrencyMaxRuns` is neither `undefined`, `false` nor a positive safe integer,
+- `private` is given and is not a boolean,
 - `trust.onTainted` is neither `'approve'` nor `'deny'`, or a `trust.tools` override has invalid flags or names no available tool (names are checked at execution when a tools factory, state or non-empty skills are declared; flags are always checked at definition),
 - a tool of a plain tool set declares the AI SDK's `needsApproval` (use [`approve()`](/guide/approvals) instead),
 - a `toolsContext` entry names a chamvi tool or no tool of a plain tool set (see [Third-party tools with their own context](/guide/tools#third-party-tools-with-their-own-context)).
@@ -31,6 +32,7 @@ The engine checks the rest when you construct it: agent names must be unique wit
 | `description` | `string` | the leading system instruction | The text of the agent's MCP run tool (its first line; without one and without a system instruction: `Starts a run of agent "<name>".`) |
 | `run` | `(payload, ctx) => unknown` | none | `defineSimpleAgent()` only, in place of `model` and `instructions`: a [simple agent](#simple-agents) |
 | `concurrencyMaxRuns` | `number \| false` | none | Shared-store ceiling for this agent's running runs; positive safe integer, or `false` for no additional ceiling |
+| `private` | `boolean` | `false` | Reading the agent's runs and state through [`@chamvi/http`](/guide/http#private-agents) needs `agent:<name>:read`; `run:read`, `agent:<name>:run` and `state:read` do not cover it |
 | `channels` | `ChannelSubscription[]` | none | From `http.on()`, `webhook.on()`, `cron.on()`, `github.on()`. See [Channels](/guide/channels) |
 | `tools` | `ToolSet \| (ctx) => ToolSet` | none | A plain tool set, or a factory called for each execution. See [Tools and their context](#tools-and-their-context) |
 | `trust` | `AgentTrust` | `{ onTainted: 'approve' }` | Untrusted-run outbound policy and boolean tool-name classifications. See [Untrusted content](/guide/tools#untrusted-content-and-outbound-tools) |

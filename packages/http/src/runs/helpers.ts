@@ -8,6 +8,7 @@
 import {
     APPROVAL_OPTIONS_MAX,
     ArtifactNotFoundError,
+    RunNotFoundError,
     RunStatus,
     hasPermission,
 } from '@chamvi/core';
@@ -33,7 +34,7 @@ import { Permission } from '../auth/constants.ts';
 import type { Principal } from '../auth/types.ts';
 import { DEFAULT_PAGE_LIMIT } from '../app/constants.ts';
 import { HTTP_CHANNEL_NAME } from '../channels/constants.ts';
-import type { HttpContext } from '../app/types.ts';
+import type { HttpAgents, HttpContext } from '../app/types.ts';
 import { decodeQuery } from '../request/helpers.ts';
 import {
     isArrayOf,
@@ -99,34 +100,112 @@ export function serializeStep(step: Step): Step {
     return { ...step, output: { ...step.output, approver: viewInvoker(approver as Invoker) } };
 }
 
-/** `run:read`, or `agent:<run.agent>:run`. */
-export function canReadRun(principal: Principal, run: Run): boolean {
-    return hasPermission(principal.permissions, Permission.RUN_READ) ||
-        hasPermission(principal.permissions, agentPermission(run.agent, 'run'));
-}
+/**
+ * Whether the principal may read the content (runs, state) of the agent
+ * named `agentName`. A private agent, and one the app does not hold (fail
+ * closed: a removed private agent's runs stay protected), needs
+ * `agent:<name>:read`; any other also `run:read` or `agent:<name>:run`.
+ * The read grant reads every agent, so a listing without a filter for
+ * `agent:*:read` and the single-run reads agree.
+ */
+export function canReadAgentContent(principal: Principal, agentName: string, agents: HttpAgents): boolean {
+    const agent = agents.get(agentName);
+    const read = hasPermission(principal.permissions, agentPermission(agentName, 'read'));
 
-/** The run, once the principal may read it: 404, then 403. */
-export async function loadReadableRun(ctx: HttpContext, principal: Principal, id: string): Promise<Run> {
-    const run = await ctx.store.runs.findOneOrFail(id);
-
-    if (!canReadRun(principal, run)) {
-        throw new ForbiddenError({ message: `Missing permission "${Permission.RUN_READ}".` });
+    if (!agent || agent.definition.private === true) {
+        return read;
     }
 
-    return run;
+    return read ||
+        hasPermission(principal.permissions, Permission.RUN_READ) ||
+        hasPermission(principal.permissions, agentPermission(agentName, 'run'));
+}
+
+/** Whether the principal may read the run (`canReadAgentContent()` of its agent). */
+export function canReadRun(principal: Principal, run: Run, agents: HttpAgents): boolean {
+    return canReadAgentContent(principal, run.agent, agents);
 }
 
 /**
- * 403 unless the principal may list runs: `run:read`, or a filter to one
- * agent it may run (one store query keeps `total` and paging exact).
+ * The agents whose runs the principal may read: the app's agents in
+ * registration order, then the agents the app does not hold that a grant
+ * names explicitly (`agent:<name>:read` or `agent:<name>:*`), so the listing
+ * agrees with the single-run reads.
  */
-export function assertCanListRuns(principal: Principal, agent: string | undefined): void {
-    if (hasPermission(principal.permissions, Permission.RUN_READ)) {
-        return;
+export function readableAgents(principal: Principal, agents: HttpAgents): string[] {
+    const names = agents.names().filter((name) => canReadAgentContent(principal, name, agents));
+
+    for (const permission of principal.permissions) {
+        const [scope, name, action, ...rest] = permission.split(':');
+
+        if (
+            scope === 'agent' &&
+            name !== undefined &&
+            name !== '*' &&
+            rest.length === 0 &&
+            (action === 'read' || action === '*') &&
+            !agents.get(name) &&
+            !names.includes(name)
+        ) {
+            names.push(name);
+        }
     }
 
-    if (agent !== undefined && hasPermission(principal.permissions, agentPermission(agent, 'run'))) {
-        return;
+    return names;
+}
+
+/**
+ * The run, once the principal may read it: 404 for a missing run and for
+ * one of an agent the principal may not read under the private-agent rule
+ * (the same error, so run ids are not probed), else 403.
+ */
+export async function loadReadableRun(ctx: HttpContext, principal: Principal, id: string): Promise<Run> {
+    const run = await ctx.store.runs.findOneOrFail(id);
+
+    if (canReadRun(principal, run, ctx.agents)) {
+        return run;
+    }
+
+    if (isContentProtected(run.agent, ctx.agents)) {
+        throw new RunNotFoundError(id);
+    }
+
+    throw new ForbiddenError({ message: `Missing permission "${Permission.RUN_READ}".` });
+}
+
+/** A private agent, or one the app does not hold: only `agent:<name>:read` reads it. */
+function isContentProtected(agentName: string, agents: HttpAgents): boolean {
+    const agent = agents.get(agentName);
+
+    return !agent || agent.definition.private === true;
+}
+
+/**
+ * The `agents` filter a run listing needs (`undefined`: none), else 403.
+ * With `agent`, the principal must be able to read that agent's runs.
+ * Without, it needs `run:read` (or `agent:*:read`, which reads every run);
+ * the listing is then limited to `readableAgents()`, in the one store query
+ * that keeps `total` and paging exact.
+ */
+export function assertCanListRuns(principal: Principal, agent: string | undefined, agents: HttpAgents): readonly string[] | undefined {
+    if (agent !== undefined) {
+        if (canReadAgentContent(principal, agent, agents)) {
+            return undefined;
+        }
+
+        if (isContentProtected(agent, agents)) {
+            throw new ForbiddenError({ message: `Reading runs of agent "${agent}" needs ${agentPermission(agent, 'read')}.` });
+        }
+
+        throw new ForbiddenError({ message: `Missing permission "${Permission.RUN_READ}".` });
+    }
+
+    if (hasPermission(principal.permissions, agentPermission('*', 'read'))) {
+        return undefined;
+    }
+
+    if (hasPermission(principal.permissions, Permission.RUN_READ)) {
+        return readableAgents(principal, agents);
     }
 
     throw new ForbiddenError({ message: `Missing permission "${Permission.RUN_READ}".` });

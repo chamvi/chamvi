@@ -9,11 +9,13 @@ import { describe, expect, it } from 'vitest';
 import { ACTIVITY_WINDOW_MS } from '../../../../app/agents/constants.ts';
 import {
     activityLabel,
+    agentReadPermission,
     channelChips,
     createStartKeys,
     failedSummary,
     formatBudgetTime,
     hasHttpSubscription,
+    hiddenRunsNotice,
     lastRunOf,
     matchesName,
     newIdempotencyKey,
@@ -36,6 +38,7 @@ const agent = (overrides: Partial<AgentWire> = {}): AgentWire => ({
     channels: [],
     budget: { maxSteps: 20 },
     state: [],
+    private: false,
     ...overrides,
 });
 
@@ -213,6 +216,18 @@ describe('activityLabel', () => {
 });
 
 describe('agent helpers', () => {
+    it('agentReadPermission names the grant a private agent\'s content needs', () => {
+        expect(agentReadPermission('alfred')).toBe('agent:alfred:read');
+    });
+
+    it('hiddenRunsNotice names the read grant only for a private agent the principal may not read', () => {
+        expect(hiddenRunsNotice(agent({ name: 'alfred', private: true }), ['run:read'])).toBe('Runs hidden: reading them needs agent:alfred:read');
+        expect(hiddenRunsNotice(agent({ name: 'alfred', private: true }), ['run:read', 'agent:alfred:read'])).toBeUndefined();
+        expect(hiddenRunsNotice(agent({ name: 'alfred', private: true }), ['*'])).toBeUndefined();
+        expect(hiddenRunsNotice(agent({ name: 'alfred', private: true }), ['agent:*:read'])).toBeUndefined();
+        expect(hiddenRunsNotice(agent({ name: 'bob', private: false }), ['run:read'])).toBeUndefined();
+    });
+
     it('hasHttpSubscription', () => {
         expect(hasHttpSubscription(agent({ channels: [{ channel: 'http', id: 'http' }] }))).toBe(true);
         expect(hasHttpSubscription(agent({ channels: [{ channel: 'cron', id: 'c' }] }))).toBe(false);

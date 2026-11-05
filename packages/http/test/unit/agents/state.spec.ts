@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { z } from 'zod';
 import { defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import {
@@ -79,6 +80,48 @@ describe('state kv', () => {
         expect((await call(app, 'GET', '/agents/nope/state/kv/x', { token: ADMIN_TOKEN })).status).toBe(404);
         expect((await call(app, 'PATCH', '/agents/nope/state/kv/x', { token: ADMIN_TOKEN, body: { value: 1 } })).status).toBe(404);
         expect((await call(app, 'GET', '/agents/nope/state/collections/x', { token: ADMIN_TOKEN })).status).toBe(404);
+    });
+});
+
+describe('state of a private agent', () => {
+    function privateSetup() {
+        return createTestApp({
+            agents: [defineModelAgent({
+                name: 'alfred',
+                model: textModel(),
+                instructions: 'Alfred.',
+                channels: [http.on()],
+                state: { notes: z.object({ text: z.string() }) },
+                private: true,
+            })],
+        });
+    }
+
+    const paths = [
+        '/agents/alfred/state/kv',
+        '/agents/alfred/state/kv/cursor',
+        '/agents/alfred/state/collections/notes',
+    ];
+
+    it('needs agent:<name>:read besides state:read', async () => {
+        const { app } = privateSetup();
+
+        for (const path of paths) {
+            const denied = await call(app, 'GET', path, { token: tokenFor('state:read') });
+
+            expect(denied.status, path).toBe(403);
+            expect((await denied.json()).message).toBe('State of agent "alfred" needs agent:alfred:read.');
+            expect((await call(app, 'GET', path, { token: tokenFor('state:read', 'agent:alfred:read') })).status, path).toBe(200);
+            expect((await call(app, 'GET', path, { token: ADMIN_TOKEN })).status, path).toBe(200);
+        }
+    });
+
+    it('needs agent:<name>:read besides state:write', async () => {
+        const { app } = privateSetup();
+        const path = '/agents/alfred/state/kv/cursor';
+
+        expect((await call(app, 'PATCH', path, { token: tokenFor('state:write'), body: { value: 1 } })).status).toBe(403);
+        expect((await call(app, 'PATCH', path, { token: tokenFor('state:write', 'agent:alfred:read'), body: { value: 1 } })).status).toBe(200);
     });
 });
 

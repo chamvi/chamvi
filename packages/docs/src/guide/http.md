@@ -28,8 +28,8 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 | Method and path | Permission | Answer |
 |---|---|---|
 | `POST /agents/:name/runs` | `agent:<name>:run` | `202 { runId, deduplicated }`; body `{ payload?, idempotencyKey?, address?, attachments? }` (or an `Idempotency-Key` header); runs carry channel `http` |
-| `GET /runs` | `run:read`, or `agent:<agent>:run` with `filter[agent]=<agent>` | `200 { data, meta: { total, limit, offset } }` |
-| `GET /runs/:id` | `run:read` or `agent:<run.agent>:run` | The run with its `steps` |
+| `GET /runs` | `run:read` (the runs of every agent it may read) or `agent:*:read`, or `agent:<agent>:read` (or `agent:<agent>:run` for a public agent) with `filter[agent]=<agent>` | `200 { data, meta: { total, limit, offset } }` |
+| `GET /runs/:id` | `agent:<run.agent>:read`, or for a public agent also `run:read` or `agent:<run.agent>:run` ([private agents](#private-agents)) | The run with its `steps` |
 | `GET /runs/:id/stream` | as `GET /runs/:id` | SSE |
 | `GET /runs/:id/artifacts` | as `GET /runs/:id` | `200 { data: Artifact[] }` |
 | `GET /runs/:id/artifacts/:artifactId` | as `GET /runs/:id` | The bytes, as a download |
@@ -78,7 +78,8 @@ An app holds at most `stream.maxOpen` (1000) open streams plus waiting MCP `run_
 
 | Permission | Grants |
 |---|---|
-| `agent:<name>:run` | Start the agent's runs and read them |
+| `agent:<name>:run` | Start the agent's runs and read them (start only, for a [private agent](#private-agents)) |
+| `agent:<name>:read` | Read the agent's runs, public or private, and a private agent's state |
 | `agent:<name>:approve` | Answer the agent's approvals (`POST /runs/:id/approve`, MCP `approve_run`) |
 | `run:read` | Read and list every run, agents and schedules |
 | `run:cancel` | Cancel runs |
@@ -86,7 +87,11 @@ An app holds at most `stream.maxOpen` (1000) open streams plus waiting MCP `run_
 | `tool:<agent>:<tool>` | Read by `requireToolPermission()`: the agent offers the tool to this principal's runs |
 | `*` | Everything |
 
-A `*` segment matches exactly one segment (`agent:*:run`). A client that may start an agent's runs can follow them without `run:read`, but to list runs it must filter to that agent.
+A `*` segment matches exactly one segment (`agent:*:run`). A client that may start a public agent's runs, or holds `agent:<name>:read`, can follow them without `run:read`, but to list runs it must filter to that agent.
+
+### Private agents
+
+An agent defined with `private: true` keeps its runs and state from everyone without `agent:<name>:read` (`*`, `agent:*:*` and `agent:*:read` grant it; `run:read`, `agent:<name>:run`, `state:read` and `state:write` do not). Such a principal gets 404 for the agent's runs (`GET /runs/:id`, `/stream`, `/artifacts*`, MCP `get_run`), as for an unknown run, so run ids cannot be probed. `GET /runs` and MCP `list_runs` leave the agent's runs out (`filter[agent]=<name>` is 403), its state routes answer 403, and MCP `run_<agent>` returns only `{ runId, status, deduplicated }`. A run whose agent the app no longer registers is treated as private. `agent:<name>:run` still starts runs, and `agent:<name>:approve` still answers approvals. `GET /agents` lists each agent's `private` flag.
 
 `POST /runs/:id/approve` needs the approve permission for the run's agent (no read permission); it loads the run (404), checks the permission (403) and only then reads the body, and passes the `approvalId` it was shown, so a stale or concurrent answer is a 409 rather than an answer to a newer call.
 

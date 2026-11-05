@@ -5,14 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { DEFAULT_MAX_STEPS } from '@chamvi/core';
+import { DEFAULT_MAX_STEPS, hasPermission } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
-import { BadRequestError, NotFoundError } from '@ebec/http';
+import { BadRequestError, ForbiddenError, NotFoundError } from '@ebec/http';
 import { defineSchema } from '@rapiq/core';
 import { CronExpressionParser } from 'cron-parser';
 import { isObject } from 'smob';
 import { Container } from 'validup';
 import { DEFAULT_PAGE_LIMIT } from '../app/constants.ts';
+import { agentPermission } from '../auth/module.ts';
+import type { Principal } from '../auth/types.ts';
 import { webhookUrl } from '../channels/helpers.ts';
 import { decodeQuery } from '../request/helpers.ts';
 import { isDefined } from '../request/validators.ts';
@@ -56,6 +58,7 @@ export function summarizeAgent(agent: Agent, basePath: string, hookChannels: Rea
         // defineModelAgent applied the defaults; the type keeps them optional
         budget: { maxSteps: DEFAULT_MAX_STEPS, ...definition.budget },
         state: Object.keys(definition.state ?? {}),
+        private: definition.private === true,
     };
 }
 
@@ -118,6 +121,15 @@ export function requireAgent(agents: HttpAgents, name: string): Agent {
     }
 
     return agent;
+}
+
+/** 403 for a private agent's state unless the principal holds `agent:<name>:read`. */
+export function assertCanReadState(principal: Principal, agent: Agent): void {
+    const permission = agentPermission(agent.name, 'read');
+
+    if (agent.definition.private === true && !hasPermission(principal.permissions, permission)) {
+        throw new ForbiddenError({ message: `State of agent "${agent.name}" needs ${permission}.` });
+    }
 }
 
 /** 404 when the agent declares state collections and this is none of them. */

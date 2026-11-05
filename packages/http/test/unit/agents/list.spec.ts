@@ -31,6 +31,7 @@ describe('GET /agents', () => {
                 channels: [{ channel: 'http', id: 'http' }],
                 budget: { maxSteps: 20, timeoutMs: 900_000 },
                 state: [],
+                private: false,
             },
             {
                 name: 'intake',
@@ -42,6 +43,7 @@ describe('GET /agents', () => {
                 }],
                 budget: { maxSteps: 20, timeoutMs: 900_000 },
                 state: ['issues'],
+                private: false,
             },
         ]);
     });
@@ -53,6 +55,18 @@ describe('GET /agents', () => {
         const { data } = await response.json();
 
         expect(data).toEqual([expect.objectContaining({ name: 'fan', kind: 'simple' })]);
+    });
+
+    it('marks a private agent', async () => {
+        const hidden = defineSimpleAgent({
+            name: 'hidden', 
+            run: () => 'ok', 
+            private: true, 
+        });
+        const { app } = createTestApp({ agents: [hidden] });
+        const { data } = await (await call(app, 'GET', '/agents', { token: READER_TOKEN })).json();
+
+        expect(data).toEqual([expect.objectContaining({ name: 'hidden', private: true })]);
     });
 
     it('prefixes the hook path with basePath', async () => {

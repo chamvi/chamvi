@@ -134,7 +134,7 @@ const APPROVAL_WAIT: WaitPoint = {
 
 describe('toRunToolResult', () => {
     it('serializes an approval wait', () => {
-        const result = toRunToolResult(buildRun('waiting', APPROVAL_WAIT), false);
+        const result = toRunToolResult(buildRun('waiting', APPROVAL_WAIT), false, true);
 
         expect(result.waiting).toEqual({
             kind: 'approval',
@@ -147,7 +147,7 @@ describe('toRunToolResult', () => {
     });
 
     it('serializes a dispatch wait for get_run', () => {
-        const result = toRunToolResult(buildRun('waiting', DISPATCH_WAIT), false);
+        const result = toRunToolResult(buildRun('waiting', DISPATCH_WAIT), false, true);
 
         expect(result.status).toBe('waiting');
         expect(result.waiting).toEqual({
@@ -160,7 +160,7 @@ describe('toRunToolResult', () => {
 
     it('names the descendant whose approval the run waits behind', () => {
         const child = { ...buildRun('waiting', APPROVAL_WAIT, 'child', 'r1'), agent: 'worker' };
-        const result = toRunToolResult(buildRun('waiting', DISPATCH_WAIT), false, child);
+        const result = toRunToolResult(buildRun('waiting', DISPATCH_WAIT), false, true, child);
 
         expect(result.runId).toBe('r1');
         expect(result.waiting).toEqual({
@@ -170,6 +170,20 @@ describe('toRunToolResult', () => {
             toolName: 'deploy',
             title: 'Deploy?',
             expiresAt: new Date(1000).toISOString(),
+        });
+    });
+
+    it('answers only the run id, status and deduplicated when not readable', () => {
+        const run = {
+            ...buildRun('failed', APPROVAL_WAIT), 
+            output: 'x', 
+            error: { code: 'e', message: 'm' }, 
+        };
+
+        expect(toRunToolResult(run, true, false)).toEqual({
+            runId: 'r1',
+            status: 'failed',
+            deduplicated: true,
         });
     });
 });

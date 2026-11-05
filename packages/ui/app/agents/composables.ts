@@ -30,7 +30,7 @@ import {
     AGENT_WAITING_LIMIT,
     RECENT_RUNS,
 } from './constants.ts';
-import { buildRollups, summarizeActivity } from './helpers.ts';
+import { agentReadPermission, buildRollups, summarizeActivity } from './helpers.ts';
 import type { Activity, AgentRollup } from './types.ts';
 
 /** The registered agents (`GET /agents`, needs `run:read`), loaded once per call site. */
@@ -51,6 +51,9 @@ export function useAgents(client: IApiClient) {
         loaded,
     };
 }
+
+/** Marks a run listing the server refused with 403, so the agent's page can still render. */
+const FORBIDDEN = Symbol('forbidden');
 
 async function totalOf(client: IApiClient, agent: string, status: 'running' | 'waiting'): Promise<number> {
     return (await client.listRuns({
@@ -121,7 +124,8 @@ export function useAgentRollups(client: IApiClient) {
 /**
  * One agent's page: its summary and schedules, its newest runs (the 24 h
  * activity, the recent list, the run total), the running total and its runs
- * waiting on an approval. `start()` dispatches through the agent's `http.on()` subscription and refreshes.
+ * waiting on an approval. A private agent whose runs the principal may not
+ * read (403) keeps its summary and schedules and sets `forbidden`. `start()` dispatches through the agent's `http.on()` subscription and refreshes.
  */
 export function useAgentDetail(client: IApiClient, name: Ref<string>) {
     const agent = shallowRef<AgentWire>();
@@ -133,6 +137,8 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
     const waitingTotal = shallowRef(0);
     const activity = shallowRef<Activity>(summarizeActivity([], Date.now(), ACTIVITY_LIMIT));
     const error = shallowRef<ApiError>();
+    /** Set when the agent is private and the principal lacks `agent:<name>:read`: its runs stay hidden. */
+    const forbidden = shallowRef<string>();
     const loaded = shallowRef(false);
     let generation = 0;
 
@@ -141,22 +147,33 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
         const agentName = name.value;
 
         try {
-            const [list, crons, recent, runningTotal, waiting] = await Promise.all([
+            const [list, crons, listed] = await Promise.all([
                 client.listAgents(),
                 client.listSchedules(),
-                client.listRuns({
-                    agent: agentName,
-                    limit: ACTIVITY_LIMIT,
-                    offset: 0,
-                }),
-                totalOf(client, agentName, 'running'),
-                // a dispatch wait waits on no person: the server leaves it out
-                client.listRuns({
-                    agent: agentName,
-                    status: ['waiting'],
-                    waiting: 'approval',
-                    limit: AGENT_WAITING_LIMIT,
-                    offset: 0,
+                // a private agent's runs answer 403 without agent:<name>:read
+                Promise.all([
+                    client.listRuns({
+                        agent: agentName,
+                        limit: ACTIVITY_LIMIT,
+                        offset: 0,
+                    }),
+                    totalOf(client, agentName, 'running'),
+                    // a dispatch wait waits on no person: the server leaves it out
+                    client.listRuns({
+                        agent: agentName,
+                        status: ['waiting'],
+                        waiting: 'approval',
+                        limit: AGENT_WAITING_LIMIT,
+                        offset: 0,
+                    }),
+                ]).catch((e: unknown) => {
+                    const apiError = asApiError(e);
+
+                    if (apiError.status === 403) {
+                        return { [FORBIDDEN]: apiError };
+                    }
+
+                    throw e;
                 }),
             ]);
 
@@ -164,14 +181,36 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
                 return undefined;
             }
 
-            agent.value = list.data.find((a) => a.name === agentName);
+            const found = list.data.find((a) => a.name === agentName);
+
+            // a missing agent's runs also answer 403: it renders as not found
+            if (!Array.isArray(listed) && found && !found.private) {
+                throw listed[FORBIDDEN];
+            }
+
+            agent.value = found;
             schedules.value = crons.filter((s) => s.agent === agentName);
-            runs.value = recent.data;
-            totalRuns.value = recent.meta.total;
-            running.value = runningTotal;
-            waitingRuns.value = waiting.data;
-            waitingTotal.value = waiting.meta.total;
-            activity.value = summarizeActivity(recent.data, Date.now(), ACTIVITY_LIMIT);
+
+            if (Array.isArray(listed)) {
+                const [recent, runningTotal, waiting] = listed;
+
+                runs.value = recent.data;
+                totalRuns.value = recent.meta.total;
+                running.value = runningTotal;
+                waitingRuns.value = waiting.data;
+                waitingTotal.value = waiting.meta.total;
+                activity.value = summarizeActivity(recent.data, Date.now(), ACTIVITY_LIMIT);
+                forbidden.value = undefined;
+            } else {
+                runs.value = [];
+                totalRuns.value = 0;
+                running.value = 0;
+                waitingRuns.value = [];
+                waitingTotal.value = 0;
+                activity.value = summarizeActivity([], Date.now(), ACTIVITY_LIMIT);
+                forbidden.value = found ? `Reading this agent's runs needs ${agentReadPermission(agentName)}` : undefined;
+            }
+
             error.value = undefined;
 
             return undefined;
@@ -201,6 +240,7 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
         waitingTotal.value = 0;
         activity.value = summarizeActivity([], Date.now(), ACTIVITY_LIMIT);
         error.value = undefined;
+        forbidden.value = undefined;
         loaded.value = false;
         void poller.refresh();
     });
@@ -218,6 +258,7 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
         waitingTotal,
         activity,
         error,
+        forbidden,
         loaded,
         notFound: computed(() => loaded.value && !error.value && !agent.value),
         refresh: () => poller.refresh(),
