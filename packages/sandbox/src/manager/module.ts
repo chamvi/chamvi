@@ -92,6 +92,12 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
     const lookups = new Map<string, Promise<void>>();
     /** Bumped by a release of a whole run while its lookup runs: that lookup disposes what it found. */
     const generations = new Map<string, number>();
+    /**
+     * Runs whose handles a suspendable answer forgot: the provider may have
+     * suspended nothing (no persistence, local), so a settle still releases
+     * them at once instead of waiting for the next collection.
+     */
+    const suspended = new Set<string>();
     const subscriptions = new Set<() => void>();
     let lastGcAt: number | undefined;
     let closed = false;
@@ -238,13 +244,23 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         let settled = 0;
 
         if (isSettled) {
-            for (const runId of runs.keys().toArray()) {
+            const candidates = new Set([...runs.keys(), ...suspended]);
+
+            for (const runId of candidates) {
                 try {
                     if (!await isSettled(runId)) {
                         continue;
                     }
                 } catch (error) {
                     onError(error);
+
+                    continue;
+                }
+
+                // settled elsewhere while only forgotten: the provider's
+                // collection below removes what is left of it
+                if (suspended.has(runId) && !runs.has(runId)) {
+                    suspended.delete(runId);
 
                     continue;
                 }
@@ -284,6 +300,10 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                 // the provider suspends them: never dispose, the next get finds them again
                 for (const entry of heldEntries(runId)) {
                     forget(runId, entry);
+                }
+
+                if (!runs.has(runId)) {
+                    suspended.add(runId);
                 }
             }
         }
@@ -435,6 +455,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
             if (!entries) {
                 entries = new Map();
                 runs.set(runId, entries);
+                suspended.delete(runId);
             }
 
             const entry: Entry = { key, workspace };
@@ -726,6 +747,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         const entries = runs.get(runId) ?? new Map<string, Entry>();
 
         runs.delete(runId);
+        suspended.delete(runId);
 
         // pending creates are aborted, see their run gone and dispose what they
         // get; waiting for them keeps a container from outliving the release
@@ -772,7 +794,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                 return;
             }
 
-            if (isSettled && !runs.has(run.id) && !lookups.has(run.id)) {
+            if (isSettled && !runs.has(run.id) && !lookups.has(run.id) && !suspended.has(run.id)) {
                 // never touched here: no lookup per settled run (a container or
                 // pod list each); another process's leftovers go with the next
                 // collection (isSettled), at most one per gcIntervalMs

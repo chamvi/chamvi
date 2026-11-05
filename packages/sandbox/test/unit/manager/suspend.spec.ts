@@ -6,7 +6,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { InvalidAgentDefinitionError, RunStatus } from '@chamvi/core';
+import type {
+    IEngine,
+    Run,
+    RunEvent,
+} from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import type { WorkspaceManagerOptions } from '@chamvi/sandbox';
 import { ControllableClock } from '../../utils/clock.ts';
@@ -33,6 +38,33 @@ function setup(options: Partial<WorkspaceManagerOptions> = {}) {
         manager,
     };
 }
+
+/** An engine stand-in that records its run.updated listeners. */
+function fakeEngine() {
+    const listeners = new Set<(e: Extract<RunEvent, { type: 'run.updated' }>) => void>();
+
+    return {
+        on: ((type: string, listener: (e: Extract<RunEvent, { type: 'run.updated' }>) => void) => {
+            if (type === 'run.updated') {
+                listeners.add(listener);
+            }
+
+            return () => {
+                listeners.delete(listener);
+            };
+        }) as IEngine['on'],
+        emit(run: Pick<Run, 'id' | 'status'>) {
+            for (const listener of listeners) {
+                listener({ type: 'run.updated', run: run as Run });
+            }
+        },
+    };
+}
+
+/** Lets already-queued callbacks settle; not a sleep. */
+const flush = () => new Promise<void>((resolve) => {
+    setImmediate(resolve);
+});
 
 describe('workspace manager: suspension', () => {
     it('collectGarbage passes the provider an isSuspendable asking the option for runs it holds nothing of', async () => {
@@ -185,6 +217,40 @@ describe('workspace manager: suspension', () => {
 
         await expect(manager.get('r2')).resolves.toBe(other);
         expect(provider.findCalls.length).toBe(findsBefore + 1);
+    });
+
+    it('disposes a forgotten suspendable run at once when it settles, though the collector just ran', async () => {
+        // a provider that suspends nothing (k8s without persistence, local):
+        // the workspace stays live after the manager forgot its handle
+        const {
+            manager, 
+            provider, 
+            errors, 
+        } = setup({
+            gcIntervalMs: 600_000,
+            isSettled: async () => false,
+            isSuspendable: async () => true,
+        });
+        const engine = fakeEngine();
+
+        manager.attach(engine);
+
+        const { workspace } = await manager.acquire('r1', {});
+
+        await manager.collectGarbage();
+        expect(provider.disposed).toEqual([]);
+
+        const { gcCalls } = provider;
+
+        engine.emit({ id: 'r1', status: RunStatus.CANCELLED });
+
+        for (let i = 0; i < 10 && provider.disposed.length === 0; i++) {
+            await flush();
+        }
+
+        expect(provider.disposed).toEqual([workspace.id]);
+        expect(provider.gcCalls).toBe(gcCalls);
+        expect(errors).toEqual([]);
     });
 
     it('keeps held workspaces of a run that is not suspendable', async () => {
