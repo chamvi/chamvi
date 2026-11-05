@@ -109,7 +109,7 @@ Every tool declares `trust: { taint: true }`: mails and invites are written by o
 
 In an app, `toolMailModule()` and `toolCalendarModule()` read the accounts from `CHAMVI_MAIL_ACCOUNTS` and `CHAMVI_CALENDAR_ACCOUNTS` with one `..._<ID>_PASSWORD` (or `..._PASSWORD_FILE`) per account and provide one client on the engine, so agents use `mailTools()` and `calendarTools()` without accounts (see [Apps & Modules](/guide/app#modules)).
 
-The tool results stay in the run store: the steps and checkpoints hold the mails and events the model read, and its answer is derived from them. Whoever reads the agent's runs (the dashboard, `GET /runs`, the run stream) reads them, so keep run access for such agents narrow.
+The tool results stay in the run store: the steps and checkpoints hold the mails and events the model read, and its answer is derived from them. Whoever reads the agent's runs (the dashboard, `GET /runs`, the run stream) reads them, so define such agents with `private: true`: only `agent:<name>:read` then reads their runs and state (see [private agents](/guide/http#private-agents)).
 
 ## Restricting tools per invoker
 

@@ -19,6 +19,8 @@ export function createDayPlanner(model: LanguageModel, password: string) {
 
     return defineModelAgent({
         name: 'day-planner',
+        // only agent:day-planner:read holders read its runs
+        private: true,
         model,
         // POST /agents/day-planner/runs and MCP run_day-planner start a run
         channels: [http.on()],

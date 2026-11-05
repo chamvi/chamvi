@@ -51,6 +51,8 @@ type Server = Pick<MailAccount, 'host' | 'port' | 'security'>;
 export function createInboxAgent(model: LanguageModel, password: string, server: Server = { host: 'imap.gmail.com' }) {
     return defineModelAgent({
         name: 'inbox-digest',
+        // only agent:inbox-digest:read holders read its runs
+        private: true,
         model,
         // POST /agents/inbox-digest/runs and MCP run_inbox-digest start a run
         channels: [http.on()],
@@ -108,6 +110,8 @@ export default createApp({
     model: 'openai/gpt-5-mini',
     agents: [defineModelAgent({
         name: 'inbox-digest',
+        // only agent:inbox-digest:read holders read its runs
+        private: true,
         instructions: 'Summarise the unread mail.',
         tools: mailTools(),
     })],
@@ -127,7 +131,7 @@ The module reads the variables when it is called; a malformed value fails the bo
 
 ## Privacy
 
-Tool results stay in the run store: the steps and checkpoints of a run hold the mails and attachment text the model read, and the model's answer is mail-derived too. Everyone who can read the agent's runs (the dashboard, `GET /runs`, the run stream) can read them. Give agents with these tools a private flag (`private: true`) where your chamvi version has it, so only holders of `agent:<name>:read` read their runs, and keep the grant narrow. Credentials stay in the client: never in a tool input, a result, an error or a log.
+Tool results stay in the run store: the steps and checkpoints of a run hold the mails and attachment text the model read, and the model's answer is mail-derived too. Everyone who can read the agent's runs (the dashboard, `GET /runs`, the run stream) can read them. Define agents with these tools with `private: true`: only holders of `agent:<name>:read` then read their runs and state (`run:read` does not), so keep that grant narrow. Credentials stay in the client: never in a tool input, a result, an error or a log.
 
 ## Untrusted content
 

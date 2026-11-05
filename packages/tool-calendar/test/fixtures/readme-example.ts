@@ -6,6 +6,8 @@ import { calendarTools } from '@chamvi/tool-calendar';
 export function createPlannerAgent(model: LanguageModel, password: string, fetch?: typeof globalThis.fetch) {
     return defineModelAgent({
         name: 'day-planner',
+        // only agent:day-planner:read holders read its runs
+        private: true,
         model,
         // POST /agents/day-planner/runs and MCP run_day-planner start a run
         channels: [http.on()],
