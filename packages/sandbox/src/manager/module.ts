@@ -719,22 +719,81 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         return pick(runId, workspaceId, picked) as IWorkspace;
     };
 
-    const release = async (runId: string, workspaceId?: string): Promise<void> => {
+    /**
+     * The run's workspaces as the provider has them, only to remove one:
+     * `restore: false`, so a suspended workspace is never rebuilt first, and
+     * nothing adopted (outside the restoring `lookups`).
+     */
+    const findToRemove = async (runId: string): Promise<IWorkspace[]> => {
+        let found: IWorkspace[];
+
+        try {
+            found = await provider.find(runId, { deployment, restore: false });
+        } catch (error) {
+            throw toSandboxError(error, 'workspace lookup failed');
+        }
+
+        return found.filter((workspace) => workspace.info.runId === runId && !workspace.disposed);
+    };
+
+    /** Disposes one workspace of the run: by id, or its only one; never restores. */
+    const disposeOne = async (runId: string, workspaceId?: string): Promise<string> => {
+        const { expired, gone } = sweep(runId);
+
+        for (const workspace of expired.filter((item) => item.id !== workspaceId)) {
+            disposeInBackground(workspace);
+        }
+
+        const held = heldEntries(runId);
+        let entry: Entry | undefined;
+        let target: IWorkspace | undefined;
+
         if (workspaceId !== undefined) {
-            const held = () => heldEntries(runId).find((e) => e.workspace!.id === workspaceId);
-            let entry = held();
+            entry = held.find((e) => e.workspace!.id === workspaceId);
+            target = entry?.workspace ?? expired.find((workspace) => workspace.id === workspaceId);
 
-            if (!entry) {
-                await lookup(runId);
-                entry = held();
-            }
+            // a gone one may be back (its container restarted): the provider's handle first
+            target ??= (await findToRemove(runId)).find((workspace) => workspace.id === workspaceId) ??
+                gone.find((workspace) => workspace.id === workspaceId);
 
-            if (!entry) {
+            if (!target) {
                 throw new SandboxError(NOT_FOUND);
             }
+        } else {
+            let candidates: IWorkspace[] = held.map((e) => e.workspace!);
 
+            // a gone workspace may be back (its container restarted): ask before picking
+            if (candidates.length === 0 || gone.length > 0) {
+                const ids = new Set(candidates.map((workspace) => workspace.id));
+
+                candidates = [...candidates, ...(await findToRemove(runId)).filter((workspace) => !ids.has(workspace.id))];
+            }
+
+            if (candidates.length === 0) {
+                throw new SandboxError('This run has no workspace; call create_workspace first.');
+            }
+
+            if (candidates.length > 1) {
+                const ids = candidates.map((workspace) => workspace.id).join(', ');
+                throw new ValidationError(`This run has ${candidates.length} workspaces (${ids}); pass workspace to pick one.`);
+            }
+
+            [target] = candidates;
+            entry = held.find((e) => e.workspace === target);
+        }
+
+        if (entry) {
             forget(runId, entry);
-            await disposeOrThrow(entry.workspace!);
+        }
+
+        await disposeOrThrow(target!);
+
+        return target!.id;
+    };
+
+    const release = async (runId: string, workspaceId?: string): Promise<void> => {
+        if (workspaceId !== undefined) {
+            await disposeOne(runId, workspaceId);
 
             return;
         }
@@ -837,6 +896,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         }),
         get: (runId, workspaceId) => redacting(async () => handOut(await getRaw(runId, workspaceId))),
         release,
+        dispose: (runId, workspaceId) => redacting(() => disposeOne(runId, workspaceId)),
         attach,
         tools: () => {
             tools ??= {

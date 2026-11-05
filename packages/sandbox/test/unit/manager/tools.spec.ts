@@ -135,6 +135,22 @@ describe('workspace tools', () => {
         expect(provider.disposed).toEqual([workspace]);
     });
 
+    it('dispose_workspace never restores a workspace it does not hold, with or without an id', async () => {
+        const { provider, tools } = setup();
+        const { workspace: first } = await callTool<WorkspaceToolResult>(tools, 'create_workspace', {}, toolContext('r1'));
+        const { workspace: second } = await callTool<WorkspaceToolResult>(tools, 'create_workspace', {}, toolContext('r2'));
+        // another replica: holds nothing, finds the workspaces
+        const other = createWorkspaceManager({ provider, gcIntervalMs: 0 }).tools();
+        const findsBefore = provider.findCalls.length;
+
+        await expect(callTool(other, 'dispose_workspace', { workspace: first }, toolContext('r1')))
+            .resolves.toEqual({ workspace: first, disposed: true });
+        await expect(callTool(other, 'dispose_workspace', {}, toolContext('r2')))
+            .resolves.toEqual({ workspace: second, disposed: true });
+        expect(provider.disposed).toEqual([first, second]);
+        expect(provider.findCalls.slice(findsBefore).map(({ options }) => options!.restore)).toEqual([false, false]);
+    });
+
     it('dispose_workspace never reaches another run', async () => {
         const { provider, tools } = setup();
         const { workspace } = await callTool<WorkspaceToolResult>(tools, 'create_workspace', {}, toolContext('r1'));

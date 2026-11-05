@@ -101,11 +101,15 @@ export function createWorkspaceTools(manager: IWorkspaceManager, options: { imag
                 const body = inputObject(input);
                 const id = optionalString(body.workspace, 'workspace');
                 const { runId } = context.run;
-                const workspace = await manager.get(runId, id);
 
-                await manager.release(runId, workspace.id);
+                // never get(): it would rebuild a suspended workspace only to remove it
+                if (id !== undefined) {
+                    await manager.release(runId, id);
 
-                return { workspace: workspace.id, disposed: true };
+                    return { workspace: id, disposed: true };
+                }
+
+                return { workspace: await manager.dispose(runId), disposed: true };
             },
         }),
 

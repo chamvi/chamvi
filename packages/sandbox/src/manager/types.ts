@@ -184,12 +184,22 @@ export interface IWorkspaceManager {
      */
     get(runId: string, workspaceId?: string): Promise<IWorkspace>;
     /**
-     * Disposes one workspace (SandboxError /not found/ for an id the run does
-     * not hold or find, like get), or all of the run (never rejects for none):
-     * the held ones and every one `provider.find` reports for the run; this
-     * aborts the run's creates and lookups in flight and waits for the creates.
+     * Disposes one workspace (as `dispose`, SandboxError /not found/ for an id
+     * the run neither holds nor finds), or all of the run (never rejects for
+     * none): the held ones and every one `provider.find` reports for the run;
+     * this aborts the run's creates and lookups in flight and waits for the
+     * creates. Never restores a suspended workspace to remove it (`find` with
+     * `restore: false`).
      */
     release(runId: string, workspaceId?: string): Promise<void>;
+    /**
+     * Disposes one workspace of the run and answers its id: by id, or its
+     * only one when id is omitted (the held ones, else what
+     * `provider.find(runId, { restore: false })` reports; nothing found is
+     * adopted, a suspended one is never restored). SandboxError: unknown id,
+     * none, a failed lookup or dispose; ValidationError: several and no id.
+     */
+    dispose(runId: string, workspaceId?: string): Promise<string>;
     /**
      * Disposes a run's workspaces on completed | failed | cancelled (`release`,
      * so also those other processes created). With `isSettled`, a run this

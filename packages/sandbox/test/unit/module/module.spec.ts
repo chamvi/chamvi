@@ -119,6 +119,7 @@ function fakeManager(events: string[]): IWorkspaceManager & { engines: unknown[]
             throw new Error('not used');
         },
         release: async () => undefined,
+        dispose: async () => 'ws',
         attach(engine) {
             engines.push(engine);
             events.push('attach');

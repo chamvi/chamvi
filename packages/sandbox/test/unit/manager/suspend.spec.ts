@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, RunStatus } from '@chamvi/core';
+import { InvalidAgentDefinitionError, RunStatus, ValidationError } from '@chamvi/core';
 import type {
     IEngine,
     Run,
@@ -394,6 +394,100 @@ describe('workspace manager: suspension', () => {
             runId: 'r1',
             options: { deployment: 'default', restore: false },
         }]);
+    });
+
+    it('release of one workspace it does not hold finds with restore false, disposes only that one and adopts nothing', async () => {
+        const {
+            manager: owner, 
+            provider, 
+            clock, 
+        } = setup();
+        const { workspace } = await owner.acquire('r1', {});
+        const { workspace: other } = await owner.acquire('r1', { repo: 'octo/demo' });
+        // another replica (or this one after a restart) holds nothing of the run
+        const manager = createWorkspaceManager({
+            provider, 
+            clock, 
+            gcIntervalMs: 0, 
+        });
+        const findsBefore = provider.findCalls.length;
+
+        await manager.release('r1', workspace.id);
+
+        expect(provider.findCalls.slice(findsBefore)).toEqual([{
+            runId: 'r1',
+            options: { deployment: 'default', restore: false },
+        }]);
+        expect(provider.disposed).toEqual([workspace.id]);
+
+        // the other one was not adopted: using it asks the provider again
+        await expect(manager.get('r1', other.id)).resolves.toMatchObject({ id: other.id });
+        expect(provider.findCalls.slice(findsBefore + 1)).toEqual([{ runId: 'r1', options: { deployment: 'default' } }]);
+    });
+
+    it('release of an unknown workspace id rejects not found without restoring', async () => {
+        const { manager, provider } = setup();
+
+        await expect(manager.release('r1', 'missing')).rejects.toThrow(/not found/);
+        expect(provider.findCalls).toEqual([{
+            runId: 'r1',
+            options: { deployment: 'default', restore: false },
+        }]);
+    });
+
+    it('dispose resolves the only workspace of the run without restoring', async () => {
+        const {
+            manager: owner, 
+            provider, 
+            clock, 
+        } = setup();
+        const { workspace } = await owner.acquire('r1', {});
+        const manager = createWorkspaceManager({
+            provider, 
+            clock, 
+            gcIntervalMs: 0, 
+        });
+        const findsBefore = provider.findCalls.length;
+
+        await expect(manager.dispose('r1')).resolves.toBe(workspace.id);
+        expect(provider.findCalls.slice(findsBefore)).toEqual([{
+            runId: 'r1',
+            options: { deployment: 'default', restore: false },
+        }]);
+        expect(provider.disposed).toEqual([workspace.id]);
+    });
+
+    it('dispose without an id refuses several and reports none, never restoring', async () => {
+        const {
+            manager: owner, 
+            provider, 
+            clock, 
+        } = setup();
+
+        await owner.acquire('r1', {});
+        await owner.acquire('r1', { repo: 'octo/demo' });
+
+        const manager = createWorkspaceManager({
+            provider, 
+            clock, 
+            gcIntervalMs: 0, 
+        });
+        const findsBefore = provider.findCalls.length;
+
+        await expect(manager.dispose('r1')).rejects.toThrow(ValidationError);
+        await expect(manager.dispose('r2')).rejects.toThrow('This run has no workspace; call create_workspace first.');
+        expect(provider.disposed).toEqual([]);
+        expect(provider.findCalls.slice(findsBefore).map(({ options }) => options!.restore)).toEqual([false, false]);
+    });
+
+    it('dispose disposes the only held workspace without asking the provider', async () => {
+        const { manager, provider } = setup();
+        const { workspace } = await manager.acquire('r1', {});
+        const findsBefore = provider.findCalls.length;
+
+        await expect(manager.dispose('r1')).resolves.toBe(workspace.id);
+        expect(provider.findCalls.length).toBe(findsBefore);
+        expect(provider.disposed).toEqual([workspace.id]);
     });
 
     it('a lookup for use keeps restoring', async () => {
