@@ -229,9 +229,9 @@ export function toConversationTarget(identity: WhatsAppIdentity, text: string): 
 export function toConversationRef(
     input: WhatsAppConversationInput,
     ctx: {
-        account: string; 
-        channel: string; 
-        address: (jid: string) => string 
+        account: string;
+        channel: string;
+        address: (jid: string) => string;
     },
 ): ConversationRef {
     const chat = isObject(input) ? input.chat : undefined;

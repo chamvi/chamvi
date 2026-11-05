@@ -277,9 +277,9 @@ const CONVERSATION_THREAD = new RegExp(`^${DISCORD_ADAPTER_NAME}:(@me|[0-9]{1,20
 export function toConversationRef(
     input: DiscordConversationInput,
     ctx: {
-        account: string; 
-        channel: string; 
-        address: (threadId: string) => string 
+        account: string;
+        channel: string;
+        address: (threadId: string) => string;
     },
 ): ConversationRef {
     const refused = (message: string) => new InvalidAgentDefinitionError(`DiscordChatSetup.conversation: ${message}`);
