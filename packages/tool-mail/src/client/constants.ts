@@ -12,6 +12,12 @@ export const MAIL_TIMEOUT_MS = 30_000;
 export const MAIL_SEARCH_DEFAULT_LIMIT = 20;
 export const MAIL_SEARCH_MAX_LIMIT = 50;
 
+/**
+ * Matches per folder whose dates a search reads to pick the newest `limit` (uid order is arrival, not date order:
+ * imported mail has high uids and old dates). Beyond it the highest uids are the candidates.
+ */
+export const MAIL_SEARCH_DATE_CANDIDATES = 1000;
+
 /** References of a mail `mail_thread` follows (the last ones, nearest the mail). */
 export const MAIL_THREAD_MAX_REFERENCES = 10;
 

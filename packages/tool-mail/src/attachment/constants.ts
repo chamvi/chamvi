@@ -27,5 +27,5 @@ export const OOXML_MEDIA_TYPES: ReadonlySet<string> = new Set([
     'application/vnd.openxmlformats-officedocument.presentationml.presentation',
 ]);
 
-/** The OOXML parts that carry the text: the document, the shared strings, the slides. */
-export const OOXML_TEXT_PARTS = /^(word\/document|xl\/sharedStrings|ppt\/slides\/slide\d+)\.xml$/;
+/** The OOXML parts that carry the text: the document, the shared strings and worksheets, the slides. */
+export const OOXML_TEXT_PARTS = /^(word\/document|xl\/sharedStrings|xl\/worksheets\/sheet\d+|ppt\/slides\/slide\d+)\.xml$/;

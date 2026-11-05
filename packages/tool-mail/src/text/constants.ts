@@ -20,7 +20,7 @@ export const MAIL_ZIP_PART_MAX_BYTES = 10 * 1024 * 1024;
 /** Uncompressed bytes of all OOXML parts of one attachment together, declared and actually inflated. */
 export const MAIL_ZIP_TOTAL_MAX_BYTES = 20 * 1024 * 1024;
 
-/** Slides of a pptx read for text. */
+/** Slides of a pptx, and worksheets of an xlsx, read for text. */
 export const MAIL_OOXML_MAX_SLIDES = 200;
 
 /** Characters of a subject returned. */
