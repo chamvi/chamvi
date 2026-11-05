@@ -3,6 +3,7 @@ import { Chat } from 'chat';
 import type { Adapter, StateAdapter } from 'chat';
 import { z } from 'zod';
 import { createApp } from '@chamvi/app';
+import { cron } from '@chamvi/channel-cron';
 import {
     Engine,
     createMemoryStore,
@@ -192,3 +193,33 @@ export const discordApp = createApp({
     conversations: { authorize: ({ agent }) => agent === 'assistant' },
 });
 // #endregion discord-module
+
+// #region discord-cron
+export const briefer = defineModelAgent({
+    name: 'briefer',
+    model,
+    instructions: 'Write a short morning briefing and send it with the reply tool.',
+    // the cron run joins the conversation, so it needs memory like the chat
+    conversation: true,
+    channels: [
+        // later DMs from the user land in the same conversation and recall the briefing
+        discord.channel.on(),
+        cron.on('0 7 * * *', {
+            timezone: 'Europe/Berlin',
+            // the DM with user 500000000000000001: its thread id is discord:@me:<DM channel id>
+            conversation: discord.conversation({ threadId: 'discord:@me:600000000000000001', user: '500000000000000001' }),
+            // the user turn of each run
+            text: 'Send me my morning briefing.',
+        }),
+    ],
+    // the reply goes to the source DM: no outbound approval even in a tainted run
+    tools: { reply },
+});
+
+export const brieferApp = createApp({
+    agents: [briefer],
+    modules: [chatModule({ channel: discord.channel })],
+    // a cron dispatch has no invoker: allow it by agent (or by access.identity)
+    conversations: { authorize: ({ agent }) => agent === 'briefer' },
+});
+// #endregion discord-cron

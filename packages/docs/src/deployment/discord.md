@@ -44,7 +44,7 @@ Before a live cutover:
 
 ```ts
 function createDiscordChat(options: DiscordChatOptions): DiscordChatSetup; // @chamvi/chat-discord
-// DiscordChatSetup = { chat, ingress, channel, status(): DiscordConnectionStatus }
+// DiscordChatSetup = { chat, ingress, channel, status(): DiscordConnectionStatus, conversation(input): ConversationRef }
 
 const DISCORD_ADAPTER_NAME: 'discord';
 const DISCORD_API_URL: 'https://discord.com/api/v10';
@@ -99,6 +99,14 @@ The conversation of a message is `{ account, chat, audience }`: `chat` is the ad
 | Direct message | `direct:<user id>` |
 | Guild channel, public or announcement thread | `channel:<parent channel id>` |
 | Private thread, or a thread of unknown type | `thread:<thread id>` |
+
+### Cron runs in a conversation
+
+`setup.conversation({ threadId, user? })` returns the `ConversationRef` of a chat for [`cron.on(expression, { conversation, text })`](/guide/scheduler#inside-a-conversation): the identity intake computes for a message there, and the chat's address. `threadId` is a DM (`discord:@me:<DM channel id>`, with `user` the id of the user the DM is with) or a guild channel's top-level messages (`discord:<guild id>:<channel id>`, no `user`). Threads are refused: their audience depends on a thread type only a message reveals. A malformed id, a DM without its user or a user outside a DM throws `InvalidAgentDefinitionError`.
+
+<<< @/snippets/chat.ts#discord-cron
+
+The DM channel id is the one in the DM's URL (`https://discord.com/channels/@me/<DM channel id>`). A later DM from that user lands in the same conversation and recalls the briefing.
 
 ### Delivery
 

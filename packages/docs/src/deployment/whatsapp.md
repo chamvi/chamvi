@@ -46,7 +46,7 @@ Baileys' own logger is silent, because its lines carry pairing material and sess
 
 ```ts
 function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSetup; // @chamvi/chat-whatsapp
-// WhatsAppChatSetup = { chat, ingress, channel, status(): WhatsAppConnectionStatus }
+// WhatsAppChatSetup = { chat, ingress, channel, status(): WhatsAppConnectionStatus, conversation(input): ConversationRef }
 
 const WHATSAPP_ADAPTER_NAME: 'whatsapp';
 const WHATSAPP_RECONNECT: { initialMs: 2000; factor: 1.8; maxMs: 30_000; jitter: 0.25; maxAttempts: 12 };
@@ -104,6 +104,19 @@ type WhatsAppAuthLease = {
 ### Connection
 
 `status()`: `stopped`, `connecting`, `connected` (an `open` event), `disconnected`, `logged-out`, from Baileys' `connection.update` only. Sends go out only while `connected`. An unexpected close reconnects after `min(30 s, 2 s * 1.8^n)` ±25 % on the clock, at most 12 times in a row (reset by an open), then reports `whatsapp_connection` and stays disconnected. A logout (401) reports `whatsapp_logged_out` and a replacing session (440) `whatsapp_connection`; neither reconnects.
+
+### Cron runs in a conversation
+
+`setup.conversation({ chat })` returns the `ConversationRef` of a chat for [`cron.on(expression, { conversation, text })`](/guide/scheduler#inside-a-conversation): the identity intake computes for a message there (audience `direct:<jid>` or `group:<jid>`), and the chat's address. `chat` is a normalized phone number jid (`<digits>@s.whatsapp.net`, a direct chat) or group jid (`<id>@g.us`); anything else throws `InvalidAgentDefinitionError`.
+
+```ts
+cron.on('0 7 * * *', {
+    conversation: whatsapp.conversation({ chat: '491701111111@s.whatsapp.net' }),
+    text: 'Send me my morning briefing.',
+});
+```
+
+A send goes out only while the connection is `connected`, as any reply.
 
 ### Delivery
 
