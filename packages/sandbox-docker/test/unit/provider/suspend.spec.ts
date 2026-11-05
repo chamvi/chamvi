@@ -12,7 +12,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { SandboxError, systemClock } from '@chamvi/core';
+import { SandboxError, ValidationError, systemClock } from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import type { IWorkspace } from '@chamvi/sandbox';
 import { CONTAINER_NAME_PREFIX, createDockerSandbox } from '@chamvi/sandbox-docker';
@@ -303,5 +303,80 @@ describeDocker('docker suspension', () => {
 
         expect(await provider.collectGarbage({ deployment, isSuspendable: async () => true })).toBe(1);
         await expect(containerOf(workspace).inspect()).rejects.toSatisfy((error) => statusCode(error) === 404);
+    });
+
+    /**
+     * Two bare repositories (one commit each) in the shared cache volume,
+     * so a workspace clones them over file:// without the network.
+     */
+    async function createCacheRepos(): Promise<[string, string]> {
+        const {
+            provider, 
+            deployment, 
+            runId, 
+        } = setup();
+        const helper = await provider.create({ runId, deployment });
+        const root = `/cache/repos-${randomUUID().slice(0, 8)}`;
+
+        try {
+            const result = await helper.exec(['sh', '-c', [
+                'set -e',
+                'for name in a b; do',
+                `  git init -q -b main "${root}/src-$name"`,
+                `  echo "$name" > "${root}/src-$name/$name.txt"`,
+                `  git -C "${root}/src-$name" add .`,
+                `  git -C "${root}/src-$name" -c user.name=t -c user.email=t@t commit -q -m init`,
+                `  git clone -q --bare "${root}/src-$name" "${root}/$name.git"`,
+                'done',
+            ].join('\n')]);
+
+            expect(result.exitCode, result.stderr).toBe(0);
+        } finally {
+            await helper.dispose();
+        }
+
+        return [`file://${root}/a.git`, `file://${root}/b.git`];
+    }
+
+    it.each([
+        ['the release of one by id', async (manager: ReturnType<typeof createWorkspaceManager>, runId: string, id: string) => {
+            await manager.release(runId, id);
+        }],
+        ['an id-less dispose that refuses several', async (manager: ReturnType<typeof createWorkspaceManager>, runId: string) => {
+            await expect(manager.dispose(runId)).rejects.toBeInstanceOf(ValidationError);
+        }],
+    ])('after a restart, %s keeps the other repository workspace reusable with its files', async (_name, remove) => {
+        const [repoA, repoB] = await createCacheRepos();
+        const {
+            provider, 
+            deployment, 
+            runId, 
+        } = setup();
+        const manage = (sandbox: typeof provider) => createWorkspaceManager({
+            provider: sandbox,
+            deployment,
+            gcIntervalMs: 0,
+            allowFileRepos: true,
+        });
+        const first = manage(provider);
+        const { workspace: a } = await first.acquire(runId, { repo: repoA });
+        const { workspace: b } = await first.acquire(runId, { repo: repoB });
+
+        workspaces.push(a, b);
+        await b.writeFile('work.txt', 'kept');
+
+        // a restart: a fresh provider and manager hold nothing
+        const restarted = manage(createDockerSandbox({ ...dockerOptions, suspend: true }));
+
+        await remove(restarted, runId, a.id);
+
+        const again = await restarted.acquire(runId, { repo: repoB });
+
+        workspaces.push(again.workspace);
+        expect(again.workspace.id).toBe(b.id);
+        expect(again.reused).toBe(true);
+        expect(await again.workspace.readFile('work.txt')).toBe('kept');
+        expect(await again.workspace.readFile('b.txt')).toBe('b\n');
+        expect(await restarted.get(runId, b.id)).toBe(again.workspace);
     });
 });

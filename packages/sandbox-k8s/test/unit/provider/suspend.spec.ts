@@ -7,7 +7,7 @@
 
 import type { V1Pod } from '@kubernetes/client-node';
 import { describe, expect, it } from 'vitest';
-import { SandboxError } from '@chamvi/core';
+import { SandboxError, ValidationError } from '@chamvi/core';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { POLL_MS, START_TIMEOUT_MS, createKubernetesSandbox } from '@chamvi/sandbox-k8s';
 import type { KubernetesSandboxOptions } from '@chamvi/sandbox-k8s';
@@ -601,5 +601,44 @@ describe('kubernetes suspension', () => {
         expect(found[0]).not.toBe(workspace);
         expect(client.created).toHaveLength(2);
         expect(client.pods.has(name)).toBe(true);
+    });
+
+    it.each([
+        ['the release of one by id', async (manager: ReturnType<typeof createWorkspaceManager>, id: string) => {
+            await manager.release('r1', id);
+        }],
+        ['an id-less dispose that refuses several', async (manager: ReturnType<typeof createWorkspaceManager>) => {
+            await expect(manager.dispose('r1')).rejects.toBeInstanceOf(ValidationError);
+        }],
+    ])('after a restart, %s keeps the other claim-backed repository workspace reusable', async (_name, remove) => {
+        const {
+            client, 
+            clock, 
+            provider, 
+        } = setup();
+        const other = 'https://github.com/octo/other.git';
+        const manage = (sandbox: typeof provider) => createWorkspaceManager({
+            provider: sandbox,
+            clock,
+            gcIntervalMs: 0,
+        });
+        const first = manage(provider);
+        const { workspace: a } = await first.acquire('r1', { repo: REPO });
+        const { workspace: b } = await first.acquire('r1', { repo: other });
+        const created = client.created.length;
+
+        // a restart: a fresh provider and manager hold nothing
+        const restarted = manage(provide(client, clock));
+
+        await remove(restarted, a.id);
+
+        const again = await restarted.acquire('r1', { repo: other });
+
+        expect(again.workspace.id).toBe(b.id);
+        expect(again.reused).toBe(true);
+        expect(again.workspace.info.commit).toBe(COMMIT);
+        expect(client.created).toHaveLength(created);
+        expect(client.claims.has(`chamvi-ws-${b.id}`)).toBe(true);
+        expect(await restarted.get('r1', b.id)).toBe(again.workspace);
     });
 });

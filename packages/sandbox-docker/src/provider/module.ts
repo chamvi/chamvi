@@ -90,6 +90,8 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
     const live = new Map<string, IWorkspace>();
     /** The workspaces whose dispose was called: never found again, also while or after a removal fails. */
     const disposing = new WeakSet<IWorkspace>();
+    /** Ids whose disposal-only handle (never held) is being or failed to be removed: never found again. */
+    const removing = new Set<string>();
     // the container stops of suspensions in flight, by workspace id: a find waits them out
     const suspensions = new Map<string, Promise<unknown>>();
 
@@ -150,8 +152,13 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
         }
     }
 
-    /** The workspace of a container (reached through `transport`), registered as live until disposed. */
-    function open(id: string, info: WorkspaceInfo, transport: IExecTransport): IWorkspace {
+    /**
+     * The workspace of a container (reached through `transport`), registered
+     * as live until disposed; a `detached` one (only to remove it, its
+     * checkout never read) is never registered, so no restoring `find`
+     * hands it out.
+     */
+    function open(id: string, info: WorkspaceInfo, transport: IExecTransport, detached = false): IWorkspace {
         const remote = createRemoteWorkspace({
             id,
             info,
@@ -170,6 +177,16 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             writeFile: remote.writeFile,
             async dispose() {
                 disposing.add(workspace);
+
+                if (detached) {
+                    removing.add(id);
+                    await remote.dispose();
+                    // removed: its container is never listed again
+                    removing.delete(id);
+
+                    return;
+                }
+
                 await remote.dispose();
 
                 // a handle dropped by a suspension never unregisters the fresh one
@@ -179,7 +196,9 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             },
         };
 
-        live.set(id, workspace);
+        if (!detached) {
+            live.set(id, workspace);
+        }
 
         return workspace;
     }
@@ -214,7 +233,7 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
         const held = live.get(id);
 
         // one being disposed is removed, never suspended
-        if (held && disposing.has(held)) {
+        if ((held && disposing.has(held)) || removing.has(id)) {
             return undefined;
         }
 
@@ -392,6 +411,11 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
                 // (restart inspects its state, so the listed one is never trusted)
                 await suspensions.get(id);
 
+                // its removal through a disposal-only handle is in flight (or failed)
+                if (removing.has(id)) {
+                    continue;
+                }
+
                 const held = live.get(id);
 
                 if (held && (!held.disposed || disposing.has(held))) {
@@ -424,8 +448,9 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
                 const container = docker.getContainer(item.Id);
 
                 if (findOptions.restore === false) {
-                    // a lookup to remove it: never started, the handle's dispose removes the container
-                    found.push(open(id, info, createDockerTransport(docker, container, clock, user)));
+                    // a lookup to remove it: never started, the handle's dispose removes the
+                    // container; never held, so a restoring find opens it properly
+                    found.push(open(id, info, createDockerTransport(docker, container, clock, user), true));
 
                     continue;
                 }

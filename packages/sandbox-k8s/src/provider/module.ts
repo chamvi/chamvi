@@ -118,6 +118,8 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
     const live = new Map<string, IWorkspace>();
     // handles whose dispose was called: never answered, rebuilt or suspended
     const disposing = new WeakSet<IWorkspace>();
+    // ids whose disposal-only handle (never held) is being or failed to be removed: never answered
+    const removing = new Set<string>();
     // ids of the creates in flight here: their claim may exist before the pod
     const creating = new Set<string>();
     // the pod deletes of suspensions in flight, by workspace id: a find waits them out
@@ -187,8 +189,17 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         }
     }
 
-    /** The workspace of pod `chamvi-ws-<id>`, registered as live until disposed. */
-    function open(id: string, info: WorkspaceInfo, transport: IExecTransport = transportOf(`${POD_NAME_PREFIX}${id}`)): IWorkspace {
+    /**
+     * The workspace of pod `chamvi-ws-<id>`, registered as live until
+     * disposed; a `detached` one (only to remove it, its checkout never read)
+     * is never registered, so no restoring `find` hands it out.
+     */
+    function open(
+        id: string,
+        info: WorkspaceInfo,
+        transport: IExecTransport = transportOf(`${POD_NAME_PREFIX}${id}`),
+        detached = false,
+    ): IWorkspace {
         const remote = createRemoteWorkspace({
             id,
             info,
@@ -207,6 +218,16 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             writeFile: remote.writeFile,
             async dispose() {
                 disposing.add(workspace);
+
+                if (detached) {
+                    removing.add(id);
+                    await remote.dispose();
+                    // removed: its pod and claim are never listed again
+                    removing.delete(id);
+
+                    return;
+                }
+
                 await remote.dispose();
 
                 // a handle dropped by a suspension never unregisters the fresh one
@@ -216,7 +237,9 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             },
         };
 
-        live.set(id, workspace);
+        if (!detached) {
+            live.set(id, workspace);
+        }
 
         return workspace;
     }
@@ -401,7 +424,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         const id = claim.metadata?.labels?.[WORKSPACE_LABEL] ?? '';
         const held = live.get(id);
 
-        if (held && disposing.has(held)) {
+        if ((held && disposing.has(held)) || removing.has(id)) {
             return undefined;
         }
 
@@ -440,8 +463,9 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         }
 
         if (findOptions.restore === false) {
-            // a lookup to remove it: no checkout read, no pod scheduled, the handle's dispose deletes pod and claim
-            return open(id, info);
+            // a lookup to remove it: no checkout read, no pod scheduled, the handle's dispose
+            // deletes pod and claim; never held, so a restoring find opens it properly
+            return open(id, info, undefined, true);
         }
 
         if (running) {
@@ -481,7 +505,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         const held = live.get(id);
 
         // one being disposed is removed, one being created is not yet the run's to lose
-        if ((held && disposing.has(held)) || creating.has(id)) {
+        if ((held && disposing.has(held)) || removing.has(id) || creating.has(id)) {
             return undefined;
         }
 
