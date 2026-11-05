@@ -97,6 +97,18 @@ defineModelAgent({
 });
 ```
 
+## Mail tools
+
+[`@chamvi/tool-mail`](/reference/tool-mail) reads mail over IMAP (Gmail, dovecot, Cyrus, ...): `mail_accounts`, `mail_search`, `mail_get` (the text body, invite summaries, the attachment list), `mail_attachment` (the text of a PDF, docx, xlsx, pptx or text file) and `mail_thread`. The tools are **read-only on the wire**: folders are opened with `EXAMINE` and bodies fetched with `BODY.PEEK`, so no mail is moved, flagged or marked read. Gmail needs an app password, not the account password.
+
+<<< @/snippets/tool-mail.ts#agent
+
+Every tool declares `trust: { taint: true }`: mails are written by other people. A failed request is a tool error with code `mail_request` and a generic message naming the tool and the account, never the server's text or a credential.
+
+In an app, `toolMailModule()` reads the accounts from `CHAMVI_MAIL_ACCOUNTS` with one `..._<ID>_PASSWORD` (or `..._PASSWORD_FILE`) per account and provide one client on the engine, so agents use `mailTools()` without accounts (see [Apps & Modules](/guide/app#modules)).
+
+The tool results stay in the run store: the steps and checkpoints hold the mails the model read, and its answer is derived from them. Whoever reads the agent's runs (the dashboard, `GET /runs`, the run stream) reads them, so keep run access for such agents narrow.
+
 ## Restricting tools per invoker
 
 A run started through `@chamvi/http` (REST or MCP) carries its **invoker**, `run.trigger.invoker`: `{ id, kind, name?, permissions }` of the authenticated principal (`kind` is the authenticator's label: `staticTokens()` sets `token` and `authup()` sets `authup`; `oidc()` keeps the kind its `principal` mapper returns, `oidc` in these docs). Cron and webhook runs have none. An agent's `toolPolicy(toolName, { run })` decides per tool whether the run may use it, and a refused tool is not offered to the model at all.
