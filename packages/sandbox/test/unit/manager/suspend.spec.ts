@@ -35,18 +35,117 @@ function setup(options: Partial<WorkspaceManagerOptions> = {}) {
 }
 
 describe('workspace manager: suspension', () => {
-    it('collectGarbage passes isSuspendable to the provider', async () => {
+    it('collectGarbage passes the provider an isSuspendable asking the option for runs it holds nothing of', async () => {
         const isSettled = async () => false;
-        const isSuspendable = async () => false;
-        const { manager, provider } = setup({ isSettled, isSuspendable });
+        const asked: string[] = [];
+        const { manager, provider } = setup({
+            isSettled,
+            isSuspendable: async (runId) => {
+                asked.push(runId);
+
+                return true;
+            },
+        });
 
         await manager.collectGarbage();
 
-        expect(provider.gcOptions).toEqual([{
-            deployment: 'default', 
-            isSettled, 
-            isSuspendable, 
-        }]);
+        const [options] = provider.gcOptions;
+
+        expect(options).toEqual({
+            deployment: 'default',
+            isSettled,
+            isSuspendable: expect.any(Function),
+        });
+        await expect(options!.isSuspendable!('other')).resolves.toBe(true);
+        expect(asked).toEqual(['other']);
+    });
+
+    it('hands the provider its own answer for a run it found suspendable, asked once', async () => {
+        const asked: string[] = [];
+        const { manager, provider } = setup({
+            isSuspendable: async (runId) => {
+                asked.push(runId);
+
+                return true;
+            },
+        });
+
+        await manager.acquire('r1', {});
+        await manager.collectGarbage();
+
+        await expect(provider.gcOptions[0]!.isSuspendable!('r1')).resolves.toBe(true);
+        expect(asked).toEqual(['r1']);
+    });
+
+    it('never tells the provider to suspend a held run whose answer was rejected', async () => {
+        let calls = 0;
+        const {
+            manager, 
+            provider, 
+            errors, 
+        } = setup({
+            isSuspendable: async () => {
+                calls++;
+
+                if (calls === 1) {
+                    throw new Error('store down');
+                }
+
+                return true;
+            },
+        });
+        const { workspace } = await manager.acquire('r1', {});
+
+        await manager.collectGarbage();
+
+        await expect(provider.gcOptions[0]!.isSuspendable!('r1')).resolves.toBe(false);
+        expect(calls).toBe(1);
+        expect(errors).toHaveLength(1);
+        await expect(manager.get('r1')).resolves.toBe(workspace);
+    });
+
+    it('never tells the provider to suspend a held run it found not suspendable', async () => {
+        let calls = 0;
+        const { manager, provider } = setup({
+            // the threshold passes between two calls
+            isSuspendable: async () => {
+                calls++;
+
+                return calls > 1;
+            },
+        });
+        const { workspace } = await manager.acquire('r1', {});
+
+        await manager.collectGarbage();
+
+        await expect(provider.gcOptions[0]!.isSuspendable!('r1')).resolves.toBe(false);
+        expect(calls).toBe(1);
+        await expect(manager.get('r1')).resolves.toBe(workspace);
+    });
+
+    it('never tells the provider to suspend a held workspace next to a pending create of its run', async () => {
+        const { manager, provider } = setup({ isSuspendable: async () => true });
+        const { workspace } = await manager.acquire('r1', {});
+        const { promise, resolve: open } = Promise.withResolvers<void>();
+
+        provider.gate = promise;
+
+        const acquiring = manager.acquire('r1', { repo: 'octo/demo' });
+
+        while (provider.created.length === 1) {
+            await new Promise<void>((resolve) => {
+                setImmediate(resolve);
+            });
+        }
+
+        await manager.collectGarbage();
+
+        await expect(provider.gcOptions[0]!.isSuspendable!('r1')).resolves.toBe(false);
+
+        open();
+        await acquiring;
+
+        await expect(manager.get('r1', workspace.id)).resolves.toBe(workspace);
     });
 
     it('passes no isSuspendable without the option', async () => {

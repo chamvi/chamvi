@@ -254,6 +254,9 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
             }
         }
 
+        // the answers of this pass, handed on to the provider (asked once per run)
+        const suspendable = new Map<string, Promise<boolean>>();
+
         if (isSuspendable) {
             for (const runId of runs.keys().toArray()) {
                 const entries = runs.get(runId);
@@ -264,8 +267,12 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                     continue;
                 }
 
+                const answer = isSuspendable(runId);
+
+                suspendable.set(runId, answer);
+
                 try {
-                    if (!await isSuspendable(runId)) {
+                    if (!await answer) {
                         continue;
                     }
                 } catch (error) {
@@ -288,7 +295,18 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         }
 
         if (isSuspendable) {
-            gcOptions.isSuspendable = isSuspendable;
+            // the provider never suspends a run this manager still holds
+            // anything of (not suspendable, a rejected answer, a pending or
+            // a new create): it cannot mark the held handles gone, and their
+            // first exec after the resume would fail; the manager forgot
+            // every handle of a run it found suspendable
+            gcOptions.isSuspendable = (runId) => {
+                if (runs.has(runId)) {
+                    return Promise.resolve(false);
+                }
+
+                return suspendable.get(runId) ?? isSuspendable(runId);
+            };
         }
 
         return counted + settled + await provider.collectGarbage(gcOptions);
