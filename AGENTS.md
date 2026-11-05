@@ -53,7 +53,7 @@ The test for a paragraph: would removing it let a reasonable change break someth
 
 ## Downstream Repos
 
-Two repos outside this monorepo depend on its contract: [chamvi/helm](https://github.com/chamvi/helm) (the `agent-app` chart) and [chamvi/agent-template](https://github.com/chamvi/agent-template) (the starter app). A change to the CLI (commands, arguments, exit codes, signals), env variable names or defaults, the HTTP port or route paths (`/healthz`, `/readyz`, `/metrics`, `/channels/*`), the base image, sandbox RBAC or labels, the public `@chamvi/app` API or the model string format must be checked against both, using the contract maps in [helm.md](.agents/references/helm.md) and [agent-template.md](.agents/references/agent-template.md), and followed by a PR there. Releasing chamvi and adopting it downstream (both repos, the chart release, the release notes) follows the project skill `.claude/skills/release-chamvi`.
+Two repos outside this monorepo depend on its contract: [chamvi/helm](https://github.com/chamvi/helm) (the `agent-app` chart) and [chamvi/agent-template](https://github.com/chamvi/agent-template) (the starter app). A change to the CLI (commands, arguments, exit codes, signals), env variable names or defaults, the HTTP port or route paths (`/healthz`, `/readyz`, `/metrics`, `/channels/*`), the base image, sandbox RBAC or labels, the public `@chamvi/app` API or the model string format must be checked against both, using the contract maps in [helm.md](.agents/references/helm.md) and [agent-template.md](.agents/references/agent-template.md), and followed by a PR there. Releasing chamvi and adopting it downstream (both repos, the chart release) follows the project skill `.claude/skills/release-chamvi`.
 
 ## Plans
 

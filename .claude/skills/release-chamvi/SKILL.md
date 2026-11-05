@@ -1,13 +1,13 @@
 ---
 name: release-chamvi
-description: Release chamvi end to end - align and merge the release-please PR, wait for npm, write the release notes, adopt the release in chamvi/helm and chamvi/agent-template, release the helm chart and write its notes. Use when asked to "release chamvi", "ship the release PR", "bump helm and the template", or "do the downstream adoption".
+description: Release chamvi end to end - align and merge the release-please PR, wait for npm, adopt the release in chamvi/helm and chamvi/agent-template, release the helm chart and check the release notes the maintainer agent writes. Use when asked to "release chamvi", "ship the release PR", "bump helm and the template", or "do the downstream adoption".
 ---
 
 # release-chamvi
 
 > One chamvi release, from the open release-please PR to a published `agent-app` chart, in phases. Stop for the owner's OK at every ⛔.
 
-Uses the plugin skills `skills:release-please-version-bump` and `skills:write-release-notes`; follow them where named, this file only adds what is chamvi-specific. Work in worktrees under `/opt/projects/chamvi/worktrees/<repo>-chamvi-<minor>` (the main clones of helm and agent-template often have feature branches checked out). Every merge is a squash merge with the PR title; no em dashes and no AI attribution in commits, PRs or release bodies.
+Uses the plugin skill `skills:release-please-version-bump`; follow it where named, this file only adds what is chamvi-specific. Work in worktrees under `/opt/projects/chamvi/worktrees/<repo>-chamvi-<minor>` (the main clones of helm and agent-template often have feature branches checked out). Every merge is a squash merge with the PR title; no em dashes and no AI attribution in commits, PRs or release bodies.
 
 ## Phase 1: align the release PR
 
@@ -19,22 +19,14 @@ Uses the plugin skills `skills:release-please-version-bump` and `skills:write-re
 ## Phase 2: publish and unpin
 
 1. Watch the `release.yml` run of the merge commit (`gh run watch <id> --exit-status`); its `Publish` step logs `[success] Published @chamvi/<pkg>@<version>` per package.
-2. Take the `Publish` log as the proof of publication. Every registry read (`npm view`, `/<pkg>/latest`, even the full `https://registry.npmjs.org/@chamvi%2f<pkg>` document) is a CDN copy that lags 15 minutes or more and mixes old and new versions; before Phase 5 only the packages the template installs must resolve (`npm install` then `npm ls --all | grep @chamvi`).
+2. Take the `Publish` log as the proof of publication. Every registry read (`npm view`, `/<pkg>/latest`, even the full `https://registry.npmjs.org/@chamvi%2f<pkg>` document) is a CDN copy that lags 15 minutes or more and mixes old and new versions; before Phase 4 only the packages the template installs must resolve (`npm install` then `npm ls --all | grep @chamvi`).
 3. Remove the `release-as` pin in a `build:` commit (it would freeze the next release at this version).
-
-## Phase 3: chamvi release notes
-
-Run `skills:write-release-notes` on `v<version>`. chamvi-specific:
-
-- The generated body is the root component's changelog and can miss commits that touch only `packages/*` (0.6.0 lost a `feat(core)!`): list `git log v<prev>..v<version>` and add what is missing.
-- Samples come from `packages/docs/src/snippets/*.ts` and `packages/docs/src/guide/*.md` at the tag; the breaking-change table from `guide/upgrading.md` at the tag. Docs live at `https://chamvi.dev/`.
-- Publish with `gh release edit v<version> --notes-file <file>` (release-please creates the release).
 
 ## Patch releases
 
-A patch without a migration, env variable, route, CLI or image change touches nothing under `charts/agent-app`: helm gets the fixture and `Source:` bump only, titled `chore: track chamvi <version>` (release-please counts a commit for `agent-app` only under `charts/agent-app`, so a `fix:` elsewhere cuts no chart release anyway), the template a dependency bump without a README block, and Phases 6.2, 6.3 and 7 are skipped.
+A patch without a migration, env variable, route, CLI or image change touches nothing under `charts/agent-app`: helm gets the fixture and `Source:` bump only, titled `chore: track chamvi <version>` (release-please counts a commit for `agent-app` only under `charts/agent-app`, so a `fix:` elsewhere cuts no chart release anyway), the template a dependency bump without a README block, and Phases 5.2 and 5.3 are skipped.
 
-## Phase 4: chamvi/helm
+## Phase 3: chamvi/helm
 
 Read `.agents/references/helm.md` and the PR descriptions of the release for downstream notes ("Downstream: ..."). Then, in a worktree off `origin/master`:
 
@@ -47,7 +39,7 @@ Read `.agents/references/helm.md` and the PR descriptions of the release for dow
 
 Run `make generate` (docker; a first run can fail while images pull, run it again), `make test`, commit, then `make drift` (it needs a clean tree). Title `fix(agent-app): document the chamvi <minor> upgrade`: `fix` makes release-please cut a chart release, a `docs:`/`chore:` would not.
 
-## Phase 5: chamvi/agent-template
+## Phase 4: chamvi/agent-template
 
 In a worktree off `origin/main`: bump `@chamvi/app`, `@chamvi/cli`, `@chamvi/ui` to `^<version>`, `npm install` (check `npm ls --all | grep @chamvi` all resolve to the version), add a "For 0.<prev> to 0.<minor>" block under "Upgrading chamvi" in `README.md`, and mention new env variables in `.env.example` and `.agents/deployment.md`. Verify as CI does:
 
@@ -60,15 +52,15 @@ node node_modules/@chamvi/cli/dist/cli.mjs start --check
 
 Title `chore: upgrade to chamvi <minor>`. The template has no release workflow and no releases: no release notes there.
 
-## Phase 6: land and release helm
+## Phase 5: land and release helm
 
 1. Open both PRs (evidence-based bodies: what changed, what was run), wait for `gh pr checks <n> --watch`, squash-merge both.
 2. helm's `release` workflow (release-please) opens `chore: release master` with the root and `agent-app` at the next patch. ⛔ Ask before merging it.
 3. The merge runs release-please plus `tada5hi/hevi`. A `failed to perform "Tag" on destination: sha256:...: not found` from the ghcr push is transient: `gh run rerun <id> --failed` (hevi is idempotent). Confirm with `helm show chart oci://ghcr.io/chamvi/helm/agent-app --version <chart>`.
 
-## Phase 7: helm release notes
+## Release notes
 
-Run `skills:write-release-notes` on `agent-app-<chart>` (not `root-<chart>`, which keeps its generated body). Keep hevi's one-line chart description as the first line, then the notes: what the chamvi release means for a chart user (migration and downtime, new env or values), a heads-up table, `helm upgrade <release> oci://ghcr.io/chamvi/helm/agent-app --version <chart>`, the generated changelog. GitHub README anchors are `id="user-content-<slug>"`: check them against the heading in `charts/agent-app/README.md`.
+Never write them by hand: the maintainer agent of tada5hi/agents-dev rewrites every bot-created stable release highlights-first (the chamvi `v<version>` release and helm's `agent-app-<chart>` component release in one run each) and marks the body `<!-- release-notes:rewritten -->`. Small patch releases are skipped. Check for the marker (`gh release view <tag> --repo <repo> --json body`); if a release that should have notes lacks it, ask the owner before forcing a run with a comment `/agent release-notes <tag>` (the exact tag) on any issue or PR of that repository.
 
 ## Finish
 
