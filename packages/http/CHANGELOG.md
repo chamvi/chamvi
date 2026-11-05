@@ -1,5 +1,27 @@
 # Changelog
 
+## [0.7.2](https://github.com/chamvi/chamvi/compare/v0.7.1...v0.7.2) (2026-11-05)
+
+
+### Features
+
+* private agents readable only with agent:&lt;name&gt;:read ([#157](https://github.com/chamvi/chamvi/issues/157)) ([b0500ae](https://github.com/chamvi/chamvi/commit/b0500ae86e37e2fd78c3f4f48107a401ebe4bbda))
+
+
+### Bug Fixes
+
+* **deps:** bump minor and patch dependencies ([ea05be6](https://github.com/chamvi/chamvi/commit/ea05be6b3069e818d9c57c036186213d3ccff266))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/core bumped from ^0.7.1 to ^0.7.2
+    * @chamvi/test-kit bumped from ^0.7.1 to ^0.7.2
+  * peerDependencies
+    * @chamvi/core bumped from ^0.7.1 to ^0.7.2
+
 ## [0.7.1](https://github.com/chamvi/chamvi/compare/v0.7.0...v0.7.1) (2026-11-04)
 
 
