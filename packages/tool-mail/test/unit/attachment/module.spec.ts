@@ -150,6 +150,36 @@ describe('extractAttachmentText', () => {
         expect(await extractAttachmentText(strToU8('MZ'), 'image/png', null)).toBe('');
     });
 
+    it('reads xlsx cells row by row: shared and inline strings, numbers and booleans', async () => {
+        const xlsx = zipSync({
+            'xl/sharedStrings.xml': strToU8('<sst><si><t>Name</t></si><si><r><t>Tom </t></r><r><t>&amp; Jerry</t></r></si></sst>'),
+            'xl/worksheets/sheet1.xml': strToU8([
+                '<worksheet><cols><col min="1" max="2"/></cols><sheetData>',
+                '<row r="1"><c r="A1" t="s"><v>0</v></c><c r="B1" t="inlineStr"><is><t>Amount</t></is></c></row>',
+                '<row r="2"><c r="A2" t="s"><v>1</v></c><c r="B2"><v>42.5</v></c><c r="C2" t="b"><v>1</v></c><c r="D2"/></row>',
+                '</sheetData></worksheet>',
+            ].join('')),
+            'xl/worksheets/sheet2.xml': strToU8('<worksheet><sheetData><row r="1"><c r="A1" t="str"><f>A1</f><v>formula</v></c></row></sheetData></worksheet>'),
+        });
+
+        expect(await extractAttachmentText(xlsx, XLSX, null)).toBe('Name\tAmount\nTom & Jerry\t42.5\tTRUE\t\n\nformula');
+    });
+
+    it('reads hostile worksheet xml in linear time', async () => {
+        const xlsx = zipSync({ 'xl/worksheets/sheet1.xml': strToU8(`<worksheet><sheetData>${  '<row><c t="s"><v>9'.repeat(200_000)}`) });
+        const start = performance.now();
+        const text = await extractAttachmentText(xlsx, XLSX, null);
+
+        expect(performance.now() - start).toBeLessThan(2000);
+        expect(typeof text).toBe('string');
+    });
+
+    it('reads an xlsx without shared strings', async () => {
+        const xlsx = zipSync({ 'xl/worksheets/sheet1.xml': strToU8('<worksheet><sheetData><row r="1"><c r="A1"><v>1</v></c><c r="B1"><v>2</v></c></row></sheetData></worksheet>') });
+
+        expect(await extractAttachmentText(xlsx, XLSX, null)).toBe('1\t2');
+    });
+
     it('reads the text of a docx, xlsx and pptx', async () => {
         const docx = zipSync({
             '[Content_Types].xml': strToU8('<Types/>'),
@@ -161,7 +191,7 @@ describe('extractAttachmentText', () => {
 
         const xlsx = zipSync({
             'xl/sharedStrings.xml': strToU8('<sst><si><t>Cell one</t></si></sst>'),
-            'xl/worksheets/sheet1.xml': strToU8('<worksheet>sheet noise</worksheet>'),
+            'xl/worksheets/sheet1.xml': strToU8('<worksheet><sheetData><row r="1"><c r="A1" t="s"><v>0</v></c></row></sheetData></worksheet>'),
         });
 
         expect(await extractAttachmentText(xlsx, 'application/octet-stream', 'b.XLSX')).toBe('Cell one');

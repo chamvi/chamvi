@@ -35,6 +35,7 @@ import {
 } from '../text/module.ts';
 import { requestError } from './asserts.ts';
 import {
+    MAIL_SEARCH_DATE_CANDIDATES,
     MAIL_SEARCH_DEFAULT_LIMIT,
     MAIL_SNIPPET_BYTES,
     MAIL_SNIPPET_CHARS,
@@ -81,7 +82,29 @@ const SUMMARY_QUERY = {
     size: true,
 } as const;
 
+/** The fetch query that dates a search candidate (`dateOf()`: the Date header, else INTERNALDATE). */
+const DATE_QUERY = {
+    uid: true,
+    envelope: true,
+    internalDate: true,
+} as const;
+
 const TIMED_OUT = Symbol('timed out');
+
+/**
+ * The `limit` newest of `uids` (sorted descending) by `dateOf()`, newer uid first on equal dates; only the first
+ * `MAIL_SEARCH_DATE_CANDIDATES` are dated.
+ */
+async function newestByDate(connection: ImapFlow, uids: number[], limit: number): Promise<number[]> {
+    const candidates = uids.slice(0, MAIL_SEARCH_DATE_CANDIDATES);
+    const dated = await connection.fetchAll(candidates, DATE_QUERY, { uid: true });
+
+    return dated
+        .map((message) => ({ uid: message.uid, time: dateOf(message).getTime() }))
+        .sort((a, b) => b.time - a.time || b.uid - a.uid)
+        .slice(0, limit)
+        .map((entry) => entry.uid);
+}
 
 function dateOf(message: FetchMessageObject): Date {
     const envelope = message.envelope?.date;
@@ -646,7 +669,7 @@ class MailClient implements IMailClient {
             const uids = matched
                 .filter((uid) => !(skip && skip.folder === folder && skip.uid === uid))
                 .sort((a, b) => b - a);
-            const wanted = uids.slice(0, limit);
+            const wanted = uids.length > limit ? await newestByDate(connection, uids, limit) : uids;
 
             if (wanted.length === 0) {
                 return { found: [], total: uids.length };

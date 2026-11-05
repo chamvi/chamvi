@@ -99,9 +99,9 @@ describe('readMailAccountsFromEnv()', () => {
 
         expect(readMailAccountsFromEnv({
             CHAMVI_MAIL_ACCOUNTS: accounts([{
-                id: 'me', 
-                address: 'me@gmail.com', 
-                host: 'imap.gmail.com', 
+                id: 'me',
+                address: 'me@gmail.com',
+                host: 'imap.gmail.com',
             }]),
             CHAMVI_MAIL_ME_PASSWORD_FILE: file,
         })?.[0]?.password).toBe(PASSWORD);
@@ -114,9 +114,9 @@ describe('readMailAccountsFromEnv()', () => {
 
         const error = errorOf(() => readMailAccountsFromEnv({
             CHAMVI_MAIL_ACCOUNTS: accounts([{
-                id: 'me', 
-                address: 'me@gmail.com', 
-                host: 'imap.gmail.com', 
+                id: 'me',
+                address: 'me@gmail.com',
+                host: 'imap.gmail.com',
             }]),
             CHAMVI_MAIL_ME_PASSWORD: PASSWORD,
             CHAMVI_MAIL_ME_PASSWORD_FILE: file,
@@ -129,9 +129,9 @@ describe('readMailAccountsFromEnv()', () => {
     it('refuses an unreadable _FILE', () => {
         const error = errorOf(() => readMailAccountsFromEnv({
             CHAMVI_MAIL_ACCOUNTS: accounts([{
-                id: 'me', 
-                address: 'me@gmail.com', 
-                host: 'imap.gmail.com', 
+                id: 'me',
+                address: 'me@gmail.com',
+                host: 'imap.gmail.com',
             }]),
             CHAMVI_MAIL_ME_PASSWORD_FILE: join(dir, 'missing'),
         }));
@@ -156,41 +156,41 @@ describe('readMailAccountsFromEnv()', () => {
         ['not an object', ['me'], 'CHAMVI_MAIL_ACCOUNTS[0]'],
         ['no address', [{ id: 'me', host: 'imap.x.test' }], 'CHAMVI_MAIL_ACCOUNTS[0].address'],
         ['a bad id', [{
-            id: 'Me_1', 
-            address: 'me@x.test', 
-            host: 'imap.x.test', 
+            id: 'Me_1',
+            address: 'me@x.test',
+            host: 'imap.x.test',
         }], 'CHAMVI_MAIL_ACCOUNTS[0].id'],
         ['no host', [{ id: 'me', address: 'me@x.test' }], 'CHAMVI_MAIL_ACCOUNTS[0].host'],
         ['a bad port', [{
-            id: 'me', 
-            address: 'me@x.test', 
-            host: 'imap.x.test', 
-            port: 'x', 
+            id: 'me',
+            address: 'me@x.test',
+            host: 'imap.x.test',
+            port: 'x',
         }], 'CHAMVI_MAIL_ACCOUNTS[0].port'],
         ['a bad security', [{
-            id: 'me', 
-            address: 'me@x.test', 
-            host: 'imap.x.test', 
-            security: 'ssl', 
+            id: 'me',
+            address: 'me@x.test',
+            host: 'imap.x.test',
+            security: 'ssl',
         }], 'CHAMVI_MAIL_ACCOUNTS[0].security'],
         ['bad folders', [{
-            id: 'me', 
-            address: 'me@x.test', 
-            host: 'imap.x.test', 
-            folders: 'INBOX', 
+            id: 'me',
+            address: 'me@x.test',
+            host: 'imap.x.test',
+            folders: 'INBOX',
         }], 'CHAMVI_MAIL_ACCOUNTS[0].folders'],
         ['a bad gmail', [{
-            id: 'me', 
-            address: 'me@x.test', 
-            host: 'imap.x.test', 
-            gmail: 'yes', 
+            id: 'me',
+            address: 'me@x.test',
+            host: 'imap.x.test',
+            gmail: 'yes',
         }], 'CHAMVI_MAIL_ACCOUNTS[0].gmail'],
         [
             'a duplicate id',
             [{
-                id: 'me', 
-                address: 'me@x.test', 
-                host: 'imap.x.test', 
+                id: 'me',
+                address: 'me@x.test',
+                host: 'imap.x.test',
             }, { address: 'me', host: 'imap.x.test' }],
             'CHAMVI_MAIL_ACCOUNTS[1].id',
         ],

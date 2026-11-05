@@ -19,6 +19,7 @@ describe('public api', () => {
         expect(mail.parseMailId).toBeTypeOf('function');
         expect(mail.MAIL_REQUEST_ERROR_CODE).toBe('mail_request');
         expect(mail.MAIL_TIMEOUT_MS).toBe(30_000);
+        expect(mail.MAIL_SEARCH_DATE_CANDIDATES).toBe(1000);
         expect(mail.MAIL_SEARCH_DEFAULT_LIMIT).toBe(20);
         expect(mail.MAIL_SEARCH_MAX_LIMIT).toBe(50);
         expect(mail.MAIL_THREAD_MAX_REFERENCES).toBe(10);
@@ -48,6 +49,7 @@ describe('public api', () => {
             'MAIL_OOXML_MAX_SLIDES',
             'MAIL_PDF_MAX_PAGES',
             'MAIL_REQUEST_ERROR_CODE',
+            'MAIL_SEARCH_DATE_CANDIDATES',
             'MAIL_SEARCH_DEFAULT_LIMIT',
             'MAIL_SEARCH_MAX_LIMIT',
             'MAIL_SUBJECT_MAX_CHARS',

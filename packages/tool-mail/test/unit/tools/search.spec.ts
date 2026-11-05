@@ -72,6 +72,40 @@ describe('mail_search (generic server)', () => {
         expect(result.truncated).toBe(true);
     });
 
+    it('picks the newest matches by date, not by uid', async () => {
+        const { call } = await setup(false, {
+            fake: {
+                folders: [{
+                    path: 'INBOX',
+                    messages: [
+                        {
+                            uid: 1,
+                            date: '2026-11-05T08:00:00Z',
+                            subject: 'Newest, low uid',
+                            text: 'a',
+                        },
+                        {
+                            uid: 2,
+                            date: '2026-11-01T08:00:00Z',
+                            subject: 'Imported, high uid',
+                            text: 'b',
+                        },
+                        {
+                            uid: 3,
+                            date: '2026-10-01T08:00:00Z',
+                            subject: 'Oldest, highest uid',
+                            text: 'c',
+                        },
+                    ],
+                }],
+            },
+        });
+        const result = await call<MailSearchResult>('mail_search', { account: 'work', limit: 1 });
+
+        expect(result.mails.map((mail) => mail.subject)).toEqual(['Newest, low uid']);
+        expect(result.truncated).toBe(true);
+    });
+
     it('maps the structured terms and searches only the given folder', async () => {
         const { call, imap } = await setup(false);
 

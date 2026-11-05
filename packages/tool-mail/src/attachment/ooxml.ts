@@ -20,6 +20,7 @@ import {
 } from '../text/constants.ts';
 import { stripHtml } from '../text/module.ts';
 import { OOXML_TEXT_PARTS } from './constants.ts';
+import { sharedStrings, sheetText } from './xlsx.ts';
 
 /** Compressed bytes inflated per step: a step writes at most ~1 MiB (the deflate ratio limit) past a part's budget. */
 const INFLATE_STEP_BYTES = 1024;
@@ -46,7 +47,8 @@ function slideNumber(name: string): number {
 
 /**
  * The parts to read and their declared sizes, from the central directory (nothing is inflated; a buffer that is
- * no zip throws): text parts declaring at most `MAIL_ZIP_PART_MAX_BYTES`, at most `MAIL_OOXML_MAX_SLIDES` slides,
+ * no zip throws): text parts declaring at most `MAIL_ZIP_PART_MAX_BYTES`, at most `MAIL_OOXML_MAX_SLIDES` slides
+ * (and as many worksheets),
  * while the declared sizes add up to at most `MAIL_ZIP_TOTAL_MAX_BYTES`.
  */
 function selectParts(data: Uint8Array): Map<string, number> {
@@ -65,7 +67,7 @@ function selectParts(data: Uint8Array): Map<string, number> {
                 return false;
             }
 
-            if (file.name.startsWith('ppt/')) {
+            if (file.name.startsWith('ppt/') || file.name.startsWith('xl/worksheets/')) {
                 if (slides >= MAIL_OOXML_MAX_SLIDES) {
                     return false;
                 }
@@ -104,6 +106,8 @@ function concat(chunks: Uint8Array[], size: number): Uint8Array {
 export function extractOoxmlText(data: Uint8Array): string {
     const selected = selectParts(data);
     const texts = new Map<string, string>();
+    // the xlsx parts stay XML: worksheet cells name shared strings by index
+    const sheets = new Map<string, string>();
     let remaining = MAIL_ZIP_TOTAL_MAX_BYTES;
     let chars = 0;
 
@@ -143,7 +147,15 @@ export function extractOoxmlText(data: Uint8Array): string {
             done = true;
             remaining -= size;
 
-            const text = stripHtml(strFromU8(concat(chunks, size)));
+            const xml = strFromU8(concat(chunks, size));
+
+            if (file.name.startsWith('xl/')) {
+                sheets.set(file.name, xml);
+
+                return;
+            }
+
+            const text = stripHtml(xml);
 
             chars += text.length;
             texts.set(file.name, text);
@@ -188,7 +200,20 @@ export function extractOoxmlText(data: Uint8Array): string {
     unzip.register(RawDeflate);
     unzip.push(data, true);
 
-    return texts.keys().toArray()
+    const strings = sharedStrings(sheets.get('xl/sharedStrings.xml') ?? '');
+    const worksheets = Array.from(sheets.keys())
+        .filter((name) => name.startsWith('xl/worksheets/'))
+        .sort((a, b) => slideNumber(a) - slideNumber(b));
+
+    if (worksheets.length > 0) {
+        return worksheets.map((name) => sheetText(sheets.get(name)!, strings)).join('\n\n');
+    }
+
+    if (strings.length > 0) {
+        return strings.join('\n');
+    }
+
+    return Array.from(texts.keys())
         .sort((a, b) => slideNumber(a) - slideNumber(b) || a.localeCompare(b))
         .map((name) => texts.get(name)!)
         .join('\n');

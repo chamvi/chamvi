@@ -75,9 +75,9 @@ function gmailWithAttachment(): FakeFolder[] {
     const message = folders.find((folder) => folder.path === '[Gmail]/All Mail')!.messages!.find((entry) => entry.uid === 7)!;
 
     message.attachments = [{
-        filename: 'notes.txt', 
-        mediaType: 'text/plain', 
-        content: 'gmail notes', 
+        filename: 'notes.txt',
+        mediaType: 'text/plain',
+        content: 'gmail notes',
     }];
 
     return folders;
@@ -181,9 +181,9 @@ describe('read-only on the wire', () => {
         }
 
         expect(seenFlags(folders)).toEqual({
-            'INBOX:1': false, 
-            'INBOX:2': true, 
-            'INBOX:3': true, 
+            'INBOX:1': false,
+            'INBOX:2': true,
+            'INBOX:3': true,
         });
     });
 });
