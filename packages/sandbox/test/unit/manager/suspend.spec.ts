@@ -319,6 +319,27 @@ describe('workspace manager: suspension', () => {
         expect(provider.findCalls).toEqual([{ runId: 'r1', options: { deployment: 'default' } }]);
     });
 
+    it('release looks up the run with restore false, so a suspended workspace is not rebuilt to be removed', async () => {
+        const { manager, provider } = setup({ limits: { cpu: '2' } });
+
+        await manager.release('r1');
+
+        expect(provider.findCalls).toEqual([{
+            runId: 'r1',
+            options: { deployment: 'default', restore: false },
+        }]);
+    });
+
+    it('a lookup for use keeps restoring', async () => {
+        const { manager, provider } = setup();
+
+        await manager.get('r1').catch(() => undefined);
+        await manager.acquire('r1', {});
+
+        expect(provider.findCalls).not.toHaveLength(0);
+        expect(provider.findCalls.every(({ options }) => options!.restore === undefined)).toBe(true);
+    });
+
     it('rejects an isSuspendable that is no function', () => {
         expect(() => setup({ isSuspendable: 'yes' as unknown as WorkspaceManagerOptions['isSuspendable'] }))
             .toThrow(InvalidAgentDefinitionError);

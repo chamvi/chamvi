@@ -327,7 +327,8 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
      * The workspace of a run's claim (persistence): the held handle while its
      * pod runs (or its create here is still in flight), else one opened on
      * the running pod, else the pod rebuilt; a failed or finished pod is
-     * deleted first. Undefined for an expired, foreign or unreadable claim.
+     * deleted first (with `restore: false` a handle on the claim, only to
+     * dispose). Undefined for an expired, deleting, foreign or unreadable claim.
      */
     async function findClaimed(
         claim: V1PersistentVolumeClaim,
@@ -340,6 +341,11 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         const held = live.get(id);
 
         if (held && disposing.has(held)) {
+            return undefined;
+        }
+
+        // a claim being deleted (pvc-protection holds it while its pod goes) was disposed
+        if (claim.metadata?.deletionTimestamp) {
             return undefined;
         }
 
@@ -366,6 +372,11 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
 
         if (running) {
             return openFound(id, info, findOptions.signal);
+        }
+
+        if (findOptions.restore === false) {
+            // a lookup to remove it: no pod scheduled, the handle's dispose deletes pod and claim
+            return open(id, info);
         }
 
         if (pod && !pod.metadata?.deletionTimestamp && podState(pod).state === 'failed') {

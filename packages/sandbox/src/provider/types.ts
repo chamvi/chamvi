@@ -55,6 +55,13 @@ export type WorkspaceFindOptions = {
         env?: Record<string, string>;
         limits?: SandboxLimits;
     };
+    /**
+     * False for a lookup that only removes what it finds (the manager's
+     * `release`): a provider that rebuilds a suspended workspace answers it
+     * as it is, a handle whose `dispose` removes it and whose commands fail.
+     * Default true.
+     */
+    restore?: boolean;
 };
 
 export type GarbageCollectOptions = {

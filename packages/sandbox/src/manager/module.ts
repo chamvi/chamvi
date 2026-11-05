@@ -745,9 +745,10 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         // their rejections belong to their acquire callers
         await Promise.allSettled(pending);
 
-        // what other processes created for the run (or this one before a restart)
+        // what other processes created for the run (or this one before a restart);
+        // only to remove it, so a suspended workspace is never rebuilt first
         const ids = new Set(held.map((workspace) => workspace.id));
-        const rest = await provider.find(runId, findOptions()).then(
+        const rest = await provider.find(runId, { deployment, restore: false }).then(
             (found) => Promise.allSettled(found
                 .filter((workspace) => !ids.has(workspace.id) && workspace.info.runId === runId)
                 .map((workspace) => disposeOrThrow(workspace))),

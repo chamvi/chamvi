@@ -32,6 +32,12 @@ export type FakePodClient = IPodClient & {
     claims: Map<string, V1PersistentVolumeClaim>;
     createdClaims: V1PersistentVolumeClaim[];
     deletedClaims: string[];
+    /**
+     * Like the `kubernetes.io/pvc-protection` finalizer: a deleted claim
+     * stays, marked with a `deletionTimestamp`, while a pod of its name
+     * exists; it goes with that pod's delete. Default false: removed at once.
+     */
+    protectClaims: boolean;
     /** Label selectors of every claim list call. */
     claimSelectors: string[];
     execs: Array<{
@@ -76,7 +82,8 @@ function matches(object: V1Pod | V1PersistentVolumeClaim, selector: string): boo
  * holds), `read` returns it with
  * the next scripted status (default Running), `delete` removes it (a missing
  * one is fine), `list` filters by labels, the claim methods do the same
- * for claims, `exec` asks `onExec` and writes its
+ * for claims (`protectClaims` keeps a deleted claim Terminating while its
+ * pod exists), `exec` asks `onExec` and writes its
  * answer to the given streams; `git config` runs against the pod's
  * `gitConfig`, so a checkout record written on create is read back on find.
  */
@@ -89,6 +96,7 @@ export function createFakePodClient(onExec: FakeExecHandler = () => ({})): FakeP
         claims: new Map(),
         createdClaims: [],
         deletedClaims: [],
+        protectClaims: false,
         claimSelectors: [],
         execs: [],
         reads: 0,
@@ -132,6 +140,10 @@ export function createFakePodClient(onExec: FakeExecHandler = () => ({})): FakeP
         async delete(name) {
             client.deleted.push(name);
             client.pods.delete(name);
+
+            if (client.claims.get(name)?.metadata?.deletionTimestamp) {
+                client.claims.delete(name);
+            }
         },
 
         async list(labelSelector) {
@@ -154,6 +166,15 @@ export function createFakePodClient(onExec: FakeExecHandler = () => ({})): FakeP
 
         async deleteClaim(name) {
             client.deletedClaims.push(name);
+
+            const claim = client.claims.get(name);
+
+            if (claim && client.protectClaims && client.pods.has(name)) {
+                claim.metadata = { ...claim.metadata, deletionTimestamp: new Date() };
+
+                return;
+            }
+
             client.claims.delete(name);
         },
 

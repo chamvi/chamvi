@@ -8,6 +8,7 @@
 import type { V1Pod } from '@kubernetes/client-node';
 import { describe, expect, it } from 'vitest';
 import { SandboxError } from '@chamvi/core';
+import { createWorkspaceManager } from '@chamvi/sandbox';
 import { POLL_MS, START_TIMEOUT_MS, createKubernetesSandbox } from '@chamvi/sandbox-k8s';
 import type { KubernetesSandboxOptions } from '@chamvi/sandbox-k8s';
 import { ControllableClock } from '@chamvi/test-kit';
@@ -362,5 +363,74 @@ describe('kubernetes suspension', () => {
 
         await expect(drive(creating, clock, POLL_MS)).resolves.toBeDefined();
         expect(client.created).toHaveLength(1);
+    });
+    it('never rebuilds a claim being deleted', async () => {
+        const { client, provider } = setup();
+        const workspace = await provider.create({ runId: 'r1' });
+        const name = `chamvi-ws-${workspace.id}`;
+
+        // a pod deleted with grace 0 lingers a moment, and pvc-protection keeps its claim Terminating
+        client.protectClaims = true;
+        client.delete = async (pod) => {
+            client.deleted.push(pod);
+            client.pods.get(pod)!.metadata!.deletionTimestamp = new Date();
+        };
+
+        await workspace.dispose();
+        expect(client.claims.get(name)?.metadata?.deletionTimestamp).toBeDefined();
+
+        await expect(provider.find('r1')).resolves.toEqual([]);
+        expect(client.created).toHaveLength(1);
+    });
+
+    it('a find with restore false answers a suspended claim without a rebuild, and its dispose removes it', async () => {
+        const { client, provider } = setup();
+        const workspace = await provider.create({ runId: 'r1', repo: REPO });
+        const name = `chamvi-ws-${workspace.id}`;
+
+        await provider.collectGarbage(waiting);
+        expect(client.pods.has(name)).toBe(false);
+
+        const execs = client.execs.length;
+        const found = await provider.find('r1', { restore: false });
+
+        expect(found.map(({ id, info }) => ({ id, runId: info.runId }))).toEqual([{ id: workspace.id, runId: 'r1' }]);
+        expect(client.created).toHaveLength(1);
+        expect(client.execs).toHaveLength(execs);
+
+        await found[0]!.dispose();
+        expect(client.created).toHaveLength(1);
+        expect(client.claims.has(name)).toBe(false);
+        expect(client.deletedClaims).toEqual([name]);
+    });
+
+    it('a find with restore false still answers a running pod', async () => {
+        const { provider } = setup();
+        const workspace = await provider.create({ runId: 'r1' });
+
+        await expect(provider.find('r1', { restore: false })).resolves.toEqual([workspace]);
+    });
+    it('the manager releases a suspended workspace of a settled run without rebuilding its pod', async () => {
+        const {
+            client, 
+            clock, 
+            provider, 
+        } = setup();
+        const manager = createWorkspaceManager({
+            provider,
+            clock,
+            gcIntervalMs: 0,
+            isSettled: async () => false,
+            isSuspendable: async () => true,
+        });
+        const { workspace } = await manager.acquire('r1', {});
+        const name = `chamvi-ws-${workspace.id}`;
+
+        await manager.collectGarbage();
+        expect(client.pods.has(name)).toBe(false);
+
+        await manager.release('r1');
+        expect(client.created).toHaveLength(1);
+        expect(client.claims.has(name)).toBe(false);
     });
 });
