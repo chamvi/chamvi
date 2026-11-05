@@ -135,6 +135,64 @@ describeDocker('docker suspension', () => {
         expect(await provider.find(runId, { deployment })).toEqual(found);
     });
 
+    it('a find during a suspension waits for its stop, then restarts the container behind a working handle', async () => {
+        const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+        let stopping = false;
+        // the real daemon, with every container stop held until release()
+        const gated = Object.create(docker) as Docker;
+
+        gated.getContainer = (id: string) => {
+            const container = docker.getContainer(id);
+            const stop = container.stop.bind(container);
+
+            container.stop = (async (...args: unknown[]) => {
+                stopping = true;
+                await gate;
+
+                return (stop as (...rest: unknown[]) => Promise<unknown>)(...args);
+            }) as Docker.Container['stop'];
+
+            return container;
+        };
+
+        const provider = createDockerSandbox({
+            ...dockerOptions, 
+            docker: gated, 
+            suspend: true, 
+        });
+        const deployment = `test-${randomUUID().slice(0, 8)}`;
+        const runId = `test-${randomUUID()}`;
+        const workspace = await provider.create({ runId, deployment });
+
+        workspaces.push(workspace);
+        await workspace.writeFile('a.txt', 'kept');
+
+        const collecting = provider.collectGarbage({ deployment, isSuspendable: async () => true });
+
+        while (!stopping) {
+            await new Promise<void>((resolve) => {
+                setImmediate(resolve);
+            });
+        }
+
+        const finding = provider.find(runId, { deployment });
+
+        // the find lists the container while it still runs
+        await new Promise<void>((resolve) => {
+            setTimeout(resolve, 200);
+        });
+        release();
+        await collecting;
+
+        const found = await finding;
+
+        workspaces.push(...found);
+        expect(found.map((item) => item.id)).toEqual([workspace.id]);
+        expect((await containerOf(workspace).inspect()).State.Running).toBe(true);
+        expect(await found[0]!.readFile('a.txt')).toBe('kept');
+        expect((await found[0]!.exec(['true'])).exitCode).toBe(0);
+    });
+
     it('a manager gets the workspace of a suspended run back with its files', async () => {
         const {
             provider, 

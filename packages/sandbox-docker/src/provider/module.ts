@@ -70,8 +70,8 @@ const PROVIDER_NAME = 'docker';
  * starts nothing and hands out a handle only to dispose. With `suspend`,
  * `collectGarbage` suspends the running container of a suspendable run by
  * stopping it (its volume and root filesystem kept) and drops its held
- * handle, so the next `find` starts it again behind a fresh one; without it
- * no container is stopped. The client connects lazily,
+ * handle, so the next `find` (which waits for a stop in flight here)
+ * starts it again behind a fresh one; without it no container is stopped. The client connects lazily,
  * so creating the provider never contacts the daemon.
  */
 export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandboxProvider {
@@ -90,6 +90,8 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
     const live = new Map<string, IWorkspace>();
     /** The workspaces whose dispose was called: never found again, also while or after a removal fails. */
     const disposing = new WeakSet<IWorkspace>();
+    // the container stops of suspensions in flight, by workspace id: a find waits them out
+    const suspensions = new Map<string, Promise<unknown>>();
 
     /**
      * Creates the container, pulling its image first as `pull` says (for
@@ -218,16 +220,28 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
 
         live.delete(id);
 
+        const stopping = (async (): Promise<SandboxError | undefined> => {
+            try {
+                await docker.getContainer(item.Id).stop();
+            } catch (error) {
+                // stopped or removed meanwhile
+                if (!isStatus(error, 304) && !isStatus(error, 404)) {
+                    return new SandboxError(`cannot suspend workspace container ${item.Id}: ${dockerMessage(error)}`, { cause: error });
+                }
+            }
+
+            return undefined;
+        })();
+
+        suspensions.set(id, stopping);
+
         try {
-            await docker.getContainer(item.Id).stop();
-        } catch (error) {
-            // stopped or removed meanwhile
-            if (!isStatus(error, 304) && !isStatus(error, 404)) {
-                return new SandboxError(`cannot suspend workspace container ${item.Id}: ${dockerMessage(error)}`, { cause: error });
+            return await stopping;
+        } finally {
+            if (suspensions.get(id) === stopping) {
+                suspensions.delete(id);
             }
         }
-
-        return undefined;
     }
 
     return {
@@ -373,6 +387,11 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             for (const item of containers) {
                 const labels = item.Labels ?? {};
                 const id = labels[WORKSPACE_LABEL] ?? '';
+
+                // a container being stopped by a suspension here: decided once it is stopped
+                // (restart inspects its state, so the listed one is never trusted)
+                await suspensions.get(id);
+
                 const held = live.get(id);
 
                 if (held && (!held.disposed || disposing.has(held))) {
