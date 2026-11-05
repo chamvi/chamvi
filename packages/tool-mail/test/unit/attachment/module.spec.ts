@@ -14,6 +14,7 @@ import { extractAttachmentText } from '../../../src/attachment/module.ts';
 import {
     MAIL_ATTACHMENT_MAX_CHARS,
     MAIL_OOXML_MAX_SLIDES,
+    MAIL_XLSX_MAX_COLUMNS,
     MAIL_ZIP_PART_MAX_BYTES,
     MAIL_ZIP_TOTAL_MAX_BYTES,
 } from '../../../src/text/constants.ts';
@@ -172,6 +173,25 @@ describe('extractAttachmentText', () => {
 
         expect(performance.now() - start).toBeLessThan(2000);
         expect(typeof text).toBe('string');
+    });
+
+    it('keeps omitted xlsx cells as empty columns, within a column cap', async () => {
+        const xlsx = zipSync({
+            'xl/worksheets/sheet1.xml': strToU8([
+                '<worksheet><sheetData>',
+                '<row r="1"><c r="A1" t="inlineStr"><is><t>Name</t></is></c><c r="B1" t="inlineStr"><is><t>Price</t></is></c>',
+                '<c r="C1" t="inlineStr"><is><t>Quantity</t></is></c></row>',
+                '<row r="2"><c r="A2" t="inlineStr"><is><t>Widget</t></is></c><c r="C2"><v>7</v></c></row>',
+                '<row r="3"><c r="B3"><v>1</v></c><c r="XFD3"><v>2</v></c></row>',
+                '</sheetData></worksheet>',
+            ].join('')),
+        });
+        const lines = (await extractAttachmentText(xlsx, XLSX, null)).split('\n');
+
+        expect(lines[0]).toBe('Name\tPrice\tQuantity');
+        expect(lines[1]).toBe('Widget\t\t7');
+        // a column past the cap is appended, not padded
+        expect(lines[2]).toBe(`\t1${'\t'.repeat(MAIL_XLSX_MAX_COLUMNS - 2)}\t2`);
     });
 
     it('reads an xlsx without shared strings', async () => {
