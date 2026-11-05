@@ -253,7 +253,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
      * limits from the provider and `rebuild` (never from the claim), waits
      * like `create`. A pod that cannot start is a SandboxError (the pod this
      * call made deleted, the claim kept); undefined for a workspace without
-     * its checkout record.
+     * its checkout record (the pod this call made deleted too).
      */
     async function rebuildPod(
         id: string,
@@ -303,7 +303,15 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             throw new SandboxError(`cannot rebuild workspace pod ${name}`, { cause: error });
         }
 
-        return openFound(id, info, findOptions.signal);
+        const found = await openFound(id, info, findOptions.signal);
+
+        if (!found && created) {
+            // an orphan claim (its create died before the checkout record): no
+            // compute left running, the claim goes at settle or expiry
+            await client.delete(name).catch(() => undefined);
+        }
+
+        return found;
     }
 
     /** Opens a found workspace and reads its checkout; undefined (and not held) without the record. */

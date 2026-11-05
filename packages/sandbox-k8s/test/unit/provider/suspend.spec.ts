@@ -204,6 +204,24 @@ describe('kubernetes suspension', () => {
         expect(client.claims.has(name)).toBe(true);
     });
 
+    it('a rebuilt claim without its checkout record deletes its pod and keeps the claim', async () => {
+        const { client, provider } = setup();
+        const workspace = await provider.create({ runId: 'r1' });
+        const name = `chamvi-ws-${workspace.id}`;
+
+        // an orphan claim: the create died before its checkout record
+        client.pods.delete(name);
+        client.gitConfig.delete(name);
+
+        const replica = provide(client, new ControllableClock(new Date(START)));
+
+        await expect(replica.find('r1')).resolves.toEqual([]);
+        expect(client.created).toHaveLength(2);
+        expect(client.pods.has(name)).toBe(false);
+        expect(client.claims.has(name)).toBe(true);
+        expect(client.deletedClaims).toEqual([]);
+    });
+
     it('a rebuild that cannot start throws SandboxError and leaves the claim', async () => {
         const { client, provider } = setup();
         const workspace = await provider.create({ runId: 'r1' });
