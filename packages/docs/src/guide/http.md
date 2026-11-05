@@ -79,7 +79,7 @@ An app holds at most `stream.maxOpen` (1000) open streams plus waiting MCP `run_
 | Permission | Grants |
 |---|---|
 | `agent:<name>:run` | Start the agent's runs and read them (start only, for a [private agent](#private-agents)) |
-| `agent:<name>:read` | Read a private agent's runs and state |
+| `agent:<name>:read` | Read the agent's runs, public or private, and a private agent's state |
 | `agent:<name>:approve` | Answer the agent's approvals (`POST /runs/:id/approve`, MCP `approve_run`) |
 | `run:read` | Read and list every run, agents and schedules |
 | `run:cancel` | Cancel runs |

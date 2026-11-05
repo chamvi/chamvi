@@ -193,6 +193,31 @@ describe('private agents: GET /runs', () => {
         await ctx.engine.drain();
     });
 
+    it('reads every run it lists for a principal holding agent:*:read', async () => {
+        const ctx = await setup();
+        const token = tokenFor('agent:*:read');
+
+        for (const id of [ctx.alfred, ctx.bob]) {
+            expect((await call(ctx.app, 'GET', `/runs/${id}`, { token })).status).toBe(200);
+            expect((await call(ctx.app, 'GET', `/runs/${id}/artifacts`, { token })).status).toBe(200);
+        }
+
+        await ctx.engine.drain();
+    });
+
+    it('reads and lists a public agent\'s runs with that agent\'s read grant alone', async () => {
+        const ctx = await setup();
+        const token = tokenFor('agent:bob:read');
+
+        expect((await call(ctx.app, 'GET', `/runs/${ctx.bob}`, { token })).status).toBe(200);
+        expect((await call(ctx.app, 'GET', `/runs/${ctx.alfred}`, { token })).status).toBe(404);
+
+        const body = await (await call(ctx.app, 'GET', '/runs?filter[agent]=bob', { token })).json() as ListBody;
+
+        expect(body.data.map((run) => run.agent)).toEqual(['bob']);
+        await ctx.engine.drain();
+    });
+
     it('adds the private agents a run:read principal holds the read grant of', async () => {
         const ctx = await setup();
         const token = tokenFor('run:read', 'agent:alfred:read');

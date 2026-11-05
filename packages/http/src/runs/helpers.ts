@@ -104,16 +104,20 @@ export function serializeStep(step: Step): Step {
  * Whether the principal may read the content (runs, state) of the agent
  * named `agentName`. A private agent, and one the app does not hold (fail
  * closed: a removed private agent's runs stay protected), needs
- * `agent:<name>:read`; any other `run:read` or `agent:<name>:run`.
+ * `agent:<name>:read`; any other also `run:read` or `agent:<name>:run`.
+ * The read grant reads every agent, so a listing without a filter for
+ * `agent:*:read` and the single-run reads agree.
  */
 export function canReadAgentContent(principal: Principal, agentName: string, agents: HttpAgents): boolean {
     const agent = agents.get(agentName);
+    const read = hasPermission(principal.permissions, agentPermission(agentName, 'read'));
 
     if (!agent || agent.definition.private === true) {
-        return hasPermission(principal.permissions, agentPermission(agentName, 'read'));
+        return read;
     }
 
-    return hasPermission(principal.permissions, Permission.RUN_READ) ||
+    return read ||
+        hasPermission(principal.permissions, Permission.RUN_READ) ||
         hasPermission(principal.permissions, agentPermission(agentName, 'run'));
 }
 
