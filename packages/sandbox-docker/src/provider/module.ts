@@ -22,6 +22,7 @@ import {
     collectionError,
     createRemoteWorkspace,
     createSettledCheck,
+    createSuspendableCheck,
     isExpiredAt,
     isRootUser,
     prepareWorkspace,
@@ -65,7 +66,12 @@ const PROVIDER_NAME = 'docker';
  * checkout and, for a non-root `user`, opens the cache to it (`openCache`);
  * `pull` applies to every image, also one a run asked for. `find` lists a run's
  * containers by label, starts a stopped one again (its volume holds the
- * work) and rebuilds the info from the labels. The client connects lazily,
+ * work) and rebuilds the info from the labels; with `restore: false` it
+ * starts nothing and hands out a handle only to dispose. With `suspend`,
+ * `collectGarbage` suspends the running container of a suspendable run by
+ * stopping it (its volume and root filesystem kept) and drops its held
+ * handle, so the next `find` (which waits for a stop in flight here)
+ * starts it again behind a fresh one; without it no container is stopped. The client connects lazily,
  * so creating the provider never contacts the daemon.
  */
 export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandboxProvider {
@@ -80,9 +86,14 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
     const cacheVolume = options.cache?.volume;
     const tmpSize = options.tmpSize ?? TMP_SIZE;
     const clock = options.clock ?? systemClock;
+    const suspending = options.suspend ?? false;
     const live = new Map<string, IWorkspace>();
     /** The workspaces whose dispose was called: never found again, also while or after a removal fails. */
     const disposing = new WeakSet<IWorkspace>();
+    /** Ids whose disposal-only handle (never held) is being or failed to be removed: never found again. */
+    const removing = new Set<string>();
+    // the container stops of suspensions in flight, by workspace id: a find waits them out
+    const suspensions = new Map<string, Promise<unknown>>();
 
     /**
      * Creates the container, pulling its image first as `pull` says (for
@@ -141,8 +152,13 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
         }
     }
 
-    /** The workspace of a container (reached through `transport`), registered as live until disposed. */
-    function open(id: string, info: WorkspaceInfo, transport: IExecTransport): IWorkspace {
+    /**
+     * The workspace of a container (reached through `transport`), registered
+     * as live until disposed; a `detached` one (only to remove it, its
+     * checkout never read) is never registered, so no restoring `find`
+     * hands it out.
+     */
+    function open(id: string, info: WorkspaceInfo, transport: IExecTransport, detached = false): IWorkspace {
         const remote = createRemoteWorkspace({
             id,
             info,
@@ -161,12 +177,28 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             writeFile: remote.writeFile,
             async dispose() {
                 disposing.add(workspace);
+
+                if (detached) {
+                    removing.add(id);
+                    await remote.dispose();
+                    // removed: its container is never listed again
+                    removing.delete(id);
+
+                    return;
+                }
+
                 await remote.dispose();
-                live.delete(id);
+
+                // a handle dropped by a suspension never unregisters the fresh one
+                if (live.get(id) === workspace) {
+                    live.delete(id);
+                }
             },
         };
 
-        live.set(id, workspace);
+        if (!detached) {
+            live.set(id, workspace);
+        }
 
         return workspace;
     }
@@ -183,6 +215,51 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             return await docker.listContainers({ all: true, filters: { label } });
         } catch (error) {
             throw new SandboxError(`cannot list the workspace containers: ${dockerMessage(error)}`, { cause: error });
+        }
+    }
+
+    /**
+     * Stops the container of a suspendable run (`answer` true) without
+     * removing it, after dropping its held handle (never disposed), so the
+     * next `find` restarts it behind a fresh handle; a SandboxError for a
+     * rejected `isSuspendable` or a failed stop (the container keeps running).
+     */
+    async function suspend(item: Docker.ContainerInfo, answer: boolean | SandboxError): Promise<SandboxError | undefined> {
+        if (answer !== true) {
+            return answer === false ? undefined : answer;
+        }
+
+        const id = item.Labels?.[WORKSPACE_LABEL] ?? '';
+        const held = live.get(id);
+
+        // one being disposed is removed, never suspended
+        if ((held && disposing.has(held)) || removing.has(id)) {
+            return undefined;
+        }
+
+        live.delete(id);
+
+        const stopping = (async (): Promise<SandboxError | undefined> => {
+            try {
+                await docker.getContainer(item.Id).stop();
+            } catch (error) {
+                // stopped or removed meanwhile
+                if (!isStatus(error, 304) && !isStatus(error, 404)) {
+                    return new SandboxError(`cannot suspend workspace container ${item.Id}: ${dockerMessage(error)}`, { cause: error });
+                }
+            }
+
+            return undefined;
+        })();
+
+        suspensions.set(id, stopping);
+
+        try {
+            return await stopping;
+        } finally {
+            if (suspensions.get(id) === stopping) {
+                suspensions.delete(id);
+            }
         }
     }
 
@@ -329,6 +406,16 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             for (const item of containers) {
                 const labels = item.Labels ?? {};
                 const id = labels[WORKSPACE_LABEL] ?? '';
+
+                // a container being stopped by a suspension here: decided once it is stopped
+                // (restart inspects its state, so the listed one is never trusted)
+                await suspensions.get(id);
+
+                // its removal through a disposal-only handle is in flight (or failed)
+                if (removing.has(id)) {
+                    continue;
+                }
+
                 const held = live.get(id);
 
                 if (held && (!held.disposed || disposing.has(held))) {
@@ -339,7 +426,8 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
 
                     // not probed yet: its container may have stopped all the same,
                     // and the same container started again serves the held handle
-                    if (held.info.expiresAt.getTime() > now && await restart(docker.getContainer(item.Id))) {
+                    // (a lookup to remove it starts nothing)
+                    if (held.info.expiresAt.getTime() > now && (findOptions.restore === false || await restart(docker.getContainer(item.Id)))) {
                         found.push(held);
                     }
 
@@ -358,6 +446,14 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
                 }
 
                 const container = docker.getContainer(item.Id);
+
+                if (findOptions.restore === false) {
+                    // a lookup to remove it: never started, the handle's dispose removes the
+                    // container; never held, so a restoring find opens it properly
+                    found.push(open(id, info, createDockerTransport(docker, container, clock, user), true));
+
+                    continue;
+                }
 
                 if (!await restart(container)) {
                     continue;
@@ -390,18 +486,29 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             // one container that cannot go never keeps the others
             const failures: SandboxError[] = [];
             const isSettled = createSettledCheck(gcOptions.isSettled);
+            const isSuspendable = createSuspendableCheck(gcOptions.isSuspendable);
 
             for (const container of containers) {
                 const labels = container.Labels ?? {};
 
                 if (!isExpiredAt(labels[EXPIRES_AT_KEY], now)) {
-                    const answer = await isSettled(labels[RUN_LABEL] ?? '');
+                    const runId = labels[RUN_LABEL] ?? '';
+                    const answer = await isSettled(runId);
 
                     if (answer instanceof SandboxError) {
                         failures.push(answer);
                     }
 
                     if (answer !== true) {
+                        // a removal always wins: suspension only for a kept, running one
+                        if (suspending && answer === false && container.State === 'running') {
+                            const failure = await suspend(container, await isSuspendable(runId));
+
+                            if (failure) {
+                                failures.push(failure);
+                            }
+                        }
+
                         continue;
                     }
                 }

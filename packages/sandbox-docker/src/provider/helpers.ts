@@ -80,6 +80,10 @@ export function assertDockerOptions(options: DockerSandboxOptions): void {
         throw new InvalidAgentDefinitionError('readOnlyRoot must be a boolean.');
     }
 
+    if (options.suspend !== undefined && typeof options.suspend !== 'boolean') {
+        throw new InvalidAgentDefinitionError('suspend must be a boolean.');
+    }
+
     const { cache } = options;
 
     if (

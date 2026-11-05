@@ -6,6 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
+import type { V1PersistentVolumeClaim, V1Pod } from '@kubernetes/client-node';
 import {
     ChamviError,
     SandboxError,
@@ -26,6 +27,7 @@ import {
     collectionError,
     createRemoteWorkspace,
     createSettledCheck,
+    createSuspendableCheck,
     delay,
     prepareWorkspace,
     probeImage,
@@ -37,8 +39,11 @@ import type {
     IExecTransport,
     ISandboxProvider,
     IWorkspace,
+    WorkspaceFindOptions,
     WorkspaceInfo,
 } from '@chamvi/sandbox';
+import { isObject } from 'smob';
+import { isApiStatus } from '../client/helpers.ts';
 import { createPodClient } from '../client/module.ts';
 import { createPodTransport } from '../transport/module.ts';
 import {
@@ -48,6 +53,7 @@ import {
 } from './constants.ts';
 import {
     assertKubernetesOptions,
+    buildClaim,
     buildPod,
     guard,
     isExpired,
@@ -61,15 +67,36 @@ const PROVIDER_NAME = 'k8s';
 
 const MANAGED_SELECTOR = SANDBOX_LABEL_SELECTORS.join(',');
 
+/** True for a client error of HTTP status `code`, the ApiException itself or as the cause. */
+function isStatus(error: unknown, code: number): boolean {
+    return isApiStatus(error, code) || (isObject(error) && isApiStatus(error.cause, code));
+}
+
+/** The message of `error`, also for a thrown non-error. */
+function messageOf(error: unknown): string {
+    return Error.isError(error) ? error.message : String(error);
+}
+
+/** True for a pod that is gone or going: being deleted, failed or finished. */
+function isEnded(pod: V1Pod): boolean {
+    return Boolean(pod.metadata?.deletionTimestamp) || podState(pod).state === 'failed';
+}
+
 /**
  * One pod per workspace (see `buildPod`: root with a writable root and a few
  * capabilities by default, the hardened mode through `user` and
  * `readOnlyRoot`), commands run through the pod exec API inside GNU
  * `timeout`. `create` waits for the pod to run (polling its status on the
  * clock, failing fast on image and config errors), probes the image
- * (`probeImage`), then checks out. `find` lists a run's running pods by label and rebuilds
+ * (`probeImage`), then checks out. With `persistence` each workspace gets
+ * a claim of its own (`buildClaim`, made before the pod, deleted with it on
+ * dispose and by the collection once expired or settled). `find` lists a run's running pods by label and rebuilds
  * the info from their labels and annotations; a pod that failed, finished
- * or is being deleted is gone. Creating the provider contacts nothing.
+ * or is being deleted is gone. With `persistence` the collection suspends
+ * the running pod of a suspendable run by deleting it (the claim stays, its
+ * held handle is dropped, never disposed), and `find` rebuilds the pod of a
+ * live claim without a running one (`rebuild`). Creating the provider
+ * contacts nothing.
  */
 export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISandboxProvider {
     assertKubernetesOptions(options);
@@ -87,12 +114,56 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
     const startTimeoutMs = options.startTimeoutMs ?? START_TIMEOUT_MS;
     const pollMs = options.pollMs ?? POLL_MS;
     const clock = options.clock ?? systemClock;
+    const { persistence } = options;
     const live = new Map<string, IWorkspace>();
+    // handles whose dispose was called: never answered, rebuilt or suspended
+    const disposing = new WeakSet<IWorkspace>();
+    // ids whose disposal-only handle (never held) is being or failed to be removed: never answered
+    const removing = new Set<string>();
+    // ids of the creates in flight here: their claim may exist before the pod
+    const creating = new Set<string>();
+    // the pod deletes of suspensions in flight, by workspace id: a find waits them out
+    const suspensions = new Map<string, Promise<unknown>>();
+
+    /** Deletes claim `name` (missing is fine); only called with `persistence`, whose check found the method. */
+    function deleteClaim(name: string): Promise<void> {
+        return guard(`delete workspace claim ${name}`, () => client.deleteClaim!(name));
+    }
+
+    /** The pod's transport; with `persistence` its removal deletes the claim of the same name after the pod. */
+    function transportOf(name: string): IExecTransport {
+        const transport = createPodTransport(client, name);
+
+        if (!persistence) {
+            return transport;
+        }
+
+        return {
+            ...transport,
+            async remove() {
+                // always the claim too: pvc-protection keeps one in use until its pod is gone
+                const [pod, claim] = await Promise.allSettled([
+                    transport.remove(),
+                    deleteClaim(name),
+                ]);
+
+                if (pod.status === 'rejected' && claim.status === 'rejected') {
+                    throw new SandboxError(`cannot remove workspace ${name}: ${messageOf(pod.reason)}; ${messageOf(claim.reason)}`, { cause: new AggregateError([pod.reason, claim.reason]) });
+                }
+
+                if (pod.status === 'rejected') {
+                    throw pod.reason;
+                }
+
+                if (claim.status === 'rejected') {
+                    throw claim.reason;
+                }
+            },
+        };
+    }
 
     /** Resolves once the pod runs; SandboxError when it never will, takes too long or the signal fires. */
-    async function waitForRunning(name: string, signal?: AbortSignal): Promise<void> {
-        const started = clock.now().getTime();
-
+    async function waitForRunning(name: string, signal?: AbortSignal, started = clock.now().getTime()): Promise<void> {
         for (;;) {
             if (signal?.aborted) {
                 throw abortedCreate();
@@ -118,8 +189,17 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         }
     }
 
-    /** The workspace of pod `chamvi-ws-<id>`, registered as live until disposed. */
-    function open(id: string, info: WorkspaceInfo, transport: IExecTransport = createPodTransport(client, `${POD_NAME_PREFIX}${id}`)): IWorkspace {
+    /**
+     * The workspace of pod `chamvi-ws-<id>`, registered as live until
+     * disposed; a `detached` one (only to remove it, its checkout never read)
+     * is never registered, so no restoring `find` hands it out.
+     */
+    function open(
+        id: string,
+        info: WorkspaceInfo,
+        transport: IExecTransport = transportOf(`${POD_NAME_PREFIX}${id}`),
+        detached = false,
+    ): IWorkspace {
         const remote = createRemoteWorkspace({
             id,
             info,
@@ -137,14 +217,311 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             readBytes: remote.readBytes,
             writeFile: remote.writeFile,
             async dispose() {
+                disposing.add(workspace);
+
+                if (detached) {
+                    removing.add(id);
+                    await remote.dispose();
+                    // removed: its pod and claim are never listed again
+                    removing.delete(id);
+
+                    return;
+                }
+
                 await remote.dispose();
-                live.delete(id);
+
+                // a handle dropped by a suspension never unregisters the fresh one
+                if (live.get(id) === workspace) {
+                    live.delete(id);
+                }
             },
         };
 
-        live.set(id, workspace);
+        if (!detached) {
+            live.set(id, workspace);
+        }
 
         return workspace;
+    }
+
+    /**
+     * Creates pod `pod`, or joins one of the same name another `find` (here
+     * or on another replica) created first (a 409 for a pod not being
+     * deleted); a pod still being deleted is waited out up to the start
+     * timeout. True when this call created it.
+     */
+    async function createOrJoin(pod: V1Pod, started: number, signal?: AbortSignal): Promise<boolean> {
+        const name = pod.metadata!.name!;
+
+        for (;;) {
+            if (signal?.aborted) {
+                throw abortedCreate();
+            }
+
+            try {
+                await client.create(pod);
+
+                return true;
+            } catch (error) {
+                if (!isStatus(error, 409)) {
+                    throw error;
+                }
+            }
+
+            let existing: V1Pod | undefined;
+
+            try {
+                existing = await client.read(name);
+            } catch (error) {
+                if (!isStatus(error, 404)) {
+                    throw error;
+                }
+            }
+
+            if (existing && !existing.metadata?.deletionTimestamp) {
+                return false;
+            }
+
+            const remaining = started + startTimeoutMs - clock.now().getTime();
+
+            if (remaining <= 0) {
+                throw new SandboxError(`workspace pod ${name} was still being deleted after ${startTimeoutMs} ms.`);
+            }
+
+            await delay(clock, Math.min(pollMs, remaining), signal, () => abortedCreate());
+        }
+    }
+
+    /**
+     * The workspace of claim `name` behind a new pod: the image and lifetime
+     * from the claim, `activeDeadlineSeconds` what is left of it, env and
+     * limits from the provider and `rebuild` (never from the claim), waits
+     * like `create`. A pod that cannot start is a SandboxError (the pod this
+     * call made deleted, the claim kept); undefined for a workspace without
+     * its checkout record (the pod this call made deleted too).
+     */
+    async function rebuildPod(
+        id: string,
+        info: WorkspaceInfo,
+        deployment: string,
+        findOptions: WorkspaceFindOptions,
+    ): Promise<IWorkspace | undefined> {
+        const name = `${POD_NAME_PREFIX}${id}`;
+        const started = clock.now().getTime();
+        const remaining = Math.max(1, Math.ceil((info.expiresAt.getTime() - started) / 1000));
+        const pod = buildPod({
+            id,
+            deployment,
+            namespace,
+            info: { ...info, image: info.image ?? image },
+            env: { ...options.env, ...findOptions.rebuild?.env },
+            limits: resolveLimits(options.limits, findOptions.rebuild?.limits),
+            labels: options.podLabels ?? {},
+            imagePullPolicy,
+            user,
+            readOnlyRoot,
+            ...(options.cache && { cacheClaim: options.cache.claimName }),
+            claim: name,
+            tmpSize,
+            activeDeadlineSeconds: remaining,
+        });
+        let created = false;
+
+        try {
+            created = await createOrJoin(pod, started, findOptions.signal);
+            await waitForRunning(name, findOptions.signal, started);
+            await probeImage(createPodTransport(client, name), {
+                image: pod.spec!.containers[0]!.image!,
+                clock,
+                signal: findOptions.signal,
+            });
+        } catch (error) {
+            if (created) {
+                // only the pod: the claim holds the run's files
+                await client.delete(name).catch(() => undefined);
+            }
+
+            if (error instanceof ChamviError) {
+                throw error;
+            }
+
+            throw new SandboxError(`cannot rebuild workspace pod ${name}`, { cause: error });
+        }
+
+        // a read failure throws (the claim holds the run's files, never "not found")
+        const found = await openFound(id, info, findOptions.signal, true);
+
+        if (!found && created) {
+            // an orphan claim (its create died before the checkout record): no
+            // compute left running, the claim goes at settle or expiry
+            await client.delete(name).catch(() => undefined);
+        }
+
+        return found;
+    }
+
+    /**
+     * Opens a found workspace and reads its checkout; undefined (and not
+     * held) without the record. With `failOnError` (a claim's workspace) a
+     * read that keeps failing is a SandboxError (not held), never undefined.
+     */
+    async function openFound(id: string, info: WorkspaceInfo, signal?: AbortSignal, failOnError = false): Promise<IWorkspace | undefined> {
+        const workspace = open(id, info);
+        let checkout: Awaited<ReturnType<typeof readCheckout>>;
+
+        try {
+            checkout = await readCheckout(workspace, signal, clock, { failOnError });
+        } catch (error) {
+            live.delete(id);
+
+            throw error;
+        }
+
+        if (!checkout) {
+            // a create that died before its checkout finished: left to the collection
+            live.delete(id);
+
+            return undefined;
+        }
+
+        Object.assign(info, checkout);
+
+        return workspace;
+    }
+
+    /** Pod `name` as it is now, undefined once it is gone. */
+    async function readPod(name: string): Promise<V1Pod | undefined> {
+        try {
+            return await client.read(name);
+        } catch (error) {
+            if (isStatus(error, 404)) {
+                return undefined;
+            }
+
+            throw error;
+        }
+    }
+
+    /**
+     * The workspace of a run's claim (persistence): the held handle while its
+     * pod runs (or its create here is still in flight), else one opened on
+     * the running pod, else the pod rebuilt; a failed or finished pod is
+     * deleted first (with `restore: false` a handle on the claim, only to
+     * dispose, its checkout never read). A suspension of it in flight here
+     * is waited out first. Undefined for an expired, deleting or foreign
+     * claim and for one without its checkout record (an orphan); a checkout
+     * that cannot be read is a SandboxError (the claim kept), unless the pod
+     * turned out gone meanwhile: then the pod is rebuilt once.
+     */
+    async function findClaimed(
+        claim: V1PersistentVolumeClaim,
+        listed: V1Pod | undefined,
+        runId: string,
+        deployment: string,
+        findOptions: WorkspaceFindOptions,
+    ): Promise<IWorkspace | undefined> {
+        let pod = listed;
+        const id = claim.metadata?.labels?.[WORKSPACE_LABEL] ?? '';
+        const held = live.get(id);
+
+        if ((held && disposing.has(held)) || removing.has(id)) {
+            return undefined;
+        }
+
+        // a claim being deleted (pvc-protection holds it while its pod goes) was disposed
+        if (claim.metadata?.deletionTimestamp) {
+            return undefined;
+        }
+
+        const info = readWorkspaceInfo({ ...claim.metadata?.annotations, ...claim.metadata?.labels }, PROVIDER_NAME);
+
+        if (!info || info.runId !== runId || info.expiresAt.getTime() <= clock.now().getTime()) {
+            return undefined;
+        }
+
+        const suspension = suspensions.get(id);
+
+        if (suspension) {
+            // the listed pod is going: decide on what is left once its delete settled
+            await suspension;
+            pod = await guard(`read workspace pod ${claim.metadata?.name}`, () => readPod(claim.metadata!.name!));
+        }
+
+        const running = pod !== undefined && !isEnded(pod) && podState(pod).state === 'running';
+
+        if (held && !held.disposed && (running || creating.has(id))) {
+            return held;
+        }
+
+        if (creating.has(id)) {
+            return undefined;
+        }
+
+        if (held) {
+            // gone (suspended elsewhere, evicted): forgotten, never disposed
+            live.delete(id);
+        }
+
+        if (findOptions.restore === false) {
+            // a lookup to remove it: no checkout read, no pod scheduled, the handle's dispose
+            // deletes pod and claim; never held, so a restoring find opens it properly
+            return open(id, info, undefined, true);
+        }
+
+        if (running) {
+            try {
+                return await openFound(id, info, findOptions.signal, true);
+            } catch (error) {
+                // suspended (or evicted) between the list and the read: rebuilt once below
+                const now = await guard(`read workspace pod ${claim.metadata?.name}`, () => readPod(claim.metadata!.name!));
+
+                if (now && !isEnded(now)) {
+                    throw error;
+                }
+
+                pod = now;
+            }
+        }
+
+        if (pod && !pod.metadata?.deletionTimestamp && podState(pod).state === 'failed') {
+            await guard(`delete workspace pod ${pod.metadata?.name}`, () => client.delete(pod.metadata!.name!));
+        }
+
+        return rebuildPod(id, info, deployment, findOptions);
+    }
+
+    /**
+     * Deletes the pod of a suspendable run (`answer` true) and keeps its
+     * claim, after dropping its held handle (never disposed), so the next
+     * `find` rebuilds it; a SandboxError for a rejected `isSuspendable` or a
+     * failed delete (the pod keeps running).
+     */
+    async function suspend(name: string, labels: Record<string, string>, answer: boolean | SandboxError): Promise<unknown> {
+        if (answer !== true) {
+            return answer === false ? undefined : answer;
+        }
+
+        const id = labels[WORKSPACE_LABEL] ?? '';
+        const held = live.get(id);
+
+        // one being disposed is removed, one being created is not yet the run's to lose
+        if ((held && disposing.has(held)) || removing.has(id) || creating.has(id)) {
+            return undefined;
+        }
+
+        live.delete(id);
+
+        const deleting = guard(`suspend workspace pod ${name}`, () => client.delete(name)).then(() => undefined, (error: unknown) => error);
+
+        suspensions.set(id, deleting);
+
+        try {
+            return await deleting;
+        } finally {
+            if (suspensions.get(id) === deleting) {
+                suspensions.delete(id);
+            }
+        }
     }
 
     return {
@@ -170,10 +547,24 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
                 ...buildWorkspaceInfo(input, PROVIDER_NAME, clock.now(), limits.maxLifetimeMs),
                 image: input.image ?? image,
             };
-            const transport = createPodTransport(client, name);
+            const transport = transportOf(name);
             const workspace = open(id, info, transport);
 
+            creating.add(id);
+
             try {
+                if (persistence) {
+                    // before the pod, which mounts it; a claim still Pending (WaitForFirstConsumer) binds with the pod
+                    await guard(`create workspace claim ${name}`, () => client.createClaim!(buildClaim({
+                        id,
+                        deployment,
+                        namespace,
+                        info,
+                        size: persistence.size ?? limits.storage,
+                        ...(persistence.storageClassName !== undefined && { storageClassName: persistence.storageClassName }),
+                    })));
+                }
+
                 await client.create(buildPod({
                     id,
                     deployment,
@@ -187,6 +578,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
                     user,
                     readOnlyRoot,
                     ...(options.cache && { cacheClaim: options.cache.claimName }),
+                    ...(persistence && { claim: name }),
                     tmpSize,
                 }));
                 await waitForRunning(name, input.signal);
@@ -203,7 +595,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
                     signal: input.signal,
                 }));
             } catch (error) {
-                // deleting a pod that was never created is a 404, which is fine
+                // deleting a pod or claim that was never created is a 404, which is fine
                 await workspace.dispose().catch(() => undefined);
 
                 if (error instanceof ChamviError) {
@@ -211,6 +603,8 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
                 }
 
                 throw new SandboxError(`cannot start workspace pod ${name}`, { cause: error });
+            } finally {
+                creating.delete(id);
             }
 
             return workspace;
@@ -224,14 +618,38 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
                 return [];
             }
 
-            const pods = await guard(
-                'list the workspace pods',
-                () => client.list(`${MANAGED_SELECTOR},${DEPLOYMENT_LABEL}=${deployment},${RUN_LABEL}=${runId}`),
-            );
+            const selector = `${MANAGED_SELECTOR},${DEPLOYMENT_LABEL}=${deployment},${RUN_LABEL}=${runId}`;
+            const pods = await guard('list the workspace pods', () => client.list(selector));
+            const claims = persistence ?
+                await guard('list the workspace claims', () => client.listClaims!(selector)) :
+                [];
             const now = clock.now().getTime();
             const found: IWorkspace[] = [];
+            const claimed = new Set<string>();
+
+            // a claim's workspace comes back even without a running pod; a failed rebuild throws, never skips it
+            for (const claim of claims) {
+                const name = claim.metadata?.name ?? '';
+                const workspace = await findClaimed(
+                    claim,
+                    pods.find((pod) => pod.metadata?.name === name),
+                    runId,
+                    deployment,
+                    findOptions,
+                );
+
+                claimed.add(name);
+
+                if (workspace) {
+                    found.push(workspace);
+                }
+            }
 
             for (const pod of pods) {
+                if (claimed.has(pod.metadata?.name ?? '')) {
+                    continue;
+                }
+
                 const labels = pod.metadata?.labels ?? {};
                 const id = labels[WORKSPACE_LABEL] ?? '';
                 const held = live.get(id);
@@ -254,18 +672,11 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
                     continue;
                 }
 
-                const workspace = open(id, info);
-                const checkout = await readCheckout(workspace, findOptions.signal, clock);
+                const workspace = await openFound(id, info, findOptions.signal);
 
-                if (!checkout) {
-                    // a create that died before its checkout finished: left to the collection
-                    live.delete(id);
-
-                    continue;
+                if (workspace) {
+                    found.push(workspace);
                 }
-
-                Object.assign(info, checkout);
-                found.push(workspace);
             }
 
             return found;
@@ -273,39 +684,83 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
 
         async collectGarbage(gcOptions = {}) {
             const deployment = assertDeployment(gcOptions.deployment);
-            const pods = await guard('list the workspace pods', () => client.list(`${MANAGED_SELECTOR},${DEPLOYMENT_LABEL}=${deployment}`));
+            const selector = `${MANAGED_SELECTOR},${DEPLOYMENT_LABEL}=${deployment}`;
+            const pods = await guard('list the workspace pods', () => client.list(selector));
+            const claims = persistence ?
+                await guard('list the workspace claims', () => client.listClaims!(selector)) :
+                [];
             const now = clock.now().getTime();
             let count = 0;
-            // one pod that cannot go never keeps the others
+            // one workspace that cannot go never keeps the others
             const failures: unknown[] = [];
             const isSettled = createSettledCheck(gcOptions.isSettled);
+            const isSuspendable = createSuspendableCheck(gcOptions.isSuspendable);
+            // a pod and its claim share the name: one decision per workspace
+            const workspaces = new Map<string, { pod?: V1Pod; claim?: V1PersistentVolumeClaim }>();
 
             for (const pod of pods) {
                 const name = pod.metadata?.name;
 
-                if (!name) {
-                    continue;
+                if (name) {
+                    workspaces.set(name, { pod });
                 }
+            }
 
-                const phase = pod.status?.phase;
+            for (const claim of claims) {
+                const name = claim.metadata?.name;
 
-                if (!isExpired(pod, now) && phase !== 'Failed' && phase !== 'Succeeded') {
-                    const answer = await isSettled(pod.metadata?.labels?.[RUN_LABEL] ?? '');
+                if (name) {
+                    workspaces.set(name, { ...workspaces.get(name), claim });
+                }
+            }
+
+            for (const [name, { pod, claim }] of workspaces) {
+                const metadata = (pod ?? claim)?.metadata;
+                const phase = pod?.status?.phase;
+                const finished = phase === 'Failed' || phase === 'Succeeded';
+                // expired or settled: the whole workspace goes, claim included
+                let settled = isExpired({ metadata }, now);
+
+                // a finished pod without a claim goes anyway; one with a claim keeps the claim unless its run settled
+                if (!settled && (claim || !finished)) {
+                    const answer = await isSettled(metadata?.labels?.[RUN_LABEL] ?? '');
 
                     if (answer instanceof SandboxError) {
                         failures.push(answer);
                     }
 
-                    if (answer !== true) {
-                        continue;
+                    settled = answer === true;
+                }
+
+                if (!settled && !(pod && finished)) {
+                    // only a running pod whose files outlive it on its claim
+                    if (pod && claim && podState(pod).state === 'running' && !pod.metadata?.deletionTimestamp) {
+                        const failure = await suspend(name, metadata?.labels ?? {}, await isSuspendable(metadata?.labels?.[RUN_LABEL] ?? ''));
+
+                        if (failure) {
+                            failures.push(failure);
+                        }
                     }
+
+                    continue;
                 }
 
                 // one open here is disposed, so its in-flight commands settle too
-                const workspace = live.get(pod.metadata?.labels?.[WORKSPACE_LABEL] ?? '');
+                const workspace = live.get(metadata?.labels?.[WORKSPACE_LABEL] ?? '');
 
                 try {
-                    await guard(`delete workspace pod ${name}`, () => (workspace ? workspace.dispose() : client.delete(name)));
+                    if (workspace && (settled || !claim)) {
+                        // with persistence its removal deletes the claim too
+                        await guard(`delete workspace pod ${name}`, () => workspace.dispose());
+                    } else {
+                        if (pod) {
+                            await guard(`delete workspace pod ${name}`, () => client.delete(name));
+                        }
+
+                        if (claim && settled) {
+                            await deleteClaim(name);
+                        }
+                    }
                 } catch (error) {
                     failures.push(error);
 

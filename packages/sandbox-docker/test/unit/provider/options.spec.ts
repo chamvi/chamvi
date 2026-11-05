@@ -29,6 +29,7 @@ describe('docker sandbox options', () => {
         ['an empty user', { user: '' }],
         ['a user with NUL', { user: 'a\0' }],
         ['a readOnlyRoot that is no boolean', { readOnlyRoot: 'yes' }],
+        ['a suspend that is no boolean', { suspend: 'yes' }],
         ['cache true', { cache: true }],
         ['cache false', { cache: false }],
         ['cache without a volume', { cache: {} }],

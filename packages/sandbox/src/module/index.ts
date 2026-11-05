@@ -5,6 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export { SANDBOX_MODULE_NAME, SANDBOX_PROVIDER_NAMES } from './constants.ts';
+export { SANDBOX_MODULE_NAME, SANDBOX_PROVIDER_NAMES, SUSPEND_AFTER_MS } from './constants.ts';
 export * from './module.ts';
-export type { SandboxModuleOptions, SandboxProviderName } from './types.ts';
+export type { SandboxModuleOptions, SandboxPersistence, SandboxProviderName } from './types.ts';

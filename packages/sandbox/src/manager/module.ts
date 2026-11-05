@@ -14,7 +14,7 @@ import {
 import type { ToolSet } from 'ai';
 import { assertImage } from '../image/module.ts';
 import { DEFAULT_DEPLOYMENT } from '../provider/constants.ts';
-import type { GarbageCollectOptions, WorkspaceCreateOptions } from '../provider/types.ts';
+import type { GarbageCollectOptions, WorkspaceCreateOptions, WorkspaceFindOptions } from '../provider/types.ts';
 import { assertGitRef, normalizeRepo } from '../repo/module.ts';
 import type { IWorkspace } from '../workspace/types.ts';
 import { CLOSE_TIMEOUT_MS, GC_INTERVAL_MS, MAX_WORKSPACES_PER_RUN } from './constants.ts';
@@ -83,7 +83,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
     const maxPerRun = options.maxWorkspacesPerRun ?? MAX_WORKSPACES_PER_RUN;
     const gcIntervalMs = options.gcIntervalMs ?? GC_INTERVAL_MS;
     const deployment = options.deployment ?? DEFAULT_DEPLOYMENT;
-    const { isSettled } = options;
+    const { isSettled, isSuspendable } = options;
     // eslint-disable-next-line no-console
     const onError = options.onError ?? ((error: unknown) => console.error('[chamvi]', error));
 
@@ -92,6 +92,12 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
     const lookups = new Map<string, Promise<void>>();
     /** Bumped by a release of a whole run while its lookup runs: that lookup disposes what it found. */
     const generations = new Map<string, number>();
+    /**
+     * Runs whose handles a suspendable answer forgot: the provider may have
+     * suspended nothing (no persistence, local), so a settle still releases
+     * them at once instead of waiting for the next collection.
+     */
+    const suspended = new Set<string>();
     const subscriptions = new Set<() => void>();
     let lastGcAt: number | undefined;
     let closed = false;
@@ -190,6 +196,31 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         return { expired, gone };
     };
 
+    /** The env and limits of every create, also what `find` gets to rebuild a workspace. */
+    const rebuild: NonNullable<WorkspaceFindOptions['rebuild']> = {};
+
+    if (options.env !== undefined || options.author !== undefined) {
+        rebuild.env = { ...options.env, ...authorEnv(options.author) };
+    }
+
+    if (options.limits !== undefined) {
+        rebuild.limits = options.limits;
+    }
+
+    const findOptions = (): WorkspaceFindOptions => {
+        if (rebuild.env === undefined && rebuild.limits === undefined) {
+            return { deployment };
+        }
+
+        return {
+            deployment,
+            rebuild: {
+                ...(rebuild.env !== undefined && { env: { ...rebuild.env } }),
+                ...(rebuild.limits !== undefined && { limits: rebuild.limits }),
+            },
+        };
+    };
+
     const heldEntries = (runId: string): Entry[] => [...runs.get(runId)?.values() ?? []]
         .filter((entry) => entry.workspace !== undefined);
 
@@ -213,7 +244,9 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         let settled = 0;
 
         if (isSettled) {
-            for (const runId of runs.keys().toArray()) {
+            const candidates = new Set([...runs.keys(), ...suspended]);
+
+            for (const runId of candidates) {
                 try {
                     if (!await isSettled(runId)) {
                         continue;
@@ -224,8 +257,54 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                     continue;
                 }
 
+                // settled elsewhere while only forgotten: the provider's
+                // collection below removes what is left of it
+                if (suspended.has(runId) && !runs.has(runId)) {
+                    suspended.delete(runId);
+
+                    continue;
+                }
+
                 settled += heldEntries(runId).length;
                 await release(runId).catch(onError);
+            }
+        }
+
+        // the answers of this pass, handed on to the provider (asked once per run)
+        const suspendable = new Map<string, Promise<boolean>>();
+
+        if (isSuspendable) {
+            for (const runId of runs.keys().toArray()) {
+                const entries = runs.get(runId);
+                const creating = entries?.values().some((entry) => entry.pending !== undefined) ?? false;
+
+                // released meanwhile, or a create in flight is about to hand its workspace out
+                if (!entries || creating) {
+                    continue;
+                }
+
+                const answer = isSuspendable(runId);
+
+                suspendable.set(runId, answer);
+
+                try {
+                    if (!await answer) {
+                        continue;
+                    }
+                } catch (error) {
+                    onError(error);
+
+                    continue;
+                }
+
+                // the provider suspends them: never dispose, the next get finds them again
+                for (const entry of heldEntries(runId)) {
+                    forget(runId, entry);
+                }
+
+                if (!runs.has(runId)) {
+                    suspended.add(runId);
+                }
             }
         }
 
@@ -233,6 +312,21 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
 
         if (isSettled) {
             gcOptions.isSettled = isSettled;
+        }
+
+        if (isSuspendable) {
+            // the provider never suspends a run this manager still holds
+            // anything of (not suspendable, a rejected answer, a pending or
+            // a new create): it cannot mark the held handles gone, and their
+            // first exec after the resume would fail; the manager forgot
+            // every handle of a run it found suspendable
+            gcOptions.isSuspendable = (runId) => {
+                if (runs.has(runId)) {
+                    return Promise.resolve(false);
+                }
+
+                return suspendable.get(runId) ?? isSuspendable(runId);
+            };
         }
 
         return counted + settled + await provider.collectGarbage(gcOptions);
@@ -270,12 +364,12 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
             createOptions.image = image;
         }
 
-        if (options.env !== undefined || options.author !== undefined) {
-            createOptions.env = { ...options.env, ...authorEnv(options.author) };
+        if (rebuild.env !== undefined) {
+            createOptions.env = { ...rebuild.env };
         }
 
-        if (options.limits !== undefined) {
-            createOptions.limits = options.limits;
+        if (rebuild.limits !== undefined) {
+            createOptions.limits = rebuild.limits;
         }
 
         createOptions.deployment = deployment;
@@ -361,6 +455,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
             if (!entries) {
                 entries = new Map();
                 runs.set(runId, entries);
+                suspended.delete(runId);
             }
 
             const entry: Entry = { key, workspace };
@@ -396,7 +491,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
             let found: IWorkspace[];
 
             try {
-                found = await provider.find(runId, { deployment });
+                found = await provider.find(runId, findOptions());
             } catch (error) {
                 throw toSandboxError(error, 'workspace lookup failed');
             }
@@ -624,22 +719,81 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         return pick(runId, workspaceId, picked) as IWorkspace;
     };
 
-    const release = async (runId: string, workspaceId?: string): Promise<void> => {
+    /**
+     * The run's workspaces as the provider has them, only to remove one:
+     * `restore: false`, so a suspended workspace is never rebuilt first, and
+     * nothing adopted (outside the restoring `lookups`).
+     */
+    const findToRemove = async (runId: string): Promise<IWorkspace[]> => {
+        let found: IWorkspace[];
+
+        try {
+            found = await provider.find(runId, { deployment, restore: false });
+        } catch (error) {
+            throw toSandboxError(error, 'workspace lookup failed');
+        }
+
+        return found.filter((workspace) => workspace.info.runId === runId && !workspace.disposed);
+    };
+
+    /** Disposes one workspace of the run: by id, or its only one; never restores. */
+    const disposeOne = async (runId: string, workspaceId?: string): Promise<string> => {
+        const { expired, gone } = sweep(runId);
+
+        for (const workspace of expired.filter((item) => item.id !== workspaceId)) {
+            disposeInBackground(workspace);
+        }
+
+        const held = heldEntries(runId);
+        let entry: Entry | undefined;
+        let target: IWorkspace | undefined;
+
         if (workspaceId !== undefined) {
-            const held = () => heldEntries(runId).find((e) => e.workspace!.id === workspaceId);
-            let entry = held();
+            entry = held.find((e) => e.workspace!.id === workspaceId);
+            target = entry?.workspace ?? expired.find((workspace) => workspace.id === workspaceId);
 
-            if (!entry) {
-                await lookup(runId);
-                entry = held();
-            }
+            // a gone one may be back (its container restarted): the provider's handle first
+            target ??= (await findToRemove(runId)).find((workspace) => workspace.id === workspaceId) ??
+                gone.find((workspace) => workspace.id === workspaceId);
 
-            if (!entry) {
+            if (!target) {
                 throw new SandboxError(NOT_FOUND);
             }
+        } else {
+            let candidates: IWorkspace[] = held.map((e) => e.workspace!);
 
+            // a gone workspace may be back (its container restarted): ask before picking
+            if (candidates.length === 0 || gone.length > 0) {
+                const ids = new Set(candidates.map((workspace) => workspace.id));
+
+                candidates = [...candidates, ...(await findToRemove(runId)).filter((workspace) => !ids.has(workspace.id))];
+            }
+
+            if (candidates.length === 0) {
+                throw new SandboxError('This run has no workspace; call create_workspace first.');
+            }
+
+            if (candidates.length > 1) {
+                const ids = candidates.map((workspace) => workspace.id).join(', ');
+                throw new ValidationError(`This run has ${candidates.length} workspaces (${ids}); pass workspace to pick one.`);
+            }
+
+            [target] = candidates;
+            entry = held.find((e) => e.workspace === target);
+        }
+
+        if (entry) {
             forget(runId, entry);
-            await disposeOrThrow(entry.workspace!);
+        }
+
+        await disposeOrThrow(target!);
+
+        return target!.id;
+    };
+
+    const release = async (runId: string, workspaceId?: string): Promise<void> => {
+        if (workspaceId !== undefined) {
+            await disposeOne(runId, workspaceId);
 
             return;
         }
@@ -652,6 +806,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         const entries = runs.get(runId) ?? new Map<string, Entry>();
 
         runs.delete(runId);
+        suspended.delete(runId);
 
         // pending creates are aborted, see their run gone and dispose what they
         // get; waiting for them keeps a container from outliving the release
@@ -671,9 +826,10 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         // their rejections belong to their acquire callers
         await Promise.allSettled(pending);
 
-        // what other processes created for the run (or this one before a restart)
+        // what other processes created for the run (or this one before a restart);
+        // only to remove it, so a suspended workspace is never rebuilt first
         const ids = new Set(held.map((workspace) => workspace.id));
-        const rest = await provider.find(runId, { deployment }).then(
+        const rest = await provider.find(runId, { deployment, restore: false }).then(
             (found) => Promise.allSettled(found
                 .filter((workspace) => !ids.has(workspace.id) && workspace.info.runId === runId)
                 .map((workspace) => disposeOrThrow(workspace))),
@@ -697,7 +853,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
                 return;
             }
 
-            if (isSettled && !runs.has(run.id) && !lookups.has(run.id)) {
+            if (isSettled && !runs.has(run.id) && !lookups.has(run.id) && !suspended.has(run.id)) {
                 // never touched here: no lookup per settled run (a container or
                 // pod list each); another process's leftovers go with the next
                 // collection (isSettled), at most one per gcIntervalMs
@@ -740,6 +896,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         }),
         get: (runId, workspaceId) => redacting(async () => handOut(await getRaw(runId, workspaceId))),
         release,
+        dispose: (runId, workspaceId) => redacting(() => disposeOne(runId, workspaceId)),
         attach,
         tools: () => {
             tools ??= {

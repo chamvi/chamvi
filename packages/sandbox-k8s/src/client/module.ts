@@ -11,7 +11,7 @@ import type { CreatePodClientInput, IPodClient } from './types.ts';
 
 /**
  * The pods of one namespace through `@kubernetes/client-node`: `CoreV1Api`
- * for create, read, delete and list, `Exec` (a WebSocket) for commands.
+ * for create, read, delete and list of pods and claims, `Exec` (a WebSocket) for commands.
  * Builds the clients only; nothing is contacted until a call.
  */
 export function createPodClient(input: CreatePodClientInput): IPodClient {

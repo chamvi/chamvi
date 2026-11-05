@@ -17,6 +17,17 @@ export type PodUser = {
     gid: number;
 };
 
+/**
+ * A ReadWriteOnce claim per workspace (`chamvi-ws-<id>`, like its pod)
+ * holding `/workspace` and `/home/sandbox`, so the files outlive the pod.
+ */
+export type KubernetesPersistence = {
+    /** A DNS-1123 subdomain; default the cluster's default storage class. */
+    storageClassName?: string;
+    /** The claim's storage request (a quantity); default the resolved `limits.storage`. */
+    size?: string;
+};
+
 export type KubernetesSandboxOptions = {
     /** Namespace of the workspace pods (required). */
     namespace: string;
@@ -50,6 +61,12 @@ export type KubernetesSandboxOptions = {
      * another). Without it each pod gets an emptyDir `/cache` of its own.
      */
     cache?: { claimName: string };
+    /**
+     * Keep each workspace's files on a claim of its own (see
+     * `KubernetesPersistence`); a custom `client` then needs the claim
+     * methods. Default none: the files live in emptyDirs and go with the pod.
+     */
+    persistence?: KubernetesPersistence;
     /** Size of the in-memory `/tmp`; default `TMP_SIZE` (`'1Gi'`). */
     tmpSize?: string;
     /** Default `START_TIMEOUT_MS`. */
@@ -76,5 +93,20 @@ export type PodInput = {
     readOnlyRoot: boolean;
     /** The shared cache claim; undefined mounts an emptyDir. */
     cacheClaim?: string;
+    /** The workspace's own claim for `/workspace` and the home; undefined mounts emptyDirs. */
+    claim?: string;
     tmpSize: string;
+    /** Default `lifetimeSeconds(info)`; a pod rebuilt from its claim gets what is left. */
+    activeDeadlineSeconds?: number;
+};
+
+export type ClaimInput = {
+    id: string;
+    deployment: string;
+    namespace: string;
+    /** The same labels and annotations as the pod's, so `readWorkspaceInfo()` works on the claim. */
+    info: WorkspaceInfo & { image: string };
+    /** The storage request, a quantity. */
+    size: string;
+    storageClassName?: string;
 };

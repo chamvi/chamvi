@@ -6,7 +6,13 @@
  */
 
 import { KubeConfig } from '@kubernetes/client-node';
-import type { V1Pod, V1Volume } from '@kubernetes/client-node';
+import type {
+    V1ObjectMeta,
+    V1PersistentVolumeClaim,
+    V1Pod,
+    V1Volume,
+    V1VolumeMount,
+} from '@kubernetes/client-node';
 import { ChamviError, InvalidAgentDefinitionError, SandboxError } from '@chamvi/core';
 import {
     CACHE_DIR,
@@ -28,6 +34,7 @@ import {
     assertTmpSizeOption,
     isExpiredAt,
     lifetimeSeconds,
+    parseMemory,
     resolveLimits,
     workspaceLabels,
     workspaceMetadata,
@@ -38,13 +45,15 @@ import {
     FATAL_WAITING_REASONS,
     POD_NAME_PREFIX,
 } from './constants.ts';
-import type { KubernetesSandboxOptions, PodInput } from './types.ts';
+import type { ClaimInput, KubernetesSandboxOptions, PodInput } from './types.ts';
 
 const PULL_POLICIES = ['Always', 'IfNotPresent'];
 
 const MANAGED_LABELS = [...Object.keys(SANDBOX_LABELS), RUN_LABEL, WORKSPACE_LABEL, DEPLOYMENT_LABEL, REPO_KEY_LABEL];
 
 const CLIENT_METHODS = ['create', 'read', 'delete', 'list', 'exec'];
+
+const CLAIM_METHODS = ['createClaim', 'deleteClaim', 'listClaims'];
 
 /** A DNS-1123 label (namespaces), at most 63 characters. */
 const DNS_LABEL = /^[a-z0-9]([-a-z0-9]{0,61}[a-z0-9])?$/;
@@ -83,6 +92,45 @@ function isId(value: unknown): boolean {
 function assertPositiveInteger(name: string, value: unknown): void {
     if (value !== undefined && (!Number.isSafeInteger(value) || (value as number) < 1)) {
         throw new InvalidAgentDefinitionError(`${name} must be a positive integer, got ${JSON.stringify(value)}.`);
+    }
+}
+
+/** True for a positive storage quantity such as `'10Gi'`. */
+function isStorageQuantity(value: unknown): boolean {
+    try {
+        return typeof value === 'string' && parseMemory(value) > 0;
+    } catch {
+        return false;
+    }
+}
+
+/** The `persistence` option, and the claim methods it needs on a custom client. */
+function assertPersistence(options: KubernetesSandboxOptions): void {
+    const { persistence, client } = options;
+
+    if (persistence === undefined) {
+        return;
+    }
+
+    if (!isObject(persistence)) {
+        throw new InvalidAgentDefinitionError('persistence must be { storageClassName?, size? }.');
+    }
+
+    const { storageClassName, size } = persistence;
+
+    if (storageClassName !== undefined && (typeof storageClassName !== 'string' || storageClassName.length > 253 || !DNS_SUBDOMAIN.test(storageClassName))) {
+        throw new InvalidAgentDefinitionError(`persistence.storageClassName must be a DNS-1123 subdomain, got ${JSON.stringify(storageClassName)}.`);
+    }
+
+    if (size !== undefined && !isStorageQuantity(size)) {
+        throw new InvalidAgentDefinitionError(`persistence.size must be a positive storage quantity like "10Gi", got ${JSON.stringify(size)}.`);
+    }
+
+    const lacksClaimMethods = client !== undefined &&
+        CLAIM_METHODS.some((method) => typeof client[method as keyof typeof client] !== 'function');
+
+    if (lacksClaimMethods) {
+        throw new InvalidAgentDefinitionError(`persistence needs a client with ${CLAIM_METHODS.join(', ')}.`);
     }
 }
 
@@ -153,6 +201,7 @@ export function assertKubernetesOptions(options: KubernetesSandboxOptions): void
         throw new InvalidAgentDefinitionError('cache must be { claimName } naming a PersistentVolumeClaim (a DNS-1123 subdomain).');
     }
 
+    assertPersistence(options);
     assertTmpSizeOption(options.tmpSize);
     assertPositiveInteger('startTimeoutMs', options.startTimeoutMs);
     assertPositiveInteger('pollMs', options.pollMs);
@@ -168,7 +217,8 @@ export function assertKubernetesOptions(options: KubernetesSandboxOptions): void
  * service links, a shared process namespace (the pause container reaps
  * orphans as pid 1), no privilege escalation, a writable root unless
  * `readOnlyRoot`, equal requests and limits, an emptyDir `/workspace`, an
- * in-memory `/tmp`, a disk emptyDir `WORKSPACE_HOME`, the cache at `/cache` (the shared claim, or an emptyDir
+ * in-memory `/tmp`, a disk emptyDir `WORKSPACE_HOME` (with `claim`, both on
+ * that claim through the subPaths `workspace` and `home`), the cache at `/cache` (the shared claim, or an emptyDir
  * of its own) and only `SANDBOX_ENV`, `CACHE_ENV` and the configured `env`
  * (never the host's). No host path, no privileged mode. The image's
  * entrypoint is replaced: it sleeps until `expiresAt` (`SLEEP_UNTIL_SCRIPT`,
@@ -179,7 +229,7 @@ export function assertKubernetesOptions(options: KubernetesSandboxOptions): void
  * labels and annotations hold everything `find` rebuilds the info from.
  */
 export function buildPod(input: PodInput): V1Pod {
-    const lifetime = lifetimeSeconds(input.info);
+    const lifetime = input.activeDeadlineSeconds ?? lifetimeSeconds(input.info);
     const env = {
         ...SANDBOX_ENV,
         ...CACHE_ENV,
@@ -193,8 +243,37 @@ export function buildPod(input: PodInput): V1Pod {
     const resources = {
         cpu: input.limits.cpu,
         memory: input.limits.memory,
+        // with a claim, still the bound of the root fs and the emptyDirs left
         'ephemeral-storage': input.limits.storage,
     };
+    // with a claim, the files of /workspace and the home outlive the pod
+    const files: { mounts: V1VolumeMount[]; volumes: V1Volume[] } = input.claim === undefined ?
+        {
+            mounts: [
+                { name: 'workspace', mountPath: WORKSPACE_ROOT },
+                { name: 'home', mountPath: WORKSPACE_HOME },
+            ],
+            volumes: [
+                { name: 'workspace', emptyDir: { sizeLimit: input.limits.storage } },
+                // HOME on the node's disk, counted in the pod's ephemeral-storage, never in memory
+                { name: 'home', emptyDir: {} },
+            ],
+        } :
+        {
+            mounts: [
+                {
+                    name: 'workspace', 
+                    mountPath: WORKSPACE_ROOT, 
+                    subPath: 'workspace', 
+                },
+                {
+                    name: 'workspace', 
+                    mountPath: WORKSPACE_HOME, 
+                    subPath: 'home', 
+                },
+            ],
+            volumes: [{ name: 'workspace', persistentVolumeClaim: { claimName: input.claim } }],
+        };
 
     return {
         apiVersion: 'v1',
@@ -252,19 +331,47 @@ export function buildPod(input: PodInput): V1Pod {
                     requests: { ...resources },
                 },
                 volumeMounts: [
-                    { name: 'workspace', mountPath: WORKSPACE_ROOT },
+                    files.mounts[0]!,
                     { name: 'tmp', mountPath: '/tmp' },
-                    { name: 'home', mountPath: WORKSPACE_HOME },
+                    files.mounts[1]!,
                     { name: 'cache', mountPath: CACHE_DIR },
                 ],
             }],
             volumes: [
-                { name: 'workspace', emptyDir: { sizeLimit: input.limits.storage } },
+                files.volumes[0]!,
                 { name: 'tmp', emptyDir: { medium: 'Memory', sizeLimit: input.tmpSize } },
-                // HOME on the node's disk, counted in the pod's ephemeral-storage, never in memory
-                { name: 'home', emptyDir: {} },
+                ...files.volumes.slice(1),
                 cache,
             ],
+        },
+    };
+}
+
+/**
+ * The claim of one workspace (`buildClaim` beside `buildPod`): the pod's
+ * name, ReadWriteOnce, the managed labels and the workspace annotations (so
+ * the collection and `readWorkspaceInfo()` read it like the pod), the
+ * storage class when set. Never the env or the limits.
+ */
+export function buildClaim(input: ClaimInput): V1PersistentVolumeClaim {
+    return {
+        apiVersion: 'v1',
+        kind: 'PersistentVolumeClaim',
+        metadata: {
+            name: `${POD_NAME_PREFIX}${input.id}`,
+            namespace: input.namespace,
+            labels: workspaceLabels({
+                id: input.id,
+                runId: input.info.runId,
+                deployment: input.deployment,
+                repo: input.info.repo,
+            }),
+            annotations: workspaceMetadata(input.info),
+        },
+        spec: {
+            accessModes: ['ReadWriteOnce'],
+            ...(input.storageClassName !== undefined && { storageClassName: input.storageClassName }),
+            resources: { requests: { storage: input.size } },
         },
     };
 }
@@ -295,9 +402,9 @@ export function podState(pod: V1Pod): { state: 'running' | 'pending' } | { state
     return { state: status.phase === 'Running' ? 'running' : 'pending' };
 }
 
-/** True when the pod's expiry annotation is at or before `now`. */
-export function isExpired(pod: V1Pod, now: number): boolean {
-    return isExpiredAt(pod.metadata?.annotations?.[EXPIRES_AT_KEY], now);
+/** True when the pod's or claim's expiry annotation is at or before `now`. */
+export function isExpired(object: { metadata?: V1ObjectMeta }, now: number): boolean {
+    return isExpiredAt(object.metadata?.annotations?.[EXPIRES_AT_KEY], now);
 }
 
 /** Runs a client call; an error that is no ChamviError (a custom client's) becomes a SandboxError. */

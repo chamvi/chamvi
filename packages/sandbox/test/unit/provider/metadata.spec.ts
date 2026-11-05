@@ -10,6 +10,7 @@ import { SandboxError, ValidationError } from '@chamvi/core';
 import {
     assertDeployment,
     createSettledCheck,
+    createSuspendableCheck,
     readWorkspaceInfo,
     repoKey,
     workspaceLabels,
@@ -159,5 +160,31 @@ describe('createSettledCheck', () => {
 
         expect(answer).toBeInstanceOf(SandboxError);
         expect((answer as Error).message).toBe('cannot tell whether run r1 settled: store down');
+    });
+});
+
+describe('createSuspendableCheck', () => {
+    it('asks once per run and answers false without isSuspendable', async () => {
+        const asked: string[] = [];
+        const check = createSuspendableCheck(async (runId) => {
+            asked.push(runId);
+
+            return runId === 'waiting';
+        });
+
+        expect(await check('waiting')).toBe(true);
+        expect(await check('waiting')).toBe(true);
+        expect(await check('running')).toBe(false);
+        expect(asked).toEqual(['waiting', 'running']);
+        expect(await createSuspendableCheck(undefined)('waiting')).toBe(false);
+    });
+
+    it('turns a rejection into a SandboxError naming the run', async () => {
+        const answer = await createSuspendableCheck(async () => {
+            throw new Error('store down');
+        })('r1');
+
+        expect(answer).toBeInstanceOf(SandboxError);
+        expect((answer as Error).message).toBe('cannot tell whether run r1 can be suspended: store down');
     });
 });

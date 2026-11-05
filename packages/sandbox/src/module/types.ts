@@ -12,11 +12,21 @@ import type { ISandboxProvider } from '../provider/types.ts';
 // #region public
 export type SandboxProviderName = 'local' | 'docker' | 'kubernetes';
 
+/** The kubernetes provider's `persistence`, structurally (a claim per workspace). */
+export type SandboxPersistence = {
+    /** A DNS-1123 subdomain; default the cluster's default storage class. */
+    storageClassName?: string;
+    /** The claim's storage request (a quantity); default the resolved `limits.storage`. */
+    size?: string;
+};
+
 /**
  * `createWorkspaceManager()` options; the manager's `env` is `workspaceEnv`
  * here, since `env` is the process env the factory reads. `deployment`:
  * `CHAMVI_DEPLOYMENT` wins; `isSettled` defaults to the engine's `getRun`
- * (a settled run, and with a named deployment also a missing one).
+ * (a settled run, and with a named deployment also a missing one), and
+ * `isSuspendable` to a run `waiting` for at least `suspendAfterMs` (a
+ * given `isSuspendable` replaces that default).
  * `allowImage`: `CHAMVI_SANDBOX_IMAGES` (a comma list of exact image
  * references) wins; without either, `create_workspace` offers no `image`.
  */
@@ -29,8 +39,32 @@ export type SandboxModuleOptions = Omit<WorkspaceManagerOptions, 'provider' | 'e
     namespace?: string;
     /** Docker and Kubernetes image; `CHAMVI_SANDBOX_IMAGE` wins, default `DEFAULT_SANDBOX_IMAGE`. */
     image?: string;
+    /**
+     * Kubernetes only: a claim per workspace keeping `/workspace` and
+     * `/home/sandbox`, so a suspended run's files survive its pod.
+     * `CHAMVI_SANDBOX_PERSISTENCE` (`true`/`false`) wins over whether it is
+     * set, `CHAMVI_SANDBOX_STORAGE_CLASS` over `storageClassName` (default
+     * the cluster's default class); `size` default the storage limit.
+     */
+    persistence?: SandboxPersistence;
+    /**
+     * Docker only: stop the containers of long-waiting runs (files kept,
+     * `/tmp` and background jobs lost). `CHAMVI_SANDBOX_DOCKER_SUSPEND`
+     * (`true`/`false`) wins; default false, since a sleeping container
+     * reserves nothing.
+     */
+    suspend?: boolean;
     /** Added to every workspace's environment. */
     workspaceEnv?: Record<string, string>;
+    /**
+     * How long a run waits (status `waiting`, since its `updatedAt`) before
+     * the collection suspends its workspaces, in ms; `0` disables the
+     * default predicate only (a given `isSuspendable` replaces it and still
+     * applies). `CHAMVI_SANDBOX_SUSPEND_AFTER_MS` wins, default `SUSPEND_AFTER_MS`.
+     * Takes effect with the start-mode collector, so up to `gcIntervalMs`
+     * later.
+     */
+    suspendAfterMs?: number;
     /** Default `process.env`, read when the factory is called. */
     env?: Env;
 };
@@ -47,8 +81,21 @@ export type LazyProvider = ISandboxProvider & {
  */
 export type LocalProviderPackage = { createLocalSandbox(): ISandboxProvider };
 
-export type DockerProviderPackage = { createDockerSandbox(options: { image: string }): ISandboxProvider };
+export type DockerProviderPackage = { createDockerSandbox(options: { image: string; suspend?: boolean }): ISandboxProvider };
 
 export type KubernetesProviderPackage = {
-    createKubernetesSandbox(options: { namespace: string; image: string }): ISandboxProvider;
+    createKubernetesSandbox(options: {
+        namespace: string;
+        image: string;
+        persistence?: SandboxPersistence;
+    }): ISandboxProvider;
+};
+
+/** What the module resolved for the provider factory (internal). */
+export type ProviderSettings = {
+    image: string;
+    namespace?: string;
+    persistence?: SandboxPersistence;
+    /** Docker only: suspension enabled. */
+    suspend?: boolean;
 };

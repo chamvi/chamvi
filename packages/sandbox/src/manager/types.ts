@@ -93,6 +93,14 @@ export type WorkspaceManagerOptions = {
      */
     isSettled?: (runId: string) => Promise<boolean>;
     /**
+     * True when a run has waited long enough to give up its compute: the
+     * garbage collection forgets the run's held workspaces without disposing
+     * them and passes it to the provider, which may suspend them (their next
+     * `get` or `acquire` finds them again through `provider.find`). Without
+     * it nothing is suspended.
+     */
+    isSuspendable?: (runId: string) => Promise<boolean>;
+    /**
      * Git credentials for private repositories and pushes: the first source
      * that answers wins, none answering is anonymous.
      */
@@ -176,12 +184,22 @@ export interface IWorkspaceManager {
      */
     get(runId: string, workspaceId?: string): Promise<IWorkspace>;
     /**
-     * Disposes one workspace (SandboxError /not found/ for an id the run does
-     * not hold or find, like get), or all of the run (never rejects for none):
-     * the held ones and every one `provider.find` reports for the run; this
-     * aborts the run's creates and lookups in flight and waits for the creates.
+     * Disposes one workspace (as `dispose`, SandboxError /not found/ for an id
+     * the run neither holds nor finds), or all of the run (never rejects for
+     * none): the held ones and every one `provider.find` reports for the run;
+     * this aborts the run's creates and lookups in flight and waits for the
+     * creates. Never restores a suspended workspace to remove it (`find` with
+     * `restore: false`).
      */
     release(runId: string, workspaceId?: string): Promise<void>;
+    /**
+     * Disposes one workspace of the run and answers its id: by id, or its
+     * only one when id is omitted (the held ones, else what
+     * `provider.find(runId, { restore: false })` reports; nothing found is
+     * adopted, a suspended one is never restored). SandboxError: unknown id,
+     * none, a failed lookup or dispose; ValidationError: several and no id.
+     */
+    dispose(runId: string, workspaceId?: string): Promise<string>;
     /**
      * Disposes a run's workspaces on completed | failed | cancelled (`release`,
      * so also those other processes created). With `isSettled`, a run this
@@ -195,8 +213,10 @@ export interface IWorkspaceManager {
     tools(): ToolSet;
     /**
      * Disposes the manager's expired workspaces and, with `isSettled`, the
-     * ones of settled runs, then runs the provider's collection (deployment
-     * and `isSettled` passed on); returns how many went.
+     * ones of settled runs; with `isSuspendable`, forgets (never disposes)
+     * the held workspaces of suspendable runs; then runs the provider's
+     * collection (deployment, `isSettled` and `isSuspendable` passed on);
+     * returns how many went.
      */
     collectGarbage(): Promise<number>;
     /**

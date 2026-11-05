@@ -70,9 +70,13 @@ rules:
   - apiGroups: [""]
     resources: ["pods/exec"]
     verbs: ["get", "create"]
+  # only with CHAMVI_SANDBOX_PERSISTENCE=true
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "delete"]
 ```
 
-`pods/exec` needs both `get` (the exec WebSocket opens with a GET) and `create` (API servers with the WebSocket-upgrade authorization change).
+`pods/exec` needs both `get` (the exec WebSocket opens with a GET) and `create` (API servers with the WebSocket-upgrade authorization change). With `CHAMVI_SANDBOX_PERSISTENCE=true` every workspace keeps `/workspace` and its home on a claim of its own (`CHAMVI_SANDBOX_STORAGE_CLASS`, else the cluster's default class), so the pod of a run waiting for an approval can be deleted and rebuilt on resume ([waiting runs](/guide/workspaces#waiting-runs)).
 
 ::: danger NetworkPolicy required
 Without an enforced NetworkPolicy a workspace pod can reach cluster services, including the chamvi API and its database, and cloud metadata. Keep the chart's sandbox egress policy enabled and use a network plugin that enforces it. If the chart policy is disabled or unavailable, including when deploying sandbox pods without the chart, add an equivalent policy selecting `app.kubernetes.io/component=sandbox` that restricts egress to the required DNS and public HTTPS destinations and blocks access to the chamvi namespace and `169.254.169.254`.

@@ -41,6 +41,7 @@ describe('public api', () => {
         'repoKey',
         'readCheckout',
         'createSettledCheck',
+        'createSuspendableCheck',
         'createSinkStream',
         'delay',
         'injectSandboxContext',
@@ -180,16 +181,19 @@ describe('public api', () => {
         expect(Object.keys(module).sort()).toEqual([
             'SANDBOX_MODULE_NAME',
             'SANDBOX_PROVIDER_NAMES',
+            'SUSPEND_AFTER_MS',
             'SandboxModule',
             'sandboxModule',
         ]);
         expect(module.SANDBOX_MODULE_NAME).toBe('chamvi:sandbox');
+        expect(module.SUSPEND_AFTER_MS).toBe(1_800_000);
         expect(module.SANDBOX_PROVIDER_NAMES).toEqual(['local', 'docker', 'kubernetes']);
     });
 
     it.each([
         'SANDBOX_MODULE_NAME',
         'SANDBOX_PROVIDER_NAMES',
+        'SUSPEND_AFTER_MS',
         'SandboxModule',
         'sandboxModule',
         'createLazyProvider',

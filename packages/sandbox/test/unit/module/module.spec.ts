@@ -44,6 +44,7 @@ import type { ModuleHarness } from '@chamvi/app/testing';
 import { SandboxModule, sandboxModule } from '@chamvi/sandbox/module';
 import type { SandboxModuleOptions, SandboxProviderName } from '@chamvi/sandbox/module';
 import { GC_INTERVAL_MS } from '../../../src/manager/constants.ts';
+import { SUSPEND_AFTER_MS } from '../../../src/module/constants.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel, textModel } from '../../utils/model.ts';
 import { createRecordingLogger, rejectionOf } from '../../utils/module.ts';
@@ -118,6 +119,7 @@ function fakeManager(events: string[]): IWorkspaceManager & { engines: unknown[]
             throw new Error('not used');
         },
         release: async () => undefined,
+        dispose: async () => 'ws',
         attach(engine) {
             engines.push(engine);
             events.push('attach');
@@ -801,5 +803,129 @@ describe('sandboxModule', () => {
         const { isSettled } = options as { isSettled(runId: string): Promise<boolean> };
 
         expect(await isSettled('missing')).toBe(false);
+    });
+});
+
+describe('sandboxModule: suspension', () => {
+    type Suspendable = { isSuspendable?(runId: string): Promise<boolean> };
+
+    async function gcOptionsOf(module: RecordingSandboxModule): Promise<Suspendable> {
+        await module.manager.collectGarbage();
+
+        const [, options] = module.calls.find(([name]) => name === 'collectGarbage')!;
+
+        return options as Suspendable;
+    }
+
+    it('isSuspendable answers a run waiting at least suspendAfterMs', async () => {
+        const clock = new ControllableClock(new Date(1_000_000));
+        const module = new RecordingSandboxModule({ env: {} });
+        const harness = await harnessWith(module, { clock, store: createMemoryStore({ clock }) });
+        const { isSuspendable } = await gcOptionsOf(module);
+        const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
+        const getRun = vi.spyOn(engine, 'getRun');
+        const updatedAt = clock.now();
+        const run = (status: Run['status']) => ({
+            id: 'r1', 
+            status, 
+            updatedAt, 
+        }) as Run;
+
+        expect(SUSPEND_AFTER_MS).toBe(30 * 60_000);
+
+        clock.advance(SUSPEND_AFTER_MS - 1);
+        getRun.mockResolvedValueOnce(run('waiting'));
+        expect(await isSuspendable!('r1')).toBe(false);
+
+        clock.advance(1);
+        getRun.mockResolvedValueOnce(run('waiting'));
+        expect(await isSuspendable!('r1')).toBe(true);
+
+        for (const status of ['running', 'queued', 'interrupted', 'completed', 'failed', 'cancelled'] as const) {
+            getRun.mockResolvedValueOnce(run(status));
+            expect(await isSuspendable!('r1')).toBe(false);
+        }
+
+        getRun.mockResolvedValueOnce(undefined);
+        expect(await isSuspendable!('missing')).toBe(false);
+    });
+
+    it('isSuspendable uses the suspendAfterMs option', async () => {
+        const clock = new ControllableClock(new Date(1_000_000));
+        const module = new RecordingSandboxModule({ env: {}, suspendAfterMs: 1_000 });
+        const harness = await harnessWith(module, { clock, store: createMemoryStore({ clock }) });
+        const { isSuspendable } = await gcOptionsOf(module);
+        const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
+        const getRun = vi.spyOn(engine, 'getRun');
+        const updatedAt = clock.now();
+
+        clock.advance(1_000);
+        getRun.mockResolvedValueOnce({
+            id: 'r1', 
+            status: 'waiting', 
+            updatedAt, 
+        } as Run);
+        expect(await isSuspendable!('r1')).toBe(true);
+    });
+
+    it('answers isSuspendable false before the engine exists', async () => {
+        const module = new RecordingSandboxModule({ env: {} });
+        const { isSuspendable } = await gcOptionsOf(module);
+
+        expect(await isSuspendable!('r1')).toBe(false);
+    });
+
+    it('CHAMVI_SANDBOX_SUSPEND_AFTER_MS=0 disables suspension', async () => {
+        const module = new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: '0' } });
+
+        expect(await gcOptionsOf(module)).not.toHaveProperty('isSuspendable');
+    });
+
+    it('suspendAfterMs 0 disables suspension', async () => {
+        const module = new RecordingSandboxModule({ env: {}, suspendAfterMs: 0 });
+
+        expect(await gcOptionsOf(module)).not.toHaveProperty('isSuspendable');
+    });
+
+    it('an invalid CHAMVI_SANDBOX_SUSPEND_AFTER_MS names the variable', () => {
+        expect(() => sandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: 'abc' } }))
+            .toThrow(/CHAMVI_SANDBOX_SUSPEND_AFTER_MS/);
+        expect(() => sandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: 'abc' } }))
+            .toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('an invalid suspendAfterMs option throws', () => {
+        expect(() => sandboxModule({ env: {}, suspendAfterMs: -1 })).toThrow(InvalidAgentDefinitionError);
+        expect(() => sandboxModule({ env: {}, suspendAfterMs: 1.5 })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('CHAMVI_SANDBOX_SUSPEND_AFTER_MS wins over the option', async () => {
+        const clock = new ControllableClock(new Date(1_000_000));
+        const module = new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: '5000' }, suspendAfterMs: 1_000 });
+        const harness = await harnessWith(module, { clock, store: createMemoryStore({ clock }) });
+        const { isSuspendable } = await gcOptionsOf(module);
+        const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
+        const getRun = vi.spyOn(engine, 'getRun');
+        const updatedAt = clock.now();
+
+        clock.advance(1_000);
+        getRun.mockResolvedValueOnce({
+            id: 'r1', 
+            status: 'waiting', 
+            updatedAt, 
+        } as Run);
+        expect(await isSuspendable!('r1')).toBe(false);
+
+        clock.advance(4_000);
+        getRun.mockResolvedValueOnce({
+            id: 'r1', 
+            status: 'waiting', 
+            updatedAt, 
+        } as Run);
+        expect(await isSuspendable!('r1')).toBe(true);
+
+        expect(() => new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: '0' }, suspendAfterMs: 1_000 })).not.toThrow();
+        expect(await gcOptionsOf(new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: '0' }, suspendAfterMs: 1_000 })))
+            .not.toHaveProperty('isSuspendable');
     });
 });

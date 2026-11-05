@@ -80,6 +80,10 @@ export function assertManagerOptions(options: WorkspaceManagerOptions): void {
         throw new InvalidAgentDefinitionError('isSettled must be a function.');
     }
 
+    if (options.isSuspendable !== undefined && typeof options.isSuspendable !== 'function') {
+        throw new InvalidAgentDefinitionError('isSuspendable must be a function.');
+    }
+
     assertImageOption(options.image);
     assertSandboxEnv(options.env);
     resolveLimits(options.limits);

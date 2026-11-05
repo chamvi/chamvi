@@ -7,6 +7,8 @@
 
 import {
     AppToken,
+    envBoolean,
+    envInteger,
     envJson,
     envOneOf,
     envString,
@@ -18,7 +20,7 @@ import type {
     IContainer,
     IModule,
 } from '@chamvi/app';
-import { InvalidAgentDefinitionError, MemoryRunRepository } from '@chamvi/core';
+import { InvalidAgentDefinitionError, MemoryRunRepository, RunStatus } from '@chamvi/core';
 import type { IClock, IEngine } from '@chamvi/core';
 import { isObject } from 'smob';
 import { provideSandboxContext } from '../context/module.ts';
@@ -35,6 +37,7 @@ import {
     SANDBOX_PROVIDER_IDS,
     SANDBOX_PROVIDER_NAMES,
     SANDBOX_PROVIDER_PACKAGES,
+    SUSPEND_AFTER_MS,
 } from './constants.ts';
 import { isPackageNotFound, loadPackage, readImageAllowList } from './helpers.ts';
 import { createLazyProvider } from './provider.ts';
@@ -43,6 +46,7 @@ import type {
     KubernetesProviderPackage,
     LazyProvider,
     LocalProviderPackage,
+    ProviderSettings,
     SandboxModuleOptions,
     SandboxProviderName,
 } from './types.ts';
@@ -74,6 +78,9 @@ export class SandboxModule implements IModule {
      * apps share the default deployment on one host.
      */
     protected ownsDeployment = false;
+
+    /** How long a run waits before its workspaces are suspended; 0 suspends nothing. */
+    protected suspendAfterMs: number = SUSPEND_AFTER_MS;
 
     /** Interval of the start-mode collector (`gcIntervalMs` or `GC_INTERVAL_MS`); 0 runs none. */
     protected gcIntervalMs: number = GC_INTERVAL_MS;
@@ -132,7 +139,10 @@ export class SandboxModule implements IModule {
             manager,
             namespace,
             image,
+            persistence,
+            suspend,
             workspaceEnv,
+            suspendAfterMs,
             env: input,
             ...managerOptions
         } = options;
@@ -140,6 +150,16 @@ export class SandboxModule implements IModule {
         this.gcIntervalMs = managerOptions.gcIntervalMs ?? GC_INTERVAL_MS;
 
         const env = input ?? process.env;
+
+        if (suspendAfterMs !== undefined && (!Number.isSafeInteger(suspendAfterMs) || suspendAfterMs < 0)) {
+            throw new InvalidAgentDefinitionError(`suspendAfterMs must be a non-negative integer, got ${JSON.stringify(suspendAfterMs)}.`);
+        }
+
+        this.suspendAfterMs = envInteger(env, 'CHAMVI_SANDBOX_SUSPEND_AFTER_MS') ?? suspendAfterMs ?? SUSPEND_AFTER_MS;
+
+        if (suspend !== undefined && typeof suspend !== 'boolean') {
+            throw new InvalidAgentDefinitionError(`suspend must be a boolean, got ${JSON.stringify(suspend)}.`);
+        }
 
         if (envString(env, 'CHAMVI_GIT_CREDENTIAL_MODE') !== undefined) {
             // removed in 0.4: ignoring it would hand bash the write token a `tools` deployment kept out
@@ -169,13 +189,32 @@ export class SandboxModule implements IModule {
             target = provider;
         } else {
             const selected = name ?? 'local';
-            const resolved = {
+            const resolved: ProviderSettings = {
                 image: envString(env, 'CHAMVI_SANDBOX_IMAGE') ?? image ?? DEFAULT_SANDBOX_IMAGE,
                 namespace: envString(env, 'CHAMVI_SANDBOX_NAMESPACE') ?? namespace,
             };
 
             if (selected === 'kubernetes' && !resolved.namespace) {
                 throw new InvalidAgentDefinitionError('CHAMVI_SANDBOX_NAMESPACE is required for CHAMVI_SANDBOX_PROVIDER=kubernetes.');
+            }
+
+            // a claim per workspace exists only on kubernetes: the variables are read for it alone
+            if (selected === 'kubernetes') {
+                const enabled = envBoolean(env, 'CHAMVI_SANDBOX_PERSISTENCE') ?? persistence !== undefined;
+
+                if (enabled) {
+                    const storageClassName = envString(env, 'CHAMVI_SANDBOX_STORAGE_CLASS') ?? persistence?.storageClassName;
+
+                    resolved.persistence = {
+                        ...persistence,
+                        ...(storageClassName !== undefined && { storageClassName }),
+                    };
+                }
+            }
+
+            // a stopped container frees nothing Docker reserved: suspension is opt-in there
+            if (selected === 'docker' && (envBoolean(env, 'CHAMVI_SANDBOX_DOCKER_SUSPEND') ?? suspend ?? false)) {
+                resolved.suspend = true;
             }
 
             this.lazy = createLazyProvider(
@@ -186,6 +225,9 @@ export class SandboxModule implements IModule {
         }
 
         const credentials = this.credentialSources(env, managerOptions.credentials);
+        // 0 suspends nothing: the provider is not asked at all
+        const isSuspendable = managerOptions.isSuspendable ??
+            (this.suspendAfterMs > 0 ? (runId: string) => this.isSuspendable(runId) : undefined);
         const allowImage = readImageAllowList(env) ?? managerOptions.allowImage;
 
         try {
@@ -197,6 +239,7 @@ export class SandboxModule implements IModule {
                 ...(workspaceEnv && { env: workspaceEnv }),
                 ...(deployment !== undefined && { deployment }),
                 isSettled: managerOptions.isSettled ?? ((runId) => this.isSettled(runId)),
+                ...(isSuspendable && { isSuspendable }),
                 onError: managerOptions.onError ?? ((error) => this.reportError(error)),
             });
         } catch (error) {
@@ -294,26 +337,35 @@ export class SandboxModule implements IModule {
         this.collector = undefined;
     }
 
+    /** Imports a provider package by its specifier; a test seam. */
+    protected async importPackage<T>(specifier: string): Promise<T> {
+        return loadPackage<T>(specifier);
+    }
+
     /** Imports the provider package and builds the provider; a test seam. */
     protected async importProvider(
         name: SandboxProviderName,
-        options: { image: string; namespace?: string },
+        options: ProviderSettings,
     ): Promise<ISandboxProvider> {
         const specifier = SANDBOX_PROVIDER_PACKAGES[name];
 
         switch (name) {
             case 'docker': {
-                const { createDockerSandbox } = await loadPackage<DockerProviderPackage>(specifier);
+                const { createDockerSandbox } = await this.importPackage<DockerProviderPackage>(specifier);
 
-                return createDockerSandbox({ image: options.image });
+                return createDockerSandbox({ image: options.image, ...(options.suspend && { suspend: true }) });
             }
             case 'kubernetes': {
-                const { createKubernetesSandbox } = await loadPackage<KubernetesProviderPackage>(specifier);
+                const { createKubernetesSandbox } = await this.importPackage<KubernetesProviderPackage>(specifier);
 
-                return createKubernetesSandbox({ namespace: options.namespace!, image: options.image });
+                return createKubernetesSandbox({
+                    namespace: options.namespace!,
+                    image: options.image,
+                    ...(options.persistence && { persistence: options.persistence }),
+                });
             }
             default: {
-                const { createLocalSandbox } = await loadPackage<LocalProviderPackage>(specifier);
+                const { createLocalSandbox } = await this.importPackage<LocalProviderPackage>(specifier);
 
                 return createLocalSandbox();
             }
@@ -322,7 +374,7 @@ export class SandboxModule implements IModule {
 
     protected async loadProvider(
         name: SandboxProviderName,
-        options: { image: string; namespace?: string },
+        options: ProviderSettings,
     ): Promise<ISandboxProvider> {
         try {
             return await this.importProvider(name, options);
@@ -354,6 +406,25 @@ export class SandboxModule implements IModule {
         }
 
         return isTerminal(run.status);
+    }
+
+    /**
+     * A run `waiting` since at least `suspendAfterMs` (its `updatedAt`, the
+     * pause write), on the engine's clock; never a run in another status or
+     * one that does not exist. False before the engine exists.
+     */
+    protected async isSuspendable(runId: string): Promise<boolean> {
+        if (!this.engine) {
+            return false;
+        }
+
+        const run = await this.engine.getRun(runId);
+
+        if (!run || run.status !== RunStatus.WAITING) {
+            return false;
+        }
+
+        return run.updatedAt.getTime() + this.suspendAfterMs <= this.engine.clock.now().getTime();
     }
 
     protected reportError(error: unknown): void {

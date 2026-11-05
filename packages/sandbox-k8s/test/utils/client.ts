@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { V1Pod, V1PodStatus } from '@kubernetes/client-node';
+import type { V1PersistentVolumeClaim, V1Pod, V1PodStatus } from '@kubernetes/client-node';
 import { expect } from 'vitest';
 import { SandboxError } from '@chamvi/core';
 import type { IPodClient, PodExecInput } from '@chamvi/sandbox-k8s';
@@ -28,6 +28,18 @@ export type FakePodClient = IPodClient & {
     deleted: string[];
     /** Label selectors of every list call. */
     selectors: string[];
+    /** Claims as the fake cluster holds them, by name. */
+    claims: Map<string, V1PersistentVolumeClaim>;
+    createdClaims: V1PersistentVolumeClaim[];
+    deletedClaims: string[];
+    /**
+     * Like the `kubernetes.io/pvc-protection` finalizer: a deleted claim
+     * stays, marked with a `deletionTimestamp`, while a pod of its name
+     * exists; it goes with that pod's delete. Default false: removed at once.
+     */
+    protectClaims: boolean;
+    /** Label selectors of every claim list call. */
+    claimSelectors: string[];
     execs: Array<{
         name: string;
         argv: string[];
@@ -55,8 +67,8 @@ const running: Partial<V1PodStatus> = {
 };
 
 /** Matches `key=value,key=value` selectors, the only form the provider sends. */
-function matches(pod: V1Pod, selector: string): boolean {
-    const labels = pod.metadata?.labels ?? {};
+function matches(object: V1Pod | V1PersistentVolumeClaim, selector: string): boolean {
+    const labels = object.metadata?.labels ?? {};
 
     return selector.split(',').every((term) => {
         const [key, value] = term.split('=');
@@ -66,9 +78,12 @@ function matches(pod: V1Pod, selector: string): boolean {
 }
 
 /**
- * An in-memory `IPodClient`: `create` stores the pod, `read` returns it with
+ * An in-memory `IPodClient`: `create` stores the pod (409 for a name it
+ * holds), `read` returns it with
  * the next scripted status (default Running), `delete` removes it (a missing
- * one is fine), `list` filters by labels, `exec` asks `onExec` and writes its
+ * one is fine), `list` filters by labels, the claim methods do the same
+ * for claims (`protectClaims` keeps a deleted claim Terminating while its
+ * pod exists), `exec` asks `onExec` and writes its
  * answer to the given streams; `git config` runs against the pod's
  * `gitConfig`, so a checkout record written on create is read back on find.
  */
@@ -78,6 +93,11 @@ export function createFakePodClient(onExec: FakeExecHandler = () => ({})): FakeP
         created: [],
         deleted: [],
         selectors: [],
+        claims: new Map(),
+        createdClaims: [],
+        deletedClaims: [],
+        protectClaims: false,
+        claimSelectors: [],
         execs: [],
         reads: 0,
         statuses: [],
@@ -86,6 +106,12 @@ export function createFakePodClient(onExec: FakeExecHandler = () => ({})): FakeP
 
         async create(pod) {
             const name = pod.metadata!.name!;
+
+            // like the real client: AlreadyExists, the ApiException as the cause
+            if (client.pods.has(name)) {
+                throw new SandboxError(`cannot create pod ${name}: already exists`, { cause: { code: 409 } });
+            }
+
             const stored = structuredClone(pod);
 
             client.created.push(stored);
@@ -114,6 +140,10 @@ export function createFakePodClient(onExec: FakeExecHandler = () => ({})): FakeP
         async delete(name) {
             client.deleted.push(name);
             client.pods.delete(name);
+
+            if (client.claims.get(name)?.metadata?.deletionTimestamp) {
+                client.claims.delete(name);
+            }
         },
 
         async list(labelSelector) {
@@ -122,6 +152,38 @@ export function createFakePodClient(onExec: FakeExecHandler = () => ({})): FakeP
             return client.pods.values().toArray()
                 .filter((pod) => matches(pod, labelSelector))
                 .map((pod) => structuredClone(pod));
+        },
+
+        async createClaim(claim) {
+            const name = claim.metadata!.name!;
+            const stored = structuredClone(claim);
+
+            client.createdClaims.push(stored);
+            client.claims.set(name, stored);
+
+            return structuredClone(stored);
+        },
+
+        async deleteClaim(name) {
+            client.deletedClaims.push(name);
+
+            const claim = client.claims.get(name);
+
+            if (claim && client.protectClaims && client.pods.has(name)) {
+                claim.metadata = { ...claim.metadata, deletionTimestamp: new Date() };
+
+                return;
+            }
+
+            client.claims.delete(name);
+        },
+
+        async listClaims(labelSelector) {
+            client.claimSelectors.push(labelSelector);
+
+            return client.claims.values().toArray()
+                .filter((claim) => matches(claim, labelSelector))
+                .map((claim) => structuredClone(claim));
         },
 
         async exec(name, input) {

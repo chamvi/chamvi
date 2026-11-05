@@ -10,6 +10,7 @@ import type {
     CoreV1Api,
     Exec,
     KubeConfig,
+    V1PersistentVolumeClaim,
     V1Pod,
 } from '@kubernetes/client-node';
 
@@ -25,7 +26,8 @@ export type PodExecInput = {
 
 /**
  * The pod operations the Kubernetes sandbox needs, in one namespace. Every
- * failure is a `SandboxError`; deleting a missing pod is fine.
+ * failure is a `SandboxError`; deleting a missing pod is fine. The claim
+ * methods are needed only with the provider's `persistence`.
  */
 export interface IPodClient {
     create(pod: V1Pod): Promise<V1Pod>;
@@ -35,6 +37,10 @@ export interface IPodClient {
     list(labelSelector: string): Promise<V1Pod[]>;
     /** Runs argv in the pod's sandbox container; the exit code from the exec status. */
     exec(name: string, input: PodExecInput): Promise<{ exitCode: number }>;
+    createClaim?(claim: V1PersistentVolumeClaim): Promise<V1PersistentVolumeClaim>;
+    /** A missing claim is fine. */
+    deleteClaim?(name: string): Promise<void>;
+    listClaims?(labelSelector: string): Promise<V1PersistentVolumeClaim[]>;
 }
 
 export type CreatePodClientInput = {
@@ -43,7 +49,16 @@ export type CreatePodClientInput = {
 };
 
 export type PodClientParts = {
-    core: Pick<CoreV1Api, 'createNamespacedPod' | 'readNamespacedPod' | 'deleteNamespacedPod' | 'listNamespacedPod'>;
+    core: Pick<
+        CoreV1Api,
+        'createNamespacedPod' |
+        'readNamespacedPod' |
+        'deleteNamespacedPod' |
+        'listNamespacedPod' |
+        'createNamespacedPersistentVolumeClaim' |
+        'deleteNamespacedPersistentVolumeClaim' |
+        'listNamespacedPersistentVolumeClaim'
+    >;
     exec: Pick<Exec, 'exec'>;
     namespace: string;
 };
