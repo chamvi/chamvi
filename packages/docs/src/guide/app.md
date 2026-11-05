@@ -66,6 +66,7 @@ The optional modules ship with the package they configure, on its `/module` subp
 | `openclawModule()` | `@chamvi/channel-openclaw/module` | the `openclawChannel()` named `openclaw` (out only) | `ctx.channels.findOne('openclaw')` |
 | `uiModule()` | `@chamvi/ui/module` | the [dashboard](/guide/ui) at `<basePath>/ui` | |
 | `knowledgeModule({ collections?, repository?, owner?, embeddingModel?, routes? })` | `@chamvi/knowledge/module` | `.knowledge` (`IKnowledge`): the declared and [managed](/guide/knowledge#managed-collections) knowledge collections, indexed in the background once the app started; the REST routes under `<basePath>/knowledge` | `injectKnowledgeContext(ctx)` |
+| `toolMailModule({ accounts?, env? })` | `@chamvi/tool-mail/module` | one read-only IMAP client from `CHAMVI_MAIL_ACCOUNTS` and `CHAMVI_MAIL_<ID>_PASSWORD`, logged out after the engine drained | `injectMailContext(ctx)` |
 | `authupModule()`, `oidcModule(options)` | `@chamvi/app/authup` | the `authup()` and `oidc()` authenticators, after the static tokens | |
 | `consoleChannelModule({ name?, write? })` | `@chamvi/app` | the `consoleChannel()` named `console` (out only) | `ctx.channels.findOne('console')` |
 

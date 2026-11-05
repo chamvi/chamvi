@@ -20,5 +20,6 @@
     "packages/app": "0.7.1",
     "packages/cli": "0.7.1",
     "packages/tool-web": "0.7.1",
-    "packages/knowledge": "0.7.1"
+    "packages/knowledge": "0.7.1",
+    "packages/tool-mail": "0.7.1",
 }
