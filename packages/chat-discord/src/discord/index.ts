@@ -21,6 +21,7 @@ export type {
     DiscordClient,
     DiscordClientFactory,
     DiscordConnectionStatus,
+    DiscordConversationInput,
     DiscordIdentity,
     DiscordInboundAttachment,
     DiscordInboundMessage,

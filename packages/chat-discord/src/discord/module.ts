@@ -29,6 +29,7 @@ import {
     mayResolveParent,
     needsParent,
     resolvePolicy,
+    toConversationRef,
     toConversationTarget,
 } from './policy.ts';
 import { createDiscordSender } from './send.ts';
@@ -371,5 +372,10 @@ export function createDiscordChat(options: DiscordChatOptions): DiscordChatSetup
         ingress,
         channel,
         status: () => connection.status(),
+        conversation: (input) => toConversationRef(input, {
+            account: options.account,
+            channel: channel.name,
+            address: (threadId) => channel.to({ adapter: DISCORD_ADAPTER_NAME, threadId }),
+        }),
     };
 }

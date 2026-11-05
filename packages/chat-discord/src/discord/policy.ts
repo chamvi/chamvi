@@ -7,10 +7,11 @@
 
 import { ChannelType, MessageType } from 'discord.js';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { ConversationTarget } from '@chamvi/core';
+import type { ConversationRef, ConversationTarget } from '@chamvi/core';
 import { isObject } from 'smob';
 import { DISCORD_ADAPTER_NAME } from './constants.ts';
 import type {
+    DiscordConversationInput,
     DiscordIdentity,
     DiscordInboundChannel,
     DiscordInboundMessage,
@@ -262,5 +263,65 @@ export function toConversationTarget(identity: DiscordIdentity, text: string): C
         chat: identity.chat,
         audience,
         text,
+    };
+}
+
+/** A thread id of a DM or a guild channel: `discord:<@me | guild>:<channel>`. */
+const CONVERSATION_THREAD = new RegExp(`^${DISCORD_ADAPTER_NAME}:(@me|[0-9]{1,20}):([0-9]{1,20})$`);
+
+/**
+ * The conversation reference of a DM or a guild channel, through the identity
+ * intake computes for a message there (toConversationTarget()), so both
+ * name one conversation; `address` the chat's source address.
+ */
+export function toConversationRef(
+    input: DiscordConversationInput,
+    ctx: {
+        account: string; 
+        channel: string; 
+        address: (threadId: string) => string 
+    },
+): ConversationRef {
+    const refused = (message: string) => new InvalidAgentDefinitionError(`DiscordChatSetup.conversation: ${message}`);
+
+    if (!isObject(input)) {
+        throw refused('input must be an object.');
+    }
+
+    const match = typeof input.threadId === 'string' ? CONVERSATION_THREAD.exec(input.threadId) : null;
+
+    if (!match) {
+        throw refused('threadId must be `discord:@me:<DM channel id>` or `discord:<guild>:<channel>` (ids, no thread).');
+    }
+
+    const [, guild = '', channel = ''] = match;
+    const dm = guild === '@me';
+
+    if (dm && (typeof input.user !== 'string' || !SNOWFLAKE.test(input.user))) {
+        throw refused('user must be the id of the user the DM is with.');
+    }
+
+    if (!dm && input.user !== undefined) {
+        throw refused('user applies to a DM only.');
+    }
+
+    const identity: DiscordIdentity = {
+        account: ctx.account,
+        chat: encodeChat(guild, channel),
+        ...(dm ? {} : { guild }),
+        channel,
+        author: input.user ?? '',
+        roles: [],
+        dm,
+        mentioned: false,
+    };
+    const target = toConversationTarget(identity, '');
+
+    return {
+        channel: ctx.channel,
+        account: target.account,
+        chat: target.chat,
+        audience: target.audience,
+        address: ctx.address(identity.chat),
     };
 }

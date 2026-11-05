@@ -13,7 +13,7 @@ import type {
     UserFacingSocketConfig,
     WAMessage,
 } from 'baileys';
-import type { IClock, Invoker } from '@chamvi/core';
+import type { ConversationRef, IClock, Invoker } from '@chamvi/core';
 import type {
     Adapter,
     Chat,
@@ -149,11 +149,24 @@ export type WhatsAppChatOptions = {
     socketFactory?: WhatsAppSocketFactory;
 };
 
+/** The chat of a conversation reference (WhatsAppChatSetup.conversation()). */
+export type WhatsAppConversationInput = {
+    /** A normalized phone number jid (a direct chat) or group jid. */
+    chat: string;
+};
+
 export type WhatsAppChatSetup = {
     chat: Chat;
     ingress: ChatIngress;
     channel: ChatChannel;
     status(): WhatsAppConnectionStatus;
+    /**
+     * The reference of a conversation of this channel (e.g. for
+     * `cron.on(expr, { conversation, text })`): the identity intake computes
+     * for a message in that chat and its address. InvalidAgentDefinitionError
+     * for anything but a normalized phone number or group jid.
+     */
+    conversation(input: WhatsAppConversationInput): ConversationRef;
 };
 
 /** The checked policy (internal). */

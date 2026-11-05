@@ -21,6 +21,7 @@ import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type {
     Agent,
     ConversationAccess,
+    IChannel,
     IStore,
     Run,
 } from '@chamvi/core';
@@ -466,7 +467,9 @@ export type DiscordFixture = {
 
 export type DiscordFixtureInput = {
     patch?: Partial<DiscordChatOptions>;
-    agents?: (channel: ChatChannel) => Agent[];
+    agents?: (channel: ChatChannel, setup: DiscordChatSetup) => Agent[];
+    /** channels registered next to the Discord one (e.g. cronChannel()) */
+    channels?: IChannel[];
 };
 
 /** createDiscordChat() over fake clients and a fake fetch, on an Engine with a memory store. */
@@ -509,13 +512,13 @@ export function createDiscordFixture(input: DiscordFixtureInput = {}): DiscordFi
     const memory = createMemoryStore({ clock });
     const engine = new Engine({
         store: memory,
-        agents: input.agents ? input.agents(channel) : [defineModelAgent({
+        agents: input.agents ? input.agents(channel, setup) : [defineModelAgent({
             name: 'assistant',
             model: textModel(),
             instructions: 'Answer.',
             channels: [channel.on()],
         })],
-        channels: [channel],
+        channels: [channel, ...(input.channels ?? [])],
         clock,
         conversations: {
             authorize: (item) => {
