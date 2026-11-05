@@ -26,6 +26,7 @@
         "packages/skills": {"component": "skills"},
         "packages/store-db": {"component": "store-db"},
         "packages/test-kit": {"component": "test-kit"},
+        "packages/tool-calendar": {"component": "tool-calendar"},
         "packages/tool-mail": {"component": "tool-mail"},
         "packages/tool-web": {"component": "tool-web"},
         "packages/ui": {"component": "ui"}
@@ -56,6 +57,7 @@
                 "skills",
                 "store-db",
                 "test-kit",
+                "tool-calendar",
                 "tool-mail",
                 "tool-web",
                 "ui"

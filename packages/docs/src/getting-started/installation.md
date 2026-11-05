@@ -54,15 +54,15 @@ npm install @chamvi/tool-web
 
 `@chamvi/core` and `ai` are peer dependencies. See [Web research tools](/guide/tools#web-research-tools).
 
-## Mail tools
+## Mail and calendar tools
 
-Agents that read a mailbox add the read-only IMAP tools:
+Agents that read a mailbox or a calendar add the read-only IMAP and CalDAV tools:
 
 ```bash
-npm install @chamvi/tool-mail
+npm install @chamvi/tool-mail @chamvi/tool-calendar
 ```
 
-`@chamvi/core` and `ai` are peer dependencies. See [Mail tools](/guide/tools#mail-tools).
+`@chamvi/core` and `ai` are peer dependencies. See [Mail and calendar tools](/guide/tools#mail-and-calendar-tools).
 
 ## App and CLI
 
@@ -88,7 +88,7 @@ npm install --save-dev tsdown   # only for chamvi build
 | `@chamvi/sandbox`, `@chamvi/sandbox-local`, `@chamvi/sandbox-docker`, `@chamvi/sandbox-k8s` | Shipped (0.x), disposable workspaces |
 | `@chamvi/coding` | Shipped (0.x), coding tools over a workspace |
 | `@chamvi/tool-web` | Shipped (0.x), `web_fetch`: public pages as markdown, registry JSON as is |
-| `@chamvi/tool-mail` | Unreleased, read-only mail (IMAP) tools |
+| `@chamvi/tool-mail`, `@chamvi/tool-calendar` | Unreleased, read-only mail (IMAP) and calendar (CalDAV) tools |
 | `@chamvi/channel-openclaw` | Shipped (0.x), the OpenClaw channel: messages and approval requests into a chat |
 | `@chamvi/ui` | Shipped (0.x), the dashboard |
 | `@chamvi/knowledge` | Unreleased, knowledge collections searched by meaning through `knowledge_search` |

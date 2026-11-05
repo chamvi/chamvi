@@ -1,6 +1,6 @@
 # @chamvi/tool-mail
 
-Read-only mail tools for chamvi agents: search, read and thread mails and extract attachment text over IMAP (Gmail, dovecot, Cyrus, ...), without ever changing a mailbox. The public API of `packages/tool-mail/src/index.ts` and its `/module` entry. See [Mail tools](/guide/tools#mail-tools) for an example.
+Read-only mail tools for chamvi agents: search, read and thread mails and extract attachment text over IMAP (Gmail, dovecot, Cyrus, ...), without ever changing a mailbox. The public API of `packages/tool-mail/src/index.ts` and its `/module` entry. See [Mail and calendar tools](/guide/tools#mail-and-calendar-tools) for an example.
 
 ```bash
 npm install @chamvi/tool-mail @chamvi/core ai --save
