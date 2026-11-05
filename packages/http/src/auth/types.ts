@@ -9,7 +9,7 @@ import type { Permission } from './constants.ts';
 
 export type PermissionName = typeof Permission[keyof typeof Permission];
 
-export type AgentAction = 'run' | 'approve';
+export type AgentAction = 'run' | 'approve' | 'read';
 
 export type Principal = {
     id: string;

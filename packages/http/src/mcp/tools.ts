@@ -31,6 +31,7 @@ import {
 import { MCP_CHANNEL_NAME } from '../channels/constants.ts';
 import {
     assertCanListRuns,
+    canReadAgentContent,
     findHttpSubscription,
     loadApprovableRun,
     loadReadableRun,
@@ -165,14 +166,14 @@ function registerReadTools(server: McpServer, ctx: HttpContext, principal: Princ
 
     server.registerTool('list_runs', {
         title: 'List runs',
-        description: 'Lists runs, oldest first. Without run:read, agent must name an agent you may run.',
+        description: 'Lists runs, oldest first. Without run:read, agent must name an agent you may run. A private agent\'s runs need agent:<agent>:read.',
         inputSchema: LIST_RUNS_INPUT,
         annotations: { readOnlyHint: true },
     }, (args) => runTool(ctx, async () => {
-        assertCanListRuns(principal, args.agent);
-
+        const agents = assertCanListRuns(principal, args.agent, ctx.agents);
         const { data, total } = await ctx.store.runs.find({
             ...(args.agent !== undefined ? { agent: args.agent } : {}),
+            ...(agents !== undefined ? { agents } : {}),
             ...(args.status !== undefined ? { status: args.status } : {}),
             limit: args.limit ?? DEFAULT_PAGE_LIMIT,
             offset: args.offset ?? 0,
@@ -380,7 +381,11 @@ function registerRunTool(
                 signal,
             });
 
-            return toolResult(toRunToolResult(run, deduplicated, approval));
+            // the result carries content of the run and of a descendant waiting on an approval
+            const readable = canReadAgentContent(extra.principal, run.agent, ctx.agents) &&
+                (!approval || canReadAgentContent(extra.principal, approval.agent, ctx.agents));
+
+            return toolResult(toRunToolResult(run, deduplicated, readable, approval));
         } finally {
             release();
         }
