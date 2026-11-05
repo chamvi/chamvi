@@ -31,6 +31,7 @@ describe('public api', () => {
         expect(mail.MAIL_FETCH_MAX_BYTES).toBe(25 * 1024 * 1024);
         expect(mail.MAIL_ZIP_TOTAL_MAX_BYTES).toBe(20 * 1024 * 1024);
         expect(mail.MAIL_OOXML_MAX_SLIDES).toBe(200);
+        expect(mail.MAIL_XLSX_MAX_COLUMNS).toBe(256);
         expect(mail.MAIL_SUBJECT_MAX_CHARS).toBe(1000);
         expect(mail.MAIL_ADDRESSES_MAX_CHARS).toBe(2000);
         expect(mail.MAIL_INVITE_FIELD_MAX_CHARS).toBe(500);
@@ -55,6 +56,7 @@ describe('public api', () => {
             'MAIL_SUBJECT_MAX_CHARS',
             'MAIL_THREAD_MAX_REFERENCES',
             'MAIL_TIMEOUT_MS',
+            'MAIL_XLSX_MAX_COLUMNS',
             'MAIL_ZIP_PART_MAX_BYTES',
             'MAIL_ZIP_TOTAL_MAX_BYTES',
             'createMailClient',

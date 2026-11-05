@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { MAIL_XLSX_MAX_COLUMNS } from '../text/constants.ts';
 import { stripHtml } from '../text/module.ts';
 
 /** A tag `<name` followed by whitespace, `>` or `/` (so `<c` does not match `<col`). */
@@ -78,6 +79,23 @@ function inner(xml: string, name: string): string | undefined {
     return first.done ? undefined : first.value.content;
 }
 
+/** The zero-based column of a cell reference (`r="C2"` is 2), `undefined` without one. */
+function cellColumn(attributes: string): number | undefined {
+    const letters = /\br="([A-Z]{1,3})\d*"/.exec(attributes)?.[1];
+
+    if (!letters) {
+        return undefined;
+    }
+
+    let column = 0;
+
+    for (const letter of letters) {
+        column = column * 26 + (letter.charCodeAt(0) - 64);
+    }
+
+    return column - 1;
+}
+
 /** The value of attribute `t` (the cell type), `''` without one. */
 function cellType(attributes: string): string {
     return /\bt="([^"]*)"/.exec(attributes)?.[1] ?? '';
@@ -113,12 +131,27 @@ function cellText(cell: Element, strings: readonly string[]): string {
     return stripHtml(value);
 }
 
-/** A worksheet as text: one line per row, cells separated by a tab. */
+/**
+ * A worksheet as text: one line per row, cells separated by a tab, each cell in its column (`r`), so the cells a
+ * row omits stay empty columns, up to `MAIL_XLSX_MAX_COLUMNS`.
+ */
 export function sheetText(xml: string, strings: readonly string[]): string {
     const rows: string[] = [];
 
     for (const row of elements(xml, 'row', 0, xml.length)) {
-        rows.push(Array.from(elements(row.content, 'c', 0, row.content.length), (cell) => cellText(cell, strings)).join('\t'));
+        const cells: string[] = [];
+
+        for (const cell of elements(row.content, 'c', 0, row.content.length)) {
+            const column = Math.min(cellColumn(cell.attributes) ?? cells.length, MAIL_XLSX_MAX_COLUMNS);
+
+            while (cells.length < column) {
+                cells.push('');
+            }
+
+            cells.push(cellText(cell, strings));
+        }
+
+        rows.push(cells.join('\t'));
     }
 
     return rows.join('\n');
