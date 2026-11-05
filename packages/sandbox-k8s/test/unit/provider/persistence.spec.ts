@@ -187,6 +187,37 @@ describe('kubernetes persistence', () => {
         expect(client.claims.size).toBe(0);
     });
 
+    it('dispose deletes the claim even when the pod delete fails, then rejects', async () => {
+        const { client, provider } = setup();
+        const workspace = await provider.create({ runId: 'r1' });
+        const name = `chamvi-ws-${workspace.id}`;
+
+        client.delete = async () => {
+            throw new SandboxError('cannot delete pod: forbidden');
+        };
+
+        await expect(workspace.dispose()).rejects.toThrow(/forbidden/);
+        expect(client.deletedClaims).toEqual([name]);
+    });
+
+    it('dispose reports both failures when pod and claim delete fail', async () => {
+        const { client, provider } = setup();
+        const workspace = await provider.create({ runId: 'r1' });
+
+        client.delete = async () => {
+            throw new SandboxError('pod delete forbidden');
+        };
+        client.deleteClaim = async () => {
+            throw new SandboxError('claim delete forbidden');
+        };
+
+        const error = await workspace.dispose().catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(SandboxError);
+        expect((error as Error).message).toMatch(/pod delete forbidden/);
+        expect((error as Error).message).toMatch(/claim delete forbidden/);
+    });
+
     it('collection deletes an expired claim and a claim whose run settled, pod or not', async () => {
         const { client, provider } = setup();
 

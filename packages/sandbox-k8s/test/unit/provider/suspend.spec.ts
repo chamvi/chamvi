@@ -20,6 +20,8 @@ const START = 1_000_000;
 const COMMIT = 'a'.repeat(40);
 const REPO = 'https://github.com/octo/demo.git';
 const DAY_MS = 86_400_000;
+/** At least the wait between two checkout reads. */
+const CHECKOUT_READ_RETRY_MS = 1000;
 
 /** The remote's default branch (main) and HEAD for the checkout. */
 const answerCommit: FakeExecHandler = (argv) => {
@@ -59,6 +61,39 @@ function setup(options: Partial<KubernetesSandboxOptions> = {}) {
 }
 
 const waiting = { isSettled: async () => false, isSuspendable: async () => true };
+
+/** Makes every checkout read (`git config --get-regexp`) throw while `when()` holds. */
+function failCheckoutReads(client: FakePodClient, when: (name: string) => boolean = () => true) {
+    const { exec } = client;
+
+    client.exec = async (name, input) => {
+        const command = unwrap(input.argv);
+
+        if (command[1] === 'config' && command[2] === '--get-regexp' && when(name)) {
+            client.execs.push({ name, argv: [...input.argv] });
+
+            throw new Error('exec failed: container not found');
+        }
+
+        return exec(name, input);
+    };
+}
+
+/** Holds every pod delete until `release()`; `called` once one was asked for. */
+function gateDeletes(client: FakePodClient) {
+    const { delete: remove } = client;
+    const { promise: gate, resolve } = Promise.withResolvers<void>();
+    const state = { called: false, release: () => resolve() };
+
+    client.delete = async (name) => {
+        state.called = true;
+        await gate;
+
+        return remove(name);
+    };
+
+    return state;
+}
 
 function envOf(pod: V1Pod): Record<string, string> {
     return Object.fromEntries(pod.spec!.containers[0]!.env!.map(({ name, value }) => [name, value!]));
@@ -450,5 +485,121 @@ describe('kubernetes suspension', () => {
         await manager.release('r1');
         expect(client.created).toHaveLength(1);
         expect(client.claims.has(name)).toBe(false);
+    });
+
+    it('a claim whose running pod cannot be read throws SandboxError and keeps claim and pod', async () => {
+        const {
+            client, 
+            clock, 
+            provider, 
+        } = setup();
+        const workspace = await provider.create({ runId: 'r1', repo: REPO });
+        const name = `chamvi-ws-${workspace.id}`;
+        const replica = provide(client, clock);
+
+        failCheckoutReads(client);
+
+        const error = await drive(replica.find('r1'), clock, CHECKOUT_READ_RETRY_MS).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(SandboxError);
+        expect(client.claims.has(name)).toBe(true);
+        expect(client.pods.has(name)).toBe(true);
+        expect(client.deletedClaims).toEqual([]);
+        expect(client.created).toHaveLength(1);
+    });
+
+    it('a claim whose pod went while its checkout was read is rebuilt once', async () => {
+        const {
+            client, 
+            clock, 
+            provider, 
+        } = setup();
+        const workspace = await provider.create({ runId: 'r1', repo: REPO });
+        const name = `chamvi-ws-${workspace.id}`;
+        const replica = provide(client, clock);
+        let suspended = false;
+
+        // another replica suspends the pod between the list and the read
+        failCheckoutReads(client, (pod) => {
+            if (!suspended) {
+                suspended = true;
+                client.pods.delete(pod);
+            }
+
+            return !client.pods.has(pod);
+        });
+
+        const found = await drive(replica.find('r1'), clock, CHECKOUT_READ_RETRY_MS);
+
+        expect(found.map(({ id, info }) => ({ id, commit: info.commit }))).toEqual([{ id: workspace.id, commit: COMMIT }]);
+        expect(client.created).toHaveLength(2);
+        expect(client.pods.has(name)).toBe(true);
+        expect(client.claims.has(name)).toBe(true);
+    });
+
+    it('a rebuilt pod whose checkout cannot be read throws SandboxError and keeps the claim', async () => {
+        const {
+            client, 
+            clock, 
+            provider, 
+        } = setup();
+        const workspace = await provider.create({ runId: 'r1', repo: REPO });
+        const name = `chamvi-ws-${workspace.id}`;
+
+        client.pods.delete(name);
+        failCheckoutReads(client);
+
+        const error = await drive(provide(client, clock).find('r1'), clock, CHECKOUT_READ_RETRY_MS).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(SandboxError);
+        expect(client.claims.has(name)).toBe(true);
+        expect(client.deletedClaims).toEqual([]);
+    });
+
+    it('a find with restore false answers a running claimed pod without reading its checkout', async () => {
+        const {
+            client, 
+            clock, 
+            provider, 
+        } = setup();
+        const workspace = await provider.create({ runId: 'r1', repo: REPO });
+        const name = `chamvi-ws-${workspace.id}`;
+
+        failCheckoutReads(client);
+
+        const execs = client.execs.length;
+        const found = await provide(client, clock).find('r1', { restore: false });
+
+        expect(found.map(({ id }) => id)).toEqual([workspace.id]);
+        expect(client.execs).toHaveLength(execs);
+
+        await found[0]!.dispose();
+        expect(client.pods.has(name)).toBe(false);
+        expect(client.claims.has(name)).toBe(false);
+    });
+
+    it('a find during a suspension waits for its pod delete and rebuilds the pod', async () => {
+        const { client, provider } = setup();
+        const workspace = await provider.create({ runId: 'r1', repo: REPO });
+        const name = `chamvi-ws-${workspace.id}`;
+        const gate = gateDeletes(client);
+        const collecting = provider.collectGarbage(waiting);
+
+        while (!gate.called) {
+            await flush();
+        }
+
+        const finding = provider.find('r1');
+
+        await flush();
+        gate.release();
+        await collecting;
+
+        const found = await finding;
+
+        expect(found.map(({ id }) => id)).toEqual([workspace.id]);
+        expect(found[0]).not.toBe(workspace);
+        expect(client.created).toHaveLength(2);
+        expect(client.pods.has(name)).toBe(true);
     });
 });

@@ -72,6 +72,11 @@ function isStatus(error: unknown, code: number): boolean {
     return isApiStatus(error, code) || (isObject(error) && isApiStatus(error.cause, code));
 }
 
+/** The message of `error`, also for a thrown non-error. */
+function messageOf(error: unknown): string {
+    return Error.isError(error) ? error.message : String(error);
+}
+
 /** True for a pod that is gone or going: being deleted, failed or finished. */
 function isEnded(pod: V1Pod): boolean {
     return Boolean(pod.metadata?.deletionTimestamp) || podState(pod).state === 'failed';
@@ -115,6 +120,8 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
     const disposing = new WeakSet<IWorkspace>();
     // ids of the creates in flight here: their claim may exist before the pod
     const creating = new Set<string>();
+    // the pod deletes of suspensions in flight, by workspace id: a find waits them out
+    const suspensions = new Map<string, Promise<unknown>>();
 
     /** Deletes claim `name` (missing is fine); only called with `persistence`, whose check found the method. */
     function deleteClaim(name: string): Promise<void> {
@@ -132,8 +139,23 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         return {
             ...transport,
             async remove() {
-                await transport.remove();
-                await deleteClaim(name);
+                // always the claim too: pvc-protection keeps one in use until its pod is gone
+                const [pod, claim] = await Promise.allSettled([
+                    transport.remove(),
+                    deleteClaim(name),
+                ]);
+
+                if (pod.status === 'rejected' && claim.status === 'rejected') {
+                    throw new SandboxError(`cannot remove workspace ${name}: ${messageOf(pod.reason)}; ${messageOf(claim.reason)}`, { cause: new AggregateError([pod.reason, claim.reason]) });
+                }
+
+                if (pod.status === 'rejected') {
+                    throw pod.reason;
+                }
+
+                if (claim.status === 'rejected') {
+                    throw claim.reason;
+                }
             },
         };
     }
@@ -303,7 +325,8 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             throw new SandboxError(`cannot rebuild workspace pod ${name}`, { cause: error });
         }
 
-        const found = await openFound(id, info, findOptions.signal);
+        // a read failure throws (the claim holds the run's files, never "not found")
+        const found = await openFound(id, info, findOptions.signal, true);
 
         if (!found && created) {
             // an orphan claim (its create died before the checkout record): no
@@ -314,10 +337,22 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         return found;
     }
 
-    /** Opens a found workspace and reads its checkout; undefined (and not held) without the record. */
-    async function openFound(id: string, info: WorkspaceInfo, signal?: AbortSignal): Promise<IWorkspace | undefined> {
+    /**
+     * Opens a found workspace and reads its checkout; undefined (and not
+     * held) without the record. With `failOnError` (a claim's workspace) a
+     * read that keeps failing is a SandboxError (not held), never undefined.
+     */
+    async function openFound(id: string, info: WorkspaceInfo, signal?: AbortSignal, failOnError = false): Promise<IWorkspace | undefined> {
         const workspace = open(id, info);
-        const checkout = await readCheckout(workspace, signal, clock);
+        let checkout: Awaited<ReturnType<typeof readCheckout>>;
+
+        try {
+            checkout = await readCheckout(workspace, signal, clock, { failOnError });
+        } catch (error) {
+            live.delete(id);
+
+            throw error;
+        }
 
         if (!checkout) {
             // a create that died before its checkout finished: left to the collection
@@ -331,20 +366,38 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         return workspace;
     }
 
+    /** Pod `name` as it is now, undefined once it is gone. */
+    async function readPod(name: string): Promise<V1Pod | undefined> {
+        try {
+            return await client.read(name);
+        } catch (error) {
+            if (isStatus(error, 404)) {
+                return undefined;
+            }
+
+            throw error;
+        }
+    }
+
     /**
      * The workspace of a run's claim (persistence): the held handle while its
      * pod runs (or its create here is still in flight), else one opened on
      * the running pod, else the pod rebuilt; a failed or finished pod is
      * deleted first (with `restore: false` a handle on the claim, only to
-     * dispose). Undefined for an expired, deleting, foreign or unreadable claim.
+     * dispose, its checkout never read). A suspension of it in flight here
+     * is waited out first. Undefined for an expired, deleting or foreign
+     * claim and for one without its checkout record (an orphan); a checkout
+     * that cannot be read is a SandboxError (the claim kept), unless the pod
+     * turned out gone meanwhile: then the pod is rebuilt once.
      */
     async function findClaimed(
         claim: V1PersistentVolumeClaim,
-        pod: V1Pod | undefined,
+        listed: V1Pod | undefined,
         runId: string,
         deployment: string,
         findOptions: WorkspaceFindOptions,
     ): Promise<IWorkspace | undefined> {
+        let pod = listed;
         const id = claim.metadata?.labels?.[WORKSPACE_LABEL] ?? '';
         const held = live.get(id);
 
@@ -363,6 +416,14 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             return undefined;
         }
 
+        const suspension = suspensions.get(id);
+
+        if (suspension) {
+            // the listed pod is going: decide on what is left once its delete settled
+            await suspension;
+            pod = await guard(`read workspace pod ${claim.metadata?.name}`, () => readPod(claim.metadata!.name!));
+        }
+
         const running = pod !== undefined && !isEnded(pod) && podState(pod).state === 'running';
 
         if (held && !held.disposed && (running || creating.has(id))) {
@@ -378,13 +439,24 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             live.delete(id);
         }
 
-        if (running) {
-            return openFound(id, info, findOptions.signal);
+        if (findOptions.restore === false) {
+            // a lookup to remove it: no checkout read, no pod scheduled, the handle's dispose deletes pod and claim
+            return open(id, info);
         }
 
-        if (findOptions.restore === false) {
-            // a lookup to remove it: no pod scheduled, the handle's dispose deletes pod and claim
-            return open(id, info);
+        if (running) {
+            try {
+                return await openFound(id, info, findOptions.signal, true);
+            } catch (error) {
+                // suspended (or evicted) between the list and the read: rebuilt once below
+                const now = await guard(`read workspace pod ${claim.metadata?.name}`, () => readPod(claim.metadata!.name!));
+
+                if (now && !isEnded(now)) {
+                    throw error;
+                }
+
+                pod = now;
+            }
         }
 
         if (pod && !pod.metadata?.deletionTimestamp && podState(pod).state === 'failed') {
@@ -415,13 +487,17 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
 
         live.delete(id);
 
-        try {
-            await guard(`suspend workspace pod ${name}`, () => client.delete(name));
-        } catch (error) {
-            return error;
-        }
+        const deleting = guard(`suspend workspace pod ${name}`, () => client.delete(name)).then(() => undefined, (error: unknown) => error);
 
-        return undefined;
+        suspensions.set(id, deleting);
+
+        try {
+            return await deleting;
+        } finally {
+            if (suspensions.get(id) === deleting) {
+                suspensions.delete(id);
+            }
+        }
     }
 
     return {
