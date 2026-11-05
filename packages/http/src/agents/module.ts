@@ -13,6 +13,7 @@ import { Permission } from '../auth/constants.ts';
 import { isWebhookChannel } from '../channels/helpers.ts';
 import { readJsonBody, validateBody } from '../request/helpers.ts';
 import {
+    assertCanReadState,
     assertCollection,
     createKvContainer,
     listSchedules,
@@ -52,17 +53,20 @@ export function registerAgentRoutes(app: App, ctx: HttpContext): void {
     }));
 
     app.get('/agents/:name/state/kv', defineCoreHandler(async (event) => {
-        await authorize(event, ctx, Permission.STATE_READ);
-
+        const principal = await authorize(event, ctx, Permission.STATE_READ);
         const agent = requireAgent(ctx.agents, param(event, 'name'));
+
+        assertCanReadState(principal, agent);
 
         return { data: await ctx.store.state.find(agent.name, parseKvListQuery(event.searchParams)) };
     }));
 
     app.get('/agents/:name/state/kv/:key', defineCoreHandler(async (event) => {
-        await authorize(event, ctx, Permission.STATE_READ);
-
+        const principal = await authorize(event, ctx, Permission.STATE_READ);
         const agent = requireAgent(ctx.agents, param(event, 'name'));
+
+        assertCanReadState(principal, agent);
+
         const key = param(event, 'key');
         const value = await ctx.store.state.findOne(agent.name, key);
 
@@ -70,9 +74,11 @@ export function registerAgentRoutes(app: App, ctx: HttpContext): void {
     }));
 
     app.patch('/agents/:name/state/kv/:key', defineCoreHandler(async (event) => {
-        await authorize(event, ctx, Permission.STATE_WRITE);
-
+        const principal = await authorize(event, ctx, Permission.STATE_WRITE);
         const agent = requireAgent(ctx.agents, param(event, 'name'));
+
+        assertCanReadState(principal, agent);
+
         const key = param(event, 'key');
         const body = await validateBody(kvContainer, await readJsonBody(event, ctx.bodyLimit), { required: true });
 
@@ -82,9 +88,11 @@ export function registerAgentRoutes(app: App, ctx: HttpContext): void {
     }));
 
     app.get('/agents/:name/state/collections/:collection', defineCoreHandler(async (event) => {
-        await authorize(event, ctx, Permission.STATE_READ);
-
+        const principal = await authorize(event, ctx, Permission.STATE_READ);
         const agent = requireAgent(ctx.agents, param(event, 'name'));
+
+        assertCanReadState(principal, agent);
+
         const collection = param(event, 'collection');
 
         assertCollection(agent, collection);

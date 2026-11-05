@@ -83,8 +83,7 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
         const principal = await authenticate(event, ctx);
         const query = parseRunListQuery(event.searchParams, ctx.agents.names());
 
-        assertCanListRuns(principal, query.agent);
-
+        const agents = assertCanListRuns(principal, query.agent, ctx.agents);
         const {
             parent,
             waiting,
@@ -92,6 +91,7 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
         } = query;
         const { data, total } = await ctx.store.runs.find({
             ...options,
+            ...(agents !== undefined ? { agents } : {}),
             parentRunId: parent,
             waitKind: waiting,
         });

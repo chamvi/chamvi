@@ -56,6 +56,31 @@ describe('defineModelAgent', () => {
         expect(agent.definition.budget.maxTokens).toBeUndefined();
     });
 
+    it('keeps the private flag', () => {
+        expect(defineModelAgent({
+            ...base, 
+            name: 'a', 
+            private: true, 
+        }).definition.private).toBe(true);
+        expect(defineModelAgent({
+            ...base, 
+            name: 'a', 
+            private: false, 
+        }).definition.private).toBe(false);
+        expect(defineModelAgent({ ...base, name: 'a' }).definition.private).toBeUndefined();
+    });
+
+    it('refuses a private flag that is not a boolean', () => {
+        const def = {
+            ...base, 
+            name: 'a', 
+            private: 'yes', 
+        } as unknown as ModelAgentDefinition;
+
+        expect(() => defineModelAgent(def)).toThrow(InvalidAgentDefinitionError);
+        expect(() => defineModelAgent(def)).toThrow('Agent "a": private must be a boolean.');
+    });
+
     it('keeps budget overrides', () => {
         const agent = defineModelAgent({
             ...base,

@@ -22,6 +22,7 @@ import {
     assertDescription,
     assertModelAgent,
     assertNoNeedsApproval,
+    assertPrivate,
     assertSimpleAgent,
     assertSubtreeBudget,
     assertToolsContext,
@@ -70,6 +71,7 @@ function assertName(name: unknown): void {
 /** The checks both kinds share, then the definition with its budget defaults. */
 function build<S extends StateSchema>(def: AgentDefinition<S>): { name: string; definition: AgentDefinition<S> } {
     assertDescription(def);
+    assertPrivate(def);
 
     // Factories, state and skills can add tools; validate their names after assembly.
     const completeTools = typeof def.tools === 'function' || def.state || def.skills?.length ?

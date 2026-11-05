@@ -29,6 +29,8 @@ export type AgentSummary = {
     budget: Budget;
     /** Declared state collections. */
     state: string[];
+    /** A private agent: reading its runs and state needs `agent:<name>:read`. */
+    private: boolean;
 };
 
 /** An agent that failed to load, as `GET /agents` lists it next to the agents. */

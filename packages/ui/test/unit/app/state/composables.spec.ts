@@ -19,6 +19,7 @@ const agent = (name: string, state: string[]): AgentWire => ({
     channels: [],
     budget: { maxSteps: 20 },
     state,
+    private: false,
 });
 
 function stateClient() {

@@ -8,13 +8,14 @@
 
 import { computed, ref } from 'vue';
 import { useAgentRollups } from '../agents/composables.ts';
-import { channelChips, matchesName } from '../agents/helpers.ts';
+import { channelChips, hiddenRunsNotice, matchesName } from '../agents/helpers.ts';
 import AgentCard from '../components/agent-card/AgentCard.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';
 import { useAppContext } from '../context/module.ts';
 
-const { client } = useAppContext();
+const { client, session } = useAppContext();
+const permissions = computed(() => session.principal.value?.permissions ?? []);
 const {
     agents,
     issues,
@@ -93,6 +94,7 @@ const shown = computed(() => agents.value.filter((agent) => matchesName(agent, q
                 :agent="agent"
                 :chips="channelChips(agent, schedules)"
                 :rollup="rollups[agent.name]"
+                :hidden="hiddenRunsNotice(agent, permissions)"
             />
         </div>
         <div

@@ -664,6 +664,7 @@ tr.expansion td { background: var(--ch-sunken); padding: 12px 14px; cursor: defa
 .last .field-label { font-size: 9.5px; letter-spacing: .12em; }
 .last-row { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; }
 .last-row .when { margin-left: auto; }
+.agent-card .hidden-runs { display: flex; align-items: center; gap: 6px; margin: 12px 0; color: var(--ch-muted); }
 .last p { color: var(--ch-muted); }
 .agent-foot { margin: auto 0 0; display: grid; gap: 7px; padding: 11px 18px 12px; background: var(--ch-sunken); border-top: 1px solid var(--ch-line); font-size: 12.5px; color: var(--ch-muted); }
 .agent-foot > div { display: flex; flex-wrap: wrap; align-items: center; gap: 5px 8px; min-width: 0; }

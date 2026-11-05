@@ -188,6 +188,26 @@ describe('simple agents', () => {
         expect(() => defineSimpleAgent(def)).toThrow(/"run"/);
     });
 
+    it('keeps the private flag', () => {
+        expect(defineSimpleAgent({
+            name: 'fan', 
+            run, 
+            private: true, 
+        }).definition.private).toBe(true);
+        expect(defineSimpleAgent({ name: 'fan', run }).definition.private).toBeUndefined();
+    });
+
+    it('refuses a private flag that is not a boolean', () => {
+        const def = {
+            name: 'fan', 
+            run, 
+            private: 'yes', 
+        } as unknown as SimpleAgentDefinition;
+
+        expect(() => defineSimpleAgent(def)).toThrow(InvalidAgentDefinitionError);
+        expect(() => defineSimpleAgent(def)).toThrow('Agent "fan": private must be a boolean.');
+    });
+
     it('refuses an empty description', () => {
         expect(() => defineSimpleAgent({
             name: 'fan',

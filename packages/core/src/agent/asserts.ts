@@ -84,6 +84,13 @@ export function assertDescription(def: AgentDefinition): void {
     }
 }
 
+/** `private`, when given, is a boolean. */
+export function assertPrivate(def: AgentDefinition): void {
+    if (def.private !== undefined && typeof def.private !== 'boolean') {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": private must be a boolean.`);
+    }
+}
+
 /**
  * Every own key of `toolsContext` must name a tool of `tools` that is not a
  * chamvi tool (those get the run context instead); anything else is a

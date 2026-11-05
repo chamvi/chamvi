@@ -7,7 +7,7 @@
  */
 
 import { ACTIVITY_LIMIT } from '../../agents/constants.ts';
-import { formatBudgetTime } from '../../agents/helpers.ts';
+import { agentReadPermission, formatBudgetTime } from '../../agents/helpers.ts';
 import type { AgentRollup, ChannelChip as Chip } from '../../agents/types.ts';
 import type { AgentWire } from '../../api/types.ts';
 import { RouteName } from '../../router/constants.ts';
@@ -22,6 +22,8 @@ defineProps<{
     agent: AgentWire;
     chips: Chip[];
     rollup?: AgentRollup;
+    /** Set when the principal may not read the agent's runs: shown instead of the rollup. */
+    hidden?: string;
 }>();
 
 </script>
@@ -42,6 +44,12 @@ defineProps<{
                     {{ agent.name }}
                 </RouterLink>
             </h2>
+            <span
+                v-if="agent.private"
+                class="tag"
+                data-testid="agent-private"
+                :title="`Private: reading its runs and state needs ${agentReadPermission(agent.name)}`"
+            ><NavIcon name="lock" />private</span>
             <NavIcon name="go" />
         </div>
         <div class="trigs">
@@ -51,7 +59,14 @@ defineProps<{
                 :chip="chip"
             />
         </div>
-        <template v-if="rollup">
+        <p
+            v-if="hidden"
+            class="hidden-runs"
+            data-testid="agent-runs-hidden"
+        >
+            <NavIcon name="lock" />{{ hidden }}
+        </p>
+        <template v-else-if="rollup">
             <div class="nums">
                 <div :class="['n-run', { zero: !rollup.running }]">
                     <small>Running</small><b>{{ rollup.running }}</b>

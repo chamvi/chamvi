@@ -248,13 +248,19 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
 /**
  * What `run_<agent>` answers for a run: `waiting` is the approval of
  * `approval` (a descendant) when given, else the run's own wait point.
+ * Without `readable` (the principal may not read the run's or the approval
+ * run's agent) only the run id, status and `deduplicated`.
  */
-export function toRunToolResult(run: Run, deduplicated: boolean, approval?: Run): RunToolResult {
+export function toRunToolResult(run: Run, deduplicated: boolean, readable: boolean, approval?: Run): RunToolResult {
     const result: RunToolResult = {
         runId: run.id,
         status: run.status,
         deduplicated,
     };
+
+    if (!readable) {
+        return result;
+    }
 
     if (run.output !== undefined) {
         result.output = run.output;
