@@ -17,6 +17,8 @@ export function createInboxDigest(model: LanguageModel, password: string) {
 
     return defineModelAgent({
         name: 'inbox-digest',
+        // only agent:inbox-digest:read holders read its runs
+        private: true,
         model,
         // POST /agents/inbox-digest/runs and MCP run_inbox-digest start a run
         channels: [http.on()],

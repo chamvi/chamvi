@@ -22,7 +22,7 @@ Last checked against the codebase and GitHub on **2026-10-30**.
 | `@chamvi/chat-discord` | Discord as a chat channel: a Gateway connection, a policy by guild, channel, user and role ids, mention or reply addressing, REST replies without pings and a nonce per message. Unreleased. See [Discord](/deployment/discord) |
 | `@chamvi/coding` | Coding tools (`read_file`, `write_file`, `edit_file`, `grep`, `list_files`, `bash`, `git_diff`) over a run's workspaces and the `ICodingBackend` contract |
 | `@chamvi/tool-web` | `web_fetch` behind an address check, through a hapic client with the proxy from the environment. See [Web research tools](/guide/tools#web-research-tools) |
-| `@chamvi/tool-mail` | Read-only mail tools (IMAP: search, read, threads, attachment text) with an app module reading accounts from the environment. Unreleased. See [Mail tools](/guide/tools#mail-tools) |
+| `@chamvi/tool-mail`, `@chamvi/tool-calendar` | Read-only mail (IMAP: search, read, threads, attachment text) and calendar (CalDAV: events with recurrences expanded) tools with app modules reading accounts from the environment. Unreleased. See [Mail and calendar tools](/guide/tools#mail-and-calendar-tools) |
 | `@chamvi/ui` | Vue 3 dashboard served by `uiRoutes()`: an agents overview, runs started from the agent page, runs with live steps, an approvals inbox, agent state, schedules |
 | `@chamvi/app`, `@chamvi/cli` | `createApp()` with orkos modules, folder agents and dependency preparation, named model providers and app-wide defaults, `createTestApp()`, `start --check`, visible reload failures, and the `chamvi` commands `dev`, `build`, `start`, `run-job`, `migrate`. See [Apps & Modules](/guide/app), [Agent Folders](/guide/agent-folders) and [CLI](/reference/cli) |
 | `@chamvi/skills` | Verified, digest-pinned local bundles and Git sources, startup installation, agent-scoped metadata catalogs and the `load_skill` tool. See [Approved Skills](/guide/skills) |
@@ -48,7 +48,7 @@ The store, cron, HTTP/MCP authentication, GitHub integration, sandboxes, coding 
 
 ### M2: mail digest <Badge type="warning" text="Planned" />
 
-Every morning, and on request through OpenClaw, the owner gets a short digest: what matters today, what still needs action, what is waiting on others. Open loops are tracked in typed state collections across days. The read-only mail tools (`@chamvi/tool-mail`) exist; the mail (IMAP) channel and the digest agent remain planned. Opt-in conversation recall and notes are already implemented, but do not yet deliver this mail workflow or the original threaded-run design.
+Every morning, and on request through OpenClaw, the owner gets a short digest: what matters today, what still needs action, what is waiting on others. Open loops are tracked in typed state collections across days. The read-only mail and calendar tools (`@chamvi/tool-mail`, `@chamvi/tool-calendar`) exist; the mail (IMAP) channel and the digest agent remain planned. Opt-in conversation recall and notes are already implemented, but do not yet deliver this mail workflow or the original threaded-run design.
 
 ### M3: dependency upgrade <Badge type="warning" text="Planned" />
 
