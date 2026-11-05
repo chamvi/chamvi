@@ -71,6 +71,10 @@ rules:
   - apiGroups: [""]
     resources: ["pods/exec"]
     verbs: ["get", "create"]
+  # only with persistence
+  - apiGroups: [""]
+    resources: ["persistentvolumeclaims"]
+    verbs: ["create", "get", "list", "delete"]
 ```
 
 **Pod Security**: by default the pods run as root with a writable root filesystem and the capabilities `CHOWN`, `DAC_OVERRIDE`, `FOWNER`, `FSETID`, `SETUID`, `SETGID` and `KILL`, which the Pod Security level `baseline` admits and `restricted` refuses. Label the sandbox namespace accordingly:
@@ -94,9 +98,9 @@ Each workspace is a bare pod `chamvi-ws-<id>` with one container `sandbox`:
 | Container security | `allowPrivilegeEscalation: false`, not privileged, `readOnlyRootFilesystem` from `readOnlyRoot` (default false), all capabilities dropped and for root `ROOT_CAPABILITIES` added back |
 | Command | `command: ['sh', '-c', SLEEP_UNTIL_SCRIPT, 'sh', '<expiresAt in epoch seconds>']` (sleeps until `expiresAt`, so a pod scheduled late stops in time), replacing the image's entrypoint (an image whose entrypoint is a command works too) |
 | Resources | requests equal limits: `cpu`, `memory`, `ephemeral-storage` from `storage` |
-| `/workspace` | an emptyDir with `sizeLimit` from `storage` |
+| `/workspace` | an emptyDir with `sizeLimit` from `storage`; with `persistence` the workspace's claim (subPath `workspace`) |
 | `/tmp` | a memory-backed emptyDir of `tmpSize` (default 1 GiB, `TMP_SIZE`) |
-| `/home/sandbox` | HOME (`WORKSPACE_HOME`): an emptyDir on the node's disk, counted in `ephemeral-storage` |
+| `/home/sandbox` | HOME (`WORKSPACE_HOME`): an emptyDir on the node's disk, counted in `ephemeral-storage`; with `persistence` the workspace's claim (subPath `home`) |
 | `/cache` | the ReadWriteMany claim `cache.claimName`, shared by every workspace, else an emptyDir of its own |
 | Environment | `SANDBOX_ENV`, the cache variables (`CACHE_ENV`) and `env`, nothing from chamvi's pod |
 | Labels | `podLabels`, then `app.kubernetes.io/managed-by=chamvi`, `app.kubernetes.io/component=sandbox`, `chamvi.dev/run=<runId>`, `chamvi.dev/workspace=<id>`, `chamvi.dev/deployment=<deployment>`, `chamvi.dev/repo-key=<hash>` (with a repository) (the managed labels win; `podLabels` naming one throws; a `runId` that is no label value is a `ValidationError`, engine run ids are UUIDs) |
@@ -133,7 +137,9 @@ Stdin is closed only on the `v5.channel.k8s.io` exec protocol (Kubernetes 1.30+)
 
 ## Garbage collection
 
-`find(runId, { deployment })` lists the run's pods by label and rebuilds the workspaces of the running ones (a pod that failed, finished or is being deleted is gone), so a run finds its workspace after a restart or on another replica. `collectGarbage({ deployment, isSettled })` lists the deployment's pods with the managed labels and deletes those past their `chamvi.dev/expires-at` annotation, those in phase `Failed` or `Succeeded` and, with `isSettled`, those of settled runs (open workspaces of this process are disposed first). The manager calls it from `acquire` at most every 10 minutes; it is the only reaper. A pod that cannot be removed does not stop the pass: the others go, and one `SandboxError` with the count and the first failure is thrown at the end.
+`find(runId, { deployment })` lists the run's pods by label and rebuilds the workspaces of the running ones (a pod that failed, finished or is being deleted is gone), so a run finds its workspace after a restart or on another replica. `collectGarbage({ deployment, isSettled })` lists the deployment's pods with the managed labels and deletes those past their `chamvi.dev/expires-at` annotation, those in phase `Failed` or `Succeeded` and, with `isSettled`, those of settled runs (open workspaces of this process are disposed first). The manager calls it from `acquire` at most every 10 minutes; it is the only reaper.
+
+**Persistence** (`persistence: { storageClassName?, size? }`, `CHAMVI_SANDBOX_PERSISTENCE=true` with `sandboxModule()`): `create` makes a ReadWriteOnce claim `chamvi-ws-<id>` (the pod's labels and annotations, `size` default `limits.storage`, `storageClassName` default the cluster's) before the pod, which mounts it at `/workspace` and `/home/sandbox`. With `isSuspendable` the collection deletes the running pod of a run that waited long enough and keeps the claim; `find` rebuilds the pod of a live claim without a running one (the image and expiry from the claim, `env` and `limits` from the provider and the manager, `activeDeadlineSeconds` what is left of the lifetime), waits like `create` and fails with a `SandboxError` when it does not start. Dispose, expiry and a settled run delete the claim too. Lost on suspension: background jobs, `/tmp`, writes outside the two mounts and an emptyDir `/cache`. A node-local storage class pins the rebuilt pod to its node. A pod that cannot be removed does not stop the pass: the others go, and one `SandboxError` with the count and the first failure is thrown at the end.
 
 ## Options
 
@@ -149,6 +155,7 @@ Stdin is closed only on the `v5.channel.k8s.io` exec protocol (Kubernetes 1.30+)
 | `user` | `{ uid, gid }` | `{ uid: 0, gid: 0 }` | The pod's user; a non-root user gets no capability, `runAsNonRoot` and `fsGroup` |
 | `readOnlyRoot` | `boolean` | `false` | A read-only root filesystem |
 | `cache` | `{ claimName }` | none | A ReadWriteMany claim shared at `/cache` (else an emptyDir per pod) |
+| `persistence` | `{ storageClassName?, size? }` | none | A claim per workspace for `/workspace` and the home, so a waiting run's pod can be suspended; a custom `client` then needs the claim methods |
 | `tmpSize` | `string` | `'1Gi'` | Size of the in-memory `/tmp` |
 | `limits` | `SandboxLimits` | `DEFAULT_LIMITS` | `cpu`, `memory`, `storage`, `maxLifetimeMs` (`pids`: see above) |
 | `podLabels` | `Record<string, string>` | none | Extra labels, e.g. for a NetworkPolicy; may not name a managed label |
@@ -170,7 +177,7 @@ Misconfiguration throws core `InvalidAgentDefinitionError`; API and pod failures
 | `START_TIMEOUT_MS`, `POLL_MS` | constant | `120_000`, `1_000` |
 | `FATAL_WAITING_REASONS` | constant | The container waiting reasons `create` fails on at once |
 
-Types: `KubernetesSandboxOptions`, `PodUser`, `IPodClient`, `PodExecInput`, `CreatePodClientInput`.
+Types: `KubernetesSandboxOptions`, `KubernetesPersistence`, `PodUser`, `IPodClient`, `PodExecInput`, `CreatePodClientInput`.
 
 ## License
 

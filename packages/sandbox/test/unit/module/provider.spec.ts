@@ -5,7 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { DEFAULT_SANDBOX_IMAGE } from '@chamvi/sandbox';
 import type { ISandboxProvider, IWorkspace } from '@chamvi/sandbox';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { SandboxModule } from '@chamvi/sandbox/module';
+import type { SandboxModuleOptions } from '@chamvi/sandbox/module';
 import { describe, expect, it } from 'vitest';
 import { createLazyProvider } from '../../../src/module/provider.ts';
 
@@ -94,5 +98,105 @@ describe('createLazyProvider', () => {
         await expect(provider.load()).rejects.toThrow('boom');
         await provider.load();
         expect(loads).toBe(2);
+    });
+});
+
+/** Records the options each provider factory gets instead of importing the package. */
+class FactoryRecordingModule extends SandboxModule {
+    factories: Array<[string, unknown]> = [];
+
+    protected override async importPackage<T>(): Promise<T> {
+        const record = (factory: string) => (options?: unknown) => {
+            this.factories.push([factory, options]);
+
+            return inner();
+        };
+
+        return {
+            createLocalSandbox: record('local'),
+            createDockerSandbox: record('docker'),
+            createKubernetesSandbox: record('kubernetes'),
+        } as T;
+    }
+
+    async load(): Promise<Array<[string, unknown]>> {
+        await this.lazy!.load();
+
+        return this.factories;
+    }
+}
+
+function kubernetes(env: Record<string, string>, options: SandboxModuleOptions = {}): FactoryRecordingModule {
+    return new FactoryRecordingModule({
+        ...options,
+        env: {
+            CHAMVI_SANDBOX_PROVIDER: 'kubernetes',
+            CHAMVI_SANDBOX_NAMESPACE: 'sb',
+            ...env,
+        },
+    });
+}
+
+describe('sandboxModule: provider factory options', () => {
+    it('passes CHAMVI_SANDBOX_PERSISTENCE and CHAMVI_SANDBOX_STORAGE_CLASS to the kubernetes provider', async () => {
+        const module = kubernetes({ CHAMVI_SANDBOX_PERSISTENCE: 'true', CHAMVI_SANDBOX_STORAGE_CLASS: 'fast' });
+
+        expect(await module.load()).toEqual([['kubernetes', {
+            namespace: 'sb',
+            image: DEFAULT_SANDBOX_IMAGE,
+            persistence: { storageClassName: 'fast' },
+        }]]);
+    });
+
+    it('persistence without a storage class uses the cluster default', async () => {
+        const module = kubernetes({ CHAMVI_SANDBOX_PERSISTENCE: 'true' });
+
+        expect(await module.load()).toEqual([['kubernetes', {
+            namespace: 'sb',
+            image: DEFAULT_SANDBOX_IMAGE,
+            persistence: {},
+        }]]);
+    });
+
+    it('no persistence by default, also with a storage class alone', async () => {
+        expect(await kubernetes({}).load()).toEqual([['kubernetes', { namespace: 'sb', image: DEFAULT_SANDBOX_IMAGE }]]);
+        expect(await kubernetes({ CHAMVI_SANDBOX_STORAGE_CLASS: 'fast' }).load())
+            .toEqual([['kubernetes', { namespace: 'sb', image: DEFAULT_SANDBOX_IMAGE }]]);
+    });
+
+    it('the persistence option, with the storage class of the env winning', async () => {
+        const module = kubernetes(
+            { CHAMVI_SANDBOX_STORAGE_CLASS: 'fast' },
+            { persistence: { storageClassName: 'slow', size: '10Gi' } },
+        );
+
+        expect(await module.load()).toEqual([['kubernetes', {
+            namespace: 'sb',
+            image: DEFAULT_SANDBOX_IMAGE,
+            persistence: { storageClassName: 'fast', size: '10Gi' },
+        }]]);
+    });
+
+    it('CHAMVI_SANDBOX_PERSISTENCE=false wins over the option', async () => {
+        const module = kubernetes({ CHAMVI_SANDBOX_PERSISTENCE: 'false' }, { persistence: { size: '10Gi' } });
+
+        expect(await module.load()).toEqual([['kubernetes', { namespace: 'sb', image: DEFAULT_SANDBOX_IMAGE }]]);
+    });
+
+    it('an invalid CHAMVI_SANDBOX_PERSISTENCE names the variable', () => {
+        expect(() => kubernetes({ CHAMVI_SANDBOX_PERSISTENCE: 'yes' }))
+            .toThrow(new InvalidAgentDefinitionError('CHAMVI_SANDBOX_PERSISTENCE must be one of true, false, 1, 0.'));
+    });
+
+    it('ignores the persistence variables for another provider', async () => {
+        const module = new FactoryRecordingModule({
+            env: {
+                CHAMVI_SANDBOX_PROVIDER: 'docker',
+                CHAMVI_SANDBOX_PERSISTENCE: 'yes',
+                CHAMVI_SANDBOX_STORAGE_CLASS: 'fast',
+            },
+        });
+
+        expect(await module.load()).toEqual([['docker', { image: DEFAULT_SANDBOX_IMAGE }]]);
     });
 });

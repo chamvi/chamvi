@@ -7,6 +7,7 @@
 
 import {
     AppToken,
+    envBoolean,
     envInteger,
     envJson,
     envOneOf,
@@ -45,6 +46,7 @@ import type {
     KubernetesProviderPackage,
     LazyProvider,
     LocalProviderPackage,
+    ProviderSettings,
     SandboxModuleOptions,
     SandboxProviderName,
 } from './types.ts';
@@ -137,6 +139,7 @@ export class SandboxModule implements IModule {
             manager,
             namespace,
             image,
+            persistence,
             workspaceEnv,
             suspendAfterMs,
             env: input,
@@ -181,13 +184,27 @@ export class SandboxModule implements IModule {
             target = provider;
         } else {
             const selected = name ?? 'local';
-            const resolved = {
+            const resolved: ProviderSettings = {
                 image: envString(env, 'CHAMVI_SANDBOX_IMAGE') ?? image ?? DEFAULT_SANDBOX_IMAGE,
                 namespace: envString(env, 'CHAMVI_SANDBOX_NAMESPACE') ?? namespace,
             };
 
             if (selected === 'kubernetes' && !resolved.namespace) {
                 throw new InvalidAgentDefinitionError('CHAMVI_SANDBOX_NAMESPACE is required for CHAMVI_SANDBOX_PROVIDER=kubernetes.');
+            }
+
+            // a claim per workspace exists only on kubernetes: the variables are read for it alone
+            if (selected === 'kubernetes') {
+                const enabled = envBoolean(env, 'CHAMVI_SANDBOX_PERSISTENCE') ?? persistence !== undefined;
+
+                if (enabled) {
+                    const storageClassName = envString(env, 'CHAMVI_SANDBOX_STORAGE_CLASS') ?? persistence?.storageClassName;
+
+                    resolved.persistence = {
+                        ...persistence,
+                        ...(storageClassName !== undefined && { storageClassName }),
+                    };
+                }
             }
 
             this.lazy = createLazyProvider(
@@ -310,26 +327,35 @@ export class SandboxModule implements IModule {
         this.collector = undefined;
     }
 
+    /** Imports a provider package by its specifier; a test seam. */
+    protected async importPackage<T>(specifier: string): Promise<T> {
+        return loadPackage<T>(specifier);
+    }
+
     /** Imports the provider package and builds the provider; a test seam. */
     protected async importProvider(
         name: SandboxProviderName,
-        options: { image: string; namespace?: string },
+        options: ProviderSettings,
     ): Promise<ISandboxProvider> {
         const specifier = SANDBOX_PROVIDER_PACKAGES[name];
 
         switch (name) {
             case 'docker': {
-                const { createDockerSandbox } = await loadPackage<DockerProviderPackage>(specifier);
+                const { createDockerSandbox } = await this.importPackage<DockerProviderPackage>(specifier);
 
                 return createDockerSandbox({ image: options.image });
             }
             case 'kubernetes': {
-                const { createKubernetesSandbox } = await loadPackage<KubernetesProviderPackage>(specifier);
+                const { createKubernetesSandbox } = await this.importPackage<KubernetesProviderPackage>(specifier);
 
-                return createKubernetesSandbox({ namespace: options.namespace!, image: options.image });
+                return createKubernetesSandbox({
+                    namespace: options.namespace!,
+                    image: options.image,
+                    ...(options.persistence && { persistence: options.persistence }),
+                });
             }
             default: {
-                const { createLocalSandbox } = await loadPackage<LocalProviderPackage>(specifier);
+                const { createLocalSandbox } = await this.importPackage<LocalProviderPackage>(specifier);
 
                 return createLocalSandbox();
             }
@@ -338,7 +364,7 @@ export class SandboxModule implements IModule {
 
     protected async loadProvider(
         name: SandboxProviderName,
-        options: { image: string; namespace?: string },
+        options: ProviderSettings,
     ): Promise<ISandboxProvider> {
         try {
             return await this.importProvider(name, options);

@@ -12,6 +12,14 @@ import type { ISandboxProvider } from '../provider/types.ts';
 // #region public
 export type SandboxProviderName = 'local' | 'docker' | 'kubernetes';
 
+/** The kubernetes provider's `persistence`, structurally (a claim per workspace). */
+export type SandboxPersistence = {
+    /** A DNS-1123 subdomain; default the cluster's default storage class. */
+    storageClassName?: string;
+    /** The claim's storage request (a quantity); default the resolved `limits.storage`. */
+    size?: string;
+};
+
 /**
  * `createWorkspaceManager()` options; the manager's `env` is `workspaceEnv`
  * here, since `env` is the process env the factory reads. `deployment`:
@@ -30,6 +38,14 @@ export type SandboxModuleOptions = Omit<WorkspaceManagerOptions, 'provider' | 'e
     namespace?: string;
     /** Docker and Kubernetes image; `CHAMVI_SANDBOX_IMAGE` wins, default `DEFAULT_SANDBOX_IMAGE`. */
     image?: string;
+    /**
+     * Kubernetes only: a claim per workspace keeping `/workspace` and
+     * `/home/sandbox`, so a suspended run's files survive its pod.
+     * `CHAMVI_SANDBOX_PERSISTENCE` (`true`/`false`) wins over whether it is
+     * set, `CHAMVI_SANDBOX_STORAGE_CLASS` over `storageClassName` (default
+     * the cluster's default class); `size` default the storage limit.
+     */
+    persistence?: SandboxPersistence;
     /** Added to every workspace's environment. */
     workspaceEnv?: Record<string, string>;
     /**
@@ -59,5 +75,16 @@ export type LocalProviderPackage = { createLocalSandbox(): ISandboxProvider };
 export type DockerProviderPackage = { createDockerSandbox(options: { image: string }): ISandboxProvider };
 
 export type KubernetesProviderPackage = {
-    createKubernetesSandbox(options: { namespace: string; image: string }): ISandboxProvider;
+    createKubernetesSandbox(options: {
+        namespace: string;
+        image: string;
+        persistence?: SandboxPersistence;
+    }): ISandboxProvider;
+};
+
+/** What the module resolved for the provider factory (internal). */
+export type ProviderSettings = {
+    image: string;
+    namespace?: string;
+    persistence?: SandboxPersistence;
 };
