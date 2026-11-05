@@ -72,7 +72,8 @@ function matches(object: V1Pod | V1PersistentVolumeClaim, selector: string): boo
 }
 
 /**
- * An in-memory `IPodClient`: `create` stores the pod, `read` returns it with
+ * An in-memory `IPodClient`: `create` stores the pod (409 for a name it
+ * holds), `read` returns it with
  * the next scripted status (default Running), `delete` removes it (a missing
  * one is fine), `list` filters by labels, the claim methods do the same
  * for claims, `exec` asks `onExec` and writes its
@@ -97,6 +98,12 @@ export function createFakePodClient(onExec: FakeExecHandler = () => ({})): FakeP
 
         async create(pod) {
             const name = pod.metadata!.name!;
+
+            // like the real client: AlreadyExists, the ApiException as the cause
+            if (client.pods.has(name)) {
+                throw new SandboxError(`cannot create pod ${name}: already exists`, { cause: { code: 409 } });
+            }
+
             const stored = structuredClone(pod);
 
             client.created.push(stored);

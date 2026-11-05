@@ -96,6 +96,8 @@ export type PodInput = {
     /** The workspace's own claim for `/workspace` and the home; undefined mounts emptyDirs. */
     claim?: string;
     tmpSize: string;
+    /** Default `lifetimeSeconds(info)`; a pod rebuilt from its claim gets what is left. */
+    activeDeadlineSeconds?: number;
 };
 
 export type ClaimInput = {

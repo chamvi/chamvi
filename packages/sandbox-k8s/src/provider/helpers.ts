@@ -229,7 +229,7 @@ export function assertKubernetesOptions(options: KubernetesSandboxOptions): void
  * labels and annotations hold everything `find` rebuilds the info from.
  */
 export function buildPod(input: PodInput): V1Pod {
-    const lifetime = lifetimeSeconds(input.info);
+    const lifetime = input.activeDeadlineSeconds ?? lifetimeSeconds(input.info);
     const env = {
         ...SANDBOX_ENV,
         ...CACHE_ENV,
