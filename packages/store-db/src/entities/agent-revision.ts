@@ -8,13 +8,18 @@
 import {
     Column,
     Entity,
+    Index,
     PrimaryColumn,
 } from 'typeorm';
 import { TableName } from './constants.ts';
 
+@Index(['agent'], { unique: true })
 @Entity({ name: TableName.AGENT_REVISIONS })
 export class AgentRevisionEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    id!: string;
+
+    @Column({
         name: 'agent',
         type: 'varchar',
         length: 64,

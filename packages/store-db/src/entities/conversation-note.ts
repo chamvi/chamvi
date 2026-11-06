@@ -20,9 +20,13 @@ import { RunEntity } from './run.ts';
 
 @Index(['expiresAt'])
 @Index(['runId'])
+@Index(['scopeId', 'generation', 'key'], { unique: true })
 @Entity({ name: TableName.CONVERSATION_NOTES })
 export class ConversationNoteEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    id!: string;
+
+    @Column({
         name: 'scope_id',
         type: 'varchar',
         length: 64,
@@ -30,10 +34,10 @@ export class ConversationNoteEntity {
     })
     scopeId!: string;
 
-    @PrimaryColumn({ type: 'integer' })
+    @Column({ type: 'integer' })
     generation!: number;
 
-    @PrimaryColumn({ type: 'text', collation: 'C' })
+    @Column({ type: 'text', collation: 'C' })
     key!: string;
 
     @Column({ type: 'text' })

@@ -34,7 +34,7 @@ describe('public api', () => {
         expect(pkg.STORE_ENTITIES).toHaveLength(16);
         expect(pkg.STORE_MIGRATIONS).toBeInstanceOf(Array);
         expect(pkg.STORE_MIGRATIONS).toHaveLength(8);
-        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('Connections1792886400000');
+        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('ConnectionsPrimaryKeys1792886400000');
         expect(pkg.MIGRATION_LOCK_NAME).toBe('chamvi:migrations');
     });
 });

@@ -12,7 +12,8 @@ import type { Agent } from '../agent/types.ts';
 import { assertAgentKind, conversationKey } from '../agent/asserts.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
-import { attachmentIds, storeArtifact } from '../artifact/module.ts';
+import { attachmentIds, legacyAttachmentIds, storeArtifact } from '../artifact/module.ts';
+import { isUuidV7, randomUuidV7 } from '../uuid/module.ts';
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
 import { assertChannelName, assertDefaultAddress } from '../channel/helpers.ts';
 import type {
@@ -26,7 +27,6 @@ import { ConversationOperation } from '../conversation/constants.ts';
 import {
     assertConversationIdentity,
     assertConversationText,
-    identityId,
 } from '../conversation/persistence/module.ts';
 import { conversationConcurrencyKey } from '../conversation/helpers.ts';
 import type {
@@ -346,7 +346,8 @@ export class Engine implements IEngine {
             id: envelope.id ?? randomUUID(),
             receivedAt: envelope.receivedAt ?? now,
         };
-        let runId: string = randomUUID();
+        let runId: string = randomUuidV7(now.getTime());
+        let healing = false;
 
         if (trigger.idempotencyKey !== undefined) {
             const claimed = await this.store.idempotency.claim(
@@ -379,13 +380,27 @@ export class Engine implements IEngine {
                 // the key's run was never created (createRun failed after the claim, or is
                 // still in flight): create it under the reserved id; createRun decides the race
                 runId = claimed.runId;
+                healing = true;
             }
         }
 
         if (attachments?.length) {
             // stored before the run, so an executing run finds them; a crash in between leaves orphans.
             // Ids derive from the run id: a concurrent healer of the same run writes no-ops.
-            const ids = attachmentIds(runId, attachments.length);
+            let ids = attachmentIds(runId, attachments.length);
+
+            if (healing && isUuidV7(runId)) {
+                const legacyIds = legacyAttachmentIds(runId, attachments.length);
+
+                for (const id of legacyIds) {
+                    if (await this.store.artifacts.findOne(id)) {
+                        // A partially staged batch keeps one scheme so its IDs sort in input order.
+                        ids = legacyIds;
+
+                        break;
+                    }
+                }
+            }
 
             trigger.attachments = [];
 
@@ -598,13 +613,8 @@ export class Engine implements IEngine {
         assertTriggerKey('concurrency key', input.concurrencyKey);
 
         const current = await capability.repository.findOne(identity);
-        const proposed = current ?? {
-            id: identityId(identity),
-            generation: 0,
-            identity,
-        };
 
-        if (input.concurrencyKey !== undefined && input.concurrencyKey !== conversationConcurrencyKey(proposed)) {
+        if (input.concurrencyKey !== undefined && (!current || input.concurrencyKey !== conversationConcurrencyKey(current))) {
             throw new ValidationError('The conversation concurrency key conflicts with its scope.');
         }
 

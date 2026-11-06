@@ -16,7 +16,8 @@ import type { Run } from '../run/types.ts';
  * channel, an account alias on that channel, the chat and an explicit
  * audience. Each field is a non-blank string of at most
  * CONVERSATION_FIELD_MAX_LENGTH UTF-16 code units without control characters
- * or lone surrogates. The scope id is the sha256 of its canonical JSON.
+ * or lone surrogates. Its lookup key is the sha256 of its canonical JSON,
+ * separate from the public scope id.
  */
 export type ConversationIdentity = {
     /** Stable memory key from the agent configuration; defaults to its name. */
@@ -28,7 +29,7 @@ export type ConversationIdentity = {
 };
 
 /**
- * One generation of a conversation: `id` the identity's digest, `generation`
+ * One generation of a conversation: `id` its stable public identifier, `generation`
  * advanced by a reset or delete, so queued work of an older generation never
  * reaches the new one.
  */

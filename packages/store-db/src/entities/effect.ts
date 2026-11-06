@@ -8,13 +8,18 @@
 import {
     Column,
     Entity,
+    Index,
     PrimaryColumn,
 } from 'typeorm';
 import { JSON_VALUE_TRANSFORMER, TableName } from './constants.ts';
 
+@Index(['key'], { unique: true })
 @Entity({ name: TableName.EFFECTS })
 export class EffectEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    id!: string;
+
+    @Column({
         name: 'key', 
         type: 'varchar', 
         length: 512, 

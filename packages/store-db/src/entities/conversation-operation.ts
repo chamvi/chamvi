@@ -21,9 +21,17 @@ import { RunEntity } from './run.ts';
 
 @Index(['scopeId', 'createdAt', 'id'])
 @Index(['runId'])
+@Index(['scopeId', 'generation', 'id'], { unique: true })
 @Entity({ name: TableName.CONVERSATION_OPERATIONS })
 export class ConversationOperationEntity {
     @PrimaryColumn({
+        name: 'row_id',
+        type: 'uuid',
+        default: () => 'chamvi_uuid_v7()',
+    })
+    rowId!: string;
+
+    @Column({
         name: 'scope_id',
         type: 'varchar',
         length: 64,
@@ -31,10 +39,10 @@ export class ConversationOperationEntity {
     })
     scopeId!: string;
 
-    @PrimaryColumn({ type: 'integer' })
+    @Column({ type: 'integer' })
     generation!: number;
 
-    @PrimaryColumn({ type: 'text', collation: 'C' })
+    @Column({ type: 'text', collation: 'C' })
     id!: string;
 
     @Column({

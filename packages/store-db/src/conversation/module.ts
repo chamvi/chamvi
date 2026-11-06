@@ -161,11 +161,11 @@ export class DatabaseConversationRepository implements IConversationRepository {
     }
 
     async resolve(identity: ConversationIdentity): Promise<ConversationScope> {
-        const id = identityId(identity);
+        const identityKey = identityId(identity);
 
         await this.conversations.createQueryBuilder().insert()
             .values(asValues<ConversationEntity>({
-                id,
+                identityKey,
                 agent: identity.agent,
                 channel: identity.channel,
                 account: identity.account,
@@ -175,11 +175,11 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 activeRunId: null,
             })).orIgnore().execute();
 
-        return scopeOf(await this.conversations.findOneByOrFail({ id }));
+        return scopeOf(await this.conversations.findOneByOrFail({ identityKey }));
     }
 
     async findOne(identity: ConversationIdentity): Promise<ConversationScope | undefined> {
-        const row = await this.conversations.findOneBy({ id: identityId(identity) });
+        const row = await this.conversations.findOneBy({ identityKey: identityId(identity) });
 
         return row ? scopeOf(row) : undefined;
     }
@@ -641,7 +641,13 @@ export class DatabaseConversationRepository implements IConversationRepository {
     }
 
     async delete(identity: ConversationIdentity): Promise<void> {
-        const id = identityId(identity);
+        const scope = await this.findOne(identity);
+
+        if (!scope) {
+            return;
+        }
+
+        const { id } = scope;
 
         await this.locked(id, async (manager, row) => {
             if (!row) {

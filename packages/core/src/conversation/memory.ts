@@ -15,6 +15,7 @@ import {
     ValidationError,
 } from '../errors/index.ts';
 import { compareCodePoints, copy } from '../repository/memory/helpers.ts';
+import { randomUuidV7 } from '../uuid/module.ts';
 import { CONVERSATION_LIMITS_MAX, CONVERSATION_NOTES_MAX } from './constants.ts';
 import {
     assertConversationIdentity,
@@ -60,6 +61,7 @@ type StoredOperation = {
 };
 
 type ScopeRecord = {
+    id: string;
     identity: ConversationIdentity;
     generation: number;
     activeRunId?: string;
@@ -90,6 +92,8 @@ export class MemoryConversationRepository implements IConversationRepository {
     protected clock: IClock;
 
     protected records = new Map<string, ScopeRecord>();
+
+    protected identities = new Map<string, ScopeRecord>();
 
     protected hasRun?: (runId: string) => boolean;
 
@@ -143,7 +147,7 @@ export class MemoryConversationRepository implements IConversationRepository {
     }
 
     async findOne(identity: ConversationIdentity): Promise<ConversationScope | undefined> {
-        const record = this.records.get(identityId(identity));
+        const record = this.identities.get(identityId(identity));
 
         return record ? this.scopeOf(record) : undefined;
     }
@@ -488,7 +492,7 @@ export class MemoryConversationRepository implements IConversationRepository {
     }
 
     async delete(identity: ConversationIdentity): Promise<void> {
-        const record = this.records.get(identityId(identity));
+        const record = this.identities.get(identityId(identity));
 
         if (!record) {
             return;
@@ -588,11 +592,12 @@ export class MemoryConversationRepository implements IConversationRepository {
     protected recordFor(identity: ConversationIdentity): ScopeRecord {
         assertConversationIdentity(identity);
 
-        const id = identityId(identity);
-        let record = this.records.get(id);
+        const identityKey = identityId(identity);
+        let record = this.identities.get(identityKey);
 
         if (!record) {
             record = {
+                id: randomUuidV7(this.clock.now().getTime()),
                 identity: {
                     agent: identity.agent,
                     channel: identity.channel,
@@ -605,7 +610,8 @@ export class MemoryConversationRepository implements IConversationRepository {
                 notes: new Map(),
                 operations: new Map(),
             };
-            this.records.set(id, record);
+            this.records.set(record.id, record);
+            this.identities.set(identityKey, record);
         }
 
         return record;
@@ -626,7 +632,7 @@ export class MemoryConversationRepository implements IConversationRepository {
 
     protected scopeOf(record: ScopeRecord): ConversationScope {
         return {
-            id: identityId(record.identity),
+            id: record.id,
             generation: record.generation,
             identity: { ...record.identity },
         };

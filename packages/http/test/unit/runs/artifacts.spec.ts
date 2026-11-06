@@ -56,7 +56,7 @@ describe('GET /runs/:id/artifacts', () => {
         expect(data).toHaveLength(2);
         // in the order the client sent them
         expect(data.map((item) => item.mediaType)).toEqual(['text/plain', 'image/png']);
-        expect(data[0]!.id).toBe(`${runId}.0000`);
+        expect(data[0]!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 
         for (const item of data) {
             expect(item).not.toHaveProperty('data');

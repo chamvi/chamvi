@@ -10,6 +10,7 @@ import { isObject } from 'smob';
 import { stableHash } from '../../effect/helpers.ts';
 import { ValidationError } from '../../errors/index.ts';
 import { compareCodePoints } from '../../repository/memory/helpers.ts';
+import { isUuidV7 } from '../../uuid/module.ts';
 import {
     CONVERSATION_FIELD_MAX_LENGTH,
     CONVERSATION_LIMITS_MAX,
@@ -63,7 +64,7 @@ export function assertConversationIdentity(identity: unknown): asserts identity 
 }
 
 /**
- * The scope id of an identity: the sha256 hex of the canonical JSON of its
+ * The lookup key of an identity: the sha256 hex of the canonical JSON of its
  * five fields (sorted keys), so property order and extra properties never
  * change it.
  */
@@ -111,14 +112,14 @@ function utf8Bytes(text: string): number {
     return Buffer.byteLength(text, 'utf8');
 }
 
-/** Refuses a scope whose id is no sha256 hex digest or whose generation is no non-negative integer. */
+/** Refuses a scope without a UUID v7 or legacy hash id and non-negative generation. */
 export function assertConversationScope(scope: unknown): asserts scope is ConversationScope {
     if (!isObject(scope)) {
         throw new ValidationError('The conversation scope must be an object.');
     }
 
-    if (typeof scope.id !== 'string' || !SCOPE_ID_PATTERN.test(scope.id)) {
-        throw new ValidationError('The conversation scope id must be a sha256 hex digest.');
+    if (typeof scope.id !== 'string' || (!SCOPE_ID_PATTERN.test(scope.id) && !isUuidV7(scope.id))) {
+        throw new ValidationError('The conversation scope id must be a UUID v7 or sha256 hex digest.');
     }
 
     if (!Number.isSafeInteger(scope.generation) || (scope.generation as number) < 0) {

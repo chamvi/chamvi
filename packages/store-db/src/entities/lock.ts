@@ -13,9 +13,13 @@ import {
 } from 'typeorm';
 import { TableName } from './constants.ts';
 
+@Index(['key'], { unique: true })
 @Entity({ name: TableName.LOCKS })
 export class LockEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    id!: string;
+
+    @Column({
         name: 'key', 
         type: 'varchar', 
         length: 512, 

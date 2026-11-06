@@ -31,6 +31,7 @@ import type {
     IStore,
     ModelAgentDefinition,
 } from '@chamvi/core';
+import { attachmentIds } from '../../../src/artifact/module.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { MemoryArtifactRepository, createMemoryStore } from '../../../src/repository/index.ts';
 import { gateTool, recordApprovals } from '../../utils/approvals.ts';
@@ -156,7 +157,7 @@ describe('attachments at dispatch', () => {
 
         expect(listed).toEqual(run.trigger.attachments);
         expect(run.trigger.attachments?.[0]).toEqual({
-            id: `${runId}.0000`,
+            id: attachmentIds(runId, 2)[0],
             runId,
             agent: 'vision',
             mediaType: 'image/png',
@@ -180,17 +181,17 @@ describe('attachments at dispatch', () => {
         const listed = await ctx.store.artifacts.find(runId);
 
         expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
-        expect(listed.map((a) => a.id)).toEqual(attachments.map((_, i) => `${runId}.${String(i).padStart(4, '0')}`));
+        expect(listed.map((a) => a.id)).toEqual(attachmentIds(runId, attachments.length));
     });
 
-    it('keeps input order beyond 10000 attachments (the index widens for the whole dispatch)', async () => {
+    it('keeps UUID attachment input order beyond 10000 attachments', async () => {
         const ctx = setup([text('ok')]);
         const attachments = Array.from({ length: 10_001 }, () => ({ mediaType: 'text/plain', data: new Uint8Array([1]) }));
         const { runId } = await ctx.engine.dispatch(env({ attachments }));
         const listed = await ctx.store.artifacts.find(runId);
 
-        expect(listed[0]!.id).toBe(`${runId}.00000`);
-        expect(listed.at(-1)!.id).toBe(`${runId}.10000`);
+        expect(listed.map((a) => a.id)).toEqual(attachmentIds(runId, attachments.length));
+        expect(listed.map((a) => a.id).sort()).toEqual(listed.map((a) => a.id));
         expect(listed.map((a) => a.id)).toEqual((await ctx.store.runs.findOne(runId))!.trigger.attachments!.map((a) => a.id));
     });
 
@@ -229,6 +230,60 @@ describe('attachments at dispatch', () => {
         const bytes = await ctx.store.artifacts.read(listed[0]!.id);
 
         expect(new TextDecoder().decode(bytes)).toBe(listed[0]!.filename!.replace('.txt', ''));
+    });
+
+    it.each([false, true])('heals a reserved UUID v7 run with its staged legacy attachment and checks ownership (foreign=%s)', async (foreign) => {
+        const ctx = setup([text('ok')]);
+        const runId = '019a5555-1234-7abc-8123-456789abcdef';
+        const artifact = {
+            id: `${runId}.0000`,
+            runId: foreign ? 'other-run' : runId,
+            agent: 'vision',
+            mediaType: 'image/png',
+            filename: 'first.png',
+            size: PNG.byteLength,
+            createdAt: ctx.clock.now(),
+        };
+
+        await ctx.store.idempotency.claim('vision:http', 'legacy', runId, 60_000);
+        await ctx.store.artifacts.insert(artifact, PNG);
+
+        const dispatch = () => ctx.engine.dispatch(env({
+            idempotencyKey: 'legacy',
+            attachments: [
+                {
+                    mediaType: 'text/plain',
+                    filename: 'changed.txt',
+                    data: new Uint8Array([2]),
+                },
+                {
+                    mediaType: 'text/plain',
+                    filename: 'second.txt',
+                    data: new Uint8Array([3]),
+                },
+            ],
+        }));
+
+        if (foreign) {
+            await expect(dispatch()).rejects.toBeInstanceOf(InvalidRunStateError);
+            expect(await ctx.store.artifacts.findOne(artifact.id)).toEqual(artifact);
+            expect(await ctx.store.runs.findOne(runId)).toBeUndefined();
+
+            return;
+        }
+
+        const results = await Promise.all([dispatch(), dispatch()]);
+
+        expect(results.map((result) => result.runId)).toEqual([runId, runId]);
+        expect(results.filter((result) => !result.deduplicated)).toHaveLength(1);
+
+        const listed = await ctx.store.artifacts.find(runId);
+
+        expect((await ctx.store.runs.findOne(runId))?.trigger.attachments).toEqual(listed);
+        expect(listed[0]).toEqual(artifact);
+        expect(listed.map((item) => item.id)).toEqual([`${runId}.0000`, `${runId}.0001`]);
+        expect(listed[1]?.filename).toBe('second.txt');
+        expect(await ctx.store.artifacts.read(artifact.id)).toEqual(PNG);
     });
 
     it('leaves the envelope without attachments when none are given', async () => {

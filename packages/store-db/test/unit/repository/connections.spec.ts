@@ -20,9 +20,8 @@ import { ControllableClock } from '@chamvi/test-kit';
 import { TableName } from '../../../src/entities/constants.ts';
 import { ConnectionEntryEntity } from '../../../src/entities/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
-import { seedRun } from '../../utils/conversation.ts';
 
-const CONNECTIONS = 'Connections1792886400000';
+const CONNECTIONS = 'ConnectionsPrimaryKeys1792886400000';
 
 const connection = (name: string): Connection => ({
     name,
@@ -92,7 +91,22 @@ describePostgres('connections in postgres', () => {
         await prior.initialize();
         dataSources.push(prior);
         await migrateStore(prior);
-        await seedRun(ds, 'kept');
+
+        // Seed the released schema without using entity metadata that already includes the new primary column.
+        const createdAt = new Date('2026-10-28T00:00:00.000Z');
+
+        await prior.query(
+            `INSERT INTO chamvi_runs (id, agent, status, trigger, usage, created_at, updated_at)
+                VALUES ('kept', 'helper', 'completed', $1, $2, $3, $3)`,
+            [JSON.stringify({
+                id: 'kept',
+                agent: 'helper',
+                trigger: 'message',
+                channel: 'chat',
+                payload: {},
+                receivedAt: createdAt,
+            }), JSON.stringify({ inputTokens: 0, outputTokens: 0 }), createdAt],
+        );
         expect(await pendingMigrations(ds)).toEqual([CONNECTIONS]);
 
         await migrateStore(ds);
@@ -113,10 +127,11 @@ describePostgres('connections in postgres', () => {
             await runner.release();
         }
 
-        expect(await store.runs.findOne('kept')).toMatchObject({ id: 'kept' });
+        expect(await ds.query('SELECT id FROM chamvi_runs WHERE id = $1', ['kept'])).toEqual([{ id: 'kept' }]);
         await migrateStore(ds);
         await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
         expect(await store.connections.find()).toEqual([]);
+        expect(await store.runs.findOne('kept')).toMatchObject({ id: 'kept' });
     });
 
     it('entries reference their connection: orphans are refused, a delete cascades, the relation loads', async () => {

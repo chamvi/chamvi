@@ -14,6 +14,7 @@ import {
 } from 'vitest';
 import {
     Engine,
+    InvalidRunStateError,
     ValidationError,
     defineModelAgent,
     keyedArtifactId,
@@ -107,6 +108,48 @@ describe('keyed artifacts', () => {
 
         expect(Array.from(got!.data)).toEqual([9]);
         expect(await artifacts.list()).toHaveLength(1);
+    });
+
+    it.each([false, true])('reuses a stored legacy key for a UUID v7 run and checks ownership (foreign=%s)', async (foreign) => {
+        const { clock, store } = setup();
+        const run = { id: '019a5555-1234-7abc-8123-456789abcdef', agent: 'a' };
+        const id = `${run.id}.k.${createHash('sha256').update('report').digest('hex').slice(0, 32)}`;
+        const stored = {
+            id,
+            runId: foreign ? 'other-run' : run.id,
+            agent: run.agent,
+            mediaType: 'text/plain',
+            filename: 'old.txt',
+            size: 1,
+            createdAt: clock.now(),
+        };
+
+        await store.artifacts.insert(stored, new Uint8Array([1]));
+        clock.advance(1000);
+
+        const artifacts = createRunArtifacts(store.artifacts, run, clock);
+        const put = () => artifacts.put({
+            key: 'report',
+            mediaType: 'image/png',
+            data: new Uint8Array([2, 3]),
+        });
+
+        if (foreign) {
+            await expect(put()).rejects.toBeInstanceOf(InvalidRunStateError);
+            expect(await store.artifacts.findOne(id)).toEqual(stored);
+            expect(await store.artifacts.find(run.id)).toEqual([]);
+
+            return;
+        }
+
+        const results = await Promise.all([put(), put()]);
+
+        expect(results.map((item) => item.id)).toEqual([id, id]);
+        expect(results[0]?.createdAt).toEqual(stored.createdAt);
+        expect(results[0]?.mediaType).toBe('image/png');
+        expect(results[0]?.filename).toBeUndefined();
+        expect(await store.artifacts.read(id)).toEqual(new Uint8Array([2, 3]));
+        expect(await artifacts.list()).toEqual([results[0]]);
     });
 
     it('keeps random ids for a put without a key', async () => {

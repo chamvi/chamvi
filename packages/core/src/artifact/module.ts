@@ -5,10 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { createHash } from 'node:crypto';
 import type { IClock } from '../clock/index.ts';
 import { InvalidRunStateError } from '../errors/index.ts';
 import type { IArtifactRepository } from '../repository/types.ts';
+import { isUuidV7, randomUuidV7 } from '../uuid/module.ts';
 import { ARTIFACT_URI_PREFIX } from './constants.ts';
 import { assertArtifactInput } from './helpers.ts';
 import type {
@@ -20,7 +21,7 @@ import type {
 
 /**
  * Stores `input` (validated already) as an artifact of the run under `id`
- * (default a random UUID). The store's insert-if-absent decides a race: when
+ * (default a random UUID v7). The store's insert-if-absent decides a race: when
  * an artifact of this run already holds `id`, that stored artifact is
  * returned, so the caller never names metadata the store does not hold.
  */
@@ -29,7 +30,7 @@ export async function storeArtifact(
     run: { id: string; agent: string },
     input: ArtifactInput,
     createdAt: Date,
-    id: string = randomUUID(),
+    id: string = randomUuidV7(createdAt.getTime()),
 ): Promise<Artifact> {
     const artifact: Artifact = {
         id,
@@ -55,24 +56,49 @@ export async function storeArtifact(
 }
 
 /**
- * The ids of a dispatch's attachments: `<runId>.<index>`, the index
- * zero-padded to one width for the whole dispatch (at least 4 digits), so
- * the listing order (createdAt, then id) is the input order and a
- * concurrent healer of the same run writes to the same ids.
+ * Stable, ordered UUID v7 ids for new runs; legacy runs retain their padded
+ * `<runId>.<index>` ids so resumed dispatches reuse the stored attachments.
  */
 export function attachmentIds(runId: string, count: number): string[] {
+    if (isUuidV7(runId)) {
+        return Array.from({ length: count }, (_, i) => deterministicArtifactId(runId, undefined, i));
+    }
+
+    return legacyAttachmentIds(runId, count);
+}
+
+/** Also used to find staged attachments of imported UUID v7 runs during healing. */
+export function legacyAttachmentIds(runId: string, count: number): string[] {
     const width = Math.max(4, String(Math.max(count - 1, 0)).length);
 
     return Array.from({ length: count }, (_, i) => `${runId}.${String(i).padStart(width, '0')}`);
 }
 
 /**
- * The id of a run's artifact stored under `key` (`artifacts.put({ key })`):
- * `<runId>.k.<the first 32 hex digits of sha256(key)>`. It never matches an
- * attachment id (`<runId>.<digits>`) and fits the stores' id width.
+ * Computes a new keyed artifact id, separately namespaced from attachments.
+ * Use the id returned by put() for reads: imported runs can retain a stored legacy id.
  */
 export function keyedArtifactId(runId: string, key: string): string {
+    if (isUuidV7(runId)) {
+        return deterministicArtifactId(runId, key);
+    }
+
+    return legacyKeyedArtifactId(runId, key);
+}
+
+function legacyKeyedArtifactId(runId: string, key: string): string {
     return `${runId}.k.${createHash('sha256').update(key).digest('hex').slice(0, 32)}`;
+}
+
+function deterministicArtifactId(runId: string, key?: string, index = 0): string {
+    const digest = createHash('sha256').update(JSON.stringify([runId, key === undefined ? 'attachment' : 'key', key])).digest('hex');
+    // Leave room for every array index so ordered attachment ids cannot wrap.
+    const range = key === undefined ? (1n << 74n) - (1n << 32n) : 1n << 74n;
+    const entropy = BigInt(`0x${digest}`) % range + BigInt(index);
+    const randA = (entropy >> 62n).toString(16).padStart(3, '0');
+    const randB = ((entropy & ((1n << 62n) - 1n)) | (1n << 63n)).toString(16);
+
+    return `${runId.slice(0, 13)}-7${randA}-${randB.slice(0, 4)}-${randB.slice(4)}`;
 }
 
 /** The artifacts of one run, as tools get them. */
@@ -104,8 +130,18 @@ export function createGuardedRunArtifacts(
                 return storeArtifact(store, run, input, clock.now());
             }
 
+            let id = keyedArtifactId(run.id, input.key);
+
+            if (isUuidV7(run.id)) {
+                const legacyId = legacyKeyedArtifactId(run.id, input.key);
+
+                if (await store.findOne(legacyId)) {
+                    id = legacyId;
+                }
+            }
+
             return store.save({
-                id: keyedArtifactId(run.id, input.key),
+                id,
                 runId: run.id,
                 agent: run.agent,
                 mediaType: input.mediaType,

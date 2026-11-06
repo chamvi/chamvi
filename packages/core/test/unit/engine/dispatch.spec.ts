@@ -138,6 +138,7 @@ describe('Engine.dispatch', () => {
         const { runId, deduplicated } = await engine.dispatch(env());
 
         expect(deduplicated).toBe(false);
+        expect(runId).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
 
         const run = await engine.getRun(runId);
 

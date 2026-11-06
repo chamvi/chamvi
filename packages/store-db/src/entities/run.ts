@@ -27,9 +27,17 @@ import { ConversationEntity } from './conversation.ts';
 @Index(['status', 'createdAt', 'id'])
 @Index(['conversationScopeId'])
 @Index(['parentRunId'])
+@Index(['id'], { unique: true })
 @Entity({ name: TableName.RUNS })
 export class RunEntity {
     @PrimaryColumn({
+        name: 'row_id',
+        type: 'uuid',
+        default: () => 'chamvi_uuid_v7()',
+    })
+    rowId!: string;
+
+    @Column({
         name: 'id',
         type: 'varchar',
         length: 128,

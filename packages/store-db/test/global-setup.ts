@@ -13,7 +13,7 @@ export default async function setup(project: TestProject) {
     let container;
 
     try {
-        container = await new PostgreSqlContainer('postgres:18-alpine')
+        container = await new PostgreSqlContainer(process.env.TEST_POSTGRES_IMAGE ?? 'postgres:17-alpine')
             .withCommand(['postgres', '-c', 'max_connections=200'])
             .start();
     } catch (e) {

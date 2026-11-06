@@ -19,14 +19,32 @@ import { OPTIONAL_JSON_TRANSFORMER, TableName } from './constants.ts';
 import { RunEntity } from './run.ts';
 
 @Index(['activeRunId'])
+@Index(['id'], { unique: true })
 @Entity({ name: TableName.CONVERSATIONS })
 export class ConversationEntity {
     @PrimaryColumn({
+        name: 'row_id',
+        type: 'uuid',
+        default: () => 'chamvi_uuid_v7()',
+    })
+    rowId!: string;
+
+    @Column({
+        type: 'varchar',
+        length: 64,
+        collation: 'C',
+        default: () => 'chamvi_uuid_v7()',
+    })
+    id!: string;
+
+    @Index({ unique: true })
+    @Column({
+        name: 'identity_key',
         type: 'varchar',
         length: 64,
         collation: 'C',
     })
-    id!: string;
+    identityKey!: string;
 
     @Column({ type: 'text', collation: 'C' })
     agent!: string;

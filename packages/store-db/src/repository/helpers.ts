@@ -124,7 +124,7 @@ export function toStepValues(step: Step): QueryDeepPartialEntity<StepEntity> {
 
 /** CheckpointEntity values for a checkpoint. */
 export function toCheckpointValues(cp: Checkpoint): QueryDeepPartialEntity<CheckpointEntity> {
-    const values: CheckpointEntity = {
+    const values: Omit<CheckpointEntity, 'id'> = {
         runId: cp.runId,
         stepIndex: cp.stepIndex,
         messages: cp.messages,
@@ -321,7 +321,7 @@ export function toCheckpoint(entity: CheckpointEntity): Checkpoint {
 
 /** ArtifactEntity values for a new artifact: the bytes copied into a Buffer, the bytea parameter the driver expects. */
 export function toArtifactValues(artifact: Artifact, data: Uint8Array): QueryDeepPartialEntity<ArtifactEntity> {
-    const values: ArtifactEntity = {
+    const values: Omit<ArtifactEntity, 'rowId'> = {
         id: artifact.id,
         runId: artifact.runId,
         agent: artifact.agent,

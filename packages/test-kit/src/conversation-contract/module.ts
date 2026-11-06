@@ -113,9 +113,11 @@ export function describeConversationRepositoryContract(
             } = await setup();
 
             expect(scope.generation).toBe(0);
-            expect(scope.id).toMatch(/^[0-9a-f]{64}$/);
+            expect(scope.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
             expect(scope.identity).toEqual(identity);
             expect(await store.resolve({ ...identity })).toEqual(scope);
+            expect(await Promise.all(Array.from({ length: 4 }, () => store.resolve({ ...identity })))).toEqual(Array(4).fill(scope));
+            expect((await store.resolve(makeIdentity('other'))).id).not.toBe(scope.id);
             expect(await store.findOne(identity)).toEqual(scope);
             expect(await store.findOne(makeIdentity('unknown'))).toBeUndefined();
             expect(await store.findOne(makeIdentity('unknown'))).toBeUndefined();
@@ -390,6 +392,7 @@ export function describeConversationRepositoryContract(
 
             const current = await store.findOne(identity);
 
+            expect(current?.id).toBe(scope.id);
             expect(current?.generation).toBeGreaterThan(scope.generation);
             expect(await store.resolve(identity)).toEqual(current);
 
@@ -444,6 +447,7 @@ export function describeConversationRepositoryContract(
 
             const dropped = await store.reset(identity, { keepNotes: false });
 
+            expect(dropped.id).toBe(scope.id);
             expect(dropped.generation).toBeGreaterThan(scope.generation);
             expect((await store.findNotes(dropped, { limit: 100, offset: 0 })).total).toBe(0);
             expect(await store.beginTurn(scope, 'run-b', 'old', LIMITS)).toEqual({ kind: 'stale' });

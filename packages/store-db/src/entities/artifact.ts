@@ -14,9 +14,17 @@ import {
 import { TableName } from './constants.ts';
 
 @Index(['runId'])
+@Index(['id'], { unique: true })
 @Entity({ name: TableName.ARTIFACTS })
 export class ArtifactEntity {
     @PrimaryColumn({
+        name: 'row_id',
+        type: 'uuid',
+        default: () => 'chamvi_uuid_v7()',
+    })
+    rowId!: string;
+
+    @Column({
         name: 'id',
         type: 'varchar',
         length: 128,

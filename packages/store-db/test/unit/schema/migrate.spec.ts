@@ -37,7 +37,7 @@ function migrationsThrough(name: string) {
 
 const TAINT = 'ConversationsRunTaint1792713600000';
 const LINEAGE = 'RunLineage1792800000000';
-const CONNECTIONS = 'Connections1792886400000';
+const CONNECTIONS = 'ConnectionsPrimaryKeys1792886400000';
 
 /** Undo the executed migrations from the newest one back to and including the named one. */
 async function revertThrough(ds: DataSource, name: string): Promise<void> {
@@ -493,7 +493,7 @@ describePostgres('schema', () => {
             'AgentRevisions1792627200000',
             'ConversationsRunTaint1792713600000',
             'RunLineage1792800000000',
-            'Connections1792886400000',
+            'ConnectionsPrimaryKeys1792886400000',
         ]);
         await migrateStore(ds);
         expect(await pendingMigrations(ds)).toEqual([]);

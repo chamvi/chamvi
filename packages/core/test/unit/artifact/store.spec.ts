@@ -7,7 +7,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { ErrorCode, InvalidRunStateError } from '@chamvi/core';
-import { attachmentIds, createRunArtifacts, storeArtifact } from '../../../src/artifact/module.ts';
+import {
+    attachmentIds,
+    createRunArtifacts,
+    keyedArtifactId,
+    storeArtifact,
+} from '../../../src/artifact/module.ts';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 
@@ -46,7 +51,8 @@ describe('storeArtifact', () => {
         const a = await artifacts.put(input('a'));
         const b = await artifacts.put(input('b'));
 
-        expect(a.id).toMatch(/^[0-9a-f-]{36}$/);
+        expect(a.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+        expect(Number.parseInt(a.id.replaceAll('-', '').slice(0, 12), 16)).toBe(clock.now().getTime());
         expect(b.id).not.toBe(a.id);
     });
 });
@@ -63,5 +69,41 @@ describe('attachmentIds', () => {
         expect(ids[0]).toBe('r.00000');
         expect(ids.at(-1)).toBe('r.10000');
         expect([...ids].sort()).toEqual(ids);
+    });
+});
+
+describe('UUID v7 artifact identities', () => {
+    const runId = '019a5555-1234-7abc-8123-456789abcdef';
+    const otherRun = '019a5555-1234-7abc-8123-456789abcdee';
+    const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+    it('keeps attachment ids stable across counts and ordered', () => {
+        const ids = attachmentIds(runId, 10_001);
+
+        expect(attachmentIds(runId, 2)).toEqual(ids.slice(0, 2));
+        expect(attachmentIds(runId, 0)).toEqual([]);
+        expect(attachmentIds(runId, ids.length)).toEqual(ids);
+        expect([...ids].sort()).toEqual(ids);
+        expect(new Set(ids).size).toBe(ids.length);
+
+        for (const id of ids) {
+            expect(id).toMatch(pattern);
+            expect(id.slice(0, 13)).toBe(runId.slice(0, 13));
+        }
+    });
+
+    it('includes the whole run id and distinguishes keys from attachments', () => {
+        const a = attachmentIds(runId, 2);
+        const b = attachmentIds(otherRun, 2);
+        const keyed = [keyedArtifactId(runId, '0'), keyedArtifactId(runId, '1')];
+
+        expect(new Set([...a, ...b, ...keyed]).size).toBe(6);
+        expect(keyedArtifactId(runId, '0')).toBe(keyed[0]);
+        expect(keyedArtifactId(otherRun, '0')).not.toBe(keyed[0]);
+
+        for (const id of keyed) {
+            expect(id).toMatch(pattern);
+            expect(id.slice(0, 13)).toBe(runId.slice(0, 13));
+        }
     });
 });

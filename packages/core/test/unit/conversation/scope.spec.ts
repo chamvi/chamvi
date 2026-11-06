@@ -31,7 +31,7 @@ import {
     conversationConcurrencyKey,
     normalizeConversationLimits,
 } from '../../../src/conversation/helpers.ts';
-import { assertConversationText, identityId } from '@chamvi/core/conversation/persistence';
+import { assertConversationScope, assertConversationText, identityId } from '@chamvi/core/conversation/persistence';
 
 const identity: ConversationIdentity = {
     agent: 'assistant',
@@ -192,6 +192,24 @@ describe('conversation scope', () => {
         expect(() => identityId({ ...identity, chat: 'a'.repeat(CONVERSATION_FIELD_MAX_LENGTH) })).not.toThrow();
         expect(() => identityId({ ...identity, chat: 'x\u{1F600}' })).not.toThrow();
         expect(() => identityId({ ...identity, chat: '\u{1F600}'.repeat(128) })).toThrow(ValidationError);
+    });
+
+    it('validates legacy and UUID v7 scopes', () => {
+        for (const id of [identityId(identity), '019a5555-1234-7abc-8123-456789abcdef']) {
+            expect(() => assertConversationScope({
+                id,
+                generation: 0,
+                identity,
+            })).not.toThrow();
+        }
+
+        for (const id of ['random', '019a5555-1234-4abc-8123-456789abcdef', '019a5555-1234-7abc-7123-456789abcdef']) {
+            expect(() => assertConversationScope({
+                id,
+                generation: 0,
+                identity,
+            })).toThrow(ValidationError);
+        }
     });
 
     it('utf8_bytes_not_js_length', () => {
