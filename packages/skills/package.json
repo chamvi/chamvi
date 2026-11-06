@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/skills",
-    "version": "0.7.3",
+    "version": "0.7.4",
     "type": "module",
     "description": "Prepare pinned, app-selected skill sources for verified Chamvi runtime loading.",
     "author": {
@@ -62,13 +62,13 @@
         "yaml": "~2.9.1"
     },
     "devDependencies": {
-        "@chamvi/app": "^0.7.3",
-        "@chamvi/core": "^0.7.3",
-        "@chamvi/test-kit": "^0.7.3",
+        "@chamvi/app": "^0.7.4",
+        "@chamvi/core": "^0.7.4",
+        "@chamvi/test-kit": "^0.7.4",
         "ai": "^7.0.163"
     },
     "peerDependencies": {
-        "@chamvi/core": "^0.7.3",
+        "@chamvi/core": "^0.7.4",
         "ai": "^7"
     }
 }
