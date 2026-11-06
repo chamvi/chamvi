@@ -9,6 +9,7 @@ import { NotFoundError } from '@ebec/http';
 import { App, defineCoreHandler } from 'routup';
 import { registerAgentRoutes } from '../agents/module.ts';
 import { registerChannelRoutes } from '../channels/module.ts';
+import { registerConnectionRoutes } from '../connections/module.ts';
 import { registerHealthRoutes } from '../health/module.ts';
 import { registerMcpRoutes } from '../mcp/module.ts';
 import { registerMeRoutes } from '../me/module.ts';
@@ -21,7 +22,7 @@ import type { HttpAppOptions } from './types.ts';
 
 /**
  * Builds the routup App of a chamvi app: health, REST, the listed channels
- * (`/channels/<name>`) and MCP, one JSON error body for every route under `basePath`.
+ * (`/channels/<name>`), the connection handles (`/connections`) and MCP, one JSON error body for every route under `basePath`.
  */
 export function createHttpApp(options: HttpAppOptions): App {
     const ctx = buildContext(options);
@@ -41,6 +42,7 @@ export function createHttpApp(options: HttpAppOptions): App {
     registerAgentRoutes(app, ctx);
     registerRunRoutes(app, ctx);
     registerChannelRoutes(app, ctx);
+    registerConnectionRoutes(app, ctx);
     registerRoutes(app, ctx);
 
     if (options.mcp !== false) {

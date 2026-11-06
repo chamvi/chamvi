@@ -97,3 +97,46 @@ export interface IConnectionSession {
     /** Stops renewing, waits for pending writes, releases the lease. Idempotent, never rejects. */
     close(): Promise<void>;
 }
+
+/**
+ * The live state of a connection as its provider sees it in this process
+ * (not stored): `held_elsewhere` while another process holds its lease.
+ */
+export type ConnectionStatus = 'disconnected' |
+    'pairing' |
+    'connecting' |
+    'connected' |
+    'logged_out' |
+    'held_elsewhere' |
+    'failed';
+
+/**
+ * What a connection asks an operator to see, rendered by kind. `qr` is
+ * pairing material: secret, shown only to a holder of
+ * `connection:<name>:write`, never logged.
+ */
+export type ConnectionWidget = {
+    kind: 'qr';
+    value: string;
+};
+
+/** The actions a connection offers; each optional. */
+export type ConnectionActions = {
+    /** Clears the connection's session and starts it again (e.g. a new pairing). */
+    reset?(): Promise<void>;
+};
+
+/**
+ * The runtime view of one connection a provider exposes (the dashboard's
+ * shape): process-local status and widgets, a change feed and actions.
+ */
+export interface IConnectionHandle {
+    readonly name: string;
+    readonly type: string;
+    status(): ConnectionStatus;
+    /** The widgets now (a new array); empty when there is nothing to show. */
+    widgets(): ConnectionWidget[];
+    /** Called after every status or widget change; returns the unsubscribe. */
+    subscribe(listener: () => void): () => void;
+    readonly actions: ConnectionActions;
+}
