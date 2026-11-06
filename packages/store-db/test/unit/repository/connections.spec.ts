@@ -37,7 +37,7 @@ const connection = (name: string): Connection => ({
 const waitForLockWait = async (ds: DataSource) => {
     for (let i = 0; i < 500; i++) {
         const [row]: { n: number }[] = await ds.query(
-            `SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+            'SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = \'Lock\'',
         );
 
         if (row!.n > 0) {

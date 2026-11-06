@@ -419,6 +419,7 @@ describe('connection session', () => {
 
             return renew(...args);
         };
+
         let lost = false;
 
         void session.lost.then(() => {
@@ -488,7 +489,7 @@ describe('connection session', () => {
 
             // the second renew hangs: the first confirmed the lease until 1000 + 3000
             if (calls > 1) {
-                return new Promise<boolean>(() => undefined);
+                return Promise.withResolvers<boolean>().promise;
             }
 
             return renew(...args);
