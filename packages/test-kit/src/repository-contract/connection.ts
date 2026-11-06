@@ -225,6 +225,13 @@ export function describeConnectionContract(setup: Setup): void {
             { clear: true, set: { b: bytes(2), ['x'.repeat(256)]: bytes(3) } },
             { clear: true, set: { b: bytes(2), 'a\0b': bytes(3) } },
             { clear: true, set: { b: bytes(2), '': bytes(3) } },
+            // a lone surrogate: Postgres would store U+FFFD, merging distinct keys
+            { clear: true, set: { b: bytes(2), '\ud800': bytes(3) } },
+            {
+                clear: true,
+                set: { b: bytes(2) },
+                delete: ['\udc00'],
+            },
             { clear: true, set: { b: bytes(2), c: 'nope' as unknown as Uint8Array } },
             {
                 clear: true, 
@@ -240,6 +247,8 @@ export function describeConnectionContract(setup: Setup): void {
         expect(plain(await connections.findEntries('wa', ['a', 'b']))).toEqual({ a: [1] });
         await expect(connections.findEntries('wa', ['a', 'x'.repeat(256)])).rejects.toBeInstanceOf(ValidationError);
         await expect(connections.findEntry('wa', '')).rejects.toBeInstanceOf(ValidationError);
+        await expect(connections.findEntries('wa', ['a', 'x\ud800'])).rejects.toBeInstanceOf(ValidationError);
+        await expect(connections.findEntry('wa', '\udc00')).rejects.toBeInstanceOf(ValidationError);
     });
 
     it('connections.delete removes the connection with its entries and ignores a missing one', async ({ skip }) => {

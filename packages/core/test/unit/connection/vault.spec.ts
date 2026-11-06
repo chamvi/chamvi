@@ -91,6 +91,24 @@ describe('createConnectionVault', () => {
             leaseTtlMs: 0,
         })).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
     });
+
+    it('refuses a lease ttl above the timer limit, which a timer would clamp to 1 ms', async () => {
+        const { vault } = setup();
+
+        await expect(vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 2_147_483_648,
+        })).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
+
+        const session = await vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 2_147_483_647,
+        });
+
+        await session.close();
+    });
 });
 
 describe('vault.open', () => {
@@ -137,6 +155,62 @@ describe('vault.open', () => {
         await (await vault.open('wa', { type: 'whatsapp', owner: 'o1' })).close();
         await expect(vault.open('wa', { type: 'telegram', owner: 'o1' })).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
         await (await vault.open('wa', { type: 'whatsapp', owner: 'o2' })).close();
+    });
+
+    it('rejects with LeaseLostError when the lease lapsed during initialization, and the next holder keeps it', async () => {
+        const {
+            clock,
+            store,
+            vault,
+        } = setup();
+        const findOne = store.connections!.findOne.bind(store.connections);
+
+        let delayed = false;
+
+        // the first lookup outlasts the lease and another owner takes it over meanwhile
+        store.connections!.findOne = async (name) => {
+            if (!delayed) {
+                delayed = true;
+                clock.advance(3_000);
+                expect(await store.locks.acquire('connection:wa', 'o2', 60_000)).toBe(true);
+            }
+
+            return findOne(name);
+        };
+
+        await expect(vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 3_000,
+        })).rejects.toBeInstanceOf(LeaseLostError);
+        expect(await store.locks.acquire('connection:wa', 'o3', 1_000)).toBe(false);
+    });
+
+    it('rejects with LeaseLostError when the lease expired during initialization, and releases it', async () => {
+        const {
+            clock,
+            store,
+            vault,
+        } = setup();
+        const findOne = store.connections!.findOne.bind(store.connections);
+
+        let delayed = false;
+
+        store.connections!.findOne = async (name) => {
+            if (!delayed) {
+                delayed = true;
+                clock.advance(3_000);
+            }
+
+            return findOne(name);
+        };
+
+        await expect(vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 3_000,
+        })).rejects.toBeInstanceOf(LeaseLostError);
+        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(true);
     });
 
     it('releases a lease acquired after the signal aborted', async () => {
@@ -225,13 +299,14 @@ describe('connection session', () => {
             await settle();
         }
 
-        expect(renewals).toEqual([1_000, 2_000, 3_000, 4_000]);
+        // the first renew confirms the lease before open returns
+        expect(renewals).toEqual([0, 1_000, 2_000, 3_000, 4_000]);
         expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(false);
         await session.write({ set: { a: text('1') } });
         await session.close();
         clock.advance(10_000);
         await settle();
-        expect(renewals).toHaveLength(4);
+        expect(renewals).toHaveLength(5);
     });
 
     it('uses a default lease ttl of 60 s', async () => {
@@ -269,18 +344,18 @@ describe('connection session', () => {
         const gate = Promise.withResolvers<void>();
         let calls = 0;
 
+        const session = await vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 3_000,
+        });
+
         store.locks.renew = async (...args) => {
             calls++;
             await gate.promise;
 
             return renew(...args);
         };
-
-        const session = await vault.open('wa', {
-            type: 'whatsapp',
-            owner: 'o1',
-            leaseTtlMs: 3_000,
-        });
 
         clock.advance(1_000);
 
@@ -331,6 +406,12 @@ describe('connection session', () => {
         const renew = store.locks.renew.bind(store.locks);
         let failures = 1;
 
+        const session = await vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 3_000,
+        });
+
         store.locks.renew = async (...args) => {
             if (failures-- > 0) {
                 throw new Error('store unavailable');
@@ -339,11 +420,6 @@ describe('connection session', () => {
             return renew(...args);
         };
 
-        const session = await vault.open('wa', {
-            type: 'whatsapp',
-            owner: 'o1',
-            leaseTtlMs: 3_000,
-        });
         let lost = false;
 
         void session.lost.then(() => {
@@ -357,6 +433,77 @@ describe('connection session', () => {
 
         expect(lost).toBe(false);
         await session.write({ set: { a: text('1') } });
+        await session.close();
+    });
+
+    it('renewals that keep throwing resolve lost at the last confirmed expiry and refuse reads and writes', async () => {
+        const {
+            clock,
+            store,
+            vault,
+        } = setup();
+        const session = await vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 3_000,
+        });
+
+        await session.write({ set: { a: text('1') } });
+        store.locks.renew = async () => {
+            throw new Error('store unavailable');
+        };
+
+        let lost = false;
+
+        void session.lost.then(() => {
+            lost = true;
+        });
+
+        clock.advance(2_999);
+        await settle();
+        expect(lost).toBe(false);
+        clock.advance(1);
+        await settle();
+        expect(lost).toBe(true);
+        await expect(session.readOne('a')).rejects.toBeInstanceOf(LeaseLostError);
+        await expect(session.write({ set: { b: text('2') } })).rejects.toBeInstanceOf(LeaseLostError);
+        await session.close();
+    });
+
+    it('a renewal that never settles resolves lost at the last confirmed expiry', async () => {
+        const {
+            clock,
+            store,
+            vault,
+        } = setup();
+        const renew = store.locks.renew.bind(store.locks);
+        const session = await vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 3_000,
+        });
+        let calls = 0;
+
+        store.locks.renew = async (...args) => {
+            calls++;
+
+            // the second renew hangs: the first confirmed the lease until 1000 + 3000
+            if (calls > 1) {
+                return Promise.withResolvers<boolean>().promise;
+            }
+
+            return renew(...args);
+        };
+
+        clock.advance(1_000);
+        await settle();
+        clock.advance(2_999);
+        await settle();
+        expect(calls).toBe(2);
+        await expect(session.readOne('a')).resolves.toBeUndefined();
+        clock.advance(1);
+        await expect(session.lost).resolves.toBeInstanceOf(LeaseLostError);
+        await expect(session.read(['a'])).rejects.toBeInstanceOf(LeaseLostError);
         await session.close();
     });
 
@@ -476,6 +623,137 @@ describe('connection session', () => {
         expect(decode(await other.readOne('a'))).toBe('1');
         await other.close();
         expect(await store.locks.acquire('connection:wa', 'o3', 1_000)).toBe(true);
+    });
+
+    it('round-trips the entry key __proto__', async () => {
+        const { vault } = setup();
+        const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
+
+        await session.write({ set: { ['__proto__']: text('p'), other: text('o') } });
+        expect(decode(await session.readOne('__proto__'))).toBe('p');
+        await session.write({ delete: ['__proto__'] });
+        expect(await session.readOne('__proto__')).toBeUndefined();
+        expect(decode(await session.readOne('other'))).toBe('o');
+        await session.close();
+    });
+
+    it('refuses an entry key that is not well-formed UTF-16', async () => {
+        const { vault } = setup();
+        const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
+
+        await expect(session.write({ set: { '\ud800': text('1') } })).rejects.toBeInstanceOf(ValidationError);
+        await expect(session.read(['\udc00'])).rejects.toBeInstanceOf(ValidationError);
+        await session.close();
+    });
+
+    it('keeps the data key out of the enumerable and serialized session', async () => {
+        const { store, keys } = setup();
+        const keyring = createKeyring(keys);
+        const unwrap = keyring.unwrap.bind(keyring);
+        const unwrapped: Uint8Array[] = [];
+
+        keyring.unwrap = (...args) => {
+            const key = unwrap(...args);
+
+            unwrapped.push(key);
+
+            return key;
+        };
+
+        const vault = createConnectionVault({ store, keyring });
+        const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
+        const [dataKey] = unwrapped;
+        const seen = new Set<unknown>();
+        const reaches = (value: unknown): boolean => {
+            if (value === dataKey) {
+                return true;
+            }
+
+            if (typeof value !== 'object' || value === null || seen.has(value)) {
+                return false;
+            }
+
+            seen.add(value);
+
+            return Object.values(value).some((item) => reaches(item));
+        };
+
+        expect(dataKey).toBeInstanceOf(Uint8Array);
+        expect(reaches(session)).toBe(false);
+        expect(JSON.stringify(session)).not.toContain(JSON.stringify(dataKey));
+        await session.close();
+    });
+
+    it('close keeps renewing while accepted writes drain, then stops and releases', async () => {
+        const {
+            clock,
+            store,
+            vault,
+        } = setup();
+        const { connections } = store;
+        const original = connections!.writeEntries.bind(connections);
+        const gate = Promise.withResolvers<void>();
+        const renew = store.locks.renew.bind(store.locks);
+        let renewals = 0;
+
+        store.locks.renew = async (...args) => {
+            renewals++;
+
+            return renew(...args);
+        };
+
+        connections!.writeEntries = async (...args) => {
+            await gate.promise;
+
+            return original(...args);
+        };
+
+        const session = await vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 3_000,
+        });
+        const pending = session.write({ set: { a: text('1') } });
+        const closing = session.close();
+
+        for (let i = 0; i < 6; i++) {
+            clock.advance(1_000);
+            await settle();
+        }
+
+        expect(renewals).toBe(7);
+        gate.resolve();
+        await expect(pending).resolves.toBeUndefined();
+        await closing;
+        clock.advance(10_000);
+        await settle();
+        expect(renewals).toBe(7);
+        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await connections!.findEntry('wa', 'a')).toBeInstanceOf(Uint8Array);
+    });
+
+    it('a read whose entry lookup outlasts the start of close reports the close, not a decryption failure', async () => {
+        const { store, vault } = setup();
+        const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
+
+        await session.write({ set: { a: text('1') } });
+
+        const { connections } = store;
+        const findEntries = connections!.findEntries.bind(connections);
+        const gate = Promise.withResolvers<void>();
+
+        connections!.findEntries = async (...args) => {
+            await gate.promise;
+
+            return findEntries(...args);
+        };
+
+        const reading = session.readOne('a');
+
+        await settle();
+        await session.close();
+        gate.resolve();
+        await expect(reading).rejects.toBeInstanceOf(InvalidRunStateError);
     });
 
     it('each session leases under its own owner token: an expired session of the same owner cannot write under the next one', async () => {

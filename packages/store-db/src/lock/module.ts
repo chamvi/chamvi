@@ -7,7 +7,7 @@
 
 import { systemClock } from '@chamvi/core';
 import type { IClock, ILockRepository } from '@chamvi/core';
-import { LessThanOrEqual, MoreThan } from 'typeorm';
+import { LessThanOrEqual } from 'typeorm';
 import type { DataSource, Repository } from 'typeorm';
 import { LockEntity } from '../entities/index.ts';
 import type { DatabaseStoreOptions } from '../repository/types.ts';
@@ -51,21 +51,27 @@ export class DatabaseLockRepository implements ILockRepository {
         return result.raw.length === 1;
     }
 
+    /**
+     * Locks the lease row first, then reads the clock: a renew that waited for
+     * the row past the expiry is refused, never extended from an earlier reading.
+     */
     async renew(key: string, owner: string, ttlMs: number): Promise<boolean> {
-        const now = this.now();
-        const result = await this.locks.createQueryBuilder()
-            .update()
-            .set({ expiresAt: new Date(now.getTime() + ttlMs) })
-            .where({
-                key,
-                owner,
-                expiresAt: MoreThan(now),
-            })
-            .returning(['key'])
-            .updateEntity(false)
-            .execute();
+        return this.dataSource.transaction(async (manager) => {
+            const locks = manager.withRepository(this.locks);
+            const lease = await locks.findOne({
+                where: { key, owner },
+                lock: { mode: 'pessimistic_write' },
+            });
+            const now = this.now();
 
-        return result.raw.length === 1;
+            if (!lease || lease.expiresAt.getTime() <= now.getTime()) {
+                return false;
+            }
+
+            await locks.update({ key, owner }, { expiresAt: new Date(now.getTime() + ttlMs) });
+
+            return true;
+        });
     }
 
     async release(key: string, owner: string): Promise<void> {

@@ -9,6 +9,9 @@ import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { CONNECTION_TYPE_MAX_LENGTH, DEFAULT_CONNECTION_LEASE_TTL_MS } from './constants.ts';
 import type { ConnectionOpenOptions } from './types.ts';
 
+/** The longest delay a timer keeps; Node clamps a longer one to 1 ms. The lease deadline waits a whole ttl. */
+const TIMER_MAX_DELAY_MS = 2_147_483_647;
+
 /** The store lock that leases a connection. */
 export const lockKeyOf = (name: string) => `connection:${name}`;
 
@@ -34,8 +37,10 @@ export function normalizeOpenOptions(opts: ConnectionOpenOptions): ConnectionOpe
         throw new InvalidAgentDefinitionError('A connection recreate option must be a boolean.');
     }
 
-    if (!Number.isSafeInteger(leaseTtlMs) || leaseTtlMs < 3) {
-        throw new InvalidAgentDefinitionError('A connection leaseTtlMs must be an integer of at least 3 ms.');
+    if (!Number.isSafeInteger(leaseTtlMs) || leaseTtlMs < 3 || leaseTtlMs > TIMER_MAX_DELAY_MS) {
+        throw new InvalidAgentDefinitionError(
+            `A connection leaseTtlMs must be an integer of 3 to ${TIMER_MAX_DELAY_MS} ms.`,
+        );
     }
 
     return { ...opts, leaseTtlMs };

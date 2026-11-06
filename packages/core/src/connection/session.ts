@@ -18,7 +18,8 @@ type SessionOptions = {
     owner: string;
     lock: string;
     leaseTtlMs: number;
-    dataKey: Uint8Array;
+    /** The last confirmed lease expiry (ms since epoch on `clock`), a lower bound of the store's. */
+    expiresAt: number;
     connections: IConnectionRepository;
     locks: ILockRepository;
     clock: IClock;
@@ -31,6 +32,14 @@ export class ConnectionSession implements IConnectionSession {
     readonly lost: Promise<LeaseLostError>;
 
     protected opts: SessionOptions;
+
+    /** A private field: never enumerated, serialized or reachable from the session's properties. */
+    #dataKey: Uint8Array;
+
+    /** The last confirmed lease expiry; the session is lost once the clock reaches it. */
+    protected expiresAt: number;
+
+    protected deadline?: { clear(): void };
 
     protected state: 'open' | 'lost' | 'closed' = 'open';
 
@@ -48,15 +57,18 @@ export class ConnectionSession implements IConnectionSession {
 
     protected closing?: Promise<void>;
 
-    constructor(opts: SessionOptions) {
+    constructor(opts: SessionOptions, dataKey: Uint8Array) {
         this.opts = opts;
         this.name = opts.name;
+        this.#dataKey = dataKey;
+        this.expiresAt = opts.expiresAt;
 
         const { promise, resolve } = Promise.withResolvers<LeaseLostError>();
 
         this.lost = promise;
         this.resolveLost = resolve;
         this.schedule();
+        this.watch();
     }
 
     protected schedule(): void {
@@ -65,8 +77,17 @@ export class ConnectionSession implements IConnectionSession {
         }, Math.floor(this.opts.leaseTtlMs / 3));
     }
 
+    /** Loses the session when no renewal is confirmed before the last confirmed expiry. */
+    protected watch(): void {
+        this.deadline?.clear();
+        this.deadline = this.opts.clock.setTimeout(() => {
+            this.lose();
+        }, Math.max(0, this.expiresAt - this.opts.clock.now().getTime()));
+    }
+
+    /** Renewal runs while open, also while close drains the accepted writes. */
     protected get renewing(): boolean {
-        return this.state === 'open' && !this.closing;
+        return this.state === 'open';
     }
 
     protected async renew(): Promise<void> {
@@ -74,22 +95,38 @@ export class ConnectionSession implements IConnectionSession {
             return;
         }
 
-        let renewed: boolean;
+        // the store extends from its own reading, taken after this one: started + ttl is a lower bound
+        const started = this.opts.clock.now().getTime();
+        let renewed: boolean | undefined;
 
         try {
             renewed = await this.opts.locks.renew(this.opts.lock, this.opts.owner, this.opts.leaseTtlMs);
         } catch {
-            // a store hiccup is retried; an expired lease shows on the next renew, and writes are fenced anyway
-            renewed = true;
+            // a store hiccup is retried until the last confirmed expiry, where the deadline loses the session
+            renewed = undefined;
         }
 
         if (!this.renewing) {
             return;
         }
 
+        if (renewed === false) {
+            this.lose();
+
+            return;
+        }
+
         if (renewed) {
-            this.schedule();
-        } else {
+            this.expiresAt = Math.max(this.expiresAt, started + this.opts.leaseTtlMs);
+            this.watch();
+        }
+
+        this.schedule();
+    }
+
+    /** Loses the session when the clock passed the last confirmed expiry (a timer may not have fired yet). */
+    protected checkExpiry(): void {
+        if (this.state === 'open' && this.opts.clock.now().getTime() >= this.expiresAt) {
             this.lose();
         }
     }
@@ -101,6 +138,7 @@ export class ConnectionSession implements IConnectionSession {
 
         this.state = 'lost';
         this.timer?.clear();
+        this.deadline?.clear();
         this.lostError = new LeaseLostError({ lock: this.opts.lock });
         this.resolveLost(this.lostError);
     }
@@ -109,6 +147,8 @@ export class ConnectionSession implements IConnectionSession {
         if (this.closing) {
             throw new InvalidRunStateError(`The session of connection "${this.name}" is closed.`);
         }
+
+        this.checkExpiry();
 
         if (this.lostError) {
             throw this.lostError;
@@ -121,10 +161,14 @@ export class ConnectionSession implements IConnectionSession {
         this.assertUsable();
 
         const sealed = await this.opts.connections.findEntries(this.name, keys);
+
+        // a close begun or a lease lost meanwhile: the data key may be zeroed already
+        this.assertUsable();
+
         const found = new Map<string, Uint8Array>();
 
         for (const [key, value] of sealed) {
-            found.set(key, open(this.opts.dataKey, value, entryAadOf(this.name, key)));
+            found.set(key, open(this.#dataKey, value, entryAadOf(this.name, key)));
         }
 
         return found;
@@ -140,11 +184,10 @@ export class ConnectionSession implements IConnectionSession {
         this.assertUsable();
         assertConnectionEntryWrite(write);
 
-        const set: Record<string, Uint8Array> = {};
-
-        for (const [key, value] of Object.entries(write.set ?? {})) {
-            set[key] = seal(this.opts.dataKey, value, entryAadOf(this.name, key));
-        }
+        // fromEntries defines own properties: an assignment of `__proto__` would set the prototype instead
+        const set: Record<string, Uint8Array> = Object.fromEntries(
+            Object.entries(write.set ?? {}).map(([key, value]) => [key, seal(this.#dataKey, value, entryAadOf(this.name, key))]),
+        );
 
         const sealed: ConnectionEntryWrite = {
             ...(write.clear && { clear: true }),
@@ -153,6 +196,8 @@ export class ConnectionSession implements IConnectionSession {
         };
         const fence = { lock: this.opts.lock, owner: this.opts.owner };
         const result = this.tail.then(() => {
+            this.checkExpiry();
+
             if (this.lostError) {
                 throw this.lostError;
             }
@@ -198,10 +243,12 @@ export class ConnectionSession implements IConnectionSession {
 
     close(): Promise<void> {
         this.closing ??= (async () => {
-            this.timer?.clear();
+            // renewal goes on until the accepted writes settled
             await this.tail;
             this.state = 'closed';
-            this.opts.dataKey.fill(0);
+            this.timer?.clear();
+            this.deadline?.clear();
+            this.#dataKey.fill(0);
 
             try {
                 await this.opts.locks.release(this.opts.lock, this.opts.owner);
