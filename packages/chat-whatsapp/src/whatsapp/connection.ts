@@ -190,6 +190,11 @@ function isHeld(error: unknown): boolean {
 
 const noop = () => undefined;
 
+function clearRetry(run: Run): void {
+    run.retry?.clear();
+    delete run.retry;
+}
+
 /** The refusal of a reset while another process holds the session: nothing is cleared, nothing queued. */
 function heldElsewhere(): InvalidRunStateError {
     return new InvalidRunStateError('The WhatsApp session is held by another process; the reset is refused and nothing is cleared. Retry once this process holds the session.');
@@ -751,8 +756,7 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             }
 
             // a retry scheduled while the close ran (a lost lease's) would build a second generation
-            run.retry?.clear();
-            delete run.retry;
+            clearRetry(run);
 
             if (isRunCurrent(run)) {
                 await establish(run, false);
