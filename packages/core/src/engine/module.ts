@@ -8,12 +8,13 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { pid } from 'node:process';
+import { uuidv7 } from 'uuidv7';
 import type { Agent } from '../agent/types.ts';
 import { assertAgentKind, conversationKey } from '../agent/asserts.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
 import { attachmentIds, legacyAttachmentIds, storeArtifact } from '../artifact/module.ts';
-import { isUuidV7, randomUuidV7 } from '../uuid/module.ts';
+import { isUuidV7 } from '../uuid/module.ts';
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
 import { assertChannelName, assertDefaultAddress } from '../channel/helpers.ts';
 import type {
@@ -346,7 +347,7 @@ export class Engine implements IEngine {
             id: envelope.id ?? randomUUID(),
             receivedAt: envelope.receivedAt ?? now,
         };
-        let runId: string = randomUuidV7(now.getTime());
+        let runId: string = uuidv7();
         let healing = false;
 
         if (trigger.idempotencyKey !== undefined) {
@@ -391,6 +392,14 @@ export class Engine implements IEngine {
 
             if (healing && isUuidV7(runId)) {
                 const legacyIds = legacyAttachmentIds(runId, attachments.length);
+                const staged = await this.store.artifacts.find(runId);
+
+                const incompatibleWidth = staged.some(({ id }) =>
+                    id.startsWith(`${runId}.`) && /^\d{4,}$/.test(id.slice(runId.length + 1)) && id.length !== legacyIds[0]!.length);
+
+                if (incompatibleWidth) {
+                    throw new ValidationError('The retry attachment count changes the legacy attachment id width and cannot be healed safely.');
+                }
 
                 for (const id of legacyIds) {
                     if (await this.store.artifacts.findOne(id)) {

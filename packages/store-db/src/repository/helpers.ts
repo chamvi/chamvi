@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import { RunNotFoundError, normalizeEnvelope, normalizeWaitPoint } from '@chamvi/core';
 import { isObject } from 'smob';
 import type {
@@ -91,6 +92,7 @@ export function toRunValues(patch: Partial<Run>): QueryDeepPartialEntity<RunEnti
 export function toRunInsertValues(run: Run): QueryDeepPartialEntity<RunEntity> {
     return {
         ...toRunValues(run),
+        rowId: uuidv7(),
         id: run.id,
         parentRunId: run.trigger.parent?.runId ?? null,
     } as QueryDeepPartialEntity<RunEntity>;
@@ -124,7 +126,8 @@ export function toStepValues(step: Step): QueryDeepPartialEntity<StepEntity> {
 
 /** CheckpointEntity values for a checkpoint. */
 export function toCheckpointValues(cp: Checkpoint): QueryDeepPartialEntity<CheckpointEntity> {
-    const values: Omit<CheckpointEntity, 'id'> = {
+    const values: CheckpointEntity = {
+        id: uuidv7(),
         runId: cp.runId,
         stepIndex: cp.stepIndex,
         messages: cp.messages,
@@ -321,7 +324,8 @@ export function toCheckpoint(entity: CheckpointEntity): Checkpoint {
 
 /** ArtifactEntity values for a new artifact: the bytes copied into a Buffer, the bytea parameter the driver expects. */
 export function toArtifactValues(artifact: Artifact, data: Uint8Array): QueryDeepPartialEntity<ArtifactEntity> {
-    const values: Omit<ArtifactEntity, 'rowId'> = {
+    const values: ArtifactEntity = {
+        rowId: uuidv7(),
         id: artifact.id,
         runId: artifact.runId,
         agent: artifact.agent,

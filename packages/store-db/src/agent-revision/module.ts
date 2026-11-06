@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import { RepositoryNotFoundError } from '@chamvi/core';
 import type { AgentRevision, IAgentRevisionRepository } from '@chamvi/core';
 import type { DataSource, Repository } from 'typeorm';
@@ -40,6 +41,7 @@ export class DatabaseAgentRevisionRepository implements IAgentRevisionRepository
 
     async save(revision: AgentRevision): Promise<void> {
         await this.agentRevisions.upsert(asValues<AgentRevisionEntity>({
+            id: uuidv7(),
             agent: revision.agent,
             hash: revision.hash,
             changedAt: revision.changedAt,

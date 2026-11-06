@@ -20,7 +20,7 @@ export class ArtifactEntity {
     @PrimaryColumn({
         name: 'row_id',
         type: 'uuid',
-        default: () => 'chamvi_uuid_v7()',
+        update: false,
     })
     rowId!: string;
 

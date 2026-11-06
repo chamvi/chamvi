@@ -286,6 +286,33 @@ describe('attachments at dispatch', () => {
         expect(await ctx.store.artifacts.read(artifact.id)).toEqual(PNG);
     });
 
+    it('rejects legacy attachment healing across index widths before writing', async () => {
+        const ctx = setup([text('ok')]);
+        const runId = '019a5555-1234-7abc-8123-456789abcdef';
+        const artifact = {
+            id: `${runId}.0000`,
+            runId,
+            agent: 'vision',
+            mediaType: 'image/png',
+            size: PNG.byteLength,
+            createdAt: ctx.clock.now(),
+        };
+
+        await ctx.store.idempotency.claim('vision:http', 'legacy', runId, 60_000);
+        await ctx.store.artifacts.insert(artifact, PNG);
+
+        const insert = vi.spyOn(ctx.store.artifacts, 'insert');
+
+        await expect(ctx.engine.dispatch(env({
+            idempotencyKey: 'legacy',
+            attachments: Array.from({ length: 10_001 }, () => ({ mediaType: 'text/plain', data: new Uint8Array([2]) })),
+        }))).rejects.toBeInstanceOf(ValidationError);
+        expect(insert).not.toHaveBeenCalled();
+        expect(await ctx.store.artifacts.find(runId)).toEqual([artifact]);
+        expect(await ctx.store.artifacts.read(artifact.id)).toEqual(PNG);
+        expect(await ctx.store.runs.findOne(runId)).toBeUndefined();
+    });
+
     it('leaves the envelope without attachments when none are given', async () => {
         const ctx = setup([text('ok')]);
         const { runId } = await ctx.engine.dispatch(env({ attachments: [] }));

@@ -6,10 +6,11 @@
  */
 
 import { createHash } from 'node:crypto';
+import { UUID, uuidv7 } from 'uuidv7';
 import type { IClock } from '../clock/index.ts';
 import { InvalidRunStateError } from '../errors/index.ts';
 import type { IArtifactRepository } from '../repository/types.ts';
-import { isUuidV7, randomUuidV7 } from '../uuid/module.ts';
+import { isUuidV7 } from '../uuid/module.ts';
 import { ARTIFACT_URI_PREFIX } from './constants.ts';
 import { assertArtifactInput } from './helpers.ts';
 import type {
@@ -30,7 +31,7 @@ export async function storeArtifact(
     run: { id: string; agent: string },
     input: ArtifactInput,
     createdAt: Date,
-    id: string = randomUuidV7(createdAt.getTime()),
+    id: string = uuidv7(),
 ): Promise<Artifact> {
     const artifact: Artifact = {
         id,
@@ -95,10 +96,13 @@ function deterministicArtifactId(runId: string, key?: string, index = 0): string
     // Leave room for every array index so ordered attachment ids cannot wrap.
     const range = key === undefined ? (1n << 74n) - (1n << 32n) : 1n << 74n;
     const entropy = BigInt(`0x${digest}`) % range + BigInt(index);
-    const randA = (entropy >> 62n).toString(16).padStart(3, '0');
-    const randB = ((entropy & ((1n << 62n) - 1n)) | (1n << 63n)).toString(16);
 
-    return `${runId.slice(0, 13)}-7${randA}-${randB.slice(0, 4)}-${randB.slice(4)}`;
+    return UUID.fromFieldsV7(
+        Number.parseInt(runId.slice(0, 13).replace('-', ''), 16),
+        Number(entropy >> 62n),
+        Number((entropy >> 32n) & 0x3fffffffn),
+        Number(entropy & 0xffffffffn),
+    ).toString();
 }
 
 /** The artifacts of one run, as tools get them. */

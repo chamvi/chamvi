@@ -7,8 +7,9 @@
 
 import { DataSource } from 'typeorm';
 import type { TableColumn } from 'typeorm';
-import { assertSchemaMatchesMetadata } from 'typeorm-extension';
+import { generateMigration } from 'typeorm-extension';
 import { afterEach, expect, it } from 'vitest';
+import { uuidv7 } from 'uuidv7';
 import { identityId } from '@chamvi/core/conversation/persistence';
 import { STORE_MIGRATIONS, createDatabaseStore, migrateStore } from '@chamvi/store-db';
 import { TableName } from '../../../src/entities/constants.ts';
@@ -271,6 +272,10 @@ async function seedLegacy(ds: DataSource): Promise<void> {
         key: 'review:主题😀',
         value: JSON.stringify(LINK),
     });
+    await ds.query(`INSERT INTO chamvi_kv (agent, key, value)
+        SELECT CASE WHEN item % 2 = 0 THEN 'bulk-A' ELSE 'bulk-a' END,
+            'batch:' || lpad(item::text, 4, '0') || ':主题😀', jsonb_build_object('item', item)
+        FROM generate_series(1, 1001) AS item`);
     await insert(ds, TableName.EFFECTS, { key: 'legacy:reply', result: JSON.stringify(LINK) });
     await insert(ds, TableName.LOCKS, {
         key: 'legacy:lease',
@@ -302,6 +307,8 @@ async function expectPrimaryKeys(ds: DataSource): Promise<void> {
             expect(primary!.type, table.name).toBe(bigint ? 'bigint' : 'uuid');
 
             if (!bigint) {
+                expect(primary!.default, table.name).toBeUndefined();
+
                 const rows: { id: string }[] = await ds.query(`SELECT "${primary!.name}" AS id FROM "${table.name}"`);
 
                 for (const row of rows) {
@@ -315,7 +322,13 @@ async function expectPrimaryKeys(ds: DataSource): Promise<void> {
         await runner.release();
     }
 
-    await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
+    await expect(generateMigration({
+        dataSource: ds,
+        preview: true,
+        prettify: true,
+    }))
+        .resolves.toEqual({ up: [], down: [] });
+    expect(await ds.query("SELECT to_regprocedure('chamvi_uuid_v7()') AS function")).toEqual([{ function: null }]);
 }
 
 describePostgres('single primary keys', () => {
@@ -352,10 +365,6 @@ describePostgres('single primary keys', () => {
         await store.connections.writeEntries('test', { set: { '主题😀': new Uint8Array([1, 254]) } }, { lock: 'connection:test', owner: 'owner' });
         expect(await ds.query('SELECT id FROM chamvi_connection_entries')).toEqual(entryKeys);
 
-        const generated: { id: string }[] = await ds.query('SELECT chamvi_uuid_v7() AS id FROM generate_series(1, 1000)');
-
-        expect(generated.every(({ id }) => UUID7.test(id))).toBe(true);
-        expect(new Set(generated.map(({ id }) => id)).size).toBe(1000);
         await expectPrimaryKeys(ds);
     });
 
@@ -390,6 +399,7 @@ describePostgres('single primary keys', () => {
 
             if (table === TableName.RUNS) {
                 await insert(ds, table, {
+                    row_id: uuidv7(),
                     id: runId,
                     agent: 'legacy',
                     status: 'queued',
@@ -400,6 +410,7 @@ describePostgres('single primary keys', () => {
                 });
             } else if (table === TableName.IDEMPOTENCY_KEYS) {
                 await insert(ds, table, {
+                    id: uuidv7(),
                     scope: 'legacy:chat',
                     key: 'reserved',
                     run_id: runId,
@@ -407,6 +418,7 @@ describePostgres('single primary keys', () => {
                 });
             } else {
                 await insert(ds, table, {
+                    row_id: uuidv7(),
                     id: 'staged-artifact',
                     run_id: runId,
                     agent: 'legacy',
@@ -437,7 +449,7 @@ describePostgres('single primary keys', () => {
         const before = await snapshot(ds);
         const migrations = await ds.query('SELECT * FROM migrations ORDER BY id');
 
-        // This collision occurs after the migration has created its function, tables and UUID columns.
+        // This collision occurs after the migration has created tables and backfilled UUID columns.
         await ds.query('CREATE INDEX "IDX_d355b7063fb6b3201e6d588b51" ON chamvi_agent_revisions (agent)');
         await expect(migrateStore(ds)).rejects.toMatchObject({ driverError: { code: '42P07' } });
         await expectPreserved(ds, before);
@@ -506,6 +518,7 @@ describePostgres('single primary keys', () => {
                 { name: TableName.STEPS },
             ]);
             await expect(insert(ds, TableName.CHECKPOINTS, {
+                id: uuidv7(),
                 run_id: 'new-missing-run',
                 step_index: 1,
                 messages: '[]',
@@ -524,7 +537,7 @@ describePostgres('single primary keys', () => {
             await expectPrimaryKeys(ds);
 
             const keys = () => Promise.all([TableName.KV, TableName.DOCS, TableName.EFFECTS, TableName.AGENT_REVISIONS]
-                .map((table) => ds.query(`SELECT ${table === TableName.DOCS ? 'row_id' : 'id'} AS id FROM "${table}"`)));
+                .map((table) => ds.query(`SELECT ${table === TableName.DOCS ? 'row_id' : 'id'} AS id FROM "${table}" ORDER BY id`)));
             const originalKeys = await keys();
 
             for (let index = 0; index < 2; index++) {

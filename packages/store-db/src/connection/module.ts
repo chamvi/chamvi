@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import {
     LeaseLostError,
     RepositoryNotFoundError,
@@ -91,6 +92,7 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
         const result = await this.connections.createQueryBuilder()
             .insert()
             .values(asValues<ConnectionEntity>({
+                id: uuidv7(),
                 name: connection.name,
                 type: connection.type,
                 keyId: connection.keyId,
@@ -184,6 +186,7 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
             await connections.createQueryBuilder()
                 .insert()
                 .values(asValues<ConnectionEntity>({
+                    id: uuidv7(),
                     name,
                     type: connection.type,
                     keyId: connection.keyId,
@@ -245,6 +248,7 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
             }
 
             const rows = Object.entries(write.set ?? {}).map(([key, value]) => asValues<ConnectionEntryEntity>({
+                id: uuidv7(),
                 connectionName: name,
                 key,
                 value: Buffer.from(value),

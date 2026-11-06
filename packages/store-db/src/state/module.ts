@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import { RepositoryNotFoundError } from '@chamvi/core';
 import type { IStateRepository, StateDocumentFindOptions, StateFindOptions  } from '@chamvi/core';
 import { JsonContains } from 'typeorm';
@@ -51,6 +52,7 @@ export class DatabaseStateRepository implements IStateRepository {
         }
 
         await this.kv.upsert(asValues<KvEntity>({
+            id: uuidv7(),
             agent,
             key,
             value,
@@ -139,6 +141,7 @@ export class DatabaseStateRepository implements IStateRepository {
 
     async upsertDocument(agent: string, coll: string, id: string, doc: unknown): Promise<void> {
         await this.docs.upsert(asValues<DocEntity>({
+            rowId: uuidv7(),
             agent,
             collection: coll,
             id,

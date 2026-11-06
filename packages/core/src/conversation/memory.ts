@@ -6,6 +6,7 @@
  */
 
 import { isObject } from 'smob';
+import { uuidv7 } from 'uuidv7';
 import { systemClock } from '../clock/index.ts';
 import type { IClock } from '../clock/index.ts';
 import {
@@ -15,7 +16,6 @@ import {
     ValidationError,
 } from '../errors/index.ts';
 import { compareCodePoints, copy } from '../repository/memory/helpers.ts';
-import { randomUuidV7 } from '../uuid/module.ts';
 import { CONVERSATION_LIMITS_MAX, CONVERSATION_NOTES_MAX } from './constants.ts';
 import {
     assertConversationIdentity,
@@ -597,7 +597,7 @@ export class MemoryConversationRepository implements IConversationRepository {
 
         if (!record) {
             record = {
-                id: randomUuidV7(this.clock.now().getTime()),
+                id: uuidv7(),
                 identity: {
                     agent: identity.agent,
                     channel: identity.channel,

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import {
     CONVERSATION_LIMITS_MAX,
     CONVERSATION_NOTES_MAX,
@@ -165,6 +166,8 @@ export class DatabaseConversationRepository implements IConversationRepository {
 
         await this.conversations.createQueryBuilder().insert()
             .values(asValues<ConversationEntity>({
+                rowId: uuidv7(),
+                id: uuidv7(),
                 identityKey,
                 agent: identity.agent,
                 channel: identity.channel,
@@ -581,6 +584,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 }
 
                 await manager.withRepository(this.notes).upsert(asValues<ConversationNoteEntity>({
+                    id: uuidv7(),
                     ...where,
                     ...noteValues(note),
                 }), ['scopeId', 'generation', 'key']);
@@ -599,6 +603,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
             }
 
             await manager.withRepository(this.operations).insert(asValues<ConversationOperationEntity>({
+                rowId: uuidv7(),
                 ...where,
                 id: operation.id,
                 runId: operation.source.runId,

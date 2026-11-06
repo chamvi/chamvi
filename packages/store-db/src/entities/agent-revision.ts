@@ -16,7 +16,7 @@ import { TableName } from './constants.ts';
 @Index(['agent'], { unique: true })
 @Entity({ name: TableName.AGENT_REVISIONS })
 export class AgentRevisionEntity {
-    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({

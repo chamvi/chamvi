@@ -23,7 +23,7 @@ import { ConversationEntity } from './conversation.ts';
 @Index(['conversationScopeId'])
 @Entity({ name: TableName.CHECKPOINTS })
 export class CheckpointEntity {
-    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({

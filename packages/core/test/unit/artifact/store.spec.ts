@@ -52,7 +52,7 @@ describe('storeArtifact', () => {
         const b = await artifacts.put(input('b'));
 
         expect(a.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
-        expect(Number.parseInt(a.id.replaceAll('-', '').slice(0, 12), 16)).toBe(clock.now().getTime());
+        expect(a.createdAt).toEqual(clock.now());
         expect(b.id).not.toBe(a.id);
     });
 });
@@ -76,6 +76,14 @@ describe('UUID v7 artifact identities', () => {
     const runId = '019a5555-1234-7abc-8123-456789abcdef';
     const otherRun = '019a5555-1234-7abc-8123-456789abcdee';
     const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+    it('keeps persisted deterministic identities stable', () => {
+        expect(attachmentIds(runId, 2)).toEqual([
+            '019a5555-1234-74ff-bd11-f8fe4941f877',
+            '019a5555-1234-74ff-bd11-f8fe4941f878',
+        ]);
+        expect(keyedArtifactId(runId, 'report')).toBe('019a5555-1234-7bea-9dda-a3edb3db78f1');
+    });
 
     it('keeps attachment ids stable across counts and ordered', () => {
         const ids = attachmentIds(runId, 10_001);

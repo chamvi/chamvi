@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import { systemClock } from '@chamvi/core';
 import type { IClock, ILockRepository } from '@chamvi/core';
 import { LessThanOrEqual } from 'typeorm';
@@ -35,6 +36,7 @@ export class DatabaseLockRepository implements ILockRepository {
         const result = await this.locks.createQueryBuilder()
             .insert()
             .values({
+                id: uuidv7(),
                 key,
                 owner,
                 expiresAt: new Date(now.getTime() + ttlMs),

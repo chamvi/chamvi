@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import type { DataSource } from 'typeorm';
 import {
     afterAll,
@@ -43,6 +44,7 @@ describePostgres('DatabaseRunRepository legacy envelopes', () => {
             .createQueryBuilder()
             .insert()
             .values(asValues<RunEntity>({
+                rowId: uuidv7(),
                 id: 'legacy',
                 agent: 'a',
                 status: 'queued',

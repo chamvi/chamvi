@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import { DataSource } from 'typeorm';
 import { assertSchemaMatchesMetadata } from 'typeorm-extension';
 import { afterEach, expect, it } from 'vitest';
@@ -151,8 +152,8 @@ describePostgres('connections in postgres', () => {
         expect(entry.connection?.name).toBe('wa');
         expect(entry.connection?.type).toBe('whatsapp');
         await expect(ds.query(
-            `INSERT INTO "${TableName.CONNECTION_ENTRIES}" (connection_name, key, value) VALUES ($1, $2, $3)`,
-            ['missing', 'a', Buffer.from([1])],
+            `INSERT INTO "${TableName.CONNECTION_ENTRIES}" (id, connection_name, key, value) VALUES ($1, $2, $3, $4)`,
+            [uuidv7(), 'missing', 'a', Buffer.from([1])],
         )).rejects.toMatchObject({ driverError: { code: '23503' } });
 
         await store.connections.delete('wa');

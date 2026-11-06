@@ -16,7 +16,7 @@ import { TableName } from './constants.ts';
 @Index(['key'], { unique: true })
 @Entity({ name: TableName.LOCKS })
 export class LockEntity {
-    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({

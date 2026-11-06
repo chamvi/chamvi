@@ -23,7 +23,7 @@ import { RunEntity } from './run.ts';
 @Index(['scopeId', 'generation', 'key'], { unique: true })
 @Entity({ name: TableName.CONVERSATION_NOTES })
 export class ConversationNoteEntity {
-    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({

@@ -16,7 +16,7 @@ import { TableName } from './constants.ts';
 @Index(['scope', 'key'], { unique: true })
 @Entity({ name: TableName.IDEMPOTENCY_KEYS })
 export class IdempotencyKeyEntity {
-    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({

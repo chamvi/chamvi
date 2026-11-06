@@ -6,7 +6,7 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 The database migration `ConnectionsPrimaryKeys1792886400000` gives each table one UUID v7 or existing bigint primary key. Business keys use unique indexes, and existing public IDs and stored references remain valid. New framework-generated runs, artifacts and conversation scopes use UUID v7; treat IDs as opaque strings. Custom conversation repositories should generate a UUID v7 scope once per new identity and keep existing scope IDs stable; canonical identity hashes remain lookup keys, and existing hash scope IDs stay valid.
 
-Stop all runtimes sharing the store and take a backup before migrating. PostgreSQL 17 is supported without extensions. Rollback/reapply preserves legacy data, but a downgrade refuses while UUID conversation scopes or UUID v7 run identities exist (including imported runs, staged reservations or artifacts); restore the pre-upgrade backup to downgrade then. See [UUID primary keys](/repositories/database#uuid-primary-keys).
+Stop all runtimes sharing the store and take a backup before migrating. PostgreSQL 17 is supported without extensions. Rollback/reapply preserves legacy data, but a downgrade refuses while UUID conversation scopes or UUID v7 run identities exist (including imported runs, staged reservations or artifacts); restore the pre-upgrade backup to downgrade then.
 
 ## Upgrading to 0.7
 

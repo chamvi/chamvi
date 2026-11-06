@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import { DataSource } from 'typeorm';
 import { assertSchemaMatchesMetadata } from 'typeorm-extension';
 import {
@@ -163,7 +164,10 @@ describePostgres('schema', () => {
         expect(await ds.query(checkpointQuery)).toEqual(checkpoints);
         expect(await ds.query('SELECT * FROM chamvi_steps')).toEqual(steps);
         expect(await ds.query('SELECT * FROM chamvi_runs')).toEqual([]);
-        await expect(insertCheckpoint('new-missing-run')).rejects.toMatchObject({ driverError: { code: '23503' } });
+        await expect(ds.query(
+            'INSERT INTO chamvi_checkpoints (id, run_id, step_index, messages, created_at) VALUES ($1, $2, 3, $3, $4)',
+            [uuidv7(), 'new-missing-run', '[]', new Date()],
+        )).rejects.toMatchObject({ driverError: { code: '23503' } });
         await expect(insertStep('new-missing-run')).rejects.toMatchObject({ driverError: { code: '23503' } });
         await expect(ds.query('UPDATE chamvi_checkpoints SET run_id = $1', ['another-missing-run']))
             .rejects.toMatchObject({ driverError: { code: '23503' } });
@@ -326,7 +330,7 @@ describePostgres('schema', () => {
 
         await expect(runs.findOneOrFail('orphan')).resolves.toMatchObject({ parentRunId: 'gone' });
         await expect(runs.update('orphan', { cancelRequested: true })).resolves.toMatchObject({ parentRunId: 'gone' });
-        await expect(insertLegacyRun(ds, 'new-orphan')).resolves.toBeDefined();
+        await expect(seedRun(ds, 'new-orphan')).resolves.toBeUndefined();
         await expect(ds.query('UPDATE chamvi_runs SET parent_run_id = $1 WHERE id = $2', ['another-missing-run', 'new-orphan']))
             .rejects.toMatchObject({ driverError: { code: '23503' } });
         await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { uuidv7 } from 'uuidv7';
 import { systemClock } from '@chamvi/core';
 import type { IClock, IIdempotencyRepository } from '@chamvi/core';
 import { LessThanOrEqual } from 'typeorm';
@@ -38,6 +39,7 @@ export class DatabaseIdempotencyRepository implements IIdempotencyRepository {
             const result = await this.idempotencyKeys.createQueryBuilder()
                 .insert()
                 .values({
+                    id: uuidv7(),
                     scope,
                     key,
                     runId,

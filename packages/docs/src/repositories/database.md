@@ -29,16 +29,6 @@ On shutdown, drain the engine before destroying the data source:
 
 The conversations migration preserves legacy checkpoints and steps whose run does not exist. Earlier store methods allowed those rows, so their run foreign keys are added as PostgreSQL `NOT VALID`: no rows are deleted and no placeholder runs are created. New inserts and changes to `run_id` must reference an existing run; the other foreign keys are validated normally. The lineage migration adds the self foreign key on `parent_run_id` `NOT VALID` for the same reason: a child whose parent run is gone keeps its row, while every new run must name an existing parent. These `NOT VALID` constraints remain unvalidated until the legacy data is reconciled explicitly, and do not need validation for new-write enforcement.
 
-### UUID primary keys
-
-`1792886400000-connections-primary-keys.ts` (`ConnectionsPrimaryKeys1792886400000`) adds UUID v7 surrogate primary keys and the encrypted connection tables. Existing bigint sequence keys remain on steps and conversation items. Every business key keeps a unique index and its collation; public IDs, foreign-key references, JSON payloads and artifact bytes are preserved. A UUID column uses `row_id` where `id` already identifies a public object or caller-supplied document. Repositories omit surrogate IDs from upserts so an update retains the row identity.
-
-The database default `chamvi_uuid_v7()` uses PostgreSQL's built-in randomness and a millisecond timestamp, including on PostgreSQL 17; no extension or server upgrade is needed. New runs, artifacts and conversation scopes use UUID v7 public IDs. Conversation identity is looked up through a separate canonical hash, and existing scope IDs continue to resolve.
-
-Stop every app replica and scheduled job sharing the store, take a backup, run `chamvi migrate` with the new image, then start only new binaries. The migration replaces primary constraints and takes table locks. It runs transactionally. A populated upgrade and rollback/reapply are supported, but `down()` refuses if UUID conversation scopes or UUID v7 run identities exist in runs, idempotency reservations or artifact ownership, including imported UUID v7 run IDs. Older runtimes cannot resolve the new scope lookup or replay its artifact naming scheme safely. Restore the pre-upgrade backup to downgrade in that case.
-
-The unreleased `Connections1792886400000` migration is replaced. A disposable development database that already recorded that name needs recreation or an explicit migration-history reconciliation; do not reset a deployed database for it.
-
 ### Validating the legacy constraints
 
 To find the orphans the step and checkpoint constraints tolerate:
@@ -78,24 +68,20 @@ chamvi never runs these itself; a validated constraint changes nothing for the e
 
 | Table | Holds | Keys and indexes |
 |---|---|---|
-| `chamvi_runs` | Runs; JSON columns for trigger, output, error, usage, subtree usage, wait point and `taint`; the run's `address` in the `thread` column; claim owner and expiry; the conversation binding; `parent_run_id` | PK `row_id`; unique `id` (`COLLATE "C"`); `(agent, status, concurrency_key)`; `(status, created_at, id)`; `conversation_scope_id`; `parent_run_id` (FK to `id`) |
-| `chamvi_steps` | Append-only steps | PK `seq` (bigint); `(run_id, step_index)` |
-| `chamvi_checkpoints` | The latest checkpoint per run | PK `id`; unique `run_id`; `conversation_scope_id` |
-| `chamvi_conversations` | Conversation identities, generation, active owner and its snapshot | PK `row_id`; unique `id` (`COLLATE "C"`); unique `identity_key` |
+| `chamvi_runs` | Runs; JSON columns for trigger, output, error, usage, subtree usage, wait point and `taint`; the run's `address` in the `thread` column; claim owner and expiry; the conversation binding; `parent_run_id` | PK `id` (`COLLATE "C"`); `(agent, status, concurrency_key)`; `(status, created_at, id)`; `conversation_scope_id`; `parent_run_id` (FK to `id`) |
+| `chamvi_steps` | Append-only steps | `(run_id, step_index)` |
+| `chamvi_checkpoints` | The latest checkpoint per run | PK `run_id`; `conversation_scope_id` |
+| `chamvi_conversations` | Conversation identities, generation, active owner and its snapshot | PK `id` (`COLLATE "C"`) |
 | `chamvi_conversation_items` | Transcript items and the send journal | PK `seq`; unique `(scope_id, generation, id)`; `(scope_id, generation, created_at, seq)`; `run_id` |
-| `chamvi_conversation_notes` | Explicit notes | PK `id`; unique `(scope_id, generation, key)`; `expires_at`; `run_id` |
-| `chamvi_conversation_operations` | Note operation receipts | PK `row_id`; unique `(scope_id, generation, id)`; `(scope_id, created_at, id)`; `run_id` |
-| `chamvi_idempotency_keys` | Intake keys | PK `id`; unique `(scope, key)`; `expires_at` |
-| `chamvi_locks` | Keyed leases | PK `id`; unique `key`; `expires_at` |
-| `chamvi_effects` | Recorded effect results | PK `id`; unique `key` |
-| `chamvi_kv` | Agent key-value state | PK `id`; unique `(agent, key)`, `key` `COLLATE "C"` (migration `1792540800000-kv-key-collation.ts`) |
-| `chamvi_docs` | Agent document collections | PK `row_id`; unique `(agent, collection, id)`; GIN index on `doc` |
-| `chamvi_artifacts` | Artifact metadata and bytes (`data` `bytea`) | PK `row_id`; unique `id`; `run_id` |
-| `chamvi_agent_revisions` | One revision marker per folder agent: `hash` varchar(128), `changed_at` | PK `id`; unique `agent` varchar(64) `COLLATE "C"` (migration `1792627200000-agent-revisions.ts`) |
-| `chamvi_connections` | Encrypted connection metadata and wrapped keys | PK `id`; unique `name` |
-| `chamvi_connection_entries` | Sealed connection state bytes | PK `id`; unique `(connection_name, key)`; cascading connection FK |
-
-Primary UUID columns use UUID v7 defaults; `seq` columns are bigint strings.
+| `chamvi_conversation_notes` | Explicit notes | PK `(scope_id, generation, key)`; `expires_at`; `run_id` |
+| `chamvi_conversation_operations` | Note operation receipts | PK `(scope_id, generation, id)`; `(scope_id, created_at, id)`; `run_id` |
+| `chamvi_idempotency_keys` | Intake keys | PK `(scope, key)`; `expires_at` |
+| `chamvi_locks` | Keyed leases | PK `key`; `expires_at` |
+| `chamvi_effects` | Recorded effect results | PK `key` |
+| `chamvi_kv` | Agent key-value state | PK `(agent, key)`, `key` `COLLATE "C"` (migration `1792540800000-kv-key-collation.ts`) |
+| `chamvi_docs` | Agent document collections | PK `(agent, collection, id)`; GIN index on `doc` |
+| `chamvi_artifacts` | Artifact metadata and bytes (`data` `bytea`) | PK `id`; `run_id` |
+| `chamvi_agent_revisions` | One revision marker per folder agent: `hash` varchar(128), `changed_at` | PK `agent` varchar(64) `COLLATE "C"` (migration `1792627200000-agent-revisions.ts`) |
 
 Conversation rows, active owners, transcript items, notes and operation receipts use foreign keys to their local runs and identities. Steps and checkpoints also require an existing run. Use the same DataSource for every built-in TypeORM role; these relationships do not create a transaction spanning run dispatch, conversation mutation and generic effects. See [Conversation memory](/guide/conversations).
 

@@ -16,7 +16,7 @@ import { JSON_VALUE_TRANSFORMER, TableName } from './constants.ts';
 @Index(['agent', 'key'], { unique: true })
 @Entity({ name: TableName.KV })
 export class KvEntity {
-    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({

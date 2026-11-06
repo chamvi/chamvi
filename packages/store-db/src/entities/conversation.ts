@@ -25,7 +25,7 @@ export class ConversationEntity {
     @PrimaryColumn({
         name: 'row_id',
         type: 'uuid',
-        default: () => 'chamvi_uuid_v7()',
+        update: false,
     })
     rowId!: string;
 
@@ -33,7 +33,6 @@ export class ConversationEntity {
         type: 'varchar',
         length: 64,
         collation: 'C',
-        default: () => 'chamvi_uuid_v7()',
     })
     id!: string;
 

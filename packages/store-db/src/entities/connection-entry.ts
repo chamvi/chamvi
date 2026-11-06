@@ -21,7 +21,7 @@ import { TableName } from './constants.ts';
 @Index(['connectionName', 'key'], { unique: true })
 @Entity({ name: TableName.CONNECTION_ENTRIES })
 export class ConnectionEntryEntity {
-    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({

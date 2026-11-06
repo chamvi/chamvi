@@ -16,7 +16,7 @@ import { JSON_VALUE_TRANSFORMER, TableName } from './constants.ts';
 @Index(['key'], { unique: true })
 @Entity({ name: TableName.EFFECTS })
 export class EffectEntity {
-    @PrimaryColumn({ type: 'uuid', default: () => 'chamvi_uuid_v7()' })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({
