@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { randomUUID } from 'node:crypto';
 import { describe, expect, it } from 'vitest';
 import {
     DEFAULT_CONVERSATION_LIMITS,
@@ -25,11 +26,32 @@ import type {
 import { ControllableClock } from '../clock/index.ts';
 import { describeConnectionContract } from './connection.ts';
 import {
+    RUN_1,
     makeAgentRevision,
     makeArtifact,
     makeChild,
     makeRun,
 } from './helpers.ts';
+
+const RUN_2 = '019a0000-0000-7000-8000-000000000002';
+const RUN_3 = '019a0000-0000-7000-8000-000000000003';
+const RUN_4 = '019a0000-0000-7000-8000-000000000004';
+const RESERVED_RUN_1 = '019a0000-0000-7000-8000-000000000005';
+const RESERVED_RUN_2 = '019a0000-0000-7000-8000-000000000006';
+const PARENT_1 = '019a0000-0000-7000-8000-000000000007';
+const PARENT_2 = '019a0000-0000-7000-8000-000000000008';
+const PARENT_3 = '019a0000-0000-7000-8000-000000000009';
+const CHILD_1 = '019a0000-0000-7000-8000-00000000000a';
+const CHILD_2 = '019a0000-0000-7000-8000-00000000000b';
+const CHILD_3 = '019a0000-0000-7000-8000-00000000000c';
+const CHILD_4 = '019a0000-0000-7000-8000-00000000000d';
+const ARTIFACT_1 = '019a0000-0000-7000-8000-00000000000e';
+const ARTIFACT_2 = '019a0000-0000-7000-8000-00000000000f';
+const ARTIFACT_3 = '019a0000-0000-7000-8000-000000000012';
+const ARTIFACT_4 = '019a0000-0000-7000-8000-000000000013';
+const TAINTED_RUN = '019a0000-0000-7000-8000-000000000010';
+const CLEAN_RUN = '019a0000-0000-7000-8000-000000000011';
+const MISSING_ID = '019a0000-0000-7000-8000-000000000fff';
 
 /**
  * Shared behavioural contract for every store.
@@ -51,9 +73,9 @@ export function describeRepositoryContract(
         it('findOneOrFail rejects missing identities without creating them', async () => {
             const { store } = await setup();
 
-            await expect(store.runs.findOneOrFail('missing')).rejects.toMatchObject({ code: 'run_not_found' });
-            await expect(store.artifacts.findOneOrFail('missing')).rejects.toMatchObject({ code: 'artifact_not_found' });
-            await expect(store.checkpoints.findOneOrFail('missing')).rejects.toMatchObject({ code: 'repository_not_found' });
+            await expect(store.runs.findOneOrFail(MISSING_ID)).rejects.toMatchObject({ code: 'run_not_found' });
+            await expect(store.artifacts.findOneOrFail(MISSING_ID)).rejects.toMatchObject({ code: 'artifact_not_found' });
+            await expect(store.checkpoints.findOneOrFail(MISSING_ID)).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.effects.findOneOrFail('missing')).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.agentRevisions.findOneOrFail('missing')).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.state.findOneOrFail('a', 'missing')).rejects.toMatchObject({ code: 'repository_not_found' });
@@ -66,20 +88,20 @@ export function describeRepositoryContract(
             const at = new Date(1_000);
 
             await expect(store.steps.insert({
-                runId: 'missing',
+                runId: MISSING_ID,
                 index: 0,
                 kind: 'llm',
                 startedAt: at,
                 finishedAt: at,
             })).rejects.toBeInstanceOf(RunNotFoundError);
             await expect(store.checkpoints.save({
-                runId: 'missing',
+                runId: MISSING_ID,
                 stepIndex: 0,
                 messages: [],
                 createdAt: at,
             })).rejects.toBeInstanceOf(RunNotFoundError);
-            expect(await store.steps.find('missing')).toEqual([]);
-            expect(await store.checkpoints.findOne('missing')).toBeUndefined();
+            expect(await store.steps.find(MISSING_ID)).toEqual([]);
+            expect(await store.checkpoints.findOne(MISSING_ID)).toBeUndefined();
 
             if (!store.conversations) {
                 return;
@@ -94,7 +116,7 @@ export function describeRepositoryContract(
             };
             const scope = await store.conversations.resolve(identity);
 
-            await expect(store.conversations.beginTurn(scope, 'missing', 'hello', DEFAULT_CONVERSATION_LIMITS))
+            await expect(store.conversations.beginTurn(scope, MISSING_ID, 'hello', DEFAULT_CONVERSATION_LIMITS))
                 .rejects.toBeInstanceOf(RunNotFoundError);
             expect(await store.conversations.activeRun(scope)).toBeUndefined();
             expect((await store.conversations.findItems(scope, { limit: 10, offset: 0 })).total).toBe(0);
@@ -104,12 +126,12 @@ export function describeRepositoryContract(
             const { store } = await setup();
 
             await expect(store.runs.findOrFail({})).rejects.toMatchObject({ code: 'repository_not_found' });
-            await expect(store.steps.findOrFail('missing')).rejects.toMatchObject({ code: 'repository_not_found' });
-            await expect(store.artifacts.findOrFail('missing')).rejects.toMatchObject({ code: 'repository_not_found' });
+            await expect(store.steps.findOrFail(MISSING_ID)).rejects.toMatchObject({ code: 'repository_not_found' });
+            await expect(store.artifacts.findOrFail(MISSING_ID)).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.agentRevisions.findOrFail()).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.state.findOrFail('a')).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.state.findDocumentsOrFail('a', 'notes')).rejects.toMatchObject({ code: 'repository_not_found' });
-            await store.runs.insert(makeRun('r1'));
+            await store.runs.insert(makeRun(RUN_1));
             await expect(store.runs.findOrFail({ limit: 0 })).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.runs.findOrFail({ offset: 1 })).rejects.toMatchObject({ code: 'repository_not_found' });
             expect(await store.runs.find({ offset: 1 })).toEqual({ data: [], total: 1 });
@@ -121,19 +143,19 @@ export function describeRepositoryContract(
 
         it('OrFail queries preserve ordered results, latest checkpoints and copies', async () => {
             const { store } = await setup();
-            const run = makeRun('r1');
+            const run = makeRun(RUN_1);
 
             await store.runs.insert(run);
-            await store.runs.insert(makeRun('r2', { createdAt: new Date(2_000) }));
+            await store.runs.insert(makeRun(RUN_2, { createdAt: new Date(2_000) }));
 
-            const found = await store.runs.findOneOrFail('r1');
+            const found = await store.runs.findOneOrFail(RUN_1);
 
             found.trigger.payload = { changed: true };
-            expect(await store.runs.findOneOrFail('r1')).toEqual(run);
-            expect((await store.runs.findOrFail({ order: 'desc', limit: 1 })).data.map((row) => row.id)).toEqual(['r2']);
+            expect(await store.runs.findOneOrFail(RUN_1)).toEqual(run);
+            expect((await store.runs.findOrFail({ order: 'desc', limit: 1 })).data.map((row) => row.id)).toEqual([RUN_2]);
 
             const checkpoint = {
-                runId: 'r1',
+                runId: RUN_1,
                 stepIndex: 2,
                 messages: [],
                 createdAt: new Date(1_000),
@@ -141,13 +163,13 @@ export function describeRepositoryContract(
 
             await store.checkpoints.save(checkpoint);
             await store.checkpoints.save({ ...checkpoint, stepIndex: 1 });
-            expect(await store.checkpoints.findOneOrFail('r1')).toEqual(checkpoint);
+            expect(await store.checkpoints.findOneOrFail(RUN_1)).toEqual(checkpoint);
 
-            const artifact = makeArtifact('a1');
+            const artifact = makeArtifact(ARTIFACT_1);
 
             await store.artifacts.insert(artifact, new Uint8Array([1, 2, 3]));
-            expect(await store.artifacts.findOneOrFail('a1')).toEqual(artifact);
-            expect(await store.artifacts.findOrFail('r1')).toEqual([artifact]);
+            expect(await store.artifacts.findOneOrFail(ARTIFACT_1)).toEqual(artifact);
+            expect(await store.artifacts.findOrFail(RUN_1)).toEqual([artifact]);
 
             const revision = makeAgentRevision('a');
 
@@ -156,7 +178,7 @@ export function describeRepositoryContract(
             expect(await store.agentRevisions.findOrFail()).toEqual([revision]);
 
             const step: Step = {
-                runId: 'r1',
+                runId: RUN_1,
                 index: 0,
                 kind: 'llm',
                 output: 'hello',
@@ -165,7 +187,7 @@ export function describeRepositoryContract(
             };
 
             await store.steps.insert(step);
-            expect(await store.steps.findOrFail('r1')).toEqual([step]);
+            expect(await store.steps.findOrFail(RUN_1)).toEqual([step]);
         });
 
         it('findOneOrFail treats falsy stored values as present and preserves scope', async () => {
@@ -194,122 +216,122 @@ export function describeRepositoryContract(
         it('idempotency.claim is atomic under concurrency', async () => {
             const { store } = await setup();
             const results = await Promise.all(
-                Array.from({ length: 20 }, (_, i) => store.idempotency.claim('github', 'd1', `run-${i}`, 60_000)),
+                Array.from({ length: 20 }, () => store.idempotency.claim('github', 'd1', randomUUID(), 60_000)),
             );
 
             expect(results.filter((r) => r.created)).toHaveLength(1);
 
             const winner = results.find((r) => r.created)!;
 
-            expect(winner.runId).toMatch(/^run-\d+$/);
+            expect(winner.runId).toMatch(/^[0-9a-f-]{36}$/);
             expect(results.every((r) => r.runId === winner.runId)).toBe(true);
         });
 
         it('idempotency.claim expires after ttl', async () => {
             const { store, clock } = await setup();
-            const first = await store.idempotency.claim('github', 'd1', 'run-1', 1_000);
+            const first = await store.idempotency.claim('github', 'd1', RESERVED_RUN_1, 1_000);
 
-            expect(first).toEqual({ created: true, runId: 'run-1' });
-            expect(await store.idempotency.claim('github', 'd1', 'run-2', 1_000)).toEqual({ created: false, runId: 'run-1' });
+            expect(first).toEqual({ created: true, runId: RESERVED_RUN_1 });
+            expect(await store.idempotency.claim('github', 'd1', RESERVED_RUN_2, 1_000)).toEqual({ created: false, runId: RESERVED_RUN_1 });
             clock.advance(1_001);
-            expect(await store.idempotency.claim('github', 'd1', 'run-2', 1_000)).toEqual({ created: true, runId: 'run-2' });
+            expect(await store.idempotency.claim('github', 'd1', RESERVED_RUN_2, 1_000)).toEqual({ created: true, runId: RESERVED_RUN_2 });
         });
 
         it('runs.update enforces expectStatus', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('r1'));
+            await store.runs.insert(makeRun(RUN_1));
             await expect(
-                store.runs.update('r1', { status: RunStatus.RUNNING }, { expectStatus: [RunStatus.WAITING] }),
+                store.runs.update(RUN_1, { status: RunStatus.RUNNING }, { expectStatus: [RunStatus.WAITING] }),
             ).rejects.toBeInstanceOf(InvalidRunStateError);
-            expect((await store.runs.findOne('r1'))?.status).toBe(RunStatus.QUEUED);
+            expect((await store.runs.findOne(RUN_1))?.status).toBe(RunStatus.QUEUED);
 
-            const updated = await store.runs.update('r1', { status: RunStatus.RUNNING }, { expectStatus: [RunStatus.QUEUED] });
+            const updated = await store.runs.update(RUN_1, { status: RunStatus.RUNNING }, { expectStatus: [RunStatus.QUEUED] });
 
             expect(updated.status).toBe(RunStatus.RUNNING);
-            expect((await store.runs.findOne('r1'))?.status).toBe(RunStatus.RUNNING);
+            expect((await store.runs.findOne(RUN_1))?.status).toBe(RunStatus.RUNNING);
         });
 
         it('runs.claim grants a single owner until expiry', async () => {
             const { store, clock } = await setup();
 
-            await store.runs.insert(makeRun('r1'));
-            expect(await store.runs.claim('r1', 'w1', 1_000)).toBe(true);
-            expect(await store.runs.claim('r1', 'w2', 1_000)).toBe(false);
+            await store.runs.insert(makeRun(RUN_1));
+            expect(await store.runs.claim(RUN_1, 'w1', 1_000)).toBe(true);
+            expect(await store.runs.claim(RUN_1, 'w2', 1_000)).toBe(false);
             clock.advance(500);
-            expect(await store.runs.renewClaim('r1', 'w1', 1_000)).toBe(true);
-            expect(await store.runs.renewClaim('r1', 'w2', 1_000)).toBe(false);
+            expect(await store.runs.renewClaim(RUN_1, 'w1', 1_000)).toBe(true);
+            expect(await store.runs.renewClaim(RUN_1, 'w2', 1_000)).toBe(false);
             clock.advance(700);
-            expect(await store.runs.claim('r1', 'w2', 1_000)).toBe(false);
+            expect(await store.runs.claim(RUN_1, 'w2', 1_000)).toBe(false);
         });
 
         it('runs.claim can be taken over after expiry', async () => {
             const { store, clock } = await setup();
 
-            await store.runs.insert(makeRun('r1'));
-            expect(await store.runs.claim('r1', 'w1', 1_000)).toBe(true);
+            await store.runs.insert(makeRun(RUN_1));
+            expect(await store.runs.claim(RUN_1, 'w1', 1_000)).toBe(true);
             clock.advance(1_001);
-            expect(await store.runs.renewClaim('r1', 'w1', 1_000)).toBe(false);
-            expect(await store.runs.claim('r1', 'w2', 1_000)).toBe(true);
-            expect((await store.runs.findOne('r1'))?.claim?.owner).toBe('w2');
+            expect(await store.runs.renewClaim(RUN_1, 'w1', 1_000)).toBe(false);
+            expect(await store.runs.claim(RUN_1, 'w2', 1_000)).toBe(true);
+            expect((await store.runs.findOne(RUN_1))?.claim?.owner).toBe('w2');
         });
 
         it('checkpoints.findOne returns highest stepIndex', async () => {
             const { store } = await setup();
 
-            expect(await store.checkpoints.findOne('r1')).toBeUndefined();
-            await store.runs.insert(makeRun('r1'));
-            await store.runs.insert(makeRun('r2'));
+            expect(await store.checkpoints.findOne(RUN_1)).toBeUndefined();
+            await store.runs.insert(makeRun(RUN_1));
+            await store.runs.insert(makeRun(RUN_2));
 
             const at = new Date(1_000);
 
             await store.checkpoints.save({
-                runId: 'r1',
+                runId: RUN_1,
                 stepIndex: 2,
                 messages: [],
                 createdAt: at,
             });
             await store.checkpoints.save({
-                runId: 'r1',
+                runId: RUN_1,
                 stepIndex: 5,
                 messages: [],
                 createdAt: at,
             });
             await store.checkpoints.save({
-                runId: 'r1',
+                runId: RUN_1,
                 stepIndex: 3,
                 messages: [],
                 createdAt: at,
             });
             await store.checkpoints.save({
-                runId: 'r2',
+                runId: RUN_2,
                 stepIndex: 9,
                 messages: [],
                 createdAt: at,
             });
-            expect((await store.checkpoints.findOne('r1'))?.stepIndex).toBe(5);
+            expect((await store.checkpoints.findOne(RUN_1))?.stepIndex).toBe(5);
         });
 
         it('checkpoints.save with an equal stepIndex replaces the latest', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('r1'));
+            await store.runs.insert(makeRun(RUN_1));
 
             const at = new Date(1_000);
 
             await store.checkpoints.save({
-                runId: 'r1',
+                runId: RUN_1,
                 stepIndex: 2,
                 messages: [],
                 createdAt: at,
             });
             await store.checkpoints.save({
-                runId: 'r1',
+                runId: RUN_1,
                 stepIndex: 2,
                 messages: [{ role: 'user', content: 'again' }],
                 createdAt: at,
             });
-            expect((await store.checkpoints.findOne('r1'))?.messages).toEqual([{ role: 'user', content: 'again' }]);
+            expect((await store.checkpoints.findOne(RUN_1))?.messages).toEqual([{ role: 'user', content: 'again' }]);
         });
 
         it('lock acquire is exclusive and released by owner only', async () => {
@@ -438,24 +460,24 @@ export function describeRepositoryContract(
         it('runs.find filters by agent, status, concurrencyKey and returns total', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('r3', {
+            await store.runs.insert(makeRun(RUN_3, {
                 agent: 'a',
                 status: RunStatus.RUNNING,
                 concurrencyKey: 'k1',
                 createdAt: new Date(3_000),
             }));
-            await store.runs.insert(makeRun('r1', {
+            await store.runs.insert(makeRun(RUN_1, {
                 agent: 'a',
                 status: RunStatus.QUEUED,
                 concurrencyKey: 'k1',
                 createdAt: new Date(1_000),
             }));
-            await store.runs.insert(makeRun('r2', {
+            await store.runs.insert(makeRun(RUN_2, {
                 agent: 'b',
                 status: RunStatus.QUEUED,
                 createdAt: new Date(2_000),
             }));
-            await store.runs.insert(makeRun('r4', {
+            await store.runs.insert(makeRun(RUN_4, {
                 agent: 'a',
                 status: RunStatus.COMPLETED,
                 concurrencyKey: 'k2',
@@ -465,11 +487,11 @@ export function describeRepositoryContract(
             const all = await store.runs.find({});
 
             expect(all.total).toBe(4);
-            expect(all.data.map((r) => r.id)).toEqual(['r1', 'r2', 'r3', 'r4']);
+            expect(all.data.map((r) => r.id)).toEqual([RUN_1, RUN_2, RUN_3, RUN_4]);
 
-            expect((await store.runs.find({ agent: 'a' })).data.map((r) => r.id)).toEqual(['r1', 'r3', 'r4']);
+            expect((await store.runs.find({ agent: 'a' })).data.map((r) => r.id)).toEqual([RUN_1, RUN_3, RUN_4]);
             expect((await store.runs.find({ status: [RunStatus.QUEUED, RunStatus.RUNNING] })).total).toBe(3);
-            expect((await store.runs.find({ concurrencyKey: 'k1' })).data.map((r) => r.id)).toEqual(['r1', 'r3']);
+            expect((await store.runs.find({ concurrencyKey: 'k1' })).data.map((r) => r.id)).toEqual([RUN_1, RUN_3]);
 
             const page = await store.runs.find({
                 agent: 'a',
@@ -478,14 +500,14 @@ export function describeRepositoryContract(
             });
 
             expect(page.total).toBe(3);
-            expect(page.data.map((r) => r.id)).toEqual(['r3']);
+            expect(page.data.map((r) => r.id)).toEqual([RUN_3]);
         });
 
         it('runs.find without a limit returns every matching run', async () => {
             const { store } = await setup();
 
             for (let i = 0; i < 250; i++) {
-                await store.runs.insert(makeRun(`r${String(i).padStart(3, '0')}`, { createdAt: new Date(i) }));
+                await store.runs.insert(makeRun(randomUUID(), { createdAt: new Date(i) }));
             }
 
             const all = await store.runs.find({});
@@ -498,10 +520,10 @@ export function describeRepositoryContract(
         it('runs.claim is atomic under concurrency', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('r1'));
+            await store.runs.insert(makeRun(RUN_1));
 
             const results = await Promise.all(
-                Array.from({ length: 20 }, (_, i) => store.runs.claim('r1', `w${i}`, 1_000)),
+                Array.from({ length: 20 }, (_, i) => store.runs.claim(RUN_1, `w${i}`, 1_000)),
             );
 
             expect(results.filter(Boolean)).toHaveLength(1);
@@ -531,64 +553,64 @@ export function describeRepositoryContract(
         it('expiry boundary: exactly at expiresAt counts as expired', async () => {
             const { store, clock } = await setup();
 
-            await store.runs.insert(makeRun('r1'));
-            expect(await store.runs.claim('r1', 'w1', 1_000)).toBe(true);
-            await store.idempotency.claim('s', 'k', 'run-1', 1_000);
+            await store.runs.insert(makeRun(RUN_1));
+            expect(await store.runs.claim(RUN_1, 'w1', 1_000)).toBe(true);
+            await store.idempotency.claim('s', 'k', RESERVED_RUN_1, 1_000);
             clock.advance(999);
-            expect(await store.runs.claim('r1', 'w2', 1_000)).toBe(false);
-            expect((await store.idempotency.claim('s', 'k', 'run-2', 1_000)).created).toBe(false);
+            expect(await store.runs.claim(RUN_1, 'w2', 1_000)).toBe(false);
+            expect((await store.idempotency.claim('s', 'k', RESERVED_RUN_2, 1_000)).created).toBe(false);
             clock.advance(1);
-            expect(await store.runs.renewClaim('r1', 'w1', 1_000)).toBe(false);
-            expect(await store.runs.claim('r1', 'w2', 1_000)).toBe(true);
-            expect((await store.idempotency.claim('s', 'k', 'run-2', 1_000)).created).toBe(true);
+            expect(await store.runs.renewClaim(RUN_1, 'w1', 1_000)).toBe(false);
+            expect(await store.runs.claim(RUN_1, 'w2', 1_000)).toBe(true);
+            expect((await store.idempotency.claim('s', 'k', RESERVED_RUN_2, 1_000)).created).toBe(true);
         });
 
         it('runs.update on a missing run throws RunNotFoundError', async () => {
             const { store } = await setup();
 
-            await expect(store.runs.update('nope', { status: RunStatus.RUNNING })).rejects.toBeInstanceOf(RunNotFoundError);
+            await expect(store.runs.update(MISSING_ID, { status: RunStatus.RUNNING })).rejects.toBeInstanceOf(RunNotFoundError);
         });
 
         it('runs.claim and renewClaim on a missing run return false', async () => {
             const { store } = await setup();
 
-            expect(await store.runs.claim('nope', 'w', 1_000)).toBe(false);
-            expect(await store.runs.renewClaim('nope', 'w', 1_000)).toBe(false);
+            expect(await store.runs.claim(MISSING_ID, 'w', 1_000)).toBe(false);
+            expect(await store.runs.renewClaim(MISSING_ID, 'w', 1_000)).toBe(false);
         });
 
         it('runs.update accepts several allowed statuses', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('r1', { status: RunStatus.WAITING }));
+            await store.runs.insert(makeRun(RUN_1, { status: RunStatus.WAITING }));
 
-            const run = await store.runs.update('r1', { status: RunStatus.RUNNING }, { expectStatus: [RunStatus.QUEUED, RunStatus.WAITING] });
+            const run = await store.runs.update(RUN_1, { status: RunStatus.RUNNING }, { expectStatus: [RunStatus.QUEUED, RunStatus.WAITING] });
 
             expect(run.status).toBe(RunStatus.RUNNING);
             await expect(
-                store.runs.update('r1', { status: RunStatus.FAILED }, { expectStatus: [RunStatus.QUEUED, RunStatus.WAITING] }),
+                store.runs.update(RUN_1, { status: RunStatus.FAILED }, { expectStatus: [RunStatus.QUEUED, RunStatus.WAITING] }),
             ).rejects.toBeInstanceOf(InvalidRunStateError);
         });
 
         it('runs.update enforces expectOwner against the current claim', async () => {
             const { store, clock } = await setup();
 
-            await store.runs.insert(makeRun('r1', { status: RunStatus.RUNNING }));
+            await store.runs.insert(makeRun(RUN_1, { status: RunStatus.RUNNING }));
             await expect(
-                store.runs.update('r1', { status: RunStatus.COMPLETED }, { expectOwner: 'w1' }),
+                store.runs.update(RUN_1, { status: RunStatus.COMPLETED }, { expectOwner: 'w1' }),
             ).rejects.toBeInstanceOf(InvalidRunStateError);
-            expect(await store.runs.claim('r1', 'w1', 1_000)).toBe(true);
+            expect(await store.runs.claim(RUN_1, 'w1', 1_000)).toBe(true);
             await expect(
-                store.runs.update('r1', { status: RunStatus.COMPLETED }, { expectOwner: 'w2' }),
+                store.runs.update(RUN_1, { status: RunStatus.COMPLETED }, { expectOwner: 'w2' }),
             ).rejects.toBeInstanceOf(InvalidRunStateError);
             clock.advance(1_001);
-            expect(await store.runs.claim('r1', 'w2', 1_000)).toBe(true);
+            expect(await store.runs.claim(RUN_1, 'w2', 1_000)).toBe(true);
             await expect(
-                store.runs.update('r1', { status: RunStatus.COMPLETED }, { expectStatus: [RunStatus.RUNNING], expectOwner: 'w1' }),
+                store.runs.update(RUN_1, { status: RunStatus.COMPLETED }, { expectStatus: [RunStatus.RUNNING], expectOwner: 'w1' }),
             ).rejects.toBeInstanceOf(InvalidRunStateError);
-            expect((await store.runs.findOne('r1'))?.status).toBe(RunStatus.RUNNING);
+            expect((await store.runs.findOne(RUN_1))?.status).toBe(RunStatus.RUNNING);
 
             const updated = await store.runs.update(
-                'r1',
+                RUN_1,
                 { status: RunStatus.COMPLETED, claim: undefined },
                 { expectStatus: [RunStatus.RUNNING], expectOwner: 'w2' },
             );
@@ -600,15 +622,15 @@ export function describeRepositoryContract(
         it('runs.update preserves untouched fields and does not clobber claim', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('r1', {
+            await store.runs.insert(makeRun(RUN_1, {
                 concurrencyKey: 'k',
                 address: 't',
                 usage: { inputTokens: 3, outputTokens: 4 },
             }));
-            await store.runs.claim('r1', 'w1', 1_000);
+            await store.runs.claim(RUN_1, 'w1', 1_000);
 
-            const before = await store.runs.findOne('r1');
-            const updated = await store.runs.update('r1', { status: RunStatus.RUNNING });
+            const before = await store.runs.findOne(RUN_1);
+            const updated = await store.runs.update(RUN_1, { status: RunStatus.RUNNING });
 
             expect(updated.claim).toEqual(before?.claim);
             expect(updated.concurrencyKey).toBe('k');
@@ -616,29 +638,29 @@ export function describeRepositoryContract(
             expect(updated.usage).toEqual({ inputTokens: 3, outputTokens: 4 });
             expect(updated.agent).toBe('a');
             expect(updated.createdAt).toEqual(before?.createdAt);
-            expect((await store.runs.findOne('r1'))?.claim).toEqual(before?.claim);
+            expect((await store.runs.findOne(RUN_1))?.claim).toEqual(before?.claim);
         });
 
         it('run taint persists on insert and update with a Date timestamp', async () => {
             const { store } = await setup();
             const taint = { at: new Date('2026-10-30T12:34:56.789Z'), source: 'tool:web_fetch' };
 
-            await store.runs.insert(makeRun('tainted', { taint }));
-            await store.runs.insert(makeRun('clean'));
+            await store.runs.insert(makeRun(TAINTED_RUN, { taint }));
+            await store.runs.insert(makeRun(CLEAN_RUN));
 
-            expect((await store.runs.findOne('clean'))?.taint).toBeUndefined();
+            expect((await store.runs.findOne(CLEAN_RUN))?.taint).toBeUndefined();
 
-            const inserted = await store.runs.findOneOrFail('tainted');
+            const inserted = await store.runs.findOneOrFail(TAINTED_RUN);
 
             expect(inserted.taint).toEqual(taint);
             expect(inserted.taint?.at).toBeInstanceOf(Date);
 
-            const patched = await store.runs.update('clean', { taint });
+            const patched = await store.runs.update(CLEAN_RUN, { taint });
 
             expect(patched.taint).toEqual(taint);
             expect(patched.taint?.at).toBeInstanceOf(Date);
 
-            for (const id of ['tainted', 'clean']) {
+            for (const id of [TAINTED_RUN, CLEAN_RUN]) {
                 const updated = await store.runs.update(id, { status: RunStatus.RUNNING });
 
                 expect(updated.taint).toEqual(taint);
@@ -653,7 +675,7 @@ export function describeRepositoryContract(
 
         it('run.address and trigger.channel round-trip', async () => {
             const { store } = await setup();
-            const run = makeRun('r1', { address: 'owner/repo#7' });
+            const run = makeRun(RUN_1, { address: 'owner/repo#7' });
 
             run.trigger = {
                 ...run.trigger,
@@ -662,7 +684,7 @@ export function describeRepositoryContract(
             };
             await store.runs.insert(run);
 
-            const stored = await store.runs.findOne('r1');
+            const stored = await store.runs.findOne(RUN_1);
 
             expect(stored?.address).toBe('owner/repo#7');
             expect(stored?.trigger.channel).toBe('github');
@@ -670,7 +692,7 @@ export function describeRepositoryContract(
             expect(stored?.trigger).not.toHaveProperty('source');
             expect(stored?.trigger).not.toHaveProperty('thread');
 
-            const updated = await store.runs.update('r1', { address: 'owner/repo#8' });
+            const updated = await store.runs.update(RUN_1, { address: 'owner/repo#8' });
 
             expect(updated.address).toBe('owner/repo#8');
 
@@ -682,10 +704,10 @@ export function describeRepositoryContract(
 
         it('trigger.parent round-trips', async () => {
             const { store } = await setup();
-            const run = makeRun('r1');
+            const run = makeRun(RUN_1);
             const parent = {
                 kind: 'dispatch' as const,
-                runId: 'p1',
+                runId: PARENT_1,
                 agent: 'a',
                 role: 'default',
                 depth: 1,
@@ -696,62 +718,62 @@ export function describeRepositoryContract(
                 channel: 'agent',
                 parent,
             };
-            await store.runs.insert(makeRun('p1'));
+            await store.runs.insert(makeRun(PARENT_1));
             await store.runs.insert(run);
-            expect((await store.runs.findOne('r1'))?.trigger.parent).toEqual(parent);
+            expect((await store.runs.findOne(RUN_1))?.trigger.parent).toEqual(parent);
 
-            const listed = await store.runs.find({ ids: ['r1'] });
+            const listed = await store.runs.find({ ids: [RUN_1] });
 
             expect(listed.data[0]?.trigger.parent).toEqual(parent);
         });
 
         it('trigger.parent.source round-trips', async () => {
             const { store } = await setup();
-            const run = makeChild('r1', 'p1');
+            const run = makeChild(RUN_1, PARENT_1);
             const parent = {
                 ...run.trigger.parent!,
                 source: { channel: 'github', address: 'o/r#12' },
             };
 
             run.trigger = { ...run.trigger, parent };
-            await store.runs.insert(makeRun('p1'));
+            await store.runs.insert(makeRun(PARENT_1));
             await store.runs.insert(run);
-            expect((await store.runs.findOne('r1'))?.trigger.parent).toEqual(parent);
-            expect((await store.runs.find({ ids: ['r1'] })).data[0]?.trigger.parent?.source).toEqual(parent.source);
+            expect((await store.runs.findOne(RUN_1))?.trigger.parent).toEqual(parent);
+            expect((await store.runs.find({ ids: [RUN_1] })).data[0]?.trigger.parent?.source).toEqual(parent.source);
         });
 
         it('parentRunId is derived from trigger.parent and filters children', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('p1'));
-            await store.runs.insert(makeChild('r2', 'p1', 2_000));
-            await store.runs.insert(makeChild('r1', 'p1', 1_500));
-            await store.runs.insert(makeRun('r3'));
+            await store.runs.insert(makeRun(PARENT_1));
+            await store.runs.insert(makeChild(RUN_2, PARENT_1, 2_000));
+            await store.runs.insert(makeChild(RUN_1, PARENT_1, 1_500));
+            await store.runs.insert(makeRun(RUN_3));
 
-            const children = await store.runs.find({ parentRunId: 'p1' });
+            const children = await store.runs.find({ parentRunId: PARENT_1 });
 
-            expect(children.data.map((r) => r.id)).toEqual(['r1', 'r2']);
+            expect(children.data.map((r) => r.id)).toEqual([RUN_1, RUN_2]);
             expect(children.total).toBe(2);
-            expect((await store.runs.findOne('r1'))?.parentRunId).toBe('p1');
-            expect((await store.runs.findOne('r3'))?.parentRunId).toBeUndefined();
-            expect((await store.runs.findOne('p1'))?.parentRunId).toBeUndefined();
-            expect((await store.runs.find({ parentRunId: 'r3' })).data).toEqual([]);
+            expect((await store.runs.findOne(RUN_1))?.parentRunId).toBe(PARENT_1);
+            expect((await store.runs.findOne(RUN_3))?.parentRunId).toBeUndefined();
+            expect((await store.runs.findOne(PARENT_1))?.parentRunId).toBeUndefined();
+            expect((await store.runs.find({ parentRunId: RUN_3 })).data).toEqual([]);
         });
 
         it('hasParent filters runs with and without a parent, with paging and total', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('p1', { createdAt: new Date(500) }));
-            await store.runs.insert(makeChild('r1', 'p1', 1_000));
-            await store.runs.insert(makeRun('r2', { createdAt: new Date(1_500) }));
-            await store.runs.insert(makeChild('r3', 'r1', 2_000));
-            await store.runs.update('r3', { status: RunStatus.RUNNING });
+            await store.runs.insert(makeRun(PARENT_1, { createdAt: new Date(500) }));
+            await store.runs.insert(makeChild(RUN_1, PARENT_1, 1_000));
+            await store.runs.insert(makeRun(RUN_2, { createdAt: new Date(1_500) }));
+            await store.runs.insert(makeChild(RUN_3, RUN_1, 2_000));
+            await store.runs.update(RUN_3, { status: RunStatus.RUNNING });
 
             const children = await store.runs.find({ hasParent: true });
 
-            expect(children.data.map((r) => r.id)).toEqual(['r1', 'r3']);
+            expect(children.data.map((r) => r.id)).toEqual([RUN_1, RUN_3]);
             expect(children.total).toBe(2);
-            expect((await store.runs.find({ hasParent: false })).data.map((r) => r.id)).toEqual(['p1', 'r2']);
+            expect((await store.runs.find({ hasParent: false })).data.map((r) => r.id)).toEqual([PARENT_1, RUN_2]);
 
             const page = await store.runs.find({
                 hasParent: true,
@@ -759,82 +781,83 @@ export function describeRepositoryContract(
                 offset: 1,
             });
 
-            expect(page.data.map((r) => r.id)).toEqual(['r3']);
+            expect(page.data.map((r) => r.id)).toEqual([RUN_3]);
             expect(page.total).toBe(2);
             expect((await store.runs.find({ hasParent: true, limit: 0 })).total).toBe(2);
-            expect((await store.runs.find({ hasParent: true, status: [RunStatus.RUNNING] })).data.map((r) => r.id)).toEqual(['r3']);
-            expect((await store.runs.find({ hasParent: true, parentRunId: 'p1' })).data.map((r) => r.id)).toEqual(['r1']);
-            expect((await store.runs.find({ hasParent: false, parentRunId: 'p1' })).total).toBe(0);
+            expect((await store.runs.find({ hasParent: true, status: [RunStatus.RUNNING] })).data.map((r) => r.id)).toEqual([RUN_3]);
+            expect((await store.runs.find({ hasParent: true, parentRunId: PARENT_1 })).data.map((r) => r.id)).toEqual([RUN_1]);
+            expect((await store.runs.find({ hasParent: false, parentRunId: PARENT_1 })).total).toBe(0);
         });
 
         it('parentRunIds filters the children of several runs, with paging and total', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('p1', { createdAt: new Date(100) }));
-            await store.runs.insert(makeRun('p2', { createdAt: new Date(200) }));
-            await store.runs.insert(makeRun('p3', { createdAt: new Date(300) }));
-            await store.runs.insert(makeChild('c3', 'p2', 3_000));
-            await store.runs.insert(makeChild('c1', 'p1', 1_000));
-            await store.runs.insert(makeChild('c2', 'p3', 2_000));
-            await store.runs.insert(makeChild('c4', 'p1', 4_000));
-            await store.runs.update('c4', { status: RunStatus.RUNNING });
+            await store.runs.insert(makeRun(PARENT_1, { createdAt: new Date(100) }));
+            await store.runs.insert(makeRun(PARENT_2, { createdAt: new Date(200) }));
+            await store.runs.insert(makeRun(PARENT_3, { createdAt: new Date(300) }));
+            await store.runs.insert(makeChild(CHILD_3, PARENT_2, 3_000));
+            await store.runs.insert(makeChild(CHILD_1, PARENT_1, 1_000));
+            await store.runs.insert(makeChild(CHILD_2, PARENT_3, 2_000));
+            await store.runs.insert(makeChild(CHILD_4, PARENT_1, 4_000));
+            await store.runs.update(CHILD_4, { status: RunStatus.RUNNING });
 
-            const children = await store.runs.find({ parentRunIds: ['p1', 'p2'] });
+            const children = await store.runs.find({ parentRunIds: [PARENT_1, PARENT_2] });
 
-            expect(children.data.map((r) => r.id)).toEqual(['c1', 'c3', 'c4']);
+            expect(children.data.map((r) => r.id)).toEqual([CHILD_1, CHILD_3, CHILD_4]);
             expect(children.total).toBe(3);
             expect((await store.runs.find({ parentRunIds: [] })).data).toEqual([]);
             expect((await store.runs.find({ parentRunIds: [] })).total).toBe(0);
 
             const page = await store.runs.find({
-                parentRunIds: ['p1', 'p2'],
+                parentRunIds: [PARENT_1, PARENT_2],
                 limit: 1,
                 offset: 1,
             });
 
-            expect(page.data.map((r) => r.id)).toEqual(['c3']);
+            expect(page.data.map((r) => r.id)).toEqual([CHILD_3]);
             expect(page.total).toBe(3);
-            expect((await store.runs.find({ parentRunIds: ['p1', 'p2'], status: [RunStatus.RUNNING] })).data.map((r) => r.id)).toEqual(['c4']);
-            expect((await store.runs.find({ parentRunIds: ['p1', 'p2'], parentRunId: 'p2' })).data.map((r) => r.id)).toEqual(['c3']);
-            expect((await store.runs.find({ parentRunIds: ['p1'], parentRunId: 'p2' })).total).toBe(0);
-            expect((await store.runs.find({ parentRunIds: ['p1'], hasParent: false })).total).toBe(0);
+            expect((await store.runs.find({ parentRunIds: [PARENT_1, PARENT_2], status: [RunStatus.RUNNING] })).data.map((r) => r.id))
+                .toEqual([CHILD_4]);
+            expect((await store.runs.find({ parentRunIds: [PARENT_1, PARENT_2], parentRunId: PARENT_2 })).data.map((r) => r.id)).toEqual([CHILD_3]);
+            expect((await store.runs.find({ parentRunIds: [PARENT_1], parentRunId: PARENT_2 })).total).toBe(0);
+            expect((await store.runs.find({ parentRunIds: [PARENT_1], hasParent: false })).total).toBe(0);
         });
 
         it('parentRunId comes from trigger.parent, never from the caller (insert or update)', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('p1'));
-            await store.runs.insert(makeRun('r1', { parentRunId: 'p1' }));
+            await store.runs.insert(makeRun(PARENT_1));
+            await store.runs.insert(makeRun(RUN_1, { parentRunId: PARENT_1 }));
 
-            expect((await store.runs.findOne('r1'))?.parentRunId).toBeUndefined();
-            expect((await store.runs.find({ parentRunId: 'p1' })).data).toEqual([]);
+            expect((await store.runs.findOne(RUN_1))?.parentRunId).toBeUndefined();
+            expect((await store.runs.find({ parentRunId: PARENT_1 })).data).toEqual([]);
 
-            await store.runs.insert(makeChild('c1', 'p1'));
-            await store.runs.update('r1', { parentRunId: 'p1' });
-            await store.runs.update('c1', { parentRunId: 'r1', status: RunStatus.RUNNING });
+            await store.runs.insert(makeChild(CHILD_1, PARENT_1));
+            await store.runs.update(RUN_1, { parentRunId: PARENT_1 });
+            await store.runs.update(CHILD_1, { parentRunId: RUN_1, status: RunStatus.RUNNING });
 
-            expect((await store.runs.findOne('r1'))?.parentRunId).toBeUndefined();
-            expect((await store.runs.findOne('c1'))?.parentRunId).toBe('p1');
-            expect((await store.runs.find({ parentRunId: 'p1' })).data.map((r) => r.id)).toEqual(['c1']);
+            expect((await store.runs.findOne(RUN_1))?.parentRunId).toBeUndefined();
+            expect((await store.runs.findOne(CHILD_1))?.parentRunId).toBe(PARENT_1);
+            expect((await store.runs.find({ parentRunId: PARENT_1 })).data.map((r) => r.id)).toEqual([CHILD_1]);
         });
 
         it('insert of a child whose parent is absent throws RunNotFoundError and writes nothing', async () => {
             const { store } = await setup();
 
-            await expect(store.runs.insert(makeChild('r1', 'missing'))).rejects.toBeInstanceOf(RunNotFoundError);
-            expect(await store.runs.findOne('r1')).toBeUndefined();
+            await expect(store.runs.insert(makeChild(RUN_1, MISSING_ID))).rejects.toBeInstanceOf(RunNotFoundError);
+            expect(await store.runs.findOne(RUN_1)).toBeUndefined();
         });
 
         it('find({ ids }) returns exactly the listed runs', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('r1', { createdAt: new Date(1_000) }));
-            await store.runs.insert(makeRun('r2', { createdAt: new Date(2_000) }));
-            await store.runs.insert(makeRun('r3', { createdAt: new Date(3_000) }));
+            await store.runs.insert(makeRun(RUN_1, { createdAt: new Date(1_000) }));
+            await store.runs.insert(makeRun(RUN_2, { createdAt: new Date(2_000) }));
+            await store.runs.insert(makeRun(RUN_3, { createdAt: new Date(3_000) }));
 
-            const listed = await store.runs.find({ ids: ['r3', 'missing', 'r1'] });
+            const listed = await store.runs.find({ ids: [RUN_3, MISSING_ID, RUN_1] });
 
-            expect(listed.data.map((r) => r.id)).toEqual(['r1', 'r3']);
+            expect(listed.data.map((r) => r.id)).toEqual([RUN_1, RUN_3]);
             expect(listed.total).toBe(2);
             expect(await store.runs.find({ ids: [] })).toEqual({ data: [], total: 0 });
         });
@@ -842,18 +865,18 @@ export function describeRepositoryContract(
         it('find({ agents }) returns only the runs of the listed agents, an AND with agent', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('r1', { agent: 'a', createdAt: new Date(1_000) }));
-            await store.runs.insert(makeRun('r2', { agent: 'b', createdAt: new Date(2_000) }));
-            await store.runs.insert(makeRun('r3', { agent: 'c', createdAt: new Date(3_000) }));
-            await store.runs.insert(makeRun('r4', { agent: 'a', createdAt: new Date(4_000) }));
+            await store.runs.insert(makeRun(RUN_1, { agent: 'a', createdAt: new Date(1_000) }));
+            await store.runs.insert(makeRun(RUN_2, { agent: 'b', createdAt: new Date(2_000) }));
+            await store.runs.insert(makeRun(RUN_3, { agent: 'c', createdAt: new Date(3_000) }));
+            await store.runs.insert(makeRun(RUN_4, { agent: 'a', createdAt: new Date(4_000) }));
 
             const listed = await store.runs.find({ agents: ['a', 'c'] });
 
-            expect(listed.data.map((r) => r.id)).toEqual(['r1', 'r3', 'r4']);
+            expect(listed.data.map((r) => r.id)).toEqual([RUN_1, RUN_3, RUN_4]);
             expect(listed.total).toBe(3);
             expect(await store.runs.find({ agents: [] })).toEqual({ data: [], total: 0 });
             expect(await store.runs.find({ agent: 'a', agents: ['b'] })).toEqual({ data: [], total: 0 });
-            expect((await store.runs.find({ agent: 'a', agents: ['a', 'b'] })).data.map((r) => r.id)).toEqual(['r1', 'r4']);
+            expect((await store.runs.find({ agent: 'a', agents: ['a', 'b'] })).data.map((r) => r.id)).toEqual([RUN_1, RUN_4]);
             expect(await store.runs.find({ agents: ['a'], limit: 0 })).toEqual({ data: [], total: 2 });
         });
 
@@ -861,19 +884,19 @@ export function describeRepositoryContract(
             const { store } = await setup();
             const subtreeUsage = { inputTokens: 10, outputTokens: 5 };
 
-            await store.runs.insert(makeRun('r1', { subtreeUsage }));
-            await store.runs.insert(makeRun('r2'));
+            await store.runs.insert(makeRun(RUN_1, { subtreeUsage }));
+            await store.runs.insert(makeRun(RUN_2));
 
-            expect((await store.runs.findOne('r1'))?.subtreeUsage).toEqual(subtreeUsage);
-            expect((await store.runs.findOne('r2'))?.subtreeUsage).toBeUndefined();
+            expect((await store.runs.findOne(RUN_1))?.subtreeUsage).toEqual(subtreeUsage);
+            expect((await store.runs.findOne(RUN_2))?.subtreeUsage).toBeUndefined();
 
-            const updated = await store.runs.update('r1', { status: RunStatus.RUNNING });
+            const updated = await store.runs.update(RUN_1, { status: RunStatus.RUNNING });
 
             expect(updated.subtreeUsage).toEqual(subtreeUsage);
-            expect((await store.runs.findOne('r1'))?.subtreeUsage).toEqual(subtreeUsage);
+            expect((await store.runs.findOne(RUN_1))?.subtreeUsage).toEqual(subtreeUsage);
 
-            await store.runs.update('r2', { subtreeUsage: { inputTokens: 1, outputTokens: 2 } });
-            expect((await store.runs.findOne('r2'))?.subtreeUsage).toEqual({ inputTokens: 1, outputTokens: 2 });
+            await store.runs.update(RUN_2, { subtreeUsage: { inputTokens: 1, outputTokens: 2 } });
+            expect((await store.runs.findOne(RUN_2))?.subtreeUsage).toEqual({ inputTokens: 1, outputTokens: 2 });
         });
 
         it('both wait point kinds round-trip with Date revival', async () => {
@@ -895,16 +918,16 @@ export function describeRepositoryContract(
                 id: '1:c2:w0',
                 toolName: 'review',
                 toolCallId: 'c2',
-                runIds: ['c1', 'c2'],
+                runIds: [CHILD_1, CHILD_2],
                 expiresAt: new Date(9_000),
             };
 
-            await store.runs.insert(makeRun('r1', { status: RunStatus.WAITING, waiting: approval }));
-            await store.runs.insert(makeRun('r2'));
-            await store.runs.update('r2', { status: RunStatus.WAITING, waiting: dispatch });
+            await store.runs.insert(makeRun(RUN_1, { status: RunStatus.WAITING, waiting: approval }));
+            await store.runs.insert(makeRun(RUN_2));
+            await store.runs.update(RUN_2, { status: RunStatus.WAITING, waiting: dispatch });
 
-            const first = await store.runs.findOneOrFail('r1');
-            const second = await store.runs.findOneOrFail('r2');
+            const first = await store.runs.findOneOrFail(RUN_1);
+            const second = await store.runs.findOneOrFail(RUN_2);
 
             expect(first.waiting).toEqual(approval);
             expect(first.waiting?.expiresAt).toBeInstanceOf(Date);
@@ -912,7 +935,7 @@ export function describeRepositoryContract(
             expect(second.waiting).toEqual(dispatch);
             expect(second.waiting?.expiresAt).toBeInstanceOf(Date);
 
-            const listed = await store.runs.find({ ids: ['r2'] });
+            const listed = await store.runs.find({ ids: [RUN_2] });
 
             expect(listed.data[0]?.waiting).toEqual(dispatch);
             expect(listed.data[0]?.waiting?.expiresAt).toBeInstanceOf(Date);
@@ -934,32 +957,32 @@ export function describeRepositoryContract(
                 id: '1:c2:w0',
                 toolName: 'review',
                 toolCallId: 'c2',
-                runIds: ['x'],
+                runIds: [MISSING_ID],
                 expiresAt: new Date(9_000),
             };
 
-            await store.runs.insert(makeRun('r1', {
+            await store.runs.insert(makeRun(RUN_1, {
                 status: RunStatus.WAITING,
                 waiting: approval('0:c1:0'),
                 createdAt: new Date(1_000),
             }));
-            await store.runs.insert(makeRun('r2', {
+            await store.runs.insert(makeRun(RUN_2, {
                 status: RunStatus.WAITING,
                 waiting: dispatch,
                 createdAt: new Date(2_000),
             }));
-            await store.runs.insert(makeRun('r3', {
+            await store.runs.insert(makeRun(RUN_3, {
                 status: RunStatus.WAITING,
                 waiting: approval('0:c1:1'),
                 createdAt: new Date(3_000),
             }));
-            await store.runs.insert(makeRun('r4', { createdAt: new Date(4_000) }));
+            await store.runs.insert(makeRun(RUN_4, { createdAt: new Date(4_000) }));
 
             const approvals = await store.runs.find({ waitKind: 'approval' });
 
-            expect(approvals.data.map((r) => r.id)).toEqual(['r1', 'r3']);
+            expect(approvals.data.map((r) => r.id)).toEqual([RUN_1, RUN_3]);
             expect(approvals.total).toBe(2);
-            expect((await store.runs.find({ waitKind: 'dispatch' })).data.map((r) => r.id)).toEqual(['r2']);
+            expect((await store.runs.find({ waitKind: 'dispatch' })).data.map((r) => r.id)).toEqual([RUN_2]);
 
             const page = await store.runs.find({
                 status: [RunStatus.WAITING],
@@ -968,7 +991,7 @@ export function describeRepositoryContract(
                 offset: 1,
             });
 
-            expect(page.data.map((r) => r.id)).toEqual(['r3']);
+            expect(page.data.map((r) => r.id)).toEqual([RUN_3]);
             expect(page.total).toBe(2);
             expect((await store.runs.find({ waitKind: 'approval', limit: 0 })).total).toBe(2);
         });
@@ -984,13 +1007,13 @@ export function describeRepositoryContract(
                 expiresAt: new Date(5_000),
             } as unknown as WaitPoint;
 
-            await store.runs.insert(makeRun('r1'));
+            await store.runs.insert(makeRun(RUN_1));
 
-            const updated = await store.runs.update('r1', { status: RunStatus.WAITING, waiting: legacy });
+            const updated = await store.runs.update(RUN_1, { status: RunStatus.WAITING, waiting: legacy });
 
             expect(updated.waiting?.id).toBe('0:c1:0');
-            expect((await store.runs.findOneOrFail('r1')).waiting).toEqual({ ...legacy, id: '0:c1:0' });
-            expect((await store.runs.find({ ids: ['r1'] })).data[0]?.waiting?.id).toBe('0:c1:0');
+            expect((await store.runs.findOneOrFail(RUN_1)).waiting).toEqual({ ...legacy, id: '0:c1:0' });
+            expect((await store.runs.find({ ids: [RUN_1] })).data[0]?.waiting?.id).toBe('0:c1:0');
         });
 
         it('expectWaitId guards update', async () => {
@@ -1000,24 +1023,24 @@ export function describeRepositoryContract(
                 id: '1:c2:w0',
                 toolName: 'review',
                 toolCallId: 'c2',
-                runIds: ['c1'],
+                runIds: [CHILD_1],
                 expiresAt: new Date(9_000),
             };
 
-            await store.runs.insert(makeRun('r1', { status: RunStatus.WAITING, waiting }));
-            await store.runs.insert(makeRun('r2', { status: RunStatus.WAITING }));
+            await store.runs.insert(makeRun(RUN_1, { status: RunStatus.WAITING, waiting }));
+            await store.runs.insert(makeRun(RUN_2, { status: RunStatus.WAITING }));
 
             await expect(
-                store.runs.update('r1', { status: RunStatus.QUEUED }, { expectWaitId: '1:c2:w1' }),
+                store.runs.update(RUN_1, { status: RunStatus.QUEUED }, { expectWaitId: '1:c2:w1' }),
             ).rejects.toBeInstanceOf(InvalidRunStateError);
             await expect(
-                store.runs.update('r2', { status: RunStatus.QUEUED }, { expectWaitId: '1:c2:w0' }),
+                store.runs.update(RUN_2, { status: RunStatus.QUEUED }, { expectWaitId: '1:c2:w0' }),
             ).rejects.toBeInstanceOf(InvalidRunStateError);
-            expect((await store.runs.findOneOrFail('r1')).status).toBe(RunStatus.WAITING);
-            expect((await store.runs.findOneOrFail('r2')).status).toBe(RunStatus.WAITING);
+            expect((await store.runs.findOneOrFail(RUN_1)).status).toBe(RunStatus.WAITING);
+            expect((await store.runs.findOneOrFail(RUN_2)).status).toBe(RunStatus.WAITING);
 
             const updated = await store.runs.update(
-                'r1',
+                RUN_1,
                 { status: RunStatus.QUEUED },
                 { expectStatus: [RunStatus.WAITING], expectWaitId: '1:c2:w0' },
             );
@@ -1028,23 +1051,23 @@ export function describeRepositoryContract(
         it('keepUpdatedAt leaves updatedAt as stored', async () => {
             const { store, clock } = await setup();
 
-            await store.runs.insert(makeRun('r1'));
+            await store.runs.insert(makeRun(RUN_1));
 
-            const before = await store.runs.findOneOrFail('r1');
+            const before = await store.runs.findOneOrFail(RUN_1);
 
             clock.advance(5_000);
 
             const kept = await store.runs.update(
-                'r1',
+                RUN_1,
                 { subtreeUsage: { inputTokens: 3, outputTokens: 4 } },
                 { keepUpdatedAt: true },
             );
 
             expect(kept.updatedAt).toEqual(before.updatedAt);
             expect(kept.subtreeUsage).toEqual({ inputTokens: 3, outputTokens: 4 });
-            expect((await store.runs.findOneOrFail('r1')).updatedAt).toEqual(before.updatedAt);
+            expect((await store.runs.findOneOrFail(RUN_1)).updatedAt).toEqual(before.updatedAt);
 
-            const stamped = await store.runs.update('r1', { subtreeUsage: { inputTokens: 5, outputTokens: 6 } });
+            const stamped = await store.runs.update(RUN_1, { subtreeUsage: { inputTokens: 5, outputTokens: 6 } });
 
             expect(stamped.updatedAt).toEqual(clock.now());
         });
@@ -1060,21 +1083,21 @@ export function describeRepositoryContract(
                 expiresAt: new Date(5_000),
             } as unknown as WaitPoint;
 
-            await store.runs.insert(makeRun('r1'));
-            await store.runs.update('r1', { status: RunStatus.WAITING, waiting: legacy });
+            await store.runs.insert(makeRun(RUN_1));
+            await store.runs.update(RUN_1, { status: RunStatus.WAITING, waiting: legacy });
 
             await expect(
-                store.runs.update('r1', { status: RunStatus.QUEUED }, { expectWaitId: '0:c1:1' }),
+                store.runs.update(RUN_1, { status: RunStatus.QUEUED }, { expectWaitId: '0:c1:1' }),
             ).rejects.toBeInstanceOf(InvalidRunStateError);
 
-            const updated = await store.runs.update('r1', { status: RunStatus.QUEUED }, { expectWaitId: '0:c1:0' });
+            const updated = await store.runs.update(RUN_1, { status: RunStatus.QUEUED }, { expectWaitId: '0:c1:0' });
 
             expect(updated.status).toBe(RunStatus.QUEUED);
         });
 
         it('an envelope stored before channels (source, thread) reads back as channel and address', async () => {
             const { store } = await setup();
-            const run = makeRun('r1');
+            const run = makeRun(RUN_1);
 
             run.trigger = {
                 id: run.trigger.id,
@@ -1088,9 +1111,9 @@ export function describeRepositoryContract(
             await store.runs.insert(run);
 
             for (const stored of [
-                await store.runs.findOne('r1'),
+                await store.runs.findOne(RUN_1),
                 (await store.runs.find({})).data[0],
-                await store.runs.update('r1', { status: RunStatus.RUNNING }),
+                await store.runs.update(RUN_1, { status: RunStatus.RUNNING }),
             ]) {
                 expect(stored?.trigger.channel).toBe('github');
                 expect(stored?.trigger.address).toBe('owner/repo#7');
@@ -1102,21 +1125,21 @@ export function describeRepositoryContract(
         it('runs.find breaks createdAt ties by id ascending', async () => {
             const { store } = await setup();
 
-            for (const id of ['b', 'c', 'a']) {
+            for (const id of [RUN_2, RUN_3, RUN_1]) {
                 await store.runs.insert(makeRun(id));
             }
 
-            expect((await store.runs.find({})).data.map((r) => r.id)).toEqual(['a', 'b', 'c']);
+            expect((await store.runs.find({})).data.map((r) => r.id)).toEqual([RUN_1, RUN_2, RUN_3]);
         });
 
         it('runs.find order desc returns newest first, ties by id descending, and pages from the newest', async () => {
             const { store } = await setup();
 
-            await store.runs.insert(makeRun('b'));
-            await store.runs.insert(makeRun('a'));
-            await store.runs.insert(makeRun('c', { createdAt: new Date(2_000) }));
-            expect((await store.runs.find({ order: 'desc' })).data.map((r) => r.id)).toEqual(['c', 'b', 'a']);
-            expect((await store.runs.find({ order: 'asc' })).data.map((r) => r.id)).toEqual(['a', 'b', 'c']);
+            await store.runs.insert(makeRun(RUN_2));
+            await store.runs.insert(makeRun(RUN_1));
+            await store.runs.insert(makeRun(RUN_3, { createdAt: new Date(2_000) }));
+            expect((await store.runs.find({ order: 'desc' })).data.map((r) => r.id)).toEqual([RUN_3, RUN_2, RUN_1]);
+            expect((await store.runs.find({ order: 'asc' })).data.map((r) => r.id)).toEqual([RUN_1, RUN_2, RUN_3]);
 
             const page = await store.runs.find({
                 order: 'desc',
@@ -1124,24 +1147,24 @@ export function describeRepositoryContract(
                 offset: 1,
             });
 
-            expect(page.data.map((r) => r.id)).toEqual(['b']);
+            expect(page.data.map((r) => r.id)).toEqual([RUN_2]);
             expect(page.total).toBe(3);
         });
 
         it('runs.insert inserts only when the id is absent, also under concurrency', async () => {
             const { store } = await setup();
             const results = await Promise.all(
-                Array.from({ length: 5 }, (_, i) => store.runs.insert(makeRun('r1', { address: `t${i}` }))),
+                Array.from({ length: 5 }, (_, i) => store.runs.insert(makeRun(RUN_1, { address: `t${i}` }))),
             );
 
             expect(results.filter(Boolean)).toHaveLength(1);
 
             const winner = results.indexOf(true);
 
-            expect((await store.runs.findOne('r1'))?.address).toBe(`t${winner}`);
-            await store.runs.update('r1', { status: RunStatus.RUNNING });
-            expect(await store.runs.insert(makeRun('r1'))).toBe(false);
-            expect((await store.runs.findOne('r1'))?.status).toBe(RunStatus.RUNNING);
+            expect((await store.runs.findOne(RUN_1))?.address).toBe(`t${winner}`);
+            await store.runs.update(RUN_1, { status: RunStatus.RUNNING });
+            expect(await store.runs.insert(makeRun(RUN_1))).toBe(false);
+            expect((await store.runs.findOne(RUN_1))?.status).toBe(RunStatus.RUNNING);
             expect((await store.runs.find({})).total).toBe(1);
         });
 
@@ -1150,45 +1173,45 @@ export function describeRepositoryContract(
             const at = new Date(1_000);
 
             // run
-            const run = makeRun('r1');
+            const run = makeRun(RUN_1);
 
             await store.runs.insert(run);
             run.usage.inputTokens = 99;
             run.trigger.payload = { changed: true };
 
-            const got = (await store.runs.findOne('r1'))!;
+            const got = (await store.runs.findOne(RUN_1))!;
 
             expect(got.usage.inputTokens).toBe(0);
             expect(got.trigger.payload).toEqual({});
             got.usage.inputTokens = 77;
-            expect((await store.runs.findOne('r1'))?.usage.inputTokens).toBe(0);
-            await store.runs.claim('r1', 'w', 1_000);
+            expect((await store.runs.findOne(RUN_1))?.usage.inputTokens).toBe(0);
+            await store.runs.claim(RUN_1, 'w', 1_000);
 
-            const claimed = (await store.runs.findOne('r1'))!;
+            const claimed = (await store.runs.findOne(RUN_1))!;
 
             claimed.claim!.owner = 'evil';
-            expect((await store.runs.findOne('r1'))?.claim?.owner).toBe('w');
+            expect((await store.runs.findOne(RUN_1))?.claim?.owner).toBe('w');
 
             // checkpoint
             const messages = [{ role: 'user', content: 'hi' }] as Checkpoint['messages'];
 
             await store.checkpoints.save({
-                runId: 'r1',
+                runId: RUN_1,
                 stepIndex: 1,
                 messages,
                 createdAt: at,
             });
             messages.push({ role: 'user', content: 'later' });
 
-            const cp = (await store.checkpoints.findOne('r1'))!;
+            const cp = (await store.checkpoints.findOne(RUN_1))!;
 
             expect(cp.messages).toHaveLength(1);
             cp.messages.push({ role: 'user', content: 'x' });
-            expect((await store.checkpoints.findOne('r1'))?.messages).toHaveLength(1);
+            expect((await store.checkpoints.findOne(RUN_1))?.messages).toHaveLength(1);
 
             // step
             const step: Step = {
-                runId: 'r1',
+                runId: RUN_1,
                 index: 0,
                 kind: 'tool',
                 input: { a: 1 },
@@ -1199,11 +1222,11 @@ export function describeRepositoryContract(
             await store.steps.insert(step);
             (step.input as { a: number }).a = 2;
 
-            const steps = await store.steps.find('r1');
+            const steps = await store.steps.find(RUN_1);
 
             expect(steps[0]!.input).toEqual({ a: 1 });
             (steps[0]!.input as { a: number }).a = 3;
-            expect((await store.steps.find('r1'))[0]!.input).toEqual({ a: 1 });
+            expect((await store.steps.find(RUN_1))[0]!.input).toEqual({ a: 1 });
 
             // effect
             const result = { list: [1] };
@@ -1244,107 +1267,107 @@ export function describeRepositoryContract(
 
         it('artifacts.insert inserts only when the id is absent, also under concurrency', async () => {
             const { store } = await setup();
-            const first = makeArtifact('a1', { filename: 'first.txt' });
+            const first = makeArtifact(ARTIFACT_1, { filename: 'first.txt' });
 
             expect(await store.artifacts.insert(first, new Uint8Array([1, 2, 3]))).toBe(true);
-            expect(await store.artifacts.insert(makeArtifact('a1', { filename: 'second.txt', size: 1 }), new Uint8Array([9]))).toBe(false);
-            expect(await store.artifacts.findOne('a1')).toEqual(first);
-            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([1, 2, 3]);
+            expect(await store.artifacts.insert(makeArtifact(ARTIFACT_1, { filename: 'second.txt', size: 1 }), new Uint8Array([9]))).toBe(false);
+            expect(await store.artifacts.findOne(ARTIFACT_1)).toEqual(first);
+            expect(Array.from((await store.artifacts.read(ARTIFACT_1))!)).toEqual([1, 2, 3]);
 
             const results = await Promise.all(
-                Array.from({ length: 10 }, (_, i) => store.artifacts.insert(makeArtifact('a2', { size: 1 }), new Uint8Array([i]))),
+                Array.from({ length: 10 }, (_, i) => store.artifacts.insert(makeArtifact(ARTIFACT_2, { size: 1 }), new Uint8Array([i]))),
             );
 
             expect(results.filter(Boolean)).toHaveLength(1);
-            expect((await store.artifacts.find('r1')).filter((a) => a.id === 'a2')).toHaveLength(1);
+            expect((await store.artifacts.find(RUN_1)).filter((a) => a.id === ARTIFACT_2)).toHaveLength(1);
         });
 
         it('artifacts.findOne and artifacts.read return metadata and plain Uint8Array bytes', async () => {
             const { store } = await setup();
-            const artifact = makeArtifact('a1', { size: 4 });
+            const artifact = makeArtifact(ARTIFACT_1, { size: 4 });
 
             await store.artifacts.insert(artifact, new Uint8Array([0, 255, 10, 13]));
 
-            const got = await store.artifacts.findOne('a1');
+            const got = await store.artifacts.findOne(ARTIFACT_1);
 
             expect(got).toEqual(artifact);
             expect(got?.createdAt).toBeInstanceOf(Date);
             expect(got).not.toHaveProperty('data');
 
-            const bytes = await store.artifacts.read('a1');
+            const bytes = await store.artifacts.read(ARTIFACT_1);
 
             expect(bytes?.constructor).toBe(Uint8Array);
             expect(Array.from(bytes!)).toEqual([0, 255, 10, 13]);
 
-            const empty = makeArtifact('a2', { size: 0, filename: undefined });
+            const empty = makeArtifact(ARTIFACT_2, { size: 0, filename: undefined });
 
             await store.artifacts.insert(empty, new Uint8Array());
-            expect((await store.artifacts.read('a2'))?.byteLength).toBe(0);
-            expect((await store.artifacts.findOne('a2'))?.filename).toBeUndefined();
+            expect((await store.artifacts.read(ARTIFACT_2))?.byteLength).toBe(0);
+            expect((await store.artifacts.findOne(ARTIFACT_2))?.filename).toBeUndefined();
         });
 
         it('artifact reads of unknown ids are empty', async () => {
             const { store } = await setup();
 
-            expect(await store.artifacts.findOne('nope')).toBeUndefined();
-            expect(await store.artifacts.read('nope')).toBeUndefined();
-            expect(await store.artifacts.find('nope')).toEqual([]);
+            expect(await store.artifacts.findOne(MISSING_ID)).toBeUndefined();
+            expect(await store.artifacts.read(MISSING_ID)).toBeUndefined();
+            expect(await store.artifacts.find(MISSING_ID)).toEqual([]);
         });
 
         it('artifacts.find returns the run\'s artifacts by createdAt, then id', async () => {
             const { store } = await setup();
 
-            await store.artifacts.insert(makeArtifact('c', { createdAt: new Date(2_000) }), new Uint8Array([1]));
-            await store.artifacts.insert(makeArtifact('b', { createdAt: new Date(1_000) }), new Uint8Array([1]));
-            await store.artifacts.insert(makeArtifact('a', { createdAt: new Date(2_000) }), new Uint8Array([1]));
-            await store.artifacts.insert(makeArtifact('z', { runId: 'r2', createdAt: new Date(500) }), new Uint8Array([1]));
+            await store.artifacts.insert(makeArtifact(ARTIFACT_3, { createdAt: new Date(2_000) }), new Uint8Array([1]));
+            await store.artifacts.insert(makeArtifact(ARTIFACT_2, { createdAt: new Date(1_000) }), new Uint8Array([1]));
+            await store.artifacts.insert(makeArtifact(ARTIFACT_1, { createdAt: new Date(2_000) }), new Uint8Array([1]));
+            await store.artifacts.insert(makeArtifact(ARTIFACT_4, { runId: RUN_2, createdAt: new Date(500) }), new Uint8Array([1]));
 
-            const listed = await store.artifacts.find('r1');
+            const listed = await store.artifacts.find(RUN_1);
 
-            expect(listed.map((a) => a.id)).toEqual(['b', 'a', 'c']);
-            expect(listed[0]).toEqual(makeArtifact('b', { createdAt: new Date(1_000) }));
-            expect((await store.artifacts.find('r2')).map((a) => a.id)).toEqual(['z']);
+            expect(listed.map((a) => a.id)).toEqual([ARTIFACT_2, ARTIFACT_1, ARTIFACT_3]);
+            expect(listed[0]).toEqual(makeArtifact(ARTIFACT_2, { createdAt: new Date(1_000) }));
+            expect((await store.artifacts.find(RUN_2)).map((a) => a.id)).toEqual([ARTIFACT_4]);
         });
 
         it('does not alias artifacts passed in or returned', async () => {
             const { store } = await setup();
-            const artifact: Artifact = makeArtifact('a1');
+            const artifact: Artifact = makeArtifact(ARTIFACT_1);
             const data = new Uint8Array([1, 2, 3]);
 
             await store.artifacts.insert(artifact, data);
             data[0] = 9;
             artifact.mediaType = 'text/html';
             artifact.createdAt.setTime(0);
-            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([1, 2, 3]);
-            expect(await store.artifacts.findOne('a1')).toEqual(makeArtifact('a1'));
+            expect(Array.from((await store.artifacts.read(ARTIFACT_1))!)).toEqual([1, 2, 3]);
+            expect(await store.artifacts.findOne(ARTIFACT_1)).toEqual(makeArtifact(ARTIFACT_1));
 
-            const read = (await store.artifacts.read('a1'))!;
+            const read = (await store.artifacts.read(ARTIFACT_1))!;
 
             read[1] = 9;
-            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([1, 2, 3]);
+            expect(Array.from((await store.artifacts.read(ARTIFACT_1))!)).toEqual([1, 2, 3]);
 
-            const got = (await store.artifacts.findOne('a1'))!;
+            const got = (await store.artifacts.findOne(ARTIFACT_1))!;
 
             got.size = 99;
 
-            const [listed] = await store.artifacts.find('r1');
+            const [listed] = await store.artifacts.find(RUN_1);
 
             listed!.filename = 'evil';
-            expect(await store.artifacts.findOne('a1')).toEqual(makeArtifact('a1'));
+            expect(await store.artifacts.findOne(ARTIFACT_1)).toEqual(makeArtifact(ARTIFACT_1));
         });
 
         it('artifacts.save inserts an absent artifact', async () => {
             const { store } = await setup();
-            const artifact = makeArtifact('a1');
+            const artifact = makeArtifact(ARTIFACT_1);
 
             expect(await store.artifacts.save(artifact, new Uint8Array([1, 2, 3]))).toEqual(artifact);
-            expect(await store.artifacts.findOne('a1')).toEqual(artifact);
-            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([1, 2, 3]);
+            expect(await store.artifacts.findOne(ARTIFACT_1)).toEqual(artifact);
+            expect(Array.from((await store.artifacts.read(ARTIFACT_1))!)).toEqual([1, 2, 3]);
         });
 
         it('artifacts.save replaces bytes and metadata and keeps createdAt', async () => {
             const { clock, store } = await setup();
-            const first = makeArtifact('a1', {
+            const first = makeArtifact(ARTIFACT_1, {
                 mediaType: 'image/png',
                 filename: 'first.png',
                 createdAt: clock.now(),
@@ -1354,7 +1377,7 @@ export function describeRepositoryContract(
             clock.advance(5_000);
 
             const saved = await store.artifacts.save(
-                makeArtifact('a1', {
+                makeArtifact(ARTIFACT_1, {
                     mediaType: 'image/jpeg',
                     filename: undefined,
                     size: 1,
@@ -1363,8 +1386,8 @@ export function describeRepositoryContract(
                 new Uint8Array([9]),
             );
             const expected: Artifact = {
-                id: 'a1',
-                runId: 'r1',
+                id: ARTIFACT_1,
+                runId: RUN_1,
                 agent: 'a',
                 mediaType: 'image/jpeg',
                 size: 1,
@@ -1373,27 +1396,27 @@ export function describeRepositoryContract(
 
             expect(saved).toEqual(expected);
             expect(saved).not.toHaveProperty('filename');
-            expect(await store.artifacts.findOne('a1')).toEqual(expected);
-            expect(await store.artifacts.findOne('a1')).not.toHaveProperty('filename');
-            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([9]);
-            expect(await store.artifacts.find('r1')).toHaveLength(1);
+            expect(await store.artifacts.findOne(ARTIFACT_1)).toEqual(expected);
+            expect(await store.artifacts.findOne(ARTIFACT_1)).not.toHaveProperty('filename');
+            expect(Array.from((await store.artifacts.read(ARTIFACT_1))!)).toEqual([9]);
+            expect(await store.artifacts.find(RUN_1)).toHaveLength(1);
         });
 
         it('artifacts.save refuses an id held by another run', async () => {
             const { store } = await setup();
-            const first = makeArtifact('a1');
+            const first = makeArtifact(ARTIFACT_1);
 
             await store.artifacts.insert(first, new Uint8Array([1, 2, 3]));
-            await expect(store.artifacts.save(makeArtifact('a1', { runId: 'r2', size: 1 }), new Uint8Array([9])))
+            await expect(store.artifacts.save(makeArtifact(ARTIFACT_1, { runId: RUN_2, size: 1 }), new Uint8Array([9])))
                 .rejects.toMatchObject({ code: 'invalid_run_state' });
-            expect(await store.artifacts.findOne('a1')).toEqual(first);
-            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([1, 2, 3]);
-            expect(await store.artifacts.find('r2')).toEqual([]);
+            expect(await store.artifacts.findOne(ARTIFACT_1)).toEqual(first);
+            expect(Array.from((await store.artifacts.read(ARTIFACT_1))!)).toEqual([1, 2, 3]);
+            expect(await store.artifacts.find(RUN_2)).toEqual([]);
         });
 
         it('artifacts.save copies in and out', async () => {
             const { store } = await setup();
-            const artifact = makeArtifact('a1');
+            const artifact = makeArtifact(ARTIFACT_1);
             const data = new Uint8Array([1, 2, 3]);
 
             const saved = await store.artifacts.save(artifact, data);
@@ -1402,26 +1425,26 @@ export function describeRepositoryContract(
             artifact.mediaType = 'text/html';
             artifact.createdAt.setTime(0);
             saved.size = 99;
-            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([1, 2, 3]);
-            expect(await store.artifacts.findOne('a1')).toEqual(makeArtifact('a1'));
+            expect(Array.from((await store.artifacts.read(ARTIFACT_1))!)).toEqual([1, 2, 3]);
+            expect(await store.artifacts.findOne(ARTIFACT_1)).toEqual(makeArtifact(ARTIFACT_1));
 
-            await store.artifacts.save(makeArtifact('a1', { size: 2 }), data.subarray(0, 2));
+            await store.artifacts.save(makeArtifact(ARTIFACT_1, { size: 2 }), data.subarray(0, 2));
             data[1] = 7;
-            expect(Array.from((await store.artifacts.read('a1'))!)).toEqual([9, 2]);
+            expect(Array.from((await store.artifacts.read(ARTIFACT_1))!)).toEqual([9, 2]);
         });
 
         it('concurrent artifacts.save calls of one id leave one artifact', async () => {
             const { store } = await setup();
 
             await Promise.all([
-                store.artifacts.save(makeArtifact('a1', { size: 1 }), new Uint8Array([1])),
-                store.artifacts.save(makeArtifact('a1', { size: 1 }), new Uint8Array([2])),
+                store.artifacts.save(makeArtifact(ARTIFACT_1, { size: 1 }), new Uint8Array([1])),
+                store.artifacts.save(makeArtifact(ARTIFACT_1, { size: 1 }), new Uint8Array([2])),
             ]);
 
-            const listed = await store.artifacts.find('r1');
+            const listed = await store.artifacts.find(RUN_1);
 
             expect(listed).toHaveLength(1);
-            expect([[1], [2]]).toContainEqual(Array.from((await store.artifacts.read('a1'))!));
+            expect([[1], [2]]).toContainEqual(Array.from((await store.artifacts.read(ARTIFACT_1))!));
         });
 
         it('agentRevisions.findOne of an unknown agent is undefined', async () => {

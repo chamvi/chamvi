@@ -14,15 +14,11 @@ import {
 import { JSON_VALUE_TRANSFORMER, TableName } from './constants.ts';
 
 @Index('IDX_chamvi_docs_doc_gin', ['doc'], { type: 'gin' })
-@Index(['agent', 'collection', 'id'], { unique: true })
+@Index(['agent', 'collection', 'documentId'], { unique: true })
 @Entity({ name: TableName.DOCS })
 export class DocEntity {
-    @PrimaryColumn({
-        name: 'row_id',
-        type: 'uuid',
-        update: false,
-    })
-    rowId!: string;
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
 
     @Column({
         name: 'agent', 
@@ -39,11 +35,11 @@ export class DocEntity {
     collection!: string;
 
     @Column({
-        name: 'id', 
+        name: 'document_id',
         type: 'varchar', 
         length: 255, 
     })
-    id!: string;
+    documentId!: string;
 
     @Column({
         name: 'doc',

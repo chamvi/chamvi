@@ -92,7 +92,7 @@ describe('MemoryConversationRepository', () => {
         expect((await store.findItems(scope, { limit: 10, offset: 0 })).total).toBe(0);
 
         // a scope of an identity never resolved here is stale
-        const other = { ...scope, id: 'f'.repeat(64) };
+        const other = { ...scope, id: '019a5555-1234-7abc-8123-456789abcdef' };
 
         expect(await store.beginTurn(other, 'run-a', 'hi', LIMITS)).toEqual({ kind: 'stale' });
         await expect(store.applyNote(scope, { ...setOp('run-a', 'k', 'v'), kind: 'other' } as never))

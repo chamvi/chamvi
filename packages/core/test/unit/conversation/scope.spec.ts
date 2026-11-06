@@ -133,18 +133,20 @@ describe('conversation scope', () => {
             seen.add(other);
         }
 
+        const scopeId = '019a5555-1234-7abc-8123-456789abcdef';
+
         expect(conversationConcurrencyKey({
-            id,
+            id: scopeId,
             generation: 3,
             identity,
-        })).toBe(`conversation:${id}:3`);
+        })).toBe(`conversation:${scopeId}:3`);
         expect(() => conversationConcurrencyKey({
-            id,
+            id: scopeId,
             generation: -1,
             identity,
         })).toThrow(ValidationError);
         expect(() => conversationConcurrencyKey({
-            id,
+            id: scopeId,
             generation: 1.5,
             identity,
         })).toThrow(ValidationError);
@@ -194,16 +196,14 @@ describe('conversation scope', () => {
         expect(() => identityId({ ...identity, chat: '\u{1F600}'.repeat(128) })).toThrow(ValidationError);
     });
 
-    it('validates legacy and UUID v7 scopes', () => {
-        for (const id of [identityId(identity), '019a5555-1234-7abc-8123-456789abcdef']) {
-            expect(() => assertConversationScope({
-                id,
-                generation: 0,
-                identity,
-            })).not.toThrow();
-        }
+    it('validates UUID v7 scopes', () => {
+        expect(() => assertConversationScope({
+            id: '019a5555-1234-7abc-8123-456789abcdef',
+            generation: 0,
+            identity,
+        })).not.toThrow();
 
-        for (const id of ['random', '019a5555-1234-4abc-8123-456789abcdef', '019a5555-1234-7abc-7123-456789abcdef']) {
+        for (const id of [identityId(identity), 'random', '019a5555-1234-4abc-8123-456789abcdef', '019a5555-1234-7abc-7123-456789abcdef']) {
             expect(() => assertConversationScope({
                 id,
                 generation: 0,

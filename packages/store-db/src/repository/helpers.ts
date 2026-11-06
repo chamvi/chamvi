@@ -32,6 +32,11 @@ import type {
 } from '../entities/index.ts';
 import { TableName } from '../entities/constants.ts';
 
+/** Malformed identifiers cannot match native UUID columns. */
+export function isUuid(value: string): boolean {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(value);
+}
+
 /** Run properties that map one to one onto a RunEntity property. */
 const RUN_PROPERTIES: ReadonlySet<string> = new Set([
     'agent',
@@ -92,7 +97,6 @@ export function toRunValues(patch: Partial<Run>): QueryDeepPartialEntity<RunEnti
 export function toRunInsertValues(run: Run): QueryDeepPartialEntity<RunEntity> {
     return {
         ...toRunValues(run),
-        rowId: uuidv7(),
         id: run.id,
         parentRunId: run.trigger.parent?.runId ?? null,
     } as QueryDeepPartialEntity<RunEntity>;
@@ -325,7 +329,6 @@ export function toCheckpoint(entity: CheckpointEntity): Checkpoint {
 /** ArtifactEntity values for a new artifact: the bytes copied into a Buffer, the bytea parameter the driver expects. */
 export function toArtifactValues(artifact: Artifact, data: Uint8Array): QueryDeepPartialEntity<ArtifactEntity> {
     const values: ArtifactEntity = {
-        rowId: uuidv7(),
         id: artifact.id,
         runId: artifact.runId,
         agent: artifact.agent,

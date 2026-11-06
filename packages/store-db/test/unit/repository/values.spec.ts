@@ -20,6 +20,8 @@ import type { DatabaseStore } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
 import { seedRun } from '../../utils/conversation.ts';
 
+const RUN = '019a3f2a-1000-7000-8000-000000000001';
+
 describePostgres('createDatabaseStore values', () => {
     let dataSource: DataSource;
     let store: DatabaseStore;
@@ -37,8 +39,25 @@ describePostgres('createDatabaseStore values', () => {
         await dataSource.destroy();
     });
 
+    it('upserts retain UUID primary identities while updating document and effect values', async () => {
+        await store.state.upsertDocument('a', 'notes', 'business-key', { version: 1 });
+        await store.effects.save('effect-key', { version: 1 });
+
+        const documents = await dataSource.query('SELECT id FROM chamvi_docs');
+        const effects = await dataSource.query('SELECT id FROM chamvi_effects');
+
+        expect(documents).toHaveLength(1);
+        expect(effects).toHaveLength(1);
+        await store.state.upsertDocument('a', 'notes', 'business-key', { version: 2 });
+        await store.effects.save('effect-key', { version: 2 });
+        expect(await dataSource.query('SELECT id FROM chamvi_docs')).toEqual(documents);
+        expect(await dataSource.query('SELECT id FROM chamvi_effects')).toEqual(effects);
+        expect(await store.state.findDocuments('a', 'notes')).toEqual([{ id: 'business-key', doc: { version: 2 } }]);
+        expect(await store.effects.findOne('effect-key')).toEqual({ result: { version: 2 } });
+    });
+
     it('jsonb values round-trip arrays, null and strings', async () => {
-        await seedRun(dataSource, 'r1');
+        await seedRun(dataSource, RUN);
         await store.state.set('a', 'arr', [1, 2]);
         await expect(store.state.findOne('a', 'arr')).resolves.toEqual([1, 2]);
         await store.state.set('a', 'n', null);
@@ -55,7 +74,7 @@ describePostgres('createDatabaseStore values', () => {
         await expect(store.effects.findOne('missing')).resolves.toBeUndefined();
 
         const step = {
-            runId: 'r1',
+            runId: RUN,
             index: 0,
             kind: 'tool' as const,
             name: 'lookup',
@@ -67,7 +86,7 @@ describePostgres('createDatabaseStore values', () => {
 
         await store.steps.insert(step);
 
-        const steps = await store.steps.find('r1');
+        const steps = await store.steps.find(RUN);
 
         expect(steps).toEqual([step]);
         expect(Object.keys(steps[0]!)).not.toContain('error');
@@ -78,7 +97,7 @@ describePostgres('createDatabaseStore values', () => {
         await expect(store.state.findDocuments('a', 'c')).resolves.toContainEqual({ id: 'n', doc: null });
 
         const cp: Checkpoint = {
-            runId: 'r1',
+            runId: RUN,
             stepIndex: 1,
             messages: [
                 {
@@ -96,17 +115,17 @@ describePostgres('createDatabaseStore values', () => {
         };
 
         await store.checkpoints.save(cp);
-        await expect(store.checkpoints.findOne('r1')).resolves.toEqual(cp);
+        await expect(store.checkpoints.findOne(RUN)).resolves.toEqual(cp);
     });
 
     it('steps.find orders by index, then insertion', async () => {
-        await seedRun(dataSource, 'r1');
+        await seedRun(dataSource, RUN);
 
         const at = new Date(1_000);
 
         for (const [index, name] of [[2, 'two'], [0, 'zero'], [1, 'one-a'], [1, 'one-b']] as const) {
             await store.steps.insert({
-                runId: 'r1',
+                runId: RUN,
                 index,
                 kind: 'llm',
                 name,
@@ -115,7 +134,7 @@ describePostgres('createDatabaseStore values', () => {
             });
         }
 
-        const steps = await store.steps.find('r1');
+        const steps = await store.steps.find(RUN);
 
         expect(steps.map((s) => s.name)).toEqual(['zero', 'one-a', 'one-b', 'two']);
     });
@@ -149,7 +168,7 @@ describePostgres('createDatabaseStore values', () => {
         const at = new Date(1_000);
 
         await store.runs.insert({
-            id: 'r1',
+            id: RUN,
             agent: 'a',
             status: 'queued',
             trigger: {
@@ -165,7 +184,7 @@ describePostgres('createDatabaseStore values', () => {
             updatedAt: at,
         });
         await store.steps.insert({
-            runId: 'r1',
+            runId: RUN,
             index: 0,
             kind: 'tool',
             input: raw,
@@ -175,7 +194,7 @@ describePostgres('createDatabaseStore values', () => {
             finishedAt: at,
         });
 
-        const [step] = await store.steps.find('r1');
+        const [step] = await store.steps.find(RUN);
 
         expect(step).toMatchObject({
             input: clean,
@@ -184,16 +203,16 @@ describePostgres('createDatabaseStore values', () => {
         });
 
         await store.checkpoints.save({
-            runId: 'r1',
+            runId: RUN,
             stepIndex: 0,
             messages: [{ role: 'user', content: raw.nul }],
             createdAt: at,
         });
-        expect((await store.checkpoints.findOne('r1'))?.messages).toEqual([{ role: 'user', content: clean.nul }]);
+        expect((await store.checkpoints.findOne(RUN))?.messages).toEqual([{ role: 'user', content: clean.nul }]);
 
-        await store.runs.update('r1', { output: raw });
+        await store.runs.update(RUN, { output: raw });
 
-        const run = await store.runs.findOne('r1');
+        const run = await store.runs.findOne(RUN);
 
         expect(run?.trigger.payload).toEqual(clean);
         expect(run?.output).toEqual(clean);

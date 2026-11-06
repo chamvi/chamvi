@@ -6,23 +6,15 @@
  */
 
 import { uuidv7 } from 'uuidv7';
-import { DataSource } from 'typeorm';
-import { assertSchemaMatchesMetadata } from 'typeorm-extension';
+import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
 import { LeaseLostError } from '@chamvi/core';
 import type { Connection } from '@chamvi/core';
-import {
-    STORE_MIGRATIONS,
-    createDatabaseStore,
-    migrateStore,
-    pendingMigrations,
-} from '@chamvi/store-db';
+import { createDatabaseStore } from '@chamvi/store-db';
 import { ControllableClock } from '@chamvi/test-kit';
 import { TableName } from '../../../src/entities/constants.ts';
 import { ConnectionEntryEntity } from '../../../src/entities/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
-
-const CONNECTIONS = 'ConnectionsPrimaryKeys1792886400000';
 
 const connection = (name: string): Connection => ({
     name,
@@ -69,8 +61,8 @@ const holdLeaseRow = async (ds: DataSource, key: string) => {
 describePostgres('connections in postgres', () => {
     const dataSources: DataSource[] = [];
 
-    const create = async (migrate = true) => {
-        const ds = await createTestDataSource({ migrate });
+    const create = async () => {
+        const ds = await createTestDataSource();
 
         dataSources.push(ds);
 
@@ -80,59 +72,6 @@ describePostgres('connections in postgres', () => {
     afterEach(async () => {
         await Promise.all(dataSources.map((ds) => ds.destroy()));
         dataSources.length = 0;
-    });
-
-    it('the migration upgrades a v0.7.3 store with data, reverts and reapplies', async () => {
-        const ds = await create(false);
-        const prior = new DataSource({
-            ...ds.options,
-            migrations: STORE_MIGRATIONS.filter((migration) => migration.name !== CONNECTIONS),
-        });
-
-        await prior.initialize();
-        dataSources.push(prior);
-        await migrateStore(prior);
-
-        // Seed the released schema without using entity metadata that already includes the new primary column.
-        const createdAt = new Date('2026-10-28T00:00:00.000Z');
-
-        await prior.query(
-            `INSERT INTO chamvi_runs (id, agent, status, trigger, usage, created_at, updated_at)
-                VALUES ('kept', 'helper', 'completed', $1, $2, $3, $3)`,
-            [JSON.stringify({
-                id: 'kept',
-                agent: 'helper',
-                trigger: 'message',
-                channel: 'chat',
-                payload: {},
-                receivedAt: createdAt,
-            }), JSON.stringify({ inputTokens: 0, outputTokens: 0 }), createdAt],
-        );
-        expect(await pendingMigrations(ds)).toEqual([CONNECTIONS]);
-
-        await migrateStore(ds);
-        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
-
-        const store = createDatabaseStore({ dataSource: ds });
-
-        expect(await store.runs.findOne('kept')).toMatchObject({ id: 'kept' });
-        await store.connections.insert(connection('wa'));
-        await ds.undoLastMigration({ transaction: 'each' });
-
-        const runner = ds.createQueryRunner();
-
-        try {
-            expect(await runner.hasTable(TableName.CONNECTIONS)).toBe(false);
-            expect(await runner.hasTable(TableName.CONNECTION_ENTRIES)).toBe(false);
-        } finally {
-            await runner.release();
-        }
-
-        expect(await ds.query('SELECT id FROM chamvi_runs WHERE id = $1', ['kept'])).toEqual([{ id: 'kept' }]);
-        await migrateStore(ds);
-        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
-        expect(await store.connections.find()).toEqual([]);
-        expect(await store.runs.findOne('kept')).toMatchObject({ id: 'kept' });
     });
 
     it('entries reference their connection: orphans are refused, a delete cascades, the relation loads', async () => {

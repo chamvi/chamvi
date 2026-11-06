@@ -35,8 +35,7 @@ export class IdempotencyKeyEntity {
 
     @Column({
         name: 'run_id', 
-        type: 'varchar', 
-        length: 128, 
+        type: 'uuid',
     })
     // The reservation precedes createRun and can outlive a failed creation.
     runId!: string;

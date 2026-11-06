@@ -13,6 +13,9 @@ import { SeededConversationRepository } from '../../utils/conversation.ts';
 import { ConversationOperationEntity } from '../../../src/entities/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
+const RECOVERABLE_RUN = '019a3f2a-1000-7000-8000-000000000001';
+const SETTLED_RUN = '019a3f2a-1000-7000-8000-000000000002';
+
 describePostgres('conversation operation retention', () => {
     let dataSource: DataSource;
 
@@ -37,8 +40,8 @@ describePostgres('conversation operation retention', () => {
         const limits = { ...DEFAULT_CONVERSATION_LIMITS, retentionMs: 10_000 };
 
         for (const [runId, prefix, count] of [
-            ['recoverable', 'a', 100],
-            ['settled', 'z', 105],
+            [RECOVERABLE_RUN, 'a', 100],
+            [SETTLED_RUN, 'z', 105],
         ] as const) {
             await store.beginTurn(scope, runId, 'input', limits);
 
@@ -62,11 +65,11 @@ describePostgres('conversation operation retention', () => {
         }
 
         clock.advance(10_000);
-        await store.prune(limits, { isSettled: async (runId) => runId === 'settled' });
+        await store.prune(limits, { isSettled: async (runId) => runId === SETTLED_RUN });
 
         const operations = dataSource.getRepository(ConversationOperationEntity);
 
-        expect(await operations.countBy({ scopeId: scope.id, runId: 'recoverable' })).toBe(100);
-        expect(await operations.countBy({ scopeId: scope.id, runId: 'settled' })).toBe(0);
+        expect(await operations.countBy({ scopeId: scope.id, runId: RECOVERABLE_RUN })).toBe(100);
+        expect(await operations.countBy({ scopeId: scope.id, runId: SETTLED_RUN })).toBe(0);
     });
 });

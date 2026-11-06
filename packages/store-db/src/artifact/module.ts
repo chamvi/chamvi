@@ -9,7 +9,12 @@ import { ArtifactNotFoundError, InvalidRunStateError, RepositoryNotFoundError } 
 import type { Artifact, IArtifactRepository } from '@chamvi/core';
 import type { DataSource, Repository } from 'typeorm';
 import { ArtifactEntity } from '../entities/index.ts';
-import { toArtifact, toArtifactValues, toEntity } from '../repository/helpers.ts';
+import {
+    isUuid,
+    toArtifact,
+    toArtifactValues,
+    toEntity,
+} from '../repository/helpers.ts';
 
 export class DatabaseArtifactRepository implements IArtifactRepository {
     protected dataSource: DataSource;
@@ -58,6 +63,10 @@ export class DatabaseArtifactRepository implements IArtifactRepository {
     }
 
     async findOne(id: string): Promise<Artifact | undefined> {
+        if (!isUuid(id)) {
+            return undefined;
+        }
+
         // the data column is select: false, so the bytes stay in the database
         const entity = await this.artifacts.findOneBy({ id });
 
@@ -75,6 +84,10 @@ export class DatabaseArtifactRepository implements IArtifactRepository {
     }
 
     async read(id: string): Promise<Uint8Array | undefined> {
+        if (!isUuid(id)) {
+            return undefined;
+        }
+
         const entity = await this.artifacts.findOne({
             select: { id: true, data: true },
             where: { id },
@@ -85,6 +98,10 @@ export class DatabaseArtifactRepository implements IArtifactRepository {
     }
 
     async find(runId: string): Promise<Artifact[]> {
+        if (!isUuid(runId)) {
+            return [];
+        }
+
         const entities = await this.artifacts.find({
             where: { runId },
             order: { createdAt: 'ASC', id: 'ASC' },

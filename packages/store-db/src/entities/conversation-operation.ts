@@ -19,37 +19,33 @@ import { TableName } from './constants.ts';
 import { ConversationEntity } from './conversation.ts';
 import { RunEntity } from './run.ts';
 
-@Index(['scopeId', 'createdAt', 'id'])
+@Index(['scopeId', 'createdAt', 'operationId'])
 @Index(['runId'])
-@Index(['scopeId', 'generation', 'id'], { unique: true })
+@Index(['scopeId', 'generation', 'operationId'], { unique: true })
 @Entity({ name: TableName.CONVERSATION_OPERATIONS })
 export class ConversationOperationEntity {
-    @PrimaryColumn({
-        name: 'row_id',
-        type: 'uuid',
-        update: false,
-    })
-    rowId!: string;
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
 
     @Column({
         name: 'scope_id',
-        type: 'varchar',
-        length: 64,
-        collation: 'C',
+        type: 'uuid',
     })
     scopeId!: string;
 
     @Column({ type: 'integer' })
     generation!: number;
 
-    @Column({ type: 'text', collation: 'C' })
-    id!: string;
+    @Column({
+        name: 'operation_id',
+        type: 'text',
+        collation: 'C',
+    })
+    operationId!: string;
 
     @Column({
         name: 'run_id',
-        type: 'varchar',
-        length: 128,
-        collation: 'C',
+        type: 'uuid',
     })
     runId!: string;
 

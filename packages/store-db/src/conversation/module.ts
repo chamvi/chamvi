@@ -166,7 +166,6 @@ export class DatabaseConversationRepository implements IConversationRepository {
 
         await this.conversations.createQueryBuilder().insert()
             .values(asValues<ConversationEntity>({
-                rowId: uuidv7(),
                 id: uuidv7(),
                 identityKey,
                 agent: identity.agent,
@@ -538,7 +537,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
             assertNoteOperationShape(operation);
 
             const where = { scopeId: scope.id, generation: scope.generation };
-            const previous = await manager.findOneBy(ConversationOperationEntity, { ...where, id: operation.id });
+            const previous = await manager.findOneBy(ConversationOperationEntity, { ...where, operationId: operation.id });
 
             if (previous) {
                 if (previous.runId !== operation.source.runId || previous.inputHash !== operation.inputHash) {
@@ -603,9 +602,9 @@ export class DatabaseConversationRepository implements IConversationRepository {
             }
 
             await manager.withRepository(this.operations).insert(asValues<ConversationOperationEntity>({
-                rowId: uuidv7(),
+                id: uuidv7(),
                 ...where,
-                id: operation.id,
+                operationId: operation.id,
                 runId: operation.source.runId,
                 inputHash: operation.inputHash,
                 kind: result.kind,
@@ -720,11 +719,11 @@ export class DatabaseConversationRepository implements IConversationRepository {
     async prune(limits: ResolvedConversationLimits, options: { isSettled?: (runId: string) => Promise<boolean> } = {}): Promise<void> {
         const { isSettled } = options;
         let failure: { error: unknown } | undefined;
-        let after = '';
+        let after: string | undefined;
 
         for (;;) {
             const page = await this.conversations.find({
-                where: { id: MoreThan(after) },
+                where: after === undefined ? {} : { id: MoreThan(after) },
                 order: { id: 'ASC' },
                 take: 100,
             });
@@ -755,7 +754,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
                     continue;
                 }
 
-                let afterOperation: { generation: number; id: string } | undefined;
+                let afterOperation: { generation: number; operationId: string } | undefined;
 
                 for (;;) {
                     const candidates = await this.locked(scope.id, async (manager, row) => {
@@ -777,11 +776,11 @@ export class DatabaseConversationRepository implements IConversationRepository {
                                     {
                                         ...base,
                                         generation: afterOperation.generation,
-                                        id: MoreThan(afterOperation.id),
+                                        operationId: MoreThan(afterOperation.operationId),
                                     },
                                 ] :
                                 base,
-                            order: { generation: 'ASC', id: 'ASC' },
+                            order: { generation: 'ASC', operationId: 'ASC' },
                             take: 100,
                         });
                     });
@@ -819,7 +818,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
                                 await manager.delete(ConversationOperationEntity, {
                                     scopeId: row.id,
                                     generation: candidate.generation,
-                                    id: candidate.id,
+                                    operationId: candidate.operationId,
                                     runId: candidate.runId,
                                     inputHash: candidate.inputHash,
                                     createdAt: candidate.createdAt,

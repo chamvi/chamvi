@@ -27,22 +27,9 @@ import { ConversationEntity } from './conversation.ts';
 @Index(['status', 'createdAt', 'id'])
 @Index(['conversationScopeId'])
 @Index(['parentRunId'])
-@Index(['id'], { unique: true })
 @Entity({ name: TableName.RUNS })
 export class RunEntity {
-    @PrimaryColumn({
-        name: 'row_id',
-        type: 'uuid',
-        update: false,
-    })
-    rowId!: string;
-
-    @Column({
-        name: 'id',
-        type: 'varchar',
-        length: 128,
-        collation: 'C',
-    })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({
@@ -117,9 +104,7 @@ export class RunEntity {
     /** The dispatching run (`trigger.parent.runId`), written at insert only. */
     @Column({
         name: 'parent_run_id',
-        type: 'varchar',
-        length: 128,
-        collation: 'C',
+        type: 'uuid',
         nullable: true,
     })
     parentRunId!: string | null;
@@ -164,8 +149,7 @@ export class RunEntity {
 
     @Column({
         name: 'conversation_scope_id',
-        type: 'varchar',
-        length: 64,
+        type: 'uuid',
         nullable: true,
     })
     conversationScopeId!: string | null;

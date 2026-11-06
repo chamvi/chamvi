@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ErrorCode, InvalidRunStateError } from '@chamvi/core';
+import { ErrorCode, InvalidRunStateError, ValidationError } from '@chamvi/core';
 import {
     attachmentIds,
     createRunArtifacts,
@@ -16,7 +16,7 @@ import {
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 
-const run = { id: 'run-1', agent: 'vision' };
+const run = { id: '019a5555-1234-7abc-8123-456789abcdef', agent: 'vision' };
 const input = (text: string) => ({
     mediaType: 'text/plain',
     filename: `${text}.txt`,
@@ -26,20 +26,20 @@ const input = (text: string) => ({
 describe('storeArtifact', () => {
     it('returns the stored artifact when the run already holds the id', async () => {
         const store = createMemoryStore();
-        const first = await storeArtifact(store.artifacts, run, input('first'), new Date(1), 'run-1.0000');
-        const second = await storeArtifact(store.artifacts, run, input('second!'), new Date(2), 'run-1.0000');
+        const first = await storeArtifact(store.artifacts, run, input('first'), new Date(1), '019a5555-1234-74ff-bd11-f8fe4941f877');
+        const second = await storeArtifact(store.artifacts, run, input('second!'), new Date(2), '019a5555-1234-74ff-bd11-f8fe4941f877');
 
         expect(second).toEqual(first);
-        expect(await store.artifacts.find('run-1')).toEqual([first]);
-        expect(new TextDecoder().decode(await store.artifacts.read('run-1.0000'))).toBe('first');
+        expect(await store.artifacts.find(run.id)).toEqual([first]);
+        expect(new TextDecoder().decode(await store.artifacts.read('019a5555-1234-74ff-bd11-f8fe4941f877'))).toBe('first');
     });
 
     it('throws InvalidRunStateError when another run holds the id', async () => {
         const store = createMemoryStore();
 
-        await storeArtifact(store.artifacts, { id: 'run-2', agent: 'vision' }, input('x'), new Date(1), 'taken');
+        await storeArtifact(store.artifacts, { id: '019a5555-1234-7abc-8123-456789abcdee', agent: 'vision' }, input('x'), new Date(1), '019a5555-1234-74ff-bd11-f8fe4941f878');
 
-        const promise = storeArtifact(store.artifacts, run, input('y'), new Date(1), 'taken');
+        const promise = storeArtifact(store.artifacts, run, input('y'), new Date(1), '019a5555-1234-74ff-bd11-f8fe4941f878');
 
         await expect(promise).rejects.toBeInstanceOf(InvalidRunStateError);
         await expect(promise).rejects.toMatchObject({ code: ErrorCode.INVALID_RUN_STATE });
@@ -57,27 +57,17 @@ describe('storeArtifact', () => {
     });
 });
 
-describe('attachmentIds', () => {
-    it('pads the index to at least 4 digits', () => {
-        expect(attachmentIds('r', 2)).toEqual(['r.0000', 'r.0001']);
-        expect(attachmentIds('r', 0)).toEqual([]);
-    });
-
-    it('widens every index of a dispatch when the count needs it', () => {
-        const ids = attachmentIds('r', 10_001);
-
-        expect(ids[0]).toBe('r.00000');
-        expect(ids.at(-1)).toBe('r.10000');
-        expect([...ids].sort()).toEqual(ids);
-    });
-});
-
 describe('UUID v7 artifact identities', () => {
     const runId = '019a5555-1234-7abc-8123-456789abcdef';
     const otherRun = '019a5555-1234-7abc-8123-456789abcdee';
     const pattern = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 
-    it('keeps persisted deterministic identities stable', () => {
+    it('rejects malformed run ids', () => {
+        expect(() => attachmentIds('r', 1)).toThrow(ValidationError);
+        expect(() => keyedArtifactId('r', 'key')).toThrow(ValidationError);
+    });
+
+    it('derives stable artifact identities', () => {
         expect(attachmentIds(runId, 2)).toEqual([
             '019a5555-1234-74ff-bd11-f8fe4941f877',
             '019a5555-1234-74ff-bd11-f8fe4941f878',

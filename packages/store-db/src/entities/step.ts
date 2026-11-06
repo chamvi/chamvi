@@ -26,8 +26,7 @@ export class StepEntity {
 
     @Column({
         name: 'run_id',
-        type: 'varchar',
-        length: 128,
+        type: 'uuid',
     })
     runId!: string;
 

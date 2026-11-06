@@ -19,6 +19,10 @@ import {
     RunEntity,
 } from '../../../src/entities/index.ts';
 
+const CHILD = '019a3f2a-1000-7000-8000-000000000001';
+const MISSING = '019a3f2a-1000-7000-8000-000000000002';
+const RUN = '019a3f2a-1000-7000-8000-000000000003';
+
 const IDENTITY = {
     agent: 'helper',
     channel: 'chat',
@@ -53,8 +57,8 @@ describePostgres('relational integrity', () => {
         const store = createDatabaseStore({ dataSource: ds });
         const scope = await conversations.resolve(IDENTITY);
 
-        await seedRun(ds, 'run', { conversation: { scope, text: 'input' } });
-        await conversations.beginTurn(scope, 'run', 'input', DEFAULT_CONVERSATION_LIMITS);
+        await seedRun(ds, RUN, { conversation: { scope, text: 'input' } });
+        await conversations.beginTurn(scope, RUN, 'input', DEFAULT_CONVERSATION_LIMITS);
         await conversations.applyNote(scope, {
             kind: 'set',
             id: 'op',
@@ -62,7 +66,7 @@ describePostgres('relational integrity', () => {
             key: 'key',
             text: 'note',
             source: {
-                runId: 'run',
+                runId: RUN,
                 toolCallId: 'call',
                 stepIndex: 0,
             },
@@ -71,14 +75,14 @@ describePostgres('relational integrity', () => {
         const now = new Date();
 
         await store.checkpoints.save({
-            runId: 'run',
+            runId: RUN,
             stepIndex: 0,
             messages: [],
             createdAt: now,
             conversation: { scopeId: scope.id, generation: scope.generation },
         });
         await store.steps.insert({
-            runId: 'run',
+            runId: RUN,
             index: 0,
             kind: 'llm',
             startedAt: now,
@@ -97,7 +101,7 @@ describePostgres('relational integrity', () => {
                     referencedColumnNames: ['id'],
                     onDelete: 'NO ACTION',
                 })]));
-                await expect(ds.query(`UPDATE "${table}" SET "${column}" = $1`, ['missing']))
+                await expect(ds.query(`UPDATE "${table}" SET "${column}" = $1`, [MISSING]))
                     .rejects.toMatchObject({ driverError: { code: '23503' } });
             }
 
@@ -106,11 +110,11 @@ describePostgres('relational integrity', () => {
             await runner.release();
         }
 
-        await expect(ds.query('DELETE FROM chamvi_runs WHERE id = $1', ['run']))
+        await expect(ds.query('DELETE FROM chamvi_runs WHERE id = $1', [RUN]))
             .rejects.toMatchObject({ driverError: { code: '23503' } });
-        await conversations.endTurn(scope, 'run', []);
+        await conversations.endTurn(scope, RUN, []);
         await conversations.reset(IDENTITY, { keepNotes: true });
-        expect((await store.checkpoints.findOne('run'))?.conversation).toEqual({ scopeId: scope.id, generation: scope.generation });
+        expect((await store.checkpoints.findOne(RUN))?.conversation).toEqual({ scopeId: scope.id, generation: scope.generation });
         await expect(ds.query('DELETE FROM chamvi_conversations WHERE id = $1', [scope.id]))
             .rejects.toMatchObject({ driverError: { code: '23503' } });
     });
@@ -122,8 +126,8 @@ describePostgres('relational integrity', () => {
         const store = createDatabaseStore({ dataSource: ds });
         const scope = await conversations.resolve(IDENTITY);
 
-        await seedRun(ds, 'run', { conversation: { scope, text: 'input' } });
-        await conversations.beginTurn(scope, 'run', 'input', DEFAULT_CONVERSATION_LIMITS);
+        await seedRun(ds, RUN, { conversation: { scope, text: 'input' } });
+        await conversations.beginTurn(scope, RUN, 'input', DEFAULT_CONVERSATION_LIMITS);
         await conversations.applyNote(scope, {
             kind: 'set',
             id: 'op',
@@ -131,56 +135,59 @@ describePostgres('relational integrity', () => {
             key: 'key',
             text: 'note',
             source: {
-                runId: 'run',
+                runId: RUN,
                 toolCallId: 'call',
                 stepIndex: 0,
             },
         });
         await store.checkpoints.save({
-            runId: 'run',
+            runId: RUN,
             stepIndex: 0,
             messages: [],
             createdAt: new Date(),
             conversation: { scopeId: scope.id, generation: scope.generation },
         });
 
-        const checkpoint = await ds.getRepository(CheckpointEntity).findOneOrFail({ where: { runId: 'run' }, relations: { run: true, conversation: true } });
+        const checkpoint = await ds.getRepository(CheckpointEntity).findOneOrFail({
+            where: { runId: RUN },
+            relations: { run: true, conversation: true },
+        });
 
-        expect(checkpoint.run?.id).toBe('run');
+        expect(checkpoint.run?.id).toBe(RUN);
         expect(checkpoint.conversation?.id).toBe(scope.id);
 
         const operation = await ds.getRepository(ConversationOperationEntity).findOneOrFail({
             where: {
                 scopeId: scope.id,
-                id: 'op',
+                operationId: 'op',
                 generation: scope.generation,
             },
             relations: { run: true, conversation: true },
         });
 
-        expect(operation.run?.id).toBe('run');
+        expect(operation.run?.id).toBe(RUN);
         expect(operation.conversation?.id).toBe(scope.id);
 
-        const run = await ds.getRepository(RunEntity).findOneOrFail({ where: { id: 'run' }, relations: { conversation: true } });
+        const run = await ds.getRepository(RunEntity).findOneOrFail({ where: { id: RUN }, relations: { conversation: true } });
 
         expect(run.conversation?.id).toBe(scope.id);
 
         const conversation = await ds.getRepository(ConversationEntity).findOneOrFail({ where: { id: scope.id }, relations: { activeRun: true } });
 
-        expect(conversation.activeRun?.id).toBe('run');
+        expect(conversation.activeRun?.id).toBe(RUN);
 
         const now = new Date();
 
         await store.steps.insert({
-            runId: 'run',
+            runId: RUN,
             index: 0,
             kind: 'tool',
             startedAt: now,
             finishedAt: now,
         });
-        await seedRun(ds, 'child', {
+        await seedRun(ds, CHILD, {
             trigger: {
-                id: 'child',
+                id: CHILD,
                 agent: 'helper',
                 trigger: 'message',
                 channel: 'chat',
@@ -188,7 +195,7 @@ describePostgres('relational integrity', () => {
                 receivedAt: now,
                 parent: {
                     kind: 'dispatch',
-                    runId: 'run',
+                    runId: RUN,
                     agent: 'helper',
                     role: 'default',
                     depth: 1,
@@ -241,7 +248,7 @@ describePostgres('relational integrity', () => {
         const store = new DatabaseConversationRepository({ dataSource: ds });
         const scope = await store.resolve(IDENTITY);
 
-        await expect(store.beginTurn(scope, 'missing', 'input', DEFAULT_CONVERSATION_LIMITS))
+        await expect(store.beginTurn(scope, MISSING, 'input', DEFAULT_CONVERSATION_LIMITS))
             .rejects.toBeInstanceOf(RunNotFoundError);
         expect(await store.activeRun(scope)).toBeUndefined();
         expect((await store.findItems(scope, { limit: 10, offset: 0 })).total).toBe(0);

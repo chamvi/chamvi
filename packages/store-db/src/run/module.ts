@@ -30,6 +30,7 @@ import {
 import type { DataSource, FindOptionsWhere, Repository } from 'typeorm';
 import { RunEntity } from '../entities/index.ts';
 import {
+    isUuid,
     toEntity,
     toRun,
     toRunInsertValues,
@@ -75,6 +76,10 @@ export class DatabaseRunRepository implements IRunRepository {
     }
 
     async findOne(id: string): Promise<Run | undefined> {
+        if (!isUuid(id)) {
+            return undefined;
+        }
+
         const entity = await this.runs.findOneBy({ id });
 
         return entity ? toRun(entity) : undefined;
@@ -95,6 +100,10 @@ export class DatabaseRunRepository implements IRunRepository {
         patch: Partial<Run>,
         opts: RunUpdateOptions = {},
     ): Promise<Run> {
+        if (!isUuid(id)) {
+            throw new RunNotFoundError(id);
+        }
+
         const where: FindOptionsWhere<RunEntity> = { id };
 
         if (opts.expectStatus) {
@@ -185,10 +194,17 @@ export class DatabaseRunRepository implements IRunRepository {
         }
 
         if (q.ids !== undefined) {
-            where.id = In([...q.ids]);
+            const ids = q.ids.filter(isUuid);
+
+            if (ids.length === 0) {
+                return { data: [], total: 0 };
+            }
+
+            where.id = In(ids);
         }
 
-        const parents = q.parentRunId === undefined ? q.parentRunIds : [q.parentRunId].filter((id) => q.parentRunIds?.includes(id) ?? true);
+        const parents = (q.parentRunId === undefined ? q.parentRunIds : [q.parentRunId].filter((id) => q.parentRunIds?.includes(id) ?? true))
+            ?.filter(isUuid);
 
         if (parents !== undefined && (parents.length === 0 || q.hasParent === false)) {
             // no parent run left to match, or a parent run and none: matches nothing
@@ -234,6 +250,10 @@ export class DatabaseRunRepository implements IRunRepository {
     }
 
     async claim(id: string, owner: string, ttlMs: number): Promise<boolean> {
+        if (!isUuid(id)) {
+            return false;
+        }
+
         const now = this.now();
         const result = await this.runs.createQueryBuilder()
             .update()
@@ -248,6 +268,10 @@ export class DatabaseRunRepository implements IRunRepository {
     }
 
     async renewClaim(id: string, owner: string, ttlMs: number): Promise<boolean> {
+        if (!isUuid(id)) {
+            return false;
+        }
+
         const now = this.now();
         const result = await this.runs.createQueryBuilder()
             .update()

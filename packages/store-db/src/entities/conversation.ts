@@ -19,21 +19,9 @@ import { OPTIONAL_JSON_TRANSFORMER, TableName } from './constants.ts';
 import { RunEntity } from './run.ts';
 
 @Index(['activeRunId'])
-@Index(['id'], { unique: true })
 @Entity({ name: TableName.CONVERSATIONS })
 export class ConversationEntity {
-    @PrimaryColumn({
-        name: 'row_id',
-        type: 'uuid',
-        update: false,
-    })
-    rowId!: string;
-
-    @Column({
-        type: 'varchar',
-        length: 64,
-        collation: 'C',
-    })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Index({ unique: true })
@@ -65,8 +53,7 @@ export class ConversationEntity {
 
     @Column({
         name: 'active_run_id',
-        type: 'varchar',
-        length: 128,
+        type: 'uuid',
         nullable: true,
     })
     activeRunId!: string | null;

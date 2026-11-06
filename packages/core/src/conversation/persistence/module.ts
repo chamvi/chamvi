@@ -34,8 +34,6 @@ const FORBIDDEN_FIELD_CHARACTER = /[\p{Cc}\p{Cs}]/u;
 
 const LONE_SURROGATE = /\p{Cs}/u;
 
-const SCOPE_ID_PATTERN = /^[0-9a-f]{64}$/;
-
 /**
  * Refuses an identity whose fields are not non-blank strings of at most
  * CONVERSATION_FIELD_MAX_LENGTH code units without control characters or lone
@@ -112,14 +110,14 @@ function utf8Bytes(text: string): number {
     return Buffer.byteLength(text, 'utf8');
 }
 
-/** Refuses a scope without a UUID v7 or legacy hash id and non-negative generation. */
+/** Refuses a scope without a UUID v7 id and non-negative generation. */
 export function assertConversationScope(scope: unknown): asserts scope is ConversationScope {
     if (!isObject(scope)) {
         throw new ValidationError('The conversation scope must be an object.');
     }
 
-    if (typeof scope.id !== 'string' || (!SCOPE_ID_PATTERN.test(scope.id) && !isUuidV7(scope.id))) {
-        throw new ValidationError('The conversation scope id must be a UUID v7 or sha256 hex digest.');
+    if (typeof scope.id !== 'string' || !isUuidV7(scope.id)) {
+        throw new ValidationError('The conversation scope id must be a UUID v7.');
     }
 
     if (!Number.isSafeInteger(scope.generation) || (scope.generation as number) < 0) {

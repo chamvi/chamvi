@@ -97,7 +97,7 @@ export class DatabaseStateRepository implements IStateRepository {
 
         const query = this.docs.createQueryBuilder('d')
             .where({ agent, collection: coll })
-            .orderBy('d.id', 'ASC');
+            .orderBy('d.documentId', 'ASC');
 
         if (q.where && Object.keys(q.where).length > 0) {
             // Containment with the defined values (an empty object still
@@ -126,7 +126,7 @@ export class DatabaseStateRepository implements IStateRepository {
 
         const entities = await query.getMany();
 
-        return entities.map((entity) => ({ id: entity.id, doc: entity.doc }));
+        return entities.map((entity) => ({ id: entity.documentId, doc: entity.doc }));
     }
 
     async findDocumentsOrFail(agent: string, coll: string, q: StateDocumentFindOptions = {}): Promise<Array<{ id: string; doc: unknown }>> {
@@ -141,19 +141,19 @@ export class DatabaseStateRepository implements IStateRepository {
 
     async upsertDocument(agent: string, coll: string, id: string, doc: unknown): Promise<void> {
         await this.docs.upsert(asValues<DocEntity>({
-            rowId: uuidv7(),
+            id: uuidv7(),
             agent,
             collection: coll,
-            id,
+            documentId: id,
             doc: doc ?? null,
-        }), ['agent', 'collection', 'id']);
+        }), ['agent', 'collection', 'documentId']);
     }
 
     async deleteDocument(agent: string, coll: string, id: string): Promise<void> {
         await this.docs.delete({
             agent,
             collection: coll,
-            id,
+            documentId: id,
         });
     }
 }

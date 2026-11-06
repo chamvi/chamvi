@@ -17,6 +17,9 @@ import { ControllableClock } from '@chamvi/test-kit';
 import { DatabaseIdempotencyRepository } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
 
+const RUN_1 = '019a3f2a-1000-7000-8000-000000000001';
+const RUN_2 = '019a3f2a-1000-7000-8000-000000000002';
+
 describePostgres('DatabaseIdempotencyRepository idempotency keys', () => {
     let dataSource: DataSource;
     let store: DatabaseIdempotencyRepository;
@@ -41,7 +44,7 @@ describePostgres('DatabaseIdempotencyRepository idempotency keys', () => {
         expect(scope.length).toBeLessThanOrEqual(1024);
         expect(scope.length).toBeGreaterThan(255);
 
-        await expect(store.claim(scope, 'k', 'r1', 1_000)).resolves.toEqual({ created: true, runId: 'r1' });
-        await expect(store.claim(scope, 'k', 'r2', 1_000)).resolves.toEqual({ created: false, runId: 'r1' });
+        await expect(store.claim(scope, 'k', RUN_1, 1_000)).resolves.toEqual({ created: true, runId: RUN_1 });
+        await expect(store.claim(scope, 'k', RUN_2, 1_000)).resolves.toEqual({ created: false, runId: RUN_1 });
     });
 });

@@ -28,9 +28,7 @@ export class ConversationNoteEntity {
 
     @Column({
         name: 'scope_id',
-        type: 'varchar',
-        length: 64,
-        collation: 'C',
+        type: 'uuid',
     })
     scopeId!: string;
 
@@ -45,9 +43,7 @@ export class ConversationNoteEntity {
 
     @Column({
         name: 'run_id',
-        type: 'varchar',
-        length: 128,
-        collation: 'C',
+        type: 'uuid',
     })
     runId!: string;
 

@@ -10,7 +10,12 @@ import type { Checkpoint, ICheckpointRepository } from '@chamvi/core';
 import { LessThanOrEqual } from 'typeorm';
 import type { DataSource, Repository } from 'typeorm';
 import { CheckpointEntity, RunEntity } from '../entities/index.ts';
-import { toCheckpoint, toCheckpointValues, withRunReference } from '../repository/helpers.ts';
+import {
+    isUuid,
+    toCheckpoint,
+    toCheckpointValues,
+    withRunReference,
+} from '../repository/helpers.ts';
 
 export class DatabaseCheckpointRepository implements ICheckpointRepository {
     protected dataSource: DataSource;
@@ -42,6 +47,10 @@ export class DatabaseCheckpointRepository implements ICheckpointRepository {
     }
 
     async findOne(runId: string): Promise<Checkpoint | undefined> {
+        if (!isUuid(runId)) {
+            return undefined;
+        }
+
         const entity = await this.checkpoints.findOneBy({ runId });
 
         return entity ? toCheckpoint(entity) : undefined;

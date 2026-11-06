@@ -13,8 +13,7 @@ import type { Agent } from '../agent/types.ts';
 import { assertAgentKind, conversationKey } from '../agent/asserts.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
-import { attachmentIds, legacyAttachmentIds, storeArtifact } from '../artifact/module.ts';
-import { isUuidV7 } from '../uuid/module.ts';
+import { attachmentIds, storeArtifact } from '../artifact/module.ts';
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
 import { assertChannelName, assertDefaultAddress } from '../channel/helpers.ts';
 import type {
@@ -348,7 +347,6 @@ export class Engine implements IEngine {
             receivedAt: envelope.receivedAt ?? now,
         };
         let runId: string = uuidv7();
-        let healing = false;
 
         if (trigger.idempotencyKey !== undefined) {
             const claimed = await this.store.idempotency.claim(
@@ -381,35 +379,13 @@ export class Engine implements IEngine {
                 // the key's run was never created (createRun failed after the claim, or is
                 // still in flight): create it under the reserved id; createRun decides the race
                 runId = claimed.runId;
-                healing = true;
             }
         }
 
         if (attachments?.length) {
             // stored before the run, so an executing run finds them; a crash in between leaves orphans.
             // Ids derive from the run id: a concurrent healer of the same run writes no-ops.
-            let ids = attachmentIds(runId, attachments.length);
-
-            if (healing && isUuidV7(runId)) {
-                const legacyIds = legacyAttachmentIds(runId, attachments.length);
-                const staged = await this.store.artifacts.find(runId);
-
-                const incompatibleWidth = staged.some(({ id }) =>
-                    id.startsWith(`${runId}.`) && /^\d{4,}$/.test(id.slice(runId.length + 1)) && id.length !== legacyIds[0]!.length);
-
-                if (incompatibleWidth) {
-                    throw new ValidationError('The retry attachment count changes the legacy attachment id width and cannot be healed safely.');
-                }
-
-                for (const id of legacyIds) {
-                    if (await this.store.artifacts.findOne(id)) {
-                        // A partially staged batch keeps one scheme so its IDs sort in input order.
-                        ids = legacyIds;
-
-                        break;
-                    }
-                }
-            }
+            const ids = attachmentIds(runId, attachments.length);
 
             trigger.attachments = [];
 

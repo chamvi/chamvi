@@ -14,28 +14,14 @@ import {
 import { TableName } from './constants.ts';
 
 @Index(['runId'])
-@Index(['id'], { unique: true })
 @Entity({ name: TableName.ARTIFACTS })
 export class ArtifactEntity {
-    @PrimaryColumn({
-        name: 'row_id',
-        type: 'uuid',
-        update: false,
-    })
-    rowId!: string;
-
-    @Column({
-        name: 'id',
-        type: 'varchar',
-        length: 128,
-        collation: 'C',
-    })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
 
     @Column({
         name: 'run_id',
-        type: 'varchar',
-        length: 128,
+        type: 'uuid',
     })
     // Attachments are staged before createRun, so this reserved ID cannot have an immediate foreign key.
     runId!: string;

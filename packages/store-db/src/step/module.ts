@@ -9,7 +9,12 @@ import { RepositoryNotFoundError } from '@chamvi/core';
 import type { IStepRepository, Step } from '@chamvi/core';
 import type { DataSource, Repository } from 'typeorm';
 import { StepEntity } from '../entities/index.ts';
-import { toStep, toStepValues, withRunReference } from '../repository/helpers.ts';
+import {
+    isUuid,
+    toStep,
+    toStepValues,
+    withRunReference,
+} from '../repository/helpers.ts';
 
 export class DatabaseStepRepository implements IStepRepository {
     protected dataSource: DataSource;
@@ -31,6 +36,10 @@ export class DatabaseStepRepository implements IStepRepository {
     }
 
     async find(runId: string): Promise<Step[]> {
+        if (!isUuid(runId)) {
+            return [];
+        }
+
         const entities = await this.steps.find({
             where: { runId },
             order: { index: 'ASC', seq: 'ASC' },

@@ -2,11 +2,11 @@
 
 chamvi is pre-1.0: a minor release may break the API. Each section lists what changed and the exact replacement.
 
-## UUID identity migration (unreleased)
+## Fresh database baseline (unreleased)
 
-The database migration `ConnectionsPrimaryKeys1792886400000` gives each table one UUID v7 or existing bigint primary key. Business keys use unique indexes, and existing public IDs and stored references remain valid. New framework-generated runs, artifacts and conversation scopes use UUID v7; treat IDs as opaque strings. Custom conversation repositories should generate a UUID v7 scope once per new identity and keep existing scope IDs stable; canonical identity hashes remain lookup keys, and existing hash scope IDs stay valid.
+This version starts with the generated `Init1793923200000` baseline and requires an empty database. Use a new database name in `DATABASE_URL` and retain a backup of the previous database. The historical migration chain is not an upgrade path to this version.
 
-Stop all runtimes sharing the store and take a backup before migrating. PostgreSQL 17 is supported without extensions. Rollback/reapply preserves legacy data, but a downgrade refuses while UUID conversation scopes or UUID v7 run identities exist (including imported runs, staged reservations or artifacts); restore the pre-upgrade backup to downgrade then.
+Framework-generated run, artifact and conversation IDs use UUID v7 directly as primary keys. Business keys remain indexed fields; UUIDs are supplied by application code without database defaults. Custom conversation repositories must generate UUID v7 scope IDs. The existing bigint sequence keys remain strings across application boundaries.
 
 ## Upgrading to 0.7
 
@@ -96,7 +96,7 @@ Conversation memory is opt-in and new, so 0.3 apps have nothing to migrate: stor
 
 ### Database migration
 
-0.4 ships one new migration, `1792713600000-conversations-run-taint.ts` (`ConversationsRunTaint1792713600000`): the conversation tables, the run and checkpoint conversation bindings, the foreign keys (the two on legacy steps and checkpoints `NOT VALID`, see [Validating the legacy constraints](/repositories/database#validating-the-legacy-constraints)), indexes on the new foreign key columns, `chamvi_runs.taint` and the backfill that taints every `queued`, `running`, `waiting` and `interrupted` run with `{ at: <migration time>, source: 'migration:legacy-run' }`.
+0.4 ships one new migration, `1792713600000-conversations-run-taint.ts` (`ConversationsRunTaint1792713600000`): the conversation tables, the run and checkpoint conversation bindings, the foreign keys (the two on legacy steps and checkpoints `NOT VALID`, see [Validating the legacy constraints](/repositories/database#migrations)), indexes on the new foreign key columns, `chamvi_runs.taint` and the backfill that taints every `queued`, `running`, `waiting` and `interrupted` run with `{ at: <migration time>, source: 'migration:legacy-run' }`.
 
 ::: warning Development databases
 A database that ran a pre-release build of this branch recorded `Conversations1792713600000` (and maybe `RunTaint1792800000000`). Migrating it fails with "relation already exists". Recreate the disposable database; never reset a production one for this.

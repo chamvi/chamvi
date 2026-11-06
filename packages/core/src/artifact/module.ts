@@ -8,9 +8,8 @@
 import { createHash } from 'node:crypto';
 import { UUID, uuidv7 } from 'uuidv7';
 import type { IClock } from '../clock/index.ts';
-import { InvalidRunStateError } from '../errors/index.ts';
+import { InvalidRunStateError, ValidationError } from '../errors/index.ts';
 import type { IArtifactRepository } from '../repository/types.ts';
-import { isUuidV7 } from '../uuid/module.ts';
 import { ARTIFACT_URI_PREFIX } from './constants.ts';
 import { assertArtifactInput } from './helpers.ts';
 import type {
@@ -57,48 +56,35 @@ export async function storeArtifact(
 }
 
 /**
- * Stable, ordered UUID v7 ids for new runs; legacy runs retain their padded
- * `<runId>.<index>` ids so resumed dispatches reuse the stored attachments.
+ * Stable attachment ids ordered by position for replay and healing.
  */
 export function attachmentIds(runId: string, count: number): string[] {
-    if (isUuidV7(runId)) {
-        return Array.from({ length: count }, (_, i) => deterministicArtifactId(runId, undefined, i));
-    }
-
-    return legacyAttachmentIds(runId, count);
-}
-
-/** Also used to find staged attachments of imported UUID v7 runs during healing. */
-export function legacyAttachmentIds(runId: string, count: number): string[] {
-    const width = Math.max(4, String(Math.max(count - 1, 0)).length);
-
-    return Array.from({ length: count }, (_, i) => `${runId}.${String(i).padStart(width, '0')}`);
+    return Array.from({ length: count }, (_, i) => deterministicArtifactId(runId, undefined, i));
 }
 
 /**
- * Computes a new keyed artifact id, separately namespaced from attachments.
- * Use the id returned by put() for reads: imported runs can retain a stored legacy id.
+ * Stable artifact id derived from the run and key, separately namespaced from attachments.
  */
 export function keyedArtifactId(runId: string, key: string): string {
-    if (isUuidV7(runId)) {
-        return deterministicArtifactId(runId, key);
-    }
-
-    return legacyKeyedArtifactId(runId, key);
-}
-
-function legacyKeyedArtifactId(runId: string, key: string): string {
-    return `${runId}.k.${createHash('sha256').update(key).digest('hex').slice(0, 32)}`;
+    return deterministicArtifactId(runId, key);
 }
 
 function deterministicArtifactId(runId: string, key?: string, index = 0): string {
+    let parsed: UUID;
+
+    try {
+        parsed = UUID.parse(runId);
+    } catch {
+        throw new ValidationError('The artifact run id must be a UUID.');
+    }
+
     const digest = createHash('sha256').update(JSON.stringify([runId, key === undefined ? 'attachment' : 'key', key])).digest('hex');
     // Leave room for every array index so ordered attachment ids cannot wrap.
     const range = key === undefined ? (1n << 74n) - (1n << 32n) : 1n << 74n;
     const entropy = BigInt(`0x${digest}`) % range + BigInt(index);
 
     return UUID.fromFieldsV7(
-        Number.parseInt(runId.slice(0, 13).replace('-', ''), 16),
+        Number.parseInt(parsed.toHex().slice(0, 12), 16),
         Number(entropy >> 62n),
         Number((entropy >> 32n) & 0x3fffffffn),
         Number(entropy & 0xffffffffn),
@@ -134,18 +120,8 @@ export function createGuardedRunArtifacts(
                 return storeArtifact(store, run, input, clock.now());
             }
 
-            let id = keyedArtifactId(run.id, input.key);
-
-            if (isUuidV7(run.id)) {
-                const legacyId = legacyKeyedArtifactId(run.id, input.key);
-
-                if (await store.findOne(legacyId)) {
-                    id = legacyId;
-                }
-            }
-
             return store.save({
-                id,
+                id: keyedArtifactId(run.id, input.key),
                 runId: run.id,
                 agent: run.agent,
                 mediaType: input.mediaType,
