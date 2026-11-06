@@ -21,6 +21,7 @@
     "packages/cli": "0.7.3",
     "packages/tool-web": "0.7.3",
     "packages/knowledge": "0.7.3",
+    "packages/tool-files": "0.7.3",
     "packages/tool-mail": "0.7.3",
     "packages/tool-calendar": "0.7.3"
 }

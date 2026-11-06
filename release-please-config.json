@@ -27,6 +27,7 @@
         "packages/store-db": {"component": "store-db"},
         "packages/test-kit": {"component": "test-kit"},
         "packages/tool-calendar": {"component": "tool-calendar"},
+        "packages/tool-files": {"component": "tool-files"},
         "packages/tool-mail": {"component": "tool-mail"},
         "packages/tool-web": {"component": "tool-web"},
         "packages/ui": {"component": "ui"}
@@ -58,6 +59,7 @@
                 "store-db",
                 "test-kit",
                 "tool-calendar",
+                "tool-files",
                 "tool-mail",
                 "tool-web",
                 "ui"
