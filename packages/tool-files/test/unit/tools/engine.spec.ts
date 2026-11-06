@@ -138,6 +138,42 @@ describe('engine artifact processing', () => {
         expect(await store.artifacts.find(runId)).toHaveLength(2);
     });
 
+    it.each(['first', 'second'])('keeps earlier artifacts when later model steps reuse a call ID: %s', async (second) => {
+        const store = createMemoryStore();
+        const model = mockModel([
+            ...['first', second].map((value) => ({
+                parts: [{
+                    type: 'tool-call' as const,
+                    toolName: 'process_files',
+                    toolCallId: 'reused',
+                    input: { command: `printf ${value} > result.json`, outputs: [selection] },
+                }],
+            })),
+            { parts: [{ type: 'text', text: 'Done.' }] },
+        ]);
+        const engine = new Engine({
+            store,
+            agents: [defineModelAgent({
+                name: 'files',
+                instructions: 'Transform files.',
+                model,
+                tools: fileTools(),
+            })],
+        });
+        const runId = await start(engine);
+
+        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+
+        const steps = (await store.steps.find(runId)).filter((step) => step.kind === 'tool' && step.name === 'process_files');
+        const results = steps.map((step) => step.output as ProcessFilesResult);
+
+        expect(results).toHaveLength(2);
+        expect(results[0]!.artifacts[0]!.id).not.toBe(results[1]!.artifacts[0]!.id);
+        expect(await store.artifacts.read(results[0]!.artifacts[0]!.id)).toEqual(bytes('first'));
+        expect(await store.artifacts.read(results[1]!.artifacts[0]!.id)).toEqual(bytes(second));
+        expect(await store.artifacts.find(runId)).toHaveLength(3);
+    });
+
     it('taints catalog reads at the execution boundary', async () => {
         const store = createMemoryStore();
         const engine = new Engine({
@@ -316,6 +352,64 @@ describe('engine artifact processing', () => {
         expect((await store.runs.findOne(runId))?.status).toBe('completed');
         expect(processingCalls).toBe(1);
         expect((await store.artifacts.find(runId)).map((item) => item.id)).toEqual(artifacts.map((item) => item.id));
+    });
+
+    it('keeps a suspended model call artifact ID across engine restart and replay', async () => {
+        const store = createMemoryStore();
+        let processingCalls = 0;
+        const agent = defineModelAgent({
+            name: 'files',
+            instructions: 'Transform files.',
+            model: mockModel([
+                {
+                    parts: [{
+                        type: 'tool-call',
+                        toolName: 'process_files',
+                        toolCallId: 'replayed',
+                        input: { command: 'printf report > result.json', outputs: [selection] },
+                    }],
+                },
+                { parts: [{ type: 'text', text: 'Done.' }] },
+            ]),
+            tools: fileTools(),
+            hooks: {
+                afterToolExecution: async (call, ctx) => {
+                    if (!(call.toolName === 'process_files')) {
+                        return;
+                    }
+
+                    processingCalls++;
+                    await approve(ctx, { title: 'Accept report?' });
+                },
+            },
+        });
+        const first = new Engine({ store, agents: [agent] });
+        const runId = await start(first);
+        const waiting = (await store.runs.findOne(runId))!;
+        const before = await store.artifacts.find(runId);
+
+        expect(waiting.status).toBe('waiting');
+        expect(before).toHaveLength(2);
+        await first.stop();
+
+        const resumed = new Engine({ store, agents: [agent] });
+
+        engines.push(resumed);
+        await resumed.start();
+
+        if (waiting.waiting?.kind !== 'approval') {
+            throw new Error('expected approval');
+        }
+
+        await resumed.approve(runId, { approvalId: waiting.waiting.approvalId, approved: true });
+        await resumed.idle();
+        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect(processingCalls).toBe(2);
+        expect((await store.artifacts.find(runId)).map((item) => item.id)).toEqual(before.map((item) => item.id));
+
+        const report = before.find((item) => item.filename === 'result.json')!;
+
+        expect(await store.artifacts.read(report.id)).toEqual(bytes('report'));
     });
 
     it('rejects another run artifact through the real execution boundary', async () => {

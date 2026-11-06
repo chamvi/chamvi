@@ -64,6 +64,6 @@ Run cancellation and SDK abort preserve the original reason. Cancellation stops 
 
 ## Identity, replay and trust
 
-Output filenames are normalized relative paths. The key is `process_files:` plus SHA-256 of JSON `[toolCallId, normalizedPath]`. The same call replay replaces its own artifact IDs; separate calls with the same output path retain separate artifacts, protecting earlier checkpoints.
+Output filenames are normalized relative paths. The key is `process_files:` plus SHA-256 of JSON `[toolCallKey(ctx), normalizedPath]` (the core key includes run, step and call identity). The same call replay replaces its own artifact IDs; separate calls with the same output path retain separate artifacts, protecting earlier checkpoints.
 
 These are plain computation tools, not effect tools. Simple-agent approval replay can rerun computation, which is neither exactly-once nor necessarily deterministic. Completed model-agent steps resume from their checkpoint without repeating that processing step. Both tools declare `trust: { taint: true }`; file content and results are untrusted data. Existing [outbound gates](/guide/tools#untrusted-content-and-outbound-tools) apply to later outbound operations.

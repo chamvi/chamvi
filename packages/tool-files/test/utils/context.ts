@@ -8,6 +8,7 @@
 import type { ToolSet } from 'ai';
 import type { ToolContext } from '@chamvi/core';
 import { createAgentState, createMemoryStore, systemClock } from '@chamvi/core';
+import { runToolCall } from '../../../core/src/effect/frame.ts';
 import { createRunArtifacts } from '../../../core/src/artifact/module.ts';
 import type { ListArtifactsResult, ProcessFilesResult } from '@chamvi/tool-files';
 
@@ -35,12 +36,19 @@ export function toolContext(runId: string, signal: AbortSignal = new AbortContro
 export async function callTool(tools: ToolSet, input: unknown, context: ToolContext, toolCallId = 'call-1', abortSignal?: AbortSignal): Promise<ProcessFilesResult> {
     const execute = tools.process_files!.execute as (i: unknown, o: unknown) => Promise<ProcessFilesResult>;
 
-    return execute(input, {
+    return runToolCall({
+        runId: context.run.runId,
+        toolCallId,
+        toolName: 'process_files',
+        stepIndex: 0,
+        approvals: 0,
+        effects: createMemoryStore().effects,
+    }, () => execute(input, {
         toolCallId,
         messages: [],
         context,
         abortSignal,
-    });
+    }));
 }
 
 export async function listTool(tools: ToolSet, input: unknown, context: ToolContext, abortSignal?: AbortSignal): Promise<ListArtifactsResult> {

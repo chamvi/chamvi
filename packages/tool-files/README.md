@@ -117,7 +117,7 @@ A nonzero interpreter exit returns `exitCode`, bounded diagnostics and an empty 
 
 Run cancellation and the SDK abort signal are honored with the original cancellation reason. Once observed, cancellation prevents further artifact puts. Successful puts remain if a later write fails or cancellation arrives: publication is not a multi-file transaction. Validation failures publish no outputs.
 
-Output keys combine the tool-call ID and normalized output path (`process_files:` plus SHA-256 of their JSON array). Replaying the same call replaces its own artifacts under the same IDs. Different calls using the same filename keep separate artifacts. A simple-agent approval replay can repeat computation; it is neither exactly-once nor necessarily deterministic. Completed model-agent steps resume from checkpoints without repeating that processing step.
+Output keys combine the opaque core run/step/call identity and normalized output path (`process_files:` plus SHA-256 of their JSON array). Providers reusing a tool-call ID in a later model step still produce separate artifacts. Replaying the same call replaces its own artifacts under the same IDs. Different calls using the same filename keep separate artifacts. A simple-agent approval replay can repeat computation; it is neither exactly-once nor necessarily deterministic. Completed model-agent steps resume from checkpoints without repeating that processing step.
 
 Both tools declare `trust: { taint: true }`, so reading their results or errors taints the run. Treat file content as data, and use existing approvals/policies for subsequent outbound actions. Processing is plain computation, not an effect tool or a bridge to host/channel/tool executors.
 

@@ -6,7 +6,12 @@
  */
 
 import { createHash } from 'node:crypto';
-import { SandboxError, ValidationError, defineTool } from '@chamvi/core';
+import {
+    SandboxError,
+    ValidationError,
+    defineTool,
+    toolCallKey,
+} from '@chamvi/core';
 import { jsonSchema } from 'ai';
 import type { Tool } from 'ai';
 import { Bash, decodeBytesToUtf8, stdoutAsBytes } from 'just-bash';
@@ -80,7 +85,6 @@ export function processFilesTool(options: FileToolsOptionsNormalized): Tool<Proc
         execute: async (input, {
             context,
             abortSignal,
-            toolCallId,
         }) => {
             const {
                 command,
@@ -92,6 +96,7 @@ export function processFilesTool(options: FileToolsOptionsNormalized): Tool<Proc
             try {
                 signal.throwIfAborted();
 
+                const callKey = toolCallKey(context);
                 const files: Record<string, Uint8Array> = {};
 
                 if (inputs.length > 0) {
@@ -222,7 +227,7 @@ export function processFilesTool(options: FileToolsOptionsNormalized): Tool<Proc
                 for (const [index, selected] of outputs.entries()) {
                     signal.throwIfAborted();
                     response.artifacts.push(await context.artifacts.put({
-                        key: `process_files:${createHash('sha256').update(JSON.stringify([toolCallId, selected.path])).digest('hex')}`,
+                        key: `process_files:${createHash('sha256').update(JSON.stringify([callKey, selected.path])).digest('hex')}`,
                         filename: selected.path,
                         mediaType: selected.mediaType,
                         data: staged[index]!,
