@@ -40,10 +40,10 @@ CHAMVI_ENCRYPTION_KEYS="k1:$(openssl rand -base64 32)"
 |---|---|
 | The key | One `CHAMVI_ENCRYPTION_KEYS` per app, shared by every replica and pod of it; keep it in a secret (the chart's `secrets`). Ids follow the agent-name rule. A malformed value fails the start and `chamvi start --check`, naming the variable, never echoing the value. `chamvi run-job` pods do not need it (a job resolves no keyring). |
 | Rotation | Put the new key first and keep the old one: `k2:<new>,k1:<old>`. New connections use `k2`; rows wrapped under `k1` stay readable. There is no re-encrypt command, so keep `k1` while any row uses it. |
-| Losing the key | The session cannot be opened (`decryption_failed`, naming the missing key id, never key material): delete the connection's row from the store (`DELETE FROM chamvi_connections WHERE name = '<name>'`, its entries go with it) and pair again. |
-| Exclusive | A process holds the session through the store lock `connection:<name>` (TTL `leaseTtlMs`, default 60 s, renewed every third of it); every write is fenced by that lease in the same transaction, so a process that lost it writes nothing. |
+| Losing the key | The session cannot be opened (`decryption_failed`, naming the missing key id, never key material), and the connection shows `failed`: **Reset session** recreates the connection under the lease with a fresh data key under the first key of `CHAMVI_ENCRYPTION_KEYS` (the old session is deleted), then pair again. No database access is needed. |
+| Exclusive | A process holds the session through the store lock `connection:<name>` (TTL `leaseTtlMs`, default 60 s, renewed every third of it), each session under its own owner token; every write is fenced by that lease in the same transaction, so a session that lost it writes nothing. |
 | kill -9 | The next start comes up, shows the connection `held_elsewhere` and retries on its own; once the old lease expires (at most `leaseTtlMs`, plus one backoff step of at most 30 s) it connects with the stored session. Every stored batch of signal keys is all or nothing. |
-| Reset | A logged-out session, or one you want to drop: **Reset session** on the Connections page (`POST /connections/<name>/reset`, `connection:<name>:write`) clears the stored session under the lease and reconnects, so a new QR appears; no restart. On a replica that does not hold the lease it waits for the lease like a start and clears nothing before. |
+| Reset | A logged-out session, one that cannot be opened (a lost key), or one you want to drop: **Reset session** on the Connections page (`POST /connections/<name>/reset`, `connection:<name>:write`, `202` once started) deletes the stored session under the lease, recreates it with a fresh data key and reconnects, so a new QR appears; no restart. While the connection is `held_elsewhere` the reset is refused (`409`) and nothing is cleared or queued: reset it on the replica that holds it, or once the stale lease expired. |
 
 ## Connection and recovery
 
@@ -54,7 +54,7 @@ CHAMVI_ENCRYPTION_KEYS="k1:$(openssl rand -base64 32)"
 | Session held at start (another process, or a crashed one within its lease TTL) | Status `held-elsewhere`; the start does not fail: it retries with the reconnect backoff, without a cap, until the lease is free or the channel stops (reported once per hold, `whatsapp_auth`) |
 | Session store failing (the database, a wrong key) | Status `failed`, `whatsapp_auth` with the cause; retried with the backoff up to 12 times, then `whatsapp_connection` and it stays failed until a reset or restart |
 | Replaced (440: another client took the session) | `whatsapp_connection`, no reconnect: stop the other connector first |
-| Stop | Ends the socket (at most 30 s), refuses later auth writes, then waits for pending ones and flushes the lease, then releases it, within another 30 s; past those, or when the flush fails, the lease stays held and `whatsapp_auth` is reported. A dead link that holds the socket's end for its 30 s does not keep the lease |
+| Stop | Ends the socket (at most 30 s), refuses later auth writes, then waits for pending ones and flushes the lease, then releases it, within another 30 s. A failed flush is reported (`whatsapp_auth`) and the lease released all the same (the failed writes are lost); writes past the 30 s are reported and the lease is released once they settle. A dead link that holds the socket's end for its 30 s does not keep the lease |
 
 A stop takes at most the socket's end (30 s) and the auth settling (30 s), plus the channel's wait for messages still being accepted (`CHAT_STOP_TIMEOUT_MS`, 30 s) and the Chat's shutdown. Only when every phase runs to its bound does that reach the CLI's 90 s force exit (`CHAMVI_FORCE_EXIT_MS`), which the chart's 120 s termination grace covers; raise `CHAMVI_FORCE_EXIT_MS` (below the grace) if a stop must never be cut short.
 
@@ -110,7 +110,7 @@ The identity (`WhatsAppIdentity { account, chat, sender, group, mentioned }`) is
 
 ```ts
 interface IWhatsAppAuthProvider {
-    acquire(signal: AbortSignal): Promise<WhatsAppAuthLease>;
+    acquire(signal: AbortSignal, options?: { reset?: boolean }): Promise<WhatsAppAuthLease>;
 }
 type WhatsAppAuthLease = {
     auth: AuthenticationState;     // Baileys creds and signal key store (get, set, clear?)
@@ -127,11 +127,11 @@ const WHATSAPP_CONNECTION_TYPE: 'whatsapp';
 
 `createStoreWhatsAppAuth()` is the provider `whatsappModule()` uses: over a vault (`createConnectionVault({ store, keyring, clock })` from `@chamvi/core`, `store.connections` required, `createKeyring()`/`parseKeyring()` for the keys) it opens the connection `connection` of type `whatsapp`, refused with `ConnectionHeldError` (`connection_held`) while another owner holds it, and maps every key-store write to one sealed, fenced batch.
 
-`acquire` loads the session and takes its location exclusively (a second holder is refused with `ConnectionHeldError`: the connection shows `held-elsewhere` and retries). chamvi calls `saveCreds` and the key store only while the lease is in use: once the connection closes, every later call is refused (`InvalidRunStateError`). On stop it ends the socket (bounded by `WHATSAPP_SHUTDOWN_TIMEOUT_MS`), then waits for pending writes, `flush`es and `release`s, within a second `WHATSAPP_SHUTDOWN_TIMEOUT_MS` (no write is admitted after the close, so a dead link's end never eats into it); past it, or when `flush` fails, the lease is not released (fenced) and `whatsapp_auth` is reported. A lease that arrives after the stop is released at once.
+`acquire` loads the session and takes its location exclusively (a second holder is refused with `ConnectionHeldError`: the connection shows `held-elsewhere` and retries). chamvi calls `saveCreds` and the key store only while the lease is in use: once the connection closes, every later call is refused (`InvalidRunStateError`). On stop it ends the socket (bounded by `WHATSAPP_SHUTDOWN_TIMEOUT_MS`), then waits for pending writes, `flush`es and `release`s, within a second `WHATSAPP_SHUTDOWN_TIMEOUT_MS` (no write is admitted after the close, so a dead link's end never eats into it); a failed `flush` is reported (`whatsapp_auth`) and the lease released all the same, and past the bound the lease is released once the pending writes settle. A lease that arrives after the stop is released at once. A reset acquires with `{ reset: true }`: once it holds the location the provider discards the stored session (creds and keys, also one it cannot load) and hands out an empty one; `createStoreWhatsAppAuth()` recreates the connection (`vault.open(..., { recreate: true })`).
 
 ### Connection
 
-`status()`: `stopped`, `connecting`, `pairing` (a QR is out), `connected` (an `open` event), `disconnected`, `logged-out`, `held-elsewhere` (the session is held by another process), `failed` (the session store failed). `reset()` clears the session and pairs again without restarting the channel (`InvalidRunStateError` while it is not started). Sends go out only while `connected`. An unexpected close reconnects after `min(30 s, 2 s * 1.8^n)` ±25 % on the clock, at most 12 times in a row (reset by an open), then reports `whatsapp_connection` and stays disconnected. A logout (401) reports `whatsapp_logged_out` and a replacing session (440) `whatsapp_connection`; neither reconnects.
+`status()`: `stopped`, `connecting`, `pairing` (a QR is out), `connected` (an `open` event), `disconnected`, `logged-out`, `held-elsewhere` (the session is held by another process), `failed` (the session store failed). `reset()` clears the session and pairs again without restarting the channel (`InvalidRunStateError` while it is not started, while it is `held-elsewhere`, or when its acquire finds the session held: nothing is cleared then, and nothing later). Sends go out only while `connected`. An unexpected close reconnects after `min(30 s, 2 s * 1.8^n)` ±25 % on the clock, at most 12 times in a row (reset by an open), then reports `whatsapp_connection` and stays disconnected. A logout (401) reports `whatsapp_logged_out` and a replacing session (440) `whatsapp_connection`; neither reconnects.
 
 ### Cron runs in a conversation
 
