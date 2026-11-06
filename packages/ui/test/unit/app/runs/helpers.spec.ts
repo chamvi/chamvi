@@ -16,6 +16,7 @@ import {
     lastStepIndex,
     mergeRunEvent,
     parentOf,
+    shortId,
     subtreeTotal,
 } from '../../../../app/runs/helpers.ts';
 import type { RunDetailState } from '../../../../app/runs/helpers.ts';
@@ -135,6 +136,14 @@ describe('hasPermission', () => {
 });
 
 describe('format', () => {
+    it('distinguishes UUID v7 runs with the same timestamp prefix', () => {
+        expect([
+            '019a5555-1234-7abc-8123-456789abcdef',
+            '019a5555-1234-7abc-8123-456789abcdee',
+        ].map(shortId)).toEqual(['89abcdef', '89abcdee']);
+    });
+
+
     it('formats tokens and durations', () => {
         expect(formatTokens(950)).toBe('950');
         expect(formatTokens(14_210)).toBe('14.2k');
