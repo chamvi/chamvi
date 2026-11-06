@@ -7,6 +7,7 @@
 
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
+import { shortId } from '../../app/runs/helpers.ts';
 import { E2E_ORIGIN, E2E_TOKEN } from './demo/constants.ts';
 
 const AUTH = { authorization: `Bearer ${E2E_TOKEN}` };
@@ -61,7 +62,7 @@ test('dispatch, live run, approve, completed', async ({ page, request }) => {
     await expect(page).toHaveURL(/\/ui\/runs$/);
 
     const runId = await dispatch(request);
-    const row = page.getByTestId('runs').locator('tr', { hasText: runId.slice(0, 8) });
+    const row = page.getByTestId('runs').locator('tr', { hasText: shortId(runId) });
 
     await expect(row).toBeVisible({ timeout: 8000 });
     await row.click();
@@ -81,10 +82,10 @@ test('dispatch, live run, approve, completed', async ({ page, request }) => {
     await expect(approval.getByTestId('notified')).toHaveText('capture · ops');
     await approval.getByRole('button', { name: 'Approve' }).click();
 
-    const decided = page.getByTestId('decided').filter({ hasText: runId.slice(0, 8) });
+    const decided = page.getByTestId('decided').filter({ hasText: shortId(runId) });
 
     await expect(decided).toContainText('Approved by e2e');
-    await decided.getByRole('link', { name: runId.slice(0, 8) }).click();
+    await decided.getByRole('link', { name: shortId(runId) }).click();
 
     await expect(page).toHaveURL(new RegExp(`/ui/runs/${runId}$`));
     await expect(page.getByTestId('status').first()).toHaveText('completed', { timeout: 20_000 });
@@ -233,7 +234,7 @@ test('an approval link by run signs in, highlights the card and approves', async
     await expect(page.getByTestId('link-notice')).toHaveCount(0);
     await card.getByRole('button', { name: 'Approve' }).click();
 
-    await expect(page.getByTestId('decided').filter({ hasText: runId.slice(0, 8) })).toContainText('Approved by e2e');
+    await expect(page.getByTestId('decided').filter({ hasText: shortId(runId) })).toContainText('Approved by e2e');
     await expect.poll(async () => (await readRun(request, runId)).status, { timeout: 20_000 }).toBe('completed');
 
     const wait = (await readRun(request, runId)).steps.find((step) => step.kind === 'wait');
@@ -301,7 +302,7 @@ test('choose an option on an approval card', async ({ page, request }) => {
     await expect(approve).toBeEnabled();
     await approve.click();
 
-    await expect(page.getByTestId('decided').filter({ hasText: runId.slice(0, 8) })).toContainText('Approved by e2e');
+    await expect(page.getByTestId('decided').filter({ hasText: shortId(runId) })).toContainText('Approved by e2e');
     await expect.poll(async () => (await readRun(request, runId)).status, { timeout: 20_000 }).toBe('completed');
 
     const wait = (await readRun(request, runId)).steps.find((step) => step.kind === 'wait');
