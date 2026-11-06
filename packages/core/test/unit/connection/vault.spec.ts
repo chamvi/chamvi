@@ -52,6 +52,20 @@ const setup = (keys: KeyringKey[] = [masterKey('k1')]) => {
     };
 };
 
+/** Records the owner of every lease the vault acquires (each session has its own). */
+const recordOwners = (store: IStore) => {
+    const owners: string[] = [];
+    const acquire = store.locks.acquire.bind(store.locks);
+
+    store.locks.acquire = async (key, owner, ttlMs) => {
+        owners.push(owner);
+
+        return acquire(key, owner, ttlMs);
+    };
+
+    return owners;
+};
+
 describe('createConnectionVault', () => {
     it('refuses a store without connections', () => {
         const store: IStore = { ...createMemoryStore(), connections: undefined };
@@ -66,6 +80,11 @@ describe('createConnectionVault', () => {
         await expect(vault.open('Bad Name', { type: 'whatsapp', owner: 'o1' })).rejects.toBeInstanceOf(ValidationError);
         await expect(vault.open('wa', { type: '', owner: 'o1' })).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
         await expect(vault.open('wa', { type: 'whatsapp', owner: '' })).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
+        await expect(vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o1',
+            recreate: 'yes' as unknown as boolean,
+        })).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
         await expect(vault.open('wa', {
             type: 'whatsapp',
             owner: 'o1',
@@ -281,6 +300,7 @@ describe('connection session', () => {
             store, 
             vault, 
         } = setup();
+        const owners = recordOwners(store);
         const session = await vault.open('wa', {
             type: 'whatsapp',
             owner: 'o1',
@@ -288,7 +308,7 @@ describe('connection session', () => {
         });
 
         await session.write({ set: { a: text('1') } });
-        await store.locks.release('connection:wa', 'o1');
+        await store.locks.release('connection:wa', owners[0]!);
         clock.advance(1_000);
 
         const lost = await session.lost;
@@ -342,9 +362,10 @@ describe('connection session', () => {
 
     it('a write refused by the fence resolves lost', async () => {
         const { store, vault } = setup();
+        const owners = recordOwners(store);
         const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
 
-        await store.locks.release('connection:wa', 'o1');
+        await store.locks.release('connection:wa', owners[0]!);
         await store.locks.acquire('connection:wa', 'o2', 60_000);
         await expect(session.write({ set: { a: text('1') } })).rejects.toBeInstanceOf(LeaseLostError);
         await expect(session.lost).resolves.toBeInstanceOf(LeaseLostError);
@@ -457,6 +478,105 @@ describe('connection session', () => {
         expect(await store.locks.acquire('connection:wa', 'o3', 1_000)).toBe(true);
     });
 
+    it('each session leases under its own owner token: an expired session of the same owner cannot write under the next one', async () => {
+        const {
+            clock,
+            store,
+            vault,
+            keys,
+        } = setup();
+        const owners = recordOwners(store);
+        // the first session's renewals never run: its lease expires on the store's clock
+        const stalled = createConnectionVault({
+            store,
+            keyring: createKeyring(keys),
+            clock: new ControllableClock(),
+        });
+
+        await (await vault.open('wa', { type: 'whatsapp', owner: 'o1' })).close();
+
+        const first = await stalled.open('wb', {
+            type: 'whatsapp',
+            owner: 'o1',
+            leaseTtlMs: 1_000,
+        });
+
+        clock.advance(1_000);
+
+        const second = await vault.open('wb', { type: 'whatsapp', owner: 'o1' });
+
+        expect(owners).toHaveLength(3);
+        expect(new Set(owners).size).toBe(3);
+
+        for (const owner of owners) {
+            expect(owner.startsWith('o1:')).toBe(true);
+        }
+
+        await expect(first.write({ set: { late: text('1') } })).rejects.toBeInstanceOf(LeaseLostError);
+        expect(await store.connections.findEntry('wb', 'late')).toBeUndefined();
+        await first.close();
+        // the first session's close does not release the second's lease
+        expect(await store.locks.acquire('connection:wb', 'o2', 1_000)).toBe(false);
+        await second.close();
+    });
+
+    it('recreate replaces a connection whose data key cannot be unwrapped, under the lease', async () => {
+        const { store, vault } = setup([masterKey('k1')]);
+        const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
+
+        await session.write({ set: { creds: text('secret') } });
+        await session.close();
+
+        const before = await store.connections.findOneOrFail('wa');
+        const lost = createConnectionVault({ store, keyring: createKeyring([masterKey('k2')]) });
+
+        await expect(lost.open('wa', { type: 'whatsapp', owner: 'o2' })).rejects.toBeInstanceOf(DecryptionFailedError);
+
+        const fresh = await lost.open('wa', {
+            type: 'whatsapp',
+            owner: 'o2',
+            recreate: true,
+        });
+        const after = await store.connections.findOneOrFail('wa');
+
+        expect(after.keyId).toBe('k2');
+        expect(Buffer.from(after.wrappedKey).equals(Buffer.from(before.wrappedKey))).toBe(false);
+        expect(await fresh.readOne('creds')).toBeUndefined();
+        await fresh.write({ set: { creds: text('new') } });
+        await fresh.close();
+
+        const reopened = await lost.open('wa', { type: 'whatsapp', owner: 'o3' });
+
+        expect(decode(await reopened.readOne('creds'))).toBe('new');
+        await reopened.close();
+    });
+
+    it('recreate replaces a connection of another type; held elsewhere it deletes nothing', async () => {
+        const { store, vault } = setup();
+        const session = await vault.open('wa', { type: 'telegram', owner: 'o1' });
+
+        await session.write({ set: { a: text('1') } });
+
+        await expect(vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o2',
+            recreate: true,
+        })).rejects.toBeInstanceOf(ConnectionHeldError);
+        expect((await store.connections.findOneOrFail('wa')).type).toBe('telegram');
+        expect(decode(await session.readOne('a'))).toBe('1');
+        await session.close();
+
+        const fresh = await vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'o2',
+            recreate: true,
+        });
+
+        expect((await store.connections.findOneOrFail('wa')).type).toBe('whatsapp');
+        expect(await store.connections.findEntry('wa', 'a')).toBeUndefined();
+        await fresh.close();
+    });
+
     it('restart: a new vault over the same store reads the same plaintext', async () => {
         const {
             store, 
@@ -478,8 +598,9 @@ describe('connection session', () => {
 
     it('an entry copied to another key or connection fails to open', async () => {
         const { store, vault } = setup();
+        const owners = recordOwners(store);
         const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
-        const fence = { lock: 'connection:wa', owner: 'o1' };
+        const fence = { lock: 'connection:wa', owner: owners[0]! };
 
         await session.write({ set: { a: text('secret') } });
 
@@ -491,7 +612,7 @@ describe('connection session', () => {
 
         const other = await vault.open('wb', { type: 'whatsapp', owner: 'o1' });
 
-        await store.connections.writeEntries('wb', { set: { a: sealed } }, { lock: 'connection:wb', owner: 'o1' });
+        await store.connections.writeEntries('wb', { set: { a: sealed } }, { lock: 'connection:wb', owner: owners[1]! });
         await expect(other.readOne('a')).rejects.toBeInstanceOf(DecryptionFailedError);
         await other.close();
     });

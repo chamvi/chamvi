@@ -30,6 +30,10 @@ export function normalizeOpenOptions(opts: ConnectionOpenOptions): ConnectionOpe
         throw new InvalidAgentDefinitionError('A connection owner must be a non-empty string.');
     }
 
+    if (opts.recreate !== undefined && typeof opts.recreate !== 'boolean') {
+        throw new InvalidAgentDefinitionError('A connection recreate option must be a boolean.');
+    }
+
     if (!Number.isSafeInteger(leaseTtlMs) || leaseTtlMs < 3) {
         throw new InvalidAgentDefinitionError('A connection leaseTtlMs must be an integer of at least 3 ms.');
     }
