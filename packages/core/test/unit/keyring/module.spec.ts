@@ -11,6 +11,7 @@ import {
     DecryptionFailedError,
     ErrorCode,
     InvalidAgentDefinitionError,
+    ValidationError,
     createKeyring,
     open,
     parseKeyring,
@@ -63,6 +64,19 @@ describe('seal and open', () => {
         }
 
         expect(messages.size).toBe(1);
+    });
+
+    it('refuses an aad that is not well-formed UTF-16: lone surrogates would encode to the same bytes', () => {
+        const dataKey = key();
+
+        expect(Buffer.from('\ud800', 'utf8')).toEqual(Buffer.from('\ud801', 'utf8'));
+        expect(() => seal(dataKey, text('hello'), '\ud800')).toThrow(ValidationError);
+        expect(() => seal(dataKey, text('hello'), 'a\udc00b')).toThrow(ValidationError);
+
+        const sealed = seal(dataKey, text('hello'), '\ufffd');
+
+        expect(() => open(dataKey, sealed, '\ud800')).toThrow(DecryptionFailedError);
+        expect(Buffer.from(open(dataKey, sealed, '\ufffd')).toString('utf8')).toBe('hello');
     });
 });
 
