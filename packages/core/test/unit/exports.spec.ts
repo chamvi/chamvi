@@ -497,6 +497,7 @@ describe('public api', () => {
             owner: string;
             leaseTtlMs?: number;
             signal?: AbortSignal;
+            recreate?: boolean;
         }>();
         expectTypeOf<core.ConnectionVaultOptions>().toEqualTypeOf<{
             store: core.IStore; 

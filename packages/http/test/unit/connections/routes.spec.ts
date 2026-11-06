@@ -272,7 +272,11 @@ describe('connection routes', () => {
     it('reset answers 202 at once and reports a rejection through onError', async () => {
         const fake = fakeHandle('alpha');
         const errors: unknown[] = [];
-        const { app } = world([fake], { onError: (error) => errors.push(error) });
+        const { app } = world([fake], {
+            onError: (error) => {
+                errors.push(error);
+            },
+        });
         const pending = Promise.withResolvers<undefined>();
 
         fake.reset.mockImplementationOnce(() => pending.promise);

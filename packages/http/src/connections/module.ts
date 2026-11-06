@@ -168,9 +168,7 @@ export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
 
         // a reset there would wait for another process's lease: refused before it starts
         if (handle.status() === 'held_elsewhere') {
-            throw new ConflictError({
-                message: `The connection "${handle.name}" is held by another process; reset it where it is held, or once it is no longer held elsewhere.`,
-            });
+            throw new ConflictError({ message: `The connection "${handle.name}" is held by another process; reset it where it is held, or once it is no longer held elsewhere.` });
         }
 
         // started, not awaited: a reset can outlast a proxy's timeout, the event stream carries its outcome

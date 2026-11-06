@@ -243,6 +243,7 @@ export function createFileAuthProvider(folder: string): IWhatsAppAuthProvider {
                 await rm(credsPath, { force: true });
                 await rm(keysPath, { force: true });
             }
+
             const creds = await readJson<AuthenticationCreds>(credsPath, initAuthCreds);
             const values = await readJson<Record<string, unknown>>(keysPath, () => ({}));
             let queue: Promise<void> = Promise.resolve();

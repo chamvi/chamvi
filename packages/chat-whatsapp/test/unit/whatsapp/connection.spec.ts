@@ -119,7 +119,7 @@ function failNextWrite(store: IStore): void {
     const connections = store.connections!;
     const original = connections.writeEntries.bind(connections);
 
-    connections.writeEntries = async (...args) => {
+    connections.writeEntries = async () => {
         connections.writeEntries = original;
 
         throw new Error('transient store error');
