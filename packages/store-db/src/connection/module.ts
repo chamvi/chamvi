@@ -167,6 +167,11 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
         assertConnectionName(name);
         assertConnectionEntryWrite(write);
 
+        // only the lease of this connection fences it, never another lock the owner holds
+        if (fence.lock !== `connection:${name}`) {
+            throw new LeaseLostError({ lock: fence.lock });
+        }
+
         await this.dataSource.transaction(async (manager) => {
             const now = this.clock.now();
             // the row lock of this update serializes batches and a delete of the connection

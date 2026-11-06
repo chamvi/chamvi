@@ -227,7 +227,7 @@ export interface IConnectionRepository {
     findEntries(name: string, keys: readonly string[]): Promise<Map<string, Uint8Array>>;
     /**
      * Atomic, all or nothing: `clear`, then `set`, then `delete`, and
-     * `updatedAt` set to now. `fence` must name a lock lease its owner holds
+     * `updatedAt` set to now. `fence` must name the lease `connection:<name>` its owner holds
      * unexpired at write time, checked atomically with the write; otherwise
      * LeaseLostError and nothing is written.
      */

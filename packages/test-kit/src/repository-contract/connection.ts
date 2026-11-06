@@ -197,6 +197,21 @@ export function describeConnectionContract(setup: Setup): void {
         expect(plain(await connections.findEntries('wa', ['a', 'b', 'c']))).toEqual({ b: [2] });
     });
 
+    it('connections.writeEntries refuses a lease of another lock the owner holds, writing nothing', async ({ skip }) => {
+        const { store, connections } = await prepare(skip);
+
+        await connections.insert(makeConnection('wa'));
+        expect(await store.locks.acquire('agents:wa', 'o1', 1_000)).toBe(true);
+        expect(await store.locks.acquire('connection:other', 'o1', 1_000)).toBe(true);
+
+        for (const lock of ['agents:wa', 'connection:other']) {
+            await expect(connections.writeEntries('wa', { set: { a: bytes(1) } }, { lock, owner: 'o1' }))
+                .rejects.toBeInstanceOf(LeaseLostError);
+        }
+
+        expect(await connections.findEntry('wa', 'a')).toBeUndefined();
+    });
+
     it('a write that fails validation anywhere in the batch writes nothing', async ({ skip }) => {
         const { connections, hold } = await prepare(skip);
 

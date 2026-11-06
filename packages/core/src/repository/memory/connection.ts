@@ -139,7 +139,8 @@ export class MemoryConnectionRepository implements IConnectionRepository {
 
         const held = this.held(name);
 
-        if (!this.holdsLock(fence.lock, fence.owner)) {
+        // only the lease of this connection fences it, never another lock the owner holds
+        if (fence.lock !== `connection:${name}` || !this.holdsLock(fence.lock, fence.owner)) {
             throw new LeaseLostError({ lock: fence.lock });
         }
 
