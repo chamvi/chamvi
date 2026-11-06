@@ -150,5 +150,6 @@ export function createApiClient(options: ApiClientOptions): IApiClient {
             },
             signal: init.signal,
         }),
+        send: (target, init = {}) => send(target, init),
     };
 }

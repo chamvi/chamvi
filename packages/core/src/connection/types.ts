@@ -150,7 +150,10 @@ export type ConnectionWidget = {
 
 /** The actions a connection offers; each optional. */
 export type ConnectionActions = {
-    /** Clears the connection's session and starts it again (e.g. a new pairing). */
+    /**
+     * Clears the connection's session and starts it again (e.g. a new
+     * pairing); rejects, clearing nothing, while the status is `held_elsewhere`.
+     */
     reset?(): Promise<void>;
 };
 

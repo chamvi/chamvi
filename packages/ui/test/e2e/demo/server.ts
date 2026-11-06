@@ -13,7 +13,12 @@ import {
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type { IChannel } from '@chamvi/core';
+import type {
+    ConnectionStatus,
+    ConnectionWidget,
+    IChannel,
+    IConnectionHandle,
+} from '@chamvi/core';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 import {
     createHttpApp,
@@ -24,7 +29,12 @@ import {
 } from '@chamvi/http';
 import { uiRoutes } from '@chamvi/ui';
 import { serve } from 'routup';
-import { E2E_PORT, E2E_TOKEN } from './constants.ts';
+import {
+    E2E_CONNECTION,
+    E2E_PORT,
+    E2E_QR,
+    E2E_TOKEN,
+} from './constants.ts';
 import { createDemoModel } from './model.ts';
 
 /** A 1x1 PNG, the release preview the `release` agent shows on its option. */
@@ -35,6 +45,44 @@ const capture: IChannel = {
     name: 'capture',
     out: () => Promise.resolve(),
 };
+
+/**
+ * A connection handle like the WhatsApp module's: it starts pairing with a
+ * QR, `POST /demo/connect` links it (the QR goes), reset pairs again.
+ */
+function createDemoConnection() {
+    const listeners = new Set<() => void>();
+    let status: ConnectionStatus = 'pairing';
+    let widgets: ConnectionWidget[] = [{ kind: 'qr', value: E2E_QR }];
+    const change = (next: ConnectionStatus, nextWidgets: ConnectionWidget[]) => {
+        status = next;
+        widgets = nextWidgets;
+
+        for (const listener of listeners) {
+            listener();
+        }
+    };
+    const handle: IConnectionHandle = {
+        name: E2E_CONNECTION,
+        type: 'whatsapp',
+        status: () => status,
+        widgets: () => [...widgets],
+        subscribe(listener) {
+            listeners.add(listener);
+
+            return () => listeners.delete(listener);
+        },
+        actions: {
+            async reset() {
+                change('pairing', [{ kind: 'qr', value: `${E2E_QR}-reset` }]);
+            },
+        },
+    };
+
+    return { handle, connect: () => change('connected', []) };
+}
+
+const connection = createDemoConnection();
 
 const store = createMemoryStore();
 
@@ -123,7 +171,20 @@ const app = createHttpApp({
         }],
     })],
     metrics: false,
-    routes: uiRoutes(),
+    connections: () => [connection.handle],
+    routes: [
+        ...uiRoutes(),
+        {
+            method: 'POST',
+            path: '/demo/connect',
+            handler: async (request) => {
+                await request.authorize();
+                connection.connect();
+
+                return { status: 204 };
+            },
+        },
+    ],
 });
 
 await engine.start();

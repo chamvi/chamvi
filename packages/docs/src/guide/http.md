@@ -40,6 +40,10 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 | `GET /agents/:name/state/kv` | `state:read` | `200 { data: Array<{ key, value }> }` in key code-point order; `page[limit]` (default 50, at most 100), `page[offset]` |
 | `GET`, `PATCH /agents/:name/state/kv/:key` | `state:read`, `state:write` | `{ key, value }` |
 | `GET /agents/:name/state/collections/:collection` | `state:read` | Documents (`{ id, ...fields }`, or `{ id, doc }` for a non-object); top-level equality filters (`filter[issue]=42` matches a number, `filter[issue]="42"` the string; `filter[id]` is 400, `id` being the store id), `page[limit]` (no offset) |
+| `GET /connections` | `connection:<name>:read` or `:write`, per connection | `200 { data: [{ name, type, status }] }`: the [connections](/deployment/whatsapp#session-store) the app's modules expose that the caller may read, never their widgets |
+| `GET /connections/:name` | `connection:<name>:read` or `:write` | `{ name, type, status, widgets? }`; `widgets` (the pairing QR) only with `:write` |
+| `GET /connections/:name/events` | `connection:<name>:write` | SSE: `status` (`{ status }`) and `widgets` (`{ widgets }`) at open and on every change, `ping` to keep proxies open; the run stream's limits |
+| `POST /connections/:name/reset` | `connection:<name>:write` | `202 { name, type, status }` once the reset started (the live stream carries its outcome, a failure goes to `onError`); clears the connection's session and reconnects (404 when it has no reset, 409 while it is `held_elsewhere`) |
 | `GET /me` | authenticated | `200 { id, kind, name?, permissions }`: the caller itself, with its own permissions |
 | `/mcp` | authenticated | MCP endpoint |
 | `GET /healthz`, `/readyz`, `/metrics` | none | Liveness, readiness, Prometheus |
@@ -84,6 +88,8 @@ An app holds at most `stream.maxOpen` (1000) open streams plus waiting MCP `run_
 | `run:read` | Read and list every run, agents and schedules |
 | `run:cancel` | Cancel runs |
 | `state:read`, `state:write` | Agent state |
+| `connection:<name>:read` | The connection's status (`GET /connections`, `/connections/:name`) |
+| `connection:<name>:write` | Also its widgets (the pairing QR), its live stream and reset; implies read |
 | `tool:<agent>:<tool>` | Read by `requireToolPermission()`: the agent offers the tool to this principal's runs |
 | `*` | Everything |
 

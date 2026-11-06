@@ -8,14 +8,15 @@ The engine receives an `IStore` object with one implementation per persistence c
 | `IStepRepository` | Append-only steps per run | `insert`, `find` |
 | `ICheckpointRepository` | The latest checkpoint per run | `save`, `findOne` |
 | `IIdempotencyRepository` | Intake keys | `claim(scope, key, runId, ttlMs)`: the first caller wins |
-| `ILockRepository` | Keyed leases | `acquire(key, owner, ttlMs)`, `release(key, owner)` |
+| `ILockRepository` | Keyed leases | `acquire(key, owner, ttlMs)`, `renew(key, owner, ttlMs)` (extends a held, unexpired lease only, never recreates one), `release(key, owner)` |
 | `IEffectRepository` | Recorded effect results | `findOne`, `save` |
 | `IStateRepository` | Per-agent state | `findOne`/`set` (`undefined` removes the key), `find` (key code-point order, `limit`/`offset`), `findDocuments`/`upsertDocument`/`deleteDocument` |
 | `IArtifactRepository` | Files of a run (attachments, files tools stored) | `insert(artifact, data)` (insert-if-absent), `save(artifact, data)` (replacing upsert), `findOne` (metadata), `read` (bytes), `find(runId)` |
 | `IAgentRevisionRepository` | One revision marker per [folder agent](/guide/agent-folders): `{ agent, hash, changedAt }`, no code | `findOne`, `save` (upsert), `delete` (a missing one is a no-op), `find` (agent code-point order) |
+| `IConnectionRepository` (optional) | [Connections](/deployment/whatsapp#session-store): sealed entries and the wrapped data key, never a plaintext or a key | `insert` (insert-if-absent), `findOne`, `find`, `delete` (entries cascade), `findEntry`, `findEntries`, `writeEntries(name, { clear?, set?, delete? }, fence)`: atomic, and refused with `LeaseLostError` (nothing written) unless `fence.owner` holds the lock `fence.lock` in the same transaction |
 | `IConversationRepository` (optional) | Conversation generations, turn ownership, recall, journal and explicit notes | `findOne`, `findItems`, `findNotes`, `findOneNote`; `resolve`, `beginTurn`, `endTurn`, `prepareEmit`, `confirmEmit`, `applyNote`, `reset`, `delete`, `prune` |
 
-`IStore` has nine required fields: `runs`, `steps`, `checkpoints`, `idempotency`, `locks`, `effects`, `state`, `artifacts` and `agentRevisions`. Its optional `conversations` field implements `IConversationRepository`. Pass the aggregate as `new Engine({ store, agents })`; use `store.runs.findOne(id)` or `store.state.findOne(agent, key)` for direct access. `IStore` is a plain aggregate, not a facade with forwarding methods. Conversation storage alone does not enable memory: configure `conversations: { authorize, limits? }` on the engine and opt agents in.
+`IStore` has nine required fields: `runs`, `steps`, `checkpoints`, `idempotency`, `locks`, `effects`, `state`, `artifacts` and `agentRevisions`. Its optional `conversations` field implements `IConversationRepository`, its optional `connections` field `IConnectionRepository` (needed by `createConnectionVault()`, e.g. for the WhatsApp session store). Pass the aggregate as `new Engine({ store, agents })`; use `store.runs.findOne(id)` or `store.state.findOne(agent, key)` for direct access. `IStore` is a plain aggregate, not a facade with forwarding methods. Conversation storage alone does not enable memory: configure `conversations: { authorize, limits? }` on the engine and opt agents in.
 
 ## Updating existing callers
 

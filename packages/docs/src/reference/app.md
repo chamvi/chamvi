@@ -93,10 +93,12 @@ Read by `readConfig(env, { mode, dev })` once per lifecycle; the optional module
 | `CHAMVI_SANDBOX_STORAGE_CLASS` | `sandboxModule` | storage class name | the `persistence.storageClassName` option, else the cluster default; only with persistence | never |
 | `CHAMVI_DEPLOYMENT` | `sandboxModule` | label value (at most 63 letters, digits, `-`, `_`, `.`) | the `deployment` option, else `default` | several apps share one Docker host or namespace (one value per app); only with a value are the workspaces of runs the store does not hold collected |
 | `CHAMVI_KNOWLEDGE_MODEL` | `knowledgeModule` | `'<provider>/<model id>'` | the `embeddingModel` option, else none: creating a [managed collection](/guide/knowledge#managed-collections) answers 409 | never |
+| `CHAMVI_ENCRYPTION_KEYS` | config (`AppToken.KEYRING`) | `<id>:<base64 of 32 bytes>[,<id>:<base64>...]`, ids by the agent-name rule, the first active | unset | a module resolves `AppToken.KEYRING` (e.g. [`whatsappModule()`](/deployment/whatsapp#with-chamvi-app)); read only then, so an app without one needs no key. Rows wrapped under an older listed key stay readable ([rotation](/deployment/whatsapp#session-store)) |
 
 ```ts
 function readConfig(env: Env, options: ReadConfigOptions): AppConfig;
 function approvalUrlOf(config: AppConfig): ((ref: ApprovalRef) => string) | undefined; // needs CHAMVI_PUBLIC_URL
+function readKeyring(env: Env): IKeyring; // CHAMVI_ENCRYPTION_KEYS, the value of AppToken.KEYRING
 ```
 
 The env readers modules build on, each throwing `InvalidAgentDefinitionError` that names the variable:

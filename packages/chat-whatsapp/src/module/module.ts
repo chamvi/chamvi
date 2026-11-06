@@ -108,12 +108,12 @@ export class WhatsAppModule implements IModule {
             ...chatOptions as Omit<WhatsAppModuleOptions, 'connection' | 'leaseTtlMs' | 'approvalUrl'>,
             // the store provider exists once setup has the store and the keyring
             auth: {
-                acquire: (signal) => {
+                acquire: (signal, acquireOptions) => {
                     if (!this.auth) {
                         return Promise.reject(new InvalidRunStateError('whatsappModule: the channel started before the module was set up (or in a job).'));
                     }
 
-                    return this.auth.acquire(signal);
+                    return this.auth.acquire(signal, acquireOptions);
                 },
             },
             approvalUrl: (ref) => this.approvalUrl!(ref),
