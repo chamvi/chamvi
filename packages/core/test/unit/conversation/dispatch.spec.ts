@@ -19,6 +19,7 @@ import {
     createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
+import { identityId } from '@chamvi/core/conversation/persistence';
 
 const channel = { name: 'chat' };
 const identity = {
@@ -179,6 +180,29 @@ describe('trusted conversation intake', () => {
 
         await expect(ctx.dispatchConversation({ ...envelope, concurrencyKey: 'wrong' }, target)).rejects.toMatchObject({ code: 'validation_error' });
         expect(resolve).not.toHaveBeenCalled();
+    });
+    it('rejects a predicted scope key before creating an unknown identity', async () => {
+        const { ctx, conversations } = setup();
+        const resolve = vi.spyOn(conversations, 'resolve');
+
+        await expect(ctx.dispatchConversation({
+            ...envelope,
+            concurrencyKey: `conversation:${identityId(identity)}:0`,
+        }, target)).rejects.toMatchObject({ code: 'validation_error' });
+        expect(resolve).not.toHaveBeenCalled();
+        expect(await conversations.findOne(identity)).toBeUndefined();
+    });
+    it('accepts the explicit concurrency key of an existing resolved scope', async () => {
+        const {
+            ctx,
+            conversations,
+            store,
+        } = setup();
+        const scope = await conversations.resolve(identity);
+        const concurrencyKey = `conversation:${scope.id}:${scope.generation}`;
+        const result = await ctx.dispatchConversation({ ...envelope, concurrencyKey }, target);
+
+        expect((await store.runs.findOne(result.runId))?.concurrencyKey).toBe(concurrencyKey);
     });
     it('normal_runs_no_memory_queries', async () => {
         const { engine, conversations } = setup();

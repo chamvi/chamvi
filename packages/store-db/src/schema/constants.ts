@@ -24,16 +24,7 @@ import {
     RunEntity,
     StepEntity,
 } from '../entities/index.ts';
-import {
-    AgentRevisions1792627200000,
-    Artifacts1792368000000,
-    Connections1792886400000,
-    ConversationsRunTaint1792713600000,
-    IdempotencyScope1792454400000,
-    Init1792195200000,
-    KvKeyCollation1792540800000,
-    RunLineage1792800000000,
-} from '../migrations/index.ts';
+import { Init1793923200000 } from '../migrations/index.ts';
 
 export const STORE_ENTITIES = [
     RunEntity,
@@ -54,15 +45,6 @@ export const STORE_ENTITIES = [
     ConnectionEntryEntity,
 ];
 
-export const STORE_MIGRATIONS = [
-    Init1792195200000,
-    Artifacts1792368000000,
-    IdempotencyScope1792454400000,
-    KvKeyCollation1792540800000,
-    AgentRevisions1792627200000,
-    ConversationsRunTaint1792713600000,
-    RunLineage1792800000000,
-    Connections1792886400000,
-];
+export const STORE_MIGRATIONS = [Init1793923200000];
 
 export const MIGRATION_LOCK_NAME = 'chamvi:migrations';

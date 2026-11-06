@@ -36,10 +36,11 @@ export function assertArtifactInput(input: unknown, what = 'artifact'): asserts 
             typeof input.key !== 'string' ||
             input.key.length === 0 ||
             input.key.length > ARTIFACT_KEY_MAX_LENGTH ||
-            input.key.includes('\0')
+            input.key.includes('\0') ||
+            /\p{Cs}/u.test(input.key)
         ) {
             throw new ValidationError(
-                `The ${what} key must be a string of 1 to ${ARTIFACT_KEY_MAX_LENGTH} characters without NUL.`,
+                `The ${what} key must be a string of 1 to ${ARTIFACT_KEY_MAX_LENGTH} characters without NUL or lone surrogates.`,
             );
         }
     }

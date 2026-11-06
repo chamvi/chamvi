@@ -13,18 +13,32 @@ import { copy } from './helpers.ts';
 export class MemoryArtifactRepository implements IArtifactRepository {
     protected artifacts = new Map<string, { artifact: Artifact; data: Uint8Array }>();
 
-    async insert(artifact: Artifact, data: Uint8Array): Promise<boolean> {
-        if (this.artifacts.has(artifact.id)) {
+    protected keys = new Map<string, Map<string, string>>();
+
+    async insert(artifact: Artifact, data: Uint8Array, key?: string): Promise<boolean> {
+        if (this.artifacts.has(artifact.id) || (key !== undefined && this.keys.get(artifact.runId)?.has(key))) {
             return false;
         }
 
         this.artifacts.set(artifact.id, { artifact: copy(artifact), data: new Uint8Array(data) });
 
+        if (key !== undefined) {
+            const keys = this.keys.get(artifact.runId) ?? new Map<string, string>();
+
+            keys.set(key, artifact.id);
+            this.keys.set(artifact.runId, keys);
+        }
+
         return true;
     }
 
-    async save(artifact: Artifact, data: Uint8Array): Promise<Artifact> {
-        const entry = this.artifacts.get(artifact.id);
+    async save(artifact: Artifact, data: Uint8Array, key?: string): Promise<Artifact> {
+        if (key !== undefined && !this.keys.get(artifact.runId)?.has(key) && this.artifacts.has(artifact.id)) {
+            throw new InvalidRunStateError(`The artifact id "${artifact.id}" cannot be assigned another key.`);
+        }
+
+        const id = key === undefined ? artifact.id : this.keys.get(artifact.runId)?.get(key) ?? artifact.id;
+        const entry = this.artifacts.get(id);
 
         if (entry && entry.artifact.runId !== artifact.runId) {
             throw new InvalidRunStateError(`The artifact id "${artifact.id}" belongs to another run.`);
@@ -37,10 +51,19 @@ export class MemoryArtifactRepository implements IArtifactRepository {
         }
 
         if (entry) {
+            next.id = entry.artifact.id;
+            next.agent = entry.artifact.agent;
             next.createdAt = entry.artifact.createdAt;
         }
 
-        this.artifacts.set(artifact.id, { artifact: next, data: new Uint8Array(data) });
+        this.artifacts.set(id, { artifact: next, data: new Uint8Array(data) });
+
+        if (key !== undefined) {
+            const keys = this.keys.get(artifact.runId) ?? new Map<string, string>();
+
+            keys.set(key, id);
+            this.keys.set(artifact.runId, keys);
+        }
 
         return copy(next);
     }
@@ -63,6 +86,12 @@ export class MemoryArtifactRepository implements IArtifactRepository {
         }
 
         return result;
+    }
+
+    async findOneByKey(runId: string, key: string): Promise<Artifact | undefined> {
+        const id = this.keys.get(runId)?.get(key);
+
+        return id === undefined ? undefined : this.findOne(id);
     }
 
     async findOne(id: string): Promise<Artifact | undefined> {

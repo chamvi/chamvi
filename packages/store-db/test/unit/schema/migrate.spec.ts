@@ -5,52 +5,17 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { DataSource } from 'typeorm';
-import { assertSchemaMatchesMetadata } from 'typeorm-extension';
-import {
-    afterEach,
-    expect,
-    it,
-} from 'vitest';
-import { RunNotFoundError } from '@chamvi/core';
-import {
-    DatabaseRunRepository,
-    STORE_MIGRATIONS,
-    createDatabaseStore,
-    migrateStore,
-    pendingMigrations,
-} from '@chamvi/store-db';
+import { uuidv7 } from 'uuidv7';
+import type { DataSource } from 'typeorm';
+import { assertSchemaMatchesMetadata, generateMigration } from 'typeorm-extension';
+import { afterEach, expect, it } from 'vitest';
+import { STORE_MIGRATIONS, migrateStore, pendingMigrations } from '@chamvi/store-db';
 import { TableName } from '../../../src/entities/constants.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 import type { TestDataSourceOptions } from '../../utils/database.ts';
 import { seedRun } from '../../utils/conversation.ts';
 
-/** Every migration before the named one. */
-function migrationsBefore(name: string) {
-    return STORE_MIGRATIONS.slice(0, STORE_MIGRATIONS.findIndex((migration) => migration.name === name));
-}
-
-/** Every migration up to and including the named one. */
-function migrationsThrough(name: string) {
-    return STORE_MIGRATIONS.slice(0, STORE_MIGRATIONS.findIndex((migration) => migration.name === name) + 1);
-}
-
-const TAINT = 'ConversationsRunTaint1792713600000';
-const LINEAGE = 'RunLineage1792800000000';
-const CONNECTIONS = 'Connections1792886400000';
-
-/** Undo the executed migrations from the newest one back to and including the named one. */
-async function revertThrough(ds: DataSource, name: string): Promise<void> {
-    for (;;) {
-        const [last]: { name: string }[] = await ds.query('SELECT name FROM migrations ORDER BY id DESC LIMIT 1');
-
-        await ds.undoLastMigration({ transaction: 'each' });
-
-        if (!last || last.name === name) {
-            return;
-        }
-    }
-}
+const RUN = '019a3f2a-1000-7000-8000-000000000001';
 
 describePostgres('schema', () => {
     const dataSources: DataSource[] = [];
@@ -68,268 +33,52 @@ describePostgres('schema', () => {
         dataSources.length = 0;
     });
 
-    it('the migration creates the schema the entities describe', async () => {
-        const ds = await create();
+    for (const schema of [undefined, 'other']) {
+        it(`creates, reverts and reapplies the generated baseline in ${schema ?? 'public'}`, async () => {
+            const ds = await create({ schema });
 
-        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
-    });
-
-    it('taints legacy nonterminal runs at migration time while leaving terminal and new runs clean', async () => {
-        const ds = await create({ migrate: false });
-        const prior = new DataSource({
-            ...ds.options,
-            migrations: migrationsBefore(TAINT),
-        });
-
-        await prior.initialize();
-
-        try {
-            await migrateStore(prior);
-
-            for (const status of ['queued', 'running', 'waiting', 'interrupted', 'completed', 'failed', 'cancelled']) {
-                await prior.query(
-                    'INSERT INTO chamvi_runs (id, agent, status, trigger, usage, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $6)',
-                    [status, 'helper', status, JSON.stringify({
-                        id: status,
-                        agent: 'helper',
-                        trigger: 'message',
-                        channel: 'chat',
-                        payload: {},
-                        receivedAt: '2026-10-28T00:00:00.000Z',
-                    }), JSON.stringify({ inputTokens: 0, outputTokens: 0 }), new Date('2026-10-28T00:00:00.000Z')],
-                );
+            if (schema) {
+                await ds.destroy();
+                await ds.initialize();
             }
-        } finally {
-            await prior.destroy();
-        }
 
-        await expect(pendingMigrations(ds)).resolves.toEqual([TAINT, LINEAGE, CONNECTIONS]);
+            const verify = () => expect(generateMigration({
+                dataSource: ds,
+                prettify: true,
+                preview: true,
+            }))
+                .resolves.toEqual({ up: [], down: [] });
 
-        const [beforeMigration]: { at: Date }[] = await ds.query('SELECT clock_timestamp() AS at');
+            await verify();
+            expect(await ds.query(`SELECT conname FROM pg_constraint
+                WHERE conrelid IN (SELECT oid FROM pg_class WHERE relname = ANY($1))
+                AND contype = 'f' AND NOT convalidated`, [Object.values(TableName)])).toEqual([]);
+            await ds.undoLastMigration({ transaction: 'each' });
+            expect(await pendingMigrations(ds)).toEqual(['Init1793923200000']);
+            expect(await ds.query(`SELECT table_name FROM information_schema.tables
+                WHERE table_schema = current_schema() AND table_name = ANY($1)`, [Object.values(TableName)])).toEqual([]);
+            await migrateStore(ds);
+            await verify();
+        });
+    }
 
-        await migrateStore(ds);
-
-        const [afterMigration]: { at: Date }[] = await ds.query('SELECT clock_timestamp() AS at');
-        const runs = new DatabaseRunRepository({ dataSource: ds });
-
-        for (const status of ['queued', 'running', 'waiting', 'interrupted']) {
-            const existing = await runs.findOneOrFail(status);
-
-            expect(existing.status).toBe(status);
-            expect(existing.taint?.source).toBe('migration:legacy-run');
-            expect(existing.taint?.at).toBeInstanceOf(Date);
-            expect(existing.taint!.at.getTime()).toBeGreaterThanOrEqual(beforeMigration!.at.getTime());
-            expect(existing.taint!.at.getTime()).toBeLessThanOrEqual(afterMigration!.at.getTime());
-        }
-
-        await seedRun(ds, 'new-clean');
-
-        for (const id of ['completed', 'failed', 'cancelled', 'new-clean']) {
-            expect((await runs.findOneOrFail(id)).taint).toBeUndefined();
-        }
-    });
-
-    it('upgrades legacy orphan checkpoints and steps without losing data while enforcing new run references', async () => {
+    it('rolls back a partially executed baseline and can retry', async () => {
         const ds = await create({ migrate: false });
-        const prior = new DataSource({
-            ...ds.options,
-            migrations: migrationsBefore(TAINT),
-        });
 
-        await prior.initialize();
-        dataSources.push(prior);
-        await migrateStore(prior);
-        expect(await pendingMigrations(ds)).toEqual([TAINT, LINEAGE, CONNECTIONS]);
-
-        const insertCheckpoint = (runId: string) => ds.query(
-            'INSERT INTO chamvi_checkpoints (run_id, step_index, messages, finish_reason, created_at) VALUES ($1, 3, $2, $3, $4)',
-            [runId, JSON.stringify([{ role: 'user', content: 'legacy checkpoint' }]), 'stop', new Date('2026-10-28T00:00:00.000Z')],
-        );
-        const insertStep = (runId: string) => ds.query(
-            'INSERT INTO chamvi_steps (run_id, step_index, kind, name, input, output, started_at, finished_at) VALUES ($1, 2, $2, $3, $4, $5, $6, $6)',
-            [runId, 'tool', 'legacy tool', JSON.stringify({ input: 'kept' }), JSON.stringify({ output: 'kept' }), new Date('2026-10-28T00:00:00.000Z')],
-        );
-
-        await insertCheckpoint('legacy-checkpoint-only');
-        await insertStep('legacy-step-only');
-
-        const checkpointQuery = 'SELECT run_id, step_index, messages, finish_reason, created_at FROM chamvi_checkpoints';
-        const checkpoints = await ds.query(checkpointQuery);
-        const steps = await ds.query('SELECT * FROM chamvi_steps');
-
+        await ds.query('CREATE TABLE failure_probe (doc jsonb)');
+        await ds.query('CREATE INDEX "IDX_chamvi_docs_doc_gin" ON failure_probe USING gin (doc)');
+        await expect(migrateStore(ds)).rejects.toMatchObject({ driverError: { code: '42P07' } });
+        expect(await ds.query(`SELECT table_name FROM information_schema.tables
+            WHERE table_schema = current_schema() AND table_name = ANY($1)`, [Object.values(TableName)])).toEqual([]);
+        expect(await ds.query('SELECT * FROM migrations')).toEqual([]);
+        await ds.query('DROP TABLE failure_probe');
         await migrateStore(ds);
-
-        expect(await pendingMigrations(ds)).toEqual([]);
-        expect(await ds.query(checkpointQuery)).toEqual(checkpoints);
-        expect(await ds.query('SELECT * FROM chamvi_steps')).toEqual(steps);
-        expect(await ds.query('SELECT * FROM chamvi_runs')).toEqual([]);
-        await expect(insertCheckpoint('new-missing-run')).rejects.toMatchObject({ driverError: { code: '23503' } });
-        await expect(insertStep('new-missing-run')).rejects.toMatchObject({ driverError: { code: '23503' } });
-        await expect(ds.query('UPDATE chamvi_checkpoints SET run_id = $1', ['another-missing-run']))
-            .rejects.toMatchObject({ driverError: { code: '23503' } });
-        await expect(ds.query('UPDATE chamvi_steps SET run_id = $1', ['another-missing-run']))
-            .rejects.toMatchObject({ driverError: { code: '23503' } });
-        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
-
-        // a save over the kept orphan checkpoint (lower, equal and higher index) is refused like any missing run
-        const store = createDatabaseStore({ dataSource: ds });
-
-        for (const stepIndex of [1, 3, 5]) {
-            await expect(store.checkpoints.save({
-                runId: 'legacy-checkpoint-only',
-                stepIndex,
-                messages: [],
-                createdAt: new Date(),
-            })).rejects.toBeInstanceOf(RunNotFoundError);
-        }
-
-        expect(await ds.query(checkpointQuery)).toEqual(checkpoints);
-    });
-
-    /** A database migrated through ConversationsRunTaint (the v0.5.1 schema), plus the data source that runs the rest. */
-    const createReleasedStore = async () => {
-        const ds = await create({ migrate: false });
-        const prior = new DataSource({
-            ...ds.options,
-            migrations: migrationsThrough(TAINT),
-        });
-
-        await prior.initialize();
-        dataSources.push(prior);
-        await migrateStore(prior);
-        expect(await pendingMigrations(ds)).toEqual([LINEAGE, CONNECTIONS]);
-
-        return ds;
-    };
-
-    const insertLegacyRun = (ds: DataSource, id: string, extra: {
-        status?: string;
-        parent?: unknown;
-        waiting?: unknown
-    } = {}) => ds.query(
-        'INSERT INTO chamvi_runs (id, agent, status, trigger, usage, waiting, created_at, updated_at) VALUES ($1, $2, $3, $4, $5, $6, $7, $7)',
-        [
-            id,
-            'a',
-            extra.status ?? 'completed',
-            JSON.stringify({
-                id,
-                agent: 'a',
-                trigger: 'message',
-                channel: 'chat',
-                payload: {},
-                receivedAt: '2026-10-28T00:00:00.000Z',
-                ...(extra.parent ? { parent: extra.parent } : {}),
-            }),
-            JSON.stringify({ inputTokens: 0, outputTokens: 0 }),
-            extra.waiting ? JSON.stringify(extra.waiting) : null,
-            new Date('2026-10-28T00:00:00.000Z'),
-        ],
-    );
-
-    it('upgrades a v0.5.1 store with hand-off runs', async () => {
-        const ds = await createReleasedStore();
-
-        await insertLegacyRun(ds, 'p');
-        await insertLegacyRun(ds, 'c', {
-            parent: {
-                kind: 'handoff',
-                runId: 'p',
-                agent: 'a',
-                depth: 1,
-            },
-        });
-
-        const runs = new DatabaseRunRepository({ dataSource: ds });
-        const expectUpgraded = async () => {
-            const child = await runs.findOneOrFail('c');
-
-            expect(child.parentRunId).toBe('p');
-            expect(child.trigger.parent).toEqual({
-                kind: 'dispatch',
-                runId: 'p',
-                agent: 'a',
-                role: 'handoff',
-                depth: 1,
-            });
-            expect((await runs.findOneOrFail('p')).parentRunId).toBeUndefined();
-            await expect(runs.find({ parentRunId: 'p' })).resolves.toMatchObject({ total: 1, data: [{ id: 'c' }] });
-            await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
-        };
-
-        await migrateStore(ds);
-        await expectUpgraded();
-
-        await revertThrough(ds, LINEAGE);
-
-        const [reverted]: { trigger: { parent: unknown } }[] = await ds.query('SELECT trigger FROM chamvi_runs WHERE id = $1', ['c']);
-
-        expect(reverted!.trigger.parent).toEqual({
-            kind: 'handoff',
-            runId: 'p',
-            agent: 'a',
-            depth: 1,
-        });
-
-        await migrateStore(ds);
-        await expectUpgraded();
-    });
-
-    it('a waiting run from v0.5.1 can still be approved after the upgrade', async () => {
-        const ds = await createReleasedStore();
-        const waiting = {
-            kind: 'approval',
-            approvalId: '0:call-1:0',
-            toolName: 'tool',
-            toolCallId: 'call-1',
-            title: 'Approve tool',
-            expiresAt: '2026-11-28T00:00:00.000Z',
-        };
-
-        await insertLegacyRun(ds, 'w', { status: 'waiting', waiting });
-        await migrateStore(ds);
-
-        const storedIds = async () => {
-            const rows: { id: string | null; has: boolean }[] = await ds.query(
-                'SELECT waiting->>\'id\' AS id, waiting ? \'id\' AS has FROM chamvi_runs WHERE id = $1',
-                ['w'],
-            );
-
-            return rows[0];
-        };
-
-        expect(await storedIds()).toEqual({ id: '0:call-1:0', has: true });
-
-        const runs = new DatabaseRunRepository({ dataSource: ds });
-
-        await expect(runs.update('w', { cancelRequested: true }, { expectStatus: ['waiting'], expectWaitId: '0:call-1:0' }))
-            .resolves.toMatchObject({ cancelRequested: true, waiting: { id: '0:call-1:0', approvalId: '0:call-1:0' } });
-
-        await revertThrough(ds, LINEAGE);
-        expect(await storedIds()).toEqual({ id: null, has: false });
-    });
-
-    it('the run lineage migration keeps legacy orphan children', async () => {
-        const ds = await createReleasedStore();
-
-        await insertLegacyRun(ds, 'orphan', {
-            parent: {
-                kind: 'handoff',
-                runId: 'gone',
-                agent: 'a',
-                depth: 1,
-            },
-        });
-        await migrateStore(ds);
-
-        const runs = new DatabaseRunRepository({ dataSource: ds });
-
-        await expect(runs.findOneOrFail('orphan')).resolves.toMatchObject({ parentRunId: 'gone' });
-        await expect(runs.update('orphan', { cancelRequested: true })).resolves.toMatchObject({ parentRunId: 'gone' });
-        await expect(insertLegacyRun(ds, 'new-orphan')).resolves.toBeDefined();
-        await expect(ds.query('UPDATE chamvi_runs SET parent_run_id = $1 WHERE id = $2', ['another-missing-run', 'new-orphan']))
-            .rejects.toMatchObject({ driverError: { code: '23503' } });
-        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
+        await expect(generateMigration({
+            dataSource: ds,
+            prettify: true,
+            preview: true,
+        }))
+            .resolves.toEqual({ up: [], down: [] });
     });
 
     it('store fixed conversation fields as columns and only frozen messages as JSONB', async () => {
@@ -353,7 +102,7 @@ describePostgres('schema', () => {
                 const table = await runner.getTable(name);
 
                 expect(table?.findColumnByName('conversation')).toBeUndefined();
-                expect(table?.findColumnByName('conversation_scope_id')?.type).toBe('character varying');
+                expect(table?.findColumnByName('conversation_scope_id')?.type).toBe('uuid');
             }
 
             for (const name of names.slice(1)) {
@@ -385,8 +134,8 @@ describePostgres('schema', () => {
         };
         const scope = await store.resolve(identity);
 
-        await seedRun(ds, 'run');
-        await store.beginTurn(scope, 'run', 'hello', DEFAULT_CONVERSATION_LIMITS);
+        await seedRun(ds, RUN);
+        await store.beginTurn(scope, RUN, 'hello', DEFAULT_CONVERSATION_LIMITS);
         await store.applyNote(scope, {
             kind: 'set',
             id: 'op',
@@ -394,7 +143,7 @@ describePostgres('schema', () => {
             key: 'topic',
             text: 'hello',
             source: {
-                runId: 'run',
+                runId: RUN,
                 toolCallId: 'call',
                 stepIndex: 0,
             },
@@ -407,11 +156,11 @@ describePostgres('schema', () => {
         ];
 
         for (const table of ownedTables) {
-            await expect(ds.query(`UPDATE "${table}" SET scope_id = $1`, ['b'.repeat(64)]))
+            await expect(ds.query(`UPDATE "${table}" SET scope_id = $1`, [uuidv7()]))
                 .rejects.toMatchObject({ driverError: { code: '23503' } });
         }
 
-        await store.endTurn(scope, 'run', []);
+        await store.endTurn(scope, RUN, []);
         await store.reset(identity, { keepNotes: true });
         expect((await store.findItems(scope, { limit: 10, offset: 0 })).total).toBe(1);
         await expect(ds.query('DELETE FROM chamvi_conversations WHERE id = $1', [scope.id]))
@@ -485,16 +234,7 @@ describePostgres('schema', () => {
     it('pendingMigrations lists every migration on an empty database and none after migrateStore', async () => {
         const ds = await create({ migrate: false });
 
-        expect(await pendingMigrations(ds)).toEqual([
-            'Init1792195200000',
-            'Artifacts1792368000000',
-            'IdempotencyScope1792454400000',
-            'KvKeyCollation1792540800000',
-            'AgentRevisions1792627200000',
-            'ConversationsRunTaint1792713600000',
-            'RunLineage1792800000000',
-            'Connections1792886400000',
-        ]);
+        expect(await pendingMigrations(ds)).toEqual(['Init1793923200000']);
         await migrateStore(ds);
         expect(await pendingMigrations(ds)).toEqual([]);
     });
@@ -511,82 +251,6 @@ describePostgres('schema', () => {
         } finally {
             await queryRunner.release();
         }
-    });
-
-    it('the migration reverts in a schema other than public', async () => {
-        const ds = await create({ schema: 'other' });
-        const tablesIn = async (schema: string) => {
-            const rows: { table_name: string }[] = await ds.query(
-                'SELECT table_name FROM information_schema.tables WHERE table_schema = $1 AND table_name = ANY($2::text[])',
-                [schema, Object.values(TableName)],
-            );
-
-            return rows.length;
-        };
-
-        expect(await tablesIn('other')).toBe(Object.values(TableName).length);
-        expect(await tablesIn('public')).toBe(0);
-
-        const connectionTables = Object.values(TableName).length - 2;
-
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await tablesIn('other')).toBe(connectionTables);
-
-        const lineageColumns = () => ds.query(
-            'SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = ANY($3::text[])',
-            ['other', TableName.RUNS, ['parent_run_id', 'subtree_usage']],
-        );
-
-        expect(await lineageColumns()).toHaveLength(2);
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await lineageColumns()).toHaveLength(0);
-
-        const taintColumns = () => ds.query(
-            'SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3',
-            ['other', TableName.RUNS, 'taint'],
-        );
-
-        expect(await taintColumns()).toHaveLength(1);
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await taintColumns()).toHaveLength(0);
-
-        const tableCount = connectionTables - 4;
-
-        expect(await tablesIn('other')).toBe(tableCount);
-
-        const scopeLength = async () => {
-            const [row]: { length: number }[] = await ds.query(
-                'SELECT character_maximum_length AS length FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3',
-                ['other', TableName.IDEMPOTENCY_KEYS, 'scope'],
-            );
-
-            return row?.length;
-        };
-        const keyCollation = async () => {
-            const [row]: { collation: string | null }[] = await ds.query(
-                'SELECT collation_name AS collation FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = $3',
-                ['other', TableName.KV, 'key'],
-            );
-
-            return row?.collation;
-        };
-
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await tablesIn('other')).toBe(tableCount - 1);
-
-        expect(await keyCollation()).toBe('C');
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await keyCollation()).toBeNull();
-
-        expect(await scopeLength()).toBe(1024);
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await scopeLength()).toBe(255);
-        expect(await tablesIn('other')).toBe(tableCount - 1);
-
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await tablesIn('other')).toBe(tableCount - 2);
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await tablesIn('other')).toBe(0);
     });
 
     it('migrateStore needs one connection per call (it migrates on the connection holding the lock)', async () => {

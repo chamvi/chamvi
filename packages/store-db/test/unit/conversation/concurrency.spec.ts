@@ -20,6 +20,15 @@ import { SeededConversationRepository } from '../../utils/conversation.ts';
 import { ConversationEntity, ConversationOperationEntity } from '../../../src/entities/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
+const ALLOWED_RUN = '019a3f2a-1000-7000-8000-000000000001';
+const OLD_RUN = '019a3f2a-1000-7000-8000-000000000002';
+const OTHER_RUN = '019a3f2a-1000-7000-8000-000000000003';
+const REJECTED_RUN = '019a3f2a-1000-7000-8000-000000000004';
+const RETAINED_RUN = '019a3f2a-1000-7000-8000-000000000005';
+const RUN = '019a3f2a-1000-7000-8000-000000000006';
+const RUN_A = '019a3f2a-1000-7000-8000-000000000007';
+const RUN_B = '019a3f2a-1000-7000-8000-000000000008';
+
 const IDENTITY: ConversationIdentity = {
     agent: 'helper',
     channel: 'chat',
@@ -64,8 +73,8 @@ describePostgres('conversation transactions across connections', () => {
 
         const scope = scopes[0]!;
         const results = await Promise.all([
-            first.beginTurn(scope, 'run-a', 'first', DEFAULT_CONVERSATION_LIMITS),
-            second.beginTurn(scope, 'run-b', 'second', DEFAULT_CONVERSATION_LIMITS),
+            first.beginTurn(scope, RUN_A, 'first', DEFAULT_CONVERSATION_LIMITS),
+            second.beginTurn(scope, RUN_B, 'second', DEFAULT_CONVERSATION_LIMITS),
         ]);
         const winners = results.filter((result) => result.kind === 'ready');
 
@@ -89,23 +98,23 @@ describePostgres('conversation transactions across connections', () => {
 
     it('keeps one active snapshot across connections and clears it with the owner', async () => {
         const scope = await first.resolve(IDENTITY);
-        const initial = await first.beginTurn(scope, 'run', 'input', DEFAULT_CONVERSATION_LIMITS);
+        const initial = await first.beginTurn(scope, RUN, 'input', DEFAULT_CONVERSATION_LIMITS);
 
-        expect(await second.beginTurn(scope, 'run', 'input', DEFAULT_CONVERSATION_LIMITS)).toEqual(initial);
+        expect(await second.beginTurn(scope, RUN, 'input', DEFAULT_CONVERSATION_LIMITS)).toEqual(initial);
 
         const [active] = await dataSource.query('SELECT * FROM chamvi_conversations WHERE id = $1', [scope.id]);
 
         expect(active).toMatchObject({
-            active_run_id: 'run',
+            active_run_id: RUN,
             snapshot_messages: [],
             snapshot_item_ids: [],
             snapshot_note_keys: [],
             snapshot_omitted: 0,
         });
         expect(active.snapshot_created_at).toBeInstanceOf(Date);
-        await first.endTurn(scope, 'other', []);
-        expect(await second.activeRun(scope)).toBe('run');
-        await first.endTurn(scope, 'run', []);
+        await first.endTurn(scope, OTHER_RUN, []);
+        expect(await second.activeRun(scope)).toBe(RUN);
+        await first.endTurn(scope, RUN, []);
 
         const [ended] = await dataSource.query('SELECT * FROM chamvi_conversations WHERE id = $1', [scope.id]);
 
@@ -122,7 +131,7 @@ describePostgres('conversation transactions across connections', () => {
     it('reset_versus_begin_serialized', async () => {
         const scope = await first.resolve(IDENTITY);
         const results = await Promise.allSettled([
-            first.beginTurn(scope, 'run-a', 'first', DEFAULT_CONVERSATION_LIMITS),
+            first.beginTurn(scope, RUN_A, 'first', DEFAULT_CONVERSATION_LIMITS),
             second.reset(IDENTITY, { keepNotes: false }),
         ]);
         const admission = results[0]!;
@@ -155,7 +164,7 @@ describePostgres('conversation transactions across connections', () => {
         const scope = await first.resolve(IDENTITY);
 
         await second.delete(IDENTITY);
-        expect(await first.beginTurn(scope, 'old-run', 'stale', DEFAULT_CONVERSATION_LIMITS))
+        expect(await first.beginTurn(scope, OLD_RUN, 'stale', DEFAULT_CONVERSATION_LIMITS))
             .toEqual({ kind: 'stale' });
 
         const fresh = await first.resolve(IDENTITY);
@@ -169,8 +178,8 @@ describePostgres('conversation transactions across connections', () => {
         const scope = await first.resolve(IDENTITY);
 
         // A database constraint fails the atomic owner/snapshot write after the input insert.
-        await dataSource.query('ALTER TABLE chamvi_conversations ADD CONSTRAINT fail_snapshot CHECK (active_run_id <> \'reject\')');
-        await expect(first.beginTurn(scope, 'reject', 'input', DEFAULT_CONVERSATION_LIMITS)).rejects.toThrow();
+        await dataSource.query(`ALTER TABLE chamvi_conversations ADD CONSTRAINT fail_snapshot CHECK (active_run_id <> '${REJECTED_RUN}')`);
+        await expect(first.beginTurn(scope, REJECTED_RUN, 'input', DEFAULT_CONVERSATION_LIMITS)).rejects.toThrow();
         expect((await first.findItems(scope, { limit: 100, offset: 0 })).total).toBe(0);
         expect(await dataSource.getRepository(ConversationEntity).findOneByOrFail({ id: scope.id }))
             .toMatchObject({
@@ -178,33 +187,33 @@ describePostgres('conversation transactions across connections', () => {
                 snapshotMessages: null,
                 snapshotCreatedAt: null,
             });
-        expect((await second.beginTurn(scope, 'allowed', 'input', DEFAULT_CONVERSATION_LIMITS)).kind).toBe('ready');
+        expect((await second.beginTurn(scope, ALLOWED_RUN, 'input', DEFAULT_CONVERSATION_LIMITS)).kind).toBe('ready');
     });
 
     it('emit_collision_no_overwrite', async () => {
         const scope = await first.resolve(IDENTITY);
 
-        await first.beginTurn(scope, 'run', 'input', DEFAULT_CONVERSATION_LIMITS);
+        await first.beginTurn(scope, RUN, 'input', DEFAULT_CONVERSATION_LIMITS);
 
         const item = {
             id: 'emit',
             role: 'assistant' as const,
             text: 'answer',
-            runId: 'run',
+            runId: RUN,
             createdAt: new Date(),
             status: 'pending' as const,
         };
 
         await first.prepareEmit(scope, item);
         await expect(second.prepareEmit(scope, { ...item, text: 'collision' })).rejects.toMatchObject({ code: 'validation_error' });
-        expect((await first.pendingEmits(scope, 'run'))[0]?.text).toBe('answer');
+        expect((await first.pendingEmits(scope, RUN))[0]?.text).toBe('answer');
     });
 
     it('note_operation_rollback_together', async () => {
         const scope = await first.resolve(IDENTITY);
 
-        await first.beginTurn(scope, 'run', 'input', DEFAULT_CONVERSATION_LIMITS);
-        await dataSource.query('ALTER TABLE chamvi_conversation_operations ADD CONSTRAINT fail_operation CHECK (id <> \'reject\')');
+        await first.beginTurn(scope, RUN, 'input', DEFAULT_CONVERSATION_LIMITS);
+        await dataSource.query('ALTER TABLE chamvi_conversation_operations ADD CONSTRAINT fail_operation CHECK (operation_id <> \'reject\')');
 
         const operation = {
             id: 'reject',
@@ -213,7 +222,7 @@ describePostgres('conversation transactions across connections', () => {
             key: 'key',
             text: 'value',
             source: {
-                runId: 'run',
+                runId: RUN,
                 toolCallId: 'call',
                 stepIndex: 0,
             },
@@ -231,7 +240,7 @@ describePostgres('conversation transactions across connections', () => {
         const now = new Date();
 
         await audit.insert({
-            id: 'retained',
+            id: RETAINED_RUN,
             agent: 'helper',
             status: 'queued',
             trigger: {
@@ -246,7 +255,7 @@ describePostgres('conversation transactions across connections', () => {
             createdAt: now,
             updatedAt: now,
         });
-        await first.beginTurn(scope, 'retained', 'input', DEFAULT_CONVERSATION_LIMITS);
+        await first.beginTurn(scope, RETAINED_RUN, 'input', DEFAULT_CONVERSATION_LIMITS);
         await first.applyNote(scope, {
             id: 'op',
             inputHash: 'hash',
@@ -254,12 +263,12 @@ describePostgres('conversation transactions across connections', () => {
             key: 'key',
             text: 'value',
             source: {
-                runId: 'retained',
+                runId: RETAINED_RUN,
                 toolCallId: 'call',
                 stepIndex: 0,
             },
         });
-        await first.endTurn(scope, 'retained', []);
+        await first.endTurn(scope, RETAINED_RUN, []);
         await second.delete(IDENTITY);
         expect((await first.findItems(scope, { limit: 100, offset: 0 })).total).toBe(0);
         expect((await first.findNotes(scope, { limit: 100, offset: 0 })).total).toBe(0);
@@ -270,7 +279,7 @@ describePostgres('conversation transactions across connections', () => {
                 snapshotCreatedAt: null,
             });
         expect(await dataSource.getRepository(ConversationOperationEntity).count()).toBe(0);
-        expect(await audit.findOne('retained')).toBeDefined();
+        expect(await audit.findOne(RETAINED_RUN)).toBeDefined();
     });
 
     it('opaque_text_not_json_sanitized_into_new_identity', async () => {

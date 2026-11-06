@@ -8,13 +8,18 @@
 import {
     Column,
     Entity,
+    Index,
     PrimaryColumn,
 } from 'typeorm';
 import { TableName } from './constants.ts';
 
+@Index(['name'], { unique: true })
 @Entity({ name: TableName.CONNECTIONS })
 export class ConnectionEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
+
+    @Column({
         name: 'name',
         type: 'varchar',
         length: 64,

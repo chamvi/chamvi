@@ -8,6 +8,7 @@
 import {
     Column,
     Entity,
+    Index,
     JoinColumn,
     ManyToOne,
     PrimaryColumn,
@@ -17,9 +18,13 @@ import { ConnectionEntity } from './connection.ts';
 import { TableName } from './constants.ts';
 
 /** One sealed runtime-state entry of a connection; removed with its connection. */
+@Index(['connectionName', 'key'], { unique: true })
 @Entity({ name: TableName.CONNECTION_ENTRIES })
 export class ConnectionEntryEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
+
+    @Column({
         name: 'connection_name',
         type: 'varchar',
         length: 64,
@@ -27,7 +32,7 @@ export class ConnectionEntryEntity {
     })
     connectionName!: string;
 
-    @PrimaryColumn({
+    @Column({
         name: 'key',
         type: 'varchar',
         length: 255,

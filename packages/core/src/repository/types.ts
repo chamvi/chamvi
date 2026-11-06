@@ -170,19 +170,17 @@ export interface IStateRepository {
 
 /** Files of runs (attachments and tool outputs): metadata and bytes, both copied in and out. */
 export interface IArtifactRepository {
+    /** Atomic insert-if-absent by id and optional private (runId, key); the first writer wins. */
+    insert(artifact: Artifact, data: Uint8Array, key?: string): Promise<boolean>;
     /**
-     * Atomic insert-if-absent: resolves false and keeps the stored artifact
-     * (metadata and bytes) when an artifact with that id exists.
+     * Atomic upsert by private (runId, key) when provided, otherwise id. Replaces
+     * mediaType, filename, size and bytes, retaining the stored id, agent and createdAt.
+     * For an existing key, the proposed id is ignored. Otherwise an id held by
+     * another run (or already assigned to another key) throws InvalidRunStateError.
      */
-    insert(artifact: Artifact, data: Uint8Array): Promise<boolean>;
-    /**
-     * Atomic upsert by id. An absent id inserts the artifact as given; an id held by
-     * the same run replaces `mediaType`, `filename` (removed when absent), `size` and
-     * the bytes, keeps the stored `createdAt` and resolves the stored metadata; an id
-     * held by another run throws `InvalidRunStateError` and writes nothing.
-     */
-    save(artifact: Artifact, data: Uint8Array): Promise<Artifact>;
-    /** Metadata only. */
+    save(artifact: Artifact, data: Uint8Array, key?: string): Promise<Artifact>;
+    /** Metadata only; private storage keys never appear in the artifact DTO. */
+    findOneByKey(runId: string, key: string): Promise<Artifact | undefined>;
     findOne(id: string): Promise<Artifact | undefined>;
     findOneOrFail(id: string): Promise<Artifact>;
     /** The bytes, as a plain Uint8Array (no Buffer or other subclass). */

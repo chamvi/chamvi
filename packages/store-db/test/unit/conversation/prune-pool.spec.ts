@@ -20,6 +20,10 @@ import { ConversationItemEntity, ConversationOperationEntity } from '../../../sr
 import { asValues } from '../../../src/repository/helpers.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
+const COMPLETED_RUN = '019a3f2a-1000-7000-8000-000000000001';
+const RECOVERABLE_RUN = '019a3f2a-1000-7000-8000-000000000002';
+const WRITER_RUN = '019a3f2a-1000-7000-8000-000000000003';
+
 async function withinPoolDeadline<T>(query: Promise<T>): Promise<T> {
     let timer: ReturnType<typeof setTimeout> | undefined;
 
@@ -104,8 +108,8 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
     it('classifies runs through the same pool without holding a transaction connection', async () => {
         const s = await setup();
 
-        await s.seed('completed', 'completed');
-        await s.seed('recoverable', 'waiting');
+        await s.seed(COMPLETED_RUN, 'completed');
+        await s.seed(RECOVERABLE_RUN, 'waiting');
         s.clock.advance(10_000);
         await s.store.prune(s.limits, {
             isSettled: async (runId) => {
@@ -114,19 +118,19 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
                 return !run || ['completed', 'failed', 'cancelled'].includes(run.status);
             },
         });
-        expect(await s.operations.find({ select: { runId: true } })).toEqual([{ runId: 'recoverable' }]);
+        expect(await s.operations.find({ select: { runId: true } })).toEqual([{ runId: RECOVERABLE_RUN }]);
     });
 
     it('trims a bulk backlog with selects bounded to 100 items', async () => {
         const s = await setup();
 
-        await s.seed('writer', 'completed');
+        await s.seed(WRITER_RUN, 'completed');
 
         const items = Array.from({ length: 250 }, (_value, index) => ({
             scopeId: s.scope.id,
             generation: s.scope.generation,
-            id: `item-${index}`,
-            runId: 'writer',
+            itemKey: `item-${index}`,
+            runId: WRITER_RUN,
             createdAt: s.clock.now(),
             role: 'user' as const,
             text: 'input',
@@ -156,7 +160,7 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
     it.each(['active owner', 'changed candidate', 'young candidate'] as const)('rechecks %s after classification and before deletion', async (change) => {
         const s = await setup();
 
-        await s.seed('completed', 'completed');
+        await s.seed(COMPLETED_RUN, 'completed');
         s.clock.advance(10_000);
         await s.store.prune(s.limits, {
             isSettled: async (runId) => {
@@ -165,10 +169,10 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
                 if (change === 'active owner') {
                     await withinPoolDeadline(s.store.beginTurn(s.scope, runId, 'resumed input', s.limits));
                 } else if (change === 'changed candidate') {
-                    await seedRun(dataSource, 'recoverable');
-                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, id: runId }, { runId: 'recoverable', inputHash: 'replacement' }));
+                    await seedRun(dataSource, RECOVERABLE_RUN);
+                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, operationId: runId }, { runId: RECOVERABLE_RUN, inputHash: 'replacement' }));
                 } else {
-                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, id: runId }, { createdAt: s.clock.now() }));
+                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, operationId: runId }, { createdAt: s.clock.now() }));
                 }
 
                 return true;

@@ -20,6 +20,9 @@ import { asValues } from '../../../src/repository/helpers.ts';
 import { seedRun } from '../../utils/conversation.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
+const NEXT_RUN = '019a3f2a-1000-7000-8000-000000000001';
+const WRITER_RUN = '019a3f2a-1000-7000-8000-000000000002';
+
 describePostgres('conversation query bounds', () => {
     let dataSource: DataSource;
 
@@ -44,8 +47,8 @@ describePostgres('conversation query bounds', () => {
             audience: 'direct',
         });
 
-        await seedRun(dataSource, 'writer');
-        await store.beginTurn(scope, 'writer', 'input', DEFAULT_CONVERSATION_LIMITS);
+        await seedRun(dataSource, WRITER_RUN);
+        await store.beginTurn(scope, WRITER_RUN, 'input', DEFAULT_CONVERSATION_LIMITS);
 
         return {
             clock,
@@ -61,14 +64,14 @@ describePostgres('conversation query bounds', () => {
             scope,
         } = await setup();
 
-        await store.endTurn(scope, 'writer', []);
-        await seedRun(dataSource, 'next');
+        await store.endTurn(scope, WRITER_RUN, []);
+        await seedRun(dataSource, NEXT_RUN);
 
         const rows = Array.from({ length: 250 }, (_value, index) => ({
             scopeId: scope.id,
             generation: scope.generation,
-            id: `item-${index}`,
-            runId: 'writer',
+            itemKey: `item-${index}`,
+            runId: WRITER_RUN,
             createdAt: clock.now(),
             role: 'assistant' as const,
             text: index === 0 ? 'é' : 'éé',
@@ -78,13 +81,13 @@ describePostgres('conversation query bounds', () => {
         await dataSource.getRepository(ConversationItemEntity).insert(rows.map((row) => asValues<ConversationItemEntity>(row)));
         await dataSource.getRepository(ConversationItemEntity).insert(asValues<ConversationItemEntity>({
             ...rows[0]!,
-            id: 'unknown',
+            itemKey: 'unknown',
             text: 'u',
             status: 'unknown',
         }));
 
         const queries = vi.spyOn(dataSource.logger, 'logQuery');
-        const result = await store.beginTurn(scope, 'next', 'now', {
+        const result = await store.beginTurn(scope, NEXT_RUN, 'now', {
             ...DEFAULT_CONVERSATION_LIMITS,
             maxItems: 3,
             maxHistoryBytes: 6,
@@ -123,13 +126,13 @@ describePostgres('conversation query bounds', () => {
             scope,
         } = await setup();
 
-        await store.endTurn(scope, 'writer', []);
+        await store.endTurn(scope, WRITER_RUN, []);
 
         const rows = Array.from({ length: 205 }, (_value, index) => asValues<ConversationItemEntity>({
             scopeId: scope.id,
             generation: scope.generation,
-            id: `item-${index}`,
-            runId: 'writer',
+            itemKey: `item-${index}`,
+            runId: WRITER_RUN,
             createdAt: clock.now(),
             role: 'user',
             text: 'discarded text',
@@ -172,7 +175,7 @@ describePostgres('conversation query bounds', () => {
                 key,
                 text: `body-${key}`,
                 source: {
-                    runId: 'writer',
+                    runId: WRITER_RUN,
                     toolCallId: key,
                     stepIndex: 0,
                 },
@@ -182,7 +185,7 @@ describePostgres('conversation query bounds', () => {
 
         const note = await store.findOneNote(scope, 'keep');
 
-        await store.endTurn(scope, 'writer', []);
+        await store.endTurn(scope, WRITER_RUN, []);
         clock.advance(1000);
 
         const queries = vi.spyOn(dataSource.logger, 'logQuery');

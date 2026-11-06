@@ -19,6 +19,8 @@ import { RunEntity } from '../../../src/entities/index.ts';
 import { asValues } from '../../../src/repository/helpers.ts';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
 
+const RUN = '019a3f2a-1000-7000-8000-000000000001';
+
 describePostgres('DatabaseRunRepository legacy envelopes', () => {
     let dataSource: DataSource;
     let store: DatabaseRunRepository;
@@ -43,7 +45,7 @@ describePostgres('DatabaseRunRepository legacy envelopes', () => {
             .createQueryBuilder()
             .insert()
             .values(asValues<RunEntity>({
-                id: 'legacy',
+                id: RUN,
                 agent: 'a',
                 status: 'queued',
                 trigger: {
@@ -62,11 +64,11 @@ describePostgres('DatabaseRunRepository legacy envelopes', () => {
             }))
             .execute();
 
-        const columns = await dataSource.query('SELECT "thread" FROM "chamvi_runs" WHERE "id" = $1', ['legacy']);
+        const columns = await dataSource.query('SELECT "thread" FROM "chamvi_runs" WHERE "id" = $1', [RUN]);
 
         expect(columns).toEqual([{ thread: 'x' }]);
 
-        const run = await store.findOne('legacy');
+        const run = await store.findOne(RUN);
 
         expect(run!.address).toBe('x');
         expect(run!.trigger.channel).toBe('github');

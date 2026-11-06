@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { z } from 'zod';
 import type { ModelMessage } from 'ai';
 import { isObject } from 'smob';
 import { stableHash } from '../../effect/helpers.ts';
@@ -32,8 +33,6 @@ const IDENTITY_FIELDS = ['agent', 'channel', 'account', 'chat', 'audience'] as c
 const FORBIDDEN_FIELD_CHARACTER = /[\p{Cc}\p{Cs}]/u;
 
 const LONE_SURROGATE = /\p{Cs}/u;
-
-const SCOPE_ID_PATTERN = /^[0-9a-f]{64}$/;
 
 /**
  * Refuses an identity whose fields are not non-blank strings of at most
@@ -63,7 +62,7 @@ export function assertConversationIdentity(identity: unknown): asserts identity 
 }
 
 /**
- * The scope id of an identity: the sha256 hex of the canonical JSON of its
+ * The lookup key of an identity: the sha256 hex of the canonical JSON of its
  * five fields (sorted keys), so property order and extra properties never
  * change it.
  */
@@ -111,14 +110,14 @@ function utf8Bytes(text: string): number {
     return Buffer.byteLength(text, 'utf8');
 }
 
-/** Refuses a scope whose id is no sha256 hex digest or whose generation is no non-negative integer. */
+/** Refuses a scope without a UUID v7 id and non-negative generation. */
 export function assertConversationScope(scope: unknown): asserts scope is ConversationScope {
     if (!isObject(scope)) {
         throw new ValidationError('The conversation scope must be an object.');
     }
 
-    if (typeof scope.id !== 'string' || !SCOPE_ID_PATTERN.test(scope.id)) {
-        throw new ValidationError('The conversation scope id must be a sha256 hex digest.');
+    if (typeof scope.id !== 'string' || !z.regexes.uuid7.test(scope.id)) {
+        throw new ValidationError('The conversation scope id must be a UUID v7.');
     }
 
     if (!Number.isSafeInteger(scope.generation) || (scope.generation as number) < 0) {

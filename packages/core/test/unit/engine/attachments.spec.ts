@@ -156,7 +156,7 @@ describe('attachments at dispatch', () => {
 
         expect(listed).toEqual(run.trigger.attachments);
         expect(run.trigger.attachments?.[0]).toEqual({
-            id: `${runId}.0000`,
+            id: expect.stringMatching(z.regexes.uuid7),
             runId,
             agent: 'vision',
             mediaType: 'image/png',
@@ -180,17 +180,15 @@ describe('attachments at dispatch', () => {
         const listed = await ctx.store.artifacts.find(runId);
 
         expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
-        expect(listed.map((a) => a.id)).toEqual(attachments.map((_, i) => `${runId}.${String(i).padStart(4, '0')}`));
     });
 
-    it('keeps input order beyond 10000 attachments (the index widens for the whole dispatch)', async () => {
+    it('keeps UUID attachment input order beyond 10000 attachments', async () => {
         const ctx = setup([text('ok')]);
         const attachments = Array.from({ length: 10_001 }, () => ({ mediaType: 'text/plain', data: new Uint8Array([1]) }));
         const { runId } = await ctx.engine.dispatch(env({ attachments }));
         const listed = await ctx.store.artifacts.find(runId);
 
-        expect(listed[0]!.id).toBe(`${runId}.00000`);
-        expect(listed.at(-1)!.id).toBe(`${runId}.10000`);
+        expect(listed.map((a) => a.id).sort()).toEqual(listed.map((a) => a.id));
         expect(listed.map((a) => a.id)).toEqual((await ctx.store.runs.findOne(runId))!.trigger.attachments!.map((a) => a.id));
     });
 

@@ -13,6 +13,8 @@ import type {
     Run,
 } from '@chamvi/core';
 
+export const RUN_1 = '019a0000-0000-7000-8000-000000000001';
+
 export function makeRun(id: string, overrides: Partial<Run> = {}): Run {
     const createdAt = new Date(1_000);
 
@@ -57,7 +59,7 @@ export function makeChild(id: string, parentRunId: string, at = 1_000): Run {
 export function makeArtifact(id: string, overrides: Partial<Artifact> = {}): Artifact {
     return {
         id,
-        runId: 'r1',
+        runId: RUN_1,
         agent: 'a',
         mediaType: 'text/plain',
         filename: `${id}.txt`,

@@ -17,7 +17,6 @@ import {
     approve,
     defineModelAgent,
     defineTool,
-    keyedArtifactId,
 } from '@chamvi/core';
 import type {
     ApprovalDecision,
@@ -55,18 +54,19 @@ const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] 
 const KEYS = ['expected', 'actual', 'diff', ...Array.from({ length: 21 }, (_, i) => `k${i}`)];
 
 /** `$<key>` names the keyed artifact the tool put; any other value goes to approve() as is. */
-function resolve(runId: string, value: unknown): unknown {
+function resolve(artifactIds: Map<string, string>, value: unknown): unknown {
     if (!Array.isArray(value)) {
         return value;
     }
 
-    return value.map((item) => (typeof item === 'string' && item.startsWith('$') ? keyedArtifactId(runId, item.slice(1)) : item));
+    return value.map((item) => (typeof item === 'string' && item.startsWith('$') ? artifactIds.get(item.slice(1))! : item));
 }
 
 function setup(request: Record<string, unknown>, opts: { channels?: IChannel[] } = {}) {
     const clock = new ControllableClock(new Date(1_000_000));
     const store = createMemoryStore({ clock });
     const decisions: ApprovalDecision[] = [];
+    const artifactIds = new Map<string, string>();
     let executions = 0;
     const shots = defineTool({
         inputSchema: z.object({ request: z.any() }),
@@ -74,23 +74,24 @@ function setup(request: Record<string, unknown>, opts: { channels?: IChannel[] }
             executions++;
 
             for (const key of KEYS) {
-                await context.artifacts.put({
+                const artifact = await context.artifacts.put({
                     key,
                     mediaType: 'image/png',
                     filename: `${key}.png`,
                     data: new Uint8Array([executions, key.length]),
                 });
+
+                artifactIds.set(key, artifact.id);
             }
 
-            const { runId } = context.run;
             const decision = await approve(context, {
                 ...request,
-                ...(request.artifacts !== undefined ? { artifacts: resolve(runId, request.artifacts) } : {}),
+                ...(request.artifacts !== undefined ? { artifacts: resolve(artifactIds, request.artifacts) } : {}),
                 ...(Array.isArray(request.options) ?
                     {
                         options: (request.options as Record<string, unknown>[]).map((option) => ({
                             ...option,
-                            ...(option.artifacts !== undefined ? { artifacts: resolve(runId, option.artifacts) } : {}),
+                            ...(option.artifacts !== undefined ? { artifacts: resolve(artifactIds, option.artifacts) } : {}),
                         })),
                     } :
                     {}),
@@ -121,6 +122,7 @@ function setup(request: Record<string, unknown>, opts: { channels?: IChannel[] }
         store,
         engine,
         decisions,
+        artifactIds,
         executions: () => executions,
     };
 }
@@ -157,11 +159,11 @@ describe('approve() with artifacts', () => {
             options: OPTIONS,
             multiple: true,
         });
-        const { runId, run } = await dispatch(ctx);
+        const { run } = await dispatch(ctx);
 
         expect(run.status).toBe('waiting');
-        expect(approvalWait(run)?.artifacts).toEqual([keyedArtifactId(runId, 'diff'), keyedArtifactId(runId, 'expected')]);
-        expect(approvalWait(run)?.options?.[0]?.artifacts).toEqual([keyedArtifactId(runId, 'actual'), keyedArtifactId(runId, 'diff')]);
+        expect(approvalWait(run)?.artifacts).toEqual([ctx.artifactIds.get('diff')!, ctx.artifactIds.get('expected')!]);
+        expect(approvalWait(run)?.options?.[0]?.artifacts).toEqual([ctx.artifactIds.get('actual')!, ctx.artifactIds.get('diff')!]);
         expect(approvalWait(run)?.options?.[1]).toEqual({ id: 'bulma', label: 'Bulma theme' });
     });
 
@@ -190,19 +192,19 @@ describe('approve() with artifacts', () => {
         const wait = (await ctx.store.steps.find(runId)).find((s) => s.kind === 'wait');
 
         expect(wait?.input).toMatchObject({
-            artifacts: [keyedArtifactId(runId, 'expected')],
+            artifacts: [ctx.artifactIds.get('expected')!],
             options: [
-                { id: 'bootstrap', artifacts: [keyedArtifactId(runId, 'actual'), keyedArtifactId(runId, 'diff')] },
+                { id: 'bootstrap', artifacts: [ctx.artifactIds.get('actual')!, ctx.artifactIds.get('diff')!] },
                 { id: 'bulma' },
             ],
         });
 
         const stored = await ctx.store.artifacts.find(runId);
 
-        expect(stored.map((a) => a.id).sort()).toEqual(KEYS.map((key) => keyedArtifactId(runId, key)).sort());
+        expect(stored.map((a) => a.id).sort()).toEqual(KEYS.map((key) => ctx.artifactIds.get(key)!).sort());
 
         // the replayed call re-put the same keys: the wait point's ids still resolve to the latest bytes
-        expect(Array.from((await ctx.store.artifacts.read(keyedArtifactId(runId, 'actual')))!)).toEqual([2, 6]);
+        expect(Array.from((await ctx.store.artifacts.read(ctx.artifactIds.get('actual')!))!)).toEqual([2, 6]);
     });
 
     it('returns a recorded decision on replay without listing the artifacts again', async () => {
@@ -296,7 +298,7 @@ describe('approve() with artifacts', () => {
 
         const run = (await store.runs.findOne(runId))!;
 
-        expect(approvalWait(run)?.artifacts).toEqual([keyedArtifactId(runId, 'k')]);
+        expect(approvalWait(run)?.artifacts).toEqual([(await store.artifacts.findOneByKey(runId, 'tool:k'))!.id]);
         expect(sent).toHaveLength(1);
         expect(sent[0]).not.toHaveProperty('artifacts');
         expect(sent[0]).toMatchObject({ options: [{ id: 'a', label: 'A' }] });

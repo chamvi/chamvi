@@ -6,6 +6,7 @@
  */
 
 /* eslint-disable max-classes-per-file */
+import { z } from 'zod';
 import type { LanguageModel } from 'ai';
 import {
     afterEach,
@@ -138,6 +139,7 @@ describe('Engine.dispatch', () => {
         const { runId, deduplicated } = await engine.dispatch(env());
 
         expect(deduplicated).toBe(false);
+        expect(runId).toMatch(z.regexes.uuid7);
 
         const run = await engine.getRun(runId);
 
