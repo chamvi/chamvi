@@ -17,6 +17,7 @@ export * from './effect/index.ts';
 export * from './engine/index.ts';
 export * from './errors/index.ts';
 export * from './extract/index.ts';
+export * from './keyring/index.ts';
 export * from './message/index.ts';
 export * from './model/index.ts';
 export * from './permission/index.ts';

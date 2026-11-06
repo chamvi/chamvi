@@ -13,6 +13,7 @@ export * from './budget-exceeded.ts';
 export * from './channel-not-found.ts';
 export * from './constants.ts';
 export * from './context-not-provided.ts';
+export * from './decryption-failed.ts';
 export * from './fatal-tool.ts';
 export * from './incomplete-response.ts';
 export * from './lease-lost.ts';

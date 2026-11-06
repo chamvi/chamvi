@@ -139,6 +139,11 @@ describe('public api', () => {
         'findApprovalWaitBelow',
         'rebaseJsonSchemaRefs',
         'waitForDispatch',
+        'createKeyring',
+        'parseKeyring',
+        'seal',
+        'open',
+        'DecryptionFailedError',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
@@ -431,6 +436,18 @@ describe('public api', () => {
 
     it('exports the agent not found error code', () => {
         expect(core.ErrorCode.AGENT_NOT_FOUND).toBe('agent_not_found');
+    });
+
+    it('exports the keyring contract', () => {
+        expect(core.ErrorCode.DECRYPTION_FAILED).toBe('decryption_failed');
+        expect(core.KEYRING_KEY_LENGTH).toBe(32);
+        expect(core).not.toHaveProperty('SEAL_IV_LENGTH');
+        expect(core).not.toHaveProperty('assertKeyId');
+        expect(core).not.toHaveProperty('decodeBase64');
+        expectTypeOf<core.KeyringKey>().toEqualTypeOf<{ id: string; key: Uint8Array }>();
+        expectTypeOf<core.WrappedKey>().toEqualTypeOf<{ keyId: string; wrapped: Uint8Array }>();
+        expectTypeOf<ReturnType<core.IKeyring['createDataKey']>>().toEqualTypeOf<{ key: Uint8Array; wrapped: core.WrappedKey }>();
+        expectTypeOf<ReturnType<typeof core.parseKeyring>>().toEqualTypeOf<core.KeyringKey[]>();
     });
 
     it('exports the agent cancel reason codes', () => {
