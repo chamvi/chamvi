@@ -211,6 +211,40 @@ describe('useConnection', () => {
         scope.stop();
     });
 
+    it('a delayed reset response does not replace a newer status from the stream', async () => {
+        const live = liveStream();
+        const answer = Promise.withResolvers<Awaited<ReturnType<IConnectionsApi['reset']>>>();
+        const scope = effectScope();
+        const state = scope.run(() => useConnection(fakeApi({
+            get: async () => ({
+                ...DETAIL,
+                status: 'logged_out',
+                widgets: [],
+            }),
+            stream: async () => live.response,
+            reset: () => answer.promise,
+        }), 'whatsapp', { write: true, sleep: () => new Promise(() => {}) }))!;
+
+        await flush();
+        state.askReset();
+
+        const resetting = state.confirmReset();
+
+        await flush();
+        live.send('status', { status: 'pairing' });
+        await flush();
+        expect(state.connection.value?.status).toBe('pairing');
+        answer.resolve({
+            name: 'whatsapp',
+            type: 'whatsapp',
+            status: 'connecting',
+        });
+        await resetting;
+        expect(state.connection.value?.status).toBe('pairing');
+        expect(state.confirming.value).toBe(false);
+        scope.stop();
+    });
+
     it('a failed reset keeps the error and the status', async () => {
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({

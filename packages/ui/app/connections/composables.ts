@@ -66,6 +66,8 @@ export function useConnection(api: IConnectionsApi, name: string, options: UseCo
     const resetError = shallowRef<ApiError>();
     let stream: IConnectionStream | undefined;
     let disposed = false;
+    // counts the statuses the stream delivered: a reset response is older than any received since its request
+    let statusRevision = 0;
 
     function follow(): void {
         stream = openConnectionStream({
@@ -78,6 +80,7 @@ export function useConnection(api: IConnectionsApi, name: string, options: UseCo
                 }
 
                 if (event.type === 'status') {
+                    statusRevision++;
                     connection.value = { ...connection.value, status: event.status };
                 } else {
                     widgets.value = event.widgets;
@@ -139,10 +142,20 @@ export function useConnection(api: IConnectionsApi, name: string, options: UseCo
 
             resetting.value = true;
 
+            const revision = statusRevision;
+
             try {
                 const view = await api.reset(name);
 
+                // the stream stays authoritative: keep a status it delivered while the request was in flight
+                const live = revision === statusRevision ? undefined : connection.value?.status;
+
                 connection.value = { ...connection.value, ...view };
+
+                if (live) {
+                    connection.value = { ...connection.value, status: live };
+                }
+
                 confirming.value = false;
             } catch (e) {
                 resetError.value = asApiError(e);
