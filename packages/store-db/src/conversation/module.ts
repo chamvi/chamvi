@@ -42,7 +42,7 @@ import {
     ConversationNoteEntity,
     ConversationOperationEntity,
 } from '../entities/index.ts';
-import { asValues, withRunReference } from '../repository/helpers.ts';
+import { asValues, isUuid, withRunReference } from '../repository/helpers.ts';
 import {
     assertConversationScope,
     assertConversationText,
@@ -428,6 +428,10 @@ export class DatabaseConversationRepository implements IConversationRepository {
     }
 
     protected async pending(manager: EntityManager, scope: ConversationScope, runId: string): Promise<ConversationItemEntity[]> {
+        if (!isUuid(runId)) {
+            return [];
+        }
+
         const items = await manager.find(ConversationItemEntity, {
             where: {
                 scopeId: scope.id,

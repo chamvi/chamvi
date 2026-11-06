@@ -4,7 +4,7 @@
 
 App, Agent, Channel, Run, Step, State, Tool, Workspace, Repository. Keep the concept surface at about ten. chamvi never wraps the AI SDK: models (`LanguageModel`), messages (`ModelMessage`) and tool sets (`ToolSet`) are passed through as-is.
 
-`@chamvi/core` holds: agent definitions with channel subscriptions and tool hooks, the `IChannel` contract and the tool-driven outbound (`ToolContext.channels`, `consoleChannel()`), the `Engine`, step checkpoints, budgets, effect tools, durable approvals (`approve()`, answered by run and approval id), recovery and drain, agent state, streaming deltas, structured output, run artifacts (attachments and tool files), the `IStore` aggregate, `createMemoryStore()`. Everything time-based goes through an injectable `IClock` (`systemClock`; `ControllableClock` in tests). The public surface is `src/index.ts`.
+`@chamvi/core` holds: agent definitions with channel subscriptions and tool hooks, the `IChannel` contract and the tool-driven outbound (`ToolContext.channels`, `consoleChannel()`), the `Engine`, step checkpoints, budgets, effect tools, durable approvals (`approve()`, answered by run and approval id), recovery and drain, agent state, streaming deltas, structured output, run artifacts (attachments and tool files), the `IStore` aggregate, `createMemoryStore()`. Time uses injectable `IClock` (`systemClock`; `ControllableClock` in tests), except UUID generation (PR #170). The public surface is `src/index.ts`.
 
 ## Engine
 

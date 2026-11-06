@@ -70,17 +70,43 @@ export function describeRepositoryContract(
     };
 
     describe('repository contract', () => {
-        it('findOneOrFail rejects missing identities without creating them', async () => {
+        it.each([MISSING_ID, 'missing'])('reads treat absent identity %s consistently without creating records', async (id) => {
             const { store } = await setup();
 
-            await expect(store.runs.findOneOrFail(MISSING_ID)).rejects.toMatchObject({ code: 'run_not_found' });
-            await expect(store.artifacts.findOneOrFail(MISSING_ID)).rejects.toMatchObject({ code: 'artifact_not_found' });
-            await expect(store.checkpoints.findOneOrFail(MISSING_ID)).rejects.toMatchObject({ code: 'repository_not_found' });
+            expect(await store.runs.findOne(id)).toBeUndefined();
+            expect(await store.artifacts.findOne(id)).toBeUndefined();
+            expect(await store.artifacts.read(id)).toBeUndefined();
+            expect(await store.artifacts.find(id)).toEqual([]);
+            expect(await store.steps.find(id)).toEqual([]);
+            expect(await store.checkpoints.findOne(id)).toBeUndefined();
+            expect(await store.runs.find({ ids: [id] })).toEqual({ data: [], total: 0 });
+            expect(await store.runs.find({ parentRunId: id })).toEqual({ data: [], total: 0 });
+            expect(await store.runs.find({ parentRunIds: [id] })).toEqual({ data: [], total: 0 });
+            await expect(store.steps.findOrFail(id)).rejects.toMatchObject({ code: 'repository_not_found' });
+            await expect(store.artifacts.findOrFail(id)).rejects.toMatchObject({ code: 'repository_not_found' });
+            await expect(store.runs.findOneOrFail(id)).rejects.toMatchObject({ code: 'run_not_found' });
+            await expect(store.artifacts.findOneOrFail(id)).rejects.toMatchObject({ code: 'artifact_not_found' });
+            await expect(store.checkpoints.findOneOrFail(id)).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.effects.findOneOrFail('missing')).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.agentRevisions.findOneOrFail('missing')).rejects.toMatchObject({ code: 'repository_not_found' });
             await expect(store.state.findOneOrFail('a', 'missing')).rejects.toMatchObject({ code: 'repository_not_found' });
             expect(await store.runs.find({})).toEqual({ data: [], total: 0 });
             expect(await store.state.find('a')).toEqual([]);
+
+            if (!store.conversations) {
+                return;
+            }
+
+            const scope = await store.conversations.resolve({
+                agent: 'a',
+                channel: 'chat',
+                account: 'main',
+                chat: 'room',
+                audience: 'direct',
+            });
+
+            expect(await store.conversations.pendingEmits(scope, id)).toEqual([]);
+            await expect(store.conversations.pendingEmits(scope, 'bad\ud800')).rejects.toMatchObject({ code: 'validation_error' });
         });
 
         it.each([MISSING_ID, 'not-a-uuid'])('refuses writes referencing unknown run %s with RunNotFoundError', async (runId) => {
