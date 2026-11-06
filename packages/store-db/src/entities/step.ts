@@ -21,8 +21,8 @@ import { RunEntity } from './run.ts';
 @Index(['runId', 'index'])
 @Entity({ name: TableName.STEPS })
 export class StepEntity {
-    @PrimaryGeneratedColumn('increment', { name: 'seq', type: 'bigint' })
-    seq!: string;
+    @PrimaryGeneratedColumn('increment', { type: 'bigint' })
+    id!: string;
 
     @Column({
         name: 'run_id',

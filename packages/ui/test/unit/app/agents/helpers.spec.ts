@@ -135,7 +135,7 @@ describe('summarizeActivity', () => {
                 createdAt: ago(0),
             }),
             wireRun({
-                id: '019a5555-1234-7abc-8123-456789abcdef',
+                id: 'b',
                 status: 'failed',
                 createdAt: ago(12),
                 error: { code: 'BudgetExceeded', message: 'x' },
@@ -152,11 +152,11 @@ describe('summarizeActivity', () => {
         expect(activity.count).toBe(2);
         expect(activity.saturated).toBe(false);
         expect(activity.failed).toBe(1);
-        expect(activity.lastFailed?.id).toBe('019a5555-1234-7abc-8123-456789abcdef');
+        expect(activity.lastFailed?.id).toBe('b');
         expect(activity.tokens).toBe(1200);
-        expect(failedSummary(activity)).toBe('89abcdef · BudgetExceeded');
+        expect(failedSummary(activity)).toBe('b · BudgetExceeded');
         expect(failedSummary(summarizeActivity([], NOW, 100))).toBe('no failures');
-        expect(activity.marks.map((m) => [m.id, m.status])).toEqual([['a', 'running'], ['019a5555-1234-7abc-8123-456789abcdef', 'failed']]);
+        expect(activity.marks.map((m) => [m.id, m.status])).toEqual([['a', 'running'], ['b', 'failed']]);
         expect(activity.marks[1]!.left).toBeCloseTo(50, 5);
         expect(activity.marks[0]!.left).toBeLessThanOrEqual(99.4);
     });

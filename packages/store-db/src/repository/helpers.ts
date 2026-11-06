@@ -111,9 +111,9 @@ export function asValues<T extends ObjectLiteral>(values: Partial<T>): QueryDeep
     return values as QueryDeepPartialEntity<T>;
 }
 
-/** StepEntity values for a new step (seq is generated). */
+/** StepEntity values for a new step (id is generated). */
 export function toStepValues(step: Step): QueryDeepPartialEntity<StepEntity> {
-    const values: Omit<StepEntity, 'seq'> = {
+    const values: Omit<StepEntity, 'id'> = {
         runId: step.runId,
         index: step.index,
         kind: step.kind,
@@ -327,9 +327,10 @@ export function toCheckpoint(entity: CheckpointEntity): Checkpoint {
 }
 
 /** ArtifactEntity values for a new artifact: the bytes copied into a Buffer, the bytea parameter the driver expects. */
-export function toArtifactValues(artifact: Artifact, data: Uint8Array): QueryDeepPartialEntity<ArtifactEntity> {
+export function toArtifactValues(artifact: Artifact, data: Uint8Array, key?: string): QueryDeepPartialEntity<ArtifactEntity> {
     const values: ArtifactEntity = {
         id: artifact.id,
+        key: key ?? null,
         runId: artifact.runId,
         agent: artifact.agent,
         mediaType: artifact.mediaType,

@@ -26,6 +26,7 @@ export class Init1793923200000 implements MigrationInterface {
         await queryRunner.query(`
             CREATE TABLE "chamvi_artifacts" (
                 "id" uuid NOT NULL,
+                "key" text COLLATE "C",
                 "run_id" uuid NOT NULL,
                 "agent" character varying(64) NOT NULL,
                 "media_type" text NOT NULL,
@@ -35,6 +36,9 @@ export class Init1793923200000 implements MigrationInterface {
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
                 CONSTRAINT "PK_c4156e692873ba7401c7f3c01fd" PRIMARY KEY ("id")
             )
+        `);
+        await queryRunner.query(`
+            CREATE UNIQUE INDEX "IDX_64c902fdab399f13c609a025eb" ON "chamvi_artifacts" ("run_id", "key")
         `);
         await queryRunner.query(`
             CREATE INDEX "IDX_ff9ed484c27b76465c2b54f7cf" ON "chamvi_artifacts" ("run_id")
@@ -225,7 +229,7 @@ export class Init1793923200000 implements MigrationInterface {
         `);
         await queryRunner.query(`
             CREATE TABLE "chamvi_steps" (
-                "seq" BIGSERIAL NOT NULL,
+                "id" BIGSERIAL NOT NULL,
                 "run_id" uuid NOT NULL,
                 "step_index" integer NOT NULL,
                 "kind" character varying(8) NOT NULL,
@@ -235,7 +239,7 @@ export class Init1793923200000 implements MigrationInterface {
                 "error" jsonb,
                 "started_at" TIMESTAMP WITH TIME ZONE NOT NULL,
                 "finished_at" TIMESTAMP WITH TIME ZONE NOT NULL,
-                CONSTRAINT "PK_72353942e42d70f6532fa654d3d" PRIMARY KEY ("seq")
+                CONSTRAINT "PK_78c3048e38422b1384366e48b5e" PRIMARY KEY ("id")
             )
         `);
         await queryRunner.query(`
@@ -243,10 +247,10 @@ export class Init1793923200000 implements MigrationInterface {
         `);
         await queryRunner.query(`
             CREATE TABLE "chamvi_conversation_items" (
-                "seq" BIGSERIAL NOT NULL,
+                "id" BIGSERIAL NOT NULL,
                 "scope_id" uuid NOT NULL,
                 "generation" integer NOT NULL,
-                "id" text COLLATE "C" NOT NULL,
+                "item_key" text COLLATE "C" NOT NULL,
                 "run_id" uuid NOT NULL,
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
                 "role" text NOT NULL,
@@ -255,17 +259,17 @@ export class Init1793923200000 implements MigrationInterface {
                 "effect_key" text,
                 "target_channel" text,
                 "target_address" text,
-                CONSTRAINT "PK_f777143245b3b360dfbe02a1bc1" PRIMARY KEY ("seq")
+                CONSTRAINT "PK_7582c3d3eafdb1c3d71c2d4e368" PRIMARY KEY ("id")
             )
         `);
         await queryRunner.query(`
             CREATE INDEX "IDX_e3edf09ee4749bad2d7b394c83" ON "chamvi_conversation_items" ("run_id")
         `);
         await queryRunner.query(`
-            CREATE INDEX "IDX_d53928fda61d11e44f785eb2a6" ON "chamvi_conversation_items" ("scope_id", "generation", "created_at", "seq")
+            CREATE INDEX "IDX_cc871fd9bfee0f0af9eea663b0" ON "chamvi_conversation_items" ("scope_id", "generation", "created_at", "id")
         `);
         await queryRunner.query(`
-            CREATE UNIQUE INDEX "IDX_e33a156ff38559b5139e6a73ae" ON "chamvi_conversation_items" ("scope_id", "generation", "id")
+            CREATE UNIQUE INDEX "IDX_00e34f110df7ce68c283289081" ON "chamvi_conversation_items" ("scope_id", "generation", "item_key")
         `);
         await queryRunner.query(`
             CREATE TABLE "chamvi_conversation_notes" (
@@ -435,10 +439,10 @@ export class Init1793923200000 implements MigrationInterface {
             DROP TABLE "chamvi_conversation_notes"
         `);
         await queryRunner.query(`
-            DROP INDEX "IDX_e33a156ff38559b5139e6a73ae"
+            DROP INDEX "IDX_00e34f110df7ce68c283289081"
         `);
         await queryRunner.query(`
-            DROP INDEX "IDX_d53928fda61d11e44f785eb2a6"
+            DROP INDEX "IDX_cc871fd9bfee0f0af9eea663b0"
         `);
         await queryRunner.query(`
             DROP INDEX "IDX_e3edf09ee4749bad2d7b394c83"
@@ -535,6 +539,9 @@ export class Init1793923200000 implements MigrationInterface {
         `);
         await queryRunner.query(`
             DROP INDEX "IDX_ff9ed484c27b76465c2b54f7cf"
+        `);
+        await queryRunner.query(`
+            DROP INDEX "IDX_64c902fdab399f13c609a025eb"
         `);
         await queryRunner.query(`
             DROP TABLE "chamvi_artifacts"

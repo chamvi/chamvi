@@ -14,10 +14,20 @@ import {
 import { TableName } from './constants.ts';
 
 @Index(['runId'])
+@Index(['runId', 'key'], { unique: true })
 @Entity({ name: TableName.ARTIFACTS })
 export class ArtifactEntity {
     @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
+
+    @Column({
+        type: 'text',
+        collation: 'C',
+        nullable: true,
+        select: false,
+        update: false,
+    })
+    key!: string | null;
 
     @Column({
         name: 'run_id',

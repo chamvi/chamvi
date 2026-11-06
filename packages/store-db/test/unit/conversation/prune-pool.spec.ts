@@ -129,7 +129,7 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
         const items = Array.from({ length: 250 }, (_value, index) => ({
             scopeId: s.scope.id,
             generation: s.scope.generation,
-            id: `item-${index}`,
+            itemKey: `item-${index}`,
             runId: WRITER_RUN,
             createdAt: s.clock.now(),
             role: 'user' as const,

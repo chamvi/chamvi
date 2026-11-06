@@ -31,7 +31,6 @@ import type {
     IStore,
     ModelAgentDefinition,
 } from '@chamvi/core';
-import { attachmentIds } from '../../../src/artifact/module.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { MemoryArtifactRepository, createMemoryStore } from '../../../src/repository/index.ts';
 import { gateTool, recordApprovals } from '../../utils/approvals.ts';
@@ -157,7 +156,7 @@ describe('attachments at dispatch', () => {
 
         expect(listed).toEqual(run.trigger.attachments);
         expect(run.trigger.attachments?.[0]).toEqual({
-            id: attachmentIds(runId, 2)[0],
+            id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
             runId,
             agent: 'vision',
             mediaType: 'image/png',
@@ -181,7 +180,6 @@ describe('attachments at dispatch', () => {
         const listed = await ctx.store.artifacts.find(runId);
 
         expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
-        expect(listed.map((a) => a.id)).toEqual(attachmentIds(runId, attachments.length));
     });
 
     it('keeps UUID attachment input order beyond 10000 attachments', async () => {
@@ -190,7 +188,6 @@ describe('attachments at dispatch', () => {
         const { runId } = await ctx.engine.dispatch(env({ attachments }));
         const listed = await ctx.store.artifacts.find(runId);
 
-        expect(listed.map((a) => a.id)).toEqual(attachmentIds(runId, attachments.length));
         expect(listed.map((a) => a.id).sort()).toEqual(listed.map((a) => a.id));
         expect(listed.map((a) => a.id)).toEqual((await ctx.store.runs.findOne(runId))!.trigger.attachments!.map((a) => a.id));
     });

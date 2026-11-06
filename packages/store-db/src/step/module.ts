@@ -42,7 +42,7 @@ export class DatabaseStepRepository implements IStepRepository {
 
         const entities = await this.steps.find({
             where: { runId },
-            order: { index: 'ASC', seq: 'ASC' },
+            order: { index: 'ASC', id: 'ASC' },
         });
 
         return entities.map((entity) => toStep(entity));

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { isObject } from 'smob';
 import { ArtifactNotFoundError, InvalidRunStateError, RepositoryNotFoundError } from '@chamvi/core';
 import type { Artifact, IArtifactRepository } from '@chamvi/core';
 import type { DataSource, Repository } from 'typeorm';
@@ -27,10 +28,10 @@ export class DatabaseArtifactRepository implements IArtifactRepository {
         return this.dataSource.getRepository(ArtifactEntity);
     }
 
-    async insert(artifact: Artifact, data: Uint8Array): Promise<boolean> {
+    async insert(artifact: Artifact, data: Uint8Array, key?: string): Promise<boolean> {
         const result = await this.artifacts.createQueryBuilder()
             .insert()
-            .values(toArtifactValues(artifact, data))
+            .values(toArtifactValues(artifact, data, key))
             .orIgnore()
             .returning(['id'])
             .updateEntity(false)
@@ -39,27 +40,39 @@ export class DatabaseArtifactRepository implements IArtifactRepository {
         return result.raw.length === 1;
     }
 
-    async save(artifact: Artifact, data: Uint8Array): Promise<Artifact> {
-        // one statement: insert, or replace the row when it belongs to the same run
-        // (the overwrite condition), so an id of another run updates nothing
-        const result = await this.artifacts.createQueryBuilder()
-            .insert()
-            .values(toArtifactValues(artifact, data))
-            .orUpdate(
-                ['media_type', 'filename', 'size', 'data'],
-                ['id'],
-                { overwriteCondition: { where: { runId: artifact.runId } } },
-            )
-            .returning(['id', 'runId', 'agent', 'mediaType', 'filename', 'size', 'createdAt'])
-            .updateEntity(false)
-            .execute();
-        const [row] = result.raw as Record<string, unknown>[];
+    async save(artifact: Artifact, data: Uint8Array, key?: string): Promise<Artifact> {
+        try {
+            const result = await this.artifacts.createQueryBuilder()
+                .insert()
+                .values(toArtifactValues(artifact, data, key))
+                .orUpdate(
+                    ['media_type', 'filename', 'size', 'data'],
+                    key === undefined ? ['id'] : ['run_id', 'key'],
+                    { overwriteCondition: { where: { runId: artifact.runId } } },
+                )
+                .returning(['id', 'runId', 'agent', 'mediaType', 'filename', 'size', 'createdAt'])
+                .updateEntity(false)
+                .execute();
+            const [row] = result.raw as Record<string, unknown>[];
 
-        if (row === undefined) {
-            throw new InvalidRunStateError(`The artifact id "${artifact.id}" belongs to another run.`);
+            if (row === undefined) {
+                throw new InvalidRunStateError(`The artifact id "${artifact.id}" belongs to another run.`);
+            }
+
+            return toArtifact(toEntity(this.dataSource, ArtifactEntity, row));
+        } catch (error) {
+            const { metadata } = this.artifacts;
+            const primary = this.dataSource.namingStrategy.primaryKeyName(
+                metadata.tablePath,
+                metadata.primaryColumns.map((column) => column.databaseName),
+            );
+
+            if (isObject(error) && isObject(error.driverError) && error.driverError.code === '23505' && error.driverError.constraint === primary) {
+                throw new InvalidRunStateError(`The artifact id "${artifact.id}" is already in use.`);
+            }
+
+            throw error;
         }
-
-        return toArtifact(toEntity(this.dataSource, ArtifactEntity, row));
     }
 
     async findOne(id: string): Promise<Artifact | undefined> {
@@ -69,6 +82,16 @@ export class DatabaseArtifactRepository implements IArtifactRepository {
 
         // the data column is select: false, so the bytes stay in the database
         const entity = await this.artifacts.findOneBy({ id });
+
+        return entity ? toArtifact(entity) : undefined;
+    }
+
+    async findOneByKey(runId: string, key: string): Promise<Artifact | undefined> {
+        if (!isUuid(runId) || typeof key !== 'string' || !key.isWellFormed() || key.includes('\0')) {
+            return undefined;
+        }
+
+        const entity = await this.artifacts.findOneBy({ runId, key });
 
         return entity ? toArtifact(entity) : undefined;
     }

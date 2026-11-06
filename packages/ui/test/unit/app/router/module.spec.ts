@@ -17,11 +17,7 @@ describe('createUiRouter', () => {
         const router = createUiRouter(DEV_CONFIG, [], createMemoryHistory('/ui'));
 
         expect(router.resolve({ name: RouteName.RUNS }).href).toBe('/ui/runs');
-
-        for (const id of ['019a5555-1234-7abc-8123-456789abcdef', '019a5555-1234-7abc-8123-456789abcdee']) {
-            expect(router.resolve({ name: RouteName.RUN, params: { id } }).href).toBe(`/ui/runs/${id}`);
-        }
-
+        expect(router.resolve({ name: RouteName.RUN, params: { id: 'abc' } }).href).toBe('/ui/runs/abc');
         expect(router.resolve({ name: RouteName.APPROVALS }).href).toBe('/ui/approvals');
         expect(router.resolve({ name: RouteName.AGENTS }).href).toBe('/ui/agents');
         expect(router.resolve({ name: RouteName.AGENT, params: { name: 'release-notes' } }).href).toBe('/ui/agents/release-notes');

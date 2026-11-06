@@ -1310,6 +1310,74 @@ export function describeRepositoryContract(
             expect((await store.artifacts.find(RUN_1)).filter((a) => a.id === ARTIFACT_2)).toHaveLength(1);
         });
 
+        it('artifacts.insert scopes private keys to runs and keeps the first writer under races', async () => {
+            const { store } = await setup();
+            const first = makeArtifact(ARTIFACT_1);
+
+            expect(await store.artifacts.insert(first, new Uint8Array([1]), 'attachment:0')).toBe(true);
+            expect(await store.artifacts.insert(makeArtifact(ARTIFACT_2), new Uint8Array([2]), 'attachment:0')).toBe(false);
+            expect(await store.artifacts.findOneByKey(RUN_1, 'attachment:0')).toEqual(first);
+            expect(await store.artifacts.read(first.id)).toEqual(new Uint8Array([1]));
+            expect(await store.artifacts.insert(makeArtifact(ARTIFACT_3, { runId: RUN_2 }), new Uint8Array([3]), 'attachment:0')).toBe(true);
+            expect((await store.artifacts.findOneByKey(RUN_2, 'attachment:0'))?.id).toBe(ARTIFACT_3);
+            expect(await store.artifacts.findOneByKey(RUN_1, 'absent')).toBeUndefined();
+
+            const outcomes = await Promise.all(Array.from({ length: 4 }, (_, i) =>
+                store.artifacts.insert(makeArtifact(randomUUID()), new Uint8Array([i]), 'attachment:1')));
+
+            expect(outcomes.filter(Boolean)).toHaveLength(1);
+            expect(await store.artifacts.findOneByKey(RUN_1, 'attachment:1')).not.toHaveProperty('key');
+            expect(await store.artifacts.find(RUN_1)).toHaveLength(2);
+        });
+
+        it('artifacts.save replaces a private key while preserving its public identity and first metadata', async () => {
+            const { store, clock } = await setup();
+            const first = makeArtifact(ARTIFACT_1, { createdAt: clock.now() });
+
+            await store.artifacts.save(first, new Uint8Array([1]), 'tool:report');
+            clock.advance(1000);
+
+            const saved = await store.artifacts.save(
+                makeArtifact(ARTIFACT_2, {
+                    agent: 'renamed',
+                    filename: 'report.txt',
+                    size: 1,
+                    createdAt: clock.now(),
+                }),
+                new Uint8Array([2]),
+                'tool:report',
+            );
+
+            expect(saved).toEqual({
+                ...first,
+                filename: 'report.txt',
+                size: 1,
+            });
+            expect(saved).not.toHaveProperty('key');
+            expect(await store.artifacts.findOneByKey(RUN_1, 'tool:report')).toEqual(saved);
+            expect(await store.artifacts.findOne(ARTIFACT_2)).toBeUndefined();
+            expect(await store.artifacts.read(first.id)).toEqual(new Uint8Array([2]));
+
+            await expect(store.artifacts.save({ ...saved, filename: 'rebound.txt' }, new Uint8Array([9]), 'tool:new'))
+                .rejects.toMatchObject({ code: 'invalid_run_state' });
+            expect(await store.artifacts.findOneByKey(RUN_1, 'tool:new')).toBeUndefined();
+            expect(await store.artifacts.findOneByKey(RUN_1, 'tool:report')).toEqual(saved);
+            expect(await store.artifacts.read(first.id)).toEqual(new Uint8Array([2]));
+
+            const other = makeArtifact(ARTIFACT_3, { runId: RUN_2 });
+
+            await store.artifacts.insert(other, new Uint8Array([3]));
+            expect(await store.artifacts.save({ ...saved, id: other.id }, new Uint8Array([2]), 'tool:report')).toEqual(saved);
+            expect(await store.artifacts.findOne(other.id)).toEqual(other);
+            expect(await store.artifacts.read(other.id)).toEqual(new Uint8Array([3]));
+
+            const results = await Promise.all(Array.from({ length: 4 }, (_, i) =>
+                store.artifacts.save(makeArtifact(randomUUID(), { size: 1 }), new Uint8Array([i]), 'tool:race')));
+
+            expect(new Set(results.map((artifact) => artifact.id)).size).toBe(1);
+            expect(await store.artifacts.find(RUN_1)).toHaveLength(2);
+        });
+
         it('artifacts.findOne and artifacts.read return metadata and plain Uint8Array bytes', async () => {
             const { store } = await setup();
             const artifact = makeArtifact(ARTIFACT_1, { size: 4 });

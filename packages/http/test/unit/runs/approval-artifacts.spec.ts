@@ -6,7 +6,6 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { keyedArtifactId } from '@chamvi/core';
 import {
     ADMIN_TOKEN,
     READER_TOKEN,
@@ -32,7 +31,12 @@ async function pausedShots() {
 
     expect((await ctx.store.runs.findOne(runId))?.status).toBe('waiting');
 
-    return { ...ctx, runId };
+    return {
+        ...ctx,
+        runId,
+        overview: (await ctx.store.artifacts.findOneByKey(runId, 'tool:overview'))!,
+        diff: (await ctx.store.artifacts.findOneByKey(runId, 'tool:button/diff'))!,
+    };
 }
 
 describe('approval artifacts on the run wire', () => {
@@ -40,7 +44,9 @@ describe('approval artifacts on the run wire', () => {
         const {
             app, 
             engine, 
-            runId, 
+            runId,
+            overview,
+            diff,
         } = await pausedShots();
         const response = await call(app, 'GET', `/runs/${runId}`, { token: READER_TOKEN });
 
@@ -53,11 +59,11 @@ describe('approval artifacts on the run wire', () => {
             }
         };
 
-        expect(waiting.artifacts).toEqual([keyedArtifactId(runId, 'overview')]);
+        expect(waiting.artifacts).toEqual([overview.id]);
         expect(waiting.options).toEqual([{
             id: 'button',
             label: 'Button',
-            artifacts: [keyedArtifactId(runId, 'button/diff')],
+            artifacts: [diff.id],
         }, { id: 'none', label: 'None' }]);
         await engine.drain();
     });
@@ -66,9 +72,11 @@ describe('approval artifacts on the run wire', () => {
         const {
             app, 
             engine, 
-            runId, 
+            runId,
+            overview,
+            diff,
         } = await pausedShots();
-        const id = keyedArtifactId(runId, 'button/diff');
+        const { id } = diff;
         const response = await call(app, 'GET', `/runs/${runId}/artifacts/${id}`, { token: READER_TOKEN });
 
         expect(response.status).toBe(200);
@@ -80,8 +88,8 @@ describe('approval artifacts on the run wire', () => {
         const { data } = await list.json() as { data: Array<{ id: string; filename?: string }> };
 
         expect(data.map((item) => item.id).sort()).toEqual([
-            keyedArtifactId(runId, 'overview'),
-            keyedArtifactId(runId, 'button/diff'),
+            overview.id,
+            diff.id,
         ].sort());
         await engine.drain();
     });

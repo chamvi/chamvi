@@ -70,7 +70,7 @@ describePostgres('conversation query bounds', () => {
         const rows = Array.from({ length: 250 }, (_value, index) => ({
             scopeId: scope.id,
             generation: scope.generation,
-            id: `item-${index}`,
+            itemKey: `item-${index}`,
             runId: WRITER_RUN,
             createdAt: clock.now(),
             role: 'assistant' as const,
@@ -81,7 +81,7 @@ describePostgres('conversation query bounds', () => {
         await dataSource.getRepository(ConversationItemEntity).insert(rows.map((row) => asValues<ConversationItemEntity>(row)));
         await dataSource.getRepository(ConversationItemEntity).insert(asValues<ConversationItemEntity>({
             ...rows[0]!,
-            id: 'unknown',
+            itemKey: 'unknown',
             text: 'u',
             status: 'unknown',
         }));
@@ -131,7 +131,7 @@ describePostgres('conversation query bounds', () => {
         const rows = Array.from({ length: 205 }, (_value, index) => asValues<ConversationItemEntity>({
             scopeId: scope.id,
             generation: scope.generation,
-            id: `item-${index}`,
+            itemKey: `item-${index}`,
             runId: WRITER_RUN,
             createdAt: clock.now(),
             role: 'user',

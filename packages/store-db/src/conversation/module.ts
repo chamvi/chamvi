@@ -83,7 +83,7 @@ function scopeOf(row: ConversationEntity): ConversationScope {
 
 function itemOf(row: ConversationItemEntity): ConversationItem {
     return {
-        id: row.id,
+        id: row.itemKey,
         role: row.role,
         text: row.text,
         runId: row.runId,
@@ -96,7 +96,7 @@ function itemOf(row: ConversationItemEntity): ConversationItem {
 
 function itemValues(item: ConversationItem) {
     return {
-        id: item.id,
+        itemKey: item.id,
         role: item.role,
         text: item.text,
         runId: item.runId,
@@ -262,7 +262,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 return { kind: 'busy', runId: row.activeRunId };
             }
 
-            if (await manager.existsBy(ConversationItemEntity, { ...where, id: userItemId(runId) })) {
+            if (await manager.existsBy(ConversationItemEntity, { ...where, itemKey: userItemId(runId) })) {
                 throw new InvalidRunStateError('The conversation turn has already ended.');
             }
 
@@ -321,10 +321,10 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 .where(where)
                 // Find options cannot compare a text column's UTF-8 byte length.
                 .andWhere('octet_length(item.text) <= :maxBytes', { maxBytes: limits.maxHistoryBytes - bytes })
-                .orderBy('item.seq', 'DESC').take(100);
+                .orderBy('item.id', 'DESC').take(100);
 
             if (before !== undefined) {
-                query.andWhere('item.seq < :before', { before });
+                query.andWhere('item.id < :before', { before });
             }
 
             const page = await query.getMany();
@@ -333,7 +333,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 break;
             }
 
-            before = page[page.length - 1]!.seq;
+            before = page[page.length - 1]!.id;
 
             // Newer selected records keep priority; previously skipped records cannot fit a smaller remaining budget.
             const candidates = [...page.reverse().map(itemOf), ...items];
@@ -365,7 +365,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
             const pending = await this.pending(manager, scope, runId);
 
             for (const entry of pending) {
-                await manager.update(ConversationItemEntity, { seq: entry.seq }, { status: confirmedEmitIds.includes(entry.id) ? 'sent' : 'unknown' });
+                await manager.update(ConversationItemEntity, { id: entry.id }, { status: confirmedEmitIds.includes(entry.itemKey) ? 'sent' : 'unknown' });
             }
 
             await manager.update(ConversationEntity, { id: row.id }, ENDED_TURN);
@@ -383,7 +383,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
             const where = {
                 scopeId: scope.id,
                 generation: scope.generation,
-                id: item.id,
+                itemKey: item.id,
             };
             const previous = await manager.findOneBy(ConversationItemEntity, where);
 
@@ -412,7 +412,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
             const entry = typeof itemId === 'string' ? await manager.findOneBy(ConversationItemEntity, {
                 scopeId: scope.id,
                 generation: scope.generation,
-                id: itemId,
+                itemKey: itemId,
             }) : null;
 
             if (!entry) {
@@ -422,7 +422,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
             this.owner(current, entry.runId);
 
             if (entry.status === 'pending') {
-                await manager.update(ConversationItemEntity, { seq: entry.seq }, { status: 'sent' });
+                await manager.update(ConversationItemEntity, { id: entry.id }, { status: 'sent' });
             }
         });
     }
@@ -438,7 +438,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 generation: scope.generation,
                 runId,
             },
-            order: { seq: 'ASC' },
+            order: { id: 'ASC' },
         });
 
         return items.filter((entry) => entry.status === 'pending');
@@ -457,7 +457,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
 
         const [rows, total] = await this.items.findAndCount({
             where: { scopeId: scope.id, generation: scope.generation },
-            order: { seq: 'ASC' },
+            order: { id: 'ASC' },
             skip: query.offset,
             take: query.limit,
         });
@@ -680,9 +680,9 @@ export class DatabaseConversationRepository implements IConversationRepository {
 
         while (excess > 0) {
             const candidates = await manager.find(ConversationItemEntity, {
-                select: { seq: true },
+                select: { id: true },
                 where: { ...where, ...(activeRunId === null ? {} : { runId: Not(activeRunId) }) },
-                order: { seq: 'ASC' },
+                order: { id: 'ASC' },
                 take: Math.min(excess, 100),
             });
 
@@ -690,7 +690,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 break;
             }
 
-            await manager.delete(ConversationItemEntity, { seq: In(candidates.map((entry) => entry.seq)) });
+            await manager.delete(ConversationItemEntity, { id: In(candidates.map((entry) => entry.id)) });
             excess -= candidates.length;
         }
     }
@@ -700,13 +700,13 @@ export class DatabaseConversationRepository implements IConversationRepository {
 
         for (;;) {
             const expired = await manager.find(ConversationItemEntity, {
-                select: { seq: true },
+                select: { id: true },
                 where: {
                     scopeId: row.id,
                     createdAt: LessThanOrEqual(before),
                     ...(row.activeRunId === null ? {} : { runId: Not(row.activeRunId) }),
                 },
-                order: { seq: 'ASC' },
+                order: { id: 'ASC' },
                 take: 100,
             });
 
@@ -714,7 +714,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 break;
             }
 
-            await manager.delete(ConversationItemEntity, { seq: In(expired.map((entry) => entry.seq)) });
+            await manager.delete(ConversationItemEntity, { id: In(expired.map((entry) => entry.id)) });
         }
 
         await manager.delete(ConversationNoteEntity, { scopeId: row.id, expiresAt: LessThanOrEqual(this.clock.now()) });

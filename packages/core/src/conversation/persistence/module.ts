@@ -10,7 +10,6 @@ import { isObject } from 'smob';
 import { stableHash } from '../../effect/helpers.ts';
 import { ValidationError } from '../../errors/index.ts';
 import { compareCodePoints } from '../../repository/memory/helpers.ts';
-import { isUuidV7 } from '../../uuid/module.ts';
 import {
     CONVERSATION_FIELD_MAX_LENGTH,
     CONVERSATION_LIMITS_MAX,
@@ -116,7 +115,7 @@ export function assertConversationScope(scope: unknown): asserts scope is Conver
         throw new ValidationError('The conversation scope must be an object.');
     }
 
-    if (typeof scope.id !== 'string' || !isUuidV7(scope.id)) {
+    if (typeof scope.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(scope.id)) {
         throw new ValidationError('The conversation scope id must be a UUID v7.');
     }
 

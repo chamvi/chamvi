@@ -15,7 +15,6 @@ import {
     Engine,
     ValidationError,
     defineModelAgent,
-    keyedArtifactId,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { createRunArtifacts } from '../../../src/artifact/module.ts';
@@ -66,7 +65,7 @@ describe('keyed artifacts', () => {
         expect(await store.artifacts.find(RUN.id)).toHaveLength(0);
     });
 
-    it('derives the id of a put with a key from run and key', async () => {
+    it('stores a UUID id while keeping its storage key private', async () => {
         const { artifacts } = setup();
         const artifact = await artifacts.put({
             key: 'vr/button/actual', 
@@ -74,7 +73,7 @@ describe('keyed artifacts', () => {
             data: new Uint8Array([1]), 
         });
 
-        expect(artifact.id).toBe(keyedArtifactId(RUN.id, 'vr/button/actual'));
+        expect(artifact.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
         expect(artifact).not.toHaveProperty('key');
     });
 
@@ -138,6 +137,7 @@ describe('keyed artifacts', () => {
         ['an empty key', ''],
         ['a key over 255 characters', 'x'.repeat(256)],
         ['a key with a NUL', 'a\0b'],
+        ['a key with a lone surrogate', 'a\ud800b'],
         ['a non-string key', 42],
     ])('refuses %s', async (_, key) => {
         const { artifacts, store } = setup();
@@ -159,7 +159,7 @@ describe('keyed artifacts', () => {
             mediaType: 'text/plain', 
             data: new Uint8Array([1]), 
         }))
-            .resolves.toMatchObject({ id: keyedArtifactId(RUN.id, 'x'.repeat(255)) });
+            .resolves.toHaveProperty('id');
     });
 
     it('refuses a dispatch attachment with a key', async () => {

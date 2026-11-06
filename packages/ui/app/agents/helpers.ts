@@ -12,7 +12,6 @@ import type {
     ScheduleWire,
 } from '../api/types.ts';
 import { hasPermission } from '../auth/helpers.ts';
-import { shortId } from '../runs/helpers.ts';
 import { ACTIVITY_WINDOW_MS } from './constants.ts';
 import type {
     Activity,
@@ -243,7 +242,7 @@ export function formatBudgetTime(ms: number | undefined): string {
 export function failedSummary(activity: Activity): string {
     const run = activity.lastFailed;
 
-    return run ? `${shortId(run.id)} · ${run.error?.code ?? 'failed'}` : 'no failures';
+    return run ? `${run.id.slice(0, 8)} · ${run.error?.code ?? 'failed'}` : 'no failures';
 }
 
 /** 32 random hex characters; `crypto.getRandomValues` works outside a secure context too, unlike `randomUUID`. */

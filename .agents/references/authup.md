@@ -7,5 +7,3 @@
 - chamvi mapping: `packages/core/src/repository/types.ts` contains role-specific contracts; `packages/core/src/repository/memory/` and `packages/store-db/src/` implement them; `Engine.store` receives the assembled capabilities.
 
 The user's requested `find`/`findOne`/`findOrFail`/`findOneOrFail` naming is explicit. It is not a claim that Authup exposes that exact quartet: the inspected generic Authup contract uses `findMany`, `findOneById` and other qualified methods. chamvi retains its existing domain return shapes, absence as undefined, mutation atomicity and clock semantics. No generic ORM query language or adapter inheritance hierarchy was introduced.
-
-- Migration workflow inspected at `7ffe960af`: `apps/server-core/src/cli/commands/migration.ts` applies the chain, then calls `generateMigration({ prettify: true })`. chamvi uses the same generator in `packages/store-db/test/unit/schema/migrate.spec.ts` to require empty `up` and `down` results after the baseline.

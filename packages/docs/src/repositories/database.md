@@ -34,10 +34,10 @@ On shutdown, drain the engine before destroying the data source:
 | Table | Holds | Keys and indexes |
 |---|---|---|
 | `chamvi_runs` | Runs; JSON columns for trigger, output, error, usage, subtree usage, wait point and `taint`; the run's `address` in the `thread` column; claim owner and expiry; the conversation binding; `parent_run_id` | PK `id` (UUID); `(agent, status, concurrency_key)`; `(status, created_at, id)`; `conversation_scope_id`; `parent_run_id` (FK to `id`) |
-| `chamvi_steps` | Append-only steps | PK `seq` (bigint); `(run_id, step_index)` |
+| `chamvi_steps` | Append-only steps | PK `id` (bigint); `(run_id, step_index)` |
 | `chamvi_checkpoints` | The latest checkpoint per run | PK `id` (UUID); unique `run_id`; `conversation_scope_id` |
 | `chamvi_conversations` | Conversation identities, generation, active owner and its snapshot | PK `id` (UUID) |
-| `chamvi_conversation_items` | Transcript items and the send journal | PK `seq`; unique `(scope_id, generation, id)`; `(scope_id, generation, created_at, seq)`; `run_id` |
+| `chamvi_conversation_items` | Transcript items and the send journal | PK `id` (bigint); unique `(scope_id, generation, item_key)`; `(scope_id, generation, created_at, id)`; `run_id` |
 | `chamvi_conversation_notes` | Explicit notes | PK `id` (UUID); unique `(scope_id, generation, key)`; `expires_at`; `run_id` |
 | `chamvi_conversation_operations` | Note operation receipts | PK `id` (UUID); unique `(scope_id, generation, operation_id)`; `(scope_id, created_at, operation_id)`; `run_id` |
 | `chamvi_idempotency_keys` | Intake keys | PK `id` (UUID); unique `(scope, key)`; `expires_at` |
@@ -45,7 +45,7 @@ On shutdown, drain the engine before destroying the data source:
 | `chamvi_effects` | Recorded effect results | PK `id` (UUID); unique `key` |
 | `chamvi_kv` | Agent key-value state | PK `id` (UUID); unique `(agent, key)`, `key` `COLLATE "C"` |
 | `chamvi_docs` | Agent document collections | PK `id` (UUID); unique `(agent, collection, document_id)`; GIN index on `doc` |
-| `chamvi_artifacts` | Artifact metadata and bytes (`data` `bytea`) | PK `id`; `run_id` |
+| `chamvi_artifacts` | Artifact metadata and bytes (`data` `bytea`) | PK `id` (UUID); `run_id`; unique `(run_id, key)` |
 | `chamvi_agent_revisions` | One revision marker per folder agent: `hash` varchar(128), `changed_at` | PK `id` (UUID); unique `agent` varchar(64) `COLLATE "C"` |
 
 Conversation rows, active owners, transcript items, notes and operation receipts use foreign keys to their local runs and identities. Steps and checkpoints also require an existing run. Use the same DataSource for every built-in TypeORM role; these relationships do not create a transaction spanning run dispatch, conversation mutation and generic effects. See [Conversation memory](/guide/conversations).

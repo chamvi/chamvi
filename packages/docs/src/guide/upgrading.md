@@ -6,7 +6,9 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 This version starts with the generated `Init1793923200000` baseline and requires an empty database. Use a new database name in `DATABASE_URL` and retain a backup of the previous database. The historical migration chain is not an upgrade path to this version.
 
-Framework-generated run, artifact and conversation IDs use UUID v7 directly as primary keys. Business keys remain indexed fields; UUIDs are supplied by application code without database defaults. Custom conversation repositories must generate UUID v7 scope IDs. The existing bigint sequence keys remain strings across application boundaries.
+Framework-generated run, artifact and conversation IDs use UUID v7 directly as primary keys. Business keys remain indexed fields; UUIDs are supplied by application code without database defaults. Custom conversation repositories must generate UUID v7 scope IDs. Every entity has one primary key named `id`; the step and conversation-item bigint IDs remain strings across application boundaries.
+
+Custom artifact repositories must support the optional run-scoped storage key on `insert` and `save`, and implement `findOneByKey`. `keyedArtifactId()` is removed; use the artifact ID returned by `artifacts.put()`.
 
 ## Upgrading to 0.7
 
