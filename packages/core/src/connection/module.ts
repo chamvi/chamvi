@@ -15,12 +15,13 @@ import {
 } from './helpers.ts';
 import { ConnectionSession } from './session.ts';
 import type {
+    Connection,
     ConnectionOpenOptions,
     ConnectionVaultOptions,
     IConnectionSession,
     IConnectionVault,
 } from './types.ts';
-import { assertConnectionName } from './validate.ts';
+import { assertConnection, assertConnectionName } from './validate.ts';
 
 /**
  * A connection vault over a store with `connections` and a keyring. Throws
@@ -58,29 +59,41 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
             try {
                 signal?.throwIfAborted();
 
-                // under the lease only the holder deletes: the entries go with the row, a fresh data key follows
-                if (recreate) {
-                    await connections.delete(name);
-                }
-
-                let connection = await connections.findOne(name);
-
-                if (!connection) {
+                const create = (): Connection => {
                     const now = clock.now();
                     const { key, wrapped } = keyring.createDataKey(dataKeyContextOf(name));
 
                     key.fill(0);
-                    await connections.insert({
+
+                    return {
                         name,
                         type,
                         keyId: wrapped.keyId,
                         wrappedKey: wrapped.wrapped,
                         createdAt: now,
                         updatedAt: now,
-                    });
-                    // re-read: the stored row wins if another holder inserted in between
-                    connection = await connections.findOneOrFail(name);
+                    };
+                };
+
+                let connection: Connection | undefined;
+
+                if (recreate) {
+                    const replacement = create();
+
+                    // the whole replacement is checked before anything is deleted
+                    assertConnection(replacement);
+                    // fenced by the lease: an opener whose lease lapsed deletes nothing of the next holder
+                    await connections.replace(replacement, { lock, owner });
+                } else {
+                    connection = await connections.findOne(name);
+
+                    if (!connection) {
+                        await connections.insert(create());
+                    }
                 }
+
+                // re-read: the stored row wins if another holder inserted in between
+                connection ??= await connections.findOneOrFail(name);
 
                 if (connection.type !== type) {
                     throw new InvalidAgentDefinitionError(

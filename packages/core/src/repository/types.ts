@@ -222,6 +222,15 @@ export interface IConnectionRepository {
     find(): Promise<Connection[]>;
     /** Removes the connection and its entries; a missing name is a no-op. */
     delete(name: string): Promise<void>;
+    /**
+     * Atomic, all or nothing: deletes the connection of `connection.name` with
+     * its entries (if present) and inserts `connection`. The replacement is
+     * validated as by `insert` (ValidationError) before anything else; `fence`
+     * must name the lease `connection:<name>` its owner holds unexpired at
+     * write time, checked atomically with the write; otherwise LeaseLostError
+     * and nothing changes.
+     */
+    replace(connection: Connection, fence: ConnectionFence): Promise<void>;
     findEntry(name: string, key: string): Promise<Uint8Array | undefined>;
     /** The stored ones of `keys`; missing keys are absent from the map. */
     findEntries(name: string, keys: readonly string[]): Promise<Map<string, Uint8Array>>;

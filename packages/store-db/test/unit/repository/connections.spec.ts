@@ -164,6 +164,27 @@ describePostgres('connections in postgres', () => {
         expect(await store.connections.findEntry('wa', 'a')).toBeUndefined();
     });
 
+    it('replace reads the clock after its row locks: a replace blocked past the lease expiry deletes nothing', async () => {
+        const ds = await create();
+        const clock = new ControllableClock();
+        const store = createDatabaseStore({ dataSource: ds, clock });
+        const fence = { lock: 'connection:wa', owner: 'o1' };
+
+        await store.connections.insert(connection('wa'));
+        await store.locks.acquire(fence.lock, fence.owner, 1_000);
+        await store.connections.writeEntries('wa', { set: { a: new Uint8Array([1]) } }, fence);
+
+        const release = await holdLeaseRow(ds, fence.lock);
+        const replacing = store.connections.replace({ ...connection('wa'), type: 'telegram' }, fence);
+
+        await waitForLockWait(ds);
+        clock.advance(1_000);
+        await release();
+        await expect(replacing).rejects.toBeInstanceOf(LeaseLostError);
+        expect((await store.connections.findOneOrFail('wa')).type).toBe('whatsapp');
+        expect(Array.from((await store.connections.findEntry('wa', 'a'))!)).toEqual([1]);
+    });
+
     it('renew reads the clock after its row lock: a renew blocked past the lease expiry is refused', async () => {
         const ds = await create();
         const clock = new ControllableClock();
