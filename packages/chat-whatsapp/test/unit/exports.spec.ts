@@ -14,11 +14,14 @@ describe('public api', () => {
             'WHATSAPP_ADAPTER_NAME',
             'WHATSAPP_AUTH_ERROR_CODE',
             'WHATSAPP_CONNECTION_ERROR_CODE',
+            'WHATSAPP_CONNECTION_TYPE',
             'WHATSAPP_LOGGED_OUT_ERROR_CODE',
             'WHATSAPP_RECONNECT',
             'WHATSAPP_SHUTDOWN_TIMEOUT_MS',
+            'createStoreWhatsAppAuth',
             'createWhatsAppChat',
         ]);
+        expect(pkg.WHATSAPP_CONNECTION_TYPE).toBe('whatsapp');
         expect(pkg.WHATSAPP_ADAPTER_NAME).toBe('whatsapp');
         expect(pkg.createWhatsAppChat).toBeTypeOf('function');
     });

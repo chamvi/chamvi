@@ -46,6 +46,12 @@ export type WhatsAppAuthLease = {
     flush(): Promise<void>;
     /** Gives the location up for another holder; called after `flush`. */
     release(): Promise<void>;
+    /**
+     * Optional: resolves when the provider lost the location (e.g. its lease
+     * expired and another holder took it); the connection then ends its
+     * socket and waits for the location again. Need not settle otherwise.
+     */
+    lost?: Promise<unknown>;
 };
 
 /** Hands out the session lease; caller-supplied, chamvi ships no production provider. */
