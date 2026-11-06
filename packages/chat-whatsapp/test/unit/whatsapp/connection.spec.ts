@@ -20,7 +20,7 @@ import {
     createKeyring,
     createMemoryStore,
 } from '@chamvi/core';
-import type { IEngine, IStore } from '@chamvi/core';
+import type { IEngine, IKeyring, IStore } from '@chamvi/core';
 import {
     WHATSAPP_AUTH_ERROR_CODE,
     WHATSAPP_CONNECTION_ERROR_CODE,
@@ -71,15 +71,22 @@ type StoreWorld = WhatsAppFixture & {
 };
 
 /** the fixture over the store provider; `holderClock` drives the fixture provider's renewals (default the fixture's) */
-function storeWorld(input: { holderClock?: ControllableClock; patch?: Partial<WhatsAppChatOptions> } = {}): StoreWorld {
-    const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
-    const connections = createMemoryStore({ clock });
+function storeWorld(input: {
+    holderClock?: ControllableClock;
+    patch?: Partial<WhatsAppChatOptions>;
+    /** the fixture provider's keyring (default the shared one) */
+    keyring?: IKeyring;
+    clock?: ControllableClock;
+    store?: IStore;
+} = {}): StoreWorld {
+    const clock = input.clock ?? new ControllableClock(new Date('2026-11-01T09:00:00Z'));
+    const connections = input.store ?? createMemoryStore({ clock });
     const statuses: WhatsAppConnectionStatus[] = [];
-    const provider = (owner: string, renewClock: ControllableClock) => createStoreWhatsAppAuth({
+    const provider = (owner: string, renewClock: ControllableClock, ring: IKeyring = keyring) => createStoreWhatsAppAuth({
         vault: createConnectionVault({
-            store: connections, 
-            keyring, 
-            clock: renewClock, 
+            store: connections,
+            keyring: ring,
+            clock: renewClock,
         }),
         connection: 'bot',
         owner,
@@ -87,7 +94,7 @@ function storeWorld(input: { holderClock?: ControllableClock; patch?: Partial<Wh
     });
     const fixture = createWhatsAppFixture({
         patch: {
-            auth: provider('connector', input.holderClock ?? clock),
+            auth: provider('connector', input.holderClock ?? clock, input.keyring),
             clock,
             onStatus: (status) => {
                 statuses.push(status);
@@ -349,6 +356,36 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
         expect(world.setup.status()).toBe('connecting');
         await expect(Promise.resolve(first.config.auth.keys.set({ session: { b: new Uint8Array([2]) } })))
             .rejects.toBeInstanceOf(InvalidRunStateError);
+    });
+
+    it('a reset recovers a session whose data key no keyring key unwraps', async () => {
+        const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
+        const store = createMemoryStore({ clock });
+        const before = storeWorld({ clock, store });
+
+        await before.engine.start();
+        await before.sockets.last().config.auth.keys.set({ session: { 'alice.0': new Uint8Array([1]) } });
+        await before.engine.stop();
+
+        // the old master key is gone from the keyring
+        const world = storeWorld({
+            clock,
+            store,
+            keyring: createKeyring([{ id: 'k2', key: randomBytes(32) }]),
+        });
+
+        await world.engine.start();
+        expect(world.setup.status()).toBe('failed');
+        expect(world.sockets.sockets).toEqual([]);
+
+        await world.setup.reset();
+
+        expect(world.sockets.sockets).toHaveLength(1);
+        expect(world.setup.status()).toBe('connecting');
+        expect((await store.connections!.findOneOrFail('bot')).keyId).toBe('k2');
+        expect(await store.connections!.findEntry('bot', 'key:session:alice.0')).toBeUndefined();
+        expect(await store.connections!.findEntry('bot', 'creds')).toBeInstanceOf(Uint8Array);
+        expect(await world.sockets.last().config.auth.keys.get('session', ['alice.0'])).toEqual({});
     });
 
     it('a reset of a connection that is not started is refused', async () => {

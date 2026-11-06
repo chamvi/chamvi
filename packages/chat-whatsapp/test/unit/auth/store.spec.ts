@@ -15,6 +15,7 @@ import {
 } from 'vitest';
 import {
     ConnectionHeldError,
+    DecryptionFailedError,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     createConnectionVault,
@@ -196,6 +197,38 @@ describe('createStoreWhatsAppAuth', () => {
         await lease.auth.keys.clear!();
 
         expect(await store.connections!.findEntries('bot', ['creds', 'key:session:a'])).toEqual(new Map());
+    });
+
+    it('a reset acquire recreates the session under a fresh data key, also when no keyring key unwraps it', async () => {
+        const { store, provider } = world();
+        const lease = await provider('a').acquire(new AbortController().signal);
+
+        lease.auth.creds = { ...lease.auth.creds, registered: true };
+        await lease.saveCreds();
+        await lease.auth.keys.set({ session: { a: new Uint8Array([1]) } });
+        await lease.release();
+
+        const rotated = createConnectionVault({ store, keyring: createKeyring([{ id: 'k2', key: randomBytes(32) }]) });
+        const lost = createStoreWhatsAppAuth({ vault: rotated, connection: 'bot' });
+
+        await expect(lost.acquire(new AbortController().signal)).rejects.toBeInstanceOf(DecryptionFailedError);
+
+        const fresh = await take(lost.acquire(new AbortController().signal, { reset: true }));
+
+        expect(fresh.auth.creds.registered).toBe(false);
+        expect(await fresh.auth.keys.get('session', ['a'])).toEqual({});
+        expect((await store.connections!.findOneOrFail('bot')).keyId).toBe('k2');
+        expect(await store.connections!.findEntries('bot', ['creds', 'key:session:a'])).toEqual(new Map());
+    });
+
+    it('a reset acquire while the session is held elsewhere deletes nothing', async () => {
+        const { store, provider } = world();
+        const holder = await take(provider('a').acquire(new AbortController().signal));
+
+        await holder.saveCreds();
+        await expect(provider('b').acquire(new AbortController().signal, { reset: true }))
+            .rejects.toBeInstanceOf(ConnectionHeldError);
+        expect(await store.connections!.findEntry('bot', 'creds')).toBeInstanceOf(Uint8Array);
     });
 
     it('saveCreds persists the creds object the lease holds now', async () => {

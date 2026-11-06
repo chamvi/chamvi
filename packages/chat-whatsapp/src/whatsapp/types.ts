@@ -54,14 +54,26 @@ export type WhatsAppAuthLease = {
     lost?: Promise<unknown>;
 };
 
-/** Hands out the session lease; caller-supplied, chamvi ships no production provider. */
+export type WhatsAppAuthAcquireOptions = {
+    /**
+     * A reset: once the location is held, discard the stored session (creds
+     * and keys, also one that cannot be loaded) and hand out an empty one.
+     * Nothing is discarded while another holder has it.
+     */
+    reset?: boolean;
+};
+
+/**
+ * Hands out the session lease: `createStoreWhatsAppAuth()` (the app's store
+ * and keyring), or a caller-supplied provider with the same guarantees.
+ */
 export interface IWhatsAppAuthProvider {
     /**
      * Loads the session and takes the location exclusively; rejects when
      * another holder has it. Should settle soon after `signal` aborts; a
      * lease handed out after the abort is released at once.
      */
-    acquire(signal: AbortSignal): Promise<WhatsAppAuthLease>;
+    acquire(signal: AbortSignal, options?: WhatsAppAuthAcquireOptions): Promise<WhatsAppAuthLease>;
 }
 
 /** Who may start runs: normalized platform ids (jids), never names. */

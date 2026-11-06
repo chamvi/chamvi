@@ -16,6 +16,7 @@ export {
 export { createWhatsAppChat } from './module.ts';
 export type {
     IWhatsAppAuthProvider,
+    WhatsAppAuthAcquireOptions,
     WhatsAppAuthLease,
     WhatsAppChatOptions,
     WhatsAppChatSetup,

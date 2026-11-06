@@ -15,7 +15,11 @@ import type {
 import { InvalidAgentDefinitionError, assertConnectionName } from '@chamvi/core';
 import type { IConnectionSession } from '@chamvi/core';
 import { isObject } from 'smob';
-import type { IWhatsAppAuthProvider, WhatsAppAuthLease } from '../whatsapp/types.ts';
+import type {
+    IWhatsAppAuthProvider,
+    WhatsAppAuthAcquireOptions,
+    WhatsAppAuthLease,
+} from '../whatsapp/types.ts';
 import { CREDS_ENTRY, WHATSAPP_CONNECTION_TYPE } from './constants.ts';
 import {
     decodeValue,
@@ -121,11 +125,13 @@ export function createStoreWhatsAppAuth(options: StoreWhatsAppAuthOptions): IWha
     const owner = options.owner ?? defaultOwner();
 
     return {
-        async acquire(signal: AbortSignal): Promise<WhatsAppAuthLease> {
+        async acquire(signal: AbortSignal, acquireOptions?: WhatsAppAuthAcquireOptions): Promise<WhatsAppAuthLease> {
             const session = await options.vault.open(options.connection, {
                 type: WHATSAPP_CONNECTION_TYPE,
                 owner,
                 signal,
+                // a reset recreates the connection under the lease: a fresh data key, no entries
+                ...(acquireOptions?.reset === true ? { recreate: true } : {}),
                 ...(options.leaseTtlMs !== undefined ? { leaseTtlMs: options.leaseTtlMs } : {}),
             });
 
