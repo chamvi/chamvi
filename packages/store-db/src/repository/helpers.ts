@@ -411,6 +411,10 @@ export function isMissingRunError(error: unknown, constraints: ReadonlySet<strin
 
 /** Runs a write and reports a missing referenced run as the core RunNotFoundError, as the memory store does. */
 export async function withRunReference<T>(dataSource: DataSource, runId: string, write: () => Promise<T>): Promise<T> {
+    if (!isUuid(runId)) {
+        throw new RunNotFoundError(runId);
+    }
+
     try {
         return await write();
     } catch (error) {

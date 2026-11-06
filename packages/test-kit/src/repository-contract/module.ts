@@ -83,25 +83,27 @@ export function describeRepositoryContract(
             expect(await store.state.find('a')).toEqual([]);
         });
 
-        it('refuses steps, checkpoints and conversation turns of an unknown run with RunNotFoundError', async () => {
+        it.each([MISSING_ID, 'not-a-uuid'])('refuses writes referencing unknown run %s with RunNotFoundError', async (runId) => {
             const { store } = await setup();
             const at = new Date(1_000);
 
             await expect(store.steps.insert({
-                runId: MISSING_ID,
+                runId,
                 index: 0,
                 kind: 'llm',
                 startedAt: at,
                 finishedAt: at,
             })).rejects.toBeInstanceOf(RunNotFoundError);
             await expect(store.checkpoints.save({
-                runId: MISSING_ID,
+                runId,
                 stepIndex: 0,
                 messages: [],
                 createdAt: at,
             })).rejects.toBeInstanceOf(RunNotFoundError);
-            expect(await store.steps.find(MISSING_ID)).toEqual([]);
-            expect(await store.checkpoints.findOne(MISSING_ID)).toBeUndefined();
+            await expect(store.runs.insert(makeChild(RUN_1, runId))).rejects.toBeInstanceOf(RunNotFoundError);
+            expect(await store.runs.findOne(RUN_1)).toBeUndefined();
+            expect(await store.steps.find(runId)).toEqual([]);
+            expect(await store.checkpoints.findOne(runId)).toBeUndefined();
 
             if (!store.conversations) {
                 return;
@@ -116,7 +118,7 @@ export function describeRepositoryContract(
             };
             const scope = await store.conversations.resolve(identity);
 
-            await expect(store.conversations.beginTurn(scope, MISSING_ID, 'hello', DEFAULT_CONVERSATION_LIMITS))
+            await expect(store.conversations.beginTurn(scope, runId, 'hello', DEFAULT_CONVERSATION_LIMITS))
                 .rejects.toBeInstanceOf(RunNotFoundError);
             expect(await store.conversations.activeRun(scope)).toBeUndefined();
             expect((await store.conversations.findItems(scope, { limit: 10, offset: 0 })).total).toBe(0);
