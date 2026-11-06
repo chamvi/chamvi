@@ -25,6 +25,7 @@ import {
     WHATSAPP_AUTH_ERROR_CODE,
     WHATSAPP_CONNECTION_ERROR_CODE,
     WHATSAPP_RECONNECT,
+    WHATSAPP_SHUTDOWN_TIMEOUT_MS,
     createStoreWhatsAppAuth,
 } from '@chamvi/chat-whatsapp';
 import type {
@@ -34,6 +35,7 @@ import type {
     WhatsAppConnectionStatus,
 } from '@chamvi/chat-whatsapp';
 import { ControllableClock } from '@chamvi/test-kit';
+import { deferred } from '../../utils/auth.ts';
 import { createWhatsAppFixture, settle } from '../../utils/whatsapp.ts';
 import type { WhatsAppFixture } from '../../utils/whatsapp.ts';
 
@@ -103,6 +105,34 @@ function storeWorld(input: { holderClock?: ControllableClock; patch?: Partial<Wh
         connections,
         other: (renewClock = clock) => provider('other', renewClock),
     };
+}
+
+/** Makes the next entry write of the store fail once (a short store outage). */
+function failNextWrite(store: IStore): void {
+    const connections = store.connections!;
+    const original = connections.writeEntries.bind(connections);
+
+    connections.writeEntries = async (...args) => {
+        connections.writeEntries = original;
+
+        throw new Error('transient store error');
+    };
+}
+
+/** Holds the next entry write of the store until the returned promise resolves. */
+function holdNextWrite(store: IStore): PromiseWithResolvers<void> {
+    const connections = store.connections!;
+    const original = connections.writeEntries.bind(connections);
+    const gate = deferred();
+
+    connections.writeEntries = async (...args) => {
+        connections.writeEntries = original;
+        await gate.promise;
+
+        return original(...args);
+    };
+
+    return gate;
 }
 
 async function hold(provider: IWhatsAppAuthProvider): Promise<WhatsAppAuthLease> {
@@ -402,5 +432,112 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
         for (const error of world.errors) {
             expect(textOf(error)).not.toContain('SECRET-PAIRING-REFERENCE');
         }
+    });
+});
+
+describe('WhatsApp connection: closing a generation always ends its session', () => {
+    it('a reset after an earlier failed write releases the lease and connects again', async () => {
+        const world = storeWorld();
+
+        await world.engine.start();
+        world.sockets.last().open();
+        failNextWrite(world.connections);
+        await expect(Promise.resolve(world.sockets.last().config.auth.keys.set({ session: { a: new Uint8Array([1]) } })))
+            .rejects.toThrow('transient store error');
+        await world.sockets.last().config.auth.keys.set({ session: { b: new Uint8Array([2]) } });
+
+        await world.setup.reset();
+        await settle();
+
+        expect(world.sockets.sockets).toHaveLength(2);
+        expect(world.setup.status()).toBe('connecting');
+        world.sockets.last().open();
+        expect(world.setup.status()).toBe('connected');
+
+        // the flush failure is reported, the lease was not kept for it
+        expect(world.errors.some((error) => textOf(error).includes('transient store error'))).toBe(true);
+
+        // the new session renews: nothing holds it elsewhere, nothing retries
+        for (let ms = 0; ms < 10 * TTL; ms += 500) {
+            world.clock.advance(500);
+            await settle();
+        }
+
+        expect(world.setup.status()).toBe('connected');
+        expect(world.sockets.sockets).toHaveLength(2);
+    });
+
+    it('a stop after an earlier failed write releases the lease at once', async () => {
+        const world = storeWorld();
+
+        await world.engine.start();
+        failNextWrite(world.connections);
+        await expect(Promise.resolve(world.sockets.last().config.auth.keys.set({ session: { a: new Uint8Array([1]) } })))
+            .rejects.toThrow('transient store error');
+        await world.engine.stop();
+
+        await expect(hold(world.other())).resolves.toBeDefined();
+    });
+
+    it('writes past the settling bound: the lease is released once they finish', async () => {
+        const world = storeWorld();
+
+        await world.engine.start();
+
+        const gate = holdNextWrite(world.connections);
+        const pending = world.sockets.last().config.auth.keys.set({ session: { a: new Uint8Array([1]) } });
+        const stopping = world.engine.stop();
+
+        // in steps: the session renews meanwhile, its lease never runs out
+        for (let ms = 0; ms < WHATSAPP_SHUTDOWN_TIMEOUT_MS; ms += 500) {
+            await settle();
+            world.clock.advance(500);
+        }
+
+        await stopping;
+
+        expect(codesOf(world.errors)).toContain(WHATSAPP_AUTH_ERROR_CODE);
+        await expect(hold(world.other())).rejects.toBeInstanceOf(ConnectionHeldError);
+
+        gate.resolve();
+        await pending;
+        await settle();
+
+        await expect(hold(world.other())).resolves.toBeDefined();
+    });
+
+    it('a reset right after a lost lease leaves no extra retry and no orphaned socket', async () => {
+        // the connector's renewals never run: its lease expires on the store's clock
+        const world = storeWorld({ holderClock: new ControllableClock() });
+
+        await world.engine.start();
+        world.sockets.last().open();
+        world.clock.advance(TTL);
+
+        const takeover = await hold(world.other());
+
+        world.sockets.last().emit('creds.update', {});
+
+        for (let i = 0; i < 50 && world.setup.status() !== 'held-elsewhere'; i++) {
+            await Promise.resolve();
+        }
+
+        expect(world.setup.status()).toBe('held-elsewhere');
+        await takeover.release();
+        await world.setup.reset();
+        await settle();
+
+        expect(world.sockets.sockets).toHaveLength(2);
+        world.sockets.last().open();
+        expect(world.setup.status()).toBe('connected');
+
+        for (let k = 0; k < 4; k++) {
+            world.clock.advance(upperDelay(k));
+            await settle();
+        }
+
+        expect(world.setup.status()).toBe('connected');
+        expect(world.sockets.sockets).toHaveLength(2);
+        expect(world.sockets.last().ended).toBe(0);
     });
 });

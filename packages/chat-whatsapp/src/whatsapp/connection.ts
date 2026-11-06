@@ -209,9 +209,10 @@ const noop = () => undefined;
  * retries and reconnects, then has two bounds of WHATSAPP_SHUTDOWN_TIMEOUT_MS
  * (30 s) each: ending the socket (past it the end is abandoned and reported,
  * and the close goes on), then settling (the auth calls already admitted and
- * the lease's flush), after which it releases the lease. Past the settling
- * bound, or when the flush failed, the lease is not released: it stays fenced
- * (the guard refuses every later call) and the failure is reported.
+ * the lease's flush), after which it releases the lease. A failed flush is
+ * reported and the lease released all the same (the failed writes are lost
+ * and fenced); past the settling bound the timeout is reported and the lease
+ * released once the admitted writes settle.
  */
 export function createWhatsAppConnection(options: WhatsAppConnectionOptions): WhatsAppConnection {
     let current: Run | undefined;
@@ -431,29 +432,36 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
                 }
             })();
 
+            // the session ends once the admitted writes settled, whatever the flush said: a failed write is
+            // already lost (and fenced), so keeping the lease for it would only block the next session
+            const end = async () => {
+                if (generation.lease) {
+                    await release(generation.lease);
+                }
+            };
+
             let settled: boolean;
 
             try {
                 settled = await within(clock, WHATSAPP_SHUTDOWN_TIMEOUT_MS, settling);
             } catch (error) {
-                report(failure(WHATSAPP_AUTH_ERROR_CODE, 'Flushing the WhatsApp auth lease failed; it stays held (not released).', error));
+                report(failure(WHATSAPP_AUTH_ERROR_CODE, 'Flushing the WhatsApp auth lease failed; the failed writes are lost, the lease is released.', error));
+                await end();
 
                 return;
             }
 
             if (!settled) {
-                settling.catch(noop);
                 report(failure(
                     WHATSAPP_AUTH_ERROR_CODE,
-                    `The WhatsApp auth writes did not finish within ${WHATSAPP_SHUTDOWN_TIMEOUT_MS}ms; the lease stays held (not released).`,
+                    `The WhatsApp auth writes did not finish within ${WHATSAPP_SHUTDOWN_TIMEOUT_MS}ms; the lease is released once they settle.`,
                 ));
+                void settling.then(end, end);
 
                 return;
             }
 
-            if (generation.lease) {
-                await release(generation.lease);
-            }
+            await end();
         })();
 
         return generation.closing;
@@ -506,7 +514,8 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
         setStatus(generation, 'held-elsewhere');
 
         void closeGeneration(generation).then(() => {
-            if (isRunCurrent(run) && run.generation === generation) {
+            // a reset that began meanwhile acquires on its own
+            if (isRunCurrent(run) && run.generation === generation && !run.resetting) {
                 scheduleAcquire(run);
             }
         });
@@ -599,6 +608,11 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
      * start fails); later ones report and retry.
      */
     const establish = async (run: Run, first: boolean): Promise<void> => {
+        // a live generation (acquiring or holding its lease) stays the only one
+        if (run.generation && !run.generation.closed) {
+            return;
+        }
+
         let generation: Generation | undefined;
 
         try {
@@ -725,6 +739,10 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             if (generation) {
                 await closeGeneration(generation);
             }
+
+            // a retry scheduled while the close ran (a lost lease's) would build a second generation
+            run.retry?.clear();
+            delete run.retry;
 
             if (isRunCurrent(run)) {
                 await establish(run, false);
