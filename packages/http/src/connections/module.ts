@@ -6,7 +6,7 @@
  */
 
 import type { IConnectionHandle } from '@chamvi/core';
-import { NotFoundError } from '@ebec/http';
+import { ConflictError, NotFoundError } from '@ebec/http';
 import { createEventStream, defineCoreHandler } from 'routup';
 import type { App, IAppEvent } from 'routup';
 import { acquireStreamSlot, refuseStreamOverCap, refuseWhenClosed } from '../app/helpers.ts';
@@ -129,7 +129,9 @@ function streamConnection(event: IAppEvent, ctx: HttpContext, handle: IConnectio
  * `POST /connections/:name/reset` over the app's connection handles.
  * `connection:<name>:read` lists and shows a connection, `:write` (which
  * implies read) also sees its widgets (a pairing QR), streams it and resets
- * it. Widgets never appear in the list.
+ * it. Widgets never appear in the list. A reset answers 202 once started
+ * (its rejection goes to `onError`), 409 while the connection is
+ * `held_elsewhere`.
  */
 export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
     app.get('/connections', defineCoreHandler(async (event): Promise<{ data: ConnectionView[] }> => {
@@ -164,7 +166,17 @@ export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
             throw new NotFoundError({ message: `The connection "${handle.name}" offers no reset.` });
         }
 
-        await reset.call(handle.actions);
+        // a reset there would wait for another process's lease: refused before it starts
+        if (handle.status() === 'held_elsewhere') {
+            throw new ConflictError({
+                message: `The connection "${handle.name}" is held by another process; reset it where it is held, or once it is no longer held elsewhere.`,
+            });
+        }
+
+        // started, not awaited: a reset can outlast a proxy's timeout, the event stream carries its outcome
+        (async () => reset.call(handle.actions))().catch((error: unknown) => {
+            ctx.onError(error);
+        });
         event.response.status = 202;
 
         return serializeConnection(handle);
