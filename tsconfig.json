@@ -12,6 +12,7 @@
             "@chamvi/chat/module": ["./packages/chat/src/module/index.ts"],
             "@chamvi/chat-discord": ["./packages/chat-discord/src/index.ts"],
             "@chamvi/chat-whatsapp": ["./packages/chat-whatsapp/src/index.ts"],
+            "@chamvi/chat-whatsapp/module": ["./packages/chat-whatsapp/src/module/index.ts"],
             "@chamvi/cli": ["./packages/cli/src/index.ts"],
             "@chamvi/coding": ["./packages/coding/src/index.ts"],
             "@chamvi/core": ["./packages/core/src/index.ts"],

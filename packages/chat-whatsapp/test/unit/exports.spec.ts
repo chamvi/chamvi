@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import * as pkg from '@chamvi/chat-whatsapp';
+import * as module from '@chamvi/chat-whatsapp/module';
 
 describe('public api', () => {
     it('exports exactly the WhatsApp surface', () => {
@@ -33,7 +34,13 @@ describe('public api', () => {
         'isAllowed',
         'toConversationTarget',
         'MESSAGE_ID_PREFIX',
+        'whatsappModule',
+        'WhatsAppModule',
     ])('has no %s', (name) => {
         expect(pkg).not.toHaveProperty(name);
+    });
+
+    it('exports the app module from /module only', () => {
+        expect(Object.keys(module).sort()).toEqual(['WhatsAppModule', 'whatsappModule']);
     });
 });
