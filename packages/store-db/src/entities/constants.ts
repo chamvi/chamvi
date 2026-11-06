@@ -23,6 +23,8 @@ export const TableName = {
     DOCS: 'chamvi_docs',
     ARTIFACTS: 'chamvi_artifacts',
     AGENT_REVISIONS: 'chamvi_agent_revisions',
+    CONNECTIONS: 'chamvi_connections',
+    CONNECTION_ENTRIES: 'chamvi_connection_entries',
 } as const;
 
 /**

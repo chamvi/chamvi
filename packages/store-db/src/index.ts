@@ -8,6 +8,7 @@
 export * from './agent-revision/index.ts';
 export * from './artifact/index.ts';
 export * from './checkpoint/index.ts';
+export * from './connection/index.ts';
 export * from './conversation/index.ts';
 export * from './effect/index.ts';
 export * from './idempotency/index.ts';

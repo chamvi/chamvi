@@ -8,6 +8,8 @@
 export * from './agent-revision.ts';
 export * from './artifact.ts';
 export * from './checkpoint.ts';
+export * from './connection.ts';
+export * from './connection-entry.ts';
 export { TableName } from './constants.ts';
 export * from './doc.ts';
 export * from './effect.ts';

@@ -37,6 +37,20 @@ function migrationsThrough(name: string) {
 
 const TAINT = 'ConversationsRunTaint1792713600000';
 const LINEAGE = 'RunLineage1792800000000';
+const CONNECTIONS = 'Connections1792886400000';
+
+/** Undo the executed migrations from the newest one back to and including the named one. */
+async function revertThrough(ds: DataSource, name: string): Promise<void> {
+    for (;;) {
+        const [last]: { name: string }[] = await ds.query('SELECT name FROM migrations ORDER BY id DESC LIMIT 1');
+
+        await ds.undoLastMigration({ transaction: 'each' });
+
+        if (!last || last.name === name) {
+            return;
+        }
+    }
+}
 
 describePostgres('schema', () => {
     const dataSources: DataSource[] = [];
@@ -89,7 +103,7 @@ describePostgres('schema', () => {
             await prior.destroy();
         }
 
-        await expect(pendingMigrations(ds)).resolves.toEqual([TAINT, LINEAGE]);
+        await expect(pendingMigrations(ds)).resolves.toEqual([TAINT, LINEAGE, CONNECTIONS]);
 
         const [beforeMigration]: { at: Date }[] = await ds.query('SELECT clock_timestamp() AS at');
 
@@ -125,7 +139,7 @@ describePostgres('schema', () => {
         await prior.initialize();
         dataSources.push(prior);
         await migrateStore(prior);
-        expect(await pendingMigrations(ds)).toEqual([TAINT, LINEAGE]);
+        expect(await pendingMigrations(ds)).toEqual([TAINT, LINEAGE, CONNECTIONS]);
 
         const insertCheckpoint = (runId: string) => ds.query(
             'INSERT INTO chamvi_checkpoints (run_id, step_index, messages, finish_reason, created_at) VALUES ($1, 3, $2, $3, $4)',
@@ -183,7 +197,7 @@ describePostgres('schema', () => {
         await prior.initialize();
         dataSources.push(prior);
         await migrateStore(prior);
-        expect(await pendingMigrations(ds)).toEqual([LINEAGE]);
+        expect(await pendingMigrations(ds)).toEqual([LINEAGE, CONNECTIONS]);
 
         return ds;
     };
@@ -246,7 +260,7 @@ describePostgres('schema', () => {
         await migrateStore(ds);
         await expectUpgraded();
 
-        await ds.undoLastMigration({ transaction: 'each' });
+        await revertThrough(ds, LINEAGE);
 
         const [reverted]: { trigger: { parent: unknown } }[] = await ds.query('SELECT trigger FROM chamvi_runs WHERE id = $1', ['c']);
 
@@ -291,7 +305,7 @@ describePostgres('schema', () => {
         await expect(runs.update('w', { cancelRequested: true }, { expectStatus: ['waiting'], expectWaitId: '0:call-1:0' }))
             .resolves.toMatchObject({ cancelRequested: true, waiting: { id: '0:call-1:0', approvalId: '0:call-1:0' } });
 
-        await ds.undoLastMigration({ transaction: 'each' });
+        await revertThrough(ds, LINEAGE);
         expect(await storedIds()).toEqual({ id: null, has: false });
     });
 
@@ -479,6 +493,7 @@ describePostgres('schema', () => {
             'AgentRevisions1792627200000',
             'ConversationsRunTaint1792713600000',
             'RunLineage1792800000000',
+            'Connections1792886400000',
         ]);
         await migrateStore(ds);
         expect(await pendingMigrations(ds)).toEqual([]);
@@ -512,6 +527,11 @@ describePostgres('schema', () => {
         expect(await tablesIn('other')).toBe(Object.values(TableName).length);
         expect(await tablesIn('public')).toBe(0);
 
+        const connectionTables = Object.values(TableName).length - 2;
+
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn('other')).toBe(connectionTables);
+
         const lineageColumns = () => ds.query(
             'SELECT column_name FROM information_schema.columns WHERE table_schema = $1 AND table_name = $2 AND column_name = ANY($3::text[])',
             ['other', TableName.RUNS, ['parent_run_id', 'subtree_usage']],
@@ -530,7 +550,7 @@ describePostgres('schema', () => {
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await taintColumns()).toHaveLength(0);
 
-        const tableCount = Object.values(TableName).length - 4;
+        const tableCount = connectionTables - 4;
 
         expect(await tablesIn('other')).toBe(tableCount);
 
