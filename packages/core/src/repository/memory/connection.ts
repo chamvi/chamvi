@@ -53,6 +53,13 @@ export class MemoryConnectionRepository implements IConnectionRepository {
         this.holdsLock = opts.holdsLock;
     }
 
+    protected assertFence(name: string, fence: ConnectionFence): void {
+        // only the lease of this connection fences it, never another lock the owner holds
+        if (fence.lock !== `connection:${name}` || !this.holdsLock(fence.lock, fence.owner)) {
+            throw new LeaseLostError({ lock: fence.lock });
+        }
+    }
+
     protected held(name: string): Held {
         assertConnectionName(name);
 
@@ -107,6 +114,12 @@ export class MemoryConnectionRepository implements IConnectionRepository {
         this.connections.delete(name);
     }
 
+    async replace(connection: Connection, fence: ConnectionFence): Promise<void> {
+        assertConnection(connection);
+        this.assertFence(connection.name, fence);
+        this.connections.set(connection.name, { connection: copyConnection(connection), entries: new Map() });
+    }
+
     async findEntry(name: string, key: string): Promise<Uint8Array | undefined> {
         assertConnectionEntryKey(key);
 
@@ -139,10 +152,7 @@ export class MemoryConnectionRepository implements IConnectionRepository {
 
         const held = this.held(name);
 
-        // only the lease of this connection fences it, never another lock the owner holds
-        if (fence.lock !== `connection:${name}` || !this.holdsLock(fence.lock, fence.owner)) {
-            throw new LeaseLostError({ lock: fence.lock });
-        }
+        this.assertFence(name, fence);
 
         if (write.clear) {
             held.entries.clear();

@@ -855,6 +855,75 @@ describe('connection session', () => {
         await fresh.close();
     });
 
+    it('recreate after the lease expired is refused and deletes nothing of the next holder', async () => {
+        const {
+            clock, 
+            store, 
+            vault, 
+        } = setup();
+        const initial = await vault.open('wa', { type: 'whatsapp', owner: 'o0' });
+
+        await initial.write({ set: { creds: text('old') } });
+        await initial.close();
+
+        const acquire = store.locks.acquire.bind(store.locks);
+        let second: Awaited<ReturnType<typeof vault.open>> | undefined;
+        let stalled = false;
+
+        // opener A stalls right after acquiring: its lease expires, B opens and writes meanwhile
+        store.locks.acquire = async (key, owner, ttlMs) => {
+            const acquired = await acquire(key, owner, ttlMs);
+
+            if (!stalled && owner.startsWith('a:')) {
+                stalled = true;
+                clock.advance(3_000);
+                second = await vault.open('wa', { type: 'whatsapp', owner: 'b' });
+                await second.write({ set: { creds: text('new') } });
+                await second.flush();
+            }
+
+            return acquired;
+        };
+
+        const before = await store.connections.findOneOrFail('wa');
+
+        await expect(vault.open('wa', {
+            type: 'whatsapp',
+            owner: 'a',
+            leaseTtlMs: 3_000,
+            recreate: true,
+        })).rejects.toBeInstanceOf(LeaseLostError);
+
+        const after = await store.connections.findOneOrFail('wa');
+
+        expect(after.keyId).toBe(before.keyId);
+        expect(Buffer.from(after.wrappedKey).equals(Buffer.from(before.wrappedKey))).toBe(true);
+        expect(decode(await second!.readOne('creds'))).toBe('new');
+        await second!.close();
+    });
+
+    it('recreate refuses an invalid replacement type before deleting anything', async () => {
+        const { store, vault } = setup();
+        const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
+
+        await session.write({ set: { creds: text('secret') } });
+        await session.close();
+
+        const before = await store.connections.findOneOrFail('wa');
+
+        await expect(vault.open('wa', {
+            type: '\ud800',
+            owner: 'o2',
+            recreate: true,
+        })).rejects.toBeInstanceOf(ValidationError);
+        expect(await store.connections.findOneOrFail('wa')).toEqual(before);
+
+        const reopened = await vault.open('wa', { type: 'whatsapp', owner: 'o3' });
+
+        expect(decode(await reopened.readOne('creds'))).toBe('secret');
+        await reopened.close();
+    });
+
     it('restart: a new vault over the same store reads the same plaintext', async () => {
         const {
             store, 
