@@ -12,7 +12,8 @@ export const FILES_MAX_FILES = 16;
 export const FILES_TIMEOUT_MS = 30_000;
 
 export const FILES_MAX_COMMAND_BYTES = 16_384;
-export const FILES_MAX_OUTPUT_BYTES = 65_536;
+export const FILES_MAX_DIAGNOSTIC_BYTES = 65_536;
+export const FILES_FILESYSTEM_OVERHEAD_BYTES = 65_536;
 export const FILES_COMMANDS: CommandName[] = [
     'awk',
     'base64',

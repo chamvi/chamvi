@@ -13,13 +13,14 @@ import { Bash, decodeBytesToUtf8, stdoutAsBytes } from 'just-bash';
 import type { FileToolsOptionsNormalized } from '../options/types.ts';
 import {
     FILES_COMMANDS,
+    FILES_FILESYSTEM_OVERHEAD_BYTES,
     FILES_MAX_COMMAND_BYTES,
+    FILES_MAX_DIAGNOSTIC_BYTES,
     FILES_MAX_FILES,
-    FILES_MAX_OUTPUT_BYTES,
 } from './constants.ts';
 import {
     assertSize,
-    boundedText,
+    boundedDiagnostics,
     processInput,
     signalOf,
 } from './helpers.ts';
@@ -28,7 +29,7 @@ import type { ProcessFilesInput, ProcessFilesResult } from './types.ts';
 export function processFilesTool(options: FileToolsOptionsNormalized): Tool<ProcessFilesInput, ProcessFilesResult> {
     return defineTool({
         trust: { taint: true },
-        description: 'Process selected run artifacts as JSON, CSV or text in a fresh in-memory shell. Discover artifact IDs with list_artifacts. Supports jq, xan, awk and text commands; no network, host executables or persistent files. Select output paths and media types to publish files as run artifacts.',
+        description: 'Process selected run artifacts as JSON, CSV or text in a fresh in-memory shell. Discover artifact IDs with list_artifacts. Supports jq, xan, awk and text commands; no network, host executables or persistent files. Select output paths and media types to publish files as run artifacts. Returned stdout/stderr share 65,536 UTF-8 bytes, retaining stderr first; clipping includes [output truncated]. Intermediate work and scratch files have separate finite budgets.',
         inputSchema: jsonSchema<ProcessFilesInput>({
             type: 'object',
             properties: {
@@ -131,6 +132,7 @@ export function processFilesTool(options: FileToolsOptionsNormalized): Tool<Proc
                     }
                 }
 
+                const maxWorkOutputBytes = Math.max(FILES_MAX_DIAGNOSTIC_BYTES, options.maxBytes * 4);
                 let bash: Bash;
                 let result;
 
@@ -143,9 +145,9 @@ export function processFilesTool(options: FileToolsOptionsNormalized): Tool<Proc
                         executionLimits: {
                             maxExecutionTimeMs: options.timeoutMs,
                             maxSourceBytes: FILES_MAX_COMMAND_BYTES,
-                            maxOutputSize: FILES_MAX_OUTPUT_BYTES,
-                            // Synthetic command files need space even with a tiny artifact allowance.
-                            maxFileSystemBytes: Math.max(FILES_MAX_OUTPUT_BYTES, options.maxBytes * 2),
+                            maxOutputSize: maxWorkOutputBytes,
+                            // Reserve synthetic files in addition to full selected input/output room.
+                            maxFileSystemBytes: FILES_FILESYSTEM_OVERHEAD_BYTES + options.maxBytes * 2,
                         },
                     });
                     result = await bash.exec(command, { signal });
@@ -157,8 +159,7 @@ export function processFilesTool(options: FileToolsOptionsNormalized): Tool<Proc
 
                 signal.throwIfAborted();
 
-                const stderr = boundedText(result.stderr, FILES_MAX_OUTPUT_BYTES);
-                const stdout = boundedText(decodeBytesToUtf8(stdoutAsBytes(result)), FILES_MAX_OUTPUT_BYTES - Buffer.byteLength(stderr));
+                const { stdout, stderr } = boundedDiagnostics(decodeBytesToUtf8(stdoutAsBytes(result)), result.stderr);
                 const response: ProcessFilesResult = {
                     exitCode: result.exitCode,
                     stdout,

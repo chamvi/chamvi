@@ -103,10 +103,11 @@ Supported commands: `awk`, `base64`, `basename`, `cat`, `column`, `comm`, `cp`, 
 | `timeoutMs` option | `30_000`, interpreter execution only; integer `1..2_147_483_647` |
 | Input/output selections | At most 16 each |
 | Command source | At most 16,384 UTF-8 bytes |
-| Decoded stdout and stderr | 65,536 UTF-8 bytes combined, preserving stderr first |
-| Interpreter scratch files | `max(65_536, maxBytes * 2)` bytes, including synthetic files |
+| Decoded stdout and stderr | 65,536 UTF-8 bytes combined, preserving stderr first; clipping includes `[output truncated]` within the cap |
+| Cumulative interpreter work output | `max(65_536, maxBytes * 4)` bytes, including output before redirection |
+| Interpreter scratch files | `65_536 + maxBytes * 2` bytes, including synthetic files |
 
-`fileTools({ maxBytes, timeoutMs })` validates options immediately with `InvalidAgentDefinitionError`. The interpreter's hardened execution profile also bounds loops, command count and other resources. The scratch allowance does not increase the artifact import/export limits.
+`fileTools({ maxBytes, timeoutMs })` validates options immediately with `InvalidAgentDefinitionError`. The interpreter's hardened execution profile also bounds loops, command count and other resources. Successful execution can clip returned diagnostics without failing the command. The additive scratch reserve accommodates synthetic command/proc files alongside boundary-sized inputs and outputs. Work and scratch allowances do not increase the exact artifact import/export limits or guarantee unlimited intermediate expansion or pipelines.
 
 Networking, custom commands, Python, JavaScript, SQL, archive commands and real executables (`git`, `npm`, `node`, etc.) are unavailable. There is no host filesystem adapter or inherited host environment. This is an in-process interpreter with no VM isolation or complete host-security boundary. Use [Docker or Kubernetes coding workspaces](https://chamvi.dev/guide/workspaces) for dependency installation, Git, builds, tests and servers.
 

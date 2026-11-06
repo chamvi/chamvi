@@ -8,7 +8,7 @@
 import { ValidationError, isArtifactMediaType } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
-import { FILES_MAX_COMMAND_BYTES, FILES_MAX_FILES } from './constants.ts';
+import { FILES_MAX_COMMAND_BYTES, FILES_MAX_DIAGNOSTIC_BYTES, FILES_MAX_FILES } from './constants.ts';
 import type { ProcessFilesInput } from './types.ts';
 
 export function inputObject(value: unknown): Record<string, unknown> {
@@ -105,9 +105,28 @@ export function assertSize(size: number, maxBytes: number): void {
     }
 }
 
-export function boundedText(value: string, maxBytes: number): string {
+function boundedText(value: string, maxBytes: number): string {
     const bytes = Buffer.from(value);
 
     // Streaming decode drops an incomplete final code point instead of adding a replacement character.
     return bytes.byteLength <= maxBytes ? value : new TextDecoder().decode(bytes.subarray(0, maxBytes), { stream: true });
+}
+
+export function boundedDiagnostics(stdout: string, stderr: string): { stdout: string; stderr: string } {
+    if (Buffer.byteLength(stdout) + Buffer.byteLength(stderr) <= FILES_MAX_DIAGNOSTIC_BYTES) {
+        return { stdout, stderr };
+    }
+
+    const marker = '[output truncated]';
+    const textBytes = FILES_MAX_DIAGNOSTIC_BYTES - Buffer.byteLength(marker);
+    const boundedStderr = boundedText(stderr, textBytes);
+    const boundedStdout = boundedText(stdout, textBytes - Buffer.byteLength(boundedStderr));
+
+    return boundedStderr === stderr ? {
+        stdout: boundedStdout + marker,
+        stderr: boundedStderr,
+    } : {
+        stdout: boundedStdout,
+        stderr: boundedStderr + marker,
+    };
 }

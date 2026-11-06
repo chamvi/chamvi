@@ -21,7 +21,7 @@ import {
     defineTool,
 } from '@chamvi/core';
 import { mockModel } from '@chamvi/test-kit';
-import { fileTools } from '@chamvi/tool-files';
+import { FILES_MAX_BYTES, fileTools } from '@chamvi/tool-files';
 import type { ListArtifactsResult, ProcessFilesInput, ProcessFilesResult } from '@chamvi/tool-files';
 
 const engines: Engine[] = [];
@@ -58,6 +58,86 @@ async function start(engine: Engine) {
 }
 
 describe('engine artifact processing', () => {
+    it.each([
+        {
+            name: '128 KiB redirected transform',
+            maxBytes: 1_048_576,
+            size: 131_072,
+            command: 'tr a b < in > out',
+            transformed: true,
+        },
+        {
+            name: '128 KiB short pipeline',
+            maxBytes: 1_048_576,
+            size: 131_072,
+            command: 'cat in | tr a b > out',
+            transformed: true,
+        },
+        {
+            name: '32 KiB exact input/output boundary',
+            maxBytes: 32_768,
+            size: 32_768,
+            command: 'tr a b < in > out',
+            transformed: true,
+        },
+        {
+            name: 'default 5 MiB direct copy',
+            maxBytes: undefined,
+            size: FILES_MAX_BYTES,
+            command: 'cp in out',
+            transformed: false,
+        },
+    ])('publishes exact stored bytes for $name', async ({
+        maxBytes,
+        size,
+        command,
+        transformed,
+    }) => {
+        const store = createMemoryStore();
+        const engine = new Engine({
+            store,
+            agents: [defineSimpleAgent({
+                name: 'files',
+                tools: fileTools({ maxBytes }),
+                run: async (_, ctx) => {
+                    const catalog = await ctx.tools.list_artifacts!({}) as ListArtifactsResult;
+
+                    return ctx.tools.process_files!({
+                        command,
+                        inputs: [{ artifactId: catalog.artifacts[0]!.id, path: 'in' }],
+                        outputs: [{ path: 'out', mediaType: 'text/plain' }],
+                    });
+                },
+            })],
+        });
+
+        engines.push(engine);
+        await engine.start();
+
+        const { runId } = await engine.dispatch({
+            ...request,
+            attachments: [{
+                mediaType: 'text/plain',
+                filename: 'in',
+                data: bytes('a'.repeat(size)),
+            }],
+        });
+
+        await engine.idle();
+
+        const run = (await store.runs.findOne(runId))!;
+
+        expect(run).toMatchObject({ status: 'completed', taint: { source: 'tool:list_artifacts' } });
+
+        const result = run.output as ProcessFilesResult;
+
+        expect(result.exitCode).toBe(0);
+        expect(result.artifacts).toHaveLength(1);
+        expect(result.artifacts[0]).toMatchObject({ filename: 'out', size });
+        expect(await store.artifacts.read(result.artifacts[0]!.id)).toEqual(bytes((transformed ? 'b' : 'a').repeat(size)));
+        expect(await store.artifacts.find(runId)).toHaveLength(2);
+    });
+
     it('taints catalog reads at the execution boundary', async () => {
         const store = createMemoryStore();
         const engine = new Engine({

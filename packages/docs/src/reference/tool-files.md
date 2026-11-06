@@ -47,11 +47,12 @@ Supported commands: `awk`, `base64`, `basename`, `cat`, `column`, `comm`, `cp`, 
 | Aggregate input bytes | `maxBytes`, default 5 MiB |
 | Aggregate selected output bytes | Independently `maxBytes` |
 | Command source | 16,384 UTF-8 bytes |
-| Decoded stdout and stderr together | 65,536 UTF-8 bytes, stderr retained first |
+| Decoded stdout and stderr together | 65,536 UTF-8 bytes, stderr retained first; clipping includes `[output truncated]` within the cap |
+| Cumulative interpreter work output | `max(65_536, maxBytes * 4)` bytes, including output before redirection |
 | Execution deadline | `timeoutMs`, default 30 seconds, interpreter execution only |
-| Scratch filesystem including synthetic files | `max(65_536, maxBytes * 2)` bytes |
+| Scratch filesystem including synthetic files | `65_536 + maxBytes * 2` bytes |
 
-The interpreter uses the hardened execution profile, including loop and command-count budgets. The scratch floor allows tiny artifact limits without failing synthetic filesystem initialization; artifact caps remain exact.
+The interpreter uses the hardened execution profile, including loop and command-count budgets. Successful commands can return clipped diagnostics. The additive scratch reserve accommodates synthetic command/proc files alongside full selected input/output room; artifact caps remain exact. Work and scratch budgets stay finite, so arbitrarily long pipelines or intermediate expansion can exhaust them.
 
 Networking, custom commands, Python, JavaScript, SQL, archive commands and host executables are unavailable. The in-process interpreter has no VM isolation or complete host-security boundary. Docker and Kubernetes remain the [coding workspace](/guide/workspaces) choices for Git, installing dependencies, builds, tests and servers.
 

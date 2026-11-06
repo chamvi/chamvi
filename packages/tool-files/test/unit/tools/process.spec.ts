@@ -216,7 +216,7 @@ describe('process_files', () => {
         expect(result.stderr).not.toBe('');
     });
 
-    it.each(['while :; do :; done', 'seq 1 100000', 'awk "BEGIN { while (1) {} }"', "sed ':a;ba' <<< x"])('bounds runaway work/output: %s', async (command) => {
+    it.each(['while :; do :; done', 'awk "BEGIN { while (1) {} }"', "sed ':a;ba' <<< x"])('bounds runaway work/output: %s', async (command) => {
         const result = await callTool(fileTools(), { command }, toolContext('limit'));
 
         expect(result.exitCode).not.toBe(0);
@@ -232,7 +232,7 @@ describe('process_files', () => {
 
     it('bounds intermediate filesystem bytes', async () => {
         const ctx = toolContext('filesystem');
-        const result = await callTool(fileTools({ maxBytes: 8192 }), { command: 'printf "%020000d" 0 > huge; cp huge b; cp huge c; cp huge d', outputs: [output('huge')] }, ctx);
+        const result = await callTool(fileTools({ maxBytes: 8192 }), { command: 'printf "%020000d" 0 > huge; cp huge b; cp huge c; cp huge d; cp huge e', outputs: [output('huge')] }, ctx);
 
         expect(result.exitCode).not.toBe(0);
         expect(result.stderr).toContain('filesystem byte limit');
@@ -361,14 +361,80 @@ it('ignores unsupported interpreter capability options rather than forwarding th
     expect(result.stderr).toContain('injected: command not found');
 });
 
-it('bounds decoded binary stdout together with limit diagnostics', async () => {
+it('clips decoded binary stdout without failing successful execution', async () => {
     const ctx = toolContext('binary-stdout');
     const source = await ctx.artifacts.put({ mediaType: 'application/octet-stream', data: new Uint8Array(32_768).fill(255) });
     const result = await callTool(fileTools(), { command: 'cat in; echo error >&2', inputs: [{ artifactId: source.id, path: 'in' }] }, ctx);
 
-    expect(result.exitCode).not.toBe(0);
+    expect(result.exitCode).toBe(0);
     expect(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr)).toBeLessThanOrEqual(65_536);
     expect(result.stdout).not.toContain('�');
-    expect(result.stderr).toContain('output size exceeded');
+    expect(result.stdout).toContain('[output truncated]');
+    expect(result.stderr).toBe('error\n');
     expect((await ctx.artifacts.get(source.id))!.data).toHaveLength(32_768);
+});
+
+it.each([
+    {
+        name: 'large Unicode stdout',
+        stderr: '',
+        stdout: '界'.repeat(25_000),
+    },
+    {
+        name: 'stderr filling the display budget',
+        stderr: 'e'.repeat(65_536),
+        stdout: 'stdout must be clipped',
+    },
+    {
+        name: 'Unicode stderr exceeding the display budget',
+        stderr: '界'.repeat(25_000),
+        stdout: '',
+    },
+    {
+        name: 'stderr leaving less room than the marker',
+        stderr: 'e'.repeat(65_530),
+        stdout: 'stdout must be clipped',
+    },
+])('marks successful diagnostic clipping inside the shared cap: $name', async ({ stderr, stdout }) => {
+    const ctx = toolContext('diagnostics');
+    const inputs = await Promise.all([stderr, stdout].map(async (value, i) => ({
+        artifactId: (await ctx.artifacts.put({ mediaType: 'text/plain', data: text(value) })).id,
+        path: `in${i}`,
+    })));
+    const result = await callTool(fileTools({ maxBytes: 1_048_576 }), {
+        command: 'cat in0 >&2; cat in1; printf ok > out',
+        inputs,
+        outputs: [output('out')],
+    }, ctx);
+    const marker = '[output truncated]';
+
+    expect(result.exitCode).toBe(0);
+    expect(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr)).toBeLessThanOrEqual(65_536);
+    expect(result.stdout + result.stderr).toContain(marker);
+    expect(result.stdout + result.stderr).not.toContain('�');
+    expect(stderr.startsWith(result.stderr.replace(marker, ''))).toBe(true);
+    expect(stdout.startsWith(result.stdout.replace(marker, ''))).toBe(true);
+
+    if (stderr.length >= 65_530) {
+        expect(result.stdout).toBe('');
+        expect(Buffer.byteLength(result.stderr)).toBe(65_536);
+    }
+
+    expect(await read(ctx, result.artifacts[0]!.id)).toEqual(text('ok'));
+});
+
+it('enforces a finite cumulative work-output budget before redirection', async () => {
+    const ctx = toolContext('work-output');
+    const source = await ctx.artifacts.put({ mediaType: 'text/plain', data: text('a'.repeat(32_768)) });
+    const result = await callTool(fileTools({ maxBytes: 65_536 }), {
+        command: 'cat in > out; cat in > out; cat in > out; cat in > out; cat in > out; cat in > out; cat in > out; cat in > out; cat in > out',
+        inputs: [{ artifactId: source.id, path: 'in' }],
+        outputs: [output('out')],
+    }, ctx);
+
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr).toMatch(/output.*limit|output.*exceeded/i);
+    expect(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr)).toBeLessThanOrEqual(65_536);
+    expect(result.artifacts).toEqual([]);
+    expect(await ctx.artifacts.list()).toHaveLength(1);
 });
