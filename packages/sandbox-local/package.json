@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/sandbox-local",
-    "version": "0.7.3",
+    "version": "0.7.4",
     "type": "module",
     "description": "Local sandbox provider for chamvi: workspaces in a temporary directory, no isolation.",
     "author": {
@@ -52,12 +52,12 @@
         "smob": "^1.6.2"
     },
     "devDependencies": {
-        "@chamvi/core": "^0.7.3",
-        "@chamvi/sandbox": "^0.7.3",
-        "@chamvi/test-kit": "^0.7.3"
+        "@chamvi/core": "^0.7.4",
+        "@chamvi/sandbox": "^0.7.4",
+        "@chamvi/test-kit": "^0.7.4"
     },
     "peerDependencies": {
-        "@chamvi/core": "^0.7.3",
-        "@chamvi/sandbox": "^0.7.3"
+        "@chamvi/core": "^0.7.4",
+        "@chamvi/sandbox": "^0.7.4"
     }
 }
