@@ -7,7 +7,7 @@
 
 import { randomUUID } from 'node:crypto';
 import { systemClock } from '../clock/module.ts';
-import { ConnectionHeldError, InvalidAgentDefinitionError } from '../errors/index.ts';
+import { ConnectionHeldError, InvalidAgentDefinitionError, LeaseLostError } from '../errors/index.ts';
 import {
     dataKeyContextOf,
     lockKeyOf,
@@ -88,6 +88,13 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
                     );
                 }
 
+                // the initialization may have outlasted the lease: confirm it before handing out the session
+                const confirmed = clock.now().getTime();
+
+                if (!await store.locks.renew(lock, owner, leaseTtlMs)) {
+                    throw new LeaseLostError({ lock });
+                }
+
                 const dataKey = keyring.unwrap(
                     { keyId: connection.keyId, wrapped: connection.wrappedKey },
                     dataKeyContextOf(name),
@@ -100,11 +107,11 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
                     owner,
                     lock,
                     leaseTtlMs,
-                    dataKey,
+                    expiresAt: confirmed + leaseTtlMs,
                     connections,
                     locks: store.locks,
                     clock,
-                });
+                }, dataKey);
             } catch (error) {
                 await store.locks.release(lock, owner).catch(() => undefined);
 
