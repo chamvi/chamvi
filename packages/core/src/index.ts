@@ -10,6 +10,7 @@ export * from './approval/index.ts';
 export * from './artifact/index.ts';
 export * from './channel/index.ts';
 export * from './clock/index.ts';
+export * from './connection/index.ts';
 export * from './context/index.ts';
 export * from './conversation/index.ts';
 export * from './dispatch/index.ts';

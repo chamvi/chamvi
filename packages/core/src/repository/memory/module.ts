@@ -7,10 +7,11 @@
 
 import { MemoryConversationRepository } from '../../conversation/memory.ts';
 import type { IConversationRepository } from '../../conversation/types.ts';
-import type { IStore } from '../types.ts';
+import type { IConnectionRepository, IStore } from '../types.ts';
 import { MemoryAgentRevisionRepository } from './agent-revision.ts';
 import { MemoryArtifactRepository } from './artifact.ts';
 import { MemoryCheckpointRepository } from './checkpoint.ts';
+import { MemoryConnectionRepository } from './connection.ts';
 import { MemoryEffectRepository } from './effect.ts';
 import { MemoryIdempotencyRepository } from './idempotency.ts';
 import { MemoryLockRepository } from './lock.ts';
@@ -20,20 +21,26 @@ import { MemoryStepRepository } from './step.ts';
 import type { MemoryStoreOptions } from './types.ts';
 
 /** Independent in-memory capabilities; each call creates fresh storage. */
-export function createMemoryStore(options: MemoryStoreOptions = {}): IStore & { conversations: IConversationRepository } {
+export function createMemoryStore(options: MemoryStoreOptions = {}): IStore & {
+    conversations: IConversationRepository;
+    connections: IConnectionRepository;
+} {
     const runs = new MemoryRunRepository(options);
     const hasRun = (runId: string) => runs.has(runId);
+    // connection writes are fenced by this store's own locks
+    const locks = new MemoryLockRepository(options);
 
     return {
         runs,
         steps: new MemoryStepRepository({ hasRun }),
         checkpoints: new MemoryCheckpointRepository({ hasRun }),
         idempotency: new MemoryIdempotencyRepository(options),
-        locks: new MemoryLockRepository(options),
+        locks,
         effects: new MemoryEffectRepository(),
         state: new MemoryStateRepository(),
         artifacts: new MemoryArtifactRepository(),
         agentRevisions: new MemoryAgentRevisionRepository(),
         conversations: new MemoryConversationRepository({ ...options, hasRun }),
+        connections: new MemoryConnectionRepository({ ...options, holdsLock: (lock, owner) => locks.holds(lock, owner) }),
     };
 }

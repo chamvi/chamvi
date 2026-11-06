@@ -90,6 +90,7 @@ describe('public api', () => {
         'MemoryAgentRevisionRepository',
         'MemoryArtifactRepository',
         'MemoryCheckpointRepository',
+        'MemoryConnectionRepository',
         'MemoryEffectRepository',
         'MemoryIdempotencyRepository',
         'MemoryLockRepository',
@@ -144,6 +145,10 @@ describe('public api', () => {
         'seal',
         'open',
         'DecryptionFailedError',
+        'assertConnection',
+        'assertConnectionEntryKey',
+        'assertConnectionEntryWrite',
+        'assertConnectionName',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
@@ -448,6 +453,31 @@ describe('public api', () => {
         expectTypeOf<core.WrappedKey>().toEqualTypeOf<{ keyId: string; wrapped: Uint8Array }>();
         expectTypeOf<ReturnType<core.IKeyring['createDataKey']>>().toEqualTypeOf<{ key: Uint8Array; wrapped: core.WrappedKey }>();
         expectTypeOf<ReturnType<typeof core.parseKeyring>>().toEqualTypeOf<core.KeyringKey[]>();
+    });
+
+    it('exports the connection repository contract', () => {
+        expect(core.CONNECTION_ENTRY_KEY_MAX_LENGTH).toBe(255);
+        expect(core.CONNECTION_TYPE_MAX_LENGTH).toBe(64);
+        expectTypeOf<core.IStore['connections']>().toEqualTypeOf<core.IConnectionRepository | undefined>();
+        expectTypeOf<ReturnType<typeof core.createMemoryStore>['connections']>()
+            .toEqualTypeOf<core.IConnectionRepository>();
+        expectTypeOf<core.Connection>().toEqualTypeOf<{
+            name: string;
+            type: string;
+            keyId: string;
+            wrappedKey: Uint8Array;
+            createdAt: Date;
+            updatedAt: Date;
+        }>();
+        expectTypeOf<core.ConnectionEntryWrite>().toEqualTypeOf<{
+            set?: Record<string, Uint8Array>;
+            delete?: readonly string[];
+            clear?: boolean;
+        }>();
+        expectTypeOf<core.ConnectionFence>().toEqualTypeOf<{ lock: string; owner: string }>();
+        expectTypeOf<core.ILockRepository['renew']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
+        expect(new core.LeaseLostError({ lock: 'connection:wa' })).toMatchObject({ code: 'lease_lost', lock: 'connection:wa' });
+        expect(new core.LeaseLostError('r1')).toMatchObject({ code: 'lease_lost', runId: 'r1' });
     });
 
     it('exports the agent cancel reason codes', () => {

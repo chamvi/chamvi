@@ -9,16 +9,30 @@ import { ChamviError } from './base.ts';
 import { ErrorCode } from './constants.ts';
 
 /**
- * Reported to onError when this engine stops executing a run because its
- * claim was lost (renewal refused, or another owner took the run over). The
- * run is not failed: its current owner, or recovery after the claim expired,
- * carries it on.
+ * A lease was lost. With a run id: reported to onError when this engine stops
+ * executing a run because its claim was lost (renewal refused, or another
+ * owner took the run over); the run is not failed, its current owner, or
+ * recovery after the claim expired, carries it on. With `{ lock }`: a write
+ * fenced by the store lock `lock` was refused because its owner no longer
+ * holds it unexpired; nothing was written.
  */
 export class LeaseLostError extends ChamviError {
-    readonly runId: string;
+    readonly runId?: string;
 
-    constructor(runId: string) {
-        super({ message: `Lost the claim of run "${runId}"; it is no longer executed here.`, code: ErrorCode.LEASE_LOST });
-        this.runId = runId;
+    readonly lock?: string;
+
+    constructor(target: string | { lock: string }) {
+        super({
+            message: typeof target === 'string' ?
+                `Lost the claim of run "${target}"; it is no longer executed here.` :
+                `Lost the lease "${target.lock}"; the write was refused.`,
+            code: ErrorCode.LEASE_LOST,
+        });
+
+        if (typeof target === 'string') {
+            this.runId = target;
+        } else {
+            this.lock = target.lock;
+        }
     }
 }

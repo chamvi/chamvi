@@ -23,6 +23,7 @@ import type {
     WaitPoint,
 } from '@chamvi/core';
 import { ControllableClock } from '../clock/index.ts';
+import { describeConnectionContract } from './connection.ts';
 import {
     makeAgentRevision,
     makeArtifact,
@@ -1486,6 +1487,10 @@ export function describeRepositoryContract(
             listed!.changedAt.setTime(0);
             expect(await store.agentRevisions.findOne('a')).toEqual(makeAgentRevision('a'));
             expect(await store.agentRevisions.find()).toEqual([makeAgentRevision('a')]);
+        });
+
+        describe('connections', () => {
+            describeConnectionContract(setup);
         });
     });
 }

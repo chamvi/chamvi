@@ -7,6 +7,11 @@
 
 import type { AgentRevision } from '../agent/types.ts';
 import type { Artifact } from '../artifact/types.ts';
+import type {
+    Connection,
+    ConnectionEntryWrite,
+    ConnectionFence,
+} from '../connection/types.ts';
 import type { IConversationRepository } from '../conversation/types.ts';
 import type {
     Checkpoint,
@@ -200,6 +205,35 @@ export interface IAgentRevisionRepository {
     findOrFail(): Promise<AgentRevision[]>;
 }
 
+/**
+ * Connections and their runtime-state entries (opaque sealed bytes: the
+ * repository never sees plaintext). Values are copied in and out as plain
+ * Uint8Arrays. A name breaking the agent-name rule, an entry key outside 1 to
+ * 255 characters or with NUL, or a malformed batch throws ValidationError
+ * before anything is written; entry calls on an unknown connection throw
+ * RepositoryNotFoundError.
+ */
+export interface IConnectionRepository {
+    /** Atomic insert-if-absent: resolves false and keeps the stored connection when the name is taken. */
+    insert(connection: Connection): Promise<boolean>;
+    findOne(name: string): Promise<Connection | undefined>;
+    findOneOrFail(name: string): Promise<Connection>;
+    /** Every connection, ordered by name in code-point order (`COLLATE "C"`). */
+    find(): Promise<Connection[]>;
+    /** Removes the connection and its entries; a missing name is a no-op. */
+    delete(name: string): Promise<void>;
+    findEntry(name: string, key: string): Promise<Uint8Array | undefined>;
+    /** The stored ones of `keys`; missing keys are absent from the map. */
+    findEntries(name: string, keys: readonly string[]): Promise<Map<string, Uint8Array>>;
+    /**
+     * Atomic, all or nothing: `clear`, then `set`, then `delete`, and
+     * `updatedAt` set to now. `fence` must name a lock lease its owner holds
+     * unexpired at write time, checked atomically with the write; otherwise
+     * LeaseLostError and nothing is written.
+     */
+    writeEntries(name: string, write: ConnectionEntryWrite, fence: ConnectionFence): Promise<void>;
+}
+
 /** A store of repositories that may use independent storage implementations. */
 export interface IStore {
     runs: IRunRepository;
@@ -212,4 +246,5 @@ export interface IStore {
     artifacts: IArtifactRepository;
     agentRevisions: IAgentRevisionRepository;
     conversations?: IConversationRepository;
+    connections?: IConnectionRepository;
 }
