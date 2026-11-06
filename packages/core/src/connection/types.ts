@@ -5,6 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { IClock } from '../clock/types.ts';
+import type { LeaseLostError } from '../errors/index.ts';
+import type { IKeyring } from '../keyring/types.ts';
+import type { IStore } from '../repository/types.ts';
+
 /**
  * One configured account of a provider (WhatsApp, later Telegram, Slack). The
  * store holds only its wrapped data key; its entries are sealed bytes.
@@ -36,3 +41,59 @@ export type ConnectionFence = {
     lock: string;
     owner: string;
 };
+
+export type ConnectionVaultOptions = {
+    /** Must hold `connections`; its `locks` fence the writes. */
+    store: IStore;
+    keyring: IKeyring;
+    /** Drives the lease renewals (default systemClock). */
+    clock?: IClock;
+};
+
+export type ConnectionOpenOptions = {
+    /** The provider's type; an existing connection of another type is refused. */
+    type: string;
+    /** The lease owner (one per process, e.g. `${hostname}-${pid}`). */
+    owner: string;
+    /** Default DEFAULT_CONNECTION_LEASE_TTL_MS; renewed every `leaseTtlMs / 3`. */
+    leaseTtlMs?: number;
+    /** Aborts the open; a lease acquired meanwhile is released. */
+    signal?: AbortSignal;
+};
+
+/**
+ * The one place combining the connection repository, the lease and sealing:
+ * providers (WhatsApp, later Telegram) open sessions through it.
+ */
+export interface IConnectionVault {
+    /**
+     * Acquires the lease `connection:<name>`, creates the connection with a
+     * fresh data key when absent, unwraps its data key and starts renewing.
+     * Rejects with ConnectionHeldError while the lease is held, with
+     * InvalidAgentDefinitionError on a type mismatch, with
+     * DecryptionFailedError when the keyring cannot unwrap the data key; the
+     * lease is released on every failure.
+     */
+    open(name: string, opts: ConnectionOpenOptions): Promise<IConnectionSession>;
+}
+
+/**
+ * An exclusive, renewed hold of one connection. Entries are sealed with the
+ * connection's data key, bound to `<name>\0<key>`. Writes are serialized
+ * and fenced by the lease; reads wait for the writes accepted before them.
+ * After `lost` every call throws LeaseLostError, after `close` (begun)
+ * InvalidRunStateError.
+ */
+export interface IConnectionSession {
+    readonly name: string;
+    read(keys: readonly string[]): Promise<Map<string, Uint8Array>>;
+    readOne(key: string): Promise<Uint8Array | undefined>;
+    /** Resolves when this batch is durable; a malformed batch is refused before it is queued. */
+    write(write: ConnectionEntryWrite): Promise<void>;
+    /** Resolves when every accepted write is durable; rejects with the first failure since the last flush. */
+    flush(): Promise<void>;
+    /** Resolves once, when a renew or a fenced write found the lease gone; never rejects. */
+    readonly lost: Promise<LeaseLostError>;
+    /** Stops renewing, waits for pending writes, releases the lease. Idempotent, never rejects. */
+    close(): Promise<void>;
+}

@@ -10,3 +10,6 @@ export const CONNECTION_ENTRY_KEY_MAX_LENGTH = 255;
 
 /** Longest connection type and key id. */
 export const CONNECTION_TYPE_MAX_LENGTH = 64;
+
+/** Lease TTL of a connection session; a crashed holder blocks a re-open for at most this long. */
+export const DEFAULT_CONNECTION_LEASE_TTL_MS = 60_000;

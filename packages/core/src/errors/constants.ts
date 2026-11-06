@@ -12,6 +12,7 @@ export const ErrorCode = {
     ARTIFACT_NOT_FOUND: 'artifact_not_found',
     BUDGET_EXCEEDED: 'BudgetExceeded',
     CHANNEL_NOT_FOUND: 'channel_not_found',
+    CONNECTION_HELD: 'connection_held',
     CONTEXT_NOT_PROVIDED: 'context_not_provided',
     DECRYPTION_FAILED: 'decryption_failed',
     FATAL_TOOL: 'FatalToolError',

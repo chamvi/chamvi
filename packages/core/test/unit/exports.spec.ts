@@ -149,6 +149,8 @@ describe('public api', () => {
         'assertConnectionEntryKey',
         'assertConnectionEntryWrite',
         'assertConnectionName',
+        'createConnectionVault',
+        'ConnectionHeldError',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
@@ -478,6 +480,29 @@ describe('public api', () => {
         expectTypeOf<core.ILockRepository['renew']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
         expect(new core.LeaseLostError({ lock: 'connection:wa' })).toMatchObject({ code: 'lease_lost', lock: 'connection:wa' });
         expect(new core.LeaseLostError('r1')).toMatchObject({ code: 'lease_lost', runId: 'r1' });
+    });
+
+    it('exports the connection vault', () => {
+        expect(core.ErrorCode.CONNECTION_HELD).toBe('connection_held');
+        expect(core.DEFAULT_CONNECTION_LEASE_TTL_MS).toBe(60_000);
+        expect(core).not.toHaveProperty('ConnectionSession');
+        expect(core).not.toHaveProperty('lockKeyOf');
+        expect(core).not.toHaveProperty('entryAadOf');
+        expect(core).not.toHaveProperty('normalizeOpenOptions');
+        expectTypeOf<ReturnType<typeof core.createConnectionVault>>().toEqualTypeOf<core.IConnectionVault>();
+        expectTypeOf<ReturnType<core.IConnectionVault['open']>>().toEqualTypeOf<Promise<core.IConnectionSession>>();
+        expectTypeOf<core.IConnectionSession['lost']>().toEqualTypeOf<Promise<core.LeaseLostError>>();
+        expectTypeOf<core.ConnectionOpenOptions>().toEqualTypeOf<{
+            type: string;
+            owner: string;
+            leaseTtlMs?: number;
+            signal?: AbortSignal;
+        }>();
+        expectTypeOf<core.ConnectionVaultOptions>().toEqualTypeOf<{
+            store: core.IStore; 
+            keyring: core.IKeyring; 
+            clock?: core.IClock 
+        }>();
     });
 
     it('exports the agent cancel reason codes', () => {

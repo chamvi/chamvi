@@ -11,6 +11,7 @@ export * from './artifact-not-found.ts';
 export * from './base.ts';
 export * from './budget-exceeded.ts';
 export * from './channel-not-found.ts';
+export * from './connection-held.ts';
 export * from './constants.ts';
 export * from './context-not-provided.ts';
 export * from './decryption-failed.ts';
