@@ -50,7 +50,7 @@ export type ConnectionVaultOptions = {
     clock?: IClock;
 };
 
-export type ConnectionOpenOptions = {
+export type ConnectionOpenOptionsInput = {
     /** The provider's type; an existing connection of another type is refused. */
     type: string;
     /** The process's owner (e.g. `${hostname}-${pid}`); each session leases as `<owner>:<random uuid>`. */
@@ -65,6 +65,15 @@ export type ConnectionOpenOptions = {
      * master key: recovers a data key no keyring key unwraps or a type
      * mismatch. Default false.
      */
+    recreate?: boolean;
+};
+
+/** The checked open options (see ConnectionOpenOptionsInput), the lease ttl resolved. */
+export type ConnectionOpenOptions = {
+    type: string;
+    owner: string;
+    leaseTtlMs: number;
+    signal?: AbortSignal;
     recreate?: boolean;
 };
 
@@ -84,7 +93,7 @@ export interface IConnectionVault {
      * (`recreate` replaces the connection instead); the lease is released on
      * every failure.
      */
-    open(name: string, opts: ConnectionOpenOptions): Promise<IConnectionSession>;
+    open(name: string, opts: ConnectionOpenOptionsInput): Promise<IConnectionSession>;
 }
 
 /**
