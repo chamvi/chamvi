@@ -62,6 +62,16 @@ export function createUiRouter(config: UiConfig, guards: NavigationGuard[] = [],
                 name: RouteName.SCHEDULES,
                 component: () => import('../views/SchedulesView.vue'),
             },
+            {
+                path: '/connections',
+                name: RouteName.CONNECTIONS,
+                component: () => import('../views/ConnectionsView.vue'),
+            },
+            {
+                path: '/connections/:name',
+                name: RouteName.CONNECTION,
+                component: () => import('../views/ConnectionView.vue'),
+            },
             { path: '/:rest(.*)*', redirect: { name: RouteName.AGENTS } },
         ],
     });

@@ -317,3 +317,45 @@ test('choose an option on an approval card', async ({ page, request }) => {
     await expect(step.getByTestId('selected')).toHaveText('Selected: Minor 1.4.0');
     expect(errors).toEqual([]);
 });
+
+test('a connection pairs live: QR while pairing, gone once connected, reset pairs again', async ({ page, request }) => {
+    const errors = watchErrors(page);
+
+    // a known start whatever ran before (a retry included): pairing with a QR
+    expect((await request.post(`${E2E_ORIGIN}/connections/whatsapp/reset`, { headers: AUTH })).status()).toBe(202);
+
+    await page.goto('');
+    await signIn(page);
+    await page.getByRole('link', { name: 'Connections' }).first().click();
+    await expect(page).toHaveURL(/\/ui\/connections$/);
+
+    const row = page.getByTestId('connections').locator('[data-connection="whatsapp"]');
+
+    await expect(row.getByTestId('connection-status')).toHaveText('pairing');
+    await row.getByRole('link', { name: 'whatsapp' }).click();
+    await expect(page).toHaveURL(/\/ui\/connections\/whatsapp$/);
+
+    const qr = page.getByTestId('connection-qr');
+
+    await expect(qr).toBeVisible();
+    await expect(qr).toHaveAttribute('src', /^data:image\/svg\+xml,/);
+    // the pairing string itself is never on the page as text
+    await expect(page.getByText('demo-pairing-material')).toHaveCount(0);
+
+    expect((await request.post(`${E2E_ORIGIN}/demo/connect`, { headers: AUTH })).status()).toBe(204);
+    await expect(page.getByTestId('connection-status')).toHaveText('connected');
+    await expect(qr).toHaveCount(0);
+
+    // reset asks in the page, then a new QR arrives over the stream
+    page.on('dialog', (dialog) => {
+        errors.push(`browser dialog: ${dialog.message()}`);
+        void dialog.dismiss();
+    });
+    await page.getByTestId('connection-reset').click();
+    await expect(page.getByTestId('connection-reset-confirm')).toBeVisible();
+    await page.getByTestId('connection-reset-yes').click();
+    await expect(page.getByTestId('connection-status')).toHaveText('pairing');
+    await expect(qr).toBeVisible();
+    await expect(page.getByTestId('connection-reset-confirm')).toHaveCount(0);
+    expect(errors).toEqual([]);
+});

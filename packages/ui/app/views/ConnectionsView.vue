@@ -1,0 +1,99 @@
+<script setup lang="ts">
+/*
+ * Copyright (c) 2026.
+ * Author Peter Placzek (tada5hi)
+ * For the full copyright and license information,
+ * view the LICENSE file that was distributed with this source code.
+ */
+
+import { RouterLink } from 'vue-router';
+import EmptyState from '../components/empty-state/EmptyState.vue';
+import NavIcon from '../components/nav-icon/NavIcon.vue';
+import PageHead from '../components/page-head/PageHead.vue';
+import { createConnectionsApi } from '../connections/api.ts';
+import { useConnections } from '../connections/composables.ts';
+import StatusBadge from '../connections/StatusBadge.vue';
+import { useAppContext } from '../context/module.ts';
+import { RouteName } from '../router/constants.ts';
+
+const { client } = useAppContext();
+const {
+    connections, 
+    error, 
+    loaded, 
+} = useConnections(createConnectionsApi(client));
+</script>
+
+<template>
+    <PageHead
+        title="Connections"
+        lede="The accounts this app's channels hold, their status and pairing."
+    >
+        <span
+            v-if="loaded && !error"
+            class="live"
+        >{{ connections.length }} {{ connections.length === 1 ? 'connection' : 'connections' }}</span>
+    </PageHead>
+
+    <div
+        v-if="error"
+        class="card notice"
+    >
+        {{ error.code }} · {{ error.message }}
+    </div>
+    <div
+        v-else-if="loaded && connections.length === 0"
+        class="card"
+    >
+        <EmptyState
+            icon="connections"
+            title="No connections"
+            text="No module of this app exposes a connection you may read (connection:<name>:read or :write)."
+        />
+    </div>
+    <div
+        v-else-if="connections.length > 0"
+        class="card table-card"
+    >
+        <div class="table-wrap">
+            <table
+                class="t"
+                data-testid="connections"
+            >
+                <thead>
+                    <tr>
+                        <th>Connection</th>
+                        <th>Type</th>
+                        <th>Status</th>
+                        <th />
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr
+                        v-for="connection in connections"
+                        :key="connection.name"
+                        :data-connection="connection.name"
+                    >
+                        <td>
+                            <RouterLink
+                                class="id"
+                                :to="{ name: RouteName.CONNECTION, params: { name: connection.name } }"
+                            >
+                                {{ connection.name }}
+                            </RouterLink>
+                        </td>
+                        <td class="mono">
+                            {{ connection.type }}
+                        </td>
+                        <td>
+                            <StatusBadge :status="connection.status" />
+                        </td>
+                        <td>
+                            <span class="go"><NavIcon name="go" /></span>
+                        </td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+    </div>
+</template>

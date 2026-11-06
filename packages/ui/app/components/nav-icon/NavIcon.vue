@@ -75,6 +75,24 @@ defineProps<{ name: IconName }>();
             />
             <path d="M8 1.5v1.5M8 13v1.5M1.5 8H3M13 8h1.5M3.4 3.4l1 1M11.6 11.6l1 1M3.4 12.6l1-1M11.6 4.4l1-1" />
         </template>
+        <template v-else-if="name === 'connections'">
+            <circle
+                cx="4"
+                cy="8"
+                r="2"
+            />
+            <circle
+                cx="12"
+                cy="4"
+                r="2"
+            />
+            <circle
+                cx="12"
+                cy="12"
+                r="2"
+            />
+            <path d="M5.8 7.1l4.4-2.2M5.8 8.9l4.4 2.2" />
+        </template>
         <path
             v-else-if="name === 'moon'"
             d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z"

@@ -96,6 +96,13 @@ export type ApiClientOptions = {
     fetch?: typeof fetch;
 };
 
+/** A raw request through the client: bearer, refresh and errors as for every call. */
+export type ApiSendInit = {
+    method?: string;
+    headers?: Record<string, string>;
+    signal?: AbortSignal;
+};
+
 export interface IApiClient {
     me(token?: string): Promise<MeWire>;
     listAgents(): Promise<AgentList>;
@@ -114,4 +121,10 @@ export interface IApiClient {
     startRun(agent: string, body: StartRunBody): Promise<StartRunResult>;
     /** The raw SSE response of `GET /runs/:id/stream` (an ApiError for a non-2xx answer). */
     streamRun(id: string, init: { lastEventId?: number; signal: AbortSignal }): Promise<Response>;
+    /**
+     * `target` under `apiBase` (already encoded), the raw response of a 2xx
+     * answer, an ApiError otherwise; what feature clients (`connections/`)
+     * build on.
+     */
+    send(target: string, init?: ApiSendInit): Promise<Response>;
 }
