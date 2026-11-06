@@ -53,12 +53,19 @@ export type ConnectionVaultOptions = {
 export type ConnectionOpenOptions = {
     /** The provider's type; an existing connection of another type is refused. */
     type: string;
-    /** The lease owner (one per process, e.g. `${hostname}-${pid}`). */
+    /** The process's owner (e.g. `${hostname}-${pid}`); each session leases as `<owner>:<random uuid>`. */
     owner: string;
     /** Default DEFAULT_CONNECTION_LEASE_TTL_MS; renewed every `leaseTtlMs / 3`. */
     leaseTtlMs?: number;
     /** Aborts the open; a lease acquired meanwhile is released. */
     signal?: AbortSignal;
+    /**
+     * Under the acquired lease, deletes the stored connection (its entries
+     * with it) and creates it again with a fresh data key under the active
+     * master key: recovers a data key no keyring key unwraps or a type
+     * mismatch. Default false.
+     */
+    recreate?: boolean;
 };
 
 /**
@@ -71,8 +78,9 @@ export interface IConnectionVault {
      * fresh data key when absent, unwraps its data key and starts renewing.
      * Rejects with ConnectionHeldError while the lease is held, with
      * InvalidAgentDefinitionError on a type mismatch, with
-     * DecryptionFailedError when the keyring cannot unwrap the data key; the
-     * lease is released on every failure.
+     * DecryptionFailedError when the keyring cannot unwrap the data key
+     * (`recreate` replaces the connection instead); the lease is released on
+     * every failure.
      */
     open(name: string, opts: ConnectionOpenOptions): Promise<IConnectionSession>;
 }

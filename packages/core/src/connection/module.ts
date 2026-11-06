@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { randomUUID } from 'node:crypto';
 import { systemClock } from '../clock/module.ts';
 import { ConnectionHeldError, InvalidAgentDefinitionError } from '../errors/index.ts';
 import {
@@ -40,11 +41,13 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
 
             const {
                 type,
-                owner,
                 leaseTtlMs,
                 signal,
+                recreate,
             } = normalizeOpenOptions(opts);
             const lock = lockKeyOf(name);
+            // one token per session: no other session (of this process too) is taken for the holder or passes its fence
+            const owner = `${opts.owner}:${randomUUID()}`;
 
             signal?.throwIfAborted();
 
@@ -54,6 +57,11 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
 
             try {
                 signal?.throwIfAborted();
+
+                // under the lease only the holder deletes: the entries go with the row, a fresh data key follows
+                if (recreate) {
+                    await connections.delete(name);
+                }
 
                 let connection = await connections.findOne(name);
 
