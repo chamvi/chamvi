@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import {
     createRunArtifacts,
@@ -37,7 +38,7 @@ describe('storeArtifact', () => {
         const a = await artifacts.put(input('a'));
         const b = await artifacts.put(input('b'));
 
-        expect(a.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+        expect(a.id).toMatch(z.regexes.uuid7);
         expect(a.createdAt).toEqual(clock.now());
         expect(b.id).not.toBe(a.id);
     });

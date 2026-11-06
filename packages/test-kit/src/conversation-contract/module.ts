@@ -13,6 +13,7 @@ import {
     vi,
 } from 'vitest';
 import type { IConversationRepository, ResolvedConversationLimits } from '@chamvi/core';
+import { assertConversationScope } from '@chamvi/core/conversation/persistence';
 import { ControllableClock } from '../clock/index.ts';
 import {
     LIMITS,
@@ -126,7 +127,7 @@ export function describeConversationRepositoryContract(
             } = await setup();
 
             expect(scope.generation).toBe(0);
-            expect(scope.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+            assertConversationScope(scope);
             expect(scope.identity).toEqual(identity);
             expect(await store.resolve({ ...identity })).toEqual(scope);
             expect(await Promise.all(Array.from({ length: 4 }, () => store.resolve({ ...identity })))).toEqual(Array(4).fill(scope));

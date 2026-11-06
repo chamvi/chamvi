@@ -156,7 +156,7 @@ describe('attachments at dispatch', () => {
 
         expect(listed).toEqual(run.trigger.attachments);
         expect(run.trigger.attachments?.[0]).toEqual({
-            id: expect.stringMatching(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/),
+            id: expect.stringMatching(z.regexes.uuid7),
             runId,
             agent: 'vision',
             mediaType: 'image/png',

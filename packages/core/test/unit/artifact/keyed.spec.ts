@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { z } from 'zod';
 import { 
     afterEach, 
     describe, 
@@ -73,7 +74,7 @@ describe('keyed artifacts', () => {
             data: new Uint8Array([1]), 
         });
 
-        expect(artifact.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+        expect(artifact.id).toMatch(z.regexes.uuid7);
         expect(artifact).not.toHaveProperty('key');
     });
 

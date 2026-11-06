@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { z } from 'zod';
 import type { ModelMessage } from 'ai';
 import { isObject } from 'smob';
 import { stableHash } from '../../effect/helpers.ts';
@@ -115,7 +116,7 @@ export function assertConversationScope(scope: unknown): asserts scope is Conver
         throw new ValidationError('The conversation scope must be an object.');
     }
 
-    if (typeof scope.id !== 'string' || !/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(scope.id)) {
+    if (typeof scope.id !== 'string' || !z.regexes.uuid7.test(scope.id)) {
         throw new ValidationError('The conversation scope id must be a UUID v7.');
     }
 

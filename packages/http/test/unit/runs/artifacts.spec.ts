@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { z } from 'zod';
 import { describe, expect, it } from 'vitest';
 import {
     ADMIN_TOKEN,
@@ -56,7 +57,7 @@ describe('GET /runs/:id/artifacts', () => {
         expect(data).toHaveLength(2);
         // in the order the client sent them
         expect(data.map((item) => item.mediaType)).toEqual(['text/plain', 'image/png']);
-        expect(data[0]!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+        expect(data[0]!.id).toMatch(z.regexes.uuid7);
 
         for (const item of data) {
             expect(item).not.toHaveProperty('data');
