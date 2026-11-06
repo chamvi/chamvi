@@ -7,6 +7,7 @@
 
 import type {
     AssistantModelMessage,
+    InferToolOutput,
     OutputInterface,
     SystemModelMessage,
     ToolSet,
@@ -162,8 +163,10 @@ export type ModelAgentDefinition<S extends StateSchema = StateSchema> = {
  * its own tools (wrapped like a model's calls: effect-recorded,
  * trust-classified, gated) as plain functions by name.
  */
-export type SimpleRunContext<S extends StateSchema = StateSchema> = ToolContext<S> & {
-    tools: Record<string, (input: unknown) => Promise<unknown>>;
+export type SimpleRunContext<S extends StateSchema = StateSchema, T extends ToolSet = ToolSet> = ToolContext<S> & {
+    tools: Record<string, (input: unknown) => Promise<unknown>> & (string extends keyof T ? unknown : {
+        [K in keyof T]: (input: unknown) => Promise<InferToolOutput<T[K]>>;
+    });
 };
 
 /**
@@ -172,11 +175,11 @@ export type SimpleRunContext<S extends StateSchema = StateSchema> = ToolContext<
  * ctx.channels and the agent's tools work as inside a tool call. A suspended
  * run re-runs `run()` from the start on resume (the replay rule).
  */
-export type SimpleAgentDefinition<S extends StateSchema = StateSchema> = {
+export type SimpleAgentDefinition<S extends StateSchema = StateSchema, T extends ToolSet = ToolSet> = {
     name: string;
 
     /** The run's body; its JSON-serialisable return value is the run's `output`. */
-    run(payload: unknown, ctx: SimpleRunContext<S>): unknown | Promise<unknown>;
+    run(payload: unknown, ctx: SimpleRunContext<S, NoInfer<T>>): unknown | Promise<unknown>;
 
     /** The text of the agent's MCP run tool. */
     description?: string;
@@ -189,7 +192,7 @@ export type SimpleAgentDefinition<S extends StateSchema = StateSchema> = {
     private?: boolean;
 
     /** A plain set only: a factory is refused. */
-    tools?: ToolSet;
+    tools?: T;
 
     trust?: AgentTrust;
 
@@ -220,10 +223,10 @@ export type ModelAgent<S extends StateSchema = StateSchema> = {
 };
 
 /** defineSimpleAgent()'s result: its definition with the budget defaults applied. */
-export type SimpleAgent<S extends StateSchema = StateSchema> = {
+export type SimpleAgent<S extends StateSchema = StateSchema, T extends ToolSet = ToolSet> = {
     readonly kind: 'simple';
     readonly name: string;
-    readonly definition: Required<Pick<SimpleAgentDefinition<S>, 'budget'>> & SimpleAgentDefinition<S>;
+    readonly definition: Required<Pick<SimpleAgentDefinition<S, T>, 'budget'>> & SimpleAgentDefinition<S, T>;
 };
 
 /** A registrable agent; `kind` tells the two apart and narrows the definition. */

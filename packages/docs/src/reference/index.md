@@ -12,7 +12,7 @@ Test helpers live in [`@chamvi/test-kit`](/reference/test-kit).
 
 ```ts
 function defineModelAgent<S extends StateSchema = StateSchema>(def: ModelAgentDefinition<S>): ModelAgent<S>;
-function defineSimpleAgent<S extends StateSchema = StateSchema>(def: SimpleAgentDefinition<S>): SimpleAgent<S>;
+function defineSimpleAgent<S extends StateSchema = StateSchema, T extends ToolSet = ToolSet>(def: SimpleAgentDefinition<S, T>): SimpleAgent<S, T>;
 
 const DEFAULT_MAX_STEPS: 20;
 const DEFAULT_TIMEOUT_MS: 900_000; // 15 minutes

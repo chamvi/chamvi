@@ -11,7 +11,10 @@ npm install @chamvi/tool-files @chamvi/core ai --save
 ## fileTools
 
 ```ts
-function fileTools(options?: FileToolsOptions): ToolSet; // { list_artifacts, process_files }
+function fileTools(options?: FileToolsOptions): {
+    list_artifacts: Tool<ListArtifactsInput, ListArtifactsResult>;
+    process_files: Tool<ProcessFilesInput, ProcessFilesResult>;
+};
 
 const FILES_MAX_BYTES: 5_242_880;
 const FILES_MAX_FILES: 16;

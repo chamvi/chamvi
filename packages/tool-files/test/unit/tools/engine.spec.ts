@@ -100,7 +100,7 @@ describe('engine artifact processing', () => {
                 name: 'files',
                 tools: fileTools({ maxBytes }),
                 run: async (_, ctx) => {
-                    const catalog = await ctx.tools.list_artifacts!({}) as ListArtifactsResult;
+                    const catalog = await ctx.tools.list_artifacts({});
 
                     return ctx.tools.process_files!({
                         command,
@@ -201,8 +201,8 @@ describe('engine artifact processing', () => {
                 run: async (_, ctx) => {
                     calls++;
 
-                    const first = await ctx.tools.process_files!({ command: 'echo first > result.json', outputs: [selection] }) as ProcessFilesResult;
-                    const second = await ctx.tools.process_files!({ command: 'echo second > result.json', outputs: [selection] }) as ProcessFilesResult;
+                    const first = await ctx.tools.process_files({ command: 'echo first > result.json', outputs: [selection] });
+                    const second = await ctx.tools.process_files({ command: 'echo second > result.json', outputs: [selection] });
 
                     await approve(ctx, { title: 'Accept outputs?', artifacts: [first.artifacts[0]!.id, second.artifacts[0]!.id] });
 

@@ -1,24 +1,23 @@
 import { ValidationError, defineSimpleAgent } from '@chamvi/core';
 import { fileTools } from '@chamvi/tool-files';
-import type { ListArtifactsResult, ProcessFilesResult } from '@chamvi/tool-files';
 
 export function createFileAgent() {
     return defineSimpleAgent({
         name: 'file-report',
         tools: fileTools(),
         run: async (_, ctx) => {
-            const catalog = await ctx.tools.list_artifacts!({}) as ListArtifactsResult;
+            const catalog = await ctx.tools.list_artifacts({});
             const source = catalog.artifacts.find((artifact) => artifact.filename === 'sales.json');
 
             if (!source) {
                 throw new ValidationError('Attach sales.json with an array of amounts.');
             }
 
-            const result = await ctx.tools.process_files!({
+            const result = await ctx.tools.process_files({
                 command: "jq '[.[].amount] | add' sales.json > report.json",
                 inputs: [{ artifactId: source.id, path: 'sales.json' }],
                 outputs: [{ path: 'report.json', mediaType: 'application/json' }],
-            }) as ProcessFilesResult;
+            });
             const report = result.artifacts[0];
 
             if (result.exitCode !== 0 || !report) {

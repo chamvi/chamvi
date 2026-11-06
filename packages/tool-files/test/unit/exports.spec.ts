@@ -11,7 +11,7 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
-import type { ToolSet } from 'ai';
+import type { Tool, ToolSet } from 'ai';
 import type { Artifact } from '@chamvi/core';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import * as files from '@chamvi/tool-files';
@@ -30,7 +30,9 @@ describe('public API', () => {
         expect(files.FILES_MAX_FILES).toBe(16);
         expect(files.FILES_TIMEOUT_MS).toBe(30_000);
         expect(Object.keys(files.fileTools())).toEqual(['list_artifacts', 'process_files']);
-        expectTypeOf(files.fileTools).returns.toEqualTypeOf<ToolSet>();
+        expectTypeOf(files.fileTools).returns.toMatchTypeOf<ToolSet>();
+        expectTypeOf(files.fileTools().list_artifacts).toEqualTypeOf<Tool<ListArtifactsInput, ListArtifactsResult>>();
+        expectTypeOf(files.fileTools().process_files).toEqualTypeOf<Tool<ProcessFilesInput, ProcessFilesResult>>();
         expectTypeOf<ProcessFilesResult['artifacts']>().toEqualTypeOf<Artifact[]>();
         expectTypeOf<ProcessFilesInput>().toEqualTypeOf<{
             command: string;

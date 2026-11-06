@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ToolSet } from 'ai';
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
 import { assertOwnDispatchRoles } from '../dispatch/helpers.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
@@ -49,11 +50,13 @@ export function defineModelAgent<S extends StateSchema = StateSchema>(def: Model
  * A model-free agent whose `run(payload, ctx)` the engine runs as a durable
  * run, with the budget defaults applied.
  */
-export function defineSimpleAgent<S extends StateSchema = StateSchema>(def: SimpleAgentDefinition<S>): SimpleAgent<S> {
+export function defineSimpleAgent<S extends StateSchema = StateSchema, T extends ToolSet = ToolSet>(
+    def: SimpleAgentDefinition<S, T>,
+): SimpleAgent<S, T> {
     assertName(def.name);
     assertSimpleAgent(def);
 
-    return { kind: 'simple', ...build(def) } as SimpleAgent<S>;
+    return { kind: 'simple', ...build(def) } as SimpleAgent<S, T>;
 }
 
 function assertName(name: unknown): void {
