@@ -7,7 +7,7 @@
 
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { CONNECTION_TYPE_MAX_LENGTH, DEFAULT_CONNECTION_LEASE_TTL_MS } from './constants.ts';
-import type { ConnectionOpenOptions } from './types.ts';
+import type { ConnectionOpenOptions, ConnectionOpenOptionsInput } from './types.ts';
 
 /** The longest delay a timer keeps; Node clamps a longer one to 1 ms. The lease deadline waits a whole ttl. */
 const TIMER_MAX_DELAY_MS = 2_147_483_647;
@@ -22,18 +22,18 @@ export const dataKeyContextOf = (name: string) => `connection:${name}`;
 export const entryAadOf = (name: string, key: string) => `${name}\0${key}`;
 
 /** The checked open options with the lease ttl resolved. */
-export function normalizeOpenOptions(opts: ConnectionOpenOptions): ConnectionOpenOptions & { leaseTtlMs: number } {
-    const leaseTtlMs = opts.leaseTtlMs ?? DEFAULT_CONNECTION_LEASE_TTL_MS;
+export function normalizeOpenOptions(input: ConnectionOpenOptionsInput): ConnectionOpenOptions {
+    const leaseTtlMs = input.leaseTtlMs ?? DEFAULT_CONNECTION_LEASE_TTL_MS;
 
-    if (typeof opts.type !== 'string' || opts.type.length === 0 || opts.type.length > CONNECTION_TYPE_MAX_LENGTH) {
+    if (typeof input.type !== 'string' || input.type.length === 0 || input.type.length > CONNECTION_TYPE_MAX_LENGTH) {
         throw new InvalidAgentDefinitionError(`A connection type must be a string of 1 to ${CONNECTION_TYPE_MAX_LENGTH} characters.`);
     }
 
-    if (typeof opts.owner !== 'string' || opts.owner.length === 0) {
+    if (typeof input.owner !== 'string' || input.owner.length === 0) {
         throw new InvalidAgentDefinitionError('A connection owner must be a non-empty string.');
     }
 
-    if (opts.recreate !== undefined && typeof opts.recreate !== 'boolean') {
+    if (input.recreate !== undefined && typeof input.recreate !== 'boolean') {
         throw new InvalidAgentDefinitionError('A connection recreate option must be a boolean.');
     }
 
@@ -43,5 +43,5 @@ export function normalizeOpenOptions(opts: ConnectionOpenOptions): ConnectionOpe
         );
     }
 
-    return { ...opts, leaseTtlMs };
+    return { ...input, leaseTtlMs };
 }

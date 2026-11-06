@@ -492,13 +492,21 @@ describe('public api', () => {
         expectTypeOf<ReturnType<typeof core.createConnectionVault>>().toEqualTypeOf<core.IConnectionVault>();
         expectTypeOf<ReturnType<core.IConnectionVault['open']>>().toEqualTypeOf<Promise<core.IConnectionSession>>();
         expectTypeOf<core.IConnectionSession['lost']>().toEqualTypeOf<Promise<core.LeaseLostError>>();
-        expectTypeOf<core.ConnectionOpenOptions>().toEqualTypeOf<{
+        expectTypeOf<core.ConnectionOpenOptionsInput>().toEqualTypeOf<{
             type: string;
             owner: string;
             leaseTtlMs?: number;
             signal?: AbortSignal;
             recreate?: boolean;
         }>();
+        expectTypeOf<core.ConnectionOpenOptions>().toEqualTypeOf<{
+            type: string;
+            owner: string;
+            leaseTtlMs: number;
+            signal?: AbortSignal;
+            recreate?: boolean;
+        }>();
+        expectTypeOf<Parameters<core.IConnectionVault['open']>[1]>().toEqualTypeOf<core.ConnectionOpenOptionsInput>();
         expectTypeOf<core.ConnectionVaultOptions>().toEqualTypeOf<{
             store: core.IStore; 
             keyring: core.IKeyring; 

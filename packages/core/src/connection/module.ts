@@ -16,7 +16,7 @@ import {
 import { ConnectionSession } from './session.ts';
 import type {
     Connection,
-    ConnectionOpenOptions,
+    ConnectionOpenOptionsInput,
     ConnectionVaultOptions,
     IConnectionSession,
     IConnectionVault,
@@ -37,7 +37,7 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
     }
 
     return {
-        async open(name: string, opts: ConnectionOpenOptions): Promise<IConnectionSession> {
+        async open(name: string, opts: ConnectionOpenOptionsInput): Promise<IConnectionSession> {
             assertConnectionName(name);
 
             const {
