@@ -11,10 +11,12 @@ import { ValidationError } from '../errors/index.ts';
 import { CONNECTION_ENTRY_KEY_MAX_LENGTH, CONNECTION_TYPE_MAX_LENGTH } from './constants.ts';
 import type { Connection, ConnectionEntryWrite } from './types.ts';
 
+// well-formed UTF-16: a lone surrogate would be stored as U+FFFD in Postgres and seal to a shared AAD
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' &&
     value.length > 0 &&
     value.length <= max &&
-    !value.includes('\0');
+    !value.includes('\0') &&
+    value.isWellFormed();
 
 const isDate = (value: unknown): value is Date => value instanceof Date && !Number.isNaN(value.getTime());
 
@@ -25,11 +27,11 @@ export function assertConnectionName(name: unknown): asserts name is string {
     }
 }
 
-/** An entry key is 1 to 255 characters without NUL; a ValidationError otherwise (the key is not echoed). */
+/** An entry key is 1 to 255 characters of well-formed UTF-16 without NUL; a ValidationError otherwise (the key is not echoed). */
 export function assertConnectionEntryKey(key: unknown): asserts key is string {
     if (!isText(key, CONNECTION_ENTRY_KEY_MAX_LENGTH)) {
         throw new ValidationError(
-            `A connection entry key must be a string of 1 to ${CONNECTION_ENTRY_KEY_MAX_LENGTH} characters without NUL.`,
+            `A connection entry key must be a well-formed string of 1 to ${CONNECTION_ENTRY_KEY_MAX_LENGTH} characters without NUL.`,
         );
     }
 }
@@ -44,7 +46,7 @@ export function assertConnection(connection: unknown): asserts connection is Con
 
     if (!isText(connection.type, CONNECTION_TYPE_MAX_LENGTH) || !isText(connection.keyId, CONNECTION_TYPE_MAX_LENGTH)) {
         throw new ValidationError(
-            `A connection type and key id must be strings of 1 to ${CONNECTION_TYPE_MAX_LENGTH} characters without NUL.`,
+            `A connection type and key id must be well-formed strings of 1 to ${CONNECTION_TYPE_MAX_LENGTH} characters without NUL.`,
         );
     }
 

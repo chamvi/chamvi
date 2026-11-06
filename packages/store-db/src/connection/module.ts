@@ -21,7 +21,7 @@ import type {
     IClock,
     IConnectionRepository,
 } from '@chamvi/core';
-import { In, MoreThan } from 'typeorm';
+import { In } from 'typeorm';
 import type { DataSource, Repository } from 'typeorm';
 import { ConnectionEntity, ConnectionEntryEntity, LockEntity } from '../entities/index.ts';
 import { asValues } from '../repository/helpers.ts';
@@ -56,7 +56,8 @@ function toConnection(entity: ConnectionEntity): Connection {
  * Connections and their sealed entries in Postgres. `writeEntries` runs in one
  * transaction: it locks the connection row (existence, serialized batches),
  * reads the fence's lock row `FOR SHARE` (an acquire, renew or release of that
- * lease waits for the commit), then clears, upserts and deletes.
+ * lease waits for the commit), checks its expiry against a clock reading taken
+ * after both locks are held, then clears, upserts and deletes.
  */
 export class DatabaseConnectionRepository implements IConnectionRepository {
     protected dataSource: DataSource;
@@ -167,12 +168,16 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
         assertConnectionName(name);
         assertConnectionEntryWrite(write);
 
+        // only the lease of this connection fences it, never another lock the owner holds
+        if (fence.lock !== `connection:${name}`) {
+            throw new LeaseLostError({ lock: fence.lock });
+        }
+
         await this.dataSource.transaction(async (manager) => {
-            const now = this.clock.now();
             // the row lock of this update serializes batches and a delete of the connection
             const touched = await manager.withRepository(this.connections).createQueryBuilder()
                 .update()
-                .set({ updatedAt: now })
+                .set({ updatedAt: this.clock.now() })
                 .where({ name })
                 .returning(['name'])
                 .updateEntity(false)
@@ -183,15 +188,12 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
             }
 
             const lease = await manager.getRepository(LockEntity).findOne({
-                where: {
-                    key: fence.lock,
-                    owner: fence.owner,
-                    expiresAt: MoreThan(now),
-                },
+                where: { key: fence.lock, owner: fence.owner },
                 lock: { mode: 'pessimistic_read' },
             });
 
-            if (!lease) {
+            // read the clock once both row locks are held: a wait for them may have outlasted the lease
+            if (!lease || lease.expiresAt.getTime() <= this.clock.now().getTime()) {
                 throw new LeaseLostError({ lock: fence.lock });
             }
 

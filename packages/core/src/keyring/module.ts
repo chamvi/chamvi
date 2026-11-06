@@ -10,7 +10,7 @@ import {
     createDecipheriv,
     randomBytes,
 } from 'node:crypto';
-import { DecryptionFailedError, InvalidAgentDefinitionError } from '../errors/index.ts';
+import { DecryptionFailedError, InvalidAgentDefinitionError, ValidationError } from '../errors/index.ts';
 import {
     KEYRING_KEY_LENGTH,
     SEAL_IV_LENGTH,
@@ -27,10 +27,16 @@ const ALGORITHM = 'aes-256-gcm';
 
 /**
  * AES-256-GCM under `key` with a random 12-byte IV, bound to `aad`:
- * `iv | ciphertext | tag` as one plain Uint8Array.
+ * `iv | ciphertext | tag` as one plain Uint8Array. An `aad` that is not
+ * well-formed UTF-16 throws ValidationError: lone surrogates encode to the
+ * same UTF-8 bytes, so two such contexts would share one AAD.
  */
 export function seal(key: Uint8Array, plaintext: Uint8Array, aad: string): Uint8Array {
     assertKeyBytes(key, 'seal');
+
+    if (typeof aad !== 'string' || !aad.isWellFormed()) {
+        throw new ValidationError('A seal aad must be a well-formed string.');
+    }
 
     const iv = randomBytes(SEAL_IV_LENGTH);
     const cipher = createCipheriv(ALGORITHM, key, iv, { authTagLength: SEAL_TAG_LENGTH });
@@ -49,15 +55,17 @@ export function seal(key: Uint8Array, plaintext: Uint8Array, aad: string): Uint8
 
 /**
  * The plaintext of `seal(key, plaintext, aad)`. Any failure (a wrong key or
- * AAD, a tampered or truncated input) throws one DecryptionFailedError with a
- * fixed message.
+ * AAD, an AAD that is not well-formed UTF-16, a tampered or truncated input)
+ * throws one DecryptionFailedError with a fixed message.
  */
 export function open(key: Uint8Array, sealed: Uint8Array, aad: string): Uint8Array {
     if (
         !(key instanceof Uint8Array) ||
         key.length !== KEYRING_KEY_LENGTH ||
         !(sealed instanceof Uint8Array) ||
-        sealed.length < SEAL_IV_LENGTH + SEAL_TAG_LENGTH
+        sealed.length < SEAL_IV_LENGTH + SEAL_TAG_LENGTH ||
+        typeof aad !== 'string' ||
+        !aad.isWellFormed()
     ) {
         throw new DecryptionFailedError();
     }

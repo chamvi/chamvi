@@ -197,6 +197,21 @@ export function describeConnectionContract(setup: Setup): void {
         expect(plain(await connections.findEntries('wa', ['a', 'b', 'c']))).toEqual({ b: [2] });
     });
 
+    it('connections.writeEntries refuses a lease of another lock the owner holds, writing nothing', async ({ skip }) => {
+        const { store, connections } = await prepare(skip);
+
+        await connections.insert(makeConnection('wa'));
+        expect(await store.locks.acquire('agents:wa', 'o1', 1_000)).toBe(true);
+        expect(await store.locks.acquire('connection:other', 'o1', 1_000)).toBe(true);
+
+        for (const lock of ['agents:wa', 'connection:other']) {
+            await expect(connections.writeEntries('wa', { set: { a: bytes(1) } }, { lock, owner: 'o1' }))
+                .rejects.toBeInstanceOf(LeaseLostError);
+        }
+
+        expect(await connections.findEntry('wa', 'a')).toBeUndefined();
+    });
+
     it('a write that fails validation anywhere in the batch writes nothing', async ({ skip }) => {
         const { connections, hold } = await prepare(skip);
 
@@ -210,6 +225,13 @@ export function describeConnectionContract(setup: Setup): void {
             { clear: true, set: { b: bytes(2), ['x'.repeat(256)]: bytes(3) } },
             { clear: true, set: { b: bytes(2), 'a\0b': bytes(3) } },
             { clear: true, set: { b: bytes(2), '': bytes(3) } },
+            // a lone surrogate: Postgres would store U+FFFD, merging distinct keys
+            { clear: true, set: { b: bytes(2), '\ud800': bytes(3) } },
+            {
+                clear: true,
+                set: { b: bytes(2) },
+                delete: ['\udc00'],
+            },
             { clear: true, set: { b: bytes(2), c: 'nope' as unknown as Uint8Array } },
             {
                 clear: true, 
@@ -225,6 +247,8 @@ export function describeConnectionContract(setup: Setup): void {
         expect(plain(await connections.findEntries('wa', ['a', 'b']))).toEqual({ a: [1] });
         await expect(connections.findEntries('wa', ['a', 'x'.repeat(256)])).rejects.toBeInstanceOf(ValidationError);
         await expect(connections.findEntry('wa', '')).rejects.toBeInstanceOf(ValidationError);
+        await expect(connections.findEntries('wa', ['a', 'x\ud800'])).rejects.toBeInstanceOf(ValidationError);
+        await expect(connections.findEntry('wa', '\udc00')).rejects.toBeInstanceOf(ValidationError);
     });
 
     it('connections.delete removes the connection with its entries and ignores a missing one', async ({ skip }) => {

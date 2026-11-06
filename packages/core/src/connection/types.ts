@@ -53,12 +53,19 @@ export type ConnectionVaultOptions = {
 export type ConnectionOpenOptions = {
     /** The provider's type; an existing connection of another type is refused. */
     type: string;
-    /** The lease owner (one per process, e.g. `${hostname}-${pid}`). */
+    /** The process's owner (e.g. `${hostname}-${pid}`); each session leases as `<owner>:<random uuid>`. */
     owner: string;
-    /** Default DEFAULT_CONNECTION_LEASE_TTL_MS; renewed every `leaseTtlMs / 3`. */
+    /** Default DEFAULT_CONNECTION_LEASE_TTL_MS, 3 to 2_147_483_647 (the timer limit); renewed every `leaseTtlMs / 3`. */
     leaseTtlMs?: number;
     /** Aborts the open; a lease acquired meanwhile is released. */
     signal?: AbortSignal;
+    /**
+     * Under the acquired lease, deletes the stored connection (its entries
+     * with it) and creates it again with a fresh data key under the active
+     * master key: recovers a data key no keyring key unwraps or a type
+     * mismatch. Default false.
+     */
+    recreate?: boolean;
 };
 
 /**
@@ -68,18 +75,22 @@ export type ConnectionOpenOptions = {
 export interface IConnectionVault {
     /**
      * Acquires the lease `connection:<name>`, creates the connection with a
-     * fresh data key when absent, unwraps its data key and starts renewing.
-     * Rejects with ConnectionHeldError while the lease is held, with
+     * fresh data key when absent, renews the lease once (the initialization
+     * may outlast it), unwraps its data key and starts renewing. Rejects
+     * with ConnectionHeldError while the lease is held, with LeaseLostError
+     * when the lease lapsed before open could confirm it, with
      * InvalidAgentDefinitionError on a type mismatch, with
-     * DecryptionFailedError when the keyring cannot unwrap the data key; the
-     * lease is released on every failure.
+     * DecryptionFailedError when the keyring cannot unwrap the data key
+     * (`recreate` replaces the connection instead); the lease is released on
+     * every failure.
      */
     open(name: string, opts: ConnectionOpenOptions): Promise<IConnectionSession>;
 }
 
 /**
  * An exclusive, renewed hold of one connection. Entries are sealed with the
- * connection's data key, bound to `<name>\0<key>`. Writes are serialized
+ * connection's data key (a private field, never serialized), bound to
+ * `<name>\0<key>`. Writes are serialized
  * and fenced by the lease; reads wait for the writes accepted before them.
  * After `lost` every call throws LeaseLostError, after `close` (begun)
  * InvalidRunStateError.
@@ -92,9 +103,17 @@ export interface IConnectionSession {
     write(write: ConnectionEntryWrite): Promise<void>;
     /** Resolves when every accepted write is durable; rejects with the first failure since the last flush. */
     flush(): Promise<void>;
-    /** Resolves once, when a renew or a fenced write found the lease gone; never rejects. */
+    /**
+     * Resolves once, when a renew or a fenced write found the lease gone, or
+     * when no renewal was confirmed before the last confirmed expiry (a renew
+     * that keeps throwing or never settles); never rejects.
+     */
     readonly lost: Promise<LeaseLostError>;
-    /** Stops renewing, waits for pending writes, releases the lease. Idempotent, never rejects. */
+    /**
+     * Refuses new calls, keeps renewing until the accepted writes settled,
+     * then stops renewing, zeroes the data key and releases the lease.
+     * Idempotent, never rejects.
+     */
     close(): Promise<void>;
 }
 
