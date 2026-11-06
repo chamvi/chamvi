@@ -28,6 +28,7 @@ describe('public api', () => {
         'createApp',
         'isApp',
         'readConfig',
+        'readKeyring',
         'approvalUrlOf',
         'createLogger',
         'runHooks',
@@ -97,6 +98,10 @@ describe('public api', () => {
         }
     });
 
+    it('exports the keyring variable', () => {
+        expect(app.ENV_ENCRYPTION_KEYS).toBe('CHAMVI_ENCRYPTION_KEYS');
+    });
+
     it('exports the timer limit of the ms variables', () => {
         expect(app.TIMER_MAX_MS).toBe(2_147_483_647);
     });
@@ -113,11 +118,13 @@ describe('public api', () => {
             'CHANNELS',
             'CLOCK',
             'CONFIG',
+            'CONNECTIONS',
             'CONTEXT',
             'DATA_SOURCE',
             'ENGINE',
             'GIT_CREDENTIALS',
             'HTTP_ROUTES',
+            'KEYRING',
             'LIFECYCLE_HOOKS',
             'LOGGER',
             'MODELS',

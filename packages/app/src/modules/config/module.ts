@@ -9,13 +9,14 @@ import { systemClock } from '@chamvi/core';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { readConfig } from '../../config/module.ts';
+import { readKeyring } from '../../keyring/module.ts';
 import { createLogger } from '../../logger/module.ts';
 import { AppToken, ModuleName } from '../../module/constants.ts';
 import type { ConfigModuleOptions } from './types.ts';
 
 /**
  * Reads the app config from the context env and registers `CONFIG`,
- * `CLOCK` and `LOGGER`.
+ * `CLOCK`, `LOGGER` and the lazy `KEYRING` (unless one is registered).
  */
 export class ConfigModule implements IModule {
     readonly name: string = ModuleName.CONFIG;
@@ -35,6 +36,11 @@ export class ConfigModule implements IModule {
         container.register(AppToken.CONFIG, { useValue: config });
         container.register(AppToken.CLOCK, { useValue: clock });
         container.register(AppToken.LOGGER, { useValue: logger });
+
+        // lazy: the variable is read, and must exist, only when a module resolves the keyring
+        if (!container.has(AppToken.KEYRING)) {
+            container.register(AppToken.KEYRING, { useFactory: () => readKeyring(context.env) });
+        }
     }
 }
 

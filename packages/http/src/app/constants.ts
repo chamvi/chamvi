@@ -39,6 +39,7 @@ export const DEFAULT_METRICS_PATH = '/metrics';
 export const RESERVED_ROUTE_SEGMENTS: readonly string[] = [
     'agents',
     'channels',
+    'connections',
     'healthz',
     'mcp',
     'me',

@@ -23,6 +23,7 @@ describe('public api', () => {
     it.each([
         'agentPermission',
         'assertMcpRunTool',
+        'connectionPermission',
         'authup',
         'createHttpApp',
         'createShutdown',

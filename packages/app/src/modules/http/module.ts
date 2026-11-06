@@ -31,7 +31,7 @@ import type { HttpModuleOptions } from './types.ts';
  * `http` or `mcp` channel taint its runs) and the folder agents'
  * MCP tool check (`AGENT_CHECKS`, unless `mcp: false`); `onReady` builds the
  * graceful shutdown (`SHUTDOWN`) and the routup app from every
- * `AUTHENTICATORS` and `HTTP_ROUTES` contribution, mounting every
+ * `AUTHENTICATORS`, `HTTP_ROUTES` and `CONNECTIONS` contribution, mounting every
  * contributed channel with an `in` at `/channels/<name>`, then registers the
  * `serve` start step: the app runs the start steps (the engine with its
  * channels, then this one: the `started` hooks, listening, `SERVER`) only
@@ -128,6 +128,7 @@ export class HttpModule implements IModule {
 
         delete appOptions.untrusted;
 
+        const connections = container.resolveAll(AppToken.CONNECTIONS);
         const app = createHttpApp({
             ...appOptions,
             engine,
@@ -137,6 +138,7 @@ export class HttpModule implements IModule {
             routes: container.resolveAll(AppToken.HTTP_ROUTES),
             // every contributed channel the http app can serve; the engine holds the same instances
             channels: container.resolveAll(AppToken.CHANNELS).filter((channel) => typeof channel.in === 'function'),
+            connections: () => connections,
             ...(container.has(AppToken.AGENT_ISSUES) && { agentIssues: container.resolve(AppToken.AGENT_ISSUES) }),
             onError: (error) => logger.error('http error', error),
         });
