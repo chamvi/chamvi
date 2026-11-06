@@ -753,6 +753,7 @@ describe('githubChannel persistent comments', () => {
 
                     throw new Error('lock store unavailable');
                 },
+                renew: async () => false,
                 release: async () => {},
             },
         });

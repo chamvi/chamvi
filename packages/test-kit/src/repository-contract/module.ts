@@ -322,6 +322,36 @@ export function describeRepositoryContract(
             expect(await store.locks.acquire('k', 'b', 1_000)).toBe(true);
         });
 
+        it('locks.renew extends a held lease to exactly now + ttlMs', async () => {
+            const { clock, store } = await setup();
+
+            expect(await store.locks.acquire('k', 'a', 1_000)).toBe(true);
+            clock.advance(999);
+            expect(await store.locks.renew('k', 'a', 1_000)).toBe(true);
+            clock.advance(1);
+            expect(await store.locks.acquire('k', 'b', 1_000)).toBe(false);
+            clock.advance(998);
+            expect(await store.locks.acquire('k', 'b', 1_000)).toBe(false);
+            clock.advance(1);
+            expect(await store.locks.acquire('k', 'b', 1_000)).toBe(true);
+        });
+
+        it('locks.renew is refused after expiry, for another owner, after release and for an unknown key', async () => {
+            const { clock, store } = await setup();
+
+            expect(await store.locks.renew('missing', 'a', 1_000)).toBe(false);
+            expect(await store.locks.acquire('k', 'a', 1_000)).toBe(true);
+            expect(await store.locks.renew('k', 'b', 1_000)).toBe(false);
+            clock.advance(1_000);
+            expect(await store.locks.renew('k', 'a', 1_000)).toBe(false);
+            expect(await store.locks.acquire('k', 'b', 1_000)).toBe(true);
+            expect(await store.locks.renew('k', 'a', 1_000)).toBe(false);
+            expect(await store.locks.renew('k', 'b', 1_000)).toBe(true);
+            await store.locks.release('k', 'b');
+            expect(await store.locks.renew('k', 'b', 1_000)).toBe(false);
+            expect(await store.locks.acquire('k', 'c', 1_000)).toBe(true);
+        });
+
         it('effect roundtrip', async () => {
             const { store } = await setup();
 

@@ -119,7 +119,15 @@ export interface IIdempotencyRepository {
 }
 
 export interface ILockRepository {
+    /** Atomic: only succeeds when the key is unleased or its lease expired. */
     acquire(key: string, owner: string, ttlMs: number): Promise<boolean>;
+    /**
+     * Atomic: extends the lease to `now + ttlMs` and resolves true only while
+     * `owner` holds it unexpired; false when absent, expired, released or held
+     * by another owner (the lease is never re-created).
+     */
+    renew(key: string, owner: string, ttlMs: number): Promise<boolean>;
+    /** Releasing a lease held by another owner (or none) is a no-op. */
     release(key: string, owner: string): Promise<void>;
 }
 

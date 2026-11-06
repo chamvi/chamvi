@@ -36,6 +36,19 @@ export class MemoryLockRepository implements ILockRepository {
         return true;
     }
 
+    async renew(key: string, owner: string, ttlMs: number): Promise<boolean> {
+        const now = this.now();
+        const existing = this.locks.get(key);
+
+        if (!existing || existing.owner !== owner || existing.expiresAt <= now) {
+            return false;
+        }
+
+        existing.expiresAt = now + ttlMs;
+
+        return true;
+    }
+
     async release(key: string, owner: string): Promise<void> {
         if (this.locks.get(key)?.owner === owner) {
             this.locks.delete(key);

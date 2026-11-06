@@ -80,6 +80,7 @@ export function recordingLocks(locks: ILockRepository): RecordedLocks {
 
             return result;
         },
+        renew: (key, owner, ttlMs) => locks.renew(key, owner, ttlMs),
         release: (key, owner) => locks.release(key, owner),
     };
 }

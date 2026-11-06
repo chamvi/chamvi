@@ -60,6 +60,7 @@ export class GithubModule implements IModule {
             ...this.channelOptions,
             locks: this.channelOptions.locks ?? {
                 acquire: (...args) => container.resolve(AppToken.STORE).locks.acquire(...args),
+                renew: (...args) => container.resolve(AppToken.STORE).locks.renew(...args),
                 release: (...args) => container.resolve(AppToken.STORE).locks.release(...args),
             },
             app: this.app,

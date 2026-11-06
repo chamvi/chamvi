@@ -7,7 +7,7 @@
 
 import { systemClock } from '@chamvi/core';
 import type { IClock, ILockRepository } from '@chamvi/core';
-import { LessThanOrEqual } from 'typeorm';
+import { LessThanOrEqual, MoreThan } from 'typeorm';
 import type { DataSource, Repository } from 'typeorm';
 import { LockEntity } from '../entities/index.ts';
 import type { DatabaseStoreOptions } from '../repository/types.ts';
@@ -44,6 +44,23 @@ export class DatabaseLockRepository implements ILockRepository {
                 ['key'],
                 { overwriteCondition: { where: { expiresAt: LessThanOrEqual(now) } } },
             )
+            .returning(['key'])
+            .updateEntity(false)
+            .execute();
+
+        return result.raw.length === 1;
+    }
+
+    async renew(key: string, owner: string, ttlMs: number): Promise<boolean> {
+        const now = this.now();
+        const result = await this.locks.createQueryBuilder()
+            .update()
+            .set({ expiresAt: new Date(now.getTime() + ttlMs) })
+            .where({
+                key,
+                owner,
+                expiresAt: MoreThan(now),
+            })
             .returning(['key'])
             .updateEntity(false)
             .execute();
