@@ -33,6 +33,39 @@ const connection = (name: string): Connection => ({
     updatedAt: new Date(1_000),
 });
 
+/** Waits (real time, polling Postgres) until a backend of this database waits on a row lock. */
+const waitForLockWait = async (ds: DataSource) => {
+    for (let i = 0; i < 500; i++) {
+        const [row]: { n: number }[] = await ds.query(
+            `SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = 'Lock'`,
+        );
+
+        if (row!.n > 0) {
+            return;
+        }
+
+        await new Promise<void>((resolve) => {
+            setTimeout(resolve, 10);
+        });
+    }
+
+    throw new Error('no backend waits on a lock');
+};
+
+/** Holds the lease row of `key` FOR UPDATE in another transaction until `release` is called. */
+const holdLeaseRow = async (ds: DataSource, key: string) => {
+    const runner = ds.createQueryRunner();
+
+    await runner.connect();
+    await runner.startTransaction();
+    await runner.query(`SELECT 1 FROM "${TableName.LOCKS}" WHERE key = $1 FOR UPDATE`, [key]);
+
+    return async () => {
+        await runner.commitTransaction();
+        await runner.release();
+    };
+};
+
 describePostgres('connections in postgres', () => {
     const dataSources: DataSource[] = [];
 
@@ -109,6 +142,59 @@ describePostgres('connections in postgres', () => {
 
         await store.connections.delete('wa');
         expect(await ds.query(`SELECT * FROM "${TableName.CONNECTION_ENTRIES}"`)).toEqual([]);
+    });
+
+    it('the fence reads the clock after its row locks: a batch blocked past the lease expiry is refused', async () => {
+        const ds = await create();
+        const clock = new ControllableClock();
+        const store = createDatabaseStore({ dataSource: ds, clock });
+        const fence = { lock: 'connection:wa', owner: 'o1' };
+
+        await store.connections.insert(connection('wa'));
+        await store.locks.acquire(fence.lock, fence.owner, 1_000);
+
+        const release = await holdLeaseRow(ds, fence.lock);
+        const writing = store.connections.writeEntries('wa', { set: { a: new Uint8Array([1]) } }, fence);
+
+        // the lease owner is unchanged, only the time passes while the batch waits
+        await waitForLockWait(ds);
+        clock.advance(1_000);
+        await release();
+        await expect(writing).rejects.toBeInstanceOf(LeaseLostError);
+        expect(await store.connections.findEntry('wa', 'a')).toBeUndefined();
+    });
+
+    it('renew reads the clock after its row lock: a renew blocked past the lease expiry is refused', async () => {
+        const ds = await create();
+        const clock = new ControllableClock();
+        const store = createDatabaseStore({ dataSource: ds, clock });
+
+        await store.locks.acquire('connection:wa', 'o1', 1_000);
+
+        const release = await holdLeaseRow(ds, 'connection:wa');
+        const renewing = store.locks.renew('connection:wa', 'o1', 1_000);
+
+        await waitForLockWait(ds);
+        clock.advance(1_000);
+        await release();
+        expect(await renewing).toBe(false);
+        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+    });
+
+    it('renew extends an unexpired lease from a fresh reading', async () => {
+        const ds = await create();
+        const clock = new ControllableClock();
+        const store = createDatabaseStore({ dataSource: ds, clock });
+
+        await store.locks.acquire('connection:wa', 'o1', 1_000);
+        clock.advance(999);
+        expect(await store.locks.renew('connection:wa', 'o1', 1_000)).toBe(true);
+        expect(await store.locks.renew('connection:wa', 'o2', 1_000)).toBe(false);
+        // renewed at 999 until 1999
+        clock.advance(999);
+        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(false);
+        clock.advance(1);
+        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(true);
     });
 
     it('a fence check holds its lease row until the batch commits, so a takeover waits for it', async () => {
