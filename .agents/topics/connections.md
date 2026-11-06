@@ -1,0 +1,37 @@
+# Connections
+
+Read before changing the keyring, the connection repository or vault, a provider built on them (`@chamvi/chat-whatsapp` auth and module), the `/connections` routes or the dashboard's Connections page.
+
+A connection is one configured account of a provider (WhatsApp is the only one): provider-written runtime state, sealed at rest, held by one process. Connections belong to the app, not to an agent (owner decision 2026-11-06): one `CHAMVI_ENCRYPTION_KEYS` per app (every replica and pod of it); per-agent isolation would be a data key per agent wrapped under the same keyring, never a second variable.
+
+- **Keyring** (core `keyring/`): `parseKeyring(value)` reads `<id>:<base64>[,...]` (ids by the agent-name rule, 32-byte keys, the first active), strict padded standard base64 (Buffer's lenient decoder alone would accept garbage); errors name the entry index and never echo input. `seal(key, plaintext, aad)` is AES-256-GCM `iv(12) | ciphertext | tag(16)`; every `open` failure is one `DecryptionFailedError` with a fixed message, a data key under a key id the keyring lacks names that id only. Rejected: `_FILE` and `chamvi.json` forms (the chart mounts no files).
+- **Encryption above the repository**: `IStore.connections?` (optional like `conversations`) holds sealed bytes and the wrapped data key only; sealing lives in the vault. AAD binds each value: entry `<name>\0<key>` (a value moved to another key or connection fails to open), data-key wrap `connection:<name>`.
+- **Fenced writes**: `writeEntries(name, batch, fence)` validates the whole batch, then the connection (`RepositoryNotFoundError`), then the fence (`LeaseLostError({ lock })`, nothing written), then applies clear, set, delete atomically (a key in both ends deleted). Postgres reads the lock row `FOR SHARE` inside the write transaction: a check before it would race a takeover between `renew` calls. The repository accepts any lock the owner holds; the vault always passes `connection:<name>`. Shared validation is core `connection/validate.ts`.
+- **Lease**: `ILockRepository.renew(key, owner, ttl)` extends a held, unexpired lease only and never recreates one. The vault acquires `connection:<name>` before it creates the row (only the holder creates it), refuses a held one with `ConnectionHeldError` (the same owner included), renews every `floor(ttl / 3)` on the `IClock` (default 60 000, minimum 3), resolves `lost` only for a refused renew or a fence failure (a throwing renew is retried: writes are fenced anyway), serializes writes, lets reads wait for earlier writes, and `close` never rejects, zeroes the data key and releases.
+- **WhatsApp** (`createStoreWhatsAppAuth()`): entries `creds` and `key:<type>:<id>` (Baileys `BufferJSON`); one `keys.set` is one batch; a reset clears through `write({ clear: true })` under the lease, so a replica without the lease clears nothing until it acquires. Held at start: `held-elsewhere`, uncapped backoff retries (the app stays up); other acquire failures: `failed`, capped at `maxAttempts`. A lost lease ends the socket without a flush and waits for the lease again.
+- **Pairing material** (the QR) leaves only through the `connection:<name>:write` API: never a log line, `onError`, error message, run, list entry or `start --check` output. The handle keeps the latest QR only while `pairing`. Write implies read on every route; `connection:*` matches no `connection:<name>:write` (segment counts).
+- **Modes**: factories and `start --check` acquire no lease and write nothing; a check validates the keyring format only when a module resolves `AppToken.KEYRING`; a job resolves no keyring.
+- **Handles**: `IConnectionHandle` (core types only) is process-local status, widgets, a change feed and `actions.reset?`; a replica without the handle does not list it. `@chamvi/http` serves them (it owns SSE framing and stream limits; `HttpRoute` cannot stream).
+- **Dashboard**: `app/connections/` imports nothing from `views/` (kit-shaped, so a later ui-kit package takes it unchanged); the QR is rendered in the browser (`uqr`) to an SVG `data:` URL, never shown as text; reset confirms in the page, never a browser dialog.
+
+## Module map
+
+| Path | Purpose |
+|------|---------|
+| `core/src/keyring/` | `createKeyring()`, `parseKeyring()`, `seal()`, `open()` (`module.ts`), `KEYRING_KEY_LENGTH` (public), `SEAL_*` and helpers (internal), `IKeyring`, `KeyringKey`, `WrappedKey` (`types.ts`) |
+| `core/src/connection/` | `createConnectionVault()` (`module.ts`), the session class (`session.ts`, internal), `assertConnection*()` (`validate.ts`, public for store adapters), lock key, AAD and option helpers (`helpers.ts`, internal), `DEFAULT_CONNECTION_LEASE_TTL_MS` and the length limits (`constants.ts`), vault types and `ConnectionStatus`, `ConnectionWidget`, `ConnectionActions`, `IConnectionHandle` (`types.ts`) |
+| `core/src/repository/memory/connection.ts` | `MemoryConnectionRepository` (fence through the store's `MemoryLockRepository.holds()`) |
+| `core/src/errors/` | `decryption-failed.ts`, `connection-held.ts`, `lease-lost.ts` (run and lock forms) |
+| `store-db/src/connection/` | `DatabaseConnectionRepository`; tables in [store.md](store.md) |
+| `test-kit/src/repository-contract/connection.ts` | `describeConnectionContract` inside `describeRepositoryContract()` |
+| `chat-whatsapp/src/auth/` | `createStoreWhatsAppAuth()`, `WHATSAPP_CONNECTION_TYPE` |
+| `chat-whatsapp/src/module/` | `whatsappModule()`, the handle (`helpers.ts`: statuses `-` to `_`, `stopped` as `disconnected`) |
+| `http/src/connections/` | The four `/connections` routes, `ConnectionView`, `ConnectionDetailView` |
+| `app/src/keyring/` | `readKeyring(env)`, `ENV_ENCRYPTION_KEYS` |
+| `ui/app/connections/` | `createConnectionsApi()`, `openConnectionStream()` (`api.ts`), `useConnections()`, `useConnection()` (`composables.ts`), `statusBadge()`, `qrDataUrl()`, `canWriteConnection()` (`helpers.ts`), `STATUS_BADGES`, `CONNECTIONS_POLL_MS`, `StatusBadge.vue`, `QrWidget.vue`, `ConnectionPanel.vue` |
+
+## Testing
+
+- The repository contract runs against memory and Postgres (the fence after expiry, for another owner, a taken-over and a released lock, all writing nothing). The vault runs on a `ControllableClock`.
+- `chat-whatsapp/test/unit/auth/kill.spec.ts` SIGKILLs a child writing Baileys-shaped batches to Postgres (`test/fixtures/kill-writer.ts`, preloaded by `kill-hooks.ts`, which compiles workspace sources with swc: jiti cannot load the store-db entities); its suite has a Postgres global setup.
+- ui: `test/unit/app/connections/` (Node, SSR for the components), the e2e demo's fake handle (`POST /demo/connect` links it).

@@ -111,9 +111,9 @@ export function createWhatsAppEngine(
 }
 ```
 
-Nothing connects when the setup is built: the channel's `start` (the engine's) initializes the Chat, acquires the auth lease, then builds the socket. While the account is not paired, `onPairing` receives a QR reference to render for the phone (it rotates); it never reaches a log or `onError`. `setup.status()` reports `stopped`, `connecting`, `connected`, `disconnected` or `logged-out`, from Baileys' connection events only.
+Nothing connects when the setup is built: the channel's `start` (the engine's) initializes the Chat, acquires the auth lease, then builds the socket. While the account is not paired, `onPairing` receives a QR reference to render for the phone (it rotates); it never reaches a log or `onError`. `setup.status()` (and `onStatus`) reports `stopped`, `connecting`, `pairing`, `connected`, `disconnected`, `logged-out`, `held-elsewhere` (another process holds the session; the start retries instead of failing) or `failed` (the session store failed); `setup.reset()` clears the session and pairs again without a restart.
 
-`auth` is an `IWhatsAppAuthProvider` you supply: chamvi ships no production session store (see [Operations](#operations)). `state` is a Chat SDK `StateAdapter`; chamvi's intake does not depend on its deduplication.
+`auth` is an `IWhatsAppAuthProvider`: `createStoreWhatsAppAuth({ vault, connection })` keeps the session sealed in a chamvi store (a connection vault of `@chamvi/core`), or supply your own (see [Operations](#operations)). With `@chamvi/app`, [`whatsappModule()`](#with-chamviapp) wires the store provider for you. `state` is a Chat SDK `StateAdapter`; chamvi's intake does not depend on its deduplication.
 
 Who may start runs is `policy`:
 
@@ -137,10 +137,10 @@ Subscriptions, replies, approvals, memory and trust follow [`@chamvi/chat`](http
 
 WhatsApp Web through Baileys is an **unofficial protocol**: WhatsApp may change it or restrict the account. Use an account you can afford to lose and read the [WhatsApp guide](https://chamvi.dev/deployment/whatsapp) before a live cutover. In short:
 
-- **Auth provider required.** The lease (`acquire(signal)` -> `{ auth, saveCreds, flush, release }`) must persist creds and signal keys atomically and serialized, and take the location exclusively (a second holder refused). chamvi guards every auth call with the lease's generation, flushes before releasing and keeps a lease fenced (not released) when the pending writes and the flush outlive `WHATSAPP_SHUTDOWN_TIMEOUT_MS` (30 s) or the flush fails. Ending the socket has its own bound of the same length, so a dead link never leaves the lease held.
+- **Session store.** `createStoreWhatsAppAuth()` (and `whatsappModule()`) store creds and signal keys AES-256-GCM sealed under `CHAMVI_ENCRYPTION_KEYS`, every batch atomic and fenced by the lease `connection:<name>` (TTL 60 s, renewed every 20 s): after a kill -9 the next start shows `held-elsewhere` and connects once the lease expired. Losing the key means pairing again. A provider of your own (`acquire(signal)` -> `{ auth, saveCreds, flush, release, lost? }`) must persist creds and signal keys atomically and serialized, and take the location exclusively (a second holder refused with `ConnectionHeldError`). chamvi guards every auth call with the lease's generation, flushes before releasing and keeps a lease fenced (not released) when the pending writes and the flush outlive `WHATSAPP_SHUTDOWN_TIMEOUT_MS` (30 s) or the flush fails. Ending the socket has its own bound of the same length, so a dead link never leaves the lease held.
 - **One connector.** Run one deployment per account, `Recreate`/stop-then-start, never two replicas.
-- **Pairing** is by QR (`onPairing`) only; no phone-number code.
-- **Reconnect**: an unexpected close reconnects with backoff (`WHATSAPP_RECONNECT`: 2 s growing to 30 s, 12 attempts). A logout (401) or a replacing session (440) does not: pair again, then restart; the lease stays held until the channel stops.
+- **Pairing** is by QR only (`onPairing`, or the dashboard's Connections page with `whatsappModule()`); no phone-number code.
+- **Reconnect**: an unexpected close reconnects with backoff (`WHATSAPP_RECONNECT`: 2 s growing to 30 s, 12 attempts). A logout (401) or a replacing session (440) does not: reset (`setup.reset()`, or Reset session on the dashboard) and pair again.
 - **Stop** ends the socket, refuses later auth writes and flushes. Baileys may retry a decrypt whose key commit the stop refused (for about 30 s, to nothing); chamvi does not guarantee that such a message is processed after the restart.
 - **Logging**: Baileys' own logger is silent (it would carry pairing material), which also hides its decrypt and LID warnings.
 
@@ -148,26 +148,37 @@ WhatsApp Web through Baileys is an **unofficial protocol**: WhatsApp may change 
 
 ```ts
 import { createApp } from '@chamvi/app';
-import { chatModule } from '@chamvi/chat/module';
-import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
+import { whatsappModule } from '@chamvi/chat-whatsapp/module';
 
-const whatsapp = createWhatsAppChat({ ... });
+const whatsapp = whatsappModule({
+    // the session's connection: sealed in the app store, shown at /ui/connections/whatsapp
+    connection: 'whatsapp',
+    account: 'assistant',
+    state,
+    policy: { senders: ['491701111111@s.whatsapp.net'] },
+    resolveInvoker: (identity) => ({ id: identity.sender, kind: 'whatsapp', permissions: [] }),
+});
 
 export default createApp({
+    // agents subscribe with whatsapp.on()
     agents: [assistant],
-    modules: [chatModule({ channel: whatsapp.channel })],
+    modules: [whatsapp],
     conversations: { authorize: ({ agent }) => agent === 'assistant' },
 });
 ```
 
-`chatModule()` contributes the channel to `AppToken.CHANNELS`; the engine starts and stops it. It adds no env variable and constructs nothing, so `chamvi start --check` neither acquires the auth lease nor connects.
+`whatsappModule()` (`@chamvi/app` is an optional peer) takes `createWhatsAppChat()`'s options without `auth`, `onPairing` and `onStatus`, plus `connection`, `leaseTtlMs` and an optional `approvalUrl` (default: the dashboard under `CHAMVI_PUBLIC_URL`). In setup it needs `CHAMVI_ENCRYPTION_KEYS` (`<id>:<base64 of 32 bytes>`, comma separated, the first active; setup fails naming it when unset or malformed), contributes the channel to `AppToken.CHANNELS` and the connection handle to `AppToken.CONNECTIONS`: the dashboard's Connections page shows the status and, to `connection:<name>:write` holders only, the live QR and Reset session. The lease is taken only when the engine starts the channel, so `chamvi start --check` and `chamvi run-job` acquire and write nothing.
+
+With a provider of your own, `chatModule({ channel: setup.channel })` of `@chamvi/chat/module` contributes a `createWhatsAppChat()` channel instead.
 
 ## API
 
 | Export | Holds |
 |---|---|
-| `createWhatsAppChat(options)` | `{ chat, ingress, channel, status() }` |
-| Types `WhatsAppChatOptions`, `WhatsAppChatSetup`, `WhatsAppPolicy`, `WhatsAppIdentity`, `IWhatsAppAuthProvider`, `WhatsAppAuthLease`, `WhatsAppPairing`, `WhatsAppConnectionStatus`, `WhatsAppSocket`, `WhatsAppSocketFactory` | |
+| `createWhatsAppChat(options)` | `{ chat, ingress, channel, status(), reset(), conversation() }` |
+| `createStoreWhatsAppAuth({ vault, connection, owner?, leaseTtlMs? })` | The store-backed `IWhatsAppAuthProvider`; `WHATSAPP_CONNECTION_TYPE` `'whatsapp'` |
+| `whatsappModule(options)` (`/module`) | `WhatsAppModule { channel, handle, on(), to(), conversation(), status(), reset() }`, `WhatsAppModuleOptions` |
+| Types `WhatsAppChatOptions`, `WhatsAppChatSetup`, `StoreWhatsAppAuthOptions`, `WhatsAppPolicy`, `WhatsAppIdentity`, `IWhatsAppAuthProvider`, `WhatsAppAuthLease`, `WhatsAppPairing`, `WhatsAppConnectionStatus`, `WhatsAppSocket`, `WhatsAppSocketFactory` | |
 | `WHATSAPP_ADAPTER_NAME` `'whatsapp'`, `WHATSAPP_RECONNECT`, `WHATSAPP_SHUTDOWN_TIMEOUT_MS` 30 000 | |
 | Error codes `whatsapp_auth`, `whatsapp_connection`, `whatsapp_logged_out` (`WHATSAPP_*_ERROR_CODE`) | |
 
