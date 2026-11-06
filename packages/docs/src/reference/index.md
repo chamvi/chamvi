@@ -163,6 +163,8 @@ The `IStore` aggregate and its capability interfaces (`IRunRepository`, `IStepRe
 
 See [Files](/guide/agents#files) and [Attachments](/guide/channels#attachments).
 
+Optional artifact discovery and processing tools are in [`@chamvi/tool-files`](/reference/tool-files). They use these native artifact types.
+
 ## Tools
 
 ```ts
