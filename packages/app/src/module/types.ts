@@ -9,7 +9,9 @@ import type {
     Agent,
     IChannel,
     IClock,
+    IConnectionHandle,
     IEngine,
+    IKeyring,
     IModelResolver,
     IStore,
     ModelRef,
@@ -143,4 +145,13 @@ export type AppTokens = {
     AGENT_CHECKS: AgentCheck;
     /** A collection: git credential sources modules contribute for the workspaces (`sandboxModule()` reads them). */
     GIT_CREDENTIALS: GitCredentialSource;
+    /**
+     * The app's keyring from `CHAMVI_ENCRYPTION_KEYS`, built when first
+     * resolved: without the variable, or malformed, resolving throws
+     * InvalidAgentDefinitionError (naming the variable, never the value), so
+     * only an app with a module that needs it needs the variable.
+     */
+    KEYRING: IKeyring;
+    /** A collection: the connection handles modules contribute; the http app serves them at `/connections`. */
+    CONNECTIONS: IConnectionHandle;
 };

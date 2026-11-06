@@ -36,6 +36,7 @@ export type {
 // eslint-disable-next-line @tada5hi/no-reexport-shims -- Preserve the published HTTP types in the public facade.
 } from '@chamvi/http';
 export * from './env/index.ts';
+export * from './keyring/index.ts';
 export * from './loader/index.ts';
 export * from './logger/index.ts';
 export * from './models/index.ts';
