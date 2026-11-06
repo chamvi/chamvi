@@ -12,7 +12,7 @@ Test helpers live in [`@chamvi/test-kit`](/reference/test-kit).
 
 ```ts
 function defineModelAgent<S extends StateSchema = StateSchema>(def: ModelAgentDefinition<S>): ModelAgent<S>;
-function defineSimpleAgent<S extends StateSchema = StateSchema>(def: SimpleAgentDefinition<S>): SimpleAgent<S>;
+function defineSimpleAgent<S extends StateSchema = StateSchema, T extends ToolSet = ToolSet>(def: SimpleAgentDefinition<S, T>): SimpleAgent<S, T>;
 
 const DEFAULT_MAX_STEPS: 20;
 const DEFAULT_TIMEOUT_MS: 900_000; // 15 minutes
@@ -163,6 +163,8 @@ The `IStore` aggregate and its capability interfaces (`IRunRepository`, `IStepRe
 
 See [Files](/guide/agents#files) and [Attachments](/guide/channels#attachments).
 
+Optional artifact discovery and processing tools are in [`@chamvi/tool-files`](/reference/tool-files). They use these native artifact types.
+
 ## Tools
 
 ```ts
@@ -173,10 +175,14 @@ function defineTool<I, O, S extends StateSchema = StateSchema>(
     },
 ): Tool<I, O, ToolContext<S>>;
 
+function toolCallKey(ctx: Pick<ToolContext, 'run'>): string;
+
 const toolContextSchema: StandardSchemaV1<ToolContext, ToolContext>; // vendor 'chamvi'
 ```
 
 `defineTool()` is `tool()` with `contextSchema: toolContextSchema`; the engine hands the run's `ToolContext` to every tool carrying that schema (by reference, so a copy of the tool keeps it). Its `validate` returns the context unchanged and rejects a missing one, which fails the run (`validation_error`) with `Type validation failed for tool context (<tool>): No chamvi tool context: the tool was built by another copy of @chamvi/core, or runs outside a chamvi agent.` (the marker is the schema object itself, so a tool from a second copy of `@chamvi/core` gets no context).
+
+`toolCallKey(ctx)` returns an opaque key for the active run, model step and tool call. It stays the same when that call replays and differs for calls in later steps even if a provider reuses `toolCallId`. Use it when run-local artifact keys must preserve earlier results. It throws `InvalidRunStateError` outside an active call or with another run's context. It does not record an effect or prevent computation from repeating.
 
 <<< ../../../core/src/tool/types.ts{ts}
 

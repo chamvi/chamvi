@@ -1,0 +1,73 @@
+{
+    "name": "@chamvi/tool-files",
+    "version": "0.7.3",
+    "type": "module",
+    "description": "In-memory JSON, CSV and text processing over run artifacts for chamvi agents.",
+    "author": {
+        "name": "Peter Placzek",
+        "email": "contact@tada5hi.net",
+        "url": "https://github.com/tada5hi"
+    },
+    "homepage": "https://chamvi.dev",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/chamvi/chamvi.git",
+        "directory": "packages/tool-files"
+    },
+    "main": "dist/index.mjs",
+    "types": "dist/index.d.mts",
+    "exports": {
+        "./package.json": "./package.json",
+        ".": {
+            "types": "./dist/index.d.mts",
+            "import": "./dist/index.mjs"
+        }
+    },
+    "files": [
+        "dist",
+        "NOTICE"
+    ],
+    "engines": {
+        "node": ">=26.0.0"
+    },
+    "scripts": {
+        "build:types": "tsc --noEmit -p tsconfig.build.json",
+        "build:js": "tsdown",
+        "build": "npm run build:types && npm run build:js",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test": "vitest --config test/vitest.config.ts --run",
+        "test:coverage": "vitest --config test/vitest.config.ts --run --coverage"
+    },
+    "nx": {
+        "targets": {
+            "test": {
+                "dependsOn": [
+                    "build"
+                ]
+            }
+        }
+    },
+    "keywords": [
+        "chamvi",
+        "files",
+        "tools",
+        "agent"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "license": "Apache-2.0",
+    "dependencies": {
+        "just-bash": "3.6.0",
+        "smob": "^1.6.2"
+    },
+    "devDependencies": {
+        "@chamvi/core": "^0.7.3",
+        "@chamvi/test-kit": "^0.7.3",
+        "ai": "^7.0.163"
+    },
+    "peerDependencies": {
+        "@chamvi/core": "^0.7.3",
+        "ai": "^7"
+    }
+}

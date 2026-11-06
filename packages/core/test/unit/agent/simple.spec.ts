@@ -255,6 +255,68 @@ describe('simple agents', () => {
         expect(read(defineSimpleAgent({ name: 'fan', run }))).toBeUndefined();
     });
 
+    it('infers declared tool outputs and accepts raw inputs while retaining dynamic lookup', async () => {
+        const tools = {
+            double: tool({ inputSchema: z.object({ value: z.number() }), execute: async ({ value }) => value * 2 }),
+            transformed: tool({ inputSchema: z.object({ value: z.string().transform(Number) }), execute: async ({ value }) => value * 2 }),
+            count: tool({
+                inputSchema: z.object({}),
+                async* execute() {
+                    yield 1; yield 2;
+                },
+            }),
+        };
+        const typed = defineSimpleAgent({
+            name: 'typed',
+            tools,
+            state: { totals: z.object({ value: z.number() }) },
+            run: async (_, ctx) => {
+                const value = await ctx.tools.double({ value: 21 });
+                const count = await ctx.tools.count({});
+                const transformed = await ctx.tools.transformed({ value: '21' });
+
+                expectTypeOf(value).toEqualTypeOf<number>();
+                expectTypeOf(count).toEqualTypeOf<number>();
+                expectTypeOf(transformed).toEqualTypeOf<number>();
+                expectTypeOf(ctx.state.collection('totals').upsert).parameter(1).toEqualTypeOf<{ value: number }>();
+                expectTypeOf(ctx.tools.dynamic!).returns.toEqualTypeOf<Promise<unknown>>();
+
+                expectTypeOf(ctx.tools.double).parameter(0).toEqualTypeOf<unknown>();
+
+                return {
+                    value,
+                    count,
+                    transformed,
+                };
+            },
+        });
+
+        expectTypeOf(typed.definition.tools).toEqualTypeOf<typeof tools | undefined>();
+
+        const store = createMemoryStore();
+        const engine = new Engine({ store, agents: [typed] });
+
+        try {
+            await engine.start();
+
+            const { runId } = await engine.dispatch({
+                agent: 'typed',
+                trigger: 'test',
+                channel: 'test',
+                payload: {},
+            });
+
+            await engine.idle();
+            expect((await store.runs.findOne(runId))?.output).toEqual({
+                value: 42,
+                count: 2,
+                transformed: 42,
+            });
+        } finally {
+            await engine.stop();
+        }
+    });
+
     it('types the union', () => {
         expectTypeOf<AgentDefinition>().toEqualTypeOf<ModelAgentDefinition | SimpleAgentDefinition>();
         expectTypeOf<SimpleAgentDefinition['model']>().toEqualTypeOf<undefined>();

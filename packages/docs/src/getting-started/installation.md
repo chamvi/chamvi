@@ -44,6 +44,16 @@ npm install @chamvi/sandbox @chamvi/coding @chamvi/sandbox-local    # developmen
 
 `@chamvi/core` and `ai` are peer dependencies of all of them. See [Workspaces & Coding](/guide/workspaces).
 
+## File processing tools
+
+For JSON, CSV and text transformations over run artifacts without a coding workspace:
+
+```bash
+npm install @chamvi/tool-files
+```
+
+`@chamvi/core` and `ai` are peer dependencies. See [File processing tools](/guide/tools#file-processing-tools).
+
 ## Web research tools
 
 Agents that read the web (pages, changelogs, package registries) add the web fetch tool:
@@ -87,6 +97,7 @@ npm install --save-dev tsdown   # only for chamvi build
 | `@chamvi/github` | Shipped (0.x), the GitHub channel (deliveries in, comments out) and tools |
 | `@chamvi/sandbox`, `@chamvi/sandbox-local`, `@chamvi/sandbox-docker`, `@chamvi/sandbox-k8s` | Shipped (0.x), disposable workspaces |
 | `@chamvi/coding` | Shipped (0.x), coding tools over a workspace |
+| `@chamvi/tool-files` | Unreleased, JSON/CSV/text tools over selected run artifacts |
 | `@chamvi/tool-web` | Shipped (0.x), `web_fetch`: public pages as markdown, registry JSON as is |
 | `@chamvi/tool-mail`, `@chamvi/tool-calendar` | Unreleased, read-only mail (IMAP) and calendar (CalDAV) tools |
 | `@chamvi/channel-openclaw` | Shipped (0.x), the OpenClaw channel: messages and approval requests into a chat |
