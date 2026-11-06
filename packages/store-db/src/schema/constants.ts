@@ -9,6 +9,8 @@ import {
     AgentRevisionEntity,
     ArtifactEntity,
     CheckpointEntity,
+    ConnectionEntity,
+    ConnectionEntryEntity,
     ConversationEntity,
     ConversationItemEntity,
     ConversationNoteEntity,
@@ -25,6 +27,7 @@ import {
 import {
     AgentRevisions1792627200000,
     Artifacts1792368000000,
+    Connections1792886400000,
     ConversationsRunTaint1792713600000,
     IdempotencyScope1792454400000,
     Init1792195200000,
@@ -47,6 +50,8 @@ export const STORE_ENTITIES = [
     ConversationItemEntity,
     ConversationNoteEntity,
     ConversationOperationEntity,
+    ConnectionEntity,
+    ConnectionEntryEntity,
 ];
 
 export const STORE_MIGRATIONS = [
@@ -57,6 +62,7 @@ export const STORE_MIGRATIONS = [
     AgentRevisions1792627200000,
     ConversationsRunTaint1792713600000,
     RunLineage1792800000000,
+    Connections1792886400000,
 ];
 
 export const MIGRATION_LOCK_NAME = 'chamvi:migrations';

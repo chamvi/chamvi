@@ -23,3 +23,12 @@ export type MemoryRunReferenceOptions = {
 export type Expiring = {
     expiresAt: number;
 };
+
+export type MemoryConnectionRepositoryOptions = {
+    clock?: IClock;
+    /**
+     * Synchronous fence check: true while `owner` holds the lock `lock`
+     * unexpired. createMemoryStore() wires its lock repository's `holds` in.
+     */
+    holdsLock: (lock: string, owner: string) => boolean;
+};

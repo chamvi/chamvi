@@ -8,6 +8,7 @@
 export * from './agent-revision.ts';
 export * from './artifact.ts';
 export * from './checkpoint.ts';
+export * from './connection.ts';
 export * from './effect.ts';
 export * from './idempotency.ts';
 export * from './lock.ts';
@@ -15,4 +16,8 @@ export * from './module.ts';
 export * from './run.ts';
 export * from './state.ts';
 export * from './step.ts';
-export type { MemoryRunReferenceOptions, MemoryStoreOptions } from './types.ts';
+export type {
+    MemoryConnectionRepositoryOptions,
+    MemoryRunReferenceOptions,
+    MemoryStoreOptions,
+} from './types.ts';

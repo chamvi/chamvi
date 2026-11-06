@@ -57,6 +57,7 @@ describe('createRepositoryScheduleLock', () => {
 
                 return true;
             },
+            renew: () => Promise.resolve(true),
             release: () => Promise.resolve(),
         };
 

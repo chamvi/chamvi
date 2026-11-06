@@ -23,6 +23,7 @@ describe('public api', () => {
         'DatabaseArtifactRepository',
         'DatabaseAgentRevisionRepository',
         'DatabaseConversationRepository',
+        'DatabaseConnectionRepository',
     ])('exports %s', (name) => {
         expect(pkg).toHaveProperty(name);
         expect(pkg[name as keyof typeof pkg]).toBeTypeOf('function');
@@ -30,9 +31,10 @@ describe('public api', () => {
 
     it('exports the entities, migrations and lock name', () => {
         expect(pkg.STORE_ENTITIES).toBeInstanceOf(Array);
-        expect(pkg.STORE_ENTITIES).toHaveLength(14);
+        expect(pkg.STORE_ENTITIES).toHaveLength(16);
         expect(pkg.STORE_MIGRATIONS).toBeInstanceOf(Array);
-        expect(pkg.STORE_MIGRATIONS).toHaveLength(7);
+        expect(pkg.STORE_MIGRATIONS).toHaveLength(8);
+        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('Connections1792886400000');
         expect(pkg.MIGRATION_LOCK_NAME).toBe('chamvi:migrations');
     });
 });

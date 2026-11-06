@@ -16,6 +16,7 @@ import { DatabaseStateRepository } from '../state/index.ts';
 import { DatabaseArtifactRepository } from '../artifact/index.ts';
 import { DatabaseAgentRevisionRepository } from '../agent-revision/index.ts';
 import { DatabaseConversationRepository } from '../conversation/index.ts';
+import { DatabaseConnectionRepository } from '../connection/index.ts';
 import type { DatabaseStoreOptions } from './types.ts';
 
 /** Assemble a store of repositories over one initialized PostgreSQL data source. */
@@ -31,5 +32,6 @@ export function createDatabaseStore(opts: DatabaseStoreOptions) {
         artifacts: new DatabaseArtifactRepository(opts),
         agentRevisions: new DatabaseAgentRevisionRepository(opts),
         conversations: new DatabaseConversationRepository(opts),
+        connections: new DatabaseConnectionRepository(opts),
     } satisfies IStore;
 }

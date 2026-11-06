@@ -51,6 +51,29 @@ export class DatabaseLockRepository implements ILockRepository {
         return result.raw.length === 1;
     }
 
+    /**
+     * Locks the lease row first, then reads the clock: a renew that waited for
+     * the row past the expiry is refused, never extended from an earlier reading.
+     */
+    async renew(key: string, owner: string, ttlMs: number): Promise<boolean> {
+        return this.dataSource.transaction(async (manager) => {
+            const locks = manager.withRepository(this.locks);
+            const lease = await locks.findOne({
+                where: { key, owner },
+                lock: { mode: 'pessimistic_write' },
+            });
+            const now = this.now();
+
+            if (!lease || lease.expiresAt.getTime() <= now.getTime()) {
+                return false;
+            }
+
+            await locks.update({ key, owner }, { expiresAt: new Date(now.getTime() + ttlMs) });
+
+            return true;
+        });
+    }
+
     async release(key: string, owner: string): Promise<void> {
         await this.locks.delete({ key, owner });
     }

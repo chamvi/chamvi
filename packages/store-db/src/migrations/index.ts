@@ -12,3 +12,4 @@ export * from './1792540800000-kv-key-collation.ts';
 export * from './1792627200000-agent-revisions.ts';
 export * from './1792713600000-conversations-run-taint.ts';
 export * from './1792800000000-run-lineage.ts';
+export * from './1792886400000-connections.ts';

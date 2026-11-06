@@ -6,7 +6,12 @@
  */
 
 import { RunStatus } from '@chamvi/core';
-import type { AgentRevision, Artifact, Run } from '@chamvi/core';
+import type {
+    AgentRevision,
+    Artifact,
+    Connection,
+    Run,
+} from '@chamvi/core';
 
 export function makeRun(id: string, overrides: Partial<Run> = {}): Run {
     const createdAt = new Date(1_000);
@@ -67,6 +72,18 @@ export function makeAgentRevision(agent: string, overrides: Partial<AgentRevisio
         agent,
         hash: 'h1',
         changedAt: new Date(1_000),
+        ...overrides,
+    };
+}
+
+export function makeConnection(name: string, overrides: Partial<Connection> = {}): Connection {
+    return {
+        name,
+        type: 'whatsapp',
+        keyId: 'k1',
+        wrappedKey: new Uint8Array([1, 2, 3, 4]),
+        createdAt: new Date(1_000),
+        updatedAt: new Date(1_000),
         ...overrides,
     };
 }
