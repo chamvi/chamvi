@@ -190,6 +190,11 @@ function isHeld(error: unknown): boolean {
 
 const noop = () => undefined;
 
+/** The refusal of a reset while another process holds the session: nothing is cleared, nothing queued. */
+function heldElsewhere(): InvalidRunStateError {
+    return new InvalidRunStateError('The WhatsApp session is held by another process; the reset is refused and nothing is cleared. Retry once this process holds the session.');
+}
+
 /**
  * The WhatsApp connection: `connect` acquires the lease (the provider's
  * exclusivity), then builds a socket over it; Baileys' connection events
@@ -206,7 +211,9 @@ const noop = () => undefined;
  * acquires again with `reset: true`: the provider empties the session only
  * once it holds the location (the store provider recreates the connection,
  * which also recovers a data key the keyring cannot unwrap), then the fresh
- * creds are saved before the socket.
+ * creds are saved before the socket. A reset is refused (InvalidRunStateError)
+ * while the status is `held-elsewhere`, and when its own acquire finds the
+ * session held: no clear waits for another holder's lease.
  *
  * `close` (idempotent per connect) stops admitting auth calls and ends the
  * retries and reconnects, then has two bounds of WHATSAPP_SHUTDOWN_TIMEOUT_MS
@@ -477,6 +484,8 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
         }
 
         if (isHeld(error)) {
+            // a reset's clear never waits for the lease: it would wipe the holder's session later
+            run.clearPending = false;
             setRunStatus(run, 'held-elsewhere');
 
             if (!run.heldReported) {
@@ -720,6 +729,10 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             return Promise.reject(new InvalidRunStateError('The WhatsApp connection is not started; there is nothing to reset.'));
         }
 
+        if (!run.resetting && status === 'held-elsewhere') {
+            return Promise.reject(heldElsewhere());
+        }
+
         run.resetting ??= (async () => {
             run.clearPending = true;
             run.retry?.clear();
@@ -743,6 +756,10 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
 
             if (isRunCurrent(run)) {
                 await establish(run, false);
+            }
+
+            if (isRunCurrent(run) && status === 'held-elsewhere') {
+                throw heldElsewhere();
             }
         })().finally(() => {
             delete run.resetting;

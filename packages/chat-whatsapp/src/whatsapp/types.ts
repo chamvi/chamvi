@@ -193,12 +193,13 @@ export type WhatsAppChatSetup = {
     status(): WhatsAppConnectionStatus;
     /**
      * Clears the session and pairs again without restarting the channel:
-     * ends the socket, flushes and releases the lease, acquires it again and,
-     * under that lease, clears the keys and saves fresh creds before the new
-     * socket (whose QR reaches onPairing). While another process holds the
-     * session nothing is cleared until this one acquires it. Resolves once
-     * the first acquire after the reset settled; InvalidRunStateError while
-     * the channel is not started.
+     * ends the socket, flushes and releases the lease, acquires it again with
+     * `reset: true` (the provider empties the session under that lease) and
+     * saves fresh creds before the new socket (whose QR reaches onPairing).
+     * Resolves once the first acquire after the reset settled;
+     * InvalidRunStateError while the channel is not started, while the
+     * status is `held-elsewhere`, or when that acquire finds the session held
+     * (nothing is cleared then, and nothing later).
      */
     reset(): Promise<void>;
     /**

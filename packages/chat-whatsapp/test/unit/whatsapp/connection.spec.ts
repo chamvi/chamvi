@@ -309,7 +309,7 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
         expect(lease.auth.creds.noiseKey.private).toEqual(second.config.auth.creds.noiseKey.private);
     });
 
-    it('a reset while held elsewhere clears nothing until the lease is acquired', async () => {
+    it('a reset while held elsewhere is refused and queues nothing', async () => {
         const world = storeWorld();
         const holder = await hold(world.other());
 
@@ -318,20 +318,51 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
         await world.engine.start();
         expect(world.setup.status()).toBe('held-elsewhere');
 
-        await world.setup.reset();
+        await expect(world.setup.reset()).rejects.toThrow(/held by another process/);
 
         expect(world.setup.status()).toBe('held-elsewhere');
-        expect(await holder.auth.keys.get('session', ['alice.0'])).toEqual({ 'alice.0': Buffer.from([1]) });
         expect(await world.connections.connections!.findEntry('bot', 'creds')).toBeInstanceOf(Uint8Array);
 
         await holder.release();
         world.clock.advance(upperDelay(0));
         await settle();
 
+        // the session the holder left is the one this process connects with
         expect(world.sockets.sockets).toHaveLength(1);
-        expect(await world.sockets.last().config.auth.keys.get('session', ['alice.0'])).toEqual({});
+        expect(await world.sockets.last().config.auth.keys.get('session', ['alice.0'])).toEqual({ 'alice.0': Buffer.from([1]) });
         expect(world.sockets.last().config.auth.creds.signedIdentityKey.public)
-            .not.toEqual(holder.auth.creds.signedIdentityKey.public);
+            .toEqual(holder.auth.creds.signedIdentityKey.public);
+    });
+
+    it('a reset whose acquire finds the session held is refused and clears nothing later', async () => {
+        const world = storeWorld();
+        const { locks } = world.connections;
+        const acquire = locks.acquire.bind(locks);
+
+        locks.acquire = async () => {
+            locks.acquire = acquire;
+
+            throw new Error('the store is down');
+        };
+
+        await world.engine.start();
+        expect(world.setup.status()).toBe('failed');
+
+        const holder = await hold(world.other());
+
+        await holder.auth.keys.set({ session: { 'alice.0': new Uint8Array([1]) } });
+        await expect(world.setup.reset()).rejects.toThrow(/held by another process/);
+        expect(world.setup.status()).toBe('held-elsewhere');
+
+        await holder.release();
+
+        for (let n = 0; n < 3 && world.sockets.sockets.length === 0; n++) {
+            world.clock.advance(upperDelay(n));
+            await settle();
+        }
+
+        expect(world.sockets.sockets).toHaveLength(1);
+        expect(await world.sockets.last().config.auth.keys.get('session', ['alice.0'])).toEqual({ 'alice.0': Buffer.from([1]) });
     });
 
     it('a reset while connected ends the socket, releases, clears and pairs again', async () => {
@@ -543,7 +574,7 @@ describe('WhatsApp connection: closing a generation always ends its session', ()
         await expect(hold(world.other())).resolves.toBeDefined();
     });
 
-    it('a reset right after a lost lease leaves no extra retry and no orphaned socket', async () => {
+    it('a reset right after a lost lease is refused; the lost close leaves one retry and no orphaned socket', async () => {
         // the connector's renewals never run: its lease expires on the store's clock
         const world = storeWorld({ holderClock: new ControllableClock() });
 
@@ -561,14 +592,16 @@ describe('WhatsApp connection: closing a generation always ends its session', ()
 
         expect(world.setup.status()).toBe('held-elsewhere');
         await takeover.release();
-        await world.setup.reset();
+        await expect(world.setup.reset()).rejects.toThrow(/held by another process/);
+        await settle();
+        world.clock.advance(upperDelay(0));
         await settle();
 
         expect(world.sockets.sockets).toHaveLength(2);
         world.sockets.last().open();
         expect(world.setup.status()).toBe('connected');
 
-        for (let k = 0; k < 4; k++) {
+        for (let k = 1; k < 5; k++) {
             world.clock.advance(upperDelay(k));
             await settle();
         }
