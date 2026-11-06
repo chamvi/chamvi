@@ -15,6 +15,7 @@ import {
 import { effectScope } from 'vue';
 import { useConnection, useConnections } from '../../../../app/connections/composables.ts';
 import type { ConnectionDetailWire, IConnectionsApi } from '../../../../app/connections/types.ts';
+import { ApiError } from '../../../../app/api/error.ts';
 import { apiError } from '../../../utils/client.ts';
 import { sse } from '../../../utils/fetch.ts';
 import { flush } from '../../../utils/timers.ts';
@@ -225,6 +226,30 @@ describe('useConnection', () => {
         await state.confirmReset();
         expect(state.resetError.value?.status).toBe(403);
         expect(state.connection.value?.status).toBe('pairing');
+        scope.stop();
+    });
+
+    it('a reset refused while held elsewhere keeps the server\'s message for the page', async () => {
+        const message = 'The connection "whatsapp" is held by another process; reset it where it is held, or once it is no longer held elsewhere.';
+        const scope = effectScope();
+        const state = scope.run(() => useConnection(fakeApi({
+            get: async () => ({
+                ...DETAIL,
+                status: 'held_elsewhere',
+                widgets: [],
+            }),
+            stream: async () => sse([]),
+            reset: async () => {
+                throw new ApiError(409, 'conflict', message);
+            },
+        }), 'whatsapp', { write: true, sleep: () => new Promise(() => {}) }))!;
+
+        await flush();
+        state.askReset();
+        await state.confirmReset();
+        expect(state.resetError.value?.status).toBe(409);
+        expect(state.resetError.value?.message).toBe(message);
+        expect(state.connection.value?.status).toBe('held_elsewhere');
         scope.stop();
     });
 });

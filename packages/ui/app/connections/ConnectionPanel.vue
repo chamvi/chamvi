@@ -96,7 +96,17 @@ const {
                     v-if="!confirming"
                     class="connection-action"
                 >
-                    <p class="hint">
+                    <p
+                        v-if="connection.status === 'held_elsewhere'"
+                        class="hint"
+                        data-testid="connection-reset-held"
+                    >
+                        Another process holds this session, so a reset is refused here: reset it where it is held, or once it is no longer held elsewhere.
+                    </p>
+                    <p
+                        v-else
+                        class="hint"
+                    >
                         Reset clears the stored session and connects again, so a new pairing starts.
                     </p>
                     <button
@@ -141,8 +151,9 @@ const {
                 <p
                     v-if="resetError"
                     class="form-err"
+                    data-testid="connection-reset-error"
                 >
-                    {{ resetError.code }} · {{ resetError.message }}
+                    {{ resetError.status === 409 ? resetError.message : `${resetError.code} · ${resetError.message}` }}
                 </p>
             </section>
         </template>
