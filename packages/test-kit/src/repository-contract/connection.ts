@@ -268,6 +268,105 @@ export function describeConnectionContract(setup: Setup): void {
         expect((await connections.findEntries('wa', ['a'])).size).toBe(0);
     });
 
+    it('connections.replace swaps the connection, drops its entries and inserts an absent one, under the fence', async ({ skip }) => {
+        const {
+            clock,
+            connections,
+            hold,
+        } = await prepare(skip);
+
+        await connections.insert(makeConnection('wa'));
+        await connections.insert(makeConnection('other'));
+
+        const fence = await hold('wa');
+        const other = await hold('other');
+
+        await connections.writeEntries('wa', { set: { a: bytes(1) } }, fence);
+        await connections.writeEntries('other', { set: { a: bytes(2) } }, other);
+        clock.advance(10);
+
+        const replacement = makeConnection('wa', {
+            type: 'telegram',
+            keyId: 'k2',
+            wrappedKey: bytes(7),
+            createdAt: new Date(1_010),
+            updatedAt: new Date(1_010),
+        });
+
+        await connections.replace(replacement, fence);
+        expect(await connections.findOneOrFail('wa')).toEqual(replacement);
+        expect((await connections.findEntries('wa', ['a'])).size).toBe(0);
+        expect(plain(await connections.findEntries('other', ['a']))).toEqual({ a: [2] });
+
+        const absent = await hold('fresh');
+
+        await connections.replace(makeConnection('fresh'), absent);
+        expect(await connections.findOneOrFail('fresh')).toEqual(makeConnection('fresh'));
+    });
+
+    it('connections.replace with an expired, another owner\'s or another lock\'s fence throws LeaseLostError and changes nothing', async ({ skip }) => {
+        const {
+            clock,
+            store,
+            connections,
+            hold,
+        } = await prepare(skip);
+
+        await connections.insert(makeConnection('wa'));
+
+        const fence = await hold('wa', 'o1', 1_000);
+
+        await connections.writeEntries('wa', { set: { a: bytes(1) } }, fence);
+        expect(await store.locks.acquire('connection:other', 'o1', 1_000)).toBe(true);
+
+        const replacement = makeConnection('wa', { type: 'telegram', keyId: 'k2' });
+
+        for (const refused of [{ lock: fence.lock, owner: 'o2' }, { lock: 'connection:other', owner: 'o1' }]) {
+            await expect(connections.replace(replacement, refused)).rejects.toBeInstanceOf(LeaseLostError);
+        }
+
+        await expect(connections.replace(makeConnection('fresh'), fence)).rejects.toBeInstanceOf(LeaseLostError);
+        clock.advance(1_000);
+        await expect(connections.replace(replacement, fence)).rejects.toBeInstanceOf(LeaseLostError);
+
+        // a new holder took over: the stalled owner's replace deletes nothing of its
+        const taken = await hold('wa', 'o2', 1_000);
+
+        await connections.writeEntries('wa', { set: { b: bytes(2) } }, taken);
+        await expect(connections.replace(replacement, fence)).rejects.toBeInstanceOf(LeaseLostError);
+        expect(await connections.findOneOrFail('wa')).toEqual({ ...makeConnection('wa'), updatedAt: clock.now() });
+        expect(plain(await connections.findEntries('wa', ['a', 'b']))).toEqual({ a: [1], b: [2] });
+        expect(await connections.findOne('fresh')).toBeUndefined();
+    });
+
+    it('connections.replace refuses an invalid replacement with ValidationError and changes nothing', async ({ skip }) => {
+        const { connections, hold } = await prepare(skip);
+
+        await connections.insert(makeConnection('wa'));
+
+        const fence = await hold('wa');
+
+        await connections.writeEntries('wa', { set: { a: bytes(1) } }, fence);
+
+        const before = await connections.findOneOrFail('wa');
+
+        for (const connection of [
+            makeConnection('wa', { type: '\ud800' }),
+            makeConnection('wa', { type: 'a\0b' }),
+            makeConnection('wa', { type: 'x'.repeat(65) }),
+            makeConnection('wa', { keyId: '' }),
+            makeConnection('wa', { wrappedKey: 'nope' as unknown as Uint8Array }),
+            makeConnection('wa', { createdAt: new Date(NaN) }),
+        ]) {
+            await expect(connections.replace(connection, fence)).rejects.toBeInstanceOf(ValidationError);
+        }
+
+        await expect(connections.replace(makeConnection('Bad'), { lock: 'connection:Bad', owner: 'o1' }))
+            .rejects.toBeInstanceOf(ValidationError);
+        expect(await connections.findOneOrFail('wa')).toEqual(before);
+        expect(plain(await connections.findEntries('wa', ['a']))).toEqual({ a: [1] });
+    });
+
     it('entry calls on an unknown connection throw RepositoryNotFoundError', async ({ skip }) => {
         const { connections, hold } = await prepare(skip);
         const fence = await hold('missing');

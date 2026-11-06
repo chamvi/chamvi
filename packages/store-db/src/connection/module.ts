@@ -22,7 +22,7 @@ import type {
     IConnectionRepository,
 } from '@chamvi/core';
 import { In } from 'typeorm';
-import type { DataSource, Repository } from 'typeorm';
+import type { DataSource, EntityManager, Repository } from 'typeorm';
 import { ConnectionEntity, ConnectionEntryEntity, LockEntity } from '../entities/index.ts';
 import { asValues } from '../repository/helpers.ts';
 import type { DatabaseStoreOptions } from '../repository/types.ts';
@@ -53,7 +53,7 @@ function toConnection(entity: ConnectionEntity): Connection {
 }
 
 /**
- * Connections and their sealed entries in Postgres. `writeEntries` runs in one
+ * Connections and their sealed entries in Postgres. `replace` and `writeEntries` each run in one
  * transaction: it locks the connection row (existence, serialized batches),
  * reads the fence's lock row `FOR SHARE` (an acquire, renew or release of that
  * lease waits for the commit), checks its expiry against a clock reading taken
@@ -164,6 +164,55 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
         return found;
     }
 
+    async replace(connection: Connection, fence: ConnectionFence): Promise<void> {
+        assertConnection(connection);
+
+        const { name } = connection;
+
+        if (fence.lock !== `connection:${name}`) {
+            throw new LeaseLostError({ lock: fence.lock });
+        }
+
+        await this.dataSource.transaction(async (manager) => {
+            const connections = manager.withRepository(this.connections);
+
+            // the row lock serializes the replace with entry batches on the same connection
+            await connections.findOne({ where: { name }, lock: { mode: 'pessimistic_write' } });
+            await this.assertLease(manager, fence);
+            // the entries go with it (ON DELETE CASCADE)
+            await connections.delete({ name });
+            await connections.createQueryBuilder()
+                .insert()
+                .values(asValues<ConnectionEntity>({
+                    name,
+                    type: connection.type,
+                    keyId: connection.keyId,
+                    wrappedKey: Buffer.from(connection.wrappedKey),
+                    createdAt: connection.createdAt,
+                    updatedAt: connection.updatedAt,
+                }))
+                .updateEntity(false)
+                .execute();
+        });
+    }
+
+    /**
+     * Reads the fence's lock row `FOR SHARE` (an acquire, renew or release of
+     * that lease waits for the commit) and checks its expiry against a clock
+     * reading taken once the row locks are held.
+     */
+    protected async assertLease(manager: EntityManager, fence: ConnectionFence): Promise<void> {
+        const lease = await manager.getRepository(LockEntity).findOne({
+            where: { key: fence.lock, owner: fence.owner },
+            lock: { mode: 'pessimistic_read' },
+        });
+
+        // read the clock once the row locks are held: a wait for them may have outlasted the lease
+        if (!lease || lease.expiresAt.getTime() <= this.clock.now().getTime()) {
+            throw new LeaseLostError({ lock: fence.lock });
+        }
+    }
+
     async writeEntries(name: string, write: ConnectionEntryWrite, fence: ConnectionFence): Promise<void> {
         assertConnectionName(name);
         assertConnectionEntryWrite(write);
@@ -187,15 +236,7 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
                 throw new RepositoryNotFoundError('connections');
             }
 
-            const lease = await manager.getRepository(LockEntity).findOne({
-                where: { key: fence.lock, owner: fence.owner },
-                lock: { mode: 'pessimistic_read' },
-            });
-
-            // read the clock once both row locks are held: a wait for them may have outlasted the lease
-            if (!lease || lease.expiresAt.getTime() <= this.clock.now().getTime()) {
-                throw new LeaseLostError({ lock: fence.lock });
-            }
+            await this.assertLease(manager, fence);
 
             const entries = manager.withRepository(this.entries);
 
