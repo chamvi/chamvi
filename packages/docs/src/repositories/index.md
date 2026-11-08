@@ -11,7 +11,7 @@ The engine receives an `IStore` object with one implementation per persistence c
 | `ILockRepository` | Keyed leases | `acquire(key, owner, ttlMs)`, `release(key, owner)` |
 | `IEffectRepository` | Recorded effect results | `findOne`, `save` |
 | `IStateRepository` | Per-agent state | `findOne`/`set` (`undefined` removes the key), `find` (key code-point order, `limit`/`offset`), `findDocuments`/`upsertDocument`/`deleteDocument` |
-| `IArtifactRepository` | Files of a run (attachments, files tools stored) | `insert(artifact, data)` (insert-if-absent), `save(artifact, data)` (replacing upsert), `findOne` (metadata), `read` (bytes), `find(runId)` |
+| `IArtifactRepository` | Files of a run (attachments, files tools stored) | `insert(artifact, data, key?)` (insert-if-absent), `save(artifact, data, key)` (upsert by run and key), `findOne` (metadata), `findOneByKey(runId, key)` (metadata), `read` (bytes), `find(runId)` |
 | `IAgentRevisionRepository` | One revision marker per [folder agent](/guide/agent-folders): `{ agent, hash, changedAt }`, no code | `findOne`, `save` (upsert), `delete` (a missing one is a no-op), `find` (agent code-point order) |
 | `IConversationRepository` (optional) | Conversation generations, turn ownership, recall, journal and explicit notes | `findOne`, `findItems`, `findNotes`, `findOneNote`; `resolve`, `beginTurn`, `endTurn`, `prepareEmit`, `confirmEmit`, `applyNote`, `reset`, `delete`, `prune` |
 
@@ -78,7 +78,7 @@ const artifacts = await store.artifacts.find(runId);
 7. **Checkpoints.** `checkpoints.save` keeps the highest `stepIndex`; an equal index replaces.
 8. **State filters.** `state.findDocuments` `where` matches top-level fields by equality.
 9. **Run references.** `steps.insert`, `checkpoints.save` and `conversations.beginTurn` for a run the store does not hold throw `RunNotFoundError` and write nothing. `createMemoryStore()` checks its own run repository; the database store maps the foreign key violation.
-10. **Artifacts.** `artifacts.insert` resolves `false` and keeps the stored artifact when the id exists. `artifacts.save` inserts an absent id, replaces the metadata (a missing `filename` removes it) and bytes of an id held by the same run while keeping its `createdAt`, and throws `InvalidRunStateError` without writing for an id held by another run. Bytes are copied in and out like every other value, and `read` returns a plain `Uint8Array` (no `Buffer` or other subclass). `findOne` and `find` return metadata only.
+10. **Artifacts.** `artifacts.insert` resolves `false` and keeps the stored metadata and bytes when the id exists, or when `key` is given and the run already holds an artifact under that key. `artifacts.save` is an atomic upsert by `(runId, key)` and resolves the stored metadata: an absent key inserts the artifact as given, an existing one keeps its `id`, `agent` and `createdAt` and replaces `mediaType`, `filename` (a missing one removes it), `size` and the bytes. The key is private to the store: no read returns it, and `findOneByKey(runId, key)` is the only lookup by it. Bytes are copied in and out like every other value, and `read` returns a plain `Uint8Array` (no `Buffer` or other subclass). `findOne` and `find` return metadata only.
 
 ## The interfaces
 

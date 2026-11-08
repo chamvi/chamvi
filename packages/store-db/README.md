@@ -150,8 +150,8 @@ Each capability is also available as its own class: `DatabaseRunRepository`, `Da
 - **NUL characters and lone surrogates become U+FFFD** in opaque values (keys and strings alike), because `jsonb` cannot hold them. A literal backslash sequence such as the text `\u0000` is kept.
 - **`null` in an optional property reads back as absent:** a run `output` of `null` and a step `input`, `output` or `error` of `null` are stored as SQL `NULL`. `effects.save(key, undefined)` reads back `{ result: null }` and `upsertDocument(..., undefined)` reads back `doc: null`.
 - **`findDocuments` `where` uses `jsonb` containment (`@>`).** For primitive values that is top-level equality; a nested object or array matches by containment (`createMemoryStore()` never matches those). A key whose value is `undefined` matches documents that lack the key. Documents are returned ordered by `id` (`createMemoryStore()`: insertion order).
-- **`runs.find` and `artifacts.find` break `createdAt` ties by byte order of `id`** (`COLLATE "C"`, so `'B' < 'a'`, in both directions of `runs.find`'s `order`); `createMemoryStore()` compares with `localeCompare`. Both agree for lowercase ids and UUIDs.
-- **`state.find` orders keys by byte order** (`chamvi_kv.key` is `COLLATE "C"`, migration `KvKeyCollation1792540800000`), the code-point order the contract asks for.
+- **`runs.find` and `artifacts.find` break `createdAt` ties by `id`**, a Postgres `uuid` compared by its bytes, in both directions of `runs.find`'s `order`; `createMemoryStore()` compares with `localeCompare`. Both agree for the lowercase UUIDs chamvi generates.
+- **`state.find` orders keys by byte order** (`chamvi_kv.key` is `COLLATE "C"`), the code-point order the contract asks for.
 - **The schema may still change before 1.0.** New versions ship new migrations; run `migrateStore()` on every boot.
 
 ## License
