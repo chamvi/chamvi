@@ -486,7 +486,7 @@ export function describeRepositoryContract(
             const { store } = await setup();
 
             for (let i = 0; i < 250; i++) {
-                await store.runs.insert(makeRun(`r${String(i).padStart(3, '0')}`, { createdAt: new Date(i) }));
+                await store.runs.insert(makeRun(testUuid(`r${String(i).padStart(3, '0')}`), { createdAt: new Date(i) }));
             }
 
             const all = await store.runs.find({});

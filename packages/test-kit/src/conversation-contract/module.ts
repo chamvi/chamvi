@@ -114,7 +114,7 @@ export function describeConversationRepositoryContract(
             } = await setup();
 
             expect(scope.generation).toBe(0);
-            expect(scope.id).toMatch(/^[0-9a-f]{64}$/);
+            expect(scope.id).toMatch(/^(?:[0-9a-f]{64}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/);
             expect(scope.identity).toEqual(identity);
             expect(await store.resolve({ ...identity })).toEqual(scope);
             expect(await store.findOne(identity)).toEqual(scope);
@@ -131,9 +131,9 @@ export function describeConversationRepositoryContract(
             } = await setup();
 
             expect(await store.activeRun(scope)).toBeUndefined();
-            await store.beginTurn(scope, 'run', 'hello', LIMITS);
-            expect(await store.activeRun(scope)).toBe('run');
-            await store.endTurn(scope, 'run', []);
+            await store.beginTurn(scope, testUuid('run'), 'hello', LIMITS);
+            expect(await store.activeRun(scope)).toBe(testUuid('run'));
+            await store.endTurn(scope, testUuid('run'), []);
             expect(await store.activeRun(scope)).toBeUndefined();
             await store.reset(identity, { keepNotes: false });
             expect(await store.activeRun(scope)).toBeUndefined();
@@ -147,9 +147,9 @@ export function describeConversationRepositoryContract(
             } = await setup();
 
             await expect(store.beginTurn(scope, 'run\ud800', 'hello', LIMITS)).rejects.toMatchObject(INVALID);
-            await store.beginTurn(scope, 'run', 'hello', LIMITS);
+            await store.beginTurn(scope, testUuid('run'), 'hello', LIMITS);
 
-            const item = makeEmit(clock, 'run', 0, 'reply');
+            const item = makeEmit(clock, testUuid('run'), 0, 'reply');
 
             for (const changed of [
                 { ...item, id: 'bad\ud800' },
@@ -161,7 +161,7 @@ export function describeConversationRepositoryContract(
                 await expect(store.prepareEmit(scope, changed)).rejects.toMatchObject(INVALID);
             }
 
-            const operation = makeSet('run', 'note', 'value');
+            const operation = makeSet(testUuid('run'), 'note', 'value');
 
             for (const changed of [
                 { ...operation, id: 'bad\ud800' },
