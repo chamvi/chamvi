@@ -114,7 +114,7 @@ async function leaseOf(session: IConnectionSession): Promise<WhatsAppAuthLease> 
  * another process (or another acquire of this one) holds it; a holder that
  * stopped renewing blocks a new one for at most `leaseTtlMs`. Every write is
  * fenced by the lease, so a holder that lost it writes nothing. Nothing is
- * read or acquired before `acquire`. A `fresh` acquire recreates the
+ * read or acquired before `acquire`. A `reset` acquire recreates the
  * connection under the lease, also when no keyring key unwraps its data key.
  */
 export function createStoreWhatsAppAuth(options: StoreWhatsAppAuthOptions): IWhatsAppAuthProvider {
@@ -123,13 +123,15 @@ export function createStoreWhatsAppAuth(options: StoreWhatsAppAuthOptions): IWha
     const owner = options.owner ?? defaultOwner();
 
     return {
+        supportsReset: true,
         async acquire(signal: AbortSignal, acquireOptions?: WhatsAppAcquireOptions): Promise<WhatsAppAuthLease> {
             const session = await options.vault.open(options.connection, {
                 type: WHATSAPP_CONNECTION_TYPE,
                 owner,
                 signal,
+                // a reset recreates the connection under the lease: a fresh data key, no entries
+                ...(acquireOptions?.reset === true ? { recreate: true } : {}),
                 ...(options.leaseTtlMs !== undefined ? { leaseTtlMs: options.leaseTtlMs } : {}),
-                ...(acquireOptions?.fresh ? { recreate: true } : {}),
             });
 
             try {

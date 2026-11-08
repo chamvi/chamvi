@@ -54,18 +54,26 @@ export type WhatsAppAuthLease = {
     lost?: Promise<unknown>;
 };
 
-/** What an acquire asks of the provider. */
 export type WhatsAppAcquireOptions = {
     /**
-     * The session is about to be cleared (a reset): under the exclusive hold,
-     * a provider that can should discard a session it cannot read instead of
-     * rejecting. One that ignores this keeps such a session unresettable.
+     * A reset: once the location is held, discard the stored session (creds
+     * and keys, also one that cannot be loaded) and hand out an empty one.
+     * Nothing is discarded while another holder has it.
      */
-    fresh?: boolean;
+    reset?: boolean;
 };
 
-/** Hands out the session lease; caller-supplied, chamvi ships no production provider. */
+/**
+ * Hands out the session lease: `createStoreWhatsAppAuth()` (the app's store
+ * and keyring), or a caller-supplied provider with the same guarantees.
+ */
 export interface IWhatsAppAuthProvider {
+    /**
+     * True when `acquire` honours `reset`. Without it a reset is refused
+     * before anything closes: a provider that ignored the option would hand
+     * the old session back and the reset would look successful.
+     */
+    readonly supportsReset?: boolean;
     /**
      * Loads the session and takes the location exclusively; rejects when
      * another holder has it. Should settle soon after `signal` aborts; a
@@ -191,12 +199,14 @@ export type WhatsAppChatSetup = {
     status(): WhatsAppConnectionStatus;
     /**
      * Clears the session and pairs again without restarting the channel:
-     * ends the socket, flushes and releases the lease, acquires it again and,
-     * under that lease, clears the keys and saves fresh creds before the new
-     * socket (whose QR reaches onPairing). While another process holds the
-     * session nothing is cleared until this one acquires it. Resolves once
-     * the first acquire after the reset settled; InvalidRunStateError while
-     * the channel is not started or when the provider has no `keys.clear`.
+     * ends the socket, flushes and releases the lease, acquires it again with
+     * `reset: true` (the provider empties the session under that lease) and
+     * saves fresh creds before the new socket (whose QR reaches onPairing).
+     * Resolves once the first acquire after the reset settled;
+     * InvalidRunStateError while the channel is not started, when the
+     * provider has no `supportsReset`, while the status is `held-elsewhere`,
+     * or when that acquire finds the session held (nothing is cleared then,
+     * and nothing later).
      */
     reset(): Promise<void>;
     /**

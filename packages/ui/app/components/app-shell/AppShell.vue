@@ -12,6 +12,8 @@ import { RouterLink, useRoute } from 'vue-router';
 import type { MeWire } from '../../api/types.ts';
 import { useApprovals } from '../../approvals/composables.ts';
 import { INBOX } from '../../approvals/constants.ts';
+import { createConnectionsApi } from '../../connections/api.ts';
+import { useConnections } from '../../connections/composables.ts';
 import { useAppContext } from '../../context/module.ts';
 import { RouteName } from '../../router/constants.ts';
 import BrandLogo from '../brand-logo/BrandLogo.vue';
@@ -26,6 +28,9 @@ const inbox = useApprovals(client);
 provide(INBOX, inbox);
 
 const waiting = computed(() => inbox.runs.value.length);
+
+// the page shows only when the app exposes a connection this principal may read
+const { connections } = useConnections(createConnectionsApi(client));
 
 const emit = defineEmits<{ signOut: [] }>();
 
@@ -58,7 +63,15 @@ const items = [
         icon: 'schedules',
         also: [],
     },
+    {
+        name: RouteName.CONNECTIONS,
+        label: 'Connections',
+        icon: 'connections',
+        also: [RouteName.CONNECTION],
+    },
 ] as const;
+
+const visible = computed(() => items.filter((item) => item.name !== RouteName.CONNECTIONS || connections.value.length > 0));
 
 function isCurrent(item: typeof items[number]): boolean {
     return route.name === item.name || (item.also as readonly string[]).includes(String(route.name));
@@ -82,7 +95,7 @@ const grants = computed(() => {
                     Operate
                 </div>
                 <RouterLink
-                    v-for="item in items"
+                    v-for="item in visible"
                     :key="item.name"
                     :to="{ name: item.name }"
                     class="nav-item"

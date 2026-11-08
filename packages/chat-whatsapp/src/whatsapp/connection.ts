@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { DisconnectReason, initAuthCreds } from 'baileys';
+import { DisconnectReason } from 'baileys';
 import type {
     BaileysEventMap,
     SignalDataSet,
@@ -47,6 +47,8 @@ type Generation = {
     lease?: WhatsAppAuthLease;
     /** the provider reported the lease lost: nothing is flushed under it */
     leaseLost: boolean;
+    /** acquired for a reset: the provider handed out an emptied session */
+    reset: boolean;
     /** settles once acquire settled and a late lease was released */
     acquiring?: Promise<void>;
     socket?: WhatsAppSocket;
@@ -71,7 +73,7 @@ type Run = {
     failedAcquires: number;
     /** the held-elsewhere notice went out since the last acquired lease */
     heldReported: boolean;
-    /** a reset asked for a cleared session: done under the next lease, before its socket */
+    /** a reset asked for a cleared session: the next acquire asks the provider for it, before any socket */
     clearPending: boolean;
     resetting?: Promise<void>;
     closing?: Promise<void>;
@@ -188,7 +190,20 @@ function isHeld(error: unknown): boolean {
 
 const noop = () => undefined;
 
-const clearUnsupported = () => new InvalidRunStateError('The WhatsApp auth provider cannot clear its keys (no keys.clear); the session was not reset.');
+function clearRetry(run: Run): void {
+    run.retry?.clear();
+    delete run.retry;
+}
+
+/** The refusal of a reset the provider cannot perform: it would hand the old session back. */
+function resetUnsupported(): InvalidRunStateError {
+    return new InvalidRunStateError('The WhatsApp auth provider does not support a reset (no supportsReset); the session was not reset.');
+}
+
+/** The refusal of a reset while another process holds the session: nothing is cleared, nothing queued. */
+function heldElsewhere(): InvalidRunStateError {
+    return new InvalidRunStateError('The WhatsApp session is held by another process; the reset is refused and nothing is cleared. Retry once this process holds the session.');
+}
 
 /**
  * The WhatsApp connection: `connect` acquires the lease (the provider's
@@ -203,20 +218,22 @@ const clearUnsupported = () => new InvalidRunStateError('The WhatsApp auth provi
  * acquire failure sets `failed` and retries up to `maxAttempts`. A lease the
  * provider reports lost ends the socket and waits for the session the same
  * way. `reset` closes the current generation (socket, flush, release), then
- * acquires again; under that next lease, before its socket, the session is
- * cleared (`keys.clear`, fresh creds saved), so a holder elsewhere loses
- * nothing until this process holds the lease. That acquire asks for `fresh`,
- * so a session the provider cannot read does not stop its own reset.
+ * acquires again with `reset: true`: the provider empties the session only
+ * once it holds the location (the store provider recreates the connection,
+ * which also recovers a data key the keyring cannot unwrap), then the fresh
+ * creds are saved before the socket. A reset is refused (InvalidRunStateError)
+ * by a provider without `supportsReset`, while the status is `held-elsewhere`,
+ * and when its own acquire finds the session held: no clear waits for another
+ * holder's lease.
  *
  * `close` (idempotent per connect) stops admitting auth calls and ends the
  * retries and reconnects, then has two bounds of WHATSAPP_SHUTDOWN_TIMEOUT_MS
  * (30 s) each: ending the socket (past it the end is abandoned and reported,
  * and the close goes on), then settling (the auth calls already admitted and
- * the lease's flush), after which it releases the lease. Past the settling
- * bound the lease is not released: it stays fenced (the guard refuses every
- * later call) and the failure is reported. A flush that failed has settled,
- * so the failure is reported and the lease released: a store session held on
- * would renew forever and lock out every later acquire.
+ * the lease's flush), after which it releases the lease. A failed flush is
+ * reported and the lease released all the same (the failed writes are lost
+ * and fenced); past the settling bound the timeout is reported and the lease
+ * released once the admitted writes settle.
  */
 export function createWhatsAppConnection(options: WhatsAppConnectionOptions): WhatsAppConnection {
     let current: Run | undefined;
@@ -436,33 +453,36 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
                 }
             })();
 
+            // the session ends once the admitted writes settled, whatever the flush said: a failed write is
+            // already lost (and fenced), so keeping the lease for it would only block the next session
+            const end = async () => {
+                if (generation.lease) {
+                    await release(generation.lease);
+                }
+            };
+
             let settled: boolean;
 
             try {
                 settled = await within(clock, WHATSAPP_SHUTDOWN_TIMEOUT_MS, settling);
             } catch (error) {
-                report(failure(WHATSAPP_AUTH_ERROR_CODE, 'Flushing the WhatsApp auth lease failed; it is released with its unflushed writes lost.', error));
-
-                if (generation.lease) {
-                    await release(generation.lease);
-                }
+                report(failure(WHATSAPP_AUTH_ERROR_CODE, 'Flushing the WhatsApp auth lease failed; the failed writes are lost, the lease is released.', error));
+                await end();
 
                 return;
             }
 
             if (!settled) {
-                settling.catch(noop);
                 report(failure(
                     WHATSAPP_AUTH_ERROR_CODE,
-                    `The WhatsApp auth writes did not finish within ${WHATSAPP_SHUTDOWN_TIMEOUT_MS}ms; the lease stays held (not released).`,
+                    `The WhatsApp auth writes did not finish within ${WHATSAPP_SHUTDOWN_TIMEOUT_MS}ms; the lease is released once they settle.`,
                 ));
+                void settling.then(end, end);
 
                 return;
             }
 
-            if (generation.lease) {
-                await release(generation.lease);
-            }
+            await end();
         })();
 
         return generation.closing;
@@ -475,6 +495,8 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
         }
 
         if (isHeld(error)) {
+            // a reset's clear never waits for the lease: it would wipe the holder's session later
+            run.clearPending = false;
             setRunStatus(run, 'held-elsewhere');
 
             if (!run.heldReported) {
@@ -515,7 +537,8 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
         setStatus(generation, 'held-elsewhere');
 
         void closeGeneration(generation).then(() => {
-            if (isRunCurrent(run) && run.generation === generation) {
+            // a reset that began meanwhile acquires on its own, or schedules this retry when it ends
+            if (isRunCurrent(run) && run.generation === generation && !run.resetting && !run.retry) {
                 scheduleAcquire(run);
             }
         });
@@ -536,13 +559,14 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             closed: false,
             writes: new Set(),
             leaseLost: false,
+            reset: run.clearPending,
             failures: 0,
         };
 
         run.generation = generation;
 
         const acquired = (async () => {
-            const lease = await options.auth.acquire(generation.signal, { fresh: run.clearPending });
+            const lease = await options.auth.acquire(generation.signal, { reset: generation.reset });
 
             // a lease that arrives after the stop is given back at once, never used
             if (generation.closed || generation.signal.aborted) {
@@ -579,7 +603,7 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             throw generation.signal.aborted ? generation.signal.reason : new InvalidRunStateError('The WhatsApp connection closed while it connected.');
         }
 
-        // a reset's clear still pending keeps its budget: only a usable session starts the count over
+        // a reset whose fresh creds are not saved yet keeps its budget: only a usable session starts the count over
         if (!run.clearPending) {
             run.retries = 0;
             run.failedAcquires = 0;
@@ -591,17 +615,10 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
         return generation;
     };
 
-    /** Under the lease, before the socket: the cleared session a reset asked for. */
-    const clearSession = async (generation: Generation) => {
+    /** Under the reset's lease, before the socket: the emptied session's fresh creds are saved. */
+    const saveFreshCreds = async (generation: Generation) => {
         const lease = generation.lease!;
-        const { keys } = lease.auth;
 
-        if (!keys.clear) {
-            throw clearUnsupported();
-        }
-
-        await admit(generation, () => keys.clear!());
-        lease.auth.creds = initAuthCreds();
         await admit(generation, () => lease.saveCreds());
         generation.run.clearPending = false;
         generation.run.retries = 0;
@@ -611,10 +628,14 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
     /**
      * Acquires, clears when a reset asked for it, then builds the socket. The
      * first establish of a connect rethrows an abort or a socket failure (the
-     * start fails); later ones report and retry. A reset's own establish
-     * (`resetting`) also rejects when the provider cannot clear its keys.
+     * start fails); later ones report and retry.
      */
-    const establish = async (run: Run, first: boolean, resetting = false): Promise<void> => {
+    const establish = async (run: Run, first: boolean): Promise<void> => {
+        // a live generation (acquiring or holding its lease) stays the only one
+        if (run.generation && !run.generation.closed) {
+            return;
+        }
+
         let generation: Generation | undefined;
 
         try {
@@ -636,27 +657,16 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             setStatus(generation, 'connecting');
         }
 
-        if (run.clearPending) {
+        if (generation.reset) {
             try {
-                await clearSession(generation);
+                await saveFreshCreds(generation);
             } catch (error) {
                 if (generation.closed) {
                     return;
                 }
 
-                const unsupported = !generation.lease!.auth.keys.clear;
-
-                // no retry could ever clear it: the next acquire serves the session as it is
-                if (unsupported) {
-                    run.clearPending = false;
-                }
-
                 await closeGeneration(generation);
-                onAcquireFailed(run, error, 'Clearing the WhatsApp session failed; the connection retries.');
-
-                if (unsupported && resetting) {
-                    throw error;
-                }
+                onAcquireFailed(run, error, 'Saving the reset WhatsApp session failed; the connection retries.');
 
                 return;
             }
@@ -741,12 +751,15 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             return Promise.reject(new InvalidRunStateError('The WhatsApp connection is not started; there is nothing to reset.'));
         }
 
-        run.resetting ??= (async () => {
-            // refused while the session still serves: nothing below could clear it
-            if (run.generation?.lease && !run.generation.lease.auth.keys.clear) {
-                throw clearUnsupported();
-            }
+        if (options.auth.supportsReset !== true) {
+            return Promise.reject(resetUnsupported());
+        }
 
+        if (!run.resetting && status === 'held-elsewhere') {
+            return Promise.reject(heldElsewhere());
+        }
+
+        run.resetting ??= (async () => {
             run.clearPending = true;
             run.retry?.clear();
             delete run.retry;
@@ -763,11 +776,26 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
                 await closeGeneration(generation);
             }
 
+            // a retry scheduled while the close ran (a lost lease's) would build a second generation
+            clearRetry(run);
+
             if (isRunCurrent(run)) {
-                await establish(run, false, true);
+                await establish(run, false);
+            }
+
+            if (isRunCurrent(run) && status === 'held-elsewhere') {
+                throw heldElsewhere();
             }
         })().finally(() => {
             delete run.resetting;
+
+            // the reset's own lease was lost and its close skipped the retry: waiting for the session is due now
+            if (!(isRunCurrent(run) && run.generation?.leaseLost) || run.retry) {
+                return;
+            }
+
+            run.clearPending = false;
+            scheduleAcquire(run);
         });
 
         return run.resetting;

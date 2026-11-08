@@ -133,6 +133,13 @@ describe('connection routes', () => {
         expect(() => createTestApp({ connections: [] as never })).toThrow(InvalidAgentDefinitionError);
     });
 
+    it('tells a writer when the connection offers no reset', async () => {
+        const { app } = world([fakeHandle('beta', { reset: false })]);
+        const detail = await call(app, 'GET', '/connections/beta', { token: tokenFor('connection:beta:write') });
+
+        expect(await detail.json()).toMatchObject({ canReset: false });
+    });
+
     it('shows widgets on the detail only with write', async () => {
         const { app } = world([fakeHandle('alpha')]);
 
@@ -154,6 +161,7 @@ describe('connection routes', () => {
             type: 'whatsapp',
             status: 'pairing',
             widgets: [{ kind: 'qr', value: QR }],
+            canReset: true,
         });
 
         expect((await call(app, 'GET', '/connections/alpha')).status).toBe(401);
@@ -334,6 +342,44 @@ describe('connection routes', () => {
         expect((await call(app, 'POST', '/connections/beta/reset', { token: ADMIN_TOKEN })).status).toBe(404);
         expect((await call(app, 'POST', '/connections/omega/reset', { token: ADMIN_TOKEN })).status).toBe(404);
         expect((await call(app, 'POST', '/connections/alpha/reset')).status).toBe(401);
+    });
+
+    it('reset answers 202 at once and reports a rejection through onError', async () => {
+        const fake = fakeHandle('alpha');
+        const errors: unknown[] = [];
+        const { app } = world([fake], {
+            onError: (error) => {
+                errors.push(error);
+            },
+        });
+        const pending = Promise.withResolvers<undefined>();
+
+        fake.reset.mockImplementationOnce(() => pending.promise);
+
+        const response = await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor('connection:alpha:write') });
+
+        expect(response.status).toBe(202);
+        expect(fake.reset).toHaveBeenCalledTimes(1);
+
+        const failure = new Error('the reset failed');
+
+        pending.reject(failure);
+        await flush();
+        expect(errors).toEqual([failure]);
+    });
+
+    it('reset while held elsewhere answers 409 and calls nothing', async () => {
+        const fake = fakeHandle('alpha');
+        const { app } = world([fake]);
+
+        fake.set('held_elsewhere');
+
+        const response = await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor('connection:alpha:write') });
+        const body = await response.json() as { message?: string };
+
+        expect(response.status).toBe(409);
+        expect(body.message).toMatch(/held by another process/);
+        expect(fake.reset).not.toHaveBeenCalled();
     });
 
     it('labels the connection routes in metrics and keeps their stream out of the timings', () => {
