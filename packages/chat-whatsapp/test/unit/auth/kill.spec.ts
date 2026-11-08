@@ -8,6 +8,7 @@
 import { spawn } from 'node:child_process';
 import { randomBytes } from 'node:crypto';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { fileURLToPath } from 'node:url';
 import { DataSource } from 'typeorm';
 import { afterAll, expect, it } from 'vitest';
 import {
@@ -40,8 +41,8 @@ function runWriter(env: Record<string, string>, after: number): Promise<number> 
     return new Promise((resolve, reject) => {
         const child = spawn(process.execPath, [
             '--import',
-            new URL('../../fixtures/kill-hooks.ts', import.meta.url).pathname,
-            new URL('../../fixtures/kill-writer.ts', import.meta.url).pathname,
+            new URL('../../fixtures/kill-hooks.ts', import.meta.url).href,
+            fileURLToPath(new URL('../../fixtures/kill-writer.ts', import.meta.url)),
         ], { env: { ...process.env, ...env }, stdio: ['ignore', 'pipe', 'pipe'] });
         let committed = -1;
         let buffer = '';

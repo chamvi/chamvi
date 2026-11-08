@@ -207,6 +207,8 @@ describe('whatsappModule', () => {
             resolveInvoker: () => undefined,
             state: createMemoryState(),
         })).toThrow(InvalidAgentDefinitionError);
+        expect(() => whatsappModule({ connection: 'bot', leaseTtlMs: 2_147_483_648 } as never)).toThrow(/leaseTtlMs/);
+        expect(() => whatsappModule({ connection: 'bot', approvalUrl: 'https://chamvi.example' } as never)).toThrow(/approvalUrl/);
     });
 
     it('needs an approval url or CHAMVI_PUBLIC_URL', async () => {

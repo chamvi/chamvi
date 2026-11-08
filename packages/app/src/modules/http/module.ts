@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import {
     assertMcpRunTool,
     createHttpApp,
@@ -129,6 +130,13 @@ export class HttpModule implements IModule {
         delete appOptions.untrusted;
 
         const connections = container.resolveAll(AppToken.CONNECTIONS);
+        const duplicate = connections.find((handle, index) => connections.findIndex((other) => other.name === handle.name) !== index);
+
+        // the routes address a connection by name: a second handle would never be reached
+        if (duplicate) {
+            throw new InvalidAgentDefinitionError(`Two modules contribute the connection "${duplicate.name}".`);
+        }
+
         const app = createHttpApp({
             ...appOptions,
             engine,

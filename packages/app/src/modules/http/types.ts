@@ -21,9 +21,9 @@ export type HttpModuleUntrustedOptions = {
 /**
  * `createHttpApp` options the module passes through (`bodyLimit` also bounds
  * the webhook channel's deliveries), plus `untrusted` for the `http` and `mcp`
- * channels; `engine`, `auth`, `shutdown`, `routes`, `channels`, `basePath`
- * and `onError` come from the app.
+ * channels; `engine`, `auth`, `shutdown`, `routes`, `channels`, `connections`,
+ * `basePath` and `onError` come from the app.
  */
-export type HttpModuleOptions = Omit<HttpAppOptions, 'engine' | 'auth' | 'shutdown' | 'routes' | 'channels' | 'basePath' | 'onError'> & {
+export type HttpModuleOptions = Omit<HttpAppOptions, 'engine' | 'auth' | 'shutdown' | 'routes' | 'channels' | 'connections' | 'basePath' | 'onError'> & {
     untrusted?: HttpModuleUntrustedOptions;
 };

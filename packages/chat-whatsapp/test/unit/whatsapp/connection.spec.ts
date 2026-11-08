@@ -20,7 +20,7 @@ import {
     createKeyring,
     createMemoryStore,
 } from '@chamvi/core';
-import type { IEngine, IStore } from '@chamvi/core';
+import type { IEngine, IKeyring, IStore } from '@chamvi/core';
 import {
     WHATSAPP_AUTH_ERROR_CODE,
     WHATSAPP_CONNECTION_ERROR_CODE,
@@ -34,7 +34,9 @@ import type {
     WhatsAppConnectionStatus,
 } from '@chamvi/chat-whatsapp';
 import { ControllableClock } from '@chamvi/test-kit';
-import { createWhatsAppFixture, settle } from '../../utils/whatsapp.ts';
+import { createWhatsAppConnection } from '../../../src/whatsapp/connection.ts';
+import { createRecordingAuth } from '../../utils/auth.ts';
+import { createFakeSockets, createWhatsAppFixture, settle } from '../../utils/whatsapp.ts';
 import type { WhatsAppFixture } from '../../utils/whatsapp.ts';
 
 const QR = '2@SECRET-PAIRING-REFERENCE,abc,def';
@@ -402,5 +404,192 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
         for (const error of world.errors) {
             expect(textOf(error)).not.toContain('SECRET-PAIRING-REFERENCE');
         }
+    });
+});
+
+describe('WhatsApp connection: a reset that cannot clear, a reentrant close', () => {
+    it('refuses a reset without keys.clear while the session serves, and leaves it serving', async () => {
+        const world = createWhatsAppFixture();
+
+        engines.push(world.engine);
+        await world.engine.start();
+
+        await expect(world.setup.reset()).rejects.toBeInstanceOf(InvalidRunStateError);
+
+        expect(world.sockets.sockets).toHaveLength(1);
+        expect(world.sockets.last().ended).toBe(0);
+        expect(world.auth.trace).not.toContain('release');
+    });
+
+    it('rejects a reset without keys.clear that got its lease only now, and serves the session as it is', async () => {
+        const world = createWhatsAppFixture();
+
+        engines.push(world.engine);
+        world.auth.failAcquire(new Error('store down'));
+        await world.engine.start();
+        expect(world.sockets.sockets).toEqual([]);
+
+        await expect(world.setup.reset()).rejects.toBeInstanceOf(InvalidRunStateError);
+
+        world.clock.advance(upperDelay(0));
+        await settle();
+        expect(world.sockets.sockets).toHaveLength(1);
+    });
+
+    it('keeps the retry budget while the pending clear keeps failing', async () => {
+        const auth = createRecordingAuth();
+        const provider: IWhatsAppAuthProvider = {
+            async acquire(signal) {
+                const lease = await auth.provider.acquire(signal);
+
+                return {
+                    ...lease,
+                    auth: {
+                        ...lease.auth,
+                        keys: {
+                            ...lease.auth.keys,
+                            clear: () => Promise.reject(new Error('clear failed')),
+                        },
+                    },
+                };
+            },
+        };
+        const world = createWhatsAppFixture({ patch: { auth: provider } });
+
+        engines.push(world.engine);
+        await world.engine.start();
+        await world.setup.reset();
+
+        const acquires = () => auth.trace.filter((entry) => entry === 'acquire').length;
+
+        for (let n = 0; n <= WHATSAPP_RECONNECT.maxAttempts + 2; n++) {
+            world.clock.advance(upperDelay(n));
+            await settle();
+        }
+
+        // the connect, the reset's own, then one per attempt of the budget
+        expect(acquires()).toBe(2 + WHATSAPP_RECONNECT.maxAttempts);
+        expect(world.errors.filter((error) => (error as Error).message.includes('times in a row'))).toHaveLength(1);
+    });
+
+    it('builds no lease and no socket after an onStatus closed the connection', async () => {
+        const auth = createRecordingAuth();
+        const sockets = createFakeSockets();
+        const connection = createWhatsAppConnection({
+            auth: auth.provider,
+            socketFactory: sockets.factory,
+            onPairing: () => undefined,
+            onError: () => undefined,
+            onMessages: () => undefined,
+            onStatus: (status) => {
+                if (status === 'connecting') {
+                    void connection.close();
+                }
+            },
+        });
+
+        await expect(connection.connect({
+            signal: new AbortController().signal,
+            clock: new ControllableClock(new Date('2026-11-01T09:00:00Z')),
+        })).rejects.toBeInstanceOf(InvalidRunStateError);
+
+        expect(auth.signals).toEqual([]);
+        expect(sockets.sockets).toEqual([]);
+    });
+
+    function storeAuth(keys: IKeyring, store: IStore, clock: ControllableClock): IWhatsAppAuthProvider {
+        return createStoreWhatsAppAuth({
+            vault: createConnectionVault({
+                store, 
+                keyring: keys, 
+                clock, 
+            }),
+            connection: 'bot',
+            owner: 'connector',
+            leaseTtlMs: TTL,
+        });
+    }
+
+    it('releases the lease after a flush that failed, so the reset takes it again', async () => {
+        const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
+        const inner = storeAuth(keyring, createMemoryStore({ clock }), clock);
+        let failFlush = true;
+        const provider: IWhatsAppAuthProvider = {
+            async acquire(signal, options) {
+                const lease = await inner.acquire(signal, options);
+
+                return {
+                    ...lease,
+                    flush() {
+                        if (failFlush) {
+                            failFlush = false;
+
+                            return Promise.reject(new Error('flush failed'));
+                        }
+
+                        return lease.flush();
+                    },
+                };
+            },
+        };
+        const statuses: WhatsAppConnectionStatus[] = [];
+        const world = createWhatsAppFixture({
+            patch: {
+                auth: provider,
+                onStatus: (status) => {
+                    statuses.push(status);
+                },
+            },
+        });
+
+        engines.push(world.engine);
+        await world.engine.start();
+        await world.setup.reset();
+
+        expect(statuses).not.toContain('held-elsewhere');
+        expect(world.sockets.sockets).toHaveLength(2);
+        expect(world.errors.map((error) => (error as Error).message).join()).toContain('Flushing the WhatsApp auth lease failed');
+    });
+
+    it('a reset recovers a session whose data key no keyring key unwraps', async () => {
+        const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
+        const store = createMemoryStore({ clock });
+        const previous = await storeAuth(keyring, store, clock).acquire(new AbortController().signal);
+
+        await previous.release();
+
+        const world = createWhatsAppFixture({ patch: { auth: storeAuth(createKeyring([{ id: 'k2', key: randomBytes(32) }]), store, clock) } });
+
+        engines.push(world.engine);
+        await world.engine.start();
+        expect(world.sockets.sockets).toEqual([]);
+
+        await world.setup.reset();
+
+        expect(world.sockets.sockets).toHaveLength(1);
+        expect(await store.connections!.findOne('bot')).toMatchObject({ keyId: 'k2' });
+    });
+
+    it('a reset recovers a session whose creds do not decode', async () => {
+        const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
+        const store = createMemoryStore({ clock });
+        const session = await createConnectionVault({
+            store, 
+            keyring, 
+            clock, 
+        }).open('bot', { type: 'whatsapp', owner: 'seed' });
+
+        await session.write({ set: { creds: new TextEncoder().encode('not json') } });
+        await session.close();
+
+        const world = createWhatsAppFixture({ patch: { auth: storeAuth(keyring, store, clock) } });
+
+        engines.push(world.engine);
+        await world.engine.start();
+        expect(world.sockets.sockets).toEqual([]);
+
+        await world.setup.reset();
+
+        expect(world.sockets.sockets).toHaveLength(1);
     });
 });

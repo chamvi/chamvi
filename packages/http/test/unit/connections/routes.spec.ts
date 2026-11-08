@@ -246,6 +246,73 @@ describe('connection routes', () => {
         expect(fake.listeners()).toBe(0);
     });
 
+    it('keeps a connection detail out of every cache', async () => {
+        const { app } = world([fakeHandle('alpha')]);
+        const response = await call(app, 'GET', '/connections/alpha', { token: ADMIN_TOKEN });
+
+        expect(response.headers.get('cache-control')).toBe('private, no-store');
+    });
+
+    it('gives the stream slot back when the subscription fails', async () => {
+        const fake = fakeHandle('alpha');
+        const { subscribe } = fake.handle;
+        let fail = true;
+        const flaky: FakeHandle = {
+            ...fake,
+            handle: {
+                ...fake.handle,
+                subscribe(listener) {
+                    if (fail) {
+                        fail = false;
+
+                        throw new Error('subscribe failed');
+                    }
+
+                    return subscribe(listener);
+                },
+            },
+        };
+        const { app } = world([flaky], { stream: { maxOpen: 1 }, onError: () => undefined });
+
+        expect((await stream(app, 'alpha', ADMIN_TOKEN)).status).toBe(500);
+
+        const controller = new AbortController();
+        const retried = await stream(app, 'alpha', ADMIN_TOKEN, controller.signal);
+
+        expect(retried.status).toBe(200);
+        controller.abort();
+    });
+
+    it('gives the stream slot back when the unsubscribe throws, and reports it', async () => {
+        const fake = fakeHandle('alpha');
+        const failure = new Error('unsubscribe failed');
+        const onError = vi.fn();
+        const throwing: FakeHandle = {
+            ...fake,
+            handle: {
+                ...fake.handle,
+                subscribe: () => () => {
+                    throw failure;
+                },
+            },
+        };
+        const { app } = world([throwing], { stream: { maxOpen: 1 }, onError });
+        const first = new AbortController();
+        const reader = new SseReader(await stream(app, 'alpha', ADMIN_TOKEN, first.signal));
+
+        await reader.next(2);
+        first.abort();
+        await flush();
+        expect(onError).toHaveBeenCalledWith(failure);
+
+        const second = new AbortController();
+        const retried = await stream(app, 'alpha', ADMIN_TOKEN, second.signal);
+
+        expect(retried.status).toBe(200);
+        second.abort();
+        await flush();
+    });
+
     it('reset needs write and calls the handle', async () => {
         const fake = fakeHandle('alpha');
         const bare = fakeHandle('beta', { reset: false });

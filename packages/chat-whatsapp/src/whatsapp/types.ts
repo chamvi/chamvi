@@ -54,6 +54,16 @@ export type WhatsAppAuthLease = {
     lost?: Promise<unknown>;
 };
 
+/** What an acquire asks of the provider. */
+export type WhatsAppAcquireOptions = {
+    /**
+     * The session is about to be cleared (a reset): under the exclusive hold,
+     * a provider that can should discard a session it cannot read instead of
+     * rejecting. One that ignores this keeps such a session unresettable.
+     */
+    fresh?: boolean;
+};
+
 /** Hands out the session lease; caller-supplied, chamvi ships no production provider. */
 export interface IWhatsAppAuthProvider {
     /**
@@ -61,7 +71,7 @@ export interface IWhatsAppAuthProvider {
      * another holder has it. Should settle soon after `signal` aborts; a
      * lease handed out after the abort is released at once.
      */
-    acquire(signal: AbortSignal): Promise<WhatsAppAuthLease>;
+    acquire(signal: AbortSignal, options?: WhatsAppAcquireOptions): Promise<WhatsAppAuthLease>;
 }
 
 /** Who may start runs: normalized platform ids (jids), never names. */
@@ -186,7 +196,7 @@ export type WhatsAppChatSetup = {
      * socket (whose QR reaches onPairing). While another process holds the
      * session nothing is cleared until this one acquires it. Resolves once
      * the first acquire after the reset settled; InvalidRunStateError while
-     * the channel is not started.
+     * the channel is not started or when the provider has no `keys.clear`.
      */
     reset(): Promise<void>;
     /**
