@@ -613,7 +613,7 @@ describe('WhatsApp connection: closing a generation always ends its session', ()
     });
 });
 
-describe('WhatsApp connection: a reset's retry budget, a reentrant close', () => {
+describe('WhatsApp connection: the retry budget of a reset, a reentrant close', () => {
     it('keeps the retry budget while saving the fresh creds keeps failing', async () => {
         const auth = createRecordingAuth();
         const provider: IWhatsAppAuthProvider = {
