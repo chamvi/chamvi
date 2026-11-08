@@ -8,7 +8,7 @@
 import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
 import { DEFAULT_CONVERSATION_LIMITS } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { SeededConversationRepository } from '../../utils/conversation.ts';
 import { ConversationOperationEntity } from '../../../src/entities/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
@@ -37,8 +37,8 @@ describePostgres('conversation operation retention', () => {
         const limits = { ...DEFAULT_CONVERSATION_LIMITS, retentionMs: 10_000 };
 
         for (const [runId, prefix, count] of [
-            ['recoverable', 'a', 100],
-            ['settled', 'z', 105],
+            [testUuid('recoverable'), 'a', 100],
+            [testUuid('settled'), 'z', 105],
         ] as const) {
             await store.beginTurn(scope, runId, 'input', limits);
 
@@ -62,11 +62,11 @@ describePostgres('conversation operation retention', () => {
         }
 
         clock.advance(10_000);
-        await store.prune(limits, { isSettled: async (runId) => runId === 'settled' });
+        await store.prune(limits, { isSettled: async (runId) => runId === testUuid('settled') });
 
         const operations = dataSource.getRepository(ConversationOperationEntity);
 
-        expect(await operations.countBy({ scopeId: scope.id, runId: 'recoverable' })).toBe(100);
-        expect(await operations.countBy({ scopeId: scope.id, runId: 'settled' })).toBe(0);
+        expect(await operations.countBy({ scopeId: scope.id, runId: testUuid('recoverable') })).toBe(100);
+        expect(await operations.countBy({ scopeId: scope.id, runId: testUuid('settled') })).toBe(0);
     });
 });

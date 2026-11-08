@@ -13,7 +13,7 @@ import {
     vi,
 } from 'vitest';
 import { DEFAULT_CONVERSATION_LIMITS } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '@chamvi/store-db';
 import { SeededConversationRepository, seedRun } from '../../utils/conversation.ts';
 import { ConversationItemEntity, ConversationOperationEntity } from '../../../src/entities/index.ts';
@@ -104,8 +104,8 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
     it('classifies runs through the same pool without holding a transaction connection', async () => {
         const s = await setup();
 
-        await s.seed('completed', 'completed');
-        await s.seed('recoverable', 'waiting');
+        await s.seed(testUuid('completed'), 'completed');
+        await s.seed(testUuid('recoverable'), 'waiting');
         s.clock.advance(10_000);
         await s.store.prune(s.limits, {
             isSettled: async (runId) => {
@@ -114,19 +114,19 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
                 return !run || ['completed', 'failed', 'cancelled'].includes(run.status);
             },
         });
-        expect(await s.operations.find({ select: { runId: true } })).toEqual([{ runId: 'recoverable' }]);
+        expect(await s.operations.find({ select: { runId: true } })).toEqual([{ runId: testUuid('recoverable') }]);
     });
 
     it('trims a bulk backlog with selects bounded to 100 items', async () => {
         const s = await setup();
 
-        await s.seed('writer', 'completed');
+        await s.seed(testUuid('writer'), 'completed');
 
         const items = Array.from({ length: 250 }, (_value, index) => ({
             scopeId: s.scope.id,
             generation: s.scope.generation,
-            id: `item-${index}`,
-            runId: 'writer',
+            itemId: `item-${index}`,
+            runId: testUuid('writer'),
             createdAt: s.clock.now(),
             role: 'user' as const,
             text: 'input',
@@ -156,7 +156,7 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
     it.each(['active owner', 'changed candidate', 'young candidate'] as const)('rechecks %s after classification and before deletion', async (change) => {
         const s = await setup();
 
-        await s.seed('completed', 'completed');
+        await s.seed(testUuid('completed'), 'completed');
         s.clock.advance(10_000);
         await s.store.prune(s.limits, {
             isSettled: async (runId) => {
@@ -165,10 +165,10 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
                 if (change === 'active owner') {
                     await withinPoolDeadline(s.store.beginTurn(s.scope, runId, 'resumed input', s.limits));
                 } else if (change === 'changed candidate') {
-                    await seedRun(dataSource, 'recoverable');
-                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, id: runId }, { runId: 'recoverable', inputHash: 'replacement' }));
+                    await seedRun(dataSource, testUuid('recoverable'));
+                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, operationId: runId }, { runId: testUuid('recoverable'), inputHash: 'replacement' }));
                 } else {
-                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, id: runId }, { createdAt: s.clock.now() }));
+                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, operationId: runId }, { createdAt: s.clock.now() }));
                 }
 
                 return true;
