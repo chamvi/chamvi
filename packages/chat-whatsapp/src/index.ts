@@ -7,4 +7,5 @@
 
 // The package entry: WhatsApp Web on Baileys over @chamvi/chat's public platform seam.
 
+export * from './auth/index.ts';
 export * from './whatsapp/index.ts';

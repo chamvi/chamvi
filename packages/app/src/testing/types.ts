@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Agent, IClock } from '@chamvi/core';
+import type { Agent, IClock, IKeyring } from '@chamvi/core';
 import type { IContainer } from 'eldin';
 import type { Application, IModule } from 'orkos';
 import type { Env } from '../env/types.ts';
@@ -32,6 +32,8 @@ export type ModuleHarnessOptions = {
     job?: AppContext['job'];
     /** Registered as `AppToken.CLOCK` before setup (a config module may replace it). */
     clock?: IClock;
+    /** Registered as `AppToken.KEYRING` (the config module then reads no env for it). */
+    keyring?: IKeyring;
 };
 
 export type ModuleHarness = {

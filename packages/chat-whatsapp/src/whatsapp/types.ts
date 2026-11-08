@@ -46,6 +46,22 @@ export type WhatsAppAuthLease = {
     flush(): Promise<void>;
     /** Gives the location up for another holder; called after `flush`. */
     release(): Promise<void>;
+    /**
+     * Optional: resolves when the provider lost the location (e.g. its lease
+     * expired and another holder took it); the connection then ends its
+     * socket and waits for the location again. Need not settle otherwise.
+     */
+    lost?: Promise<unknown>;
+};
+
+/** What an acquire asks of the provider. */
+export type WhatsAppAcquireOptions = {
+    /**
+     * The session is about to be cleared (a reset): under the exclusive hold,
+     * a provider that can should discard a session it cannot read instead of
+     * rejecting. One that ignores this keeps such a session unresettable.
+     */
+    fresh?: boolean;
 };
 
 /** Hands out the session lease; caller-supplied, chamvi ships no production provider. */
@@ -55,7 +71,7 @@ export interface IWhatsAppAuthProvider {
      * another holder has it. Should settle soon after `signal` aborts; a
      * lease handed out after the abort is released at once.
      */
-    acquire(signal: AbortSignal): Promise<WhatsAppAuthLease>;
+    acquire(signal: AbortSignal, options?: WhatsAppAcquireOptions): Promise<WhatsAppAuthLease>;
 }
 
 /** Who may start runs: normalized platform ids (jids), never names. */
@@ -92,8 +108,19 @@ export type WhatsAppPairing = {
     qr: string;
 };
 
-/** What the connection is, from Baileys' connection events only. */
-export type WhatsAppConnectionStatus = 'stopped' | 'connecting' | 'connected' | 'disconnected' | 'logged-out';
+/**
+ * What the connection is: Baileys' connection events (`pairing` while a QR
+ * is outstanding), `held-elsewhere` while another process holds the session
+ * (acquire retries), `failed` after an acquire failed (it retries too).
+ */
+export type WhatsAppConnectionStatus = 'stopped' |
+    'connecting' |
+    'pairing' |
+    'connected' |
+    'disconnected' |
+    'logged-out' |
+    'held-elsewhere' |
+    'failed';
 
 /** The members of a Baileys socket chamvi uses (a WASocket is one). */
 export type WhatsAppSocket = {
@@ -129,6 +156,8 @@ export type WhatsAppChatOptions = {
     approvalUrl: (ref: ChatApprovalRef) => string;
     /** Receives pairing material (a QR) while the account is not paired. */
     onPairing: (pairing: WhatsAppPairing) => void;
+    /** Each status change (no pairing material); a throw is reported, the change stands. */
+    onStatus?: (status: WhatsAppConnectionStatus) => void;
     /** Default `chat`. */
     name?: string;
     /** Default true (runs are tainted). */
@@ -161,6 +190,16 @@ export type WhatsAppChatSetup = {
     channel: ChatChannel;
     status(): WhatsAppConnectionStatus;
     /**
+     * Clears the session and pairs again without restarting the channel:
+     * ends the socket, flushes and releases the lease, acquires it again and,
+     * under that lease, clears the keys and saves fresh creds before the new
+     * socket (whose QR reaches onPairing). While another process holds the
+     * session nothing is cleared until this one acquires it. Resolves once
+     * the first acquire after the reset settled; InvalidRunStateError while
+     * the channel is not started or when the provider has no `keys.clear`.
+     */
+    reset(): Promise<void>;
+    /**
      * The reference of a conversation of this channel (e.g. for
      * `cron.on(expr, { conversation, text })`): the identity intake computes
      * for a message in that chat and its address. InvalidAgentDefinitionError
@@ -183,6 +222,7 @@ export type WhatsAppConnectionOptions = {
     socketFactory: WhatsAppSocketFactory;
     socketOptions?: WhatsAppChatOptions['socketOptions'];
     onPairing: (pairing: WhatsAppPairing) => void;
+    onStatus?: (status: WhatsAppConnectionStatus) => void;
     onError: (error: unknown) => void;
     clock?: IClock;
     /** a batch of messages of the current socket */
@@ -195,6 +235,7 @@ export type WhatsAppConnection = {
     /** the socket of an open connection, else undefined */
     socket(): WhatsAppSocket | undefined;
     connect(ctx: { signal: AbortSignal; clock: IClock }): Promise<void>;
+    reset(): Promise<void>;
     close(): Promise<void>;
 };
 

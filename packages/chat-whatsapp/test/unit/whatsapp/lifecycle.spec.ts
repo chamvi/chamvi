@@ -110,22 +110,32 @@ describe('WhatsApp connection lifecycle', () => {
         expect(setup.status()).toBe('connecting');
     });
 
-    it('conflicting_session_never_connects', async () => {
+    it('conflicting_session_never_connects: the start goes through, the acquire retries', async () => {
         const {
             engine,
             auth,
             sockets,
             setup,
+            clock,
+            errors,
         } = fixture();
         const conflict = new Error('the auth location is locked by another connector');
 
         auth.failAcquire(conflict);
 
-        await expect(engine.start()).rejects.toBe(conflict);
+        await engine.start();
 
         expect(sockets.sockets).toEqual([]);
         expect(auth.trace).not.toContain('release');
-        expect(setup.status()).toBe('stopped');
+        expect(setup.status()).toBe('failed');
+        expect(codesOf(errors)).toEqual([WHATSAPP_AUTH_ERROR_CODE]);
+
+        // the next attempt gets the lease
+        clock.advance(upperDelay(0));
+        await settle();
+
+        expect(sockets.sockets).toHaveLength(1);
+        expect(setup.status()).toBe('connecting');
     });
 
     it('a session replaced by another client is not fought over', async () => {

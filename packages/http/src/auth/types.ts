@@ -11,6 +11,9 @@ export type PermissionName = typeof Permission[keyof typeof Permission];
 
 export type AgentAction = 'run' | 'approve' | 'read';
 
+/** What a connection permission grants: `write` implies `read`. */
+export type ConnectionAction = 'read' | 'write';
+
 export type Principal = {
     id: string;
     kind: 'token' | 'authup' | 'oidc' | (string & {});
