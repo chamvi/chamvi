@@ -154,6 +154,19 @@ describe('whatsappModule', () => {
         expect(w.lines.join('\n')).not.toContain('SECRET-MODULE-QR');
     });
 
+    it('never logs the QR a throwing subscriber carries', async () => {
+        const w = world();
+
+        await w.harness.setup();
+        w.handle().subscribe(() => {
+            throw new Error(`could not render ${QR}`);
+        });
+        w.sockets.last().emit('connection.update', { qr: QR });
+
+        expect(w.lines.join('\n')).toContain('A connection subscriber threw.');
+        expect(w.lines.join('\n')).not.toContain('SECRET-MODULE-QR');
+    });
+
     it('reset through the handle clears the session and pairs again', async () => {
         const w = world();
 

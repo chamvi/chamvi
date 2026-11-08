@@ -15,6 +15,7 @@ import type {
 import { InvalidAgentDefinitionError, assertConnectionName } from '@chamvi/core';
 import type { IConnectionSession } from '@chamvi/core';
 import { isObject } from 'smob';
+import { untilAborted } from '../whatsapp/connection.ts';
 import type { IWhatsAppAuthProvider, WhatsAppAcquireOptions, WhatsAppAuthLease } from '../whatsapp/types.ts';
 import { CREDS_ENTRY, WHATSAPP_CONNECTION_TYPE } from './constants.ts';
 import {
@@ -132,7 +133,8 @@ export function createStoreWhatsAppAuth(options: StoreWhatsAppAuthOptions): IWha
             });
 
             try {
-                return await leaseOf(session);
+                // a stalled read must not keep the session renewing past the abort
+                return await untilAborted(leaseOf(session), signal);
             } catch (error) {
                 await session.close();
 

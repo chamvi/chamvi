@@ -5,12 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ChamviError } from '@chamvi/core';
 import type {
     ConnectionStatus,
     ConnectionWidget,
     IConnectionHandle,
 } from '@chamvi/core';
 import { WHATSAPP_CONNECTION_TYPE } from '../auth/constants.ts';
+import { WHATSAPP_CONNECTION_ERROR_CODE } from '../whatsapp/constants.ts';
 import type { WhatsAppConnectionStatus } from '../whatsapp/types.ts';
 import type { WhatsAppHandle } from './types.ts';
 
@@ -41,8 +43,9 @@ export function createWhatsAppHandle(input: {
         for (const listener of [...listeners]) {
             try {
                 listener();
-            } catch (error) {
-                input.onError(error);
+            } catch {
+                // its error could carry the pairing QR: reported without it
+                input.onError(new ChamviError({ code: WHATSAPP_CONNECTION_ERROR_CODE, message: 'A connection subscriber threw.' }));
             }
         }
     };

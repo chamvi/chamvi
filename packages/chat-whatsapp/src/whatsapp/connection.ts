@@ -114,7 +114,7 @@ function backoff(n: number): number {
 }
 
 /** `promise`, or the signal's reason once it aborts first. */
-function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+export function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         const onAbort = () => reject(signal.reason);
 

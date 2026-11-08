@@ -65,6 +65,24 @@ async function take(lease: Promise<WhatsAppAuthLease>): Promise<WhatsAppAuthLeas
 }
 
 describe('createStoreWhatsAppAuth', () => {
+    it('closes the session when the abort comes during a stalled credentials read', async () => {
+        const { store, provider } = world();
+        const connections = store.connections!;
+        const findEntries = connections.findEntries.bind(connections);
+        const controller = new AbortController();
+
+        connections.findEntries = () => Promise.withResolvers<never>().promise;
+
+        const acquiring = provider('connector').acquire(controller.signal);
+
+        await settle();
+        controller.abort(new Error('stopped'));
+        await expect(acquiring).rejects.toThrow('stopped');
+
+        connections.findEntries = findEntries;
+        await take(provider('other').acquire(new AbortController().signal));
+    });
+
     it('refuses malformed options', () => {
         const { store } = world();
         const vault = createConnectionVault({ store, keyring });
