@@ -23,17 +23,18 @@ import { ConversationEntity } from './conversation.ts';
 @Index(['conversationScopeId'])
 @Entity({ name: TableName.CHECKPOINTS })
 export class CheckpointEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
+
+    @Column({
         name: 'run_id',
-        type: 'varchar',
-        length: 128,
+        type: 'uuid',
     })
     runId!: string;
 
     @Column({
         name: 'conversation_scope_id',
-        type: 'varchar',
-        length: 64,
+        type: 'uuid',
         nullable: true,
     })
     conversationScopeId!: string | null;

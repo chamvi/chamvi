@@ -13,16 +13,20 @@ import {
 } from 'typeorm';
 import { TableName } from './constants.ts';
 
+@Index(['scope', 'key'], { unique: true })
 @Entity({ name: TableName.IDEMPOTENCY_KEYS })
 export class IdempotencyKeyEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
+
+    @Column({
         name: 'scope', 
         type: 'varchar', 
         length: 1024, 
     })
     scope!: string;
 
-    @PrimaryColumn({
+    @Column({
         name: 'key', 
         type: 'varchar', 
         length: 512, 
@@ -31,8 +35,7 @@ export class IdempotencyKeyEntity {
 
     @Column({
         name: 'run_id', 
-        type: 'varchar', 
-        length: 128, 
+        type: 'uuid', 
     })
     // The reservation precedes createRun and can outlive a failed creation.
     runId!: string;

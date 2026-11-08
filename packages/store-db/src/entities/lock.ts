@@ -15,7 +15,11 @@ import { TableName } from './constants.ts';
 
 @Entity({ name: TableName.LOCKS })
 export class LockEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
+
+    @Index({ unique: true })
+    @Column({
         name: 'key', 
         type: 'varchar', 
         length: 512, 

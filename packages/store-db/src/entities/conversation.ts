@@ -21,12 +21,18 @@ import { RunEntity } from './run.ts';
 @Index(['activeRunId'])
 @Entity({ name: TableName.CONVERSATIONS })
 export class ConversationEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
+
+    /** The sha256 of the conversation identity. */
+    @Index({ unique: true })
+    @Column({
+        name: 'identity_key',
         type: 'varchar',
         length: 64,
         collation: 'C',
     })
-    id!: string;
+    identityKey!: string;
 
     @Column({ type: 'text', collation: 'C' })
     agent!: string;
@@ -48,8 +54,7 @@ export class ConversationEntity {
 
     @Column({
         name: 'active_run_id',
-        type: 'varchar',
-        length: 128,
+        type: 'uuid',
         nullable: true,
     })
     activeRunId!: string | null;

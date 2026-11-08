@@ -19,33 +19,33 @@ import { TableName } from './constants.ts';
 import { ConversationEntity } from './conversation.ts';
 import { RunEntity } from './run.ts';
 
-@Index(['scopeId', 'generation', 'id'], { unique: true })
-@Index(['scopeId', 'generation', 'createdAt', 'seq'])
+@Index(['scopeId', 'generation', 'itemId'], { unique: true })
+@Index(['scopeId', 'generation', 'createdAt', 'id'])
 @Index(['runId'])
 @Entity({ name: TableName.CONVERSATION_ITEMS })
 export class ConversationItemEntity {
     @PrimaryGeneratedColumn('increment', { type: 'bigint' })
-    seq!: string;
+    id!: string;
 
     @Column({
         name: 'scope_id',
-        type: 'varchar',
-        length: 64,
-        collation: 'C',
+        type: 'uuid',
     })
     scopeId!: string;
 
     @Column({ type: 'integer' })
     generation!: number;
 
-    @Column({ type: 'text', collation: 'C' })
-    id!: string;
+    @Column({
+        name: 'item_id',
+        type: 'text',
+        collation: 'C',
+    })
+    itemId!: string;
 
     @Column({
         name: 'run_id',
-        type: 'varchar',
-        length: 128,
-        collation: 'C',
+        type: 'uuid',
     })
     runId!: string;
 
