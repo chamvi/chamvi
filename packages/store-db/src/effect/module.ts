@@ -41,9 +41,9 @@ export class DatabaseEffectRepository implements IEffectRepository {
 
     async save(key: string, result: unknown): Promise<void> {
         await this.effects.upsert(asValues<EffectEntity>({
-            id: uuidv7(), 
-            key, 
-            result: result ?? null, 
+            id: uuidv7(),
+            key,
+            result: result ?? null,
         }), ['key']);
     }
 }

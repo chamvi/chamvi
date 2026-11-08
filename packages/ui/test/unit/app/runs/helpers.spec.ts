@@ -6,6 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { failedSummary } from '../../../../app/agents/helpers.ts';
+import type { Activity } from '../../../../app/agents/types.ts';
 import { hasPermission } from '../../../../app/auth/helpers.ts';
 import {
     canCancel,
@@ -16,6 +18,7 @@ import {
     lastStepIndex,
     mergeRunEvent,
     parentOf,
+    shortId,
     subtreeTotal,
 } from '../../../../app/runs/helpers.ts';
 import type { RunDetailState } from '../../../../app/runs/helpers.ts';
@@ -240,5 +243,16 @@ describe('childRole', () => {
             },
         }))).toBe('review');
         expect(childRole(base)).toBe('http');
+    });
+});
+
+describe('shortId', () => {
+    it('tells apart ids that share a uuid v7 timestamp prefix', () => {
+        const first = '019a5f3c-7e10-7000-8000-0000a1b2c3d4';
+        const second = '019a5f3c-7e10-7000-8000-0000e5f60718';
+
+        expect(shortId(first)).toBe('a1b2c3d4');
+        expect(shortId(second)).toBe('e5f60718');
+        expect(failedSummary({ lastFailed: wireRun({ id: first }) } as Activity)).toBe('a1b2c3d4 · failed');
     });
 });

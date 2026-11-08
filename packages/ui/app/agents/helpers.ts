@@ -242,7 +242,7 @@ export function formatBudgetTime(ms: number | undefined): string {
 export function failedSummary(activity: Activity): string {
     const run = activity.lastFailed;
 
-    return run ? `${run.id.slice(0, 8)} · ${run.error?.code ?? 'failed'}` : 'no failures';
+    return run ? `${run.id.slice(-8)} · ${run.error?.code ?? 'failed'}` : 'no failures';
 }
 
 /** 32 random hex characters; `crypto.getRandomValues` works outside a secure context too, unlike `randomUUID`. */

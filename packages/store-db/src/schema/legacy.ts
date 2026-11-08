@@ -26,13 +26,22 @@ const LEGACY_MIGRATIONS = [
 ];
 
 const LEGACY_MESSAGE = 'This database holds a chamvi schema from an earlier version that cannot be upgraded in place. ' +
-    'Start on a new, empty database; see the upgrade guide (/guide/upgrading).';
+    'Start on a new, empty database; see the upgrade guide (https://chamvi.dev/guide/upgrading).';
 
 async function holdsLegacySchema(dataSource: DataSource, queryRunner: QueryRunner): Promise<boolean> {
-    const migrationsTable = dataSource.options.migrationsTableName ?? 'migrations';
+    const { schema } = dataSource.driver.options as { schema?: string };
+    const migrationsTable = dataSource.driver.buildTableName(
+        dataSource.options.migrationsTableName ?? 'migrations',
+        schema,
+        dataSource.driver.database,
+    );
 
     if (await queryRunner.hasTable(migrationsTable)) {
-        const rows: { name: string }[] = await queryRunner.query(`SELECT "name" FROM ${dataSource.driver.escape(migrationsTable)}`);
+        const rows: { name: string }[] = await dataSource.manager
+            .createQueryBuilder(queryRunner)
+            .select('m.name', 'name')
+            .from(migrationsTable, 'm')
+            .getRawMany();
         const names = new Set(rows.map((row) => row.name));
 
         if (names.has(BASELINE_MIGRATION)) {

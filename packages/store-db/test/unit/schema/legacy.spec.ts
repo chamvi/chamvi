@@ -9,16 +9,17 @@ import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
 import { migrateStore } from '../../../src/schema/index.ts';
 import { assertStoreNotLegacy } from '../../../src/schema/legacy.ts';
+import type { TestDataSourceOptions } from '../../utils/database.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
 const MESSAGE = 'This database holds a chamvi schema from an earlier version that cannot be upgraded in place. ' +
-    'Start on a new, empty database; see the upgrade guide (/guide/upgrading).';
+    'Start on a new, empty database; see the upgrade guide (https://chamvi.dev/guide/upgrading).';
 
 describePostgres('legacy schema refusal', () => {
     const dataSources: DataSource[] = [];
 
-    const create = async (migrate = false) => {
-        const dataSource = await createTestDataSource({ migrate });
+    const create = async (migrate = false, options: Pick<TestDataSourceOptions, 'driverSchema' | 'migrationsTableName'> = {}) => {
+        const dataSource = await createTestDataSource({ migrate, ...options });
 
         dataSources.push(dataSource);
 
@@ -62,6 +63,26 @@ describePostgres('legacy schema refusal', () => {
              
             await expect(migrateStore(ds)).rejects.toMatchObject({ code: 'store_legacy_schema' });
         }
+    });
+
+    it('reads a dotted migrationsTableName', async () => {
+        const ds = await create(false, { migrationsTableName: 'ops.chamvi_migrations' });
+
+        await ds.query('CREATE SCHEMA "ops"');
+        await ds.query('CREATE TABLE "ops"."chamvi_migrations" ("id" SERIAL PRIMARY KEY, "timestamp" bigint NOT NULL, "name" varchar NOT NULL)');
+        await ds.query('INSERT INTO "ops"."chamvi_migrations" ("timestamp", "name") VALUES ($1, $2)', [1792195200000, 'Init1792195200000']);
+
+        await expect(assertStoreNotLegacy(ds)).rejects.toMatchObject({ code: 'store_legacy_schema' });
+    });
+
+    it('reads the migrations table of the driver\'s schema', async () => {
+        const ds = await create(false, { driverSchema: 'ops' });
+
+        await ds.query('CREATE SCHEMA "ops"');
+        await ds.query('CREATE TABLE "ops"."migrations" ("id" SERIAL PRIMARY KEY, "timestamp" bigint NOT NULL, "name" varchar NOT NULL)');
+        await ds.query('INSERT INTO "ops"."migrations" ("timestamp", "name") VALUES ($1, $2)', [1792195200000, 'Init1792195200000']);
+
+        await expect(assertStoreNotLegacy(ds)).rejects.toMatchObject({ code: 'store_legacy_schema' });
     });
 
     it('the refusal changes nothing', async () => {

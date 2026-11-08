@@ -391,6 +391,7 @@ export function describeConversationRepositoryContract(
 
             const current = await store.findOne(identity);
 
+            expect(current?.id).toBe(scope.id);
             expect(current?.generation).toBeGreaterThan(scope.generation);
             expect(await store.resolve(identity)).toEqual(current);
 

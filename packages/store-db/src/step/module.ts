@@ -9,11 +9,11 @@ import { RepositoryNotFoundError } from '@chamvi/core';
 import type { IStepRepository, Step } from '@chamvi/core';
 import type { DataSource, Repository } from 'typeorm';
 import { StepEntity } from '../entities/index.ts';
-import { 
-    isUuid, 
-    toStep, 
-    toStepValues, 
-    withRunReference, 
+import {
+    isUuid,
+    toStep,
+    toStepValues,
+    withRunReference,
 } from '../repository/helpers.ts';
 
 export class DatabaseStepRepository implements IStepRepository {
