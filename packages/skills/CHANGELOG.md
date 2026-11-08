@@ -1,5 +1,23 @@
 # Changelog
 
+## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
+
+
+### Bug Fixes
+
+* ensure consistent version for release ([#178](https://github.com/chamvi/chamvi/issues/178)) ([98faf1a](https://github.com/chamvi/chamvi/commit/98faf1ad1e7b388509c1e81b31fef9070e50f939))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/core bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/test-kit bumped from ^0.7.3 to ^0.8.0
+  * peerDependencies
+    * @chamvi/core bumped from ^0.7.3 to ^0.8.0
+
 ## [0.7.3](https://github.com/chamvi/chamvi/compare/v0.7.2...v0.7.3) (2026-11-05)
 
 

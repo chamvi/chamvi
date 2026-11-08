@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* use uuid v7 ids and one primary key per table ([#174](https://github.com/chamvi/chamvi/issues/174))
+
+### Features
+
+* **chat-whatsapp,http,app:** store-backed WhatsApp sessions and connection routes ([#166](https://github.com/chamvi/chamvi/issues/166)) ([ba03375](https://github.com/chamvi/chamvi/commit/ba0337575e2ba53af5306795f3b78c16e1f84679))
+* use uuid v7 ids and one primary key per table ([#174](https://github.com/chamvi/chamvi/issues/174)) ([20392bc](https://github.com/chamvi/chamvi/commit/20392bcf9c068383a81577d46fcd08369d206f25))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/channel-cron bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/core bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/http bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/store-db bumped from ^0.7.3 to ^0.8.0
+  * devDependencies
+    * @chamvi/test-kit bumped from ^0.7.3 to ^0.8.0
+
 ## [0.7.3](https://github.com/chamvi/chamvi/compare/v0.7.2...v0.7.3) (2026-11-05)
 
 

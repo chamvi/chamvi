@@ -1,5 +1,28 @@
 # Changelog
 
+## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
+
+
+### Features
+
+* **chat-whatsapp,http,app:** store-backed WhatsApp sessions and connection routes ([#166](https://github.com/chamvi/chamvi/issues/166)) ([ba03375](https://github.com/chamvi/chamvi/commit/ba0337575e2ba53af5306795f3b78c16e1f84679))
+* **ui:** pair WhatsApp connections in the dashboard ([#167](https://github.com/chamvi/chamvi/issues/167)) ([7e5191a](https://github.com/chamvi/chamvi/commit/7e5191aa96522022557f25303c3f59fa24cecad9))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/chat bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/core bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/store-db bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/test-kit bumped from ^0.7.3 to ^0.8.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/chat bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/core bumped from ^0.7.3 to ^0.8.0
+
 ## [0.7.3](https://github.com/chamvi/chamvi/compare/v0.7.2...v0.7.3) (2026-11-05)
 
 

@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/app",
-    "version": "0.7.3",
+    "version": "0.8.0",
     "type": "module",
     "description": "Boots chamvi agents as an app: config, store, engine, scheduler and HTTP as orkos modules.",
     "author": {
@@ -66,10 +66,10 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "@chamvi/channel-cron": "^0.7.3",
-        "@chamvi/core": "^0.7.3",
-        "@chamvi/http": "^0.7.3",
-        "@chamvi/store-db": "^0.7.3",
+        "@chamvi/channel-cron": "^0.8.0",
+        "@chamvi/core": "^0.8.0",
+        "@chamvi/http": "^0.8.0",
+        "@chamvi/store-db": "^0.8.0",
         "eldin": "^1.3.0",
         "envix": "^1.5.0",
         "jiti": "^2.7.0",
@@ -83,7 +83,7 @@
         "@ai-sdk/openai-compatible": "^3.0.85",
         "@authup/core-http-kit": "^1.0.0-beta.73",
         "@authup/server-adapter-kit": "^1.0.0-beta.73",
-        "@chamvi/test-kit": "^0.7.3",
+        "@chamvi/test-kit": "^0.8.0",
         "@swc/core": "^1.16.22",
         "@testcontainers/postgresql": "^12.2.1",
         "ai": "^7.0.163",
