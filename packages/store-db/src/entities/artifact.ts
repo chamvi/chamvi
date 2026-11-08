@@ -14,20 +14,26 @@ import {
 import { TableName } from './constants.ts';
 
 @Index(['runId'])
+@Index(['runId', 'key'], { unique: true })
 @Entity({ name: TableName.ARTIFACTS })
 export class ArtifactEntity {
-    @PrimaryColumn({
-        name: 'id',
-        type: 'varchar',
-        length: 128,
-        collation: 'C',
-    })
+    @PrimaryColumn({ type: 'uuid', update: false })
     id!: string;
+
+    /** The private write identity within a run, never part of the domain artifact. */
+    @Column({
+        name: 'key',
+        type: 'text',
+        collation: 'C',
+        nullable: true,
+        select: false,
+        update: false,
+    })
+    key!: string | null;
 
     @Column({
         name: 'run_id',
-        type: 'varchar',
-        length: 128,
+        type: 'uuid',
     })
     // Attachments are staged before createRun, so this reserved ID cannot have an immediate foreign key.
     runId!: string;

@@ -44,6 +44,10 @@ export type TestDataSourceOptions = {
     max?: number;
     /** A schema to create and use as the connections' search_path instead of public. */
     schema?: string;
+    /** The driver's schema option, independent of the search_path. */
+    driverSchema?: string;
+    /** TypeORM's migrationsTableName option. */
+    migrationsTableName?: string;
 };
 
 export async function createTestDataSource(opts: TestDataSourceOptions = {}): Promise<DataSource> {
@@ -70,6 +74,8 @@ export async function createTestDataSource(opts: TestDataSourceOptions = {}): Pr
         database,
         entities: STORE_ENTITIES,
         migrations: STORE_MIGRATIONS,
+        ...(opts.driverSchema ? { schema: opts.driverSchema } : {}),
+        ...(opts.migrationsTableName ? { migrationsTableName: opts.migrationsTableName } : {}),
         extra: {
             max: opts.max ?? 25,
             options: `-c TimeZone=America/New_York${opts.schema ? ` -c search_path=${opts.schema}` : ''}`,

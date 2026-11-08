@@ -8,6 +8,7 @@
 import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
 import { createDatabaseStore } from '@chamvi/store-db';
+import { testUuid } from '@chamvi/test-kit';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 import { seedRun } from '../../utils/conversation.ts';
 
@@ -36,7 +37,7 @@ describePostgres('conversation audit binding persistence', () => {
         const conversation = { scope, text: 'accepted unicode 🐈' };
 
         await store.runs.insert({
-            id: 'run',
+            id: testUuid('run'),
             agent: 'helper',
             status: 'queued',
             trigger: {
@@ -52,7 +53,7 @@ describePostgres('conversation audit binding persistence', () => {
             createdAt: now,
             updatedAt: now,
         });
-        expect((await store.runs.findOne('run'))?.conversation).toEqual(conversation);
+        expect((await store.runs.findOne(testUuid('run')))?.conversation).toEqual(conversation);
 
         const provenance = {
             scopeId: scope.id,
@@ -60,15 +61,15 @@ describePostgres('conversation audit binding persistence', () => {
         };
 
         await store.checkpoints.save({
-            runId: 'run',
+            runId: testUuid('run'),
             stepIndex: 0,
             messages: [],
             createdAt: now,
             conversation: provenance,
         });
-        expect((await store.checkpoints.findOne('run'))?.conversation).toEqual(provenance);
-        await store.runs.update('run', { conversation: undefined });
-        expect(await store.runs.findOne('run')).not.toHaveProperty('conversation');
+        expect((await store.checkpoints.findOne(testUuid('run')))?.conversation).toEqual(provenance);
+        await store.runs.update(testUuid('run'), { conversation: undefined });
+        expect(await store.runs.findOne(testUuid('run'))).not.toHaveProperty('conversation');
     });
 
     it('updates and clears checkpoint provenance only when replacing the latest checkpoint', async () => {
@@ -76,7 +77,7 @@ describePostgres('conversation audit binding persistence', () => {
 
         const store = createDatabaseStore({ dataSource });
 
-        await seedRun(dataSource, 'run');
+        await seedRun(dataSource, testUuid('run'));
 
         const scope = await store.conversations.resolve({
             agent: 'helper',
@@ -86,7 +87,7 @@ describePostgres('conversation audit binding persistence', () => {
             audience: 'direct',
         });
         const checkpoint = {
-            runId: 'run',
+            runId: testUuid('run'),
             stepIndex: 0,
             messages: [],
             createdAt: new Date(),
@@ -101,7 +102,7 @@ describePostgres('conversation audit binding persistence', () => {
             stepIndex: 1,
             conversation,
         });
-        expect((await store.checkpoints.findOne('run'))?.conversation).toEqual(conversation);
+        expect((await store.checkpoints.findOne(testUuid('run')))?.conversation).toEqual(conversation);
 
         const replaced = { ...conversation, generation: 2 };
 
@@ -110,10 +111,10 @@ describePostgres('conversation audit binding persistence', () => {
             stepIndex: 1,
             conversation: replaced,
         });
-        expect((await store.checkpoints.findOne('run'))?.conversation).toEqual(replaced);
+        expect((await store.checkpoints.findOne(testUuid('run')))?.conversation).toEqual(replaced);
         await store.checkpoints.save(checkpoint);
-        expect((await store.checkpoints.findOne('run'))?.conversation).toEqual(replaced);
+        expect((await store.checkpoints.findOne(testUuid('run')))?.conversation).toEqual(replaced);
         await store.checkpoints.save({ ...checkpoint, stepIndex: 2 });
-        expect(await store.checkpoints.findOne('run')).not.toHaveProperty('conversation');
+        expect(await store.checkpoints.findOne(testUuid('run'))).not.toHaveProperty('conversation');
     });
 });

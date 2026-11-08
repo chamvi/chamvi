@@ -31,7 +31,7 @@ import {
     conversationConcurrencyKey,
     normalizeConversationLimits,
 } from '../../../src/conversation/helpers.ts';
-import { assertConversationText, identityId } from '@chamvi/core/conversation/persistence';
+import { assertConversationScope, assertConversationText, identityId } from '@chamvi/core/conversation/persistence';
 
 const identity: ConversationIdentity = {
     agent: 'assistant',
@@ -40,6 +40,8 @@ const identity: ConversationIdentity = {
     chat: 'chat-42',
     audience: 'owner',
 };
+
+const UUID_SCOPE_ID = '0198c9a2-7b3e-7c11-8a4f-2d6e1f3b5a79';
 
 function messageOf(fn: () => unknown): string {
     try {
@@ -153,6 +155,54 @@ describe('conversation scope', () => {
             generation: 0,
             identity,
         })).toThrow(ValidationError);
+    });
+
+    it('accepts a sha256 scope id and a UUID scope id', () => {
+        for (const id of [identityId(identity), UUID_SCOPE_ID]) {
+            expect(() => assertConversationScope({
+                id,
+                generation: 0,
+                identity,
+            })).not.toThrow();
+        }
+    });
+
+    it('refuses any other scope id', () => {
+        const sha256 = identityId(identity);
+
+        for (const id of [
+            'nope',
+            '',
+            sha256.slice(1),
+            sha256.toUpperCase(),
+            UUID_SCOPE_ID.toUpperCase(),
+            UUID_SCOPE_ID.replaceAll('-', ''),
+            `${UUID_SCOPE_ID}\n`,
+            42,
+        ]) {
+            expect(() => assertConversationScope({
+                id,
+                generation: 0,
+                identity,
+            })).toThrow(ValidationError);
+        }
+    });
+
+    it('the concurrency key derives from the identity, not scope.id', () => {
+        const sha256 = identityId(identity);
+        const first = conversationConcurrencyKey({
+            id: sha256,
+            generation: 2,
+            identity,
+        });
+        const second = conversationConcurrencyKey({
+            id: UUID_SCOPE_ID,
+            generation: 2,
+            identity,
+        });
+
+        expect(second).toBe(first);
+        expect(first).toBe(`conversation:${sha256}:2`);
     });
 
     it('control_or_overlong_id_rejected', () => {

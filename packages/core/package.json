@@ -57,6 +57,7 @@
         "@standard-schema/spec": "^1.1.0",
         "@validup/standard-schema": "^2.0.2",
         "smob": "^1.6.2",
+        "uuidv7": "^1.2.1",
         "validup": "^2.0.1"
     },
     "devDependencies": {

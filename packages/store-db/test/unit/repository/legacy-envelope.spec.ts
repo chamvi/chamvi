@@ -13,7 +13,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '@chamvi/store-db';
 import { RunEntity } from '../../../src/entities/index.ts';
 import { asValues } from '../../../src/repository/helpers.ts';
@@ -43,7 +43,7 @@ describePostgres('DatabaseRunRepository legacy envelopes', () => {
             .createQueryBuilder()
             .insert()
             .values(asValues<RunEntity>({
-                id: 'legacy',
+                id: testUuid('legacy'),
                 agent: 'a',
                 status: 'queued',
                 trigger: {
@@ -62,11 +62,11 @@ describePostgres('DatabaseRunRepository legacy envelopes', () => {
             }))
             .execute();
 
-        const columns = await dataSource.query('SELECT "thread" FROM "chamvi_runs" WHERE "id" = $1', ['legacy']);
+        const columns = await dataSource.query('SELECT "thread" FROM "chamvi_runs" WHERE "id" = $1', [testUuid('legacy')]);
 
         expect(columns).toEqual([{ thread: 'x' }]);
 
-        const run = await store.findOne('legacy');
+        const run = await store.findOne(testUuid('legacy'));
 
         expect(run!.address).toBe('x');
         expect(run!.trigger.channel).toBe('github');

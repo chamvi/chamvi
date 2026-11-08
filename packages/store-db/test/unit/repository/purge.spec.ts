@@ -12,7 +12,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { createDatabaseStore } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
@@ -31,8 +31,8 @@ describePostgres('createDatabaseStore purgeExpired', () => {
         const clock = new ControllableClock(new Date(0));
         const store = createDatabaseStore({ dataSource, clock });
 
-        await store.idempotency.claim('s', 'k1', 'r1', 1_000);
-        await store.idempotency.claim('s', 'k2', 'r2', 5_000);
+        await store.idempotency.claim('s', 'k1', testUuid('r1'), 1_000);
+        await store.idempotency.claim('s', 'k2', testUuid('r2'), 5_000);
         await store.locks.acquire('l1', 'o', 1_000);
         await store.locks.acquire('l2', 'o', 5_000);
         await store.effects.save('e', 1);
@@ -40,7 +40,7 @@ describePostgres('createDatabaseStore purgeExpired', () => {
         clock.advance(1_000);
         await expect(store.idempotency.purgeExpired()).resolves.toBe(1);
         await expect(store.locks.purgeExpired()).resolves.toBe(1);
-        await expect(store.idempotency.claim('s', 'k2', 'other', 1_000)).resolves.toEqual({ created: false, runId: 'r2' });
+        await expect(store.idempotency.claim('s', 'k2', testUuid('other'), 1_000)).resolves.toEqual({ created: false, runId: testUuid('r2') });
         await expect(store.locks.acquire('l2', 'x', 1)).resolves.toBe(false);
         await expect(store.effects.findOne('e')).resolves.toEqual({ result: 1 });
 
