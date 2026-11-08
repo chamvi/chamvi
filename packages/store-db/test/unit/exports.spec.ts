@@ -37,5 +37,6 @@ describe('public api', () => {
         expect(pkg.STORE_MIGRATIONS).toHaveLength(1);
         expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('UuidBaseline1794096000000');
         expect(pkg.MIGRATION_LOCK_NAME).toBe('chamvi:migrations');
+        expect(pkg.STORE_LEGACY_SCHEMA_CODE).toBe('store_legacy_schema');
     });
 });

@@ -32,7 +32,7 @@ import type {
 } from '../entities/index.ts';
 import { TableName } from '../entities/constants.ts';
 
-const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
 
 /** Whether a value is a canonical UUID: anything else is an absent id, never a Postgres `22P02`. */
 export function isUuid(value: string): boolean {

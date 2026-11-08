@@ -180,10 +180,12 @@ export class StoreModule implements IModule {
             pendingMigrations,
         } = await import('@chamvi/store-db');
 
-        if (context.check) {
-            // Temporary: remove in the chamvi version after the uuid baseline.
+        // Temporary: remove in the chamvi version after the uuid baseline.
+        if (context.check || !migrate) {
             await assertStoreNotLegacy(dataSource);
+        }
 
+        if (context.check) {
             // read-only: a start with CHAMVI_MIGRATE (the default) would apply them, else it cannot run
             if (!migrate) {
                 const pending = await pendingMigrations(dataSource);
