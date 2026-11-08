@@ -12,6 +12,8 @@ Run references (`steps.insert`, `checkpoints.save`, `conversations.beginTurn`, a
 
 One baseline migration, `1794096000000-uuid-baseline.ts` (`UuidBaseline1794096000000`, generated from the entity metadata), creates the whole schema; the eight migrations before it are gone and every foreign key is validated. It cannot upgrade a database in place, so a deployment starts on a new, empty database. `assertStoreNotLegacy()` (`schema/legacy.ts`) refuses a database that records one of the earlier migrations or holds any `chamvi_*` table without the baseline recorded (a host app's own tables in the same database or schema do not count): `migrateStore` calls it before anything changes, and `chamvi start --check` calls it from `@chamvi/app`'s `modules/repository/module.ts` regardless of `CHAMVI_MIGRATE` (exit 1, error code `store_legacy_schema`). The message names the upgrade guide. This check is temporary: it goes, with its two call sites, in the chamvi version after the baseline (an old database then fails on `CREATE TABLE`).
 
+**Generate every schema migration, never write its SQL by hand.** Call `generateMigration({ dataSource, name, timestamp })` from `typeorm-extension` against a database at the previous migration (empty for a baseline). Index, constraint and key names come from TypeORM's naming strategy: a guessed name or reordered statement makes the next generated migration drop and recreate it. Allowed edits: the copyright header, formatting, removing the `"public".` qualifier generated on `DROP INDEX` (it breaks `down()` in a custom schema), and data backfills, which no generator produces. `a follow-up generated migration is empty` in `migrate.spec.ts` must stay green.
+
 ## Module map (`packages/store-db/src`)
 
 | Path | Purpose |

@@ -86,7 +86,7 @@ Migrations live in `packages/store-db/src/migrations/` (PostgreSQL), with the or
 ## Workflow
 
 - Before implementation, trace the complete input-to-output flow and inspect an existing analogous module. Reuse its patterns and installed library mechanisms; introduce a new seam only for concrete callers that need it.
-- For persistence changes, map every stored identifier to its parent or document the lifecycle reason it can precede/outlive that parent. Generate migrations from entity metadata and verify both database integrity and normal ORM relationship loading.
+- For persistence changes, map every stored identifier to its parent or document the lifecycle reason it can precede/outlive that parent. Generate migrations ([store.md](topics/store.md)), verify database integrity and ORM relationship loading.
 - Keep domain validation, identity and selection rules in one implementation shared by store adapters. Adapter code owns queries and transactions.
 - Review the whole feature, including callers and configuration, after local fixes. Report design/convention findings separately from test results; passing checks alone do not establish completion.
 
