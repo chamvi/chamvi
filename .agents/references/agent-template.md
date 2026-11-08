@@ -134,6 +134,10 @@ Checked against this file's contract map only (no fresh downstream checkout). `c
 
 Checked `main` at `3664d9e7` (after agent-template#24): `src/modules.ts`, `.env.example`, `deploy/flux/secret.example.yaml`. No template change. Both example tokens hold `*`, which grants `agent:<name>:read`, so a `private: true` agent stays readable with the starter setup; the example agent reads no mail. `src/modules.ts` lists only github, sandbox, openclaw and console as commented examples (knowledge and tool-web are not listed either), so `toolMailModule()`/`toolCalendarModule()` stay out; `env-example.spec.ts` checks only the variables `.env.example` lists.
 
-## UUID v7 primary keys and the store baseline (unreleased)
+## UUID v7 primary keys and the store baseline (0.8.0)
 
 Checked against this file's contract map only (no fresh downstream checkout). No env variable, route, port, image or CLI command changes, and the starter uses `createApp`, the example agent and the `start` path only: none of the removed core exports (`keyedArtifactId`, `attachmentIds`) is used, and the template's tests and docker smoke run on the in-memory store (no `DATABASE_URL`), so the new-database requirement does not touch them. `chamvi start --check` exits 1 also on a database with the pre-baseline schema (the row above); the template does not run it against a database. The Flux examples take `DATABASE_URL` from the secret: a deployment of the starter on Postgres points it at a new, empty database when it adopts this release. No contract breaks; no template PR needed. An optional README or deployment note on the new database (follow-up, not opened); the refusal is temporary and goes in the chamvi version after the baseline.
+
+## Connection store keyring (#165, #166, #167; 0.8.0)
+
+Checked `main` at `3664d9e`: `src/modules.ts` does not list `whatsappModule()`, so the starter never resolves the keyring and `CHAMVI_ENCRYPTION_KEYS` stays optional. `.env.example` and `.agents/deployment.md` name it for apps that add the module.
