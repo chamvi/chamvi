@@ -117,7 +117,6 @@ describe('public api', () => {
         'requireToolPermission',
         'isArtifactMediaType',
         'artifactFilePart',
-        'keyedArtifactId',
         'assertTriggerKey',
         'assertConcurrencyMaxRuns',
         'normalizeEnvelope',

@@ -21,7 +21,6 @@ import {
     defineModelAgent,
     defineTool,
     dispatchTo,
-    keyedArtifactId,
     waitForDispatch,
 } from '@chamvi/core';
 import type { Agent, IEngine } from '@chamvi/core';
@@ -265,8 +264,10 @@ describe('mcp run_<agent> with waitSeconds', () => {
             waiting: { artifacts?: string[]; options?: Array<{ artifacts?: string[] }> }
         });
 
-        expect(waiting.artifacts).toEqual([keyedArtifactId(runId, 'overview')]);
-        expect(waiting.options?.[0]?.artifacts).toEqual([keyedArtifactId(runId, 'button/diff')]);
+        const id = async (key: string) => (await setup.engine.store.artifacts.findOneByKey(runId, `tool:${key}`))!.id;
+
+        expect(waiting.artifacts).toEqual([await id('overview')]);
+        expect(waiting.options?.[0]?.artifacts).toEqual([await id('button/diff')]);
         expect(Object.keys(waiting.options?.[1] ?? {})).not.toContain('artifacts');
         await client.close();
         await setup.engine.drain();

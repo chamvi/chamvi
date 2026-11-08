@@ -9,6 +9,7 @@ import { MigrationExecutor } from 'typeorm';
 import type { DataSource } from 'typeorm';
 import { withDatabaseLock } from 'typeorm-extension';
 import { MIGRATION_LOCK_NAME } from './constants.ts';
+import { assertStoreNotLegacy } from './legacy.ts';
 
 /**
  * Run the store's migrations, serialized across processes by an advisory lock.
@@ -25,6 +26,9 @@ export async function migrateStore(dataSource: DataSource): Promise<void> {
             queryRunner,
             MIGRATION_LOCK_NAME,
             async () => {
+                // Temporary: remove in the chamvi version after the uuid baseline.
+                await assertStoreNotLegacy(dataSource, queryRunner);
+
                 const executor = new MigrationExecutor(dataSource, queryRunner);
 
                 executor.transaction = 'each';

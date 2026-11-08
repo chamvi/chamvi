@@ -9,6 +9,7 @@ import { systemClock } from '@chamvi/core';
 import type { IClock, IIdempotencyRepository } from '@chamvi/core';
 import { LessThanOrEqual } from 'typeorm';
 import type { DataSource, Repository } from 'typeorm';
+import { uuidv7 } from 'uuidv7';
 import { IdempotencyKeyEntity } from '../entities/index.ts';
 import type { DatabaseStoreOptions } from '../repository/types.ts';
 
@@ -38,6 +39,7 @@ export class DatabaseIdempotencyRepository implements IIdempotencyRepository {
             const result = await this.idempotencyKeys.createQueryBuilder()
                 .insert()
                 .values({
+                    id: uuidv7(),
                     scope,
                     key,
                     runId,

@@ -14,28 +14,35 @@ import {
 import { JSON_VALUE_TRANSFORMER, TableName } from './constants.ts';
 
 @Index('IDX_chamvi_docs_doc_gin', ['doc'], { type: 'gin' })
+@Index(['agent', 'collection', 'documentId'], { unique: true })
 @Entity({ name: TableName.DOCS })
 export class DocEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
+
+    @Column({
         name: 'agent', 
         type: 'varchar', 
         length: 64, 
+        collation: 'C',
     })
     agent!: string;
 
-    @PrimaryColumn({
+    @Column({
         name: 'collection', 
         type: 'varchar', 
         length: 255, 
+        collation: 'C',
     })
     collection!: string;
 
-    @PrimaryColumn({
-        name: 'id', 
+    @Column({
+        name: 'document_id', 
         type: 'varchar', 
         length: 255, 
+        collation: 'C',
     })
-    id!: string;
+    documentId!: string;
 
     @Column({
         name: 'doc',

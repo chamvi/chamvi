@@ -12,6 +12,7 @@ describe('public api', () => {
     it.each([
         'migrateStore',
         'pendingMigrations',
+        'assertStoreNotLegacy',
         'createDatabaseStore',
         'DatabaseRunRepository',
         'DatabaseStepRepository',
@@ -33,8 +34,9 @@ describe('public api', () => {
         expect(pkg.STORE_ENTITIES).toBeInstanceOf(Array);
         expect(pkg.STORE_ENTITIES).toHaveLength(16);
         expect(pkg.STORE_MIGRATIONS).toBeInstanceOf(Array);
-        expect(pkg.STORE_MIGRATIONS).toHaveLength(8);
-        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('Connections1792886400000');
+        expect(pkg.STORE_MIGRATIONS).toHaveLength(1);
+        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('UuidBaseline1794096000000');
         expect(pkg.MIGRATION_LOCK_NAME).toBe('chamvi:migrations');
+        expect(pkg.STORE_LEGACY_SCHEMA_CODE).toBe('store_legacy_schema');
     });
 });

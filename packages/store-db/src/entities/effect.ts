@@ -8,16 +8,22 @@
 import {
     Column,
     Entity,
+    Index,
     PrimaryColumn,
 } from 'typeorm';
 import { JSON_VALUE_TRANSFORMER, TableName } from './constants.ts';
 
 @Entity({ name: TableName.EFFECTS })
 export class EffectEntity {
-    @PrimaryColumn({
+    @PrimaryColumn({ type: 'uuid', update: false })
+    id!: string;
+
+    @Index({ unique: true })
+    @Column({
         name: 'key', 
         type: 'varchar', 
         length: 512, 
+        collation: 'C',
     })
     key!: string;
 
