@@ -116,7 +116,7 @@ function backoff(n: number): number {
 }
 
 /** `promise`, or the signal's reason once it aborts first. */
-function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
+export function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
     return new Promise<T>((resolve, reject) => {
         const onAbort = () => reject(signal.reason);
 
@@ -597,8 +597,12 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             throw generation.signal.aborted ? generation.signal.reason : new InvalidRunStateError('The WhatsApp connection closed while it connected.');
         }
 
-        run.retries = 0;
-        run.failedAcquires = 0;
+        // a reset whose fresh creds are not saved yet keeps its budget: only a usable session starts the count over
+        if (!run.clearPending) {
+            run.retries = 0;
+            run.failedAcquires = 0;
+        }
+
         run.heldReported = false;
         lease.lost?.then(() => onLost(generation), noop);
 
@@ -611,6 +615,8 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
 
         await admit(generation, () => lease.saveCreds());
         generation.run.clearPending = false;
+        generation.run.retries = 0;
+        generation.run.failedAcquires = 0;
     };
 
     /**
@@ -719,6 +725,11 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
         notify('connecting');
 
         try {
+            // an onStatus that closed the connection just now: there was no generation for that close to end
+            if (run.closed) {
+                throw new InvalidRunStateError('The WhatsApp connection closed while it connected.');
+            }
+
             await establish(run, true);
         } catch (error) {
             setRunStatus(run, 'stopped');

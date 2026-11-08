@@ -61,7 +61,14 @@ function streamConnection(event: IAppEvent, ctx: HttpContext, handle: IConnectio
         }
 
         ended = true;
-        unsubscribe?.();
+
+        try {
+            unsubscribe?.();
+        } catch (error) {
+            // a provider's failure must not keep the stream's slot
+            ctx.onError(error);
+        }
+
         timer?.clear();
         signal.removeEventListener('abort', cleanup);
         ctx.closers.delete(cleanup);
@@ -113,13 +120,20 @@ function streamConnection(event: IAppEvent, ctx: HttpContext, handle: IConnectio
     }
 
     signal.addEventListener('abort', cleanup, { once: true });
-    unsubscribe = handle.subscribe(() => {
-        if (!ended) {
-            send();
-        }
-    });
-    send();
-    arm();
+
+    try {
+        unsubscribe = handle.subscribe(() => {
+            if (!ended) {
+                send();
+            }
+        });
+        send();
+        arm();
+    } catch (error) {
+        cleanup();
+
+        throw error;
+    }
 
     return stream.response;
 }
@@ -148,6 +162,9 @@ export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
         const principal = await authenticate(event, ctx);
         const name = param(event, 'name');
         const handle = requireHandle(ctx, principal, name);
+
+        // a writer's response can carry a pairing QR
+        event.response.headers.set('cache-control', 'private, no-store');
 
         return canWrite(principal, name) ? { ...serializeConnection(handle), widgets: handle.widgets() } : serializeConnection(handle);
     }));

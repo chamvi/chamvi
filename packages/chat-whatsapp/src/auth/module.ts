@@ -15,11 +15,8 @@ import type {
 import { InvalidAgentDefinitionError, assertConnectionName } from '@chamvi/core';
 import type { IConnectionSession } from '@chamvi/core';
 import { isObject } from 'smob';
-import type {
-    IWhatsAppAuthProvider,
-    WhatsAppAuthAcquireOptions,
-    WhatsAppAuthLease,
-} from '../whatsapp/types.ts';
+import { untilAborted } from '../whatsapp/connection.ts';
+import type { IWhatsAppAuthProvider, WhatsAppAcquireOptions, WhatsAppAuthLease } from '../whatsapp/types.ts';
 import { CREDS_ENTRY, WHATSAPP_CONNECTION_TYPE } from './constants.ts';
 import {
     decodeValue,
@@ -117,7 +114,8 @@ async function leaseOf(session: IConnectionSession): Promise<WhatsAppAuthLease> 
  * another process (or another acquire of this one) holds it; a holder that
  * stopped renewing blocks a new one for at most `leaseTtlMs`. Every write is
  * fenced by the lease, so a holder that lost it writes nothing. Nothing is
- * read or acquired before `acquire`.
+ * read or acquired before `acquire`. A `reset` acquire recreates the
+ * connection under the lease, also when no keyring key unwraps its data key.
  */
 export function createStoreWhatsAppAuth(options: StoreWhatsAppAuthOptions): IWhatsAppAuthProvider {
     assertOptions(options);
@@ -125,7 +123,7 @@ export function createStoreWhatsAppAuth(options: StoreWhatsAppAuthOptions): IWha
     const owner = options.owner ?? defaultOwner();
 
     return {
-        async acquire(signal: AbortSignal, acquireOptions?: WhatsAppAuthAcquireOptions): Promise<WhatsAppAuthLease> {
+        async acquire(signal: AbortSignal, acquireOptions?: WhatsAppAcquireOptions): Promise<WhatsAppAuthLease> {
             const session = await options.vault.open(options.connection, {
                 type: WHATSAPP_CONNECTION_TYPE,
                 owner,
@@ -136,7 +134,8 @@ export function createStoreWhatsAppAuth(options: StoreWhatsAppAuthOptions): IWha
             });
 
             try {
-                return await leaseOf(session);
+                // a stalled read must not keep the session renewing past the abort
+                return await untilAborted(leaseOf(session), signal);
             } catch (error) {
                 await session.close();
 

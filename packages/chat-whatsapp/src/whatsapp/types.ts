@@ -54,7 +54,7 @@ export type WhatsAppAuthLease = {
     lost?: Promise<unknown>;
 };
 
-export type WhatsAppAuthAcquireOptions = {
+export type WhatsAppAcquireOptions = {
     /**
      * A reset: once the location is held, discard the stored session (creds
      * and keys, also one that cannot be loaded) and hand out an empty one.
@@ -73,7 +73,7 @@ export interface IWhatsAppAuthProvider {
      * another holder has it. Should settle soon after `signal` aborts; a
      * lease handed out after the abort is released at once.
      */
-    acquire(signal: AbortSignal, options?: WhatsAppAuthAcquireOptions): Promise<WhatsAppAuthLease>;
+    acquire(signal: AbortSignal, options?: WhatsAppAcquireOptions): Promise<WhatsAppAuthLease>;
 }
 
 /** Who may start runs: normalized platform ids (jids), never names. */

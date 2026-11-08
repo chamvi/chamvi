@@ -40,6 +40,9 @@ import type {
 import { createWhatsAppHandle } from './helpers.ts';
 import type { WhatsAppModuleOptions } from './types.ts';
 
+/** The connection vault's limit (the longest timer). */
+const LEASE_TTL_MAX_MS = 2_147_483_647;
+
 function invalid(message: string): InvalidAgentDefinitionError {
     return new InvalidAgentDefinitionError(`whatsappModule: ${message}`);
 }
@@ -90,8 +93,16 @@ export class WhatsAppModule implements IModule {
             throw invalid(`connection: ${(error as Error).message}`);
         }
 
-        if (options.leaseTtlMs !== undefined && (!Number.isSafeInteger(options.leaseTtlMs) || options.leaseTtlMs < 3)) {
-            throw invalid('leaseTtlMs must be an integer of at least 3.');
+        if (options.leaseTtlMs !== undefined && (
+            !Number.isSafeInteger(options.leaseTtlMs) ||
+            options.leaseTtlMs < 3 ||
+            options.leaseTtlMs > LEASE_TTL_MAX_MS
+        )) {
+            throw invalid(`leaseTtlMs must be an integer of 3 to ${LEASE_TTL_MAX_MS}.`);
+        }
+
+        if (options.approvalUrl !== undefined && typeof options.approvalUrl !== 'function') {
+            throw invalid('approvalUrl must be a function.');
         }
 
         this.options = options;

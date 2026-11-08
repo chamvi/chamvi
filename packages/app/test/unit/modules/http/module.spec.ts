@@ -278,6 +278,27 @@ describe('httpModule', () => {
         expect(seen).toEqual(['later']);
     });
 
+    it('refuses two connections of one name', async () => {
+        const connection = (name: string) => contributing(name, (container) => {
+            container.registerMany(AppToken.CONNECTIONS, {
+                useValue: {
+                    name: 'bot',
+                    type: 'whatsapp',
+                    status: () => 'disconnected',
+                    widgets: () => [],
+                    subscribe: () => () => undefined,
+                    actions: {},
+                },
+            });
+        });
+        const { harness } = await build({ modules: [connection('first'), connection('second')] });
+
+        const error = await rejectionOf(harness.setup());
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(error.message).toBe('Two modules contribute the connection "bot".');
+    });
+
     it('no authenticator fails setup', async () => {
         const { harness, port } = await build({ env: { CHAMVI_TOKENS: '' } });
 

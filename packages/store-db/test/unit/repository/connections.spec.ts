@@ -5,24 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { DataSource } from 'typeorm';
-import { assertSchemaMatchesMetadata } from 'typeorm-extension';
+import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
 import { LeaseLostError } from '@chamvi/core';
 import type { Connection } from '@chamvi/core';
-import {
-    STORE_MIGRATIONS,
-    createDatabaseStore,
-    migrateStore,
-    pendingMigrations,
-} from '@chamvi/store-db';
-import { ControllableClock } from '@chamvi/test-kit';
+import { createDatabaseStore } from '@chamvi/store-db';
+import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { TableName } from '../../../src/entities/constants.ts';
-import { ConnectionEntryEntity } from '../../../src/entities/index.ts';
+import { ConnectionEntity, ConnectionEntryEntity } from '../../../src/entities/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
-import { seedRun } from '../../utils/conversation.ts';
-
-const CONNECTIONS = 'Connections1792886400000';
 
 const connection = (name: string): Connection => ({
     name,
@@ -69,8 +60,8 @@ const holdLeaseRow = async (ds: DataSource, key: string) => {
 describePostgres('connections in postgres', () => {
     const dataSources: DataSource[] = [];
 
-    const create = async (migrate = true) => {
-        const ds = await createTestDataSource({ migrate });
+    const create = async () => {
+        const ds = await createTestDataSource();
 
         dataSources.push(ds);
 
@@ -82,43 +73,6 @@ describePostgres('connections in postgres', () => {
         dataSources.length = 0;
     });
 
-    it('the migration upgrades a v0.7.3 store with data, reverts and reapplies', async () => {
-        const ds = await create(false);
-        const prior = new DataSource({
-            ...ds.options,
-            migrations: STORE_MIGRATIONS.filter((migration) => migration.name !== CONNECTIONS),
-        });
-
-        await prior.initialize();
-        dataSources.push(prior);
-        await migrateStore(prior);
-        await seedRun(ds, 'kept');
-        expect(await pendingMigrations(ds)).toEqual([CONNECTIONS]);
-
-        await migrateStore(ds);
-        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
-
-        const store = createDatabaseStore({ dataSource: ds });
-
-        expect(await store.runs.findOne('kept')).toMatchObject({ id: 'kept' });
-        await store.connections.insert(connection('wa'));
-        await ds.undoLastMigration({ transaction: 'each' });
-
-        const runner = ds.createQueryRunner();
-
-        try {
-            expect(await runner.hasTable(TableName.CONNECTIONS)).toBe(false);
-            expect(await runner.hasTable(TableName.CONNECTION_ENTRIES)).toBe(false);
-        } finally {
-            await runner.release();
-        }
-
-        expect(await store.runs.findOne('kept')).toMatchObject({ id: 'kept' });
-        await migrateStore(ds);
-        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
-        expect(await store.connections.find()).toEqual([]);
-    });
-
     it('entries reference their connection: orphans are refused, a delete cascades, the relation loads', async () => {
         const ds = await create();
         const clock = new ControllableClock();
@@ -128,16 +82,17 @@ describePostgres('connections in postgres', () => {
         await store.locks.acquire('connection:wa', 'o1', 60_000);
         await store.connections.writeEntries('wa', { set: { a: new Uint8Array([7]) } }, { lock: 'connection:wa', owner: 'o1' });
 
+        const { id: connectionId } = await ds.getRepository(ConnectionEntity).findOneByOrFail({ name: 'wa' });
         const entry = await ds.getRepository(ConnectionEntryEntity).findOneOrFail({
-            where: { connectionName: 'wa', key: 'a' },
+            where: { connectionId, key: 'a' },
             relations: { connection: true },
         });
 
         expect(entry.connection?.name).toBe('wa');
         expect(entry.connection?.type).toBe('whatsapp');
         await expect(ds.query(
-            `INSERT INTO "${TableName.CONNECTION_ENTRIES}" (connection_name, key, value) VALUES ($1, $2, $3)`,
-            ['missing', 'a', Buffer.from([1])],
+            `INSERT INTO "${TableName.CONNECTION_ENTRIES}" (id, connection_id, key, value) VALUES ($1, $2, $3, $4)`,
+            [testUuid('entry'), testUuid('missing'), 'a', Buffer.from([1])],
         )).rejects.toMatchObject({ driverError: { code: '23503' } });
 
         await store.connections.delete('wa');

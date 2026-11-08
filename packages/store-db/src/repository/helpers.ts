@@ -7,6 +7,7 @@
 
 import { RunNotFoundError, normalizeEnvelope, normalizeWaitPoint } from '@chamvi/core';
 import { isObject } from 'smob';
+import { uuidv7 } from 'uuidv7';
 import type {
     AgentRevision,
     Artifact,
@@ -30,6 +31,13 @@ import type {
     StepEntity,
 } from '../entities/index.ts';
 import { TableName } from '../entities/constants.ts';
+
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+/** Whether a value is a canonical UUID: anything else is an absent id, never a Postgres `22P02`. */
+export function isUuid(value: string): boolean {
+    return UUID_PATTERN.test(value);
+}
 
 /** Run properties that map one to one onto a RunEntity property. */
 const RUN_PROPERTIES: ReadonlySet<string> = new Set([
@@ -105,9 +113,9 @@ export function asValues<T extends ObjectLiteral>(values: Partial<T>): QueryDeep
     return values as QueryDeepPartialEntity<T>;
 }
 
-/** StepEntity values for a new step (seq is generated). */
+/** StepEntity values for a new step (id is generated). */
 export function toStepValues(step: Step): QueryDeepPartialEntity<StepEntity> {
-    const values: Omit<StepEntity, 'seq'> = {
+    const values: Omit<StepEntity, 'id'> = {
         runId: step.runId,
         index: step.index,
         kind: step.kind,
@@ -122,9 +130,10 @@ export function toStepValues(step: Step): QueryDeepPartialEntity<StepEntity> {
     return asValues<StepEntity>(values);
 }
 
-/** CheckpointEntity values for a checkpoint. */
+/** CheckpointEntity values for a checkpoint; an upsert keeps the id of the stored row. */
 export function toCheckpointValues(cp: Checkpoint): QueryDeepPartialEntity<CheckpointEntity> {
     const values: CheckpointEntity = {
+        id: uuidv7(),
         runId: cp.runId,
         stepIndex: cp.stepIndex,
         messages: cp.messages,
@@ -320,9 +329,10 @@ export function toCheckpoint(entity: CheckpointEntity): Checkpoint {
 }
 
 /** ArtifactEntity values for a new artifact: the bytes copied into a Buffer, the bytea parameter the driver expects. */
-export function toArtifactValues(artifact: Artifact, data: Uint8Array): QueryDeepPartialEntity<ArtifactEntity> {
+export function toArtifactValues(artifact: Artifact, data: Uint8Array, key?: string): QueryDeepPartialEntity<ArtifactEntity> {
     const values: ArtifactEntity = {
         id: artifact.id,
+        key: key ?? null,
         runId: artifact.runId,
         agent: artifact.agent,
         mediaType: artifact.mediaType,
@@ -402,8 +412,12 @@ export function isMissingRunError(error: unknown, constraints: ReadonlySet<strin
         constraints.has(constraint);
 }
 
-/** Runs a write and reports a missing referenced run as the core RunNotFoundError, as the memory store does. */
+/** Runs a write and reports a missing or malformed referenced run as the core RunNotFoundError, as the memory store does. */
 export async function withRunReference<T>(dataSource: DataSource, runId: string, write: () => Promise<T>): Promise<T> {
+    if (!isUuid(runId)) {
+        throw new RunNotFoundError(runId);
+    }
+
     try {
         return await write();
     } catch (error) {

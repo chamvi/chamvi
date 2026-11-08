@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { keyedArtifactId } from '@chamvi/core';
+import type { IEngine } from '@chamvi/core';
 import {
     ADMIN_TOKEN,
     READER_TOKEN,
@@ -16,6 +16,11 @@ import {
     createRunTestApp,
     shotsAgent,
 } from '../../utils/app.ts';
+
+/** The id of the artifact the tool put under `key`. */
+async function keyedId(engine: IEngine, runId: string, key: string): Promise<string> {
+    return (await engine.store.artifacts.findOneByKey(runId, `tool:${key}`))!.id;
+}
 
 async function pausedShots() {
     const ctx = createRunTestApp({
@@ -53,11 +58,11 @@ describe('approval artifacts on the run wire', () => {
             }
         };
 
-        expect(waiting.artifacts).toEqual([keyedArtifactId(runId, 'overview')]);
+        expect(waiting.artifacts).toEqual([await keyedId(engine, runId, 'overview')]);
         expect(waiting.options).toEqual([{
             id: 'button',
             label: 'Button',
-            artifacts: [keyedArtifactId(runId, 'button/diff')],
+            artifacts: [await keyedId(engine, runId, 'button/diff')],
         }, { id: 'none', label: 'None' }]);
         await engine.drain();
     });
@@ -68,7 +73,7 @@ describe('approval artifacts on the run wire', () => {
             engine, 
             runId, 
         } = await pausedShots();
-        const id = keyedArtifactId(runId, 'button/diff');
+        const id = await keyedId(engine, runId, 'button/diff');
         const response = await call(app, 'GET', `/runs/${runId}/artifacts/${id}`, { token: READER_TOKEN });
 
         expect(response.status).toBe(200);
@@ -80,8 +85,8 @@ describe('approval artifacts on the run wire', () => {
         const { data } = await list.json() as { data: Array<{ id: string; filename?: string }> };
 
         expect(data.map((item) => item.id).sort()).toEqual([
-            keyedArtifactId(runId, 'overview'),
-            keyedArtifactId(runId, 'button/diff'),
+            await keyedId(engine, runId, 'overview'),
+            await keyedId(engine, runId, 'button/diff'),
         ].sort());
         await engine.drain();
     });

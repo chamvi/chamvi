@@ -13,7 +13,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseIdempotencyRepository } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
 
@@ -41,7 +41,7 @@ describePostgres('DatabaseIdempotencyRepository idempotency keys', () => {
         expect(scope.length).toBeLessThanOrEqual(1024);
         expect(scope.length).toBeGreaterThan(255);
 
-        await expect(store.claim(scope, 'k', 'r1', 1_000)).resolves.toEqual({ created: true, runId: 'r1' });
-        await expect(store.claim(scope, 'k', 'r2', 1_000)).resolves.toEqual({ created: false, runId: 'r1' });
+        await expect(store.claim(scope, 'k', testUuid('r1'), 1_000)).resolves.toEqual({ created: true, runId: testUuid('r1') });
+        await expect(store.claim(scope, 'k', testUuid('r2'), 1_000)).resolves.toEqual({ created: false, runId: testUuid('r1') });
     });
 });

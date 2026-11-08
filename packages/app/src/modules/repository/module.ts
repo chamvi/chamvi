@@ -174,10 +174,16 @@ export class StoreModule implements IModule {
 
     protected async databaseStore(context: AppContext, dataSource: DataSource, clock: IClock, migrate: boolean): Promise<IStore> {
         const {
+            assertStoreNotLegacy,
             createDatabaseStore,
             migrateStore,
             pendingMigrations,
         } = await import('@chamvi/store-db');
+
+        // Temporary: remove in the chamvi version after the uuid baseline.
+        if (context.check || !migrate) {
+            await assertStoreNotLegacy(dataSource);
+        }
 
         if (context.check) {
             // read-only: a start with CHAMVI_MIGRATE (the default) would apply them, else it cannot run

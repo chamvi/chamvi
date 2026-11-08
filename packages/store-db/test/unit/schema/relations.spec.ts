@@ -5,37 +5,148 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
-import { DEFAULT_CONVERSATION_LIMITS, RunNotFoundError } from '@chamvi/core';
-import { DatabaseConversationRepository, createDatabaseStore } from '@chamvi/store-db';
-import { createTestDataSource, describePostgres } from '../../utils/database.ts';
-import { seedRun } from '../../utils/conversation.ts';
 import { TableName } from '../../../src/entities/constants.ts';
 import {
     CheckpointEntity,
+    ConnectionEntity,
+    ConnectionEntryEntity,
     ConversationEntity,
+    ConversationItemEntity,
+    ConversationNoteEntity,
     ConversationOperationEntity,
     RunEntity,
+    StepEntity,
 } from '../../../src/entities/index.ts';
+import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
-const IDENTITY = {
-    agent: 'helper',
-    channel: 'chat',
-    account: 'main',
-    chat: 'relations',
-    audience: 'direct',
+/** Every foreign key of the schema: table, column, parent table, delete rule. */
+const FOREIGN_KEYS = [
+    [TableName.CHECKPOINTS, 'conversation_scope_id', TableName.CONVERSATIONS, 'NO ACTION'],
+    [TableName.CHECKPOINTS, 'run_id', TableName.RUNS, 'NO ACTION'],
+    [TableName.CONNECTION_ENTRIES, 'connection_id', TableName.CONNECTIONS, 'CASCADE'],
+    [TableName.CONVERSATION_ITEMS, 'run_id', TableName.RUNS, 'NO ACTION'],
+    [TableName.CONVERSATION_ITEMS, 'scope_id', TableName.CONVERSATIONS, 'NO ACTION'],
+    [TableName.CONVERSATION_NOTES, 'run_id', TableName.RUNS, 'NO ACTION'],
+    [TableName.CONVERSATION_NOTES, 'scope_id', TableName.CONVERSATIONS, 'NO ACTION'],
+    [TableName.CONVERSATION_OPERATIONS, 'run_id', TableName.RUNS, 'NO ACTION'],
+    [TableName.CONVERSATION_OPERATIONS, 'scope_id', TableName.CONVERSATIONS, 'NO ACTION'],
+    [TableName.CONVERSATIONS, 'active_run_id', TableName.RUNS, 'NO ACTION'],
+    [TableName.RUNS, 'conversation_scope_id', TableName.CONVERSATIONS, 'NO ACTION'],
+    [TableName.RUNS, 'parent_run_id', TableName.RUNS, 'NO ACTION'],
+    [TableName.STEPS, 'run_id', TableName.RUNS, 'NO ACTION'],
+];
+
+type Seeded = {
+    runId: string;
+    scopeId: string;
+    connectionId: string;
 };
-const REFERENCES = [
-    ['chamvi_conversations', 'active_run_id', 'chamvi_runs'],
-    ['chamvi_conversation_items', 'run_id', 'chamvi_runs'],
-    ['chamvi_conversation_notes', 'run_id', 'chamvi_runs'],
-    ['chamvi_conversation_operations', 'run_id', 'chamvi_runs'],
-    ['chamvi_checkpoints', 'run_id', 'chamvi_runs'],
-    ['chamvi_steps', 'run_id', 'chamvi_runs'],
-    ['chamvi_runs', 'conversation_scope_id', 'chamvi_conversations'],
-    ['chamvi_checkpoints', 'conversation_scope_id', 'chamvi_conversations'],
-] as const;
+
+/** One row on each side of every foreign key, written through the entities. */
+async function seed(ds: DataSource): Promise<Seeded> {
+    const now = new Date('2026-10-28T00:00:00.000Z');
+    const runId = randomUUID();
+    const childId = randomUUID();
+    const scopeId = randomUUID();
+    const connectionId = randomUUID();
+    const run = (id: string) => ({
+        id,
+        agent: 'helper',
+        status: 'running' as const,
+        trigger: { id },
+        usage: { inputTokens: 0, outputTokens: 0 },
+        conversationScopeId: scopeId,
+        createdAt: now,
+        updatedAt: now,
+    });
+
+    await ds.getRepository(ConversationEntity).insert({
+        id: scopeId,
+        key: 'a'.repeat(64),
+        agent: 'helper',
+        channel: 'chat',
+        account: 'main',
+        chat: 'relations',
+        audience: 'direct',
+        generation: 0,
+    });
+    await ds.getRepository(RunEntity).insert(run(runId));
+    await ds.getRepository(RunEntity).insert({ ...run(childId), parentRunId: runId });
+    await ds.getRepository(ConversationEntity).update({ id: scopeId }, { activeRunId: runId });
+    await ds.getRepository(CheckpointEntity).insert({
+        id: randomUUID(),
+        runId,
+        conversationScopeId: scopeId,
+        conversationGeneration: 0,
+        stepIndex: 0,
+        messages: [],
+        createdAt: now,
+    });
+    await ds.getRepository(StepEntity).insert({
+        runId,
+        index: 0,
+        kind: 'llm',
+        startedAt: now,
+        finishedAt: now,
+    });
+    await ds.getRepository(ConversationItemEntity).insert({
+        scopeId,
+        generation: 0,
+        key: 'item',
+        runId,
+        createdAt: now,
+        role: 'user',
+        text: 'input',
+        status: 'pending',
+    });
+    await ds.getRepository(ConversationNoteEntity).insert({
+        id: randomUUID(),
+        scopeId,
+        generation: 0,
+        key: 'key',
+        text: 'note',
+        runId,
+        toolCallId: 'call',
+        stepIndex: 0,
+        createdAt: now,
+        updatedAt: now,
+    });
+    await ds.getRepository(ConversationOperationEntity).insert({
+        id: randomUUID(),
+        scopeId,
+        generation: 0,
+        operationId: 'op',
+        runId,
+        inputHash: 'hash',
+        kind: 'set',
+        key: 'key',
+        createdAt: now,
+    });
+    await ds.getRepository(ConnectionEntity).insert({
+        id: connectionId,
+        name: 'main',
+        type: 'test',
+        keyId: 'key',
+        wrappedKey: Buffer.from([1]),
+        createdAt: now,
+        updatedAt: now,
+    });
+    await ds.getRepository(ConnectionEntryEntity).insert({
+        id: randomUUID(),
+        connectionId,
+        key: 'a',
+        value: Buffer.from([1]),
+    });
+
+    return {
+        runId, 
+        scopeId, 
+        connectionId, 
+    };
+}
 
 describePostgres('relational integrity', () => {
     let ds: DataSource;
@@ -46,168 +157,69 @@ describePostgres('relational integrity', () => {
         }
     });
 
-    it('rejects dangling run and scope references and preserves referenced parents', async () => {
+    it('every declared foreign key rejects a missing parent', async () => {
         ds = await createTestDataSource();
-
-        const conversations = new DatabaseConversationRepository({ dataSource: ds });
-        const store = createDatabaseStore({ dataSource: ds });
-        const scope = await conversations.resolve(IDENTITY);
-
-        await seedRun(ds, 'run', { conversation: { scope, text: 'input' } });
-        await conversations.beginTurn(scope, 'run', 'input', DEFAULT_CONVERSATION_LIMITS);
-        await conversations.applyNote(scope, {
-            kind: 'set',
-            id: 'op',
-            inputHash: 'hash',
-            key: 'key',
-            text: 'note',
-            source: {
-                runId: 'run',
-                toolCallId: 'call',
-                stepIndex: 0,
-            },
-        });
-
-        const now = new Date();
-
-        await store.checkpoints.save({
-            runId: 'run',
-            stepIndex: 0,
-            messages: [],
-            createdAt: now,
-            conversation: { scopeId: scope.id, generation: scope.generation },
-        });
-        await store.steps.insert({
-            runId: 'run',
-            index: 0,
-            kind: 'llm',
-            startedAt: now,
-            finishedAt: now,
-        });
+        await seed(ds);
 
         const runner = ds.createQueryRunner();
 
         try {
-            for (const [table, column, parent] of REFERENCES) {
-                const metadata = await runner.getTable(table);
+            const tables = await runner.getTables(Object.values(TableName));
+            const declared = tables.flatMap((table) => table.foreignKeys.map((key) => {
+                expect(key.referencedColumnNames).toEqual(['id']);
+                expect(key.columnNames).toHaveLength(1);
 
-                expect(metadata?.foreignKeys).toEqual(expect.arrayContaining([expect.objectContaining({
-                    columnNames: [column],
-                    referencedTableName: parent,
-                    referencedColumnNames: ['id'],
-                    onDelete: 'NO ACTION',
-                })]));
-                await expect(ds.query(`UPDATE "${table}" SET "${column}" = $1`, ['missing']))
-                    .rejects.toMatchObject({ driverError: { code: '23503' } });
-            }
+                return [table.name, key.columnNames[0], key.referencedTableName, key.onDelete];
+            }));
+            const order = (entry: (string | undefined)[]) => entry.join(' ');
 
-            expect((await runner.getTable('chamvi_checkpoints'))?.findColumnByName('conversation_snapshot_run_id')).toBeUndefined();
+            expect(declared.toSorted((a, b) => order(a).localeCompare(order(b))))
+                .toEqual(FOREIGN_KEYS.toSorted((a, b) => order(a).localeCompare(order(b))));
         } finally {
             await runner.release();
         }
 
-        await expect(ds.query('DELETE FROM chamvi_runs WHERE id = $1', ['run']))
-            .rejects.toMatchObject({ driverError: { code: '23503' } });
-        await conversations.endTurn(scope, 'run', []);
-        await conversations.reset(IDENTITY, { keepNotes: true });
-        expect((await store.checkpoints.findOne('run'))?.conversation).toEqual({ scopeId: scope.id, generation: scope.generation });
-        await expect(ds.query('DELETE FROM chamvi_conversations WHERE id = $1', [scope.id]))
-            .rejects.toMatchObject({ driverError: { code: '23503' } });
+        for (const [table, column] of FOREIGN_KEYS) {
+            await expect(
+                ds.query(`UPDATE "${table}" SET "${column}" = $1 WHERE "${column}" IS NOT NULL`, [randomUUID()]),
+                `${table}.${column}`,
+            ).rejects.toMatchObject({ driverError: { code: '23503' } });
+        }
     });
 
-    it('loads related runs and conversations through normal TypeORM relations', async () => {
+    it('keeps referenced parents and removes entries with their connection', async () => {
         ds = await createTestDataSource();
 
-        const conversations = new DatabaseConversationRepository({ dataSource: ds });
-        const store = createDatabaseStore({ dataSource: ds });
-        const scope = await conversations.resolve(IDENTITY);
+        const {
+            runId, 
+            scopeId, 
+            connectionId, 
+        } = await seed(ds);
 
-        await seedRun(ds, 'run', { conversation: { scope, text: 'input' } });
-        await conversations.beginTurn(scope, 'run', 'input', DEFAULT_CONVERSATION_LIMITS);
-        await conversations.applyNote(scope, {
-            kind: 'set',
-            id: 'op',
-            inputHash: 'hash',
-            key: 'key',
-            text: 'note',
-            source: {
-                runId: 'run',
-                toolCallId: 'call',
-                stepIndex: 0,
-            },
-        });
-        await store.checkpoints.save({
-            runId: 'run',
-            stepIndex: 0,
-            messages: [],
-            createdAt: new Date(),
-            conversation: { scopeId: scope.id, generation: scope.generation },
-        });
+        await expect(ds.query(`DELETE FROM "${TableName.RUNS}" WHERE id = $1`, [runId]))
+            .rejects.toMatchObject({ driverError: { code: '23503' } });
+        await expect(ds.query(`DELETE FROM "${TableName.CONVERSATIONS}" WHERE id = $1`, [scopeId]))
+            .rejects.toMatchObject({ driverError: { code: '23503' } });
 
-        const checkpoint = await ds.getRepository(CheckpointEntity).findOneOrFail({ where: { runId: 'run' }, relations: { run: true, conversation: true } });
+        await ds.getRepository(ConnectionEntity).delete({ id: connectionId });
+        expect(await ds.getRepository(ConnectionEntryEntity).countBy({ connectionId })).toBe(0);
+    });
 
-        expect(checkpoint.run?.id).toBe('run');
-        expect(checkpoint.conversation?.id).toBe(scope.id);
+    it('loads related rows through normal TypeORM relations', async () => {
+        ds = await createTestDataSource();
+        await seed(ds);
 
-        const operation = await ds.getRepository(ConversationOperationEntity).findOneOrFail({
-            where: {
-                scopeId: scope.id,
-                id: 'op',
-                generation: scope.generation,
-            },
-            relations: { run: true, conversation: true },
-        });
-
-        expect(operation.run?.id).toBe('run');
-        expect(operation.conversation?.id).toBe(scope.id);
-
-        const run = await ds.getRepository(RunEntity).findOneOrFail({ where: { id: 'run' }, relations: { conversation: true } });
-
-        expect(run.conversation?.id).toBe(scope.id);
-
-        const conversation = await ds.getRepository(ConversationEntity).findOneOrFail({ where: { id: scope.id }, relations: { activeRun: true } });
-
-        expect(conversation.activeRun?.id).toBe('run');
-
-        const now = new Date();
-
-        await store.steps.insert({
-            runId: 'run',
-            index: 0,
-            kind: 'tool',
-            startedAt: now,
-            finishedAt: now,
-        });
-        await seedRun(ds, 'child', {
-            trigger: {
-                id: 'child',
-                agent: 'helper',
-                trigger: 'message',
-                channel: 'chat',
-                payload: {},
-                receivedAt: now,
-                parent: {
-                    kind: 'dispatch',
-                    runId: 'run',
-                    agent: 'helper',
-                    role: 'default',
-                    depth: 1,
-                },
-            },
-        });
-
-        // These IDs reserve runs before runs.insert; every other local run/scope ID must be queryable.
+        const parents: [RegExp, string][] = [
+            [/runId$/i, TableName.RUNS],
+            [/scopeId$/i, TableName.CONVERSATIONS],
+            [/connectionId$/i, TableName.CONNECTIONS],
+        ];
+        // These IDs reserve runs before runs.insert; every other local reference must be queryable.
         const reservations = new Set([`${TableName.ARTIFACTS}.runId`, `${TableName.IDEMPOTENCY_KEYS}.runId`]);
 
         for (const metadata of ds.entityMetadatas) {
             for (const column of metadata.columns) {
-                let parent: string | undefined;
-
-                if (/runId$/i.test(column.propertyName)) {
-                    parent = TableName.RUNS;
-                } else if (/scopeId$/i.test(column.propertyName)) {
-                    parent = TableName.CONVERSATIONS;
-                }
+                const parent = parents.find(([pattern]) => pattern.test(column.propertyName))?.[1];
 
                 if (!parent || reservations.has(`${metadata.tableName}.${column.propertyName}`)) {
                     continue;
@@ -229,21 +241,8 @@ describePostgres('relational integrity', () => {
                     .getOne();
 
                 expect(entity, `${metadata.name}.${column.propertyName} has a seeded row`).toBeDefined();
-
                 expect(entity?.[relation.propertyName]).toMatchObject({ id: entity?.[column.propertyName] });
             }
         }
-    });
-
-    it('refuses an unknown run without inserting input or taking ownership', async () => {
-        ds = await createTestDataSource();
-
-        const store = new DatabaseConversationRepository({ dataSource: ds });
-        const scope = await store.resolve(IDENTITY);
-
-        await expect(store.beginTurn(scope, 'missing', 'input', DEFAULT_CONVERSATION_LIMITS))
-            .rejects.toBeInstanceOf(RunNotFoundError);
-        expect(await store.activeRun(scope)).toBeUndefined();
-        expect((await store.findItems(scope, { limit: 10, offset: 0 })).total).toBe(0);
     });
 });

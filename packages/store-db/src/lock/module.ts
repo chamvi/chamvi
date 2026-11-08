@@ -9,6 +9,7 @@ import { systemClock } from '@chamvi/core';
 import type { IClock, ILockRepository } from '@chamvi/core';
 import { LessThanOrEqual } from 'typeorm';
 import type { DataSource, Repository } from 'typeorm';
+import { uuidv7 } from 'uuidv7';
 import { LockEntity } from '../entities/index.ts';
 import type { DatabaseStoreOptions } from '../repository/types.ts';
 
@@ -35,6 +36,7 @@ export class DatabaseLockRepository implements ILockRepository {
         const result = await this.locks.createQueryBuilder()
             .insert()
             .values({
+                id: uuidv7(),
                 key,
                 owner,
                 expiresAt: new Date(now.getTime() + ttlMs),

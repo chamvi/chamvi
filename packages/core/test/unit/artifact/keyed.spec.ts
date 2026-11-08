@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createHash } from 'node:crypto';
 import { 
     afterEach, 
     describe, 
@@ -16,7 +15,6 @@ import {
     Engine,
     ValidationError,
     defineModelAgent,
-    keyedArtifactId,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { createRunArtifacts } from '../../../src/artifact/module.ts';
@@ -67,18 +65,37 @@ describe('keyed artifacts', () => {
         expect(await store.artifacts.find(RUN.id)).toHaveLength(0);
     });
 
-    it('derives the id of a put with a key from run and key', async () => {
-        const { artifacts } = setup();
-        const artifact = await artifacts.put({
-            key: 'vr/button/actual', 
-            mediaType: 'image/png', 
-            data: new Uint8Array([1]), 
+    it('a repeated keyed put keeps id and createdAt', async () => {
+        const { clock, artifacts } = setup();
+        const first = await artifacts.put({
+            key: 'k',
+            mediaType: 'text/plain',
+            data: new Uint8Array([1]),
         });
-        const digest = createHash('sha256').update('vr/button/actual').digest('hex').slice(0, 32);
 
-        expect(artifact.id).toBe(keyedArtifactId(RUN.id, 'vr/button/actual'));
-        expect(artifact.id).toBe(`${RUN.id}.k.${digest}`);
+        clock.advance(1_000);
+
+        const second = await artifacts.put({
+            key: 'k',
+            mediaType: 'text/plain',
+            data: new Uint8Array([2]),
+        });
+
+        expect(first.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+        expect(second.id).toBe(first.id);
+        expect(second.createdAt).toEqual(first.createdAt);
+    });
+
+    it('the key is absent from the returned artifact', async () => {
+        const { store, artifacts } = setup();
+        const artifact = await artifacts.put({
+            key: 'k',
+            mediaType: 'text/plain',
+            data: new Uint8Array([1]),
+        });
+
         expect(artifact).not.toHaveProperty('key');
+        expect(await store.artifacts.findOne(artifact.id)).not.toHaveProperty('key');
     });
 
     it('replaces the artifact on a put with the same key', async () => {
@@ -162,7 +179,7 @@ describe('keyed artifacts', () => {
             mediaType: 'text/plain', 
             data: new Uint8Array([1]), 
         }))
-            .resolves.toMatchObject({ id: keyedArtifactId(RUN.id, 'x'.repeat(255)) });
+            .resolves.toMatchObject({ runId: RUN.id });
     });
 
     it('refuses a dispatch attachment with a key', async () => {
@@ -192,11 +209,5 @@ describe('keyed artifacts', () => {
             }],
         })).rejects.toThrow('Attachments take no key.');
         expect((await store.runs.find({})).data).toEqual([]);
-    });
-
-    it('never collides with attachment ids', () => {
-        for (let i = 0; i < 500; i++) {
-            expect(keyedArtifactId('run-1', `key-${i}`)).not.toMatch(/^.+\.\d{4,}$/);
-        }
     });
 });

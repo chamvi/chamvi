@@ -8,6 +8,7 @@
 import type { DataSource } from 'typeorm';
 import type { ConversationScope, ResolvedConversationLimits, Run } from '@chamvi/core';
 import { DatabaseConversationRepository, DatabaseRunRepository } from '@chamvi/store-db';
+import { isUuid } from '../../src/repository/helpers.ts';
 
 export async function seedRun(dataSource: DataSource, id: string, overrides: Partial<Run> = {}): Promise<void> {
     const now = new Date('2026-10-28T00:00:00.000Z');
@@ -34,7 +35,10 @@ export async function seedRun(dataSource: DataSource, id: string, overrides: Par
 /** Valid lifecycle fixtures create the run before its conversation turn, as Engine does. */
 export class SeededConversationRepository extends DatabaseConversationRepository {
     override async beginTurn(scope: ConversationScope, runId: string, text: string, limits: ResolvedConversationLimits) {
-        await seedRun(this.dataSource, runId);
+        // A malformed run id is the case under test: the repository must refuse it, not this fixture.
+        if (isUuid(runId)) {
+            await seedRun(this.dataSource, runId);
+        }
 
         return super.beginTurn(scope, runId, text, limits);
     }
