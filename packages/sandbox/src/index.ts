@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+// The package entry composes the folder barrels.
 export * from './clock/index.ts';
 export * from './context/index.ts';
 export * from './credentials/index.ts';
