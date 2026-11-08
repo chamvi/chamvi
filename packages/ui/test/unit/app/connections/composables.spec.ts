@@ -158,6 +158,7 @@ describe('useConnection', () => {
         await flush();
         await flush();
         expect(state.error.value?.status).toBe(403);
+        expect(state.widgets.value).toEqual([]);
         scope.stop();
     });
 

@@ -87,6 +87,8 @@ export function useConnection(api: IConnectionsApi, name: string, options: UseCo
                 }
             },
             onError: (e) => {
+                // the stream stopped for good: a QR fetched before it would stay on the page, stale
+                widgets.value = [];
                 error.value = e;
             },
         });

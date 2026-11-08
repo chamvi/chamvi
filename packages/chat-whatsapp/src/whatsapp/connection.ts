@@ -537,8 +537,8 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
         setStatus(generation, 'held-elsewhere');
 
         void closeGeneration(generation).then(() => {
-            // a reset that began meanwhile acquires on its own
-            if (isRunCurrent(run) && run.generation === generation && !run.resetting) {
+            // a reset that began meanwhile acquires on its own, or schedules this retry when it ends
+            if (isRunCurrent(run) && run.generation === generation && !run.resetting && !run.retry) {
                 scheduleAcquire(run);
             }
         });
@@ -788,6 +788,14 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             }
         })().finally(() => {
             delete run.resetting;
+
+            // the reset's own lease was lost and its close skipped the retry: waiting for the session is due now
+            if (!(isRunCurrent(run) && run.generation?.leaseLost) || run.retry) {
+                return;
+            }
+
+            run.clearPending = false;
+            scheduleAcquire(run);
         });
 
         return run.resetting;

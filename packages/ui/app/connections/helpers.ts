@@ -20,7 +20,7 @@ export function statusBadge(status: ConnectionStatus): ConnectionBadge {
  * network; `img-src data:` is in the dashboard's CSP).
  */
 export function qrDataUrl(value: string): string {
-    return `data:image/svg+xml,${encodeURIComponent(renderSVG(value, { border: 2 }))}`;
+    return `data:image/svg+xml,${encodeURIComponent(renderSVG(value, { border: 4 }))}`;
 }
 
 /** Widgets (the QR), the live stream and reset need `connection:<name>:write`. */

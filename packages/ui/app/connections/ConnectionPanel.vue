@@ -77,6 +77,13 @@ watch(confirming, async (open) => {
         </section>
 
         <div
+            v-if="error && !write"
+            class="card notice"
+            data-testid="connection-stale"
+        >
+            The status may be out of date: {{ error.code }} · {{ error.message }}
+        </div>
+        <div
             v-if="!write"
             class="card notice"
             data-testid="connection-readonly"

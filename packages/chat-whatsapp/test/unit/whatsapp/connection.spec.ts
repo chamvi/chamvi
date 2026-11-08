@@ -620,12 +620,55 @@ describe('WhatsApp connection: the retry budget of a reset, a reentrant close', 
 
         engines.push(world.engine);
         await world.engine.start();
+        world.sockets.last().open();
 
         await expect(world.setup.reset()).rejects.toThrow(/does not support a reset/);
 
+        expect(world.setup.status()).toBe('connected');
         expect(world.sockets.sockets).toHaveLength(1);
         expect(world.sockets.last().ended).toBe(0);
         expect(auth.trace).not.toContain('release');
+    });
+
+    it('a lease lost during a reset that outlasts its close still retries, without the reset', async () => {
+        const auth = createRecordingAuth();
+        const lost = deferred();
+        const resets: (boolean | undefined)[] = [];
+        const provider: IWhatsAppAuthProvider = {
+            supportsReset: true,
+            async acquire(signal, options) {
+                resets.push(options?.reset);
+
+                const lease = await auth.provider.acquire(signal, options);
+
+                return resets.length === 2 ? { ...lease, lost: lost.promise } : lease;
+            },
+        };
+        const world = createWhatsAppFixture({ patch: { auth: provider } });
+
+        engines.push(world.engine);
+        await world.engine.start();
+
+        const save = auth.holdCreds();
+        const outcome = expect(world.setup.reset()).rejects.toThrow(/held by another process/);
+
+        await settle();
+        lost.resolve();
+        await settle();
+        expect(world.setup.status()).toBe('held-elsewhere');
+
+        // the close gives up on the pending save at its bound, while the reset still runs
+        world.clock.advance(WHATSAPP_SHUTDOWN_TIMEOUT_MS);
+        await settle();
+        save.resolve();
+        await outcome;
+        await settle();
+
+        world.clock.advance(upperDelay(0));
+        await settle();
+
+        expect(resets).toEqual([false, true, false]);
+        expect(world.sockets.sockets).toHaveLength(2);
     });
 
     it('keeps the retry budget while saving the fresh creds keeps failing', async () => {
