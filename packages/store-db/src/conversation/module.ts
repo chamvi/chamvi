@@ -83,7 +83,7 @@ function scopeOf(row: ConversationEntity): ConversationScope {
 
 function itemOf(row: ConversationItemEntity): ConversationItem {
     return {
-        id: row.itemId,
+        id: row.key,
         role: row.role,
         text: row.text,
         runId: row.runId,
@@ -96,7 +96,7 @@ function itemOf(row: ConversationItemEntity): ConversationItem {
 
 function itemValues(item: ConversationItem) {
     return {
-        itemId: item.id,
+        key: item.id,
         role: item.role,
         text: item.text,
         runId: item.runId,
@@ -162,12 +162,12 @@ export class DatabaseConversationRepository implements IConversationRepository {
     }
 
     async resolve(identity: ConversationIdentity): Promise<ConversationScope> {
-        const identityKey = identityId(identity);
+        const key = identityId(identity);
 
         await this.conversations.createQueryBuilder().insert()
             .values(asValues<ConversationEntity>({
                 id: uuidv7(),
-                identityKey,
+                key,
                 agent: identity.agent,
                 channel: identity.channel,
                 account: identity.account,
@@ -177,11 +177,11 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 activeRunId: null,
             })).orIgnore().execute();
 
-        return scopeOf(await this.conversations.findOneByOrFail({ identityKey }));
+        return scopeOf(await this.conversations.findOneByOrFail({ key }));
     }
 
     async findOne(identity: ConversationIdentity): Promise<ConversationScope | undefined> {
-        const row = await this.conversations.findOneBy({ identityKey: identityId(identity) });
+        const row = await this.conversations.findOneBy({ key: identityId(identity) });
 
         return row ? scopeOf(row) : undefined;
     }
@@ -271,7 +271,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
                 return { kind: 'busy', runId: row.activeRunId };
             }
 
-            if (await manager.existsBy(ConversationItemEntity, { ...where, itemId: userItemId(runId) })) {
+            if (await manager.existsBy(ConversationItemEntity, { ...where, key: userItemId(runId) })) {
                 throw new InvalidRunStateError('The conversation turn has already ended.');
             }
 
@@ -374,7 +374,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
             const pending = await this.pending(manager, scope, runId);
 
             for (const entry of pending) {
-                await manager.update(ConversationItemEntity, { id: entry.id }, { status: confirmedEmitIds.includes(entry.itemId) ? 'sent' : 'unknown' });
+                await manager.update(ConversationItemEntity, { id: entry.id }, { status: confirmedEmitIds.includes(entry.key) ? 'sent' : 'unknown' });
             }
 
             await manager.update(ConversationEntity, { id: row.id }, ENDED_TURN);
@@ -392,7 +392,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
             const where = {
                 scopeId: scope.id,
                 generation: scope.generation,
-                itemId: item.id,
+                key: item.id,
             };
             const previous = await manager.findOneBy(ConversationItemEntity, where);
 
@@ -421,7 +421,7 @@ export class DatabaseConversationRepository implements IConversationRepository {
             const entry = typeof itemId === 'string' ? await manager.findOneBy(ConversationItemEntity, {
                 scopeId: scope.id,
                 generation: scope.generation,
-                itemId,
+                key: itemId,
             }) : null;
 
             if (!entry) {

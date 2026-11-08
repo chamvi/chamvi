@@ -27,12 +27,12 @@ export class ConversationEntity {
     /** The sha256 of the conversation identity. */
     @Index({ unique: true })
     @Column({
-        name: 'identity_key',
+        name: 'key',
         type: 'varchar',
         length: 64,
         collation: 'C',
     })
-    identityKey!: string;
+    key!: string;
 
     @Column({ type: 'text', collation: 'C' })
     agent!: string;

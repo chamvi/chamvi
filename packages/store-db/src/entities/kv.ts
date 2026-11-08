@@ -23,6 +23,7 @@ export class KvEntity {
         name: 'agent', 
         type: 'varchar', 
         length: 64, 
+        collation: 'C',
     })
     agent!: string;
 

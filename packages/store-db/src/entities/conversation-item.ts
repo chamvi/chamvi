@@ -19,7 +19,7 @@ import { TableName } from './constants.ts';
 import { ConversationEntity } from './conversation.ts';
 import { RunEntity } from './run.ts';
 
-@Index(['scopeId', 'generation', 'itemId'], { unique: true })
+@Index(['scopeId', 'generation', 'key'], { unique: true })
 @Index(['scopeId', 'generation', 'createdAt', 'id'])
 @Index(['runId'])
 @Entity({ name: TableName.CONVERSATION_ITEMS })
@@ -37,11 +37,11 @@ export class ConversationItemEntity {
     generation!: number;
 
     @Column({
-        name: 'item_id',
+        name: 'key',
         type: 'text',
         collation: 'C',
     })
-    itemId!: string;
+    key!: string;
 
     @Column({
         name: 'run_id',

@@ -40,7 +40,7 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
         await queryRunner.query(`
             CREATE TABLE "chamvi_conversations" (
                 "id" uuid NOT NULL,
-                "identity_key" character varying(64) COLLATE "C" NOT NULL,
+                "key" character varying(64) COLLATE "C" NOT NULL,
                 "agent" text COLLATE "C" NOT NULL,
                 "channel" text COLLATE "C" NOT NULL,
                 "account" text COLLATE "C" NOT NULL,
@@ -56,7 +56,7 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
                 CONSTRAINT "PK_d70b087b46b044fb4d5ff1b20be" PRIMARY KEY ("id")
             )
         `);
-        await queryRunner.query('CREATE UNIQUE INDEX "IDX_61f10c9ae0957d3767ab0385b8" ON "chamvi_conversations"  ("identity_key") ');
+        await queryRunner.query('CREATE UNIQUE INDEX "IDX_42a5ce8176773429737f4d58d7" ON "chamvi_conversations"  ("key") ');
         await queryRunner.query('CREATE INDEX "IDX_ef8111d766fe466a3b307675e0" ON "chamvi_conversations"  ("active_run_id") ');
         await queryRunner.query(`
             CREATE TABLE "chamvi_runs" (
@@ -136,9 +136,9 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
         await queryRunner.query(`
             CREATE TABLE "chamvi_docs" (
                 "id" uuid NOT NULL,
-                "agent" character varying(64) NOT NULL,
-                "collection" character varying(255) NOT NULL,
-                "document_id" character varying(255) NOT NULL,
+                "agent" character varying(64) COLLATE "C" NOT NULL,
+                "collection" character varying(255) COLLATE "C" NOT NULL,
+                "document_id" character varying(255) COLLATE "C" NOT NULL,
                 "doc" jsonb NOT NULL,
                 CONSTRAINT "PK_221d29889f2064fdb34a9fb8b28" PRIMARY KEY ("id")
             )
@@ -148,7 +148,7 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
         await queryRunner.query(`
             CREATE TABLE "chamvi_effects" (
                 "id" uuid NOT NULL,
-                "key" character varying(512) NOT NULL,
+                "key" character varying(512) COLLATE "C" NOT NULL,
                 "result" jsonb,
                 CONSTRAINT "PK_01368b6901ca421676b3be52b5d" PRIMARY KEY ("id")
             )
@@ -157,8 +157,8 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
         await queryRunner.query(`
             CREATE TABLE "chamvi_idempotency_keys" (
                 "id" uuid NOT NULL,
-                "scope" character varying(1024) NOT NULL,
-                "key" character varying(512) NOT NULL,
+                "scope" character varying(1024) COLLATE "C" NOT NULL,
+                "key" character varying(512) COLLATE "C" NOT NULL,
                 "run_id" uuid NOT NULL,
                 "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL,
                 CONSTRAINT "PK_602fae226ae5e7db4b6158c8473" PRIMARY KEY ("id")
@@ -169,7 +169,7 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
         await queryRunner.query(`
             CREATE TABLE "chamvi_kv" (
                 "id" uuid NOT NULL,
-                "agent" character varying(64) NOT NULL,
+                "agent" character varying(64) COLLATE "C" NOT NULL,
                 "key" character varying(512) COLLATE "C" NOT NULL,
                 "value" jsonb NOT NULL,
                 CONSTRAINT "PK_99915fcddccffdc73fe9a78b3c0" PRIMARY KEY ("id")
@@ -179,7 +179,7 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
         await queryRunner.query(`
             CREATE TABLE "chamvi_locks" (
                 "id" uuid NOT NULL,
-                "key" character varying(512) NOT NULL,
+                "key" character varying(512) COLLATE "C" NOT NULL,
                 "owner" character varying(255) NOT NULL,
                 "expires_at" TIMESTAMP WITH TIME ZONE NOT NULL,
                 CONSTRAINT "PK_ef8ef2a3ae9f4e24736ca6b974b" PRIMARY KEY ("id")
@@ -208,7 +208,7 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
                 "id" BIGSERIAL NOT NULL,
                 "scope_id" uuid NOT NULL,
                 "generation" integer NOT NULL,
-                "item_id" text COLLATE "C" NOT NULL,
+                "key" text COLLATE "C" NOT NULL,
                 "run_id" uuid NOT NULL,
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
                 "role" text NOT NULL,
@@ -222,7 +222,7 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
         `);
         await queryRunner.query('CREATE INDEX "IDX_e3edf09ee4749bad2d7b394c83" ON "chamvi_conversation_items"  ("run_id") ');
         await queryRunner.query('CREATE INDEX "IDX_cc871fd9bfee0f0af9eea663b0" ON "chamvi_conversation_items"  ("scope_id", "generation", "created_at", "id") ');
-        await queryRunner.query('CREATE UNIQUE INDEX "IDX_d1041c1d907ba0bd877c8b8306" ON "chamvi_conversation_items"  ("scope_id", "generation", "item_id") ');
+        await queryRunner.query('CREATE UNIQUE INDEX "IDX_25b7091a470ff6a1370e5b13dc" ON "chamvi_conversation_items"  ("scope_id", "generation", "key") ');
         await queryRunner.query(`
             CREATE TABLE "chamvi_conversation_notes" (
                 "id" uuid NOT NULL,
@@ -297,7 +297,7 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
         await queryRunner.query('DROP INDEX "IDX_08699555ad0212cc26e73325b7"');
         await queryRunner.query('DROP INDEX "IDX_ff451484f567e3a78070456dc5"');
         await queryRunner.query('DROP TABLE "chamvi_conversation_notes"');
-        await queryRunner.query('DROP INDEX "IDX_d1041c1d907ba0bd877c8b8306"');
+        await queryRunner.query('DROP INDEX "IDX_25b7091a470ff6a1370e5b13dc"');
         await queryRunner.query('DROP INDEX "IDX_cc871fd9bfee0f0af9eea663b0"');
         await queryRunner.query('DROP INDEX "IDX_e3edf09ee4749bad2d7b394c83"');
         await queryRunner.query('DROP TABLE "chamvi_conversation_items"');
@@ -328,7 +328,7 @@ export class UuidBaseline1794096000000 implements MigrationInterface {
         await queryRunner.query('DROP INDEX "IDX_099dba5007e83a7ad85d75ec83"');
         await queryRunner.query('DROP TABLE "chamvi_runs"');
         await queryRunner.query('DROP INDEX "IDX_ef8111d766fe466a3b307675e0"');
-        await queryRunner.query('DROP INDEX "IDX_61f10c9ae0957d3767ab0385b8"');
+        await queryRunner.query('DROP INDEX "IDX_42a5ce8176773429737f4d58d7"');
         await queryRunner.query('DROP TABLE "chamvi_conversations"');
         await queryRunner.query('DROP INDEX "IDX_ff9ed484c27b76465c2b54f7cf"');
         await queryRunner.query('DROP INDEX "IDX_64c902fdab399f13c609a025eb"');

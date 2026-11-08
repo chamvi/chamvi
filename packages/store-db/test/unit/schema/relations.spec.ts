@@ -65,7 +65,7 @@ async function seed(ds: DataSource): Promise<Seeded> {
 
     await ds.getRepository(ConversationEntity).insert({
         id: scopeId,
-        identityKey: 'a'.repeat(64),
+        key: 'a'.repeat(64),
         agent: 'helper',
         channel: 'chat',
         account: 'main',
@@ -95,7 +95,7 @@ async function seed(ds: DataSource): Promise<Seeded> {
     await ds.getRepository(ConversationItemEntity).insert({
         scopeId,
         generation: 0,
-        itemId: 'item',
+        key: 'item',
         runId,
         createdAt: now,
         role: 'user',

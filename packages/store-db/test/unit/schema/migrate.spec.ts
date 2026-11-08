@@ -31,8 +31,8 @@ const NATURAL_KEYS: [string, string][] = [
     [TableName.AGENT_REVISIONS, 'agent'],
     [TableName.CONNECTIONS, 'name'],
     [TableName.CONNECTION_ENTRIES, 'connection_id, key'],
-    [TableName.CONVERSATIONS, 'identity_key'],
-    [TableName.CONVERSATION_ITEMS, 'scope_id, generation, item_id'],
+    [TableName.CONVERSATIONS, 'key'],
+    [TableName.CONVERSATION_ITEMS, 'scope_id, generation, key'],
     [TableName.CONVERSATION_NOTES, 'scope_id, generation, key'],
     [TableName.CONVERSATION_OPERATIONS, 'scope_id, generation, operation_id'],
 ];
@@ -66,6 +66,18 @@ describePostgres('schema', () => {
         const ds = await create();
 
         await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
+    });
+
+    it('every text column of a unique index orders by code point', async () => {
+        const ds = await create();
+        const offenders = ds.entityMetadatas
+            .flatMap((entity) => entity.indices)
+            .filter((index) => index.isUnique)
+            .flatMap((index) => index.columns)
+            .filter((column) => (column.type === 'varchar' || column.type === 'text') && column.collation !== 'C')
+            .map((column) => `${column.entityMetadata.tableName}.${column.databaseName}`);
+
+        expect(offenders).toEqual([]);
     });
 
     it('down then up reapplies', async () => {
