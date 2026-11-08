@@ -23,6 +23,7 @@ export class IdempotencyKeyEntity {
         name: 'scope', 
         type: 'varchar', 
         length: 1024, 
+        collation: 'C',
     })
     scope!: string;
 
@@ -30,6 +31,7 @@ export class IdempotencyKeyEntity {
         name: 'key', 
         type: 'varchar', 
         length: 512, 
+        collation: 'C',
     })
     key!: string;
 

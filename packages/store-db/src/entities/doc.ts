@@ -24,6 +24,7 @@ export class DocEntity {
         name: 'agent', 
         type: 'varchar', 
         length: 64, 
+        collation: 'C',
     })
     agent!: string;
 
@@ -31,6 +32,7 @@ export class DocEntity {
         name: 'collection', 
         type: 'varchar', 
         length: 255, 
+        collation: 'C',
     })
     collection!: string;
 
@@ -38,6 +40,7 @@ export class DocEntity {
         name: 'document_id', 
         type: 'varchar', 
         length: 255, 
+        collation: 'C',
     })
     documentId!: string;
 

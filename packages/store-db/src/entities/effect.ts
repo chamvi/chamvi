@@ -23,6 +23,7 @@ export class EffectEntity {
         name: 'key', 
         type: 'varchar', 
         length: 512, 
+        collation: 'C',
     })
     key!: string;
 
