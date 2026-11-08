@@ -26,7 +26,7 @@ The Postgres store (`@chamvi/store-db`) now gives every table a single `id` prim
 
 The old database is left untouched. To roll back, redeploy the previous chamvi version with the old `DATABASE_URL`; the old schema and its data are intact. Keep it for as long as you may need that, and drop it when you do not.
 
-The check that refuses an old database covers `migrateStore()`, so a default start and `chamvi migrate`, and `chamvi start --check`. `chamvi start` with `CHAMVI_MIGRATE=false` applies no migrations and never reaches it: on an old database it exits 1 with a raw database error, for example `column AgentRevisionEntity.id does not exist`.
+The check that refuses an old database covers `migrateStore()` (so a default start and `chamvi migrate`), `chamvi start --check` and a start with `CHAMVI_MIGRATE=false`. Each exits 1 with the same message.
 
 The check is temporary: the chamvi version after this one removes it, and an old database then fails on `CREATE TABLE` with a raw Postgres error instead.
 
