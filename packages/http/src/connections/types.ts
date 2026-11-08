@@ -14,7 +14,9 @@ export type ConnectionView = {
     status: ConnectionStatus;
 };
 
-/** `GET /connections/:name`: `widgets` only for a holder of `connection:<name>:write`. */
+/** `GET /connections/:name`: `widgets` and `canReset` only for a holder of `connection:<name>:write`. */
 export type ConnectionDetailView = ConnectionView & {
     widgets?: ConnectionWidget[];
+    /** The connection offers a reset (`POST /connections/:name/reset` does not answer 404). */
+    canReset?: boolean;
 };

@@ -6,6 +6,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { nextTick, ref, watch } from 'vue';
 import { useConnection } from './composables.ts';
 import QrWidget from './QrWidget.vue';
 import StatusBadge from './StatusBadge.vue';
@@ -28,6 +29,15 @@ const {
     resetting,
     resetError,
 } = state;
+
+// the button that had the focus leaves the DOM: the focus follows into the confirmation and back
+const resetButton = ref<globalThis.HTMLElement>();
+const keepButton = ref<globalThis.HTMLElement>();
+
+watch(confirming, async (open) => {
+    await nextTick();
+    (open ? keepButton : resetButton).value?.focus({ preventScroll: true });
+});
 </script>
 
 <template>
@@ -91,7 +101,10 @@ const {
                 />
             </section>
 
-            <section class="card connection-actions">
+            <section
+                v-if="connection.canReset"
+                class="card connection-actions"
+            >
                 <div
                     v-if="!confirming"
                     class="connection-action"
@@ -111,6 +124,7 @@ const {
                         Reset clears the stored session and connects again, so a new pairing starts.
                     </p>
                     <button
+                        ref="resetButton"
                         type="button"
                         class="btn btn-danger"
                         data-testid="connection-reset"
@@ -131,9 +145,11 @@ const {
                     </p>
                     <div class="connection-action-buttons">
                         <button
+                            ref="keepButton"
                             type="button"
                             class="btn"
                             :disabled="resetting"
+                            data-testid="connection-reset-keep"
                             @click="state.cancelReset()"
                         >
                             Keep session

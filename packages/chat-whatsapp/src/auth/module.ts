@@ -123,6 +123,7 @@ export function createStoreWhatsAppAuth(options: StoreWhatsAppAuthOptions): IWha
     const owner = options.owner ?? defaultOwner();
 
     return {
+        supportsReset: true,
         async acquire(signal: AbortSignal, acquireOptions?: WhatsAppAcquireOptions): Promise<WhatsAppAuthLease> {
             const session = await options.vault.open(options.connection, {
                 type: WHATSAPP_CONNECTION_TYPE,

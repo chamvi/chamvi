@@ -133,6 +133,13 @@ describe('connection routes', () => {
         expect(() => createTestApp({ connections: [] as never })).toThrow(InvalidAgentDefinitionError);
     });
 
+    it('tells a writer when the connection offers no reset', async () => {
+        const { app } = world([fakeHandle('beta', { reset: false })]);
+        const detail = await call(app, 'GET', '/connections/beta', { token: tokenFor('connection:beta:write') });
+
+        expect(await detail.json()).toMatchObject({ canReset: false });
+    });
+
     it('shows widgets on the detail only with write', async () => {
         const { app } = world([fakeHandle('alpha')]);
 
@@ -154,6 +161,7 @@ describe('connection routes', () => {
             type: 'whatsapp',
             status: 'pairing',
             widgets: [{ kind: 'qr', value: QR }],
+            canReset: true,
         });
 
         expect((await call(app, 'GET', '/connections/alpha')).status).toBe(401);

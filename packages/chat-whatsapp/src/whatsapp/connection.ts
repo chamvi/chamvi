@@ -195,6 +195,11 @@ function clearRetry(run: Run): void {
     delete run.retry;
 }
 
+/** The refusal of a reset the provider cannot perform: it would hand the old session back. */
+function resetUnsupported(): InvalidRunStateError {
+    return new InvalidRunStateError('The WhatsApp auth provider does not support a reset (no supportsReset); the session was not reset.');
+}
+
 /** The refusal of a reset while another process holds the session: nothing is cleared, nothing queued. */
 function heldElsewhere(): InvalidRunStateError {
     return new InvalidRunStateError('The WhatsApp session is held by another process; the reset is refused and nothing is cleared. Retry once this process holds the session.');
@@ -217,8 +222,9 @@ function heldElsewhere(): InvalidRunStateError {
  * once it holds the location (the store provider recreates the connection,
  * which also recovers a data key the keyring cannot unwrap), then the fresh
  * creds are saved before the socket. A reset is refused (InvalidRunStateError)
- * while the status is `held-elsewhere`, and when its own acquire finds the
- * session held: no clear waits for another holder's lease.
+ * by a provider without `supportsReset`, while the status is `held-elsewhere`,
+ * and when its own acquire finds the session held: no clear waits for another
+ * holder's lease.
  *
  * `close` (idempotent per connect) stops admitting auth calls and ends the
  * retries and reconnects, then has two bounds of WHATSAPP_SHUTDOWN_TIMEOUT_MS
@@ -743,6 +749,10 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
 
         if (!run || run.closed) {
             return Promise.reject(new InvalidRunStateError('The WhatsApp connection is not started; there is nothing to reset.'));
+        }
+
+        if (options.auth.supportsReset !== true) {
+            return Promise.reject(resetUnsupported());
         }
 
         if (!run.resetting && status === 'held-elsewhere') {

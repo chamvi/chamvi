@@ -96,6 +96,9 @@ describe('useConnections', () => {
 
 describe('useConnection', () => {
     it('a reader gets the status, no widgets and no stream', async () => {
+        const stream = vi.fn(() => {
+            throw new Error('stream not faked');
+        });
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
             get: async () => ({
@@ -103,11 +106,13 @@ describe('useConnection', () => {
                 type: 'whatsapp',
                 status: 'pairing',
             }),
+            stream,
         }), 'whatsapp', { write: false }))!;
 
         await flush();
         expect(state.connection.value?.status).toBe('pairing');
         expect(state.widgets.value).toEqual([]);
+        expect(stream).not.toHaveBeenCalled();
         scope.stop();
     });
 

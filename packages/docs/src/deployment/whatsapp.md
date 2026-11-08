@@ -110,6 +110,7 @@ The identity (`WhatsAppIdentity { account, chat, sender, group, mentioned }`) is
 
 ```ts
 interface IWhatsAppAuthProvider {
+    readonly supportsReset?: boolean; // true when acquire honours reset; without it reset() is refused
     acquire(signal: AbortSignal, options?: { reset?: boolean }): Promise<WhatsAppAuthLease>;
 }
 type WhatsAppAuthLease = {

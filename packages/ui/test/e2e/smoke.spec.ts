@@ -353,6 +353,10 @@ test('a connection pairs live: QR while pairing, gone once connected, reset pair
     });
     await page.getByTestId('connection-reset').click();
     await expect(page.getByTestId('connection-reset-confirm')).toBeVisible();
+    await expect(page.getByTestId('connection-reset-keep')).toBeFocused();
+    await page.getByTestId('connection-reset-keep').click();
+    await expect(page.getByTestId('connection-reset')).toBeFocused();
+    await page.getByTestId('connection-reset').click();
     await page.getByTestId('connection-reset-yes').click();
     await expect(page.getByTestId('connection-status')).toHaveText('pairing');
     await expect(qr).toBeVisible();

@@ -614,11 +614,26 @@ describe('WhatsApp connection: closing a generation always ends its session', ()
 });
 
 describe('WhatsApp connection: the retry budget of a reset, a reentrant close', () => {
+    it('refuses a reset the provider does not support and leaves the session serving', async () => {
+        const auth = createRecordingAuth();
+        const world = createWhatsAppFixture({ patch: { auth: { acquire: (signal) => auth.provider.acquire(signal) } } });
+
+        engines.push(world.engine);
+        await world.engine.start();
+
+        await expect(world.setup.reset()).rejects.toThrow(/does not support a reset/);
+
+        expect(world.sockets.sockets).toHaveLength(1);
+        expect(world.sockets.last().ended).toBe(0);
+        expect(auth.trace).not.toContain('release');
+    });
+
     it('keeps the retry budget while saving the fresh creds keeps failing', async () => {
         const auth = createRecordingAuth();
         const provider: IWhatsAppAuthProvider = {
-            async acquire(signal) {
-                const lease = await auth.provider.acquire(signal);
+            supportsReset: true,
+            async acquire(signal, options) {
+                const lease = await auth.provider.acquire(signal, options);
 
                 return {
                     ...lease,
@@ -687,6 +702,7 @@ describe('WhatsApp connection: the retry budget of a reset, a reentrant close', 
         const inner = storeAuth(keyring, createMemoryStore({ clock }), clock);
         let failFlush = true;
         const provider: IWhatsAppAuthProvider = {
+            supportsReset: true,
             async acquire(signal, options) {
                 const lease = await inner.acquire(signal, options);
 

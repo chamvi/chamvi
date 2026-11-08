@@ -166,7 +166,13 @@ export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
         // a writer's response can carry a pairing QR
         event.response.headers.set('cache-control', 'private, no-store');
 
-        return canWrite(principal, name) ? { ...serializeConnection(handle), widgets: handle.widgets() } : serializeConnection(handle);
+        return canWrite(principal, name) ?
+            {
+                ...serializeConnection(handle),
+                widgets: handle.widgets(),
+                canReset: handle.actions.reset !== undefined,
+            } :
+            serializeConnection(handle);
     }));
 
     app.get('/connections/:name/events', defineCoreHandler(async (event) => {

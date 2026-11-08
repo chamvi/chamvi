@@ -101,6 +101,7 @@ export function createRecordingAuth(trace: string[] = []): RecordingAuth {
     let creds: AuthenticationCreds = initAuthCreds();
 
     const provider: IWhatsAppAuthProvider = {
+        supportsReset: true,
         async acquire(signal, options) {
             trace.push('acquire');
             signals.push(signal);
@@ -219,6 +220,7 @@ async function readJson<T>(path: string, fallback: () => T): Promise<T> {
  */
 export function createFileAuthProvider(folder: string): IWhatsAppAuthProvider {
     return {
+        supportsReset: true,
         async acquire(_signal, options) {
             await mkdir(folder, { recursive: true, mode: 0o700 });
             await chmod(folder, 0o700);

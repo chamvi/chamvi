@@ -69,6 +69,12 @@ export type WhatsAppAcquireOptions = {
  */
 export interface IWhatsAppAuthProvider {
     /**
+     * True when `acquire` honours `reset`. Without it a reset is refused
+     * before anything closes: a provider that ignored the option would hand
+     * the old session back and the reset would look successful.
+     */
+    readonly supportsReset?: boolean;
+    /**
      * Loads the session and takes the location exclusively; rejects when
      * another holder has it. Should settle soon after `signal` aborts; a
      * lease handed out after the abort is released at once.
@@ -197,9 +203,10 @@ export type WhatsAppChatSetup = {
      * `reset: true` (the provider empties the session under that lease) and
      * saves fresh creds before the new socket (whose QR reaches onPairing).
      * Resolves once the first acquire after the reset settled;
-     * InvalidRunStateError while the channel is not started, while the
-     * status is `held-elsewhere`, or when that acquire finds the session held
-     * (nothing is cleared then, and nothing later).
+     * InvalidRunStateError while the channel is not started, when the
+     * provider has no `supportsReset`, while the status is `held-elsewhere`,
+     * or when that acquire finds the session held (nothing is cleared then,
+     * and nothing later).
      */
     reset(): Promise<void>;
     /**
