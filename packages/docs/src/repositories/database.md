@@ -25,33 +25,63 @@ On shutdown, drain the engine before destroying the data source:
 
 ## Migrations
 
-`migrateStore(dataSource)` runs the pending migrations under the Postgres advisory lock `chamvi:migrations` (`MIGRATION_LOCK_NAME`). Call it on every boot: replicas that start at once wait for each other, and each migration is applied and recorded once. Each call uses one pooled connection, the one holding the lock, for the migrations as well. chamvi is pre-1.0, so a new version may ship a new migration.
+`migrateStore(dataSource)` runs the pending migrations under the Postgres advisory lock `chamvi:migrations` (`MIGRATION_LOCK_NAME`). Call it on every boot: replicas that start at once wait for each other, and each migration is applied and recorded once. Each call uses one pooled connection, the one holding the lock, for the migrations as well. chamvi is pre-1.0, so a new version may ship a new migration. The migrations so far: `1792195200000-init.ts`, `1792368000000-artifacts.ts`, `1792454400000-idempotency-scope.ts`, `1792540800000-kv-key-collation.ts` and `1792627200000-agent-revisions.ts` (`AgentRevisions1792627200000`, the table `chamvi_agent_revisions`), followed by `1792713600000-conversations-run-taint.ts` (`ConversationsRunTaint1792713600000`: conversation identities, items, notes and operation receipts, run/checkpoint bindings, their foreign keys and indexes on every new foreign key column (including `chamvi_conversations.active_run_id`), then the nullable `chamvi_runs.taint` column and the conservative backfill of unfinished runs, see [Persist run taint](/repositories/writing-a-repository#persist-run-taint)). Upgrading to it needs downtime: follow [Upgrading to 0.4](/guide/upgrading#upgrading-to-0-4). Then `1792800000000-run-lineage.ts` (`RunLineage1792800000000`): `chamvi_runs.parent_run_id` (`varchar(128) COLLATE "C"`, indexed, the self foreign key to `chamvi_runs.id`) and `subtree_usage` (jsonb), the backfill of `parent_run_id` from `trigger.parent.runId`, the rewrite of stored hand-off parents (`kind` `dispatch`, role `handoff`) and the generic `id` on pending approval wait points (see [Upgrading to 0.6](/guide/upgrading#upgrading-to-0-6)).
 
-There is one migration so far, the baseline `1794096000000-uuid-baseline.ts` (`UuidBaseline1794096000000`), which creates the whole schema with a uuid v7 `id` primary key on every table (see [Tables](#tables)) and validated foreign keys. It cannot upgrade a database created by an earlier chamvi: `migrateStore` refuses such a database, before it changes anything, with an error (`store_legacy_schema`) that names [Upgrading](/guide/upgrading#upgrading-to-the-uuid-baseline). Start on a new, empty database.
+The conversations migration preserves legacy checkpoints and steps whose run does not exist. Earlier store methods allowed those rows, so their run foreign keys are added as PostgreSQL `NOT VALID`: no rows are deleted and no placeholder runs are created. New inserts and changes to `run_id` must reference an existing run; the other foreign keys are validated normally. The lineage migration adds the self foreign key on `parent_run_id` `NOT VALID` for the same reason: a child whose parent run is gone keeps its row, while every new run must name an existing parent. These `NOT VALID` constraints remain unvalidated until the legacy data is reconciled explicitly, and do not need validation for new-write enforcement.
 
-`pendingMigrations(dataSource)` resolves the names of the migrations not run yet, in order, without writing anything (it never creates TypeORM's `migrations` table); `chamvi start --check` uses it to refuse a database a start with `CHAMVI_MIGRATE=false` could not run on (with the default `true` a start migrates, so the check passes). `chamvi start --check` also refuses a database with an earlier schema, whatever `CHAMVI_MIGRATE` says.
+### Validating the legacy constraints
+
+To find the orphans the step and checkpoint constraints tolerate:
+
+```sql
+SELECT 'checkpoint' AS kind, c.run_id FROM chamvi_checkpoints c
+    WHERE NOT EXISTS (SELECT 1 FROM chamvi_runs r WHERE r.id = c.run_id)
+UNION ALL
+SELECT 'step', s.run_id FROM chamvi_steps s
+    WHERE NOT EXISTS (SELECT 1 FROM chamvi_runs r WHERE r.id = s.run_id);
+```
+
+Children whose parent run is gone, for the lineage constraint:
+
+```sql
+SELECT c.id, c.parent_run_id FROM chamvi_runs c
+    WHERE c.parent_run_id IS NOT NULL
+    AND NOT EXISTS (SELECT 1 FROM chamvi_runs r WHERE r.id = c.parent_run_id);
+```
+
+Once they are deleted (deepest first, since a child may be a parent too), `ALTER TABLE chamvi_runs VALIDATE CONSTRAINT "FK_099dba5007e83a7ad85d75ec83c";` validates it.
+
+Orphans are leftovers no run can resume. Once you have kept what you need (a backup, an audit export) and deleted them, validate the constraints; `VALIDATE CONSTRAINT` takes only a `SHARE UPDATE EXCLUSIVE` lock, so writes continue meanwhile:
+
+```sql
+DELETE FROM chamvi_checkpoints c WHERE NOT EXISTS (SELECT 1 FROM chamvi_runs r WHERE r.id = c.run_id);
+DELETE FROM chamvi_steps s WHERE NOT EXISTS (SELECT 1 FROM chamvi_runs r WHERE r.id = s.run_id);
+ALTER TABLE chamvi_checkpoints VALIDATE CONSTRAINT "FK_4aac9035497a94deb8cdb39062e";
+ALTER TABLE chamvi_steps VALIDATE CONSTRAINT "FK_ec83b59c000dc26e022836e98b7";
+```
+
+chamvi never runs these itself; a validated constraint changes nothing for the engine.
+
+`pendingMigrations(dataSource)` resolves the names of the migrations not run yet, in order, without writing anything (it never creates TypeORM's `migrations` table); `chamvi start --check` uses it to refuse a database a start with `CHAMVI_MIGRATE=false` could not run on (with the default `true` a start migrates, so the check passes).
 
 ## Tables
 
 | Table | Holds | Keys and indexes |
 |---|---|---|
-| `chamvi_runs` | Runs; JSON columns for trigger, output, error, usage, subtree usage, wait point and `taint`; the run's `address` in the `thread` column; claim owner and expiry; the conversation binding; `parent_run_id` | PK `id` (uuid v7); `(agent, status, concurrency_key)`; `(status, created_at, id)`; `conversation_scope_id`; `parent_run_id` (FK to `id`) |
-| `chamvi_steps` | Append-only steps | PK `id` (bigint); `(run_id, step_index)` |
-| `chamvi_checkpoints` | The latest checkpoint per run | PK `id`; unique `run_id`; `conversation_scope_id` |
-| `chamvi_conversations` | Conversation identities, generation, active owner and its snapshot | PK `id` (uuid v7); unique `identity_key` (the identity's sha256); `active_run_id` |
-| `chamvi_conversation_items` | Transcript items and the send journal | PK `id` (bigint); unique `(scope_id, generation, item_id)`; `(scope_id, generation, created_at, id)`; `run_id` |
-| `chamvi_conversation_notes` | Explicit notes | PK `id`; unique `(scope_id, generation, key)`; `expires_at`; `run_id` |
-| `chamvi_conversation_operations` | Note operation receipts | PK `id`; unique `(scope_id, generation, operation_id)`; `(scope_id, created_at, operation_id)`; `run_id` |
-| `chamvi_idempotency_keys` | Intake keys | PK `id`; unique `(scope, key)`; `expires_at` |
-| `chamvi_locks` | Keyed leases | PK `id`; unique `key`; `expires_at` |
-| `chamvi_effects` | Recorded effect results | PK `id`; unique `key` |
-| `chamvi_kv` | Agent key-value state | PK `id`; unique `(agent, key)`, `key` `COLLATE "C"` |
-| `chamvi_docs` | Agent document collections | PK `id`; unique `(agent, collection, document_id)`; GIN index on `doc` |
-| `chamvi_artifacts` | Artifact metadata and bytes (`data` `bytea`) | PK `id` (uuid v7); unique `(run_id, key)` (the private write key); `run_id`, with no foreign key because attachments are stored before their run |
-| `chamvi_agent_revisions` | One revision marker per folder agent: `hash` varchar(128), `changed_at` | PK `id`; unique `agent` varchar(64) `COLLATE "C"` |
-| `chamvi_connections`, `chamvi_connection_entries` | Sealed connection entries and the key that wraps them | PK `id`; unique `name`, unique `(connection_id, key)` (foreign key `ON DELETE CASCADE`) |
-
-Every table has a single `id` primary key, uuid v7 except the bigint `id` of the append-only steps and conversation items. What identifies a row to the store is the unique key listed, and an upsert overwrites its other columns but keeps the stored `id`. A value that is not a UUID is simply not found by `findOne`, `read` or `find({ ids })` (and a step, checkpoint or conversation turn of such a run id fails with `RunNotFoundError`), never a Postgres error.
+| `chamvi_runs` | Runs; JSON columns for trigger, output, error, usage, subtree usage, wait point and `taint`; the run's `address` in the `thread` column; claim owner and expiry; the conversation binding; `parent_run_id` | PK `id` (`COLLATE "C"`); `(agent, status, concurrency_key)`; `(status, created_at, id)`; `conversation_scope_id`; `parent_run_id` (FK to `id`) |
+| `chamvi_steps` | Append-only steps | `(run_id, step_index)` |
+| `chamvi_checkpoints` | The latest checkpoint per run | PK `run_id`; `conversation_scope_id` |
+| `chamvi_conversations` | Conversation identities, generation, active owner and its snapshot | PK `id` (`COLLATE "C"`) |
+| `chamvi_conversation_items` | Transcript items and the send journal | PK `seq`; unique `(scope_id, generation, id)`; `(scope_id, generation, created_at, seq)`; `run_id` |
+| `chamvi_conversation_notes` | Explicit notes | PK `(scope_id, generation, key)`; `expires_at`; `run_id` |
+| `chamvi_conversation_operations` | Note operation receipts | PK `(scope_id, generation, id)`; `(scope_id, created_at, id)`; `run_id` |
+| `chamvi_idempotency_keys` | Intake keys | PK `(scope, key)`; `expires_at` |
+| `chamvi_locks` | Keyed leases | PK `key`; `expires_at` |
+| `chamvi_effects` | Recorded effect results | PK `key` |
+| `chamvi_kv` | Agent key-value state | PK `(agent, key)`, `key` `COLLATE "C"` (migration `1792540800000-kv-key-collation.ts`) |
+| `chamvi_docs` | Agent document collections | PK `(agent, collection, id)`; GIN index on `doc` |
+| `chamvi_artifacts` | Artifact metadata and bytes (`data` `bytea`) | PK `id`; `run_id` |
+| `chamvi_agent_revisions` | One revision marker per folder agent: `hash` varchar(128), `changed_at` | PK `agent` varchar(64) `COLLATE "C"` (migration `1792627200000-agent-revisions.ts`) |
 
 Conversation rows, active owners, transcript items, notes and operation receipts use foreign keys to their local runs and identities. Steps and checkpoints also require an existing run. Use the same DataSource for every built-in TypeORM role; these relationships do not create a transaction spanning run dispatch, conversation mutation and generic effects. See [Conversation memory](/guide/conversations).
 
@@ -64,8 +94,7 @@ Conversation rows, active owners, transcript items, notes and operation receipts
   - `runs.claim` and `runs.renewClaim`: a conditional update (`UPDATE ... WHERE ...`) checked by its affected-row count.
   - The `runs.update` guards: a conditional update with `RETURNING *`; when it matches no row, the store reads the run to throw `RunNotFoundError` or `InvalidRunStateError`.
   - `checkpoints.save`: an insert with `orUpdate()` and the overwrite condition `step_index <=` the new index.
-  - `artifacts.insert`: an insert with `orIgnore()` returning `id`; a taken `id` and a taken `(run_id, key)` both keep the stored artifact.
-  - `artifacts.save`: an upsert on `(run_id, key)` that replaces media type, filename, size and bytes and keeps the stored `id`, `agent` and `created_at`.
+  - `artifacts.insert`: an insert with `orIgnore()` returning `id`.
   - `agentRevisions.save`: an upsert on `agent`. The marker needs no atomic compare: the engine reads and writes it under the store lock `agents:<name>`.
 - **Conversation transactions.** Conversation ownership and journal changes use transactions and a `FOR NO KEY UPDATE` lock on the conversation row rather than the single-statement pattern above (the row is never deleted and its key never changes, so the lock does not block the `KEY SHARE` locks of child-row foreign key checks).
 - **Missing runs.** A step, checkpoint or conversation turn of a run that does not exist fails the foreign key; the store reports it as `RunNotFoundError`, like `createMemoryStore()`.
@@ -86,7 +115,7 @@ Expired idempotency keys and locks never block anyone, but they stay in their ta
 - **Opaque values are JSON.** A run's `output`, step `input`/`output`/`error`, checkpoint messages, effect results and state lose `Date`, `undefined` and `Map` fidelity, and a typed array such as `Uint8Array` comes back as an object keyed by index. A `BigInt` or a circular structure makes the write throw a `TypeError`.
 - **NUL characters and lone surrogates become U+FFFD** in opaque values, keys and strings alike, because `jsonb` cannot hold them.
 - **Artifact bytes are `bytea`**, never selected by `findOne` or `find`, and come back from `read` as a plain `Uint8Array`. Postgres caps a `bytea` value at 1 GB and the whole value travels in one query, so keep artifacts small enough for memory. Nothing purges artifacts yet.
-- **Identifiers have length limits** (`createMemoryStore()` has none): `concurrencyKey`, `address`, claim owners, step names, document collections and document ids 255; idempotency, lock, effect and state keys 512; idempotency scopes 1024 (`<agent>:<source>:<kind>:<id>` with the invoker URI-encoded, leaving about 950 characters for the encoded `kind` and `id`). A longer value makes the write fail with the driver's `value too long` error, so validate user-supplied keys before they reach `dispatch` (a rejected run with an `idempotencyKey` keeps its key reserved until the key expires).
+- **Identifiers have length limits** (`createMemoryStore()` has none): run and artifact ids 128 characters; `concurrencyKey`, `address`, claim owners, step names, document collections and document ids 255; idempotency, lock, effect and state keys 512; idempotency scopes 1024 (`<agent>:<source>:<kind>:<id>` with the invoker URI-encoded, leaving about 950 characters for the encoded `kind` and `id`). A longer value makes the write fail with the driver's `value too long` error, so validate user-supplied keys before they reach `dispatch` (a rejected run with an `idempotencyKey` keeps its key reserved until the key expires).
 - **`null` in an optional property reads back as absent:** a run `output` of `null`, and a step `input`, `output` or `error` of `null`, are stored as SQL `NULL`. `effects.save(key, undefined)` reads back `{ result: null }` and `upsertDocument(..., undefined)` reads back `doc: null`.
-- **`findDocuments` `where` uses `jsonb` containment (`@>`).** Primitive values match by top-level equality; a nested object or array matches by containment, where `createMemoryStore()` never matches. A key whose value is `undefined` matches documents that lack the key, as in `createMemoryStore()`. Documents come back ordered by `document_id`, not by insertion.
-- **`runs.find` ties** on `createdAt` are broken by `id` (uuid order, reversed for `order: 'desc'`); time-ordered ids make that the creation order, as in `createMemoryStore()`.
+- **`findDocuments` `where` uses `jsonb` containment (`@>`).** Primitive values match by top-level equality; a nested object or array matches by containment, where `createMemoryStore()` never matches. A key whose value is `undefined` matches documents that lack the key, as in `createMemoryStore()`. Documents come back ordered by `id`, not by insertion.
+- **`runs.find` ties** on `createdAt` are broken by the byte order of `id` (`COLLATE "C"`, so `'B' < 'a'`, reversed for `order: 'desc'`); identical to `createMemoryStore()` for lowercase ids and UUIDs.
