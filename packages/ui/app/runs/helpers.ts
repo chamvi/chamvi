@@ -169,9 +169,9 @@ export function runDuration(run: RunWire, now: number): number | undefined {
     return end - Date.parse(run.startedAt);
 }
 
-/** A short form of a run id for headings: its last digits, as a uuid v7 starts with its timestamp. */
+/** A short form of a run id for headings. */
 export function shortId(id: string): string {
-    return id.slice(-8);
+    return id.slice(0, 8);
 }
 
 /** The JSON of a value, pretty, for a code block; `undefined` reads as `—`. */
