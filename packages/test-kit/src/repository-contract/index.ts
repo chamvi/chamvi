@@ -6,3 +6,4 @@
  */
 
 export * from './module.ts';
+export { testUuid } from './helpers.ts';
