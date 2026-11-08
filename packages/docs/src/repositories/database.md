@@ -38,8 +38,8 @@ There is one migration so far, the baseline `1794096000000-uuid-baseline.ts` (`U
 | `chamvi_runs` | Runs; JSON columns for trigger, output, error, usage, subtree usage, wait point and `taint`; the run's `address` in the `thread` column; claim owner and expiry; the conversation binding; `parent_run_id` | PK `id` (uuid v7); `(agent, status, concurrency_key)`; `(status, created_at, id)`; `conversation_scope_id`; `parent_run_id` (FK to `id`) |
 | `chamvi_steps` | Append-only steps | PK `id` (bigint); `(run_id, step_index)` |
 | `chamvi_checkpoints` | The latest checkpoint per run | PK `id`; unique `run_id`; `conversation_scope_id` |
-| `chamvi_conversations` | Conversation identities, generation, active owner and its snapshot | PK `id` (uuid v7); unique `identity_key` (the identity's sha256); `active_run_id` |
-| `chamvi_conversation_items` | Transcript items and the send journal | PK `id` (bigint); unique `(scope_id, generation, item_id)`; `(scope_id, generation, created_at, id)`; `run_id` |
+| `chamvi_conversations` | Conversation identities, generation, active owner and its snapshot | PK `id` (uuid v7); unique `key` (the identity's sha256); `active_run_id` |
+| `chamvi_conversation_items` | Transcript items and the send journal | PK `id` (bigint); unique `(scope_id, generation, key)`; `(scope_id, generation, created_at, id)`; `run_id` |
 | `chamvi_conversation_notes` | Explicit notes | PK `id`; unique `(scope_id, generation, key)`; `expires_at`; `run_id` |
 | `chamvi_conversation_operations` | Note operation receipts | PK `id`; unique `(scope_id, generation, operation_id)`; `(scope_id, created_at, operation_id)`; `run_id` |
 | `chamvi_idempotency_keys` | Intake keys | PK `id`; unique `(scope, key)`; `expires_at` |
