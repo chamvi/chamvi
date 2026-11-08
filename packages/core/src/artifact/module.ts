@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createHash, randomUUID } from 'node:crypto';
+import { uuidv7 } from 'uuidv7';
 import type { IClock } from '../clock/index.ts';
 import { InvalidRunStateError } from '../errors/index.ts';
 import type { IArtifactRepository } from '../repository/types.ts';
@@ -18,21 +18,14 @@ import type {
     IRunArtifacts,
 } from './types.ts';
 
-/**
- * Stores `input` (validated already) as an artifact of the run under `id`
- * (default a random UUID). The store's insert-if-absent decides a race: when
- * an artifact of this run already holds `id`, that stored artifact is
- * returned, so the caller never names metadata the store does not hold.
- */
-export async function storeArtifact(
-    store: IArtifactRepository,
+/** The metadata of `input` as a new artifact of the run, under a fresh UUID v7. */
+function createArtifact(
     run: { id: string; agent: string },
     input: ArtifactInput,
     createdAt: Date,
-    id: string = randomUUID(),
-): Promise<Artifact> {
-    const artifact: Artifact = {
-        id,
+): Artifact {
+    return {
+        id: uuidv7(),
         runId: run.id,
         agent: run.agent,
         mediaType: input.mediaType,
@@ -40,39 +33,34 @@ export async function storeArtifact(
         size: input.data.byteLength,
         createdAt,
     };
+}
 
-    if (await store.insert(artifact, input.data)) {
+/**
+ * Stores `input` (validated already) as an artifact of the run, optionally
+ * under a private `key`. The store's insert-if-absent decides a race: when
+ * the run already holds `key`, that stored artifact is returned, so the
+ * caller never names metadata the store does not hold.
+ */
+export async function storeArtifact(
+    store: IArtifactRepository,
+    run: { id: string; agent: string },
+    input: ArtifactInput,
+    createdAt: Date,
+    key?: string,
+): Promise<Artifact> {
+    const artifact = createArtifact(run, input, createdAt);
+
+    if (await store.insert(artifact, input.data, key)) {
         return artifact;
     }
 
-    const stored = await store.findOne(id);
+    const stored = key === undefined ? undefined : await store.findOneByKey(run.id, key);
 
-    if (stored?.runId !== run.id) {
-        throw new InvalidRunStateError(`The artifact id "${id}" belongs to another run.`);
+    if (!stored) {
+        throw new InvalidRunStateError(`The artifact "${artifact.id}" could not be stored for run "${run.id}".`);
     }
 
     return stored;
-}
-
-/**
- * The ids of a dispatch's attachments: `<runId>.<index>`, the index
- * zero-padded to one width for the whole dispatch (at least 4 digits), so
- * the listing order (createdAt, then id) is the input order and a
- * concurrent healer of the same run writes to the same ids.
- */
-export function attachmentIds(runId: string, count: number): string[] {
-    const width = Math.max(4, String(Math.max(count - 1, 0)).length);
-
-    return Array.from({ length: count }, (_, i) => `${runId}.${String(i).padStart(width, '0')}`);
-}
-
-/**
- * The id of a run's artifact stored under `key` (`artifacts.put({ key })`):
- * `<runId>.k.<the first 32 hex digits of sha256(key)>`. It never matches an
- * attachment id (`<runId>.<digits>`) and fits the stores' id width.
- */
-export function keyedArtifactId(runId: string, key: string): string {
-    return `${runId}.k.${createHash('sha256').update(key).digest('hex').slice(0, 32)}`;
 }
 
 /** The artifacts of one run, as tools get them. */
@@ -104,15 +92,7 @@ export function createGuardedRunArtifacts(
                 return storeArtifact(store, run, input, clock.now());
             }
 
-            return store.save({
-                id: keyedArtifactId(run.id, input.key),
-                runId: run.id,
-                agent: run.agent,
-                mediaType: input.mediaType,
-                ...(input.filename === undefined ? {} : { filename: input.filename }),
-                size: input.data.byteLength,
-                createdAt: clock.now(),
-            }, input.data);
+            return store.save(createArtifact(run, input, clock.now()), input.data, `tool:${input.key}`);
         },
         async get(id) {
             const artifact = await store.findOne(id);

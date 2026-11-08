@@ -23,9 +23,9 @@ export type Artifact = {
 export type ArtifactInput = {
     /**
      * `artifacts.put()` only (a dispatch attachment takes none): a stable name
-     * within the run, 1 to 255 characters without NUL. The id is derived from
-     * run and key (`keyedArtifactId()`), so a repeated put with that key
-     * replaces the artifact. The key itself is not stored.
+     * within the run, 1 to 255 characters without NUL. A repeated put with that
+     * key replaces the artifact and keeps its id. The key is private to the
+     * store and never part of an `Artifact`.
      */
     key?: string;
     /** `type/subtype`, e.g. `image/png`. */
@@ -50,8 +50,8 @@ export type ArtifactFilePart = Extract<
 
 export interface IRunArtifacts {
     /**
-     * Stores a file as an artifact of the run (with `key`: under the id derived
-     * from run and key, replacing an artifact stored with that key before).
+     * Stores a file as an artifact of the run (with `key`: replacing an artifact
+     * stored with that key before and keeping its id).
      * Throws ValidationError for an invalid input.
      */
     put(input: ArtifactInput): Promise<Artifact>;

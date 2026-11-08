@@ -47,6 +47,7 @@ afterEach(() => {
     engines.length = 0;
 });
 
+const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
 const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] });
 
 const PNG = new Uint8Array([137, 80, 78, 71]);
@@ -156,7 +157,7 @@ describe('attachments at dispatch', () => {
 
         expect(listed).toEqual(run.trigger.attachments);
         expect(run.trigger.attachments?.[0]).toEqual({
-            id: `${runId}.0000`,
+            id: expect.stringMatching(UUID_V7),
             runId,
             agent: 'vision',
             mediaType: 'image/png',
@@ -180,18 +181,24 @@ describe('attachments at dispatch', () => {
         const listed = await ctx.store.artifacts.find(runId);
 
         expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
-        expect(listed.map((a) => a.id)).toEqual(attachments.map((_, i) => `${runId}.${String(i).padStart(4, '0')}`));
     });
 
-    it('keeps input order beyond 10000 attachments (the index widens for the whole dispatch)', async () => {
+    it('lists 50 attachments of one dispatch in input order', async () => {
         const ctx = setup([text('ok')]);
-        const attachments = Array.from({ length: 10_001 }, () => ({ mediaType: 'text/plain', data: new Uint8Array([1]) }));
+        const attachments = Array.from({ length: 50 }, (_, i) => ({
+            mediaType: 'text/plain',
+            filename: `f${i}.txt`,
+            data: new Uint8Array([i]),
+        }));
         const { runId } = await ctx.engine.dispatch(env({ attachments }));
         const listed = await ctx.store.artifacts.find(runId);
 
-        expect(listed[0]!.id).toBe(`${runId}.00000`);
-        expect(listed.at(-1)!.id).toBe(`${runId}.10000`);
-        expect(listed.map((a) => a.id)).toEqual((await ctx.store.runs.findOne(runId))!.trigger.attachments!.map((a) => a.id));
+        expect(runId).toMatch(UUID_V7);
+        expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
+
+        for (const artifact of listed) {
+            expect(artifact.id).toMatch(UUID_V7);
+        }
     });
 
     it('leaves no extra artifacts when two healers of one key race', async () => {
