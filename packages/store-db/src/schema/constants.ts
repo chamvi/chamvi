@@ -48,3 +48,5 @@ export const STORE_ENTITIES = [
 export const STORE_MIGRATIONS = [UuidBaseline1794096000000];
 
 export const MIGRATION_LOCK_NAME = 'chamvi:migrations';
+
+export const STORE_LEGACY_SCHEMA_CODE = 'store_legacy_schema';

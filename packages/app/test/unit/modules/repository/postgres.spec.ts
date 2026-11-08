@@ -241,7 +241,7 @@ describePostgres('storeModule on Postgres', () => {
         const seed = new DataSource({ type: 'postgres', url });
 
         await seed.initialize();
-        await seed.query('CREATE TABLE "chamvi_checkpoints" ("id" int)');
+        await seed.query('CREATE TABLE "IDX_e7686bb29a31182711655bf5bb" ("id" int)');
         await seed.destroy();
 
         const { harness } = build({ env: { DATABASE_URL: url } });
@@ -249,7 +249,7 @@ describePostgres('storeModule on Postgres', () => {
 
         expect(error).toBeInstanceOf(QueryFailedError);
         expect(error).toMatchObject({ driverError: { code: '42P07' } });
-        expect((error as Error).message).toMatch(/chamvi_checkpoints/);
+        expect((error as Error).message).toMatch(/IDX_e7686bb29a31182711655bf5bb/);
         expect(harness.container.resolve(AppToken.DATA_SOURCE).isInitialized).toBe(false);
         expect(harness.container.has(AppToken.STORE)).toBe(false);
     });
@@ -259,7 +259,7 @@ describePostgres('storeModule on Postgres', () => {
         const seed = new DataSource({ type: 'postgres', url });
 
         await seed.initialize();
-        await seed.query('CREATE TABLE "chamvi_checkpoints" ("id" int)');
+        await seed.query('CREATE TABLE "IDX_e7686bb29a31182711655bf5bb" ("id" int)');
         await seed.destroy();
 
         const { harness } = build({ env: { DATABASE_URL: url } });
@@ -267,7 +267,7 @@ describePostgres('storeModule on Postgres', () => {
 
         expect(error).toBeInstanceOf(QueryFailedError);
         expect(error).toMatchObject({ driverError: { code: '42P07' } });
-        expect((error as Error).message).toBe('relation "chamvi_checkpoints" already exists');
+        expect((error as Error).message).toBe('relation "IDX_e7686bb29a31182711655bf5bb" already exists');
     });
 
     it('a stop after initialize rejects app_stopped, also for a password like "app"', async () => {
@@ -387,6 +387,24 @@ describePostgres('storeModule on Postgres', () => {
         } finally {
             await closeAdmin();
         }
+    });
+
+    it('start --check exits 1 on an old-schema database with CHAMVI_MIGRATE=true', async () => {
+        const url = await createTestDatabaseUrl();
+        const ds = await openAdmin(url);
+
+        try {
+            await ds.query('CREATE TABLE "chamvi_runs" ("id" varchar PRIMARY KEY)');
+        } finally {
+            await closeAdmin();
+        }
+
+        const { harness } = build({ check: true, env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'true' } });
+
+        const error = await harness.setup().then(() => undefined, (e: unknown) => e);
+
+        expect(error).toMatchObject({ code: 'store_legacy_schema' });
+        expect((error as Error).message).toContain('cannot be upgraded in place');
     });
 
     it('check mode on a migrated database passes', async () => {
