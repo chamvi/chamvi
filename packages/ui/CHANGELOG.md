@@ -1,5 +1,32 @@
 # Changelog
 
+## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
+
+
+### Features
+
+* **ui:** pair WhatsApp connections in the dashboard ([#167](https://github.com/chamvi/chamvi/issues/167)) ([7e5191a](https://github.com/chamvi/chamvi/commit/7e5191aa96522022557f25303c3f59fa24cecad9))
+
+
+### Bug Fixes
+
+* distinguish uuid v7 run ids and document the 0.8 upgrade ([#176](https://github.com/chamvi/chamvi/issues/176)) ([bd15f1b](https://github.com/chamvi/chamvi/commit/bd15f1be483dcddcfe7bdada5993e8c0cf3f51ec))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/channel-cron bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/core bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/http bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/test-kit bumped from ^0.7.3 to ^0.8.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/core bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/http bumped from ^0.7.3 to ^0.8.0
+
 ## [0.7.3](https://github.com/chamvi/chamvi/compare/v0.7.2...v0.7.3) (2026-11-05)
 
 
