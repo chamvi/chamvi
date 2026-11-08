@@ -23,6 +23,7 @@ import type {
 } from '@chamvi/core';
 import { In } from 'typeorm';
 import type { DataSource, EntityManager, Repository } from 'typeorm';
+import { uuidv7 } from 'uuidv7';
 import { ConnectionEntity, ConnectionEntryEntity, LockEntity } from '../entities/index.ts';
 import { asValues } from '../repository/helpers.ts';
 import type { DatabaseStoreOptions } from '../repository/types.ts';
@@ -77,12 +78,16 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
         return this.dataSource.getRepository(ConnectionEntryEntity);
     }
 
-    protected async assertExists(name: string): Promise<void> {
+    protected async findIdOrFail(name: string): Promise<string> {
         assertConnectionName(name);
 
-        if (!await this.connections.existsBy({ name })) {
+        const entity = await this.connections.findOne({ select: { id: true }, where: { name } });
+
+        if (!entity) {
             throw new RepositoryNotFoundError('connections');
         }
+
+        return entity.id;
     }
 
     async insert(connection: Connection): Promise<boolean> {
@@ -91,6 +96,7 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
         const result = await this.connections.createQueryBuilder()
             .insert()
             .values(asValues<ConnectionEntity>({
+                id: uuidv7(),
                 name: connection.name,
                 type: connection.type,
                 keyId: connection.keyId,
@@ -149,12 +155,12 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
             assertConnectionEntryKey(key);
         }
 
-        await this.assertExists(name);
+        const connectionId = await this.findIdOrFail(name);
 
         const found = new Map<string, Uint8Array>();
 
         for (const chunk of chunks([...new Set(keys)])) {
-            const entities = await this.entries.findBy({ connectionName: name, key: In(chunk) });
+            const entities = await this.entries.findBy({ connectionId, key: In(chunk) });
 
             for (const entity of entities) {
                 found.set(entity.key, new Uint8Array(entity.value));
@@ -184,6 +190,7 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
             await connections.createQueryBuilder()
                 .insert()
                 .values(asValues<ConnectionEntity>({
+                    id: uuidv7(),
                     name,
                     type: connection.type,
                     keyId: connection.keyId,
@@ -228,24 +235,27 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
                 .update()
                 .set({ updatedAt: this.clock.now() })
                 .where({ name })
-                .returning(['name'])
+                .returning(['id'])
                 .updateEntity(false)
                 .execute();
+            const [row] = touched.raw as { id: string }[];
 
-            if (touched.raw.length !== 1) {
+            if (row === undefined) {
                 throw new RepositoryNotFoundError('connections');
             }
 
             await this.assertLease(manager, fence);
 
+            const connectionId = row.id;
             const entries = manager.withRepository(this.entries);
 
             if (write.clear) {
-                await entries.delete({ connectionName: name });
+                await entries.delete({ connectionId });
             }
 
             const rows = Object.entries(write.set ?? {}).map(([key, value]) => asValues<ConnectionEntryEntity>({
-                connectionName: name,
+                id: uuidv7(),
+                connectionId,
                 key,
                 value: Buffer.from(value),
             }));
@@ -254,13 +264,13 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
                 await entries.createQueryBuilder()
                     .insert()
                     .values(chunk)
-                    .orUpdate(['value'], ['connection_name', 'key'])
+                    .orUpdate(['value'], ['connection_id', 'key'])
                     .updateEntity(false)
                     .execute();
             }
 
             for (const chunk of chunks([...new Set(write.delete ?? [])])) {
-                await entries.delete({ connectionName: name, key: In(chunk) });
+                await entries.delete({ connectionId, key: In(chunk) });
             }
         });
     }

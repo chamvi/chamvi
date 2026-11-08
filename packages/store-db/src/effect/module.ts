@@ -8,6 +8,7 @@
 import { RepositoryNotFoundError } from '@chamvi/core';
 import type { IEffectRepository } from '@chamvi/core';
 import type { DataSource, Repository } from 'typeorm';
+import { uuidv7 } from 'uuidv7';
 import { EffectEntity } from '../entities/index.ts';
 import { asValues } from '../repository/helpers.ts';
 
@@ -39,6 +40,10 @@ export class DatabaseEffectRepository implements IEffectRepository {
     }
 
     async save(key: string, result: unknown): Promise<void> {
-        await this.effects.upsert(asValues<EffectEntity>({ key, result: result ?? null }), ['key']);
+        await this.effects.upsert(asValues<EffectEntity>({
+            id: uuidv7(), 
+            key, 
+            result: result ?? null, 
+        }), ['key']);
     }
 }
