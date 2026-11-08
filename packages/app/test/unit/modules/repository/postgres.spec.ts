@@ -407,6 +407,21 @@ describePostgres('storeModule on Postgres', () => {
         expect((error as Error).message).toContain('cannot be upgraded in place');
     });
 
+    it('a start with CHAMVI_MIGRATE=false refuses an old-schema database', async () => {
+        const url = await createTestDatabaseUrl();
+        const ds = await openAdmin(url);
+
+        try {
+            await ds.query('CREATE TABLE "chamvi_runs" ("id" varchar PRIMARY KEY)');
+        } finally {
+            await closeAdmin();
+        }
+
+        const { harness } = build({ env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'false' } });
+
+        await expect(harness.setup()).rejects.toMatchObject({ code: 'store_legacy_schema' });
+    });
+
     it('check mode on a migrated database passes', async () => {
         const url = await createTestDatabaseUrl();
         const first = build({ env: { DATABASE_URL: url } });

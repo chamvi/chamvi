@@ -183,6 +183,19 @@ describe('attachments at dispatch', () => {
         expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
     });
 
+    it('stores 10,001 attachments of one dispatch in input order', async () => {
+        const ctx = setup([text('ok')]);
+        const attachments = Array.from({ length: 10_001 }, (_, i) => ({
+            mediaType: 'text/plain',
+            filename: `f${i}.txt`,
+            data: new Uint8Array([1]),
+        }));
+        const { runId } = await ctx.engine.dispatch(env({ attachments }));
+        const listed = await ctx.store.artifacts.find(runId);
+
+        expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
+    });
+
     it('lists 50 attachments of one dispatch in input order', async () => {
         const ctx = setup([text('ok')]);
         const attachments = Array.from({ length: 50 }, (_, i) => ({

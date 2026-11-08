@@ -17,6 +17,9 @@ export class MemoryArtifactRepository implements IArtifactRepository {
         key?: string;
     }>();
 
+    /** Artifact id by `(runId, key)`, so keyed writes stay direct lookups. */
+    protected keyed = new Map<string, string>();
+
     async insert(artifact: Artifact, data: Uint8Array, key?: string): Promise<boolean> {
         if (this.artifacts.has(artifact.id) || (key !== undefined && this.findEntryByKey(artifact.runId, key))) {
             return false;
@@ -27,6 +30,10 @@ export class MemoryArtifactRepository implements IArtifactRepository {
             data: new Uint8Array(data),
             key,
         });
+
+        if (key !== undefined) {
+            this.keyed.set(this.keyOf(artifact.runId, key), artifact.id);
+        }
 
         return true;
     }
@@ -50,6 +57,7 @@ export class MemoryArtifactRepository implements IArtifactRepository {
             data: new Uint8Array(data),
             key,
         });
+        this.keyed.set(this.keyOf(artifact.runId, key), next.id);
 
         return copy(next);
     }
@@ -101,6 +109,12 @@ export class MemoryArtifactRepository implements IArtifactRepository {
     }
 
     protected findEntryByKey(runId: string, key: string) {
-        return this.artifacts.values().find((entry) => entry.key === key && entry.artifact.runId === runId);
+        const id = this.keyed.get(this.keyOf(runId, key));
+
+        return id === undefined ? undefined : this.artifacts.get(id);
+    }
+
+    protected keyOf(runId: string, key: string): string {
+        return JSON.stringify([runId, key]);
     }
 }

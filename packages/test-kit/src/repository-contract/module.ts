@@ -79,8 +79,8 @@ export function describeRepositoryContract(
                 messages: [],
                 createdAt: at,
             })).rejects.toBeInstanceOf(RunNotFoundError);
-            expect(await store.steps.find('missing')).toEqual([]);
-            expect(await store.checkpoints.findOne('missing')).toBeUndefined();
+            expect(await store.steps.find(testUuid('missing'))).toEqual([]);
+            expect(await store.checkpoints.findOne(testUuid('missing'))).toBeUndefined();
 
             if (!store.conversations) {
                 return;
