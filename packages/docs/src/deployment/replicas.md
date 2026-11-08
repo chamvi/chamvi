@@ -7,7 +7,7 @@ Running more than one replica of an agent app relies on the store. Core, the Typ
 This upgrade requires downtime. **Do not run old and new runtimes against the same store**, even temporarily during a rolling deployment.
 
 1. Stop **all old ingress, workers and approval pollers** across every replica and scheduled job. Wait for the processes to exit; draining executions alone is not sufficient.
-2. With all old processes stopped, apply `ConversationsRunTaint1792713600000` (or the equivalent custom-store migration and unfinished-run backfill). Suspend run-job CronJobs too: a pod they start at the old version creates untainted runs after the backfill.
+2. With all old processes stopped, apply the custom-store migration and unfinished-run backfill. `@chamvi/store-db` needs neither: its baseline creates `chamvi_runs.taint`, and a database from before the [UUID baseline](/guide/upgrading#upgrading-to-0-8) is replaced by a new one. Suspend run-job CronJobs too: a pod they start at the old version creates untainted runs after the backfill.
 3. Start **only new binaries** against the migrated store. Resumed legacy unfinished runs are conservatively tainted and may require outbound approval.
 
 Old approval pollers do not understand the safe notification field: they can post a new gate's private argument-bearing `waiting.body` to its source channel. Old ingress and workers can create or checkpoint untainted runs after the one-time backfill. Shared claims and notification locks do not prevent either version-compatibility problem. See [Upgrading to 0.4](/guide/upgrading#upgrading-to-0-4) for the full procedure and [Writing a repository](/repositories/writing-a-repository#persist-run-taint) for the persistence requirements.
