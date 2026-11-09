@@ -148,6 +148,28 @@ describe('process_files', () => {
         expect(get).not.toHaveBeenCalled();
     });
 
+    it('enforces the aggregate limit on imported bytes when a keyed artifact grows after the listing', async () => {
+        const ctx = toolContext('replaced');
+        const put = (key: string, value: string) => ctx.artifacts.put({
+            key,
+            mediaType: 'text/plain',
+            data: text(value),
+        });
+        const a = await put('a', '12');
+        const b = await put('b', '34');
+        const list = ctx.artifacts.list.bind(ctx.artifacts);
+
+        vi.spyOn(ctx.artifacts, 'list').mockImplementation(async () => {
+            const value = await list();
+
+            await put('a', '1234');
+            await put('b', '5678');
+
+            return value;
+        });
+        await expect(callTool(fileTools({ maxBytes: 5 }), { command: 'cat a b', inputs: [{ artifactId: a.id, path: 'a' }, { artifactId: b.id, path: 'b' }] }, ctx)).rejects.toThrow(ValidationError);
+    });
+
     it.each(['missing', 'directory', 'oversize'])('preflights every output with no partial publication: %s', async (kind) => {
         const ctx = toolContext('outputs');
         const command = {

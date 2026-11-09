@@ -113,6 +113,9 @@ export function processFilesTool(options: FileToolsOptionsNormalized): Tool<Proc
                     assertSize(size, options.maxBytes);
                 }
 
+                // A keyed put can replace an artifact's bytes after the listing.
+                size = 0;
+
                 for (const selected of inputs) {
                     const loaded = await context.artifacts.get(selected.artifactId);
 
@@ -120,6 +123,8 @@ export function processFilesTool(options: FileToolsOptionsNormalized): Tool<Proc
                         throw new ValidationError(`Artifact ${selected.artifactId} is unavailable.`);
                     }
 
+                    size += loaded.data.byteLength;
+                    assertSize(size, options.maxBytes);
                     files[`/workspace/${selected.path}`] = loaded.data;
                 }
             }
