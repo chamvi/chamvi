@@ -8,7 +8,6 @@
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import type {
     ConnectionField,
-    ConnectionFieldKind,
     ConnectionFieldSource,
     ConnectionState,
     ConnectionValue,
@@ -29,14 +28,26 @@ function define<T>(target: Record<string, T>, key: string, value: T): void {
     });
 }
 
-/** Types a raw variable by the field's kind; an invalid value is refused naming the variable, never echoing it. */
-function coerceVariable(kind: ConnectionFieldKind, variable: string, value: string): ConnectionValue {
+/**
+ * Types a raw variable by the field's kind; an invalid value is refused
+ * naming the variable, never echoing it. Undefined for a list without items,
+ * which counts as unset.
+ */
+function coerceVariable(field: ConnectionField, variable: string, value: string): ConnectionValue | undefined {
+    const { kind, options } = field;
+
     if (kind === 'number') {
         if (!/^\d+$/.test(value)) {
             throw new InvalidAgentDefinitionError(`The variable ${variable} must be a whole number.`);
         }
 
-        return Number(value);
+        const number = Number(value);
+
+        if (!Number.isSafeInteger(number)) {
+            throw new InvalidAgentDefinitionError(`The variable ${variable} must be at most ${Number.MAX_SAFE_INTEGER}.`);
+        }
+
+        return number;
     }
 
     if (kind === 'boolean') {
@@ -48,7 +59,13 @@ function coerceVariable(kind: ConnectionFieldKind, variable: string, value: stri
     }
 
     if (kind === 'list') {
-        return value.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
+        const items = value.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
+
+        return items.length > 0 ? items : undefined;
+    }
+
+    if (kind === 'select' && options && !options.includes(value)) {
+        throw new InvalidAgentDefinitionError(`The variable ${variable} must be one of ${options.join(', ')}.`);
     }
 
     return value;
@@ -62,10 +79,11 @@ function resolveField(field: ConnectionField, input: ResolveConnectionInput): Re
     const variable = field.env?.(input.name);
 
     if (variable !== undefined) {
-        const value = input.readVariable(variable);
+        const raw = input.readVariable(variable);
+        const value = raw === undefined || raw === '' ? undefined : coerceVariable(field, variable, raw);
 
-        if (value !== undefined && value !== '') {
-            return { value: coerceVariable(field.kind, variable, value), source: { kind: 'env', variable } };
+        if (value !== undefined) {
+            return { value, source: { kind: 'env', variable } };
         }
     }
 
@@ -78,7 +96,7 @@ function resolveField(field: ConnectionField, input: ResolveConnectionInput): Re
 
 /**
  * Resolves each field of a connection: a preset first, then its variable (an
- * empty one is unset, the rest typed by the field's kind), then the stored
+ * empty one or a list without items is unset, the rest typed by the field's kind), then the stored
  * value, recording the source that won.
  * A required field missing while any field came from the environment is a
  * deployment error and throws InvalidAgentDefinitionError naming the variable,
