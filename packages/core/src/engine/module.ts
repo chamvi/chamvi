@@ -38,6 +38,7 @@ import type {
     ConversationTarget,
     IConversations,
 } from '../conversation/types.ts';
+import { CLOCK_KEY } from '../clock/context.ts';
 import { systemClock } from '../clock/index.ts';
 import type { IClock } from '../clock/index.ts';
 import { contextKeyName, isContextKey } from '../context/helpers.ts';
@@ -254,6 +255,7 @@ export class Engine implements IEngine {
             agentModel: (name: string) => this.agents.get(name)?.definition.model,
         } satisfies ModelContext);
 
+        this.provided.set(CLOCK_KEY, this.clock);
         this.provided.set(DISPATCH_CONTEXT, this.createDispatchHost());
 
         for (const agent of opts.agents) {
