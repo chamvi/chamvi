@@ -88,9 +88,9 @@ describe('interpreter isolation', () => {
     });
 
     it('reports heap exhaustion as a failed command instead of taking the host down', async () => {
-        const ctx = toolContext('heap');
-        const inputs = await select(ctx, { list: '- a\n'.repeat(1_300_000) });
-        const result = await callTool(fileTools(), { command: 'yq -o json . list', inputs }, ctx);
+        // A few large strings reach the limit fast; many small objects spend it in garbage collection.
+        const command = 's=$(printf "%0100000d" 0); declare -a a; for i in $(seq 1 20000); do a[i]="$s$i"; done';
+        const result = await callTool(fileTools(), { command }, toolContext('heap'));
 
         expect(result.exitCode).toBe(137);
         expect(result.stderr).toMatch(/memory/);

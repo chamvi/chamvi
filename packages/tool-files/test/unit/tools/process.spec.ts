@@ -225,7 +225,7 @@ describe('process_files', () => {
     });
 
     it.each(['while :; do :; done', 'awk "BEGIN { while (1) {} }"', "sed ':a;ba' <<< x"])('bounds runaway work/output: %s', async (command) => {
-        const result = await callTool(fileTools(), { command }, toolContext('limit'));
+        const result = await callTool(fileTools({ timeoutMs: 2000 }), { command }, toolContext('limit'));
 
         expect(result.exitCode).not.toBe(0);
         expect(Buffer.byteLength(result.stdout) + Buffer.byteLength(result.stderr)).toBeLessThanOrEqual(65_536);
