@@ -6,7 +6,7 @@
  */
 
 import { ValidationError } from '@chamvi/core';
-import { CALCULATE_MAX_LENGTH } from './constants.ts';
+import { CALCULATE_MAX_LENGTH, CALCULATE_PRECISION } from './constants.ts';
 import { parseTokens } from './parse.ts';
 import { tokenize } from './tokenize.ts';
 
@@ -23,5 +23,5 @@ export function evaluateExpression(expression: string): string {
         throw new ValidationError(`expression must be at most ${CALCULATE_MAX_LENGTH} characters.`);
     }
 
-    return parseTokens(tokenize(expression)).toFixed();
+    return parseTokens(tokenize(expression)).toSignificantDigits(CALCULATE_PRECISION).toFixed();
 }

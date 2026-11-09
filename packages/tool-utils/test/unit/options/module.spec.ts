@@ -40,4 +40,8 @@ describe('options', () => {
         expect(Object.keys(utilityTools({ include: ['current_time'] }))).toEqual(['current_time']);
         expect(Object.keys(utilityTools({ include: ['calculate'] }))).not.toContain('current_time');
     });
+
+    it('refuses a fixed offset as a zone', () => {
+        expect(() => normalizeOptions({ timezone: '+05:00', env: {} })).toThrow(/timezone/);
+    });
 });

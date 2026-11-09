@@ -89,4 +89,13 @@ describe('date_add', () => {
             months: -1,
         })).resolves.toMatchObject({ date: '2027-05-15' });
     });
+
+    it('adds years and months as one calendar amount', async () => {
+        await expect(add({
+            date: '2024-02-29',
+            years: 1,
+            months: 1,
+        })).resolves.toMatchObject({ date: '2025-03-29' });
+        await expect(add({ date: '2024-02-29', months: 13 })).resolves.toMatchObject({ date: '2025-03-29' });
+    });
 });

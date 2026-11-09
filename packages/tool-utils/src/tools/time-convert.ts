@@ -23,7 +23,7 @@ export function timeConvertTool(options: UtilityToolsOptionsNormalized): Tool<Ti
     return defineTool<TimeConvertInput, TimeConvertResult>({
         description: 'Convert a wall-clock time from one IANA time zone to another, for "what is 15:00 New York time in Berlin". ' +
             `from is the zone dateTime is read in (default ${options.timezone}); an instant with an offset or Z carries its own and must not be combined with from. ` +
-            'A time that does not exist or repeats on a daylight saving change resolves to the later valid time.',
+            'A time skipped by a daylight saving change moves to the later valid time; a repeated time means its earlier occurrence.',
         inputSchema: objectSchema<TimeConvertInput>({
             dateTime: { type: 'string', description: 'YYYY-MM-DDTHH:MM[:SS], YYYY-MM-DD or an instant with an offset or Z.' },
             from: { type: 'string', description: `The IANA zone dateTime is in. Default ${options.timezone}.` },

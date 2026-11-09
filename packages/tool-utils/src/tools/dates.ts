@@ -11,7 +11,7 @@ import type { ParsedDate } from './types.ts';
 import { resolveZone } from './zone.ts';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-const OFFSET = /T.*(?:Z|[+-]\d{2}(?::?\d{2})?)(?:\[[^\]]*\])?$/i;
+const OFFSET = /T.*(?:Z|[+-]\d{2}(?::?\d{2}(?::?\d{2}(?:[.,]\d{1,9})?)?)?)(?:\[[^\]]*\])?$/i;
 
 /**
  * `YYYY-MM-DD` (start of that day), `YYYY-MM-DDTHH:MM[:SS]` or an instant
@@ -34,6 +34,11 @@ export function parseDateInput(value: string, field: string, zone: string): Pars
                 dateOnly: true,
                 hasOffset: false,
             };
+        }
+
+        if (value.includes('[')) {
+            // Temporal would apply a calendar and silently ignore a zone: neither is an accepted form
+            throw new RangeError('annotation');
         }
 
         return {

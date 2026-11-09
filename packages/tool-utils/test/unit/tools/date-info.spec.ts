@@ -40,4 +40,9 @@ describe('date_info', () => {
 
         await expect(info({}, clock)).resolves.toMatchObject({ date: '2026-01-15', weekday: 'Thursday' });
     });
+
+    it('refuses a calendar or zone annotation', async () => {
+        await expect(info({ date: '2026-01-15T12:00[u-ca=hebrew]' })).rejects.toThrow(/date/);
+        await expect(info({ date: '2026-01-15T12:00[Asia/Tokyo]' })).rejects.toThrow(/date/);
+    });
 });

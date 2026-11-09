@@ -28,6 +28,7 @@ import {
 import type {
     AgentDefinition,
     ContextKey,
+    IClock,
     IEngine,
     ToolContext,
 } from '@chamvi/core';
@@ -245,11 +246,11 @@ describe('engine.provide', () => {
     });
 
     it('injectClock returns the engine\'s clock inside a tool', async () => {
-        const seen: Date[] = [];
+        const seen: IClock[] = [];
         const read = defineTool({
             inputSchema: z.object({}),
             execute: async (_input, { context }) => {
-                seen.push(injectClock(context).now());
+                seen.push(injectClock(context));
 
                 return 'ok';
             },
@@ -265,7 +266,8 @@ describe('engine.provide', () => {
         const { run } = await runOn(engine, store);
 
         expect(run?.status).toBe('completed');
-        expect(seen).toEqual([clock.now()]);
+        expect(seen).toHaveLength(1);
+        expect(seen[0]).toBe(clock);
     });
 
     it('injectClock throws ContextNotProvidedError on a hand-built context', () => {

@@ -61,4 +61,21 @@ describe('time_convert', () => {
     it('names an unknown to zone', async () => {
         await expect(convert({ dateTime: '2026-01-01T12:00', to: 'Mars/Base' })).rejects.toThrow(/to /);
     });
+
+    it('reads a repeated time as its earlier occurrence', async () => {
+        await expect(convert({
+            dateTime: '2026-10-25T02:30',
+            from: 'Europe/Berlin',
+            to: 'UTC',
+        })).resolves.toMatchObject({ to: { time: '00:30' } });
+    });
+
+    it('honours an offset with seconds', async () => {
+        await expect(convert({ dateTime: '2026-01-01T12:00:00+01:30:45', to: 'UTC' })).resolves.toMatchObject({ to: { date: '2026-01-01', time: '10:29' } });
+        await expect(convert({
+            dateTime: '2026-01-01T12:00:00+01:30:45',
+            from: 'Europe/Berlin',
+            to: 'UTC',
+        })).rejects.toThrow(/from/);
+    });
 });

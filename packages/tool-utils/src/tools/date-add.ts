@@ -65,12 +65,18 @@ export function dateAddTool(options: UtilityToolsOptionsNormalized): Tool<DateAd
             }
 
             try {
-                // one unit at a time: a Duration with mixed signs is a RangeError
+                // Each pair is one amount, so a clamped intermediate date cannot change the result
+                // (Feb 29 plus 1 year and 1 month equals plus 13 months); separate adds allow mixed signs.
+                const steps = [
+                    { months: (amounts.years ?? 0) * 12 + (amounts.months ?? 0) },
+                    { days: (amounts.weeks ?? 0) * 7 + (amounts.days ?? 0) },
+                    { minutes: (amounts.hours ?? 0) * 60 + (amounts.minutes ?? 0) },
+                ];
                 let result = start;
 
-                for (const unit of UNITS) {
-                    if (amounts[unit]) {
-                        result = result.add({ [unit]: amounts[unit] });
+                for (const step of steps) {
+                    if (Object.values(step)[0] !== 0) {
+                        result = result.add(step);
                     }
                 }
 

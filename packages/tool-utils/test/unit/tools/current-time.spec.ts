@@ -84,4 +84,8 @@ describe('current_time', () => {
 
         expect(result.startTime).toBe('2026-01-15T09:30:00+01:00');
     });
+
+    it('refuses a fixed offset as a zone', async () => {
+        await expect(runTool(tools, 'current_time', { timezone: '+05:00' }, { clock: winter() })).rejects.toThrow(/timezone/);
+    });
 });
