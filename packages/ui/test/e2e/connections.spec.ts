@@ -78,6 +78,22 @@ test('a page that needs sign-in returns to itself afterwards', async ({ page }) 
     expect(new URL(page.url()).pathname + new URL(page.url()).search).toBe(`${PAGE_PATH}?tab=a`);
 });
 
+test('Sign out works on a page that wires nothing', async ({ page }) => {
+    const errors = watchErrors(page);
+
+    await page.goto(PAGE_PATH);
+    await signIn(page);
+    await expect(page.getByTestId('demo-page')).toBeVisible();
+    expect(await page.evaluate(() => sessionStorage.getItem('chamvi.token'))).toBe(E2E_TOKEN);
+
+    await page.getByRole('button', { name: 'Sign out' }).click();
+
+    await expect(page.getByRole('heading', { name: 'Sign in' })).toBeVisible();
+    expect(new URL(page.url()).pathname).toBe('/ui/login');
+    expect(await page.evaluate(() => sessionStorage.getItem('chamvi.token'))).toBeNull();
+    expect(errors).toEqual([]);
+});
+
 test('an off-site return path stays in the dashboard', async ({ page }) => {
     await page.goto(`login?redirect=${encodeURIComponent('//evil.example/x')}`);
     await signIn(page);

@@ -23,11 +23,11 @@ const props = defineProps<{
     navigate?: (path: string) => void;
     /** A count on a fixed item, by its key. */
     badges?: Record<string, number>;
+    /** `@sign-out`: a host that listens signs out itself; without one the shell does and goes to the login. */
+    onSignOut?: () => void;
 }>();
 
-const emit = defineEmits<{ signOut: [] }>();
-
-const { config } = useAppContext();
+const { config, session } = useAppContext();
 const {
     pages, 
     types, 
@@ -79,6 +79,17 @@ function follow(event: globalThis.MouseEvent, key: string): void {
 
     event.preventDefault();
     props.navigate(`/${key}`);
+}
+
+async function signOut(): Promise<void> {
+    if (props.onSignOut) {
+        props.onSignOut();
+
+        return;
+    }
+
+    await session.signOut();
+    globalThis.location.replace(`${config.uiBase}/login`);
 }
 
 const displayName = computed(() => props.principal?.name ?? props.principal?.id ?? '');
@@ -170,7 +181,7 @@ const grants = computed(() => {
                             class="icon-btn"
                             title="Sign out"
                             aria-label="Sign out"
-                            @click="emit('signOut')"
+                            @click="signOut"
                         >
                             <NavIcon name="logout" />
                         </button>

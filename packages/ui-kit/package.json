@@ -102,7 +102,6 @@
         "@vuecs/core": "^3.6.1",
         "@vuecs/countdown": "^2.1.2",
         "@vuecs/design": "^1.2.2",
-        "@vuecs/design": "^1.2.2",
         "@vuecs/elements": "^1.5.2",
         "@vuecs/forms": "^5.4.3",
         "@vuecs/icon": "^1.1.2",

@@ -26,7 +26,6 @@ onMounted(async () => {
 
         const returnTo = await session.completeAuthup({ code: pick(route.query.code), state: pick(route.query.state) });
 
-
         // a *-ui page is outside this router: only a full navigation reaches it
         if (isPagePath(returnTo, config.uiBase)) {
             globalThis.location.assign(returnTo);

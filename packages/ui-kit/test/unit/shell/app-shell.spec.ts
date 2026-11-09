@@ -51,6 +51,8 @@ type World = {
     current?: string;
     navigate?: (path: string) => void;
     accounts?: () => unknown;
+    onSignOut?: () => void;
+    signOut?: () => Promise<void>;
 };
 
 let mounted: App | undefined;
@@ -88,11 +90,12 @@ async function mountShell(world: World): Promise<HTMLElement> {
         kind: 'token',
         permissions: world.permissions,
     };
-    const session = { principal: shallowRef(principal) };
+    const session = { principal: shallowRef(principal), signOut: world.signOut ?? (async () => undefined) };
     const app = createApp(defineComponent(() => () => h(AppShell, {
         principal,
         current: world.current,
         navigate: world.navigate,
+        ...(world.onSignOut ? { onSignOut: world.onSignOut } : {}),
     }, {
         default: () => h('p', { id: 'content' }, 'content'),
         ...(world.accounts ? { accounts: world.accounts } : {}),
@@ -206,6 +209,42 @@ describe('AppShell', () => {
 
         expect(navigate).not.toHaveBeenCalled();
         expect(event.defaultPrevented).toBe(false);
+    });
+
+    it('signs out and goes to the login when no host listens', async () => {
+        const replace = vi.fn();
+        const signOut = vi.fn(async () => undefined);
+
+        vi.spyOn(window.location, 'replace').mockImplementation(replace as never);
+
+        const root = await mountShell({ permissions: ['*'], signOut });
+
+        root.querySelector<HTMLButtonElement>('button[aria-label="Sign out"]')!.click();
+        await flush();
+
+        expect(signOut).toHaveBeenCalledOnce();
+        expect(replace).toHaveBeenCalledWith('/ui/login');
+    });
+
+    it('leaves the sign-out to a host that listens', async () => {
+        const replace = vi.fn();
+        const signOut = vi.fn(async () => undefined);
+        const onSignOut = vi.fn();
+
+        vi.spyOn(window.location, 'replace').mockImplementation(replace as never);
+
+        const root = await mountShell({
+            permissions: ['*'],
+            signOut,
+            onSignOut,
+        });
+
+        root.querySelector<HTMLButtonElement>('button[aria-label="Sign out"]')!.click();
+        await flush();
+
+        expect(onSignOut).toHaveBeenCalledOnce();
+        expect(signOut).not.toHaveBeenCalled();
+        expect(replace).not.toHaveBeenCalled();
     });
 
     it('marks the current item and renders no accounts column without the slot', async () => {

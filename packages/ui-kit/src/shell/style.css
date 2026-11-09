@@ -24,6 +24,8 @@
 /* keep the class names the theme emits */
 @source "../node_modules/@vuecs";
 @source "../../../node_modules/@vuecs";
+/* dist/style.css of an installed kit: its @vuecs peers sit beside @chamvi in node_modules */
+@source "../../../@vuecs";
 
 /* class-based dark mode: useColorMode() (App.vue) toggles .dark on <html> */
 @custom-variant dark (&:where(.dark, .dark *));
