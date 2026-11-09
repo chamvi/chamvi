@@ -7,7 +7,7 @@
 
 import { createRouter, createWebHistory } from 'vue-router';
 import type { NavigationGuard, Router, RouterHistory } from 'vue-router';
-import type { UiConfig } from '../../src/config/types.ts';
+import type { UiConfig } from '@chamvi/ui-kit';
 import { RouteName } from './constants.ts';
 
 /**

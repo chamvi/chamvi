@@ -6,9 +6,8 @@
  */
 
 import { isObject } from 'smob';
-import { CONFIG_ELEMENT_ID } from '../../src/config/constants.ts';
-import type { UiConfig } from '../../src/config/types.ts';
-import { DEV_CONFIG } from './constants.ts';
+import { CONFIG_ELEMENT_ID, DEV_CONFIG } from './constants.ts';
+import type { UiConfig } from './types.ts';
 
 function isConfig(value: unknown): value is UiConfig {
     if (!isObject(value)) {

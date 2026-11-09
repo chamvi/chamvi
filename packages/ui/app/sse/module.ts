@@ -5,19 +5,19 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ApiError } from '../api/error.ts';
-import type { RunWire, StepWire } from '../api/types.ts';
 import {
+    ApiError,
     FATAL_STREAM_STATUSES,
     RECONNECT_DELAYS_MS,
-    SETTLED_RUN_STATUSES,
-} from './constants.ts';
-import { sleep as defaultSleep, parseEventStream } from './helpers.ts';
+    sleep as defaultSleep,
+    parseEventStream,
+} from '@chamvi/ui-kit';
+import type { RunWire, SseEvent, StepWire  } from '@chamvi/ui-kit';
+import { SETTLED_RUN_STATUSES } from './constants.ts';
 import type {
     IRunStream,
     RunStreamEvent,
     RunStreamOptions,
-    SseEvent,
 } from './types.ts';
 
 function toRunStreamEvent(event: SseEvent): RunStreamEvent | undefined {

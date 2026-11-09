@@ -8,7 +8,7 @@
 import { shallowRef } from 'vue';
 import { ApiError } from '../api/error.ts';
 import type { MeWire } from '../api/types.ts';
-import type { UiConfig } from '../../src/config/types.ts';
+import type { UiConfig } from '../config/types.ts';
 import { RETURN_STORAGE_KEY, TOKEN_STORAGE_KEY } from './constants.ts';
 import { clearStorage, safeReturnPath } from './helpers.ts';
 import type {

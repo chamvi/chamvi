@@ -10,7 +10,7 @@ import { computed } from 'vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';
 import ScheduleCard from '../components/schedule-card/ScheduleCard.vue';
-import { useAppContext } from '../context/module.ts';
+import { useAppContext } from '@chamvi/ui-kit';
 import { useSchedules } from '../schedules/composables.ts';
 import { groupByAgent } from '../schedules/helpers.ts';
 

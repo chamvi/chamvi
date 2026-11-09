@@ -7,7 +7,7 @@
 
 import type { IApiClient } from '../api/types.ts';
 import type { ISession } from '../auth/types.ts';
-import type { UiConfig } from '../../src/config/types.ts';
+import type { UiConfig } from '../config/types.ts';
 
 /** What every view needs: the config, the API client and the session. */
 export type AppContext = {

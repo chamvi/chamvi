@@ -7,13 +7,13 @@
 
 import { shallowRef, watch } from 'vue';
 import type { Ref } from 'vue';
-import type { ApiError } from '../api/error.ts';
 import type {
+    ApiError,
     DocEntry,
     IApiClient,
     KvEntry,
-} from '../api/types.ts';
-import { asApiError } from '../api/helpers.ts';
+} from '@chamvi/ui-kit';
+import { asApiError } from '@chamvi/ui-kit';
 import { DOC_PAGE_SIZE, KV_PAGE_SIZE } from './constants.ts';
 
 /**

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope, nextTick, ref } from 'vue';
-import type { RunListFilter } from '../../../../app/api/types.ts';
+import type { RunListFilter } from '@chamvi/ui-kit';
 import {
     useRunActivity,
     useRunChildren,

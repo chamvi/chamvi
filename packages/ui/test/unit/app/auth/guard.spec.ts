@@ -7,10 +7,12 @@
 
 import { describe, expect, it } from 'vitest';
 import { createMemoryHistory } from 'vue-router';
-import { createAuthGuard } from '../../../../app/auth/guard.ts';
-import { TOKEN_STORAGE_KEY } from '../../../../app/auth/constants.ts';
-import { createSession } from '../../../../app/auth/module.ts';
-import { DEV_CONFIG } from '../../../../app/config/constants.ts';
+import {
+    DEV_CONFIG,
+    TOKEN_STORAGE_KEY,
+    createAuthGuard,
+    createSession,
+} from '@chamvi/ui-kit';
 import { RouteName } from '../../../../app/router/constants.ts';
 import { createUiRouter } from '../../../../app/router/module.ts';
 import {

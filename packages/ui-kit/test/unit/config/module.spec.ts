@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { DEV_CONFIG } from '../../../../app/config/constants.ts';
-import { readConfig } from '../../../../app/config/module.ts';
+import { DEV_CONFIG } from '../../../src/config/constants.ts';
+import { readConfig } from '../../../src/config/module.ts';
 
 function doc(text: string | undefined): Pick<Document, 'getElementById'> {
     return { getElementById: (id: string) => (text === undefined || id !== 'chamvi-config' ? null : { textContent: text } as HTMLElement) };

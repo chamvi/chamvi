@@ -6,19 +6,19 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ApiError } from '../../../../app/api/error.ts';
-import { RETURN_STORAGE_KEY, TOKEN_STORAGE_KEY } from '../../../../app/auth/constants.ts';
-import { createSession } from '../../../../app/auth/module.ts';
-import type { IAuthupAdapter } from '../../../../app/auth/types.ts';
-import { DEV_CONFIG } from '../../../../app/config/constants.ts';
-import type { UiConfig } from '../../../../src/config/types.ts';
+import { ApiError } from '../../../src/api/error.ts';
+import { RETURN_STORAGE_KEY, TOKEN_STORAGE_KEY } from '../../../src/auth/constants.ts';
+import { createSession } from '../../../src/auth/module.ts';
+import type { IAuthupAdapter } from '../../../src/auth/types.ts';
+import { DEV_CONFIG } from '../../../src/config/constants.ts';
+import type { UiConfig } from '../../../src/config/types.ts';
 import {
     ME,
     apiError,
     fakeClient,
     meFor,
-} from '../../../utils/client.ts';
-import { MemoryStorage } from '../../../utils/storage.ts';
+} from '../../utils/client.ts';
+import { MemoryStorage } from '../../utils/storage.ts';
 
 const AUTHUP_CONFIG: UiConfig = {
     ...DEV_CONFIG,

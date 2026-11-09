@@ -17,6 +17,7 @@
     "packages/chat-discord": "0.8.0",
     "packages/chat-whatsapp": "0.8.0",
     "packages/ui": "0.8.0",
+    "packages/ui-kit": "0.8.0",
     "packages/app": "0.8.0",
     "packages/cli": "0.8.0",
     "packages/tool-utils": "0.8.0",

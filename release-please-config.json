@@ -31,7 +31,8 @@
         "packages/tool-mail": {"component": "tool-mail"},
         "packages/tool-utils": {"component": "tool-utils"},
         "packages/tool-web": {"component": "tool-web"},
-        "packages/ui": {"component": "ui"}
+        "packages/ui": {"component": "ui"},
+        "packages/ui-kit": {"component": "ui-kit"}
     },
     "plugins": [
         {
@@ -64,7 +65,8 @@
                 "tool-mail",
                 "tool-utils",
                 "tool-web",
-                "ui"
+                "ui",
+                "ui-kit"
             ]
         },
         {

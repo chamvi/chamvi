@@ -9,10 +9,9 @@ import { describe, expect, it } from 'vitest';
 import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import type { RunWire } from '../../../../app/api/types.ts';
+import type { AppContext, RunWire  } from '@chamvi/ui-kit';
 import ApprovalCallout from '../../../../app/components/approval-callout/ApprovalCallout.vue';
-import { APP_CONTEXT } from '../../../../app/context/constants.ts';
-import type { AppContext } from '../../../../app/context/types.ts';
+import { APP_CONTEXT } from '@chamvi/ui-kit';
 import { RouteName } from '../../../../app/router/constants.ts';
 import { fakeClient } from '../../../utils/client.ts';
 import { wireRun } from '../../../utils/runs.ts';
@@ -95,9 +94,9 @@ describe('ApprovalCallout', () => {
 
     it('pretty-prints a JSON body (a trust approval) as a JSON block', async () => {
         const body = JSON.stringify({
-            tool: 'git_push', 
-            input: { branch: 'fix/x' }, 
-            taint: { source: 'channel:github' }, 
+            tool: 'git_push',
+            input: { branch: 'fix/x' },
+            taint: { source: 'channel:github' },
         });
         const html = await render(wireRun({ status: 'waiting', waiting: { ...waiting, body } }));
         const block = html.match(/<div[^>]*data-testid="approval-body"[^>]*>([\s\S]*?)<\/div>/)?.[1] ?? '';

@@ -21,13 +21,14 @@ import tailwind from '@vuecs/theme-tailwind';
 import installTimeago from '@vuecs/timeago';
 import { createApp } from 'vue';
 import App from './App.vue';
-import { createApiClient } from './api/module.ts';
-import type { IApiClient } from './api/types.ts';
-import { createAuthGuard } from './auth/guard.ts';
-import { createSession } from './auth/module.ts';
-import type { IAuthupAdapter } from './auth/types.ts';
-import { readConfig } from './config/module.ts';
-import { APP_CONTEXT } from './context/constants.ts';
+import {
+    APP_CONTEXT,
+    createApiClient,
+    createAuthGuard,
+    createSession,
+    readConfig,
+} from '@chamvi/ui-kit';
+import type { IApiClient, IAuthupAdapter } from '@chamvi/ui-kit';
 import { RouteName } from './router/constants.ts';
 import { createUiRouter } from './router/module.ts';
 import icons from 'virtual:chamvi-icons';

@@ -5,15 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ApiError } from '../api/error.ts';
-import type { IApiClient, RunWire, StepWire } from '../api/types.ts';
-
-/** One server-sent event; `event` is `message` when the block names none. */
-export type SseEvent = {
-    event: string;
-    data: string;
-    id?: string
-};
+import type {
+    ApiError,
+    IApiClient,
+    RunWire,
+    StepWire,
+} from '@chamvi/ui-kit';
 
 export type RunStreamEvent = { type: 'run'; run: RunWire } |
     { type: 'step'; step: StepWire } |

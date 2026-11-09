@@ -5,8 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { LOGIN_ROUTE_NAME } from '@chamvi/ui-kit';
+
 export const RouteName = {
-    LOGIN: 'login',
+    LOGIN: LOGIN_ROUTE_NAME,
     LOGIN_CALLBACK: 'login-callback',
     AGENTS: 'agents',
     AGENT: 'agent',

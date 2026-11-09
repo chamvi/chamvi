@@ -6,10 +6,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ApiError } from '../../../../app/api/error.ts';
-import { runListQuery } from '../../../../app/api/helpers.ts';
-import { createApiClient } from '../../../../app/api/module.ts';
-import { createFakeFetch, json } from '../../../utils/fetch.ts';
+import { ApiError } from '../../../src/api/error.ts';
+import { runListQuery } from '../../../src/api/helpers.ts';
+import { createApiClient } from '../../../src/api/module.ts';
+import { createFakeFetch, json } from '../../utils/fetch.ts';
 
 describe('createApiClient', () => {
     it('sends the bearer token and the JSON body', async () => {

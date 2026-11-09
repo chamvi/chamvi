@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { createMemoryHistory } from 'vue-router';
 import type { NavigationGuard } from 'vue-router';
-import { DEV_CONFIG } from '../../../../app/config/constants.ts';
+import { DEV_CONFIG } from '@chamvi/ui-kit';
 import { RouteName } from '../../../../app/router/constants.ts';
 import { createUiRouter } from '../../../../app/router/module.ts';
 
