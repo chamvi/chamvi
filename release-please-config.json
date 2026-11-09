@@ -29,6 +29,7 @@
         "packages/tool-calendar": {"component": "tool-calendar"},
         "packages/tool-files": {"component": "tool-files"},
         "packages/tool-mail": {"component": "tool-mail"},
+        "packages/tool-utils": {"component": "tool-utils"},
         "packages/tool-web": {"component": "tool-web"},
         "packages/ui": {"component": "ui"}
     },
@@ -61,6 +62,7 @@
                 "tool-calendar",
                 "tool-files",
                 "tool-mail",
+                "tool-utils",
                 "tool-web",
                 "ui"
             ]

@@ -194,6 +194,7 @@ See [Tools and their context](/guide/agents#tools-and-their-context).
 function defineContextKey<T>(name: string): ContextKey<T>;                      // a new frozen key per call; empty name -> InvalidAgentDefinitionError
 function inject<T>(ctx: ToolContext, key: ContextKey<T>): T;                    // else ContextNotProvidedError ('context_not_provided')
 function tryInject<T>(ctx: ToolContext, key: ContextKey<T>): T | undefined;
+function injectClock(ctx: ToolContext): IClock;                               // the engine's clock inside a tool; ContextNotProvidedError on a context the engine did not pass
 ```
 
 `engine.provide(key, value)` (`Engine` implements `IContextProvider`) keeps the value by reference and refuses a foreign key, `undefined` and a second value for one key (`InvalidAgentDefinitionError` naming the key). `inject` reads the engine's values for the `ToolContext` the engine built for the execution (tool `execute`, the tools factory, `alreadyApplied`, `effectKey`); `ToolContext` (`{ run, state, artifacts, channels }`) gains no field for a provided value, and nothing provided is stored or serialized. A missing value is a tool error in `execute` and the effect hooks and fails the run in the factory. See [Context](/guide/tools#context-shared-instances-for-tools).

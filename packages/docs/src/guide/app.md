@@ -75,6 +75,8 @@ Channel names are unique per app, so `openclawModule()` beside `openclawModule({
 
 With `CHAMVI_PUBLIC_URL` set, the GitHub and OpenClaw modules link approvals to the dashboard: `<CHAMVI_PUBLIC_URL><basePath>/ui/approvals?run=<runId>&approval=<approvalId>`, without a token. A factory missing a required variable throws `InvalidAgentDefinitionError` naming it; no message ever echoes a value.
 
+`CHAMVI_TIMEZONE` (an IANA zone such as `Europe/Berlin`, default `UTC`) sets the zone `utilityTools()` from `@chamvi/tool-utils` reads dates in; it is read when the factory is called, and an invalid zone throws `InvalidAgentDefinitionError`. It is optional and needs no module.
+
 ## Setup contributes, onReady consumes
 
 orkos sets every module up in dependency order, then calls every `onReady`. chamvi splits the work along that line:

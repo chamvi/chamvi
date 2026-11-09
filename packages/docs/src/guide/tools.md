@@ -109,6 +109,14 @@ defineModelAgent({
 });
 ```
 
+## Utility tools
+
+[`@chamvi/tool-utils`](/reference/tool-utils) gives an agent what a model cannot do reliably itself: `current_time`, date arithmetic (`time_convert`, `date_add`, `date_diff`, `date_info`, `next_weekday`), exact decimal `calculate` and `run_info` (why and how this run started). The tools are pure: they read the engine clock and the run's own trigger, never the network, a secret or a payload, so they neither taint a run nor are gated.
+
+<<< @/snippets/tool-utils.ts#agent
+
+A model has no clock: tell it in the instructions to call `current_time` before using a relative date such as "today" or "next Friday". Dates are read in `timezone`, else `CHAMVI_TIMEZONE`, else UTC.
+
 ## Mail and calendar tools
 
 [`@chamvi/tool-mail`](/reference/tool-mail) reads mail over IMAP (Gmail, dovecot, Cyrus, ...): `mail_accounts`, `mail_search`, `mail_get` (the text body, invite summaries, the attachment list), `mail_attachment` (the text of a PDF, docx, xlsx, pptx or text file) and `mail_thread`. [`@chamvi/tool-calendar`](/reference/tool-calendar) reads calendars over CalDAV (iCloud, Fastmail, Nextcloud, ...): `calendar_list` and `calendar_events`, recurring events expanded in one time zone (default `Europe/Berlin`). Both are **read-only on the wire**: folders are opened with `EXAMINE` and bodies fetched with `BODY.PEEK`, so no mail is moved, flagged or marked read; the CalDAV client sends only `PROPFIND`, `REPORT` and `GET`. Gmail and iCloud need an app password, not the account password.

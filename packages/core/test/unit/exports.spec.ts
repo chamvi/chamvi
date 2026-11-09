@@ -126,6 +126,7 @@ describe('public api', () => {
         'ChannelNotFoundError',
         'defineContextKey',
         'inject',
+        'injectClock',
         'tryInject',
         'ContextNotProvidedError',
         'AgentNotFoundError',

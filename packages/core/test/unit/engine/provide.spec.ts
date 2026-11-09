@@ -22,11 +22,13 @@ import {
     defineModelAgent,
     defineTool,
     inject,
+    injectClock,
     tryInject,
 } from '@chamvi/core';
 import type {
     AgentDefinition,
     ContextKey,
+    IClock,
     IEngine,
     ToolContext,
 } from '@chamvi/core';
@@ -82,6 +84,7 @@ function setup(model: LanguageModel, tools: AgentDefinition['tools']) {
         store,
         engine,
         errors,
+        clock,
     };
 }
 
@@ -240,6 +243,42 @@ describe('engine.provide', () => {
         await runOn(engine, store);
         expect(seen).toEqual([undefined, value]);
         expect(seen[1]).toBe(value);
+    });
+
+    it('injectClock returns the engine\'s clock inside a tool', async () => {
+        const seen: IClock[] = [];
+        const read = defineTool({
+            inputSchema: z.object({}),
+            execute: async (_input, { context }) => {
+                seen.push(injectClock(context));
+
+                return 'ok';
+            },
+        });
+        const {
+            engine, 
+            store, 
+            clock, 
+        } = setup(mockModel([callTool('read'), text('done')]), { read });
+
+        await engine.start();
+
+        const { run } = await runOn(engine, store);
+
+        expect(run?.status).toBe('completed');
+        expect(seen).toHaveLength(1);
+        expect(seen[0]).toBe(clock);
+    });
+
+    it('injectClock throws ContextNotProvidedError on a hand-built context', () => {
+        const ctx: ToolContext = {
+            channels: {} as ToolContext['channels'],
+            run: {} as ToolContext['run'],
+            state: {} as ToolContext['state'],
+            artifacts: {} as ToolContext['artifacts'],
+        };
+
+        expect(() => injectClock(ctx)).toThrow(ContextNotProvidedError);
     });
 
     it('two keys of the same name are independent', async () => {

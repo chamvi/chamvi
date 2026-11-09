@@ -202,6 +202,7 @@ export default defineConfig({
                         { text: '@chamvi/tool-calendar', link: '/reference/tool-calendar' },
                         { text: '@chamvi/tool-files', link: '/reference/tool-files' },
                         { text: '@chamvi/tool-mail', link: '/reference/tool-mail' },
+                        { text: '@chamvi/tool-utils', link: '/reference/tool-utils' },
                         { text: '@chamvi/tool-web', link: '/reference/tool-web' },
                         { text: '@chamvi/ui', link: '/reference/ui' },
                     ],
