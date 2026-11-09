@@ -145,3 +145,7 @@ Checked against this file's contract map only (no fresh downstream checkout). Th
 ## Connection store keyring (#165, #166, #167; 0.8.0)
 
 Checked chart `master` at `39e1d30`: `charts/agent-app/values.yaml`, `templates/_helpers.tpl` and the README Secret table. `CHAMVI_ENCRYPTION_KEYS` (`ENV_ENCRYPTION_KEYS`, `packages/app/src/keyring/constants.ts`) is optional and read only when a module resolves `AppToken.KEYRING` (`whatsappModule()`); a malformed value fails the start and `chamvi start --check`, naming the variable. It reaches the pods through `secrets` (`agent-app.envFrom`), so no template, values or schema change; helm#27 documents it. `chamvi run-job` pods resolve no keyring.
+
+## Utility tools (unreleased)
+
+Checked against this file's contract map only (no fresh downstream checkout). `CHAMVI_TIMEZONE` is optional and read by `utilityTools()` only (`packages/tool-utils/src/options/`); it reaches the pods through the generic `env` map or `secrets` (`agent-app.envFrom`). No chart change.

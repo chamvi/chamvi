@@ -141,3 +141,7 @@ Checked against this file's contract map only (no fresh downstream checkout). No
 ## Connection store keyring (#165, #166, #167; 0.8.0)
 
 Checked `main` at `3664d9e`: `src/modules.ts` does not list `whatsappModule()`, so the starter never resolves the keyring and `CHAMVI_ENCRYPTION_KEYS` stays optional. `.env.example` and `.agents/deployment.md` name it for apps that add the module.
+
+## Utility tools (unreleased)
+
+Checked against this file's contract map only (no fresh downstream checkout). `CHAMVI_TIMEZONE` is optional and read by `utilityTools()` only; the starter does not list the package, so no template change.
