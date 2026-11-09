@@ -150,6 +150,7 @@ describe('public api', () => {
         'assertConnectionEntryKey',
         'assertConnectionEntryWrite',
         'assertConnectionName',
+        'createConnectionConfigStore',
         'createConnectionVault',
         'ConnectionHeldError',
         'ConnectionChangedError',
@@ -516,6 +517,21 @@ describe('public api', () => {
         >();
         expectTypeOf<core.DeclaredConnection['resolved']>().toEqualTypeOf<core.ResolvedConnection>();
         expectTypeOf<ReturnType<core.IConnectionTypeProvider['connections']>>().toEqualTypeOf<readonly core.DeclaredConnection[]>();
+    });
+
+    it('exports the connection config store', () => {
+        expect(core).not.toHaveProperty('secretAadOf');
+        expectTypeOf<ReturnType<typeof core.createConnectionConfigStore>>().toEqualTypeOf<core.IConnectionConfigStore>();
+        expectTypeOf<Parameters<typeof core.createConnectionConfigStore>[0]>().toEqualTypeOf<core.ConnectionConfigStoreOptions>();
+        expectTypeOf<core.ConnectionConfigView>().toEqualTypeOf<{
+            settings: Record<string, unknown>;
+            secretsSet: string[];
+            revision: number;
+        }>();
+        expectTypeOf<core.ConnectionConfigUpdate>().toEqualTypeOf<{
+            settings?: Record<string, unknown>;
+            secrets?: { set?: Record<string, string>; clear?: readonly string[] };
+        }>();
     });
 
     it('exports the connection vault', () => {

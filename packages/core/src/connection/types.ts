@@ -149,6 +149,59 @@ export interface IConnectionSession {
     close(): Promise<void>;
 }
 
+export type ConnectionConfigStoreOptions = {
+    /** Must hold `connections`; its `locks` guard `delete`. */
+    store: IStore;
+    /** Resolved only when a data key is needed: an app without keys can still describe and read secret-free connections. */
+    keyring: () => IKeyring;
+    /** Stamps created rows (default systemClock). */
+    clock?: IClock;
+};
+
+/** What an API may show of a connection's config: secrets by name only. */
+export type ConnectionConfigView = {
+    settings: Record<string, unknown>;
+    /** The names of the stored secrets, sorted; never their values. */
+    secretsSet: string[];
+    revision: number;
+};
+
+/** One config save: `settings` replaces the stored settings as a whole (absent keeps them). */
+export type ConnectionConfigUpdate = {
+    settings?: Record<string, unknown>;
+    secrets?: {
+        set?: Record<string, string>;
+        clear?: readonly string[];
+    };
+};
+
+/**
+ * Settings and sealed secrets of a connection, written from any replica
+ * without the provider's lease: a running session's entries and data key
+ * stay untouched. Secrets are sealed with the connection's data key, bound to
+ * `<name>\0secret\0<field>`.
+ */
+export interface IConnectionConfigStore {
+    /**
+     * Creates the row with a fresh wrapped data key, then saves `update`.
+     * Resolves false, changing nothing, when the name is taken.
+     */
+    create(name: string, type: string, update: ConnectionConfigUpdate): Promise<boolean>;
+    /** Never resolves the keyring. */
+    describe(name: string): Promise<ConnectionConfigView | undefined>;
+    /** The settings and decrypted secrets; resolves the keyring only when secrets exist. */
+    read(name: string): Promise<{ values: ConnectionValues; revision: number } | undefined>;
+    /**
+     * Saves `update` and returns the new revision; resolves the keyring only
+     * to set a secret. RepositoryNotFoundError when absent,
+     * ConnectionChangedError when a recreate replaced the data key meanwhile
+     * (nothing is written).
+     */
+    update(name: string, update: ConnectionConfigUpdate): Promise<number>;
+    /** Removes the connection under a one-shot lease; ConnectionHeldError while the lease is held. */
+    delete(name: string, owner: string): Promise<void>;
+}
+
 /**
  * The live state of a connection as its provider sees it in this process
  * (not stored): `held_elsewhere` while another process holds its lease.
