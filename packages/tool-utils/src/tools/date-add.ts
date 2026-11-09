@@ -65,20 +65,15 @@ export function dateAddTool(options: UtilityToolsOptionsNormalized): Tool<DateAd
             }
 
             try {
-                const {
-                    hours, 
-                    minutes, 
-                    ...calendar 
-                } = amounts;
+                // one unit at a time: a Duration with mixed signs is a RangeError
                 let result = start;
 
-                if (Object.keys(calendar).length > 0) {
-                    result = result.add(calendar);
+                for (const unit of UNITS) {
+                    if (amounts[unit]) {
+                        result = result.add({ [unit]: amounts[unit] });
+                    }
                 }
 
-                if (hours !== undefined || minutes !== undefined) {
-                    result = result.add({ hours, minutes });
-                }
 
                 return describeInstant(result.toInstant(), zone);
             } catch (error) {

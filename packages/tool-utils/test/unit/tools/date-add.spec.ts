@@ -71,4 +71,22 @@ describe('date_add', () => {
     it('refuses a non-integer amount', async () => {
         await expect(add({ date: '2026-01-01', days: 1.5 })).rejects.toThrow(/days/);
     });
+
+    it('accepts mixed-sign amounts', async () => {
+        await expect(add({
+            date: '2026-01-31', 
+            months: 1, 
+            days: -1, 
+        })).resolves.toMatchObject({ date: '2026-02-27' });
+        await expect(add({
+            date: '2026-06-15T12:00', 
+            hours: 1, 
+            minutes: -30, 
+        })).resolves.toMatchObject({ time: '12:30' });
+        await expect(add({
+            date: '2026-06-15', 
+            years: 1, 
+            months: -1, 
+        })).resolves.toMatchObject({ date: '2027-05-15' });
+    });
 });
