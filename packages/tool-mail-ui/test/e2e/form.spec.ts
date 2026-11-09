@@ -53,6 +53,13 @@ test('adds a mail account, sees restart to apply, reload keeps the session', asy
     await expect(page.locator('[data-field="password"] input')).toHaveCount(0);
     expect(new URL(page.url()).searchParams.get('connection')).toBe('mail-work');
     await expect(page.locator('[data-account="mail-work"]')).toBeVisible();
+    await expect(page.locator('[data-account="mail-work"]')).not.toContainText('disconnected');
+    await expect(page.getByRole('button', { name: 'Test', exact: true })).toBeVisible();
+
+    await page.getByLabel('IMAP host').fill('other.example.com');
+    await expect(page.getByTestId('connection-rebind')).toContainText('enter Password again');
+    await expect(page.locator('[data-field="password"] input')).toHaveCount(1);
+    await page.getByLabel('IMAP host').fill('imap.example.com');
 
     await page.reload();
 

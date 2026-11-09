@@ -48,7 +48,7 @@ import { uiModule } from '@chamvi/ui/module';
 const modules = [uiModule(), toolMailModule(), toolMailUiModule()];
 ```
 
-Each page is served at `<uiBase>/ext/<slug>` and gets a sidebar item, shown to a principal who may read a connection of its type or holds `connections:create`. A connection without a page is listed under Connections and cannot be edited. A dashboard not at the default `/ui` needs the same value on both sides: `uiModule({ basePath: '/admin' })` and `toolMailUiModule({ uiBase: '/admin' })`.
+Each page is served at `<uiBase>/ext/<slug>` and gets a sidebar item, shown to a principal who may read a connection of its type or holds `connections:create`. A connection without a page is listed under Connections and cannot be edited. A dashboard not at the default `/ui` needs the same value on both sides: `uiModule({ basePath: '/admin' })` and `toolMailUiModule({ uiBase: '/admin' })`. The sign-in modes of the package pages come only from the environment (`CHAMVI_UI_AUTHUP_CLIENT_ID`, `AUTHUP_URL`, `CHAMVI_UI_AUTHUP_REALM_ID`): `uiModule({ auth })` in code configures the dashboard alone, so a deployment using it needs the same values in the environment for the package pages.
 
 A page shows one state per field:
 
@@ -59,6 +59,8 @@ A page shows one state per field:
 | A stored secret | "Set", with Replace and Clear; a value is never shown or returned by the API |
 
 Saved values take effect at the next start; the page shows "Saved. Restart the app to apply." until a process has loaded them. Saving a secret, or anything that creates a stored connection, needs `CHAMVI_ENCRYPTION_KEYS` and is refused with a message naming it otherwise. Clearing a required secret is allowed and leaves the connection `incomplete` (a `chamvi start --check` issue, not a failed start, unless an env field is set too).
+
+The accounts column and the Connections overview show `not configured`, `incomplete` (with what is missing or why the last start refused it, such as a missing `CHAMVI_PUBLIC_URL`) or `configured`; a connection with nothing running in this process, as mail and calendar always are, reads `configured` and not `disconnected`. **Test** checks the saved values only, never what is typed in the form: mail logs in over IMAP and out again, calendar logs in over CalDAV, GitHub calls `GET /app` with the App JWT and Discord calls `GET /users/@me`, each within 30 seconds and answering a generic reason on failure. Changing a field that decides where a secret is sent (the mail host, port or security, the calendar URL, the GitHub API URL) needs every stored secret entered again, and is refused while one of them comes from the environment.
 
 Editing and deleting need `connection:<name>:write`, adding an account of a multi-account type (mail, calendar) `connections:create`. Deleting is offered for stored accounts only; an account declared in env or a module cannot be deleted.
 
