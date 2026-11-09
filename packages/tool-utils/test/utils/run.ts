@@ -7,14 +7,22 @@
 
 import type { ToolSet } from 'ai';
 import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
-import type { DispatchEnvelope } from '@chamvi/core';
+import type { DispatchEnvelope, TriggerParent } from '@chamvi/core';
 import type { ControllableClock } from '@chamvi/test-kit';
 import { mockModel } from '@chamvi/test-kit';
 
 export type RunToolOptions = {
     clock?: ControllableClock;
     trigger?: Partial<DispatchEnvelope>;
+    /** Lineage only the dispatch host can set: dispatched through a test subclass. */
+    parent?: Omit<TriggerParent, 'runId'>;
 };
+
+class LineageEngine extends Engine {
+    public dispatchWithParent(envelope: DispatchEnvelope, parent: TriggerParent) {
+        return this.createRun(envelope, parent);
+    }
+}
 
 /**
  * Drives a real Engine on a memory store: the model calls `name` once with
@@ -37,21 +45,38 @@ export async function runTool(tools: ToolSet, name: string, input: unknown, opti
         instructions: 'Call the tool.',
         tools,
     });
-    const engine = new Engine({
+    const engine = new LineageEngine({
         store: createMemoryStore(),
         agents: [agent],
         ...(options.clock ? { clock: options.clock } : {}),
     });
 
+    // a parent run must exist; it is cancelled before the engine starts, so it never calls the model
+    const parentRun = options.parent ?
+        await engine.dispatch({
+            agent: agent.name, 
+            trigger: 'test', 
+            channel: 'test', 
+            payload: {}, 
+        }) :
+        undefined;
+
+    if (parentRun) {
+        await engine.cancel(parentRun.runId);
+    }
+
     await engine.start();
 
-    const { runId } = await engine.dispatch({
+    const envelope: DispatchEnvelope = {
         agent: agent.name,
         trigger: 'test',
         channel: 'test',
         payload: {},
         ...options.trigger,
-    });
+    };
+    const { runId } = options.parent ?
+        await engine.dispatchWithParent(envelope, { ...options.parent, runId: parentRun!.runId }) :
+        await engine.dispatch(envelope);
 
     await engine.idle();
 

@@ -19,3 +19,6 @@ export const UTILITY_TOOL_NAMES = [
 
 /** English weekday names, Monday first (Temporal's dayOfWeek is 1 to 7). */
 export const WEEKDAYS = ['Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday', 'Sunday'] as const;
+
+/** The cron channel's default name (`@chamvi/channel-cron`'s `CRON_CHANNEL_NAME`; no dependency on it). */
+export const CRON_CHANNEL = 'cron';

@@ -14,12 +14,13 @@ import { dateAddTool } from './date-add.ts';
 import { dateDiffTool } from './date-diff.ts';
 import { dateInfoTool } from './date-info.ts';
 import { nextWeekdayTool } from './next-weekday.ts';
+import { runInfoTool } from './run-info.ts';
 import { timeConvertTool } from './time-convert.ts';
 
 type ToolBuilder = (options: UtilityToolsOptionsNormalized) => Tool<any, any>;
 
-/** The tools built so far, by name. */
-const REGISTRY: Partial<Record<UtilityToolName, ToolBuilder>> = {
+/** Every tool, by name. */
+const REGISTRY: Record<UtilityToolName, ToolBuilder> = {
     current_time: currentTimeTool,
     time_convert: timeConvertTool,
     date_add: dateAddTool,
@@ -27,6 +28,7 @@ const REGISTRY: Partial<Record<UtilityToolName, ToolBuilder>> = {
     date_info: dateInfoTool,
     next_weekday: nextWeekdayTool,
     calculate: calculateTool,
+    run_info: runInfoTool,
 };
 
 /**
@@ -39,11 +41,7 @@ export function utilityTools(options: UtilityToolsOptions = {}): ToolSet {
     const tools: ToolSet = {};
 
     for (const name of normalized.include) {
-        const build = REGISTRY[name];
-
-        if (build) {
-            tools[name] = build(normalized);
-        }
+        tools[name] = REGISTRY[name](normalized);
     }
 
     return tools;

@@ -56,3 +56,24 @@ export type ParsedDate = {
     /** The input carried an offset or `Z`. */
     hasOffset: boolean;
 };
+
+/** An explicit field list of the run: never payload, attachments, keys, permissions or `parent.source`. */
+export type RunInfoResult = {
+    runId: string;
+    agent: string;
+    channel: string;
+    subscription: string;
+    receivedAt: string;
+    address?: string;
+    invoker?: {
+        kind: string; 
+        id: string; 
+        name?: string 
+    };
+    parent?: {
+        agent: string; 
+        role: string; 
+        depth: number 
+    };
+    scheduledAt?: string;
+};

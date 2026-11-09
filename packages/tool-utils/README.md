@@ -56,6 +56,13 @@ export function createBriefingAgent(model: LanguageModel) {
 | Tool | Result |
 |------|--------|
 | `current_time` | `{ date, weekday, time, timezone, offset, iso, startTime }`, read through the engine clock; `startTime` is when the run began |
+| `time_convert` | A wall-clock time in one zone read in another |
+| `date_add` | A date plus or minus years, months, weeks, days, hours or minutes |
+| `date_diff` | `{ days, weeks, months, years }` between two dates |
+| `date_info` | Weekday, ISO week, day of the year, month length and leap year of a date |
+| `next_weekday` | The next date on a weekday |
+| `calculate` | `{ result }`: exact decimal arithmetic (`0.1 + 0.2` is `0.3`) |
+| `run_info` | Why and how this run started: channel, subscription, `receivedAt`, address, invoker, parent and a cron run's `scheduledAt`; never a payload or a secret |
 
 ## Options
 
