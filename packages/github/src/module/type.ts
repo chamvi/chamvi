@@ -209,7 +209,13 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
         if (drop.length === 0) {
             logger.warn(`The GitHub connection "${name}" cannot be used (${withoutValue(refusal.message)}); it stays idle until it is repaired.`);
 
-            return { resolved: { ...current, state: 'incomplete', reason: withoutValue(refusal.message) } };
+            return {
+                resolved: {
+                    ...current, 
+                    state: 'incomplete', 
+                    reason: withoutValue(refusal.message), 
+                }, 
+            };
         }
 
         logger.warn(`The GitHub connection "${name}" holds a stored value the App refuses (${withoutValue(refusal.message)}); it is ignored.`);

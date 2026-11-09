@@ -198,7 +198,11 @@ export class DiscordModule implements IModule {
 
                 // these messages name the option, never a value
                 logger.warn(`The Discord connection "${this.connection}" cannot be used (${error.message}); it stays idle until it is repaired.`);
-                resolved = { ...resolved, state: 'incomplete', reason: error.message };
+                resolved = {
+                    ...resolved, 
+                    state: 'incomplete', 
+                    reason: error.message, 
+                };
             }
         } else {
             logger.warn(`The Discord connection "${this.connection}" is ${resolved.state.replace('_', ' ')}; it stays idle until it is configured.`);

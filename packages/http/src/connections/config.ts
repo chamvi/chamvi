@@ -473,7 +473,11 @@ async function assertUnique(ctx: HttpContext, definition: ConnectionTypeDefiniti
             // a provider's list is the last start's: the store holds any edit since
             const stored = rowNames.has(declared.name) ? await ctx.connectionConfigs?.describe(declared.name) : undefined;
             const current = stored ?
-                identityValues({ name: declared.name, definition, declared }, stored.settings) :
+                identityValues({
+                    name: declared.name, 
+                    definition, 
+                    declared, 
+                }, stored.settings) :
                 declared.resolved.values;
 
             if (definition.uniqueId(current) === wanted) {

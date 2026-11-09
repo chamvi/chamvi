@@ -17,12 +17,20 @@ import {
 
 describe('connectionBadge', () => {
     it('reads the configuration first', () => {
-        expect(connectionBadge({ status: 'disconnected', state: 'not_configured', live: false }).label).toBe('not configured');
+        expect(connectionBadge({
+            status: 'disconnected', 
+            state: 'not_configured', 
+            live: false, 
+        }).label).toBe('not configured');
         expect(connectionBadge({ status: 'connected', state: 'incomplete' }).label).toBe('incomplete');
     });
 
     it('does not read a configured connection without a handle as disconnected', () => {
-        expect(connectionBadge({ status: 'disconnected', state: 'configured', live: false })).toEqual({ label: 'configured', tone: 'completed' });
+        expect(connectionBadge({
+            status: 'disconnected', 
+            state: 'configured', 
+            live: false, 
+        })).toEqual({ label: 'configured', tone: 'completed' });
     });
 
     it('keeps the live status of a handle, and of a connection with no configuration', () => {

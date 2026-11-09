@@ -197,7 +197,11 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
 
             // a stored setting the client refuses must not stop the app whose dashboard repairs it
             logger.warn(`${error.message} The stored settings are dropped.`);
-            resolved = { ...resolve(storedSecretsOf(definition, row.values)), state: 'incomplete', reason: error.message };
+            resolved = {
+                ...resolve(storedSecretsOf(definition, row.values)), 
+                state: 'incomplete', 
+                reason: error.message, 
+            };
             merged = toAccount(id, resolved.values);
             normalizeAccounts([merged]);
         }
@@ -240,7 +244,11 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
 
             // the messages name the field, never a value
             logger.warn(`${error.message} The account is not used.`);
-            list(id, { ...resolved, state: 'incomplete', reason: error.message }, true, row);
+            list(id, {
+                ...resolved, 
+                state: 'incomplete', 
+                reason: error.message, 
+            }, true, row);
         }
     }
 

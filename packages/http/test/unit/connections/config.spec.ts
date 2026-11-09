@@ -1101,7 +1101,7 @@ describe('connection configuration', () => {
                     test: (_values, signal) => {
                         seen = signal;
 
-                        return new Promise(() => undefined);
+                        return Promise.withResolvers<void>().promise;
                     },
                 }),
                 declared: (definition) => [declare(definition, 'mail-work')],

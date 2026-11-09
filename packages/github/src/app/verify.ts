@@ -38,7 +38,7 @@ export async function verifyGithubApp(
     } catch (error) {
         signal.throwIfAborted();
 
-        const status = (error as { status?: number }).status;
+        const { status } = (error as { status?: number });
         const refused = status === 401 || status === 403 || status === 404;
 
         throw new ChamviError({

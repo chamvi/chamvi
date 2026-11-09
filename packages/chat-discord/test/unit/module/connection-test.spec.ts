@@ -210,7 +210,11 @@ describe('the Discord connection test', () => {
 
 describe('the Discord connection handle', () => {
     it('reports a live bot, so the dashboard does not read it as disconnected', async () => {
-        const { call, clients, harness } = await serve({ moduleEnv: ENV, appEnv: PUBLIC });
+        const {
+            call, 
+            clients, 
+            harness, 
+        } = await serve({ moduleEnv: ENV, appEnv: PUBLIC });
         const [handle] = harness.container.resolveAll(AppToken.CONNECTIONS) as IConnectionHandle[];
         let changes = 0;
 

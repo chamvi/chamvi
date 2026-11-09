@@ -7,12 +7,12 @@
 
 import type { IClock } from '@chamvi/core';
 import { ChamviError, ValidationError } from '@chamvi/core';
-import { ImapFlow } from 'imapflow';
-import type {
-    FetchMessageObject,
-    ListResponse,
-    MessageAddressObject,
-    SearchObject,
+import type { 
+    FetchMessageObject, 
+    ImapFlow, 
+    ListResponse, 
+    MessageAddressObject, 
+    SearchObject, 
 } from 'imapflow';
 import PostalMime from 'postal-mime';
 import { EXTRACTION_FAILED_TEXT } from '../attachment/constants.ts';
