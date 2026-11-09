@@ -22,6 +22,7 @@ import type {
     ResolvedConnection,
 } from '@chamvi/core';
 import type { CalendarAccount } from '../client/types.ts';
+import { verifyCalendarLogin } from '../client/login.ts';
 import { normalizeAccounts } from '../options/module.ts';
 import {
     CALENDAR_ACCOUNTS_VARIABLE,
@@ -67,7 +68,7 @@ function credentialField(key: string, label: string, variable: string, extra: Pa
 }
 
 /** The calendar connection type: one account per `calendar-<id>`, one URL and user once. */
-export function calendarConnectionDefinition(): ConnectionTypeDefinition {
+export function calendarConnectionDefinition(options: { fetch?: typeof fetch } = {}): ConnectionTypeDefinition {
     return {
         type: CALENDAR_CONNECTION_TYPE,
         label: 'Calendar',
@@ -78,6 +79,7 @@ export function calendarConnectionDefinition(): ConnectionTypeDefinition {
                 label: 'CalDAV URL',
                 kind: 'string',
                 required: true,
+                bindsSecrets: true,
             },
             {
                 key: 'address',
@@ -89,6 +91,12 @@ export function calendarConnectionDefinition(): ConnectionTypeDefinition {
         ],
         // one CalDAV URL can serve many users (iCloud)
         uniqueId: (values) => `${String(values.url ?? '').toLowerCase()}\n${String(values.user ?? values.address ?? '').toLowerCase()}`,
+        // saved values only; the account id is not part of a login
+        test: (values, signal) => {
+            const [account] = normalizeAccounts([toAccount('test', values)]);
+
+            return verifyCalendarLogin(account!, { signal, ...options });
+        },
     };
 }
 
@@ -107,9 +115,7 @@ function presetOf(entry: CalendarEnvEntry, source: ConnectionFieldSource, pinned
         .map(([key, value]) => [key, { value, source }]));
 }
 
-function toAccount(id: string, resolved: ResolvedConnection): CalendarAccount {
-    const { values } = resolved;
-
+function toAccount(id: string, values: ConnectionValues): CalendarAccount {
     return {
         id,
         url: values.url as string,
@@ -176,7 +182,7 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
             ...(values && { stored: values }),
         });
         let resolved = resolve(row?.values);
-        let merged = pinned ? entry.account as CalendarAccount : toAccount(id, resolved);
+        let merged = pinned ? entry.account as CalendarAccount : toAccount(id, resolved.values);
 
         if (merged.user === undefined) {
             throw new InvalidAgentDefinitionError(`${variableOf(id, 'USER')} is required for the connection "${resolved.name}" (it has no address).`);
@@ -191,8 +197,8 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
 
             // a stored setting the client refuses must not stop the app whose dashboard repairs it
             logger.warn(`${error.message} The stored settings are dropped.`);
-            resolved = { ...resolve(storedSecretsOf(definition, row.values)), state: 'incomplete' };
-            merged = toAccount(id, resolved);
+            resolved = { ...resolve(storedSecretsOf(definition, row.values)), state: 'incomplete', reason: error.message };
+            merged = toAccount(id, resolved.values);
             normalizeAccounts([merged]);
         }
 
@@ -221,7 +227,7 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
             continue;
         }
 
-        const account = toAccount(id, resolved);
+        const account = toAccount(id, resolved.values);
 
         try {
             normalizeAccounts([account]);
@@ -234,7 +240,7 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
 
             // the messages name the field, never a value
             logger.warn(`${error.message} The account is not used.`);
-            list(id, { ...resolved, state: 'incomplete' }, true, row);
+            list(id, { ...resolved, state: 'incomplete', reason: error.message }, true, row);
         }
     }
 

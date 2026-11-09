@@ -21,6 +21,7 @@ import type {
     DeclaredConnection,
     ResolvedConnection,
 } from '@chamvi/core';
+import { verifyMailLogin } from '../client/login.ts';
 import type { MailAccount } from '../client/types.ts';
 import { normalizeAccount } from '../options/module.ts';
 import {
@@ -84,12 +85,14 @@ export function mailConnectionDefinition(): ConnectionTypeDefinition {
                 label: 'IMAP host',
                 kind: 'string',
                 required: true,
+                bindsSecrets: true,
             },
             {
                 key: 'port',
                 label: 'Port',
                 kind: 'number',
                 description: 'Default 993 with tls, else 143.',
+                bindsSecrets: true,
             },
             {
                 key: 'security',
@@ -97,11 +100,14 @@ export function mailConnectionDefinition(): ConnectionTypeDefinition {
                 kind: 'select',
                 options: ['tls', 'starttls', 'plain'],
                 description: 'Default tls.',
+                bindsSecrets: true,
             },
             credentialField('user', 'User', 'USER', { description: 'Default the address.' }),
             credentialField('password', 'Password', 'PASSWORD', { kind: 'secret', required: true }),
         ],
         uniqueId: (values) => String(values.address ?? '').toLowerCase(),
+        // saved values only; the account id is not part of a login
+        test: (values, signal) => verifyMailLogin(normalizeAccount(toAccount('test', values), 'Mail account'), signal),
     };
 }
 
@@ -121,8 +127,7 @@ function presetOf(account: MailEnvAccount, source: ConnectionFieldSource, pinned
         .map(([key, value]) => [key, { value, source }]));
 }
 
-function toAccount(id: string, resolved: ResolvedConnection, declared?: MailEnvAccount): MailAccount {
-    const { values } = resolved;
+function toAccount(id: string, values: ConnectionValues, declared?: MailEnvAccount): MailAccount {
     const address = values.address as string | undefined;
 
     return {
@@ -196,7 +201,7 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
         });
         const label = `Mail account "${account.id}"`;
         let resolved = resolve(row?.values);
-        let merged = pinned ? account as MailAccount : toAccount(account.id, resolved, account);
+        let merged = pinned ? account as MailAccount : toAccount(account.id, resolved.values, account);
 
         try {
             normalizeAccount(merged, label);
@@ -207,8 +212,8 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
 
             // a stored setting the client refuses must not stop the app whose dashboard repairs it
             logger.warn(`${error.message} The stored settings are dropped.`);
-            resolved = { ...resolve(storedSecretsOf(definition, row.values)), state: 'incomplete' };
-            merged = toAccount(account.id, resolved, account);
+            resolved = { ...resolve(storedSecretsOf(definition, row.values)), state: 'incomplete', reason: error.message };
+            merged = toAccount(account.id, resolved.values, account);
             normalizeAccount(merged, label);
         }
 
@@ -237,7 +242,7 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             continue;
         }
 
-        const account = toAccount(id, resolved);
+        const account = toAccount(id, resolved.values);
 
         try {
             normalizeAccount(account, `Mail account "${id}"`);
@@ -250,7 +255,7 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
 
             // the messages name the field, never a value
             logger.warn(`${error.message} The account is not used.`);
-            list(id, { ...resolved, state: 'incomplete' }, true, row);
+            list(id, { ...resolved, state: 'incomplete', reason: error.message }, true, row);
         }
     }
 

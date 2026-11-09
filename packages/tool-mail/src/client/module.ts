@@ -44,6 +44,7 @@ import {
 } from './constants.ts';
 import { isAllowedFolder, searchFolders, threadFolders } from './folders.ts';
 import { encodeMailId, parseMailId } from './ids.ts';
+import { createImapConnection } from './login.ts';
 import { createQueue } from './queue.ts';
 import {
     attachmentsOf,
@@ -554,16 +555,7 @@ class MailClient implements IMailClient {
             this.drop(account.id, current);
         }
 
-        const connection = new ImapFlow({
-            host: account.host,
-            port: account.port,
-            secure: account.security === 'tls',
-            doSTARTTLS: account.security === 'starttls',
-            auth: { user: account.user, pass: account.password },
-            logger: false,
-            disableAutoIdle: true,
-            clientInfo: { name: 'chamvi' },
-        });
+        const connection = createImapConnection(account);
 
         connection.on('error', () => this.drop(account.id, connection));
         connection.on('close', () => this.drop(account.id, connection));
