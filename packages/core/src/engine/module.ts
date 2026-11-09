@@ -8,11 +8,12 @@
 import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { pid } from 'node:process';
+import { uuidv7 } from 'uuidv7';
 import type { Agent } from '../agent/types.ts';
 import { assertAgentKind, conversationKey } from '../agent/asserts.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
-import { attachmentIds, storeArtifact } from '../artifact/module.ts';
+import { storeArtifact } from '../artifact/module.ts';
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
 import { assertChannelName, assertDefaultAddress } from '../channel/helpers.ts';
 import type {
@@ -346,7 +347,7 @@ export class Engine implements IEngine {
             id: envelope.id ?? randomUUID(),
             receivedAt: envelope.receivedAt ?? now,
         };
-        let runId: string = randomUUID();
+        let runId: string = uuidv7();
 
         if (trigger.idempotencyKey !== undefined) {
             const claimed = await this.store.idempotency.claim(
@@ -384,9 +385,7 @@ export class Engine implements IEngine {
 
         if (attachments?.length) {
             // stored before the run, so an executing run finds them; a crash in between leaves orphans.
-            // Ids derive from the run id: a concurrent healer of the same run writes no-ops.
-            const ids = attachmentIds(runId, attachments.length);
-
+            // Keyed by index: a concurrent healer of the same run loses each key and names the stored artifact.
             trigger.attachments = [];
 
             for (const [i, attachment] of attachments.entries()) {
@@ -395,7 +394,7 @@ export class Engine implements IEngine {
                     { id: runId, agent: trigger.agent },
                     attachment,
                     now,
-                    ids[i],
+                    `attachment:${i}`,
                 ));
             }
         }

@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/tool-files",
-    "version": "0.7.3",
+    "version": "0.8.0",
     "type": "module",
     "description": "In-memory JSON, CSV and text processing over run artifacts for chamvi agents.",
     "author": {
@@ -62,12 +62,12 @@
         "smob": "^1.6.2"
     },
     "devDependencies": {
-        "@chamvi/core": "^0.7.3",
-        "@chamvi/test-kit": "^0.7.3",
+        "@chamvi/core": "^0.8.0",
+        "@chamvi/test-kit": "^0.8.0",
         "ai": "^7.0.163"
     },
     "peerDependencies": {
-        "@chamvi/core": "^0.7.3",
+        "@chamvi/core": "^0.8.0",
         "ai": "^7"
     }
 }

@@ -172,19 +172,22 @@ export interface IStateRepository {
 export interface IArtifactRepository {
     /**
      * Atomic insert-if-absent: resolves false and keeps the stored artifact
-     * (metadata and bytes) when an artifact with that id exists.
+     * (metadata and bytes) when an artifact with that id, or with `key` in
+     * that run, exists. The key is private to the store: no read returns it.
      */
-    insert(artifact: Artifact, data: Uint8Array): Promise<boolean>;
+    insert(artifact: Artifact, data: Uint8Array, key?: string): Promise<boolean>;
     /**
-     * Atomic upsert by id. An absent id inserts the artifact as given; an id held by
-     * the same run replaces `mediaType`, `filename` (removed when absent), `size` and
-     * the bytes, keeps the stored `createdAt` and resolves the stored metadata; an id
-     * held by another run throws `InvalidRunStateError` and writes nothing.
+     * Atomic upsert by `(runId, key)`. An absent key inserts the artifact as given;
+     * an existing one keeps its `id`, `agent` and `createdAt`, replaces `mediaType`,
+     * `filename` (removed when absent), `size` and the bytes, and resolves the stored
+     * metadata.
      */
-    save(artifact: Artifact, data: Uint8Array): Promise<Artifact>;
+    save(artifact: Artifact, data: Uint8Array, key: string): Promise<Artifact>;
     /** Metadata only. */
     findOne(id: string): Promise<Artifact | undefined>;
     findOneOrFail(id: string): Promise<Artifact>;
+    /** Metadata of the run's artifact stored under `key`. */
+    findOneByKey(runId: string, key: string): Promise<Artifact | undefined>;
     /** The bytes, as a plain Uint8Array (no Buffer or other subclass). */
     read(id: string): Promise<Uint8Array | undefined>;
     /** Metadata of a run's artifacts, ordered by createdAt ascending, ties broken by id ascending. */

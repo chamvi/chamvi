@@ -17,7 +17,11 @@ describe('createUiRouter', () => {
         const router = createUiRouter(DEV_CONFIG, [], createMemoryHistory('/ui'));
 
         expect(router.resolve({ name: RouteName.RUNS }).href).toBe('/ui/runs');
-        expect(router.resolve({ name: RouteName.RUN, params: { id: 'abc' } }).href).toBe('/ui/runs/abc');
+
+        for (const id of ['019a5555-1234-7abc-8123-456789abcdef', '019a5555-1234-7abc-8123-456789abcdee']) {
+            expect(router.resolve({ name: RouteName.RUN, params: { id } }).href).toBe(`/ui/runs/${id}`);
+        }
+
         expect(router.resolve({ name: RouteName.APPROVALS }).href).toBe('/ui/approvals');
         expect(router.resolve({ name: RouteName.AGENTS }).href).toBe('/ui/agents');
         expect(router.resolve({ name: RouteName.AGENT, params: { name: 'release-notes' } }).href).toBe('/ui/agents/release-notes');
@@ -27,6 +31,8 @@ describe('createUiRouter', () => {
             query: { tab: 'state' },
         }).href).toBe('/ui/agents/triage?tab=state');
         expect(router.resolve({ name: RouteName.SCHEDULES }).href).toBe('/ui/schedules');
+        expect(router.resolve({ name: RouteName.CONNECTIONS }).href).toBe('/ui/connections');
+        expect(router.resolve({ name: RouteName.CONNECTION, params: { name: 'whatsapp' } }).href).toBe('/ui/connections/whatsapp');
         expect(router.resolve({ name: RouteName.LOGIN }).href).toBe('/ui/login');
         expect(router.resolve({ name: RouteName.LOGIN_CALLBACK }).href).toBe('/ui/login/callback');
         expect(router.resolve('/runs/x').name).toBe(RouteName.RUN);

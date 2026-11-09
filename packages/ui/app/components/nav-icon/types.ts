@@ -7,4 +7,4 @@
 
 /** The line glyphs of the approved mockup. */
 export type IconName = 'agents' | 'runs' | 'approvals' | 'state' | 'schedules' | 'sun' | 'moon' | 'logout' |
-    'go' | 'back' | 'play' | 'lock' | 'hand' | 'check' | 'cross' | 'search';
+    'go' | 'back' | 'play' | 'lock' | 'hand' | 'check' | 'cross' | 'search' | 'connections';

@@ -98,10 +98,11 @@ export function createRecordingAuth(trace: string[] = []): RecordingAuth {
     let acquireFailure: { error: unknown } | undefined;
     let keysHold: Deferred<void> | undefined;
     let credsHold: Deferred<void> | undefined;
-    const creds: AuthenticationCreds = initAuthCreds();
+    let creds: AuthenticationCreds = initAuthCreds();
 
     const provider: IWhatsAppAuthProvider = {
-        async acquire(signal) {
+        supportsReset: true,
+        async acquire(signal, options) {
             trace.push('acquire');
             signals.push(signal);
 
@@ -118,6 +119,12 @@ export function createRecordingAuth(trace: string[] = []): RecordingAuth {
 
                 acquireHold = undefined;
                 await hold.promise;
+            }
+
+            // a reset empties the session under the lease
+            if (options?.reset) {
+                creds = initAuthCreds();
+                keys.clear();
             }
 
             trace.push('load');
@@ -213,7 +220,8 @@ async function readJson<T>(path: string, fallback: () => T): Promise<T> {
  */
 export function createFileAuthProvider(folder: string): IWhatsAppAuthProvider {
     return {
-        async acquire() {
+        supportsReset: true,
+        async acquire(_signal, options) {
             await mkdir(folder, { recursive: true, mode: 0o700 });
             await chmod(folder, 0o700);
 
@@ -231,6 +239,13 @@ export function createFileAuthProvider(folder: string): IWhatsAppAuthProvider {
 
             const credsPath = join(folder, 'creds.json');
             const keysPath = join(folder, 'keys.json');
+
+            // a reset empties the session under the lock
+            if (options?.reset) {
+                await rm(credsPath, { force: true });
+                await rm(keysPath, { force: true });
+            }
+
             const creds = await readJson<AuthenticationCreds>(credsPath, initAuthCreds);
             const values = await readJson<Record<string, unknown>>(keysPath, () => ({}));
             let queue: Promise<void> = Promise.resolve();

@@ -18,7 +18,7 @@ The store, the agents and the clock come from `engine` (`engine.store`, `engine.
 
 <<< ../../../http/src/app/types.ts#options{ts}
 
-`channels` lists the channels mounted at `POST /channels/<name>` (each needs an `in` and must be the object the engine holds under its name, else `InvalidAgentDefinitionError`). `routes` takes extra routes from other packages, such as the dashboard of `@chamvi/ui`:
+`channels` lists the channels mounted at `POST /channels/<name>` (each needs an `in` and must be the object the engine holds under its name, else `InvalidAgentDefinitionError`). `connections` returns the connection handles (`IConnectionHandle` of `@chamvi/core`: `name`, `type`, `status()`, `widgets()`, `subscribe()`, `actions.reset?`) served at [`/connections`](/guide/http#routes); it is called per request, and `@chamvi/app` passes every `AppToken.CONNECTIONS` contribution. `routes` takes extra routes from other packages, such as the dashboard of `@chamvi/ui`:
 
 <<< ../../../http/src/app/types.ts#routes{ts}
 

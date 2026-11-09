@@ -46,16 +46,40 @@ export type WhatsAppAuthLease = {
     flush(): Promise<void>;
     /** Gives the location up for another holder; called after `flush`. */
     release(): Promise<void>;
+    /**
+     * Optional: resolves when the provider lost the location (e.g. its lease
+     * expired and another holder took it); the connection then ends its
+     * socket and waits for the location again. Need not settle otherwise.
+     */
+    lost?: Promise<unknown>;
 };
 
-/** Hands out the session lease; caller-supplied, chamvi ships no production provider. */
+export type WhatsAppAcquireOptions = {
+    /**
+     * A reset: once the location is held, discard the stored session (creds
+     * and keys, also one that cannot be loaded) and hand out an empty one.
+     * Nothing is discarded while another holder has it.
+     */
+    reset?: boolean;
+};
+
+/**
+ * Hands out the session lease: `createStoreWhatsAppAuth()` (the app's store
+ * and keyring), or a caller-supplied provider with the same guarantees.
+ */
 export interface IWhatsAppAuthProvider {
+    /**
+     * True when `acquire` honours `reset`. Without it a reset is refused
+     * before anything closes: a provider that ignored the option would hand
+     * the old session back and the reset would look successful.
+     */
+    readonly supportsReset?: boolean;
     /**
      * Loads the session and takes the location exclusively; rejects when
      * another holder has it. Should settle soon after `signal` aborts; a
      * lease handed out after the abort is released at once.
      */
-    acquire(signal: AbortSignal): Promise<WhatsAppAuthLease>;
+    acquire(signal: AbortSignal, options?: WhatsAppAcquireOptions): Promise<WhatsAppAuthLease>;
 }
 
 /** Who may start runs: normalized platform ids (jids), never names. */
@@ -92,8 +116,19 @@ export type WhatsAppPairing = {
     qr: string;
 };
 
-/** What the connection is, from Baileys' connection events only. */
-export type WhatsAppConnectionStatus = 'stopped' | 'connecting' | 'connected' | 'disconnected' | 'logged-out';
+/**
+ * What the connection is: Baileys' connection events (`pairing` while a QR
+ * is outstanding), `held-elsewhere` while another process holds the session
+ * (acquire retries), `failed` after an acquire failed (it retries too).
+ */
+export type WhatsAppConnectionStatus = 'stopped' |
+    'connecting' |
+    'pairing' |
+    'connected' |
+    'disconnected' |
+    'logged-out' |
+    'held-elsewhere' |
+    'failed';
 
 /** The members of a Baileys socket chamvi uses (a WASocket is one). */
 export type WhatsAppSocket = {
@@ -129,6 +164,8 @@ export type WhatsAppChatOptions = {
     approvalUrl: (ref: ChatApprovalRef) => string;
     /** Receives pairing material (a QR) while the account is not paired. */
     onPairing: (pairing: WhatsAppPairing) => void;
+    /** Each status change (no pairing material); a throw is reported, the change stands. */
+    onStatus?: (status: WhatsAppConnectionStatus) => void;
     /** Default `chat`. */
     name?: string;
     /** Default true (runs are tainted). */
@@ -161,6 +198,18 @@ export type WhatsAppChatSetup = {
     channel: ChatChannel;
     status(): WhatsAppConnectionStatus;
     /**
+     * Clears the session and pairs again without restarting the channel:
+     * ends the socket, flushes and releases the lease, acquires it again with
+     * `reset: true` (the provider empties the session under that lease) and
+     * saves fresh creds before the new socket (whose QR reaches onPairing).
+     * Resolves once the first acquire after the reset settled;
+     * InvalidRunStateError while the channel is not started, when the
+     * provider has no `supportsReset`, while the status is `held-elsewhere`,
+     * or when that acquire finds the session held (nothing is cleared then,
+     * and nothing later).
+     */
+    reset(): Promise<void>;
+    /**
      * The reference of a conversation of this channel (e.g. for
      * `cron.on(expr, { conversation, text })`): the identity intake computes
      * for a message in that chat and its address. InvalidAgentDefinitionError
@@ -183,6 +232,7 @@ export type WhatsAppConnectionOptions = {
     socketFactory: WhatsAppSocketFactory;
     socketOptions?: WhatsAppChatOptions['socketOptions'];
     onPairing: (pairing: WhatsAppPairing) => void;
+    onStatus?: (status: WhatsAppConnectionStatus) => void;
     onError: (error: unknown) => void;
     clock?: IClock;
     /** a batch of messages of the current socket */
@@ -195,6 +245,7 @@ export type WhatsAppConnection = {
     /** the socket of an open connection, else undefined */
     socket(): WhatsAppSocket | undefined;
     connect(ctx: { signal: AbortSignal; clock: IClock }): Promise<void>;
+    reset(): Promise<void>;
     close(): Promise<void>;
 };
 

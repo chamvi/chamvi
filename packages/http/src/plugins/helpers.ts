@@ -23,9 +23,9 @@ export function routePath(event: IAppEvent, basePath: string): string {
     return relative.replace(/\/+$/, '') || '/';
 }
 
-/** `GET <basePath>/runs/:id/stream`: minute-long SSE connections skew request timings. */
+/** `GET <basePath>/runs/:id/stream` and `/connections/:name/events`: minute-long SSE connections skew request timings. */
 export function isStreamRequest(event: IAppEvent, basePath: string): boolean {
-    return event.method === 'GET' && /^\/runs\/[^/]+\/stream$/.test(routePath(event, basePath));
+    return event.method === 'GET' && /^\/(?:runs\/[^/]+\/stream|connections\/[^/]+\/events)$/.test(routePath(event, basePath));
 }
 
 /** `/healthz`, `/readyz` and the metrics path (under `basePath`): never rate limited. */
@@ -51,7 +51,7 @@ export function isUnlimitedRoute(event: IAppEvent, basePath: string, routes: rea
 
 /** The routes of the app as metric labels, matched against the path without `basePath`; keep in step with the route modules. */
 const ROUTE_TEMPLATES: Array<[RegExp, string]> = [
-    [/^\/(?:healthz|readyz|agents|schedules|runs|mcp|me)$/, ''],
+    [/^\/(?:healthz|readyz|agents|schedules|runs|mcp|me|connections)$/, ''],
     [/^\/runs\/[^/]+$/, '/runs/:id'],
     [/^\/runs\/[^/]+\/stream$/, '/runs/:id/stream'],
     [/^\/runs\/[^/]+\/cancel$/, '/runs/:id/cancel'],
@@ -63,6 +63,9 @@ const ROUTE_TEMPLATES: Array<[RegExp, string]> = [
     [/^\/agents\/[^/]+\/state\/kv\/[^/]+$/, '/agents/:name/state/kv/:key'],
     [/^\/agents\/[^/]+\/state\/collections\/[^/]+$/, '/agents/:name/state/collections/:collection'],
     [/^\/channels\/[^/]+(?:\/.*)?$/, '/channels/:name/*'],
+    [/^\/connections\/[^/]+$/, '/connections/:name'],
+    [/^\/connections\/[^/]+\/events$/, '/connections/:name/events'],
+    [/^\/connections\/[^/]+\/reset$/, '/connections/:name/reset'],
 ];
 
 /** Every request that matches no route shares this label. */

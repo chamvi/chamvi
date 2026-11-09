@@ -28,6 +28,7 @@ export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {
         readArtifact: missing('readArtifact'),
         streamRun: missing('streamRun'),
         startRun: missing('startRun'),
+        send: missing('send'),
         ...overrides,
     };
 }

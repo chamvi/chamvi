@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
+
+
+### ⚠ BREAKING CHANGES
+
+* use uuid v7 ids and one primary key per table ([#174](https://github.com/chamvi/chamvi/issues/174))
+
+### Features
+
+* **chat-whatsapp,http,app:** store-backed WhatsApp sessions and connection routes ([#166](https://github.com/chamvi/chamvi/issues/166)) ([ba03375](https://github.com/chamvi/chamvi/commit/ba0337575e2ba53af5306795f3b78c16e1f84679))
+* **core,store-db:** add an encrypted, lease-fenced connection store ([#165](https://github.com/chamvi/chamvi/issues/165)) ([6c7ea55](https://github.com/chamvi/chamvi/commit/6c7ea55963dda044e06aa32964f3e0f813180d88))
+* **ui:** pair WhatsApp connections in the dashboard ([#167](https://github.com/chamvi/chamvi/issues/167)) ([7e5191a](https://github.com/chamvi/chamvi/commit/7e5191aa96522022557f25303c3f59fa24cecad9))
+* use uuid v7 ids and one primary key per table ([#174](https://github.com/chamvi/chamvi/issues/174)) ([20392bc](https://github.com/chamvi/chamvi/commit/20392bcf9c068383a81577d46fcd08369d206f25))
+
+
+### Bug Fixes
+
+* distinguish uuid v7 run ids and document the 0.8 upgrade ([#176](https://github.com/chamvi/chamvi/issues/176)) ([bd15f1b](https://github.com/chamvi/chamvi/commit/bd15f1be483dcddcfe7bdada5993e8c0cf3f51ec))
+* ensure consistent version for release ([#178](https://github.com/chamvi/chamvi/issues/178)) ([98faf1a](https://github.com/chamvi/chamvi/commit/98faf1ad1e7b388509c1e81b31fef9070e50f939))
+
 ## [0.7.3](https://github.com/chamvi/chamvi/compare/v0.7.2...v0.7.3) (2026-11-05)
 
 

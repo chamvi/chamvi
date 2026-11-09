@@ -9,6 +9,7 @@ import type {
     Agent,
     IChannel,
     IClock,
+    IConnectionHandle,
     IEngine,
     IStore,
 } from '@chamvi/core';
@@ -103,6 +104,12 @@ export type HttpAppOptions = {
      * under its name, else InvalidAgentDefinitionError. Default: none.
      */
     channels?: IChannel[];
+    /**
+     * The connection handles to serve at `/connections` (status, the
+     * widgets such as a pairing QR, live events, reset), read per request.
+     * Default: none, the list is empty.
+     */
+    connections?: () => readonly IConnectionHandle[];
 };
 
 // #endregion options
@@ -211,5 +218,7 @@ export type HttpContext = {
     routes: HttpRoute[];
     /** Mounted channels, validated in `buildContext`. */
     channels: IChannel[];
+    /** The connection handles, read per request. */
+    connections: () => readonly IConnectionHandle[];
     onError: (error: unknown) => void;
 };

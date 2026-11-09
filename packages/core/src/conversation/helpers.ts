@@ -8,7 +8,7 @@
 import { isObject } from 'smob';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { CONVERSATION_LIMITS_MAX, DEFAULT_CONVERSATION_LIMITS } from './constants.ts';
-import { assertConversationScope } from './persistence/module.ts';
+import { assertConversationScope, identityId } from './persistence/module.ts';
 import type {
     ConversationItem,
     ConversationLimits,
@@ -62,11 +62,15 @@ export function normalizeConversationLimits(input?: ConversationLimits): Resolve
     return out;
 }
 
-/** The concurrency key every run of one conversation generation shares: `conversation:<id>:<generation>`. */
+/**
+ * The concurrency key every run of one conversation generation shares:
+ * `conversation:<identityId(identity)>:<generation>`. It never reads `scope.id`,
+ * so it is computable before the conversation row exists.
+ */
 export function conversationConcurrencyKey(scope: ConversationScope): string {
     assertConversationScope(scope);
 
-    return `conversation:${scope.id}:${scope.generation}`;
+    return `conversation:${identityId(scope.identity)}:${scope.generation}`;
 }
 
 /** A record created at `createdAt` with `ttlMs` is expired at exactly createdAt + ttlMs. */

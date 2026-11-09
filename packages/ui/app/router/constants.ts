@@ -14,6 +14,8 @@ export const RouteName = {
     RUN: 'run',
     APPROVALS: 'approvals',
     SCHEDULES: 'schedules',
+    CONNECTIONS: 'connections',
+    CONNECTION: 'connection',
 } as const;
 
 export type RouteNameValue = typeof RouteName[keyof typeof RouteName];

@@ -16,9 +16,10 @@ import { chatModule } from '@chamvi/chat/module';
 import { createDiscordChat } from '@chamvi/chat-discord';
 import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
 import type { IWhatsAppAuthProvider } from '@chamvi/chat-whatsapp';
+import { whatsappModule } from '@chamvi/chat-whatsapp/module';
 
 declare const model: LanguageModel;
-// your secure, exclusive session store (chamvi ships none)
+// an exclusive session store of your own (or whatsappModule's, below)
 declare const auth: IWhatsAppAuthProvider;
 // a Chat SDK state adapter
 declare const state: StateAdapter;
@@ -149,6 +150,39 @@ export const whatsappApp = createApp({
     conversations: { authorize: ({ agent }) => agent === 'assistant' },
 });
 // #endregion whatsapp-module
+
+// #region whatsapp-store
+// the session lives sealed in the app store, under CHAMVI_ENCRYPTION_KEYS
+const phone = whatsappModule({
+    // the connection: its lease, its sealed entries, /connections/whatsapp in the dashboard
+    connection: 'whatsapp',
+    account: 'assistant',
+    state,
+    policy: { senders: ['491701111111@s.whatsapp.net'] },
+    resolveInvoker: (identity) => ({
+        id: identity.sender,
+        kind: 'whatsapp',
+        permissions: [],
+    }),
+    // approvalUrl defaults to the dashboard under CHAMVI_PUBLIC_URL
+});
+
+export const phoneAssistant = defineModelAgent({
+    name: 'assistant',
+    model,
+    instructions: 'Answer with the reply tool.',
+    conversation: true,
+    channels: [phone.on()],
+    tools: { reply },
+});
+
+export const phoneApp = createApp({
+    agents: [phoneAssistant],
+    // no chatModule: whatsappModule contributes the channel and the connection itself
+    modules: [phone],
+    conversations: { authorize: ({ agent }) => agent === 'assistant' },
+});
+// #endregion whatsapp-store
 
 // #region discord
 const discord = createDiscordChat({

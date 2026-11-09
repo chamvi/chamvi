@@ -6,4 +6,5 @@
  */
 
 export * from './constants.ts';
+export * from './legacy.ts';
 export * from './module.ts';

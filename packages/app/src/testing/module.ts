@@ -52,6 +52,10 @@ export function buildModuleHarness(options: ModuleHarnessOptions = {}): ModuleHa
         container.register(AppToken.CLOCK, { useValue: options.clock });
     }
 
+    if (options.keyring) {
+        container.register(AppToken.KEYRING, { useValue: options.keyring });
+    }
+
     const application = new Application({
         container,
         modules: (options.modules ?? []).map((module) => reportingModule(module, report)),

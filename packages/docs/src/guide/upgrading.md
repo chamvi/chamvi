@@ -2,6 +2,34 @@
 
 chamvi is pre-1.0: a minor release may break the API. Each section lists what changed and the exact replacement.
 
+## Upgrading to 0.8
+
+The Postgres store (`@chamvi/store-db`) now gives every table a single `id` primary key, a time-ordered UUID v7 (the append-only steps and conversation items use a bigint). Run ids, artifact ids and, in Postgres, conversation scope ids are UUIDs. The eight earlier migrations are replaced by one baseline migration, and **an existing database cannot be upgraded in place: the new version needs a new, empty database.** The in-memory store is unaffected.
+
+### Breaking changes
+
+| Change | Before | Replacement |
+|---|---|---|
+| Database | Schema built by the eight earlier migrations | A new, empty database; the baseline `UuidBaseline1794096000000` creates the schema. Runs, steps, state, documents, artifacts and conversation memory of the old database are not carried over |
+| `migrateStore(dataSource)` on an old database | Applied the pending migrations | Refuses it before changing anything, with an error (code `store_legacy_schema`) that names this guide |
+| `chamvi start --check` on an old database | Exit 0 (with the default `CHAMVI_MIGRATE=true`) | Exit 1 with the same message, whatever `CHAMVI_MIGRATE` says |
+| Run and artifact ids | Run ids from `randomUUID()`; artifact ids `<runId>.0000` for attachments and `<runId>.k.<hash>` for keyed puts | UUID v7 for both. Treat ids as opaque strings. A keyed `artifacts.put({ key })` keeps its stored id when a later put replaces it |
+| `keyedArtifactId()` (`@chamvi/core`) | Exported | Removed. `IArtifactRepository.insert(artifact, data, key?)` and `save(artifact, data, key)` take a private key; `findOneByKey(runId, key)` looks one up. A custom store must implement them (`describeRepositoryContract()` checks it) |
+| Malformed ids in the HTTP API | n/a | A run or artifact id that is not a UUID is a 404 on the database store, as for any unknown id |
+
+### Steps
+
+1. Create a new, empty Postgres database (a new database, not a new schema in the old one, keeps the rollback below simple).
+2. Drain the old deployment: stop ingress and run-job CronJobs, and let in-flight runs settle or answer their approvals. Nothing from the old database is read by the new version.
+3. Point `DATABASE_URL` at the new database and deploy the new version. With the default `CHAMVI_MIGRATE=true` the first start creates the schema; with `CHAMVI_MIGRATE=false`, run `chamvi migrate` first.
+4. Check before switching traffic: `chamvi start --check` with the new `DATABASE_URL` exits 0. Pointed at the old database it exits 1 and prints the message that names this guide.
+
+The old database is left untouched. To roll back, redeploy the previous chamvi version with the old `DATABASE_URL`; the old schema and its data are intact. Keep it for as long as you may need that, and drop it when you do not.
+
+The check that refuses an old database covers `migrateStore()` (so a default start and `chamvi migrate`), `chamvi start --check` and a start with `CHAMVI_MIGRATE=false`. Each exits 1 with the same message.
+
+The check is temporary: the chamvi version after this one removes it, and an old database then fails on `CREATE TABLE` with a raw Postgres error instead.
+
 ## Upgrading to 0.7
 
 ### Breaking changes

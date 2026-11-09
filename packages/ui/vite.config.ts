@@ -68,5 +68,5 @@ export default defineConfig(({ command }) => ({
         // a font subset under 4 KiB would become a data: URI, which font-src 'self' refuses
         assetsInlineLimit: (file) => (file.endsWith('.woff2') ? false : undefined),
     },
-    server: { proxy: Object.fromEntries(['/agents', '/runs', '/schedules', '/me'].map((path) => [path, API])) },
+    server: { proxy: Object.fromEntries(['/agents', '/runs', '/schedules', '/connections', '/me'].map((path) => [path, API])) },
 }));

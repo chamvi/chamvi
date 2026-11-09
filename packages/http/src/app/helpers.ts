@@ -212,6 +212,10 @@ export function buildContext(options: HttpAppOptions): HttpContext {
 
     validateChannelRateLimits(options, channels);
 
+    if (options.connections !== undefined && typeof options.connections !== 'function') {
+        throw new InvalidAgentDefinitionError('connections must be a function returning the connection handles.');
+    }
+
     return {
         engine: options.engine,
         store: options.engine.store,
@@ -230,6 +234,7 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         closed: false,
         routes: validateRoutes(options),
         channels,
+        connections: options.connections ?? (() => []),
         // eslint-disable-next-line no-console
         onError: options.onError ?? ((error) => console.error('[chamvi]', error)),
     };

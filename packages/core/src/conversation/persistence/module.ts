@@ -33,7 +33,9 @@ const FORBIDDEN_FIELD_CHARACTER = /[\p{Cc}\p{Cs}]/u;
 
 const LONE_SURROGATE = /\p{Cs}/u;
 
-const SCOPE_ID_PATTERN = /^[0-9a-f]{64}$/;
+const SCOPE_SHA256_PATTERN = /^[0-9a-f]{64}$/;
+
+const SCOPE_UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
 /**
  * Refuses an identity whose fields are not non-blank strings of at most
@@ -111,14 +113,14 @@ function utf8Bytes(text: string): number {
     return Buffer.byteLength(text, 'utf8');
 }
 
-/** Refuses a scope whose id is no sha256 hex digest or whose generation is no non-negative integer. */
+/** Refuses a scope whose id is neither a sha256 hex digest nor a UUID or whose generation is no non-negative integer. */
 export function assertConversationScope(scope: unknown): asserts scope is ConversationScope {
     if (!isObject(scope)) {
         throw new ValidationError('The conversation scope must be an object.');
     }
 
-    if (typeof scope.id !== 'string' || !SCOPE_ID_PATTERN.test(scope.id)) {
-        throw new ValidationError('The conversation scope id must be a sha256 hex digest.');
+    if (typeof scope.id !== 'string' || (!SCOPE_SHA256_PATTERN.test(scope.id) && !SCOPE_UUID_PATTERN.test(scope.id))) {
+        throw new ValidationError('The conversation scope id must be a sha256 hex digest or a UUID.');
     }
 
     if (!Number.isSafeInteger(scope.generation) || (scope.generation as number) < 0) {

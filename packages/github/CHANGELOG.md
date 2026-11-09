@@ -1,5 +1,26 @@
 # Changelog
 
+## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
+
+
+### Features
+
+* **core,store-db:** add an encrypted, lease-fenced connection store ([#165](https://github.com/chamvi/chamvi/issues/165)) ([6c7ea55](https://github.com/chamvi/chamvi/commit/6c7ea55963dda044e06aa32964f3e0f813180d88))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/core bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/http bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/test-kit bumped from ^0.7.3 to ^0.8.0
+  * peerDependencies
+    * @chamvi/app bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/core bumped from ^0.7.3 to ^0.8.0
+    * @chamvi/http bumped from ^0.7.3 to ^0.8.0
+
 ## [0.7.3](https://github.com/chamvi/chamvi/compare/v0.7.2...v0.7.3) (2026-11-05)
 
 

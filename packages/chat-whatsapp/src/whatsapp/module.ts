@@ -50,7 +50,7 @@ function assertOptions(options: WhatsAppChatOptions): void {
         }
     }
 
-    for (const key of ['onError', 'socketFactory'] as const) {
+    for (const key of ['onError', 'onStatus', 'socketFactory'] as const) {
         if (options[key] !== undefined && typeof options[key] !== 'function') {
             throw invalid(`${key} must be a function.`);
         }
@@ -96,6 +96,7 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
         socketFactory: options.socketFactory ?? makeWASocket,
         ...(options.socketOptions ? { socketOptions: options.socketOptions } : {}),
         onPairing: options.onPairing,
+        ...(options.onStatus ? { onStatus: options.onStatus } : {}),
         onError,
         ...(options.clock ? { clock: options.clock } : {}),
     });
@@ -175,6 +176,7 @@ export function createWhatsAppChat(options: WhatsAppChatOptions): WhatsAppChatSe
         ingress,
         channel,
         status: () => adapter.connection.status(),
+        reset: () => adapter.connection.reset(),
         conversation: (input) => toConversationRef(input, {
             account: options.account,
             channel: channel.name,

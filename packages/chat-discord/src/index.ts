@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+// The package entry composes the folder barrels.
 // The package entry: Discord through the Gateway over @chamvi/chat's public platform seam.
 
 export * from './discord/index.ts';
