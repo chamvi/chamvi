@@ -35,6 +35,7 @@
             "@chamvi/tool-files": ["./packages/tool-files/src/index.ts"],
             "@chamvi/tool-mail": ["./packages/tool-mail/src/index.ts"],
             "@chamvi/tool-mail/module": ["./packages/tool-mail/src/module/index.ts"],
+            "@chamvi/tool-utils": ["./packages/tool-utils/src/index.ts"],
             "@chamvi/tool-web": ["./packages/tool-web/src/index.ts"],
             "@chamvi/ui": ["./packages/ui/src/index.ts"],
             "@chamvi/ui/module": ["./packages/ui/src/module/index.ts"]
