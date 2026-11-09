@@ -89,7 +89,7 @@ Every call starts with fresh files, environment and cwd `/workspace`. To use an 
 
 Defaults are 5 MiB separately for imported/exported bytes, 16 inputs and outputs each, and 30 seconds of interpreter execution. A nonzero exit returns diagnostics and no output artifacts; invalid inputs/outputs raise `ValidationError`. Cancellation prevents further writes once observed but cannot undo successful writes. Same-call replay retains output artifact IDs; separate calls keep separate artifacts even for the same filename. Computation can repeat on simple-agent approval replay.
 
-Supported commands include `jq`, `xan`, `awk`, `sed`, `rg` and text/file utilities, with bounded source, output, scratch space and hardened execution budgets. Networking, custom commands, Python, JavaScript, SQL, archive commands and real executables are unavailable. This runs in process with no VM isolation; use [Docker/Kubernetes coding workspaces](/guide/workspaces) for Git, dependencies, builds, tests and servers. See the [reference](/reference/tool-files#commands-and-limits) for the fixed command set and limits.
+Supported commands include `jq`, `xan`, `awk`, `sed`, `rg` and text/file utilities, with bounded source, output, scratch space and hardened execution budgets. Networking, custom commands, Python, JavaScript, SQL, archive commands and real executables are unavailable. This runs on a worker thread with no VM isolation; use [Docker/Kubernetes coding workspaces](/guide/workspaces) for Git, dependencies, builds, tests and servers. See the [reference](/reference/tool-files#commands-and-limits) for the fixed command set and limits.
 
 ## Web research tools
 

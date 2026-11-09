@@ -52,12 +52,13 @@ Supported commands: `awk`, `base64`, `basename`, `cat`, `column`, `comm`, `cp`, 
 | Command source | 16,384 UTF-8 bytes |
 | Decoded stdout and stderr together | 65,536 UTF-8 bytes, stderr retained first; clipping includes `[output truncated]` within the cap |
 | Cumulative interpreter work output | `max(65_536, maxBytes * 4)` bytes, including output before redirection |
-| Execution deadline | `timeoutMs`, default 30 seconds, interpreter execution only |
+| Execution deadline | `timeoutMs`, default 30 seconds, interpreter execution only; the thread is ended 2 seconds later |
+| Interpreter heap | 512 MiB; exceeding it exits 137 |
 | Scratch filesystem including synthetic files | `65_536 + maxBytes * 2` bytes |
 
-The interpreter uses the hardened execution profile, including loop and command-count budgets. Successful commands can return clipped diagnostics. The additive scratch reserve accommodates synthetic command/proc files alongside full selected input/output room; artifact caps remain exact. Work and scratch budgets stay finite, so arbitrarily long pipelines or intermediate expansion can exhaust them.
+The interpreter uses the hardened execution profile, with loop, command and record budgets raised to 1,000,000 to suit the byte limit. Successful commands can return clipped diagnostics. The additive scratch reserve accommodates synthetic command/proc files alongside full selected input/output room; artifact caps remain exact. Work and scratch budgets stay finite, so arbitrarily long pipelines or intermediate expansion can exhaust them.
 
-Networking, custom commands, Python, JavaScript, SQL, archive commands and host executables are unavailable. The in-process interpreter has no VM isolation or complete host-security boundary. Docker and Kubernetes remain the [coding workspace](/guide/workspaces) choices for Git, installing dependencies, builds, tests and servers.
+Networking, custom commands, Python, JavaScript, SQL, archive commands and host executables are unavailable. The interpreter runs on a worker thread, ended at `timeoutMs` plus 2 seconds (exit 124) or above 512 MiB of heap (exit 137), so a stuck command cannot stall the host's event loop. A thread has no VM isolation or complete host-security boundary. Docker and Kubernetes remain the [coding workspace](/guide/workspaces) choices for Git, installing dependencies, builds, tests and servers.
 
 ## Errors and cancellation
 

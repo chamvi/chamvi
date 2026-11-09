@@ -14,6 +14,24 @@ export const FILES_TIMEOUT_MS = 30_000;
 export const FILES_MAX_COMMAND_BYTES = 16_384;
 export const FILES_MAX_DIAGNOSTIC_BYTES = 65_536;
 export const FILES_FILESYSTEM_OVERHEAD_BYTES = 65_536;
+/** Headroom after the interpreter's own deadline, covering thread startup, before the thread is terminated. */
+export const FILES_WORKER_GRACE_MS = 2_000;
+export const FILES_WORKER_HEAP_MB = 512;
+
+/** Count budgets sized for the byte limit: hardened defaults stop near 10,000 records, a fraction of 5 MiB. */
+export const FILES_RECORD_BUDGETS = {
+    maxCommandCount: 1_000_000,
+    maxLoopIterations: 1_000_000,
+    maxAwkIterations: 1_000_000,
+    maxSedIterations: 1_000_000,
+    maxJqIterations: 1_000_000,
+    maxQueryElements: 1_000_000,
+    maxArrayElements: 1_000_000,
+    maxCsvRows: 1_000_000,
+    maxCsvCells: 10_000_000,
+    maxWorkUnits: 100_000_000,
+};
+
 export const FILES_COMMANDS: CommandName[] = [
     'awk',
     'base64',

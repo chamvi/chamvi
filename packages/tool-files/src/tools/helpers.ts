@@ -8,6 +8,7 @@
 import { ValidationError, isArtifactMediaType } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
+import { aggregateLimitMessage } from '../runner/helpers.ts';
 import { FILES_MAX_COMMAND_BYTES, FILES_MAX_DIAGNOSTIC_BYTES, FILES_MAX_FILES } from './constants.ts';
 import type { ProcessFilesInput } from './types.ts';
 
@@ -101,7 +102,7 @@ export function signalOf(context: ToolContext, abortSignal?: AbortSignal): Abort
 
 export function assertSize(size: number, maxBytes: number): void {
     if (!Number.isSafeInteger(size) || size < 0 || size > maxBytes) {
-        throw new ValidationError(`Selected files exceed the aggregate ${maxBytes} byte limit.`);
+        throw new ValidationError(aggregateLimitMessage(maxBytes));
     }
 }
 
