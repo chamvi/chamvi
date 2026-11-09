@@ -265,6 +265,8 @@ export type ConnectionField = {
     options?: readonly string[];
     /** A `string` or `secret` whose value has line breaks (a PEM): a single-line input would strip them. */
     multiline?: boolean;
+    /** Decides where a secret is sent (a host, a URL): changing it needs every secret of the connection again. */
+    bindsSecrets?: boolean;
     /** The variable this field reads for a connection; undefined when it has none. */
     env?: (connection: string) => string | undefined;
 };
@@ -298,6 +300,8 @@ export type ResolvedConnection = {
     /** The keys of the required fields without a value. */
     missing: string[];
     state: ConnectionState;
+    /** Why a start could not use it: names options or variables, never a value. */
+    reason?: string;
 };
 
 /** One connection a module declares, resolved for the API. */

@@ -237,6 +237,7 @@ describe('connection configuration', () => {
                 name: 'mail-work',
                 type: 'mail',
                 status: 'disconnected',
+                live: false,
                 account: 'work',
                 state: 'not_configured',
                 editable: true,
@@ -799,7 +800,324 @@ describe('connection configuration', () => {
         });
     });
 
+    describe('state in the listing and the view', () => {
+        const declareIncomplete = (definition: ConnectionTypeDefinition) => [declare(definition, 'mail-work', {}, { account: 'work', loadedRevision: 1 })];
+
+        it('reports an incomplete connection and the labels it lacks', async () => {
+            const { app, real } = world({ declared: declareIncomplete });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' } });
+
+            const list = await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }));
+            const view = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
+            expect(list.data[0]).toMatchObject({
+                state: 'incomplete',
+                missing: ['Password'],
+                live: false,
+            });
+            expect(view).toMatchObject({ state: 'incomplete', missing: ['Password'] });
+        });
+
+        it('reports the state of an account created after the start', async () => {
+            const { app, real } = world();
+
+            await real.create('mail-late', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            expect((await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }))).data[0]).toMatchObject({
+                name: 'mail-late',
+                state: 'configured',
+                live: false,
+            });
+        });
+
+        it('says why the last start could not use a complete connection, until a save waits for a restart', async () => {
+            const declared = (definition: ConnectionTypeDefinition) => {
+                const entry = declare(definition, 'mail-work', {}, { loadedRevision: 1 });
+
+                entry.resolved = {
+                    ...entry.resolved,
+                    state: 'incomplete',
+                    reason: 'approvalUrl is required, or CHAMVI_PUBLIC_URL.',
+                };
+
+                return [entry];
+            };
+            const { app, real } = world({ declared });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            const view = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+            const list = await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }));
+            const detail = await json(await call(app, 'GET', '/connections/mail-work', { token: tokenFor('connection:mail-work:read') }));
+
+            expect(view).toMatchObject({ state: 'incomplete', reason: 'approvalUrl is required, or CHAMVI_PUBLIC_URL.' });
+            expect(list.data[0].reason).toBe(view.reason);
+            expect(detail).toMatchObject({ state: 'incomplete', reason: view.reason });
+
+            await real.update('mail-work', { settings: { host: 'h2' } });
+
+            const after = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
+            expect(after.state).toBe('configured');
+            expect(after.reason).toBeUndefined();
+        });
+
+        it('joins a live handle with its configuration', async () => {
+            const definition = mailDefinition();
+            const clock = new ControllableClock(new Date(1_000_000));
+            const store = createMemoryStore({ clock });
+            const connection = declare(definition, 'mail-work', { MAIL_HOST: 'h', MAIL_PASSWORD: 'p' });
+            const { app } = createTestApp({
+                store,
+                clock,
+                connections: () => [{
+                    name: 'mail-work',
+                    type: 'mail',
+                    status: () => 'connected',
+                    widgets: () => [],
+                    subscribe: () => () => undefined,
+                    actions: {},
+                }],
+                connectionTypes: () => [{
+                    definition,
+                    creatable: () => false,
+                    connections: () => [connection],
+                }],
+            });
+
+            const list = await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }));
+
+            expect(list.data[0].status).toBe('connected');
+            expect(list.data[0].live).toBeUndefined();
+            expect(await json(await call(app, 'GET', '/connections/mail-work', { token: ADMIN_TOKEN }))).toMatchObject({
+                status: 'connected',
+                state: 'configured',
+                live: true,
+            });
+        });
+    });
+
+    describe('identity on save', () => {
+        const worldOfTwo = async () => {
+            const context = world({ declared: (definition) => [declare(definition, 'mail-a', {}, { deletable: true })] });
+
+            await context.real.create('mail-a', 'mail', { settings: { host: 'a.test' }, secrets: { set: { password: PASSWORD } } });
+            await context.real.create('mail-b', 'mail', { settings: { host: 'b.test' }, secrets: { set: { password: PASSWORD } } });
+
+            return context;
+        };
+
+        it('refuses editing an account to the identity of another with 409', async () => {
+            const { app, real } = await worldOfTwo();
+
+            const response = await call(app, 'PUT', '/connections/mail-b/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'a.test' }, secrets: { set: { password: PASSWORD } } },
+            });
+
+            expect(response.status).toBe(409);
+            expect((await real.describe('mail-b'))?.settings).toEqual({ host: 'b.test' });
+        });
+
+        it('compares against what is stored now, not the last start', async () => {
+            const { app, real } = await worldOfTwo();
+
+            await real.update('mail-a', { settings: { host: 'moved.test' } });
+
+            const taken = await call(app, 'PUT', '/connections/mail-b/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'moved.test' }, secrets: { set: { password: PASSWORD } } },
+            });
+            const freed = await call(app, 'PUT', '/connections/mail-b/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'a.test' }, secrets: { set: { password: PASSWORD } } },
+            });
+
+            expect(taken.status).toBe(409);
+            expect(freed.status).toBe(200);
+        });
+
+        it('lets an account keep its own identity', async () => {
+            const { app } = await worldOfTwo();
+
+            const response = await call(app, 'PUT', '/connections/mail-b/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'b.test', port: 1 } },
+            });
+
+            expect(response.status).toBe(200);
+        });
+    });
+
+    describe('fields that decide where a secret goes', () => {
+        function boundDefinition(overrides: Partial<ConnectionTypeDefinition> = {}): ConnectionTypeDefinition {
+            return mailDefinition({
+                uniqueId: undefined,
+                fields: [
+                    {
+                        key: 'host',
+                        label: 'Host',
+                        kind: 'string',
+                        required: true,
+                        bindsSecrets: true,
+                    },
+                    {
+                        key: 'port',
+                        label: 'Port',
+                        kind: 'number',
+                    },
+                    {
+                        key: 'password',
+                        label: 'Password',
+                        kind: 'secret',
+                        required: true,
+                        env: () => 'MAIL_PASSWORD',
+                    },
+                    {
+                        key: 'token',
+                        label: 'Token',
+                        kind: 'secret',
+                    },
+                ],
+                ...overrides,
+            });
+        }
+
+        const saved = async (env: Record<string, string> = {}) => {
+            const context = world({
+                definition: boundDefinition(),
+                declared: (definition) => [declare(definition, 'mail-work', {}, {
+                    resolved: resolveConnection({
+                        definition,
+                        name: 'mail-work',
+                        readVariable: (variable) => env[variable],
+                        stored: { host: 'old.test' },
+                    }),
+                })],
+            });
+
+            await context.real.create('mail-work', 'mail', {
+                settings: { host: 'old.test' },
+                secrets: { set: { password: PASSWORD, token: 'second-secret' } },
+            });
+
+            return context;
+        };
+
+        it('carries bindsSecrets in GET /connection-types', async () => {
+            const { app } = world({ definition: boundDefinition() });
+            const body = await json(await call(app, 'GET', '/connection-types', { token: ADMIN_TOKEN }));
+
+            expect(body.data[0].fields[0].bindsSecrets).toBe(true);
+        });
+
+        it('refuses moving the field without every stored secret, naming each, and stores nothing', async () => {
+            const { app, real } = await saved();
+
+            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'new.test' }, secrets: { set: { password: 'typed-again' } } },
+            });
+            const text = await response.text();
+
+            expect(response.status).toBe(400);
+            expect(JSON.stringify(JSON.parse(text))).toContain('token');
+            expect(text).not.toContain('typed-again');
+            expect(text).not.toContain('new.test');
+            expect((await real.describe('mail-work'))?.settings).toEqual({ host: 'old.test' });
+        });
+
+        it('accepts the move with every secret re-entered, or a secret cleared', async () => {
+            const { app, real } = await saved();
+
+            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'new.test' }, secrets: { set: { password: 'typed-again' }, clear: ['token'] } },
+            });
+
+            expect(response.status).toBe(200);
+            expect(await real.describe('mail-work')).toMatchObject({ settings: { host: 'new.test' }, secretsSet: ['password'] });
+        });
+
+        it('leaves other edits alone, and a save that keeps the value', async () => {
+            const { app } = await saved();
+
+            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'old.test', port: 2 } },
+            });
+
+            expect(response.status).toBe(200);
+        });
+
+        it('counts setting a field that had no value as moving it', async () => {
+            const definition = boundDefinition();
+            const context = world({
+                definition: {
+                    ...definition,
+                    fields: definition.fields.map((field) => (field.key === 'host' ? { ...field, required: false } : field)),
+                },
+                declared: (types) => [declare(types, 'mail-work')],
+            });
+
+            await context.real.create('mail-work', 'mail', { settings: {}, secrets: { set: { password: PASSWORD } } });
+
+            const response = await call(context.app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'evil.test' } },
+            });
+
+            expect(response.status).toBe(400);
+        });
+
+        it('refuses the move with 409 for a secret from env, naming the field and never the value', async () => {
+            const { app, real } = await saved({ MAIL_PASSWORD: 'env-secret-value' });
+
+            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'new.test' }, secrets: { set: { token: 'typed-again' } } },
+            });
+            const text = await response.text();
+
+            expect(response.status).toBe(409);
+            expect(text).toContain('Host');
+            expect(text).toContain('MAIL_PASSWORD');
+            expect(text).not.toContain('env-secret-value');
+            expect(text).not.toContain('typed-again');
+            expect((await real.describe('mail-work'))?.settings).toEqual({ host: 'old.test' });
+        });
+    });
+
     describe('testing', () => {
+        it('ends a test that never answers at its deadline, aborting its signal', async () => {
+            let seen: AbortSignal | undefined;
+            const {
+                app,
+                real,
+                clock,
+            } = world({
+                definition: mailDefinition({
+                    test: (_values, signal) => {
+                        seen = signal;
+
+                        return new Promise(() => undefined);
+                    },
+                }),
+                declared: (definition) => [declare(definition, 'mail-work')],
+            });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            const pending = call(app, 'POST', '/connections/mail-work/test', { token: ADMIN_TOKEN });
+
+            await vi.waitFor(() => expect(seen).toBeDefined());
+            clock.advance(30_000);
+
+            expect(await json(await pending)).toEqual({ ok: false, message: 'The connection test timed out.' });
+            expect(seen?.aborted).toBe(true);
+        });
+
         it('test runs saved values only', async () => {
             const test = vi.fn(async () => undefined);
             const { app, real } = world({
