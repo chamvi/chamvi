@@ -1198,6 +1198,18 @@ describe('connection configuration', () => {
             expect(await response.text()).not.toContain('raw driver detail');
         });
 
+        it('says a connection set in code cannot be tested instead of asking to save it', async () => {
+            const { app } = world({
+                definition: mailDefinition({ test: async () => undefined }),
+                declared: (types) => [declare(types, 'mail-work', {}, { editable: false })],
+            });
+
+            const response = await call(app, 'POST', '/connections/mail-work/test', { token: ADMIN_TOKEN });
+
+            expect(response.status).toBe(409);
+            expect(await response.text()).toContain('cannot be tested here');
+        });
+
         it('needs write, a test and complete values', async () => {
             const definition = mailDefinition({ test: async () => undefined });
             const { app } = world({

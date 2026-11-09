@@ -877,7 +877,12 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
         const missing = definition.fields.filter((field) => field.required && !Object.hasOwn(values, field.key));
 
         if (missing.length > 0) {
-            throw new ConflictError({ message: `Save ${missing.map((field) => field.label).join(', ')} first.` });
+            // a built App passed in code holds no values this process could test with
+            throw new ConflictError({
+                message: isEditable(ctx, target) ?
+                    `Save ${missing.map((field) => field.label).join(', ')} first.` :
+                    `The connection "${target.name}" is set in code and cannot be tested here.`,
+            });
         }
 
         try {
