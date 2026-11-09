@@ -162,11 +162,64 @@ describe('connection routes', () => {
             status: 'pairing',
             widgets: [{ kind: 'qr', value: QR }],
             canReset: true,
+            live: true,
         });
 
         expect((await call(app, 'GET', '/connections/alpha')).status).toBe(401);
         expect((await call(app, 'GET', '/connections/omega', { token: ADMIN_TOKEN })).status).toBe(404);
         expect((await call(app, 'GET', '/connections/alpha', { token: tokenFor('connection:beta:write') })).status).toBe(403);
+    });
+
+    it('answers 403 whether or not the connection exists', async () => {
+        const { app } = world([fakeHandle('alpha')]);
+        const token = tokenFor('connection:beta:read');
+
+        for (const name of ['alpha', 'omega']) {
+            expect((await call(app, 'GET', `/connections/${name}`, { token })).status).toBe(403);
+            expect((await stream(app, name, token)).status).toBe(403);
+            expect((await call(app, 'POST', `/connections/${name}/reset`, { token })).status).toBe(403);
+        }
+    });
+
+    it('shows a declared connection with no handle as disconnected', async () => {
+        const provider = {
+            definition: {
+                type: 'mail',
+                label: 'Mail',
+                multiple: true,
+                fields: [],
+            },
+            creatable: () => false,
+            connections: () => [{
+                name: 'mail-work', 
+                account: 'work', 
+                resolved: { state: 'configured' }, 
+            }],
+        };
+        const { app } = world([], { connectionTypes: () => [provider as never] });
+
+        expect(await (await call(app, 'GET', '/connections/mail-work', { token: tokenFor('connection:mail-work:read') })).json()).toMatchObject({
+            name: 'mail-work',
+            type: 'mail',
+            status: 'disconnected',
+        });
+
+        const written = await (await call(app, 'GET', '/connections/mail-work', { token: tokenFor('connection:mail-work:write') })).json() as Record<string, unknown>;
+
+        expect(written).toMatchObject({
+            status: 'disconnected',
+            widgets: [],
+            canReset: false,
+            live: false,
+        });
+        expect((await call(app, 'GET', '/connections/mail-other', { token: ADMIN_TOKEN })).status).toBe(404);
+        expect((await stream(app, 'mail-work', ADMIN_TOKEN)).status).toBe(404);
+    });
+
+    it('marks a connection with a handle as live for a writer', async () => {
+        const { app } = world([fakeHandle('alpha')]);
+
+        expect(await (await call(app, 'GET', '/connections/alpha', { token: ADMIN_TOKEN })).json()).toMatchObject({ live: true });
     });
 
     it('streams status and widget changes to a writer', async () => {

@@ -21,16 +21,22 @@ import type {
 } from '@chamvi/core';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 import {
+    buildCsp,
     createHttpApp,
     http,
     httpChannel,
     mcpChannel,
+    staticRoutes,
     staticTokens,
 } from '@chamvi/http';
+import type { StaticCspConfig } from '@chamvi/http';
 import { uiRoutes } from '@chamvi/ui';
+import { fileURLToPath } from 'node:url';
 import { serve } from 'routup';
 import {
     E2E_CONNECTION,
+    E2E_PAGE_LABEL,
+    E2E_PAGE_SLUG,
     E2E_PORT,
     E2E_QR,
     E2E_TOKEN,
@@ -171,9 +177,28 @@ const app = createHttpApp({
         }],
     })],
     metrics: false,
+    // one client address for the whole suite: its specs must not share a budget
+    rateLimit: false,
     connections: () => [connection.handle],
+    uiPages: () => [{
+        slug: E2E_PAGE_SLUG,
+        label: E2E_PAGE_LABEL,
+        types: ['whatsapp'],
+        path: `/ui/ext/${E2E_PAGE_SLUG}`,
+    }],
     routes: [
         ...uiRoutes(),
+        // built by the Playwright web server command from test/e2e/demo/page
+        ...staticRoutes({
+            path: `/ui/ext/${E2E_PAGE_SLUG}`,
+            root: fileURLToPath(new URL('dist/app', import.meta.url)),
+            config: (apiBase) => ({
+                apiBase, 
+                uiBase: `${apiBase}/ui`, 
+                auth: { tokens: true }, 
+            }),
+            csp: (config) => buildCsp(config as StaticCspConfig),
+        }),
         {
             method: 'POST',
             path: '/demo/connect',

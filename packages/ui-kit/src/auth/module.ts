@@ -112,7 +112,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
         async startAuthup(returnTo) {
             const flow = await authup();
 
-            deps.storage.setItem(RETURN_STORAGE_KEY, safeReturnPath(returnTo));
+            deps.storage.setItem(RETURN_STORAGE_KEY, safeReturnPath(returnTo, '/', config.uiBase));
 
             const url = await flow.start();
 
@@ -140,7 +140,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
             principal.value = await client().me(token);
             method = 'authup';
 
-            const returnTo = safeReturnPath(deps.storage.getItem(RETURN_STORAGE_KEY));
+            const returnTo = safeReturnPath(deps.storage.getItem(RETURN_STORAGE_KEY), '/', config.uiBase);
 
             deps.storage.removeItem(RETURN_STORAGE_KEY);
 

@@ -498,15 +498,6 @@ describe('prefix routes, headers and byte bodies', () => {
             path: '/ui',
             prefix: true,
         })]],
-        ['two nested prefix routes', [route({
-            method: 'GET',
-            path: '/ui/a',
-            prefix: true,
-        }), route({
-            method: 'GET',
-            path: '/UI',
-            prefix: true,
-        })]],
         ['a prefix route at the metrics path', [route({
             method: 'GET',
             path: '/ops/metrics',
@@ -532,6 +523,25 @@ describe('prefix routes, headers and byte bodies', () => {
             })],
         }))
             .toThrow(InvalidAgentDefinitionError);
+    });
+
+    it.each([
+        ['the outer route first', ['/ui', '/ui/ext/mail']],
+        ['the inner route first', ['/ui/ext/mail', '/ui']],
+    ])('a nested prefix route wins over the outer one with %s', async (_order, paths) => {
+        const answering = (path: string): HttpRoute => route({
+            method: 'GET',
+            path,
+            prefix: true,
+            handler: async () => ({ status: 200, body: { path } }),
+        });
+        const { app } = createTestApp({ basePath: '/api', routes: paths.map(answering) });
+
+        const read = async (url: string) => (await (await send(app, url, { method: 'GET' })).json() as { path: string }).path;
+
+        expect(await read('/api/ui/ext/mail')).toBe('/ui/ext/mail');
+        expect(await read('/api/ui/ext/mail/accounts/work')).toBe('/ui/ext/mail');
+        expect(await read('/api/ui/agents')).toBe('/ui');
     });
 
     it('allows a route under a prefix route for another method', () => {

@@ -15,8 +15,8 @@ export default defineConfig({
     },
     projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
     webServer: {
-        // the demo app runs against the built packages (npm run build first)
-        command: 'node test/e2e/demo/server.ts',
+        // the demo app runs against the built packages (npm run build first); its *-ui page is built here
+        command: 'npx vite build -c test/e2e/demo/page/vite.config.ts && node test/e2e/demo/server.ts',
         url: 'http://127.0.0.1:4173/healthz',
         reuseExistingServer: !process.env.CI,
         stdout: 'pipe',

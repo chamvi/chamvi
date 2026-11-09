@@ -86,10 +86,12 @@ describe('mountPage', () => {
         expect(replace).not.toHaveBeenCalled();
     });
 
-    it('sends a page without a principal to the dashboard login, unmounted', async () => {
+    it('sends a page without a principal to the dashboard login, unmounted, with its way back', async () => {
+        window.history.replaceState({}, '', '/console/ext/mail?a=1#b');
+
         await mountPage(Page);
 
-        expect(replace).toHaveBeenCalledWith('/console/login');
+        expect(replace).toHaveBeenCalledWith('/console/login?redirect=%2Fconsole%2Fext%2Fmail%3Fa%3D1%23b');
         expect(document.querySelector('#page')).toBeNull();
     });
 

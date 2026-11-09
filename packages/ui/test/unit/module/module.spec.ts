@@ -5,6 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
@@ -20,6 +23,7 @@ import {
     httpModule,
     staticTokensModule,
     storeModule,
+    uiPageModule,
 } from '@chamvi/app';
 import { createModuleHarness } from '@chamvi/app/testing';
 import type { ModuleHarness } from '@chamvi/app/testing';
@@ -133,5 +137,80 @@ describe('uiModule', () => {
 
     it('an explicit auth option skips the env', () => {
         expect(() => uiModule({ env: { CHAMVI_UI_AUTHUP_CLIENT_ID: 'chamvi-ui' }, auth: { tokens: true } })).not.toThrow();
+    });
+});
+
+describe('uiModule with a registered page', () => {
+    const MARK = 'the mail page';
+    const pageRoots: string[] = [];
+
+    afterEach(async () => {
+        await Promise.all(pageRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
+    });
+
+    async function servedWithPage(order: 'dashboard' | 'page', basePath = '', uiBase?: string) {
+        const pageRoot = await mkdtemp(join(tmpdir(), 'chamvi-page-'));
+
+        pageRoots.push(pageRoot);
+        await writeFile(join(pageRoot, 'index.html'), `<!doctype html><head><!--chamvi-config--></head><body>${MARK}</body>`);
+
+        const port = await freePort();
+        const dashboard = uiModule({
+            env: {}, 
+            root: ROOT, 
+            ...(uiBase && { basePath: uiBase }), 
+        });
+        const page = uiPageModule({
+            name: 'chamvi:tool-mail-ui',
+            label: 'Mail',
+            types: ['mail'],
+            slug: 'tool-mail',
+            root: pageRoot,
+            ...(uiBase && { uiBase }),
+        });
+        const harness = await createModuleHarness({
+            env: {
+                CHAMVI_TOKENS: TOKENS,
+                HOST: '127.0.0.1',
+                PORT: String(port),
+                ...(basePath && { CHAMVI_BASE_PATH: basePath }),
+            },
+            agents: [defineModelAgent({
+                name: 'triage',
+                model: textModel(),
+                instructions: 'triage',
+                channels: [http.on()],
+            })],
+            modules: [
+                configModule({ logger: createRecordingLogger() }),
+                storeModule(),
+                staticTokensModule(),
+                engineModule(),
+                httpModule({ metrics: false, rateLimit: false }),
+                ...(order === 'dashboard' ? [dashboard, page] : [page, dashboard]),
+            ],
+        });
+
+        harnesses.push(harness);
+
+        return `http://127.0.0.1:${port}${basePath}${uiBase ?? '/ui'}`;
+    }
+
+    it.each([
+        ['dashboard', '', undefined],
+        ['page', '', undefined],
+        ['dashboard', '/agents-app', '/console'],
+        ['page', '/agents-app', '/console'],
+    ] as const)('a deep link reaches the page with the %s module first (base "%s", ui %s)', async (order, basePath, uiBase) => {
+        const origin = await servedWithPage(order, basePath, uiBase);
+        const deep = await fetch(`${origin}/ext/tool-mail/accounts/work`);
+
+        expect(deep.status).toBe(200);
+        expect(await deep.text()).toContain(MARK);
+
+        const dashboard = await fetch(`${origin}/agents`);
+
+        expect(dashboard.status).toBe(200);
+        expect(await dashboard.text()).not.toContain(MARK);
     });
 });

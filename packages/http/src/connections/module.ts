@@ -13,6 +13,7 @@ import { acquireStreamSlot, refuseStreamOverCap, refuseWhenClosed } from '../app
 import type { HttpContext } from '../app/types.ts';
 import { authenticate } from '../auth/helpers.ts';
 import {
+    assertConnectionAccess,
     canRead,
     canWrite,
     param,
@@ -157,16 +158,38 @@ export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
     app.get('/connections/:name', defineCoreHandler(async (event): Promise<ConnectionDetailView> => {
         const principal = await authenticate(event, ctx);
         const name = param(event, 'name');
-        const handle = requireHandle(ctx, principal, name);
+
+        assertConnectionAccess(principal, name);
+
+        const handle = ctx.connections().find((candidate) => candidate.name === name);
 
         // a writer's response can carry a pairing QR
         event.response.headers.set('cache-control', 'private, no-store');
+
+        if (!handle) {
+            // declared or stored, with nothing running in this process
+            const view = (await listConnections(ctx)).find((candidate) => candidate.name === name);
+
+            if (!view) {
+                throw new NotFoundError({ message: `The connection "${name}" does not exist.` });
+            }
+
+            return canWrite(principal, name) ?
+                {
+                    ...view,
+                    widgets: [],
+                    canReset: false,
+                    live: false,
+                } :
+                view;
+        }
 
         return canWrite(principal, name) ?
             {
                 ...serializeConnection(handle),
                 widgets: handle.widgets(),
                 canReset: handle.actions.reset !== undefined,
+                live: true,
             } :
             serializeConnection(handle);
     }));

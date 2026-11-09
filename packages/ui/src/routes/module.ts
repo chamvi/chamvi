@@ -150,7 +150,8 @@ export function uiRoutes(options: UiRoutesOptions = {}): HttpRoute[] {
                 },
             });
 
-            if (key === undefined) {
+            // `ext/` belongs to the registered pages, whose routes answer first: anything left here is no page
+            if (key === undefined || /^ext(?:\/|$)/iu.test(key)) {
                 return notFound();
             }
 

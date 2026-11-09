@@ -8,10 +8,10 @@
 
 import { onMounted, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
-import { BrandLogo, useAppContext  } from '@chamvi/ui-kit';
+import { BrandLogo, isPagePath, useAppContext } from '@chamvi/ui-kit';
 import { RouteName } from '../router/constants.ts';
 
-const { session } = useAppContext();
+const { config, session } = useAppContext();
 const route = useRoute();
 const router = useRouter();
 const error = ref<string>();
@@ -25,6 +25,14 @@ onMounted(async () => {
         }
 
         const returnTo = await session.completeAuthup({ code: pick(route.query.code), state: pick(route.query.state) });
+
+
+        // a *-ui page is outside this router: only a full navigation reaches it
+        if (isPagePath(returnTo, config.uiBase)) {
+            globalThis.location.assign(returnTo);
+
+            return;
+        }
 
         await router.replace(returnTo);
     } catch (e) {

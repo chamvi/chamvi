@@ -162,6 +162,30 @@ describe('useConnection', () => {
         scope.stop();
     });
 
+    it('polls a writer\'s connection with no handle instead of opening the stream', async () => {
+        const stream = vi.fn(async () => {
+            throw apiError(404, 'not_found');
+        });
+        const scope = effectScope();
+        const state = scope.run(() => useConnection(fakeApi({
+            get: async () => ({
+                name: 'mail-work',
+                type: 'mail',
+                status: 'disconnected',
+                widgets: [],
+                canReset: false,
+                live: false,
+            }),
+            stream,
+        }), 'mail-work', { write: true }))!;
+
+        await flush();
+        expect(state.connection.value?.status).toBe('disconnected');
+        expect(stream).not.toHaveBeenCalled();
+        expect(state.error.value).toBeUndefined();
+        scope.stop();
+    });
+
     it('a missing connection is a 404 error', async () => {
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({

@@ -8,9 +8,53 @@
 import { AUTHUP_STORAGE_PREFIX, STORAGE_PREFIX } from './constants.ts';
 import type { SessionCookies } from './types.ts';
 
-/** `path` when it is a path of this app (`/...`, never `//host` or a URL), else `fallback`. */
-export function safeReturnPath(path: unknown, fallback = '/'): string {
+function isSafePageSegment(segment: string): boolean {
+    try {
+        const decoded = decodeURIComponent(segment);
+
+        return decoded !== '.' && decoded !== '..' && !decoded.includes('/') && !decoded.includes('\\');
+    } catch {
+        return false;
+    }
+}
+
+/**
+ * `path` is a `*-ui` page below `<uiBase>/ext/`, which only a full navigation
+ * reaches (the dashboard's router does not hold it). Whatever would let the
+ * browser resolve it elsewhere is refused: a dot segment (encoded too), an
+ * encoded separator, a backslash, a control character or a space (browsers
+ * strip tabs and newlines before parsing).
+ */
+export function isPagePath(path: string, uiBase: string): boolean {
+    const prefix = `${uiBase}/ext/`;
+
+    const unsafe = [...path].some((char) => char <= ' ' || char === '\x7f' || char === '\\');
+
+    if (!path.startsWith(prefix) || unsafe) {
+        return false;
+    }
+
+    const segments = path.slice(prefix.length).split(/[?#]/u)[0]!.split('/');
+
+    // one trailing slash is fine, an empty segment elsewhere is not
+    if (segments.at(-1) === '' && segments.length > 1) {
+        segments.pop();
+    }
+
+    return segments.every((segment) => segment !== '' && isSafePageSegment(segment));
+}
+
+/**
+ * `path` when it is a path of this app (`/...`, never `//host` or a URL),
+ * else `fallback`. With `uiBase`, a path below `<uiBase>/ext/` must also be
+ * a page (`isPagePath`); any other path stays the router's, inside the SPA.
+ */
+export function safeReturnPath(path: unknown, fallback = '/', uiBase?: string): string {
     if (typeof path !== 'string' || !path.startsWith('/') || path.startsWith('//') || path.includes('\\')) {
+        return fallback;
+    }
+
+    if (uiBase !== undefined && path.startsWith(`${uiBase}/ext/`) && !isPagePath(path, uiBase)) {
         return fallback;
     }
 

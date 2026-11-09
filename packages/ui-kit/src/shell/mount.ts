@@ -80,7 +80,16 @@ export async function mountPage(component: Component, options: MountPageOptions 
         ...(adapter ? { authup: async () => adapter } : {}),
     });
     const router = options.router?.({ config, session });
-    const toLogin = (): void => window.location.replace(`${config.uiBase}/login`);
+    // the way back to this page; the login validates it (safeReturnPath)
+    const toLogin = (): void => {
+        const {
+            pathname, 
+            search, 
+            hash, 
+        } = window.location;
+
+        window.location.replace(`${config.uiBase}/login?redirect=${encodeURIComponent(`${pathname}${search}${hash}`)}`);
+    };
 
     client = createApiClient({
         apiBase: config.apiBase,
