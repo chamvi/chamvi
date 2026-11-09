@@ -16,18 +16,18 @@ describe('date_diff', () => {
 
     it('measures each unit separately', async () => {
         await expect(diff({ from: '2026-01-31', to: '2026-03-01' })).resolves.toEqual({
-            days: 29, 
-            weeks: 4, 
-            months: 1, 
+            days: 29,
+            weeks: 4,
+            months: 1,
             years: 0,
         });
     });
 
     it('is signed when reversed', async () => {
         await expect(diff({ from: '2026-03-01', to: '2026-01-31' })).resolves.toEqual({
-            days: -29, 
-            weeks: -4, 
-            months: -1, 
+            days: -29,
+            weeks: -4,
+            months: -1,
             years: 0,
         });
     });

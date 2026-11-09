@@ -8,11 +8,11 @@
 import type { Tool } from 'ai';
 import { defineTool } from '@chamvi/core';
 import { inputObject, objectSchema, requireString } from './asserts.ts';
-import { 
-    dateOrToday, 
-    optionalString, 
-    parseDateInput, 
-    zoneOf, 
+import {
+    dateOrToday,
+    optionalString,
+    parseDateInput,
+    zoneOf,
 } from './dates.ts';
 import type { UtilityToolsOptionsNormalized } from '../options/types.ts';
 import type { DateDiffResult } from './types.ts';
@@ -39,7 +39,7 @@ export function dateDiffTool(options: UtilityToolsOptionsNormalized): Tool<DateD
             const zone = zoneOf(body, options.timezone);
             const from = parseDateInput(requireString(body.from, 'from'), 'from', zone).zoned.toPlainDate();
             const to = dateOrToday(optionalString(body.to, 'to'), 'to', zone, context);
-            const total = (largestUnit: 'days' | 'weeks' | 'months' | 'years') => 
+            const total = (largestUnit: 'days' | 'weeks' | 'months' | 'years') =>
                 // `|| 0` turns -0 into 0
                 from.until(to, { largestUnit })[largestUnit] || 0
             ;

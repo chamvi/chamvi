@@ -66,14 +66,14 @@ export type RunInfoResult = {
     receivedAt: string;
     address?: string;
     invoker?: {
-        kind: string; 
-        id: string; 
-        name?: string 
+        kind: string;
+        id: string;
+        name?: string
     };
     parent?: {
-        agent: string; 
-        role: string; 
-        depth: number 
+        agent: string;
+        role: string;
+        depth: number
     };
     scheduledAt?: string;
 };

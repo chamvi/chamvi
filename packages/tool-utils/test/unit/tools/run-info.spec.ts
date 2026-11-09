@@ -16,9 +16,9 @@ describe('run_info', () => {
     it('cron run has scheduledAt from payload.scheduledAt', async () => {
         const result = await info({
             trigger: {
-                channel: 'cron', 
-                trigger: 'daily', 
-                payload: { scheduledAt: '2026-11-09T08:00:00.000Z' }, 
+                channel: 'cron',
+                trigger: 'daily',
+                payload: { scheduledAt: '2026-11-09T08:00:00.000Z' },
             },
         });
 
@@ -56,10 +56,10 @@ describe('run_info', () => {
                 channel: 'chat',
                 address: 'thread-1',
                 invoker: {
-                    kind: 'user', 
-                    id: 'u1', 
-                    name: 'Ada', 
-                    permissions: [], 
+                    kind: 'user',
+                    id: 'u1',
+                    name: 'Ada',
+                    permissions: [],
                 },
             },
         });
@@ -67,27 +67,27 @@ describe('run_info', () => {
         expect(result).toMatchObject({
             address: 'thread-1',
             invoker: {
-                kind: 'user', 
-                id: 'u1', 
-                name: 'Ada', 
-            }, 
+                kind: 'user',
+                id: 'u1',
+                name: 'Ada',
+            },
         });
     });
 
     it('dispatched run has parent { agent, role, depth }', async () => {
         const result = await info({
             parent: {
-                kind: 'dispatch', 
-                agent: 'boss', 
-                role: 'helper', 
-                depth: 2, 
+                kind: 'dispatch',
+                agent: 'boss',
+                role: 'helper',
+                depth: 2,
             },
         });
 
         expect((result as { parent: unknown }).parent).toEqual({
-            agent: 'boss', 
-            role: 'helper', 
-            depth: 2, 
+            agent: 'boss',
+            role: 'helper',
+            depth: 2,
         });
     });
 
@@ -99,9 +99,9 @@ describe('run_info', () => {
                 idempotencyKey: 'idem-secret',
                 concurrencyKey: 'conc-secret',
                 invoker: {
-                    kind: 'user', 
-                    id: 'u1', 
-                    permissions: ['secret:perm'], 
+                    kind: 'user',
+                    id: 'u1',
+                    permissions: ['secret:perm'],
                 },
             },
             parent: {

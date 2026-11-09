@@ -20,8 +20,8 @@ describe('date_add', () => {
 
     it('keeps the wall clock across a DST change for days', async () => {
         await expect(add({ date: '2026-03-28T12:00', days: 1 })).resolves.toMatchObject({
-            date: '2026-03-29', 
-            time: '12:00', 
+            date: '2026-03-29',
+            time: '12:00',
             offset: '+02:00',
         });
     });
@@ -36,9 +36,9 @@ describe('date_add', () => {
 
     it('accepts negative amounts', async () => {
         await expect(add({
-            date: '2026-03-01', 
-            days: -1, 
-            weeks: -1, 
+            date: '2026-03-01',
+            days: -1,
+            weeks: -1,
         })).resolves.toMatchObject({ date: '2026-02-21' });
     });
 
@@ -50,12 +50,12 @@ describe('date_add', () => {
 
     it('reads the date in the given timezone', async () => {
         await expect(add({
-            date: '2026-01-01T10:00', 
-            hours: 1, 
-            timezone: 'America/New_York', 
+            date: '2026-01-01T10:00',
+            hours: 1,
+            timezone: 'America/New_York',
         })).resolves.toMatchObject({
-            time: '11:00', 
-            timezone: 'America/New_York', 
+            time: '11:00',
+            timezone: 'America/New_York',
             offset: '-05:00',
         });
     });
@@ -74,19 +74,19 @@ describe('date_add', () => {
 
     it('accepts mixed-sign amounts', async () => {
         await expect(add({
-            date: '2026-01-31', 
-            months: 1, 
-            days: -1, 
+            date: '2026-01-31',
+            months: 1,
+            days: -1,
         })).resolves.toMatchObject({ date: '2026-02-27' });
         await expect(add({
-            date: '2026-06-15T12:00', 
-            hours: 1, 
-            minutes: -30, 
+            date: '2026-06-15T12:00',
+            hours: 1,
+            minutes: -30,
         })).resolves.toMatchObject({ time: '12:30' });
         await expect(add({
-            date: '2026-06-15', 
-            years: 1, 
-            months: -1, 
+            date: '2026-06-15',
+            years: 1,
+            months: -1,
         })).resolves.toMatchObject({ date: '2027-05-15' });
     });
 });

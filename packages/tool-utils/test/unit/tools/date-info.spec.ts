@@ -16,9 +16,9 @@ describe('date_info', () => {
 
     it('reads the ISO week at the year end', async () => {
         await expect(info({ date: '2026-12-31' })).resolves.toMatchObject({
-            weekday: 'Thursday', 
-            isoWeek: 53, 
-            isoWeekYear: 2026, 
+            weekday: 'Thursday',
+            isoWeek: 53,
+            isoWeekYear: 2026,
             dayOfYear: 365,
         });
     });
@@ -29,8 +29,8 @@ describe('date_info', () => {
 
     it('reports a leap year', async () => {
         await expect(info({ date: '2024-02-10' })).resolves.toMatchObject({
-            leapYear: true, 
-            daysInMonth: 29, 
+            leapYear: true,
+            daysInMonth: 29,
             date: '2024-02-10',
         });
     });

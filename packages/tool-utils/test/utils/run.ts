@@ -34,11 +34,11 @@ export async function runTool(tools: ToolSet, name: string, input: unknown, opti
         model: mockModel([
             {
                 parts: [{
-                    type: 'tool-call', 
-                    toolName: name, 
-                    input, 
-                    toolCallId: 'c1', 
-                }], 
+                    type: 'tool-call',
+                    toolName: name,
+                    input,
+                    toolCallId: 'c1',
+                }],
             },
             { parts: [{ type: 'text', text: 'done' }] },
         ]),
@@ -54,10 +54,10 @@ export async function runTool(tools: ToolSet, name: string, input: unknown, opti
     // a parent run must exist; it is cancelled before the engine starts, so it never calls the model
     const parentRun = options.parent ?
         await engine.dispatch({
-            agent: agent.name, 
-            trigger: 'test', 
-            channel: 'test', 
-            payload: {}, 
+            agent: agent.name,
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
         }) :
         undefined;
 

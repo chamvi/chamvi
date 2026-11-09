@@ -8,11 +8,11 @@
 import type { Tool } from 'ai';
 import { ValidationError, defineTool } from '@chamvi/core';
 import { inputObject, objectSchema, optionalInteger } from './asserts.ts';
-import { 
-    nowZoned, 
-    optionalString, 
-    parseDateInput, 
-    zoneOf, 
+import {
+    nowZoned,
+    optionalString,
+    parseDateInput,
+    zoneOf,
 } from './dates.ts';
 import type { UtilityToolsOptionsNormalized } from '../options/types.ts';
 import type { ZonedDescription } from './types.ts';
@@ -73,7 +73,6 @@ export function dateAddTool(options: UtilityToolsOptionsNormalized): Tool<DateAd
                         result = result.add({ [unit]: amounts[unit] });
                     }
                 }
-
 
                 return describeInstant(result.toInstant(), zone);
             } catch (error) {

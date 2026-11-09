@@ -7,11 +7,11 @@
 
 import type { Tool } from 'ai';
 import { ValidationError, defineTool } from '@chamvi/core';
-import { 
-    inputObject, 
-    objectSchema, 
-    optionalOneOf, 
-    requireString, 
+import {
+    inputObject,
+    objectSchema,
+    optionalOneOf,
+    requireString,
 } from './asserts.ts';
 import { WEEKDAYS } from './constants.ts';
 import { dateOrToday, optionalString, zoneOf } from './dates.ts';
@@ -34,9 +34,9 @@ export function nextWeekdayTool(options: UtilityToolsOptionsNormalized): Tool<Ne
             `Without date it starts from today in the given IANA timezone, else ${options.timezone}.`,
         inputSchema: objectSchema<NextWeekdayInput>({
             weekday: {
-                type: 'string', 
-                enum: NAMES, 
-                description: 'English weekday name, e.g. friday.', 
+                type: 'string',
+                enum: NAMES,
+                description: 'English weekday name, e.g. friday.',
             },
             date: { type: 'string', description: 'YYYY-MM-DD, YYYY-MM-DDTHH:MM or an instant with an offset or Z. Default today.' },
             timezone: { type: 'string', description: `An IANA time zone id. Default ${options.timezone}.` },

@@ -61,7 +61,7 @@ export function createBriefingAgent(model: LanguageModel) {
 | `date_diff` | `{ days, weeks, months, years }` between two dates |
 | `date_info` | Weekday, ISO week, day of the year, month length and leap year of a date |
 | `next_weekday` | The next date on a weekday |
-| `calculate` | `{ result }`: exact decimal arithmetic (`0.1 + 0.2` is `0.3`) |
+| `calculate` | `{ result }`: decimal arithmetic rounded to 40 significant digits (`0.1 + 0.2` is `0.3`) |
 | `run_info` | Why and how this run started: channel, subscription, `receivedAt`, address, invoker, parent and a cron run's `scheduledAt`; never a payload or a secret |
 
 ## Options

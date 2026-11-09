@@ -32,11 +32,11 @@ describe('calculate', () => {
             model: mockModel([
                 {
                     parts: [{
-                        type: 'tool-call', 
-                        toolName: 'calculate', 
-                        input: { expression: '1 + 1' }, 
-                        toolCallId: 'c1', 
-                    }], 
+                        type: 'tool-call',
+                        toolName: 'calculate',
+                        input: { expression: '1 + 1' },
+                        toolCallId: 'c1',
+                    }],
                 },
                 { parts: [{ type: 'text', text: 'done' }] },
             ]),
@@ -48,10 +48,10 @@ describe('calculate', () => {
         await engine.start();
 
         const { runId } = await engine.dispatch({
-            agent: agent.name, 
-            trigger: 'test', 
-            channel: 'test', 
-            payload: {}, 
+            agent: agent.name,
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
         });
 
         await engine.idle();

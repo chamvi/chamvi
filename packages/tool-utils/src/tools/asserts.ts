@@ -8,7 +8,6 @@
 import { jsonSchema } from 'ai';
 import type { JSONSchema7 } from 'ai';
 import { ValidationError } from '@chamvi/core';
-import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 
 /** The tool input as an object, else a ValidationError (a tool error the model can correct). */
@@ -53,30 +52,6 @@ export function optionalOneOf<T extends string>(value: unknown, name: string, al
     }
 
     return value as T;
-}
-
-/** The call's abort signal combined with the run's. */
-export function signalOf(abortSignal: AbortSignal | undefined, context: ToolContext): AbortSignal {
-    const { signal } = context.run;
-
-    if (!abortSignal || abortSignal === signal) {
-        return signal;
-    }
-
-    return AbortSignal.any([abortSignal, signal]);
-}
-
-/** `text` from `offset`, at most `max` UTF-16 units, never ending inside a surrogate pair. */
-export function cutText(text: string, offset: number, max: number): string {
-    const end = offset + max;
-
-    if (end >= text.length) {
-        return text.slice(offset);
-    }
-
-    const code = text.charCodeAt(end - 1);
-
-    return text.slice(offset, code >= 0xD800 && code <= 0xDBFF ? end - 1 : end);
 }
 
 /** An object schema of `properties`, the `required` ones required. */

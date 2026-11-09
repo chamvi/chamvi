@@ -18,20 +18,20 @@ describe('next_weekday', () => {
 
     it('skips today by default', async () => {
         await expect(next({ weekday: 'monday', date })).resolves.toEqual({
-            date: '2026-11-16', 
-            weekday: 'Monday', 
+            date: '2026-11-16',
+            weekday: 'Monday',
             daysAway: 7,
         });
     });
 
     it('includes today on request', async () => {
         await expect(next({
-            weekday: 'monday', 
-            date, 
-            includeToday: true, 
+            weekday: 'monday',
+            date,
+            includeToday: true,
         })).resolves.toEqual({
-            date: '2026-11-09', 
-            weekday: 'Monday', 
+            date: '2026-11-09',
+            weekday: 'Monday',
             daysAway: 0,
         });
     });

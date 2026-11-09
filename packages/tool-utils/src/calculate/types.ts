@@ -7,7 +7,7 @@
 
 import type { Decimal } from 'decimal.js';
 
-export type Token =    | { kind: 'number'; text: string } |
+export type Token = { kind: 'number'; text: string } |
     { kind: 'name'; text: string } |
     { kind: 'symbol'; text: '+' | '-' | '*' | '/' | '^' | '%' | '(' | ')' | ',' } |
     { kind: 'end' };

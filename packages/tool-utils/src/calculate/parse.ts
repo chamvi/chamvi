@@ -228,7 +228,7 @@ export function parseTokens(tokens: Token[]): Decimal {
 
         while (isSymbol('%')) {
             position++;
-            operand = { value: operand.value.div(100), percent: true };
+            operand = { value: checked(operand.value.div(100)), percent: true };
         }
 
         return operand;

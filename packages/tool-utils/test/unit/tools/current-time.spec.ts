@@ -38,9 +38,9 @@ describe('current_time', () => {
         const result = await runTool(utilityTools({ env: {} }), 'current_time', {}, { clock: winter() });
 
         expect(result).toMatchObject({
-            timezone: 'UTC', 
-            time: '11:00', 
-            offset: '+00:00', 
+            timezone: 'UTC',
+            time: '11:00',
+            offset: '+00:00',
         });
     });
 
@@ -48,11 +48,15 @@ describe('current_time', () => {
         const result = await runTool(tools, 'current_time', { timezone: 'Asia/Tokyo' }, { clock: winter() });
 
         expect(result).toMatchObject({
-            timezone: 'Asia/Tokyo', 
-            time: '20:00', 
-            offset: '+09:00', 
+            timezone: 'Asia/Tokyo',
+            time: '20:00',
+            offset: '+09:00',
         });
         expect((result as { startTime: string }).startTime).toMatch(/\+09:00/);
+    });
+
+    it('a non-string timezone fails naming timezone', async () => {
+        await expect(runTool(tools, 'current_time', { timezone: 123 }, { clock: winter() })).rejects.toThrow(/timezone/);
     });
 
     it('timezone: Berlin fails naming timezone', async () => {

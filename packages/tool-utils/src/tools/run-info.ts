@@ -65,10 +65,10 @@ export function runInfoTool(): Tool<Record<string, never>, RunInfoResult> {
                 ...(trigger.parent ?
                     {
                         parent: {
-                            agent: trigger.parent.agent, 
-                            role: trigger.parent.role, 
-                            depth: trigger.parent.depth, 
-                        }, 
+                            agent: trigger.parent.agent,
+                            role: trigger.parent.role,
+                            depth: trigger.parent.depth,
+                        },
                     } :
                     {}),
                 ...(scheduledAt === undefined ? {} : { scheduledAt }),

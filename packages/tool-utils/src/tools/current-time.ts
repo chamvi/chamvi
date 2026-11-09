@@ -8,9 +8,10 @@
 import type { Tool } from 'ai';
 import { defineTool, injectClock } from '@chamvi/core';
 import { inputObject, objectSchema } from './asserts.ts';
+import { zoneOf } from './dates.ts';
 import type { UtilityToolsOptionsNormalized } from '../options/types.ts';
 import type { CurrentTimeResult } from './types.ts';
-import { describeInstant, resolveZone } from './zone.ts';
+import { describeInstant } from './zone.ts';
 
 type CurrentTimeInput = {
     timezone?: string;
@@ -29,9 +30,7 @@ export function currentTimeTool(options: UtilityToolsOptionsNormalized): Tool<Cu
         }),
         execute: async (input, { context }) => {
             const body = inputObject(input ?? {});
-            const zone = typeof body.timezone === 'string' ?
-                resolveZone(body.timezone, 'timezone') :
-                options.timezone;
+            const zone = zoneOf(body, options.timezone);
             const now = Temporal.Instant.fromEpochMilliseconds(injectClock(context).now().getTime());
             // a stored run may hold receivedAt serialized
             const started = Temporal.Instant.fromEpochMilliseconds(new Date(context.run.trigger.receivedAt).getTime());

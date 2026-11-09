@@ -15,21 +15,21 @@ describe('time_convert', () => {
 
     it('converts across zones', async () => {
         const result = await convert({
-            dateTime: '2026-07-01T15:00', 
-            from: 'America/New_York', 
-            to: 'Europe/Berlin', 
+            dateTime: '2026-07-01T15:00',
+            from: 'America/New_York',
+            to: 'Europe/Berlin',
         });
 
         expect(result).toMatchObject({
             from: {
-                time: '15:00', 
-                timezone: 'America/New_York', 
-                offset: '-04:00', 
+                time: '15:00',
+                timezone: 'America/New_York',
+                offset: '-04:00',
             },
             to: {
-                time: '21:00', 
-                timezone: 'Europe/Berlin', 
-                offset: '+02:00', 
+                time: '21:00',
+                timezone: 'Europe/Berlin',
+                offset: '+02:00',
             },
         });
     });
@@ -40,9 +40,9 @@ describe('time_convert', () => {
 
     it('resolves a DST gap time without error', async () => {
         await expect(convert({
-            dateTime: '2026-03-29T02:30', 
-            from: 'Europe/Berlin', 
-            to: 'Europe/Berlin', 
+            dateTime: '2026-03-29T02:30',
+            from: 'Europe/Berlin',
+            to: 'Europe/Berlin',
         })).resolves.toMatchObject({ to: { time: '03:30' } });
     });
 
@@ -52,9 +52,9 @@ describe('time_convert', () => {
 
     it('refuses an offset together with from', async () => {
         await expect(convert({
-            dateTime: '2026-01-01T12:00:00Z', 
-            from: 'Europe/Berlin', 
-            to: 'UTC', 
+            dateTime: '2026-01-01T12:00:00Z',
+            from: 'Europe/Berlin',
+            to: 'UTC',
         })).rejects.toThrow(/from/);
     });
 
