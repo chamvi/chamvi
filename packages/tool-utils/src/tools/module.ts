@@ -9,11 +9,23 @@ import type { Tool, ToolSet } from 'ai';
 import { normalizeOptions } from '../options/module.ts';
 import type { UtilityToolName, UtilityToolsOptions, UtilityToolsOptionsNormalized } from '../options/types.ts';
 import { currentTimeTool } from './current-time.ts';
+import { dateAddTool } from './date-add.ts';
+import { dateDiffTool } from './date-diff.ts';
+import { dateInfoTool } from './date-info.ts';
+import { nextWeekdayTool } from './next-weekday.ts';
+import { timeConvertTool } from './time-convert.ts';
 
 type ToolBuilder = (options: UtilityToolsOptionsNormalized) => Tool<any, any>;
 
 /** The tools built so far, by name. */
-const REGISTRY: Partial<Record<UtilityToolName, ToolBuilder>> = { current_time: currentTimeTool };
+const REGISTRY: Partial<Record<UtilityToolName, ToolBuilder>> = {
+    current_time: currentTimeTool,
+    time_convert: timeConvertTool,
+    date_add: dateAddTool,
+    date_diff: dateDiffTool,
+    date_info: dateInfoTool,
+    next_weekday: nextWeekdayTool,
+};
 
 /**
  * The utility tools a model cannot do reliably itself: `current_time` and
