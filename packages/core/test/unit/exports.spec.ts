@@ -146,6 +146,7 @@ describe('public api', () => {
         'open',
         'DecryptionFailedError',
         'assertConnection',
+        'assertConnectionConfigWrite',
         'assertConnectionEntryKey',
         'assertConnectionEntryWrite',
         'assertConnectionName',
@@ -464,6 +465,7 @@ describe('public api', () => {
     it('exports the connection repository contract', () => {
         expect(core.CONNECTION_ENTRY_KEY_MAX_LENGTH).toBe(255);
         expect(core.CONNECTION_TYPE_MAX_LENGTH).toBe(64);
+        expect(core.CONNECTION_SECRET_FIELD_MAX_LENGTH).toBe(64);
         expectTypeOf<core.IStore['connections']>().toEqualTypeOf<core.IConnectionRepository | undefined>();
         expectTypeOf<ReturnType<typeof core.createMemoryStore>['connections']>()
             .toEqualTypeOf<core.IConnectionRepository>();
@@ -481,6 +483,18 @@ describe('public api', () => {
             clear?: boolean;
         }>();
         expectTypeOf<core.ConnectionFence>().toEqualTypeOf<{ lock: string; owner: string }>();
+        expectTypeOf<core.ConnectionConfig>().toEqualTypeOf<{
+            keyId: string;
+            wrappedKey: Uint8Array;
+            settings: Record<string, unknown>;
+            secrets: Map<string, Uint8Array>;
+            revision: number;
+        }>();
+        expectTypeOf<core.ConnectionConfigWrite>().toEqualTypeOf<{
+            settings?: Record<string, unknown>;
+            setSecrets?: Record<string, Uint8Array>;
+            clearSecrets?: readonly string[];
+        }>();
         expectTypeOf<core.ILockRepository['renew']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
         expect(new core.LeaseLostError({ lock: 'connection:wa' })).toMatchObject({ code: 'lease_lost', lock: 'connection:wa' });
         expect(new core.LeaseLostError('r1')).toMatchObject({ code: 'lease_lost', runId: 'r1' });

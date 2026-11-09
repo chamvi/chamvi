@@ -7,12 +7,12 @@
 
 import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
-import { LeaseLostError } from '@chamvi/core';
+import { ConnectionChangedError, LeaseLostError } from '@chamvi/core';
 import type { Connection } from '@chamvi/core';
 import { createDatabaseStore } from '@chamvi/store-db';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { TableName } from '../../../src/entities/constants.ts';
-import { ConnectionEntity, ConnectionEntryEntity } from '../../../src/entities/index.ts';
+import { ConnectionEntity, ConnectionEntryEntity, ConnectionSecretEntity } from '../../../src/entities/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
 const connection = (name: string): Connection => ({
@@ -25,13 +25,13 @@ const connection = (name: string): Connection => ({
 });
 
 /** Waits (real time, polling Postgres) until a backend of this database waits on a row lock. */
-const waitForLockWait = async (ds: DataSource) => {
+const waitForLockWait = async (ds: DataSource, count = 1) => {
     for (let i = 0; i < 500; i++) {
         const [row]: { n: number }[] = await ds.query(
             'SELECT count(*)::int AS n FROM pg_stat_activity WHERE datname = current_database() AND wait_event_type = \'Lock\'',
         );
 
-        if (row!.n > 0) {
+        if (row!.n >= count) {
             return;
         }
 
@@ -41,6 +41,20 @@ const waitForLockWait = async (ds: DataSource) => {
     }
 
     throw new Error('no backend waits on a lock');
+};
+
+/** Holds the connection row of `name` FOR UPDATE in another transaction until `release` is called. */
+const holdConnectionRow = async (ds: DataSource, name: string) => {
+    const runner = ds.createQueryRunner();
+
+    await runner.connect();
+    await runner.startTransaction();
+    await runner.query(`SELECT 1 FROM "${TableName.CONNECTIONS}" WHERE name = $1 FOR UPDATE`, [name]);
+
+    return async () => {
+        await runner.commitTransaction();
+        await runner.release();
+    };
 };
 
 /** Holds the lease row of `key` FOR UPDATE in another transaction until `release` is called. */
@@ -97,6 +111,136 @@ describePostgres('connections in postgres', () => {
 
         await store.connections.delete('wa');
         expect(await ds.query(`SELECT * FROM "${TableName.CONNECTION_ENTRIES}"`)).toEqual([]);
+    });
+
+    it('secrets reference their connection: orphans and duplicates are refused, a delete cascades, the relation loads', async () => {
+        const ds = await create();
+        const store = createDatabaseStore({ dataSource: ds, clock: new ControllableClock() });
+        const stored = connection('wa');
+
+        await store.connections.insert(stored);
+        await store.connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, stored.wrappedKey);
+
+        const { id: connectionId } = await ds.getRepository(ConnectionEntity).findOneByOrFail({ name: 'wa' });
+        const secret = await ds.getRepository(ConnectionSecretEntity).findOneOrFail({
+            where: { connectionId, name: 's' },
+            relations: { connection: true },
+        });
+
+        expect(secret.connection?.name).toBe('wa');
+
+        const insertSecret = `INSERT INTO "${TableName.CONNECTION_SECRETS}" (id, connection_id, name, value) VALUES ($1, $2, $3, $4)`;
+
+        await expect(ds.query(insertSecret, [testUuid('orphan'), testUuid('missing'), 's', Buffer.from([1])]))
+            .rejects.toMatchObject({ driverError: { code: '23503' } });
+        await expect(ds.query(insertSecret, [testUuid('duplicate'), connectionId, 's', Buffer.from([1])]))
+            .rejects.toMatchObject({ driverError: { code: '23505' } });
+
+        await store.connections.delete('wa');
+        expect(await ds.query(`SELECT * FROM "${TableName.CONNECTION_SECRETS}"`)).toEqual([]);
+    });
+
+    it('a config save queued behind a replace is refused as changed, never written under the dead key', async () => {
+        const ds = await create();
+        const store = createDatabaseStore({ dataSource: ds, clock: new ControllableClock() });
+        const fence = { lock: 'connection:wa', owner: 'o1' };
+        const stored = connection('wa');
+
+        await store.connections.insert(stored);
+        await store.locks.acquire(fence.lock, fence.owner, 60_000);
+        await store.connections.writeConfig('wa', { settings: { a: 1 } }, stored.wrappedKey);
+
+        const release = await holdConnectionRow(ds, 'wa');
+        const replacement = { ...stored, wrappedKey: new Uint8Array([9]) };
+        const replacing = store.connections.replace(replacement, fence);
+
+        await waitForLockWait(ds);
+
+        const saving = store.connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, stored.wrappedKey);
+
+        await waitForLockWait(ds, 2);
+        await release();
+        await replacing;
+        await expect(saving).rejects.toBeInstanceOf(ConnectionChangedError);
+        expect(await store.connections.findConfig('wa')).toEqual({
+            keyId: replacement.keyId,
+            wrappedKey: replacement.wrappedKey,
+            settings: { a: 1 },
+            secrets: new Map(),
+            revision: 1,
+        });
+    });
+
+    it('a replace keeps the connection row, so a secret saved before it is gone and the entries with it', async () => {
+        const ds = await create();
+        const store = createDatabaseStore({ dataSource: ds, clock: new ControllableClock() });
+        const fence = { lock: 'connection:wa', owner: 'o1' };
+        const stored = connection('wa');
+
+        await store.connections.insert(stored);
+        await store.locks.acquire(fence.lock, fence.owner, 60_000);
+        await store.connections.writeEntries('wa', { set: { a: new Uint8Array([1]) } }, fence);
+        await store.connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, stored.wrappedKey);
+
+        const { id } = await ds.getRepository(ConnectionEntity).findOneByOrFail({ name: 'wa' });
+
+        await store.connections.replace({ ...stored, wrappedKey: new Uint8Array([9]) }, fence);
+        expect((await ds.getRepository(ConnectionEntity).findOneByOrFail({ name: 'wa' })).id).toBe(id);
+        expect(await ds.query(`SELECT * FROM "${TableName.CONNECTION_SECRETS}"`)).toEqual([]);
+        expect(await ds.query(`SELECT * FROM "${TableName.CONNECTION_ENTRIES}"`)).toEqual([]);
+    });
+
+    it('a replace that finds no row retries in place when a concurrent insert takes the name first', async () => {
+        const ds = await create();
+        const store = createDatabaseStore({ dataSource: ds, clock: new ControllableClock() });
+        const fence = { lock: 'connection:wa', owner: 'o1' };
+        const stored = connection('wa');
+        const replacement = {
+            ...stored, 
+            keyId: 'k2', 
+            wrappedKey: new Uint8Array([9]), 
+        };
+
+        await store.locks.acquire(fence.lock, fence.owner, 60_000);
+
+        // the replace finds no row, then waits on the lease row; the insert lands meanwhile
+        const release = await holdLeaseRow(ds, fence.lock);
+        const replacing = store.connections.replace(replacement, fence);
+
+        await waitForLockWait(ds);
+        expect(await store.connections.insert(stored)).toBe(true);
+
+        const { id } = await ds.getRepository(ConnectionEntity).findOneByOrFail({ name: 'wa' });
+
+        await release();
+        await replacing;
+
+        const row = await ds.getRepository(ConnectionEntity).findOneByOrFail({ name: 'wa' });
+
+        expect(row.id).toBe(id);
+        expect(row.keyId).toBe('k2');
+        expect(await store.connections.findOneOrFail('wa')).toEqual(replacement);
+    });
+
+    it('concurrent config writes each get their own revision', async () => {
+        const ds = await create();
+        const store = createDatabaseStore({ dataSource: ds, clock: new ControllableClock() });
+        const stored = connection('wa');
+
+        await store.connections.insert(stored);
+
+        const revisions = await Promise.all(Array.from({ length: 10 }, (_, i) => store.connections.writeConfig(
+            'wa',
+            { setSecrets: { [`s${i}`]: new Uint8Array([i]) } },
+            stored.wrappedKey,
+        )));
+
+        expect([...revisions].sort((a, b) => a - b)).toEqual(Array.from({ length: 10 }, (_, i) => i + 1));
+
+        const config = (await store.connections.findConfig('wa'))!;
+
+        expect(config.revision).toBe(10);
+        expect(config.secrets.size).toBe(10);
     });
 
     it('the fence reads the clock after its row locks: a batch blocked past the lease expiry is refused', async () => {

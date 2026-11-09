@@ -36,6 +36,29 @@ export type ConnectionEntryWrite = {
     clear?: boolean;
 };
 
+/** A connection's plain settings and its sealed secrets, as the repository stores them. */
+export type ConnectionConfig = {
+    /** The data key the secrets are sealed under, read in the same snapshot as them. */
+    keyId: string;
+    wrappedKey: Uint8Array;
+    settings: Record<string, unknown>;
+    /** Sealed bytes by field name; the repository never sees plaintext. */
+    secrets: Map<string, Uint8Array>;
+    /** Bumped by every `writeConfig`, starting at 0. */
+    revision: number;
+};
+
+/**
+ * One atomic config change: `settings` replaces the stored settings as a whole
+ * (absent keeps them), then `setSecrets` writes, then `clearSecrets` removes
+ * (a field in both ends cleared).
+ */
+export type ConnectionConfigWrite = {
+    settings?: Record<string, unknown>;
+    setSecrets?: Record<string, Uint8Array>;
+    clearSecrets?: readonly string[];
+};
+
 /** The store lock lease (`ILockRepository`) a write must hold at write time. */
 export type ConnectionFence = {
     lock: string;

@@ -8,8 +8,12 @@
 import { isObject } from 'smob';
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
 import { ValidationError } from '../errors/index.ts';
-import { CONNECTION_ENTRY_KEY_MAX_LENGTH, CONNECTION_TYPE_MAX_LENGTH } from './constants.ts';
-import type { Connection, ConnectionEntryWrite } from './types.ts';
+import {
+    CONNECTION_ENTRY_KEY_MAX_LENGTH,
+    CONNECTION_SECRET_FIELD_MAX_LENGTH,
+    CONNECTION_TYPE_MAX_LENGTH,
+} from './constants.ts';
+import type { Connection, ConnectionConfigWrite, ConnectionEntryWrite } from './types.ts';
 
 // well-formed UTF-16: a lone surrogate would be stored as U+FFFD in Postgres and seal to a shared AAD
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' &&
@@ -56,6 +60,55 @@ export function assertConnection(connection: unknown): asserts connection is Con
 
     if (!isDate(connection.createdAt) || !isDate(connection.updatedAt)) {
         throw new ValidationError('A connection createdAt and updatedAt must be valid dates.');
+    }
+}
+
+function assertConnectionSecretField(field: unknown): asserts field is string {
+    if (!isText(field, CONNECTION_SECRET_FIELD_MAX_LENGTH)) {
+        throw new ValidationError(
+            `A connection secret field must be a well-formed string of 1 to ${CONNECTION_SECRET_FIELD_MAX_LENGTH} characters without NUL.`,
+        );
+    }
+}
+
+/** A whole config write and the wrapped key it expects, before anything is written; a ValidationError otherwise (no field or value is echoed). */
+export function assertConnectionConfigWrite(write: unknown, expectedWrappedKey: unknown): asserts write is ConnectionConfigWrite {
+    if (!isObject(write)) {
+        throw new ValidationError('A connection config write must be an object.');
+    }
+
+    if (!(expectedWrappedKey instanceof Uint8Array)) {
+        throw new ValidationError('A connection wrapped key must be a Uint8Array.');
+    }
+
+    if (write.settings !== undefined && !isObject(write.settings)) {
+        throw new ValidationError('A connection config write settings must be an object.');
+    }
+
+    if (write.setSecrets !== undefined) {
+        if (!isObject(write.setSecrets)) {
+            throw new ValidationError('A connection config write setSecrets must be an object of Uint8Array values.');
+        }
+
+        for (const [field, value] of Object.entries(write.setSecrets)) {
+            assertConnectionSecretField(field);
+
+            if (!(value instanceof Uint8Array)) {
+                throw new ValidationError('A connection secret value must be a Uint8Array.');
+            }
+        }
+    }
+
+    if (write.clearSecrets === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(write.clearSecrets)) {
+        throw new ValidationError('A connection config write clearSecrets must be an array of fields.');
+    }
+
+    for (const field of write.clearSecrets) {
+        assertConnectionSecretField(field);
     }
 }
 

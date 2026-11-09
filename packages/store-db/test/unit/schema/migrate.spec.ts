@@ -12,12 +12,15 @@ import {
     expect,
     it,
 } from 'vitest';
+import { createDatabaseStore } from '@chamvi/store-db';
+import { testUuid } from '@chamvi/test-kit';
 import { TableName } from '../../../src/entities/constants.ts';
 import { STORE_MIGRATIONS, migrateStore, pendingMigrations } from '../../../src/schema/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 import type { TestDataSourceOptions } from '../../utils/database.ts';
 
 const BASELINE = 'UuidBaseline1794096000000';
+const CONNECTION_CONFIG = 'ConnectionConfig1794230765000';
 
 /** The unique key that carries each table's natural identity, as Postgres lists the columns. */
 const NATURAL_KEYS: [string, string][] = [
@@ -31,6 +34,7 @@ const NATURAL_KEYS: [string, string][] = [
     [TableName.AGENT_REVISIONS, 'agent'],
     [TableName.CONNECTIONS, 'name'],
     [TableName.CONNECTION_ENTRIES, 'connection_id, key'],
+    [TableName.CONNECTION_SECRETS, 'connection_id, name'],
     [TableName.CONVERSATIONS, 'key'],
     [TableName.CONVERSATION_ITEMS, 'scope_id, generation, key'],
     [TableName.CONVERSATION_NOTES, 'scope_id, generation, key'],
@@ -84,8 +88,12 @@ describePostgres('schema', () => {
         const ds = await create();
 
         await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 1);
+        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG]);
+
+        await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(0);
-        expect(await pendingMigrations(ds)).toEqual([BASELINE]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG]);
 
         await migrateStore(ds);
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
@@ -204,6 +212,35 @@ describePostgres('schema', () => {
         expect(rows.some((row) => row.indexdef.includes('(run_id)'))).toBe(true);
     });
 
+    it('upgrades existing connections from the baseline with default config and keeps their entries', async () => {
+        const ds = await create();
+        const connectionId = testUuid('connection');
+
+        await ds.undoLastMigration({ transaction: 'each' });
+        await ds.query(
+            `INSERT INTO "${TableName.CONNECTIONS}" (id, name, type, key_id, wrapped_key, created_at, updated_at)
+             VALUES ($1, 'wa', 'whatsapp', 'k1', $2, now(), now())`,
+            [connectionId, Buffer.from([1])],
+        );
+        await ds.query(
+            `INSERT INTO "${TableName.CONNECTION_ENTRIES}" (id, connection_id, key, value) VALUES ($1, $2, 'creds', $3)`,
+            [testUuid('entry'), connectionId, Buffer.from([2])],
+        );
+
+        await migrateStore(ds);
+
+        const store = createDatabaseStore({ dataSource: ds });
+
+        expect(await store.connections.findConfig('wa')).toEqual({
+            keyId: 'k1',
+            wrappedKey: new Uint8Array([1]),
+            settings: {},
+            secrets: new Map(),
+            revision: 0,
+        });
+        expect(Array.from((await store.connections.findEntry('wa', 'creds'))!)).toEqual([2]);
+    });
+
     it('concurrent starts apply once', async () => {
         const ds = await create({ migrate: false });
 
@@ -219,7 +256,7 @@ describePostgres('schema', () => {
     it('pendingMigrations lists every migration on an empty database and none after migrateStore', async () => {
         const ds = await create({ migrate: false });
 
-        expect(await pendingMigrations(ds)).toEqual([BASELINE]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG]);
         await migrateStore(ds);
         expect(await pendingMigrations(ds)).toEqual([]);
     });
@@ -244,6 +281,8 @@ describePostgres('schema', () => {
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
         expect(await tablesIn(ds, 'public')).toBe(0);
 
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length - 1);
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'other')).toBe(0);
 
