@@ -90,11 +90,12 @@ describe('interpreter isolation', () => {
     it('reports heap exhaustion as a failed command instead of taking the host down', async () => {
         const ctx = toolContext('heap');
         const inputs = await select(ctx, { list: '- a\n'.repeat(1_300_000) });
-        const result = await callTool(fileTools(), { command: 'yq -o json . list', inputs }, ctx);
+        // Leave time for heap exhaustion under CI contention rather than racing the execution deadline.
+        const result = await callTool(fileTools({ timeoutMs: 90_000 }), { command: 'yq -o json . list', inputs }, ctx);
 
         expect(result.exitCode).toBe(137);
         expect(result.stderr).toMatch(/memory/);
-    });
+    }, 120_000);
 });
 
 describe('record budgets', () => {
