@@ -72,7 +72,7 @@ const MAIL_ACCOUNTS_VARIABLE: 'CHAMVI_MAIL_ACCOUNTS';
 | `CHAMVI_MAIL_<ID>_USER` | The account's user, default the address; `<ID>` is the id upper-cased, `-` as `_` |
 | `CHAMVI_MAIL_<ID>_PASSWORD` | Required |
 
-Each credential can come from a file instead: `CHAMVI_MAIL_<ID>_PASSWORD_FILE` (one trailing newline trimmed; setting both forms is an error). The variables are read and checked when the factory is called; an error names the variable and index, never a value. Without accounts the module does nothing. In start and job mode and a check it builds one client on the app's clock, provides it on the engine (`injectMailContext(ctx)`) and logs out once the engine drained; migrate mode does nothing.
+Each credential can come from a file instead: `CHAMVI_MAIL_<ID>_PASSWORD_FILE` (one trailing newline trimmed; setting both forms is an error). The variables are read and checked when the factory is called; an error names the variable and index, never a value. Accounts stored in the connection store are added at start, a variable winning per field (`accounts` pins the set; a check does not read the store). Without any account the context stays provided and tools return a `connection_not_configured` tool error. In start and job mode and a check it builds one client on the app's clock, provides it on the engine (`injectMailContext(ctx)`) and logs out once the engine drained; migrate mode does nothing.
 
 ## Types
 

@@ -20,7 +20,7 @@ function fail(message: string): never {
 }
 
 /** `CHAMVI_MAIL_<ID>_<field>`: the id upper-cased, `-` as `_`. */
-function variableOf(id: string, field: string): string {
+export function variableOf(id: string, field: string): string {
     return `${MAIL_VARIABLE_PREFIX}${id.toUpperCase().replaceAll('-', '_')}_${field}`;
 }
 

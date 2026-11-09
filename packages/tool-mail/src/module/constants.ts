@@ -12,3 +12,9 @@ export const MAIL_ACCOUNTS_VARIABLE = 'CHAMVI_MAIL_ACCOUNTS';
 
 /** The prefix of an account's credential variables: `CHAMVI_MAIL_<ID>_USER`, `..._PASSWORD`. */
 export const MAIL_VARIABLE_PREFIX = 'CHAMVI_MAIL_';
+
+/** The connection type of a mail account; its stored name is `mail-<id>`. */
+export const MAIL_CONNECTION_TYPE = 'mail';
+
+/** A longer stored name (a long env-only id) is used but not listed. */
+export const MAIL_CONNECTION_NAME_MAX_LENGTH = 64;

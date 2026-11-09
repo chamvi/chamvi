@@ -70,9 +70,11 @@ describe('public api', () => {
 
     it('exports the module, its name and variable, never the env helpers', () => {
         expect(module.MAIL_ACCOUNTS_VARIABLE).toBe('CHAMVI_MAIL_ACCOUNTS');
+        expect(module.MAIL_CONNECTION_TYPE).toBe('mail');
         expect(module.TOOL_MAIL_MODULE_NAME).toBe('chamvi:tool-mail');
         expect(Object.keys(module).sort()).toEqual([
             'MAIL_ACCOUNTS_VARIABLE',
+            'MAIL_CONNECTION_TYPE',
             'TOOL_MAIL_MODULE_NAME',
             'ToolMailModule',
             'toolMailModule',

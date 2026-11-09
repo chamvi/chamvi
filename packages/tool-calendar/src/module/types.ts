@@ -18,3 +18,9 @@ export type ToolCalendarModuleOptions = {
     /** The fetch the CalDAV requests go through (default the global one); only PROPFIND, REPORT and GET pass. */
     fetch?: typeof fetch;
 };
+
+/** One entry of `CHAMVI_CALENDAR_ACCOUNTS`: the account and the address the variable named. */
+export type CalendarEnvEntry = {
+    account: CalendarAccount;
+    address?: string;
+};

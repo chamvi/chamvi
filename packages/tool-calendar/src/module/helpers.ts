@@ -16,6 +16,7 @@ import {
     CALENDAR_TIMEZONE_VARIABLE,
     CALENDAR_VARIABLE_PREFIX,
 } from './constants.ts';
+import type { CalendarEnvEntry } from './types.ts';
 
 const ACCOUNT_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -25,19 +26,19 @@ function fail(message: string): never {
 }
 
 /** `CHAMVI_CALENDAR_<ID>_<field>`: the id upper-cased, `-` as `_`. */
-function variableOf(id: string, field: string): string {
+export function variableOf(id: string, field: string): string {
     return `${CALENDAR_VARIABLE_PREFIX}${id.toUpperCase().replaceAll('-', '_')}_${field}`;
 }
 
 /**
- * The accounts of `CHAMVI_CALENDAR_ACCOUNTS` (`[{ id?, url, address? }]`)
+ * The entries of `CHAMVI_CALENDAR_ACCOUNTS` (`[{ id?, url, address? }]`)
  * with their credentials from `CHAMVI_CALENDAR_<ID>_USER` (default the
  * address) and `CHAMVI_CALENDAR_<ID>_PASSWORD` (required), each also from a
  * `_FILE` variant; undefined without the variable. The id defaults to the
  * address with `@` and `.` as `-`. Errors are InvalidAgentDefinitionErrors
  * naming the variable and index, never a value.
  */
-export function readCalendarAccountsFromEnv(env: Env): CalendarAccount[] | undefined {
+export function readCalendarEnvEntries(env: Env): CalendarEnvEntry[] | undefined {
     const value = envJson(env, CALENDAR_ACCOUNTS_VARIABLE);
 
     if (value === undefined) {
@@ -50,7 +51,7 @@ export function readCalendarAccountsFromEnv(env: Env): CalendarAccount[] | undef
 
     const ids = new Set<string>();
 
-    return value.map((entry: unknown, index): CalendarAccount => {
+    return value.map((entry: unknown, index): CalendarEnvEntry => {
         const at = `${CALENDAR_ACCOUNTS_VARIABLE}[${index}]`;
 
         if (!isObject(entry)) {
@@ -105,12 +106,20 @@ export function readCalendarAccountsFromEnv(env: Env): CalendarAccount[] | undef
         }
 
         return {
-            id,
-            url,
-            user,
-            password,
+            account: {
+                id,
+                url,
+                user,
+                password,
+            },
+            ...(address !== undefined && { address }),
         };
     });
+}
+
+/** The accounts of `CHAMVI_CALENDAR_ACCOUNTS` (see `readCalendarEnvEntries`); undefined without the variable. */
+export function readCalendarAccountsFromEnv(env: Env): CalendarAccount[] | undefined {
+    return readCalendarEnvEntries(env)?.map((entry) => entry.account);
 }
 
 /** `CHAMVI_CALENDAR_TIMEZONE`: an IANA zone id or `UTC` (InvalidAgentDefinitionError); undefined when unset. */

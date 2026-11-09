@@ -47,9 +47,11 @@ describe('public api', () => {
     it('exports the module, its name and variables, never the env helpers', () => {
         expect(module.CALENDAR_ACCOUNTS_VARIABLE).toBe('CHAMVI_CALENDAR_ACCOUNTS');
         expect(module.CALENDAR_TIMEZONE_VARIABLE).toBe('CHAMVI_CALENDAR_TIMEZONE');
+        expect(module.CALENDAR_CONNECTION_TYPE).toBe('calendar');
         expect(module.TOOL_CALENDAR_MODULE_NAME).toBe('chamvi:tool-calendar');
         expect(Object.keys(module).sort()).toEqual([
             'CALENDAR_ACCOUNTS_VARIABLE',
+            'CALENDAR_CONNECTION_TYPE',
             'CALENDAR_TIMEZONE_VARIABLE',
             'TOOL_CALENDAR_MODULE_NAME',
             'ToolCalendarModule',
