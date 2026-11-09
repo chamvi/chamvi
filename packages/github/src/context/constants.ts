@@ -6,7 +6,7 @@
  */
 
 import { defineContextKey } from '@chamvi/core';
-import type { IGithubApp } from '../app/types.ts';
+import type { IGithubAppResolver } from './types.ts';
 
-/** The GitHub App provided on the engine (one per app). */
-export const GITHUB_CONTEXT = defineContextKey<IGithubApp>('github');
+/** The GitHub App(s) provided on the engine, resolved per agent. */
+export const GITHUB_CONTEXT = defineContextKey<IGithubAppResolver>('github');

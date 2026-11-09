@@ -156,7 +156,7 @@ Listing one of them in `createApp({ modules })` replaces the default instance. `
 
 ```ts
 // @chamvi/github/module
-function githubModule(options?: GithubModuleOptions): GithubModule;        // .app: IGithubApp and the github channel, 'chamvi:github'
+function githubModule(options?: GithubModuleOptions): GithubModule;        // .app: IGithubApp and the github channel, 'chamvi:github:github'
 
 // @chamvi/sandbox/module
 function sandboxModule(options?: SandboxModuleOptions): SandboxModule;     // .manager: IWorkspaceManager, 'chamvi:sandbox'

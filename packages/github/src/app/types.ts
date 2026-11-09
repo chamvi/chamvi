@@ -129,3 +129,18 @@ export interface IGithubApp {
      */
     writeTools(options?: GithubWriteToolsOptions): ToolSet;
 }
+
+/** An `IGithubApp` whose real App arrives later (`createDeferredGithubApp()`). */
+export interface IDeferredGithubApp extends IGithubApp {
+    /** Whether `bind` was called. */
+    readonly configured: boolean;
+    /** The App every call goes to from now on; replaces an earlier one. */
+    bind(app: IGithubApp): void;
+}
+
+export type DeferredGithubAppOptions = {
+    /** The connection named by the not-configured errors. */
+    connection: string;
+    /** Validated now, so the write tools can carry the proposal tool before the App exists. */
+    proposals?: GithubProposalsOptions;
+};

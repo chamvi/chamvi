@@ -73,17 +73,20 @@ describe('githubModule', () => {
     it('reads env when called', async () => {
         const module = githubModule({ env: githubEnv({ GITHUB_APP_SLUG: 'my-app', GITHUB_INSTALLATION_ID: '7' }) });
 
-        expect(module.name).toBe('chamvi:github');
+        expect(module.name).toBe('chamvi:github:github');
         expect(module.app.appId).toBe('1');
         expect(module.app.installationId).toBe(7);
         expect(await module.app.botLogin()).toBe('my-app[bot]');
     });
 
-    it('a missing variable names it', () => {
-        expect(() => githubModule({ env: githubEnv({ GITHUB_WEBHOOK_SECRET: '' }) }))
-            .toThrow(new InvalidAgentDefinitionError('GITHUB_WEBHOOK_SECRET is required.'));
-        expect(() => githubModule({ env: githubEnv({ GITHUB_APP_ID: undefined }) }))
-            .toThrow('GITHUB_APP_ID is required.');
+    it('a missing variable names it in setup, the store may hold it', async () => {
+        const setup = (env: Record<string, string | undefined>) => createModuleHarness({
+            env: {},
+            modules: [configModule({ logger: createRecordingLogger() }), storeModule(), githubModule({ env })],
+        });
+
+        await expect(setup(githubEnv({ GITHUB_WEBHOOK_SECRET: '' }))).rejects.toThrow(/GITHUB_WEBHOOK_SECRET/);
+        await expect(setup(githubEnv({ GITHUB_APP_ID: undefined }))).rejects.toThrow(/GITHUB_APP_ID/);
     });
 
     it.each([
@@ -161,7 +164,7 @@ describe('githubModule', () => {
     it('contributes the github channel and no route', async () => {
         const harness = await createModuleHarness({
             env: {},
-            modules: [configModule({ logger: createRecordingLogger() }), githubModule({ env: githubEnv() })],
+            modules: [configModule({ logger: createRecordingLogger() }), storeModule(), githubModule({ env: githubEnv() })],
         });
 
         harnesses.push(harness);
@@ -187,7 +190,7 @@ describe('githubModule', () => {
 
         const harness = await createModuleHarness({
             env: {},
-            modules: [configModule({ logger: createRecordingLogger() }), githubModule({ app: gh, credentials: { permissions: { workflows: 'write' } } })],
+            modules: [configModule({ logger: createRecordingLogger() }), storeModule(), githubModule({ app: gh, credentials: { permissions: { workflows: 'write' } } })],
         });
 
         harnesses.push(harness);
@@ -209,7 +212,7 @@ describe('githubModule', () => {
 
         const off = await createModuleHarness({
             env: {},
-            modules: [configModule({ logger: createRecordingLogger() }), githubModule({ app: gh, credentials: false })],
+            modules: [configModule({ logger: createRecordingLogger() }), storeModule(), githubModule({ app: gh, credentials: false })],
         });
 
         harnesses.push(off);
@@ -221,6 +224,7 @@ describe('githubModule', () => {
             env: {},
             modules: [
                 configModule({ logger: createRecordingLogger() }),
+                storeModule(),
                 githubModule({ env: githubEnv(), channel: { name: 'github-ent' } }),
             ],
         });
@@ -309,7 +313,7 @@ describe('githubModule', () => {
 
         const harness = await createModuleHarness({
             env: { CHAMVI_PUBLIC_URL: 'https://chamvi.example' },
-            modules: [configModule({ logger: createRecordingLogger() }), githubModule({ app: gh, env: {} })],
+            modules: [configModule({ logger: createRecordingLogger() }), storeModule(), githubModule({ app: gh, env: {} })],
         });
 
         harnesses.push(harness);
@@ -530,6 +534,6 @@ describe('githubModule', () => {
         expect(harness.reported).toHaveLength(1);
         expect(harness.reported[0]!.error).toBeInstanceOf(InvalidAgentDefinitionError);
         expect((harness.reported[0]!.error as Error).message).toBe('Context "github" is already provided.');
-        expect(harness.reported[0]!.context).toEqual({ hook: 'chamvi:github', phase: 'engineCreated' });
+        expect(harness.reported[0]!.context).toEqual({ hook: 'chamvi:github:github', phase: 'engineCreated' });
     });
 });

@@ -5,6 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export { GITHUB_MODULE_NAME } from './constants.ts';
+export { GITHUB_CONNECTION_TYPE, GITHUB_MODULE_NAME } from './constants.ts';
 export * from './module.ts';
-export type * from './types.ts';
+export type { GithubModuleChannelOptions, GithubModuleOptions } from './types.ts';

@@ -5,6 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { ServiceUnavailableError } from '@ebec/http';
+import { isGithubAppConfigured } from '../app/deferred.ts';
 import { registerChannelName } from '../app/helpers.ts';
 import { createGithubSubscription, githubAddress } from '../subscription/module.ts';
 import { receiveDelivery } from '../webhook/module.ts';
@@ -22,7 +24,9 @@ import type { GithubChannel, GithubChannelOptions } from './types.ts';
  * events. `out` comments on an issue or pull request (`owner/repo#n`, e.g.
  * the run's source address), at most once per message key. With
  * an explicit message `slot`, later messages update that agent's slot instead.
- * Throws
+ * A channel over a deferred App not yet configured (`githubModule()` without
+ * credentials) exists and is idle: deliveries answer 503, `out` fails with
+ * ConnectionNotConfiguredError. Throws
  * InvalidAgentDefinitionError for an invalid option.
  */
 export function githubChannel(options: GithubChannelOptions): GithubChannel {
@@ -35,7 +39,13 @@ export function githubChannel(options: GithubChannelOptions): GithubChannel {
     return {
         name,
         untrusted: true,
-        in: (input, ctx) => receiveDelivery(input, ctx, resolved),
+        in: async (input, ctx) => {
+            if (!isGithubAppConfigured(resolved.app)) {
+                throw new ServiceUnavailableError({ message: 'The GitHub App of this channel is not configured.' });
+            }
+
+            return receiveDelivery(input, ctx, resolved);
+        },
         out: createCommentSender(resolved),
         on: (events, subscriptionOptions) => createGithubSubscription(name, events, subscriptionOptions),
         to: githubAddress,

@@ -1,0 +1,383 @@
+/*
+ * Copyright (c) 2026.
+ * Author Peter Placzek (tada5hi)
+ * For the full copyright and license information,
+ * view the LICENSE file that was distributed with this source code.
+ */
+
+import { randomBytes } from 'node:crypto';
+import {
+    ConnectionNotConfiguredError,
+    InvalidAgentDefinitionError,
+    createConnectionConfigStore,
+    createKeyring,
+    createMemoryStore,
+    defineModelAgent,
+} from '@chamvi/core';
+import type {
+    Agent,
+    DeclaredConnection,
+    IConnectionTypeProvider,
+    IStore,
+} from '@chamvi/core';
+import { createGithubApp, github } from '@chamvi/github';
+import { ControllableClock, createFakeGithub } from '@chamvi/test-kit';
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
+} from 'vitest';
+import {
+    AppToken,
+    configModule,
+    engineModule,
+    httpModule,
+    staticTokensModule,
+    storeModule,
+} from '@chamvi/app';
+import type { IContainer, IModule } from '@chamvi/app';
+import { createModuleHarness } from '@chamvi/app/testing';
+import type { ModuleHarness } from '@chamvi/app/testing';
+import { GITHUB_CONNECTION_TYPE, githubModule } from '@chamvi/github/module';
+import { textModel } from '../../utils/model.ts';
+import {
+    TOKENS,
+    createRecordingLogger,
+    freePort,
+} from '../../utils/module.ts';
+import type { RecordingLogger } from '../../utils/module.ts';
+
+const clock = new ControllableClock(new Date('2026-10-20T10:00:00Z'));
+const fake = createFakeGithub({ appId: '1', clock });
+const keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
+
+const harnesses: ModuleHarness[] = [];
+
+afterEach(async () => {
+    for (const harness of harnesses.splice(0)) {
+        await harness.stop();
+    }
+});
+
+function agentNamed(name: string, channels: Agent['definition']['channels'] = []): Agent {
+    return defineModelAgent({
+        name,
+        instructions: name,
+        model: textModel(),
+        channels,
+    });
+}
+
+async function setup(
+    modules: IModule[],
+    input: {
+        agents?: Agent[]; 
+        store?: IStore; 
+        logger?: RecordingLogger 
+    } = {},
+): Promise<ModuleHarness> {
+    const harness = await createModuleHarness({
+        env: {},
+        keyring,
+        agents: input.agents ?? [],
+        modules: [
+            configModule({ logger: input.logger ?? createRecordingLogger() }),
+            storeModule(input.store ? { store: input.store } : {}),
+            engineModule(),
+            ...modules,
+        ],
+    });
+
+    harnesses.push(harness);
+
+    return harness;
+}
+
+function connectionsOf(harness: ModuleHarness): readonly DeclaredConnection[] {
+    return harness.container.resolveAll(AppToken.CONNECTION_TYPES).flatMap((provider: IConnectionTypeProvider) => [...provider.connections()]);
+}
+
+function envOf(prefix: string): Record<string, string> {
+    return {
+        [`${prefix}APP_ID`]: '1',
+        [`${prefix}APP_PRIVATE_KEY`]: fake.privateKey,
+        [`${prefix}WEBHOOK_SECRET`]: 'a',
+    };
+}
+
+describe('githubModule configuration', () => {
+    it('two modules targeting one agent fail at startup', async () => {
+        const agents = [agentNamed('triager')];
+
+        await expect(setup([
+            githubModule({
+                name: 'one',
+                agents: ['triager'],
+                env: {},
+            }),
+            githubModule({
+                name: 'two',
+                agents: ['triager'],
+                env: {},
+            }),
+        ], { agents })).rejects.toThrow(/triager/);
+    });
+
+    it('two modules without agents fail at startup', async () => {
+        await expect(setup([
+            githubModule({ name: 'one', env: {} }),
+            githubModule({ name: 'two', env: {} }),
+        ])).rejects.toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('a name in agents matching no agent warns', async () => {
+        const logger = createRecordingLogger();
+
+        await setup([githubModule({
+            name: 'acme',
+            agents: ['ghost'],
+            env: {},
+        })], { logger, agents: [agentNamed('other')] });
+
+        expect(logger.entries.find((entry) => entry.level === 'warn' && String(entry.msg).includes('ghost'))).toBeDefined();
+    });
+
+    it('a subscriber outside the module\'s agents is refused', async () => {
+        const agents = [agentNamed('outsider', [github.on('issues.opened')])];
+
+        await expect(setup([
+            githubModule({ agents: ['triager'], env: envOf('GITHUB_') }),
+        ], { agents })).rejects.toThrow(/outsider/);
+    });
+
+    it('a subscriber inside the module\'s agents is accepted', async () => {
+        const agents = [agentNamed('triager', [github.on('issues.opened')])];
+
+        await expect(setup([
+            githubModule({ agents: ['triager'], env: envOf('GITHUB_') }),
+        ], { agents })).resolves.toBeDefined();
+    });
+
+    it('a named module reads CHAMVI_GITHUB_ACME_APP_ID', async () => {
+        const module = githubModule({ name: 'acme', env: envOf('CHAMVI_GITHUB_ACME_') });
+
+        await setup([module]);
+
+        expect(module.name).toBe('chamvi:github:acme');
+        expect(module.app.appId).toBe('1');
+    });
+
+    it('a named module defaults its channel to its name', async () => {
+        const harness = await setup([githubModule({ name: 'acme', env: envOf('CHAMVI_GITHUB_ACME_') })]);
+
+        expect(harness.container.resolveAll(AppToken.CHANNELS).map((channel) => channel.name)).toContain('acme');
+    });
+
+    it('channel.name wins over name', async () => {
+        const harness = await setup([githubModule({
+            name: 'acme',
+            env: envOf('CHAMVI_GITHUB_ACME_'),
+            channel: { name: 'custom' },
+        })]);
+        const names = harness.container.resolveAll(AppToken.CHANNELS).map((channel) => channel.name);
+
+        expect(names).toContain('custom');
+        expect(names).not.toContain('acme');
+    });
+
+    it('the default reads GITHUB_APP_ID unchanged', async () => {
+        const module = githubModule({ env: envOf('GITHUB_') });
+
+        await setup([module]);
+
+        expect(module.name).toBe('chamvi:github:github');
+        expect(module.app.appId).toBe('1');
+    });
+
+    it('GITHUB_APP_ID set with no private key anywhere fails naming GITHUB_APP_PRIVATE_KEY', async () => {
+        await expect(setup([githubModule({ env: { GITHUB_APP_ID: '1', GITHUB_WEBHOOK_SECRET: 'a' } })]))
+            .rejects.toThrow(/GITHUB_APP_PRIVATE_KEY/);
+    });
+
+    it('nothing set starts idle and webhooks answer 503', async () => {
+        const logger = createRecordingLogger();
+        const port = await freePort();
+        const harness = await createModuleHarness({
+            env: {
+                CHAMVI_TOKENS: TOKENS,
+                HOST: '127.0.0.1',
+                PORT: String(port),
+            },
+            keyring,
+            agents: [agentNamed('triage', [github.on('issues.opened')])],
+            modules: [
+                configModule({ logger }),
+                storeModule(),
+                staticTokensModule(),
+                engineModule(),
+                httpModule({ metrics: false, rateLimit: false }),
+                githubModule({ env: {} }),
+            ],
+        });
+
+        harnesses.push(harness);
+
+        expect(harness.reported).toEqual([]);
+        expect(logger.entries.some((entry) => entry.level === 'warn' && String(entry.msg).includes('not configured'))).toBe(true);
+        expect(connectionsOf(harness)[0]).toMatchObject({
+            name: GITHUB_CONNECTION_TYPE, 
+            editable: true, 
+            deletable: false, 
+        });
+        expect(connectionsOf(harness)[0]!.resolved.state).toBe('not_configured');
+
+        const response = await fetch(`http://127.0.0.1:${port}/channels/github`, {
+            method: 'POST',
+            headers: {
+                'content-type': 'application/json',
+                'x-github-event': 'issues',
+                'x-github-delivery': 'd-1',
+                'x-hub-signature-256': 'sha256=00',
+            },
+            body: '{}',
+        });
+
+        expect(response.status).toBe(503);
+    });
+
+    it('.app before configuration throws ConnectionNotConfiguredError on use, not on access', async () => {
+        const module = githubModule({ env: {} });
+        const { app } = module;
+
+        expect(() => app.appId).toThrow(ConnectionNotConfiguredError);
+        expect(() => app.verifySignature(new Uint8Array(), null)).toThrow(ConnectionNotConfiguredError);
+        await expect(app.botLogin()).rejects.toBeInstanceOf(ConnectionNotConfiguredError);
+    });
+
+    it('a stored connection configures the module and carries its revision', async () => {
+        const store = createMemoryStore({ clock });
+        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+
+        await configs.create('github', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '7' },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'stored' } },
+        });
+
+        const module = githubModule({ env: {} });
+        const harness = await setup([module], { store });
+        const [connection] = connectionsOf(harness);
+        const row = await store.connections!.findOne('github');
+
+        expect(module.app.appId).toBe('7');
+        expect(connection).toMatchObject({
+            name: 'github',
+            editable: true,
+            deletable: false,
+            loadedRevision: (await configs.read('github'))!.revision,
+            loadedCreatedAt: row!.createdAt,
+        });
+        expect(connection!.resolved.sources.appId).toEqual({ kind: 'store' });
+    });
+
+    it('a stored connection with a refused value stays idle and is listed incomplete', async () => {
+        const store = createMemoryStore({ clock });
+        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+
+        await configs.create('github', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '7' },
+            secrets: { set: { privateKey: 'not-a-key', webhookSecret: 'stored' } },
+        });
+
+        const logger = createRecordingLogger();
+        const module = githubModule({ env: {} });
+        const harness = await setup([module], { store, logger });
+
+        expect(() => module.app.appId).toThrow(ConnectionNotConfiguredError);
+        expect(connectionsOf(harness)[0]!.resolved.state).toBe('incomplete');
+        expect(logger.lines.join('\n')).not.toContain('not-a-key');
+    });
+
+    it('app option: listed, not editable', async () => {
+        const app = createGithubApp({
+            appId: '9',
+            privateKey: fake.privateKey,
+            webhookSecret: 'a',
+            clock,
+            fetch: fake.fetch,
+        });
+        const harness = await setup([githubModule({ app, env: {} })]);
+        const [connection] = connectionsOf(harness);
+
+        expect(connection).toMatchObject({
+            name: 'github',
+            editable: false,
+            deletable: false,
+        });
+        expect(connection!.resolved.state).toBe('configured');
+        expect(connection!.resolved.values.privateKey).toBeUndefined();
+    });
+
+    it('only the fallback contributes git credentials unless credentials is set', async () => {
+        const harness = await setup([
+            githubModule({ env: envOf('GITHUB_') }),
+            githubModule({
+                name: 'acme',
+                agents: ['triager'],
+                env: envOf('CHAMVI_GITHUB_ACME_'),
+            }),
+        ]);
+
+        expect(harness.container.resolveAll(AppToken.GIT_CREDENTIALS)).toHaveLength(1);
+
+        const optedIn = await setup([
+            githubModule({ env: envOf('GITHUB_'), credentials: false }),
+            githubModule({
+                name: 'acme',
+                agents: ['triager'],
+                env: envOf('CHAMVI_GITHUB_ACME_'),
+                credentials: {},
+            }),
+        ]);
+
+        expect(optedIn.container.resolveAll(AppToken.GIT_CREDENTIALS)).toHaveLength(1);
+    });
+
+    it('an unconfigured module contributes no git credentials', async () => {
+        const harness = await setup([githubModule({ env: {} })]);
+
+        expect(harness.container.resolveAll(AppToken.GIT_CREDENTIALS)).toEqual([]);
+    });
+
+    it('migrate mode reads nothing and contributes nothing', async () => {
+        // only the context is read: a partial env must not fail a migration
+        const container = { resolve: () => ({ mode: 'migrate' }) } as unknown as IContainer;
+
+        await expect(githubModule({ env: { GITHUB_APP_ID: '1' } }).setup(container)).resolves.toBeUndefined();
+    });
+
+    it('a store without connections stays env-only and not editable', async () => {
+        const store: IStore = { ...createMemoryStore({ clock }), connections: undefined };
+        const module = githubModule({ env: envOf('GITHUB_') });
+        const harness = await setup([module], { store });
+
+        expect(connectionsOf(harness)[0]).toMatchObject({ name: 'github', editable: false });
+        expect(module.app.appId).toBe('1');
+    });
+
+    it('lists one connection type for several modules', async () => {
+        const harness = await setup([
+            githubModule({ env: envOf('GITHUB_') }),
+            githubModule({
+                name: 'acme',
+                agents: ['triager'],
+                env: envOf('CHAMVI_GITHUB_ACME_'),
+            }),
+        ]);
+        const providers = harness.container.resolveAll(AppToken.CONNECTION_TYPES);
+
+        expect(providers).toHaveLength(1);
+        expect(providers[0]!.definition.multiple).toBe(false);
+        expect(connectionsOf(harness).map((connection) => connection.name)).toEqual(['github', 'acme']);
+    });
+});
