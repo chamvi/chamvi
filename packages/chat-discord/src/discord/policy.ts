@@ -22,6 +22,11 @@ import type {
 /** A Discord id: a snowflake, decimal digits only (names never match). */
 const SNOWFLAKE = /^[0-9]{1,20}$/;
 
+/** Whether `value` has the form of a Discord id. */
+export function isSnowflake(value: string): boolean {
+    return SNOWFLAKE.test(value);
+}
+
 function invalid(message: string): InvalidAgentDefinitionError {
     return new InvalidAgentDefinitionError(`createDiscordChat: ${message}`);
 }

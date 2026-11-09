@@ -11,6 +11,7 @@
             "@chamvi/chat": ["./packages/chat/src/index.ts"],
             "@chamvi/chat/module": ["./packages/chat/src/module/index.ts"],
             "@chamvi/chat-discord": ["./packages/chat-discord/src/index.ts"],
+            "@chamvi/chat-discord/module": ["./packages/chat-discord/src/module/index.ts"],
             "@chamvi/chat-whatsapp": ["./packages/chat-whatsapp/src/index.ts"],
             "@chamvi/chat-whatsapp/module": ["./packages/chat-whatsapp/src/module/index.ts"],
             "@chamvi/cli": ["./packages/cli/src/index.ts"],
