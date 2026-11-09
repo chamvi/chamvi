@@ -67,16 +67,16 @@ export function runInterpreter(job: InterpreterJob, { timeoutMs, signal }: Inter
             settle(() => resolve(cause.code === 'ERR_WORKER_OUT_OF_MEMORY' ?
                 killed(137, `process_files: the interpreter exceeded its ${FILES_WORKER_HEAP_MB} MiB memory limit.\n`) :
                 {
-                    type: 'failed', 
-                    message: 'File processing failed.', 
-                    cause: String(cause), 
+                    type: 'failed',
+                    message: 'File processing failed.',
+                    cause: String(cause),
                 }));
         });
         worker.once('exit', (code) => {
             settle(() => resolve({
-                type: 'failed', 
-                message: 'File processing failed.', 
-                cause: `The interpreter thread exited with code ${code}.`, 
+                type: 'failed',
+                message: 'File processing failed.',
+                cause: `The interpreter thread exited with code ${code}.`,
             }));
         });
 

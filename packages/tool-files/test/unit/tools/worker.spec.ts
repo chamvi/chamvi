@@ -99,9 +99,9 @@ describe('interpreter isolation', () => {
 
 describe('record budgets', () => {
     const json = JSON.stringify(Array.from({ length: 20_000 }, (_, id) => ({
-        id, 
-        group: id % 10, 
-        value: id % 100, 
+        id,
+        group: id % 10,
+        value: id % 100,
     })));
     const jsonLines = Array.from({ length: 20_000 }, (_, id) => JSON.stringify({ id, value: id % 100 })).join('\n');
     const csv = (rows: number) => `name,value\n${Array.from({ length: rows }, (_, id) => `row${id},${id % 100}`).join('\n')}\n`;
@@ -132,9 +132,9 @@ describe('record budgets', () => {
 
         for (let id = 0, size = 0; size < 5_200_000; id++) {
             const row = JSON.stringify({
-                id, 
-                group: id % 10, 
-                name: `row${id}`, 
+                id,
+                group: id % 10,
+                name: `row${id}`,
             });
 
             rows.push(row);

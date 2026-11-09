@@ -18,19 +18,23 @@ export type InterpreterJob = {
     maxBytes: number;
 };
 
-export type InterpreterOutcome =    | {
+export type InterpreterCompleted = {
     type: 'completed';
     exitCode: number;
     stdout: string;
     stderr: string;
     outputs: Uint8Array[];
-} |
-    { type: 'invalid'; message: string } |
-    {
-        type: 'failed'; 
-        message: string; 
-        cause?: string 
-    };
+};
+
+export type InterpreterInvalid = { type: 'invalid'; message: string };
+
+export type InterpreterFailed = {
+    type: 'failed';
+    message: string;
+    cause?: string;
+};
+
+export type InterpreterOutcome = InterpreterCompleted | InterpreterInvalid | InterpreterFailed;
 
 export type InterpreterLimits = {
     timeoutMs: number;

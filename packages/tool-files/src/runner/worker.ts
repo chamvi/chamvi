@@ -11,9 +11,9 @@ import { aggregateLimitMessage } from './helpers.ts';
 import type { InterpreterJob, InterpreterOutcome } from './types.ts';
 
 const failed = (message: string, cause: unknown): InterpreterOutcome => ({
-    type: 'failed', 
-    message, 
-    cause: String(cause), 
+    type: 'failed',
+    message,
+    cause: String(cause),
 });
 
 async function run(job: InterpreterJob): Promise<InterpreterOutcome> {
