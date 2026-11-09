@@ -11,7 +11,7 @@ import { createHash } from 'node:crypto';
 import { ChamviError, InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
-import { isChannelOf } from '../app/helpers.ts';
+import { hasChannel, isChannelOf } from '../app/helpers.ts';
 import type { GithubMergeMethod, GithubOctokit, IGithubApp } from '../app/types.ts';
 import { GITHUB_CHANNEL_NAME, RECONCILE_SKEW_MS } from '../channel/constants.ts';
 import type { NumberInput, RepoInput, RepoTarget } from './types.ts';
@@ -23,10 +23,15 @@ import {
     REPO_PATTERN,
 } from './constants.ts';
 
+/**
+ * Whether the run came from a delivery of this App: its own channels, so a
+ * delivery of another App never chooses the installation; the literal
+ * `github` name only for a standalone App no channel was made for.
+ */
 function isGithubRun(ctx: ToolContext, app: IGithubApp): boolean {
     const { channel } = ctx.run.trigger;
 
-    return channel === GITHUB_CHANNEL_NAME || isChannelOf(app, channel);
+    return hasChannel(app) ? isChannelOf(app, channel) : channel === GITHUB_CHANNEL_NAME;
 }
 
 /** The delivery's installation of a run a GitHub channel of this app started, else undefined. */
@@ -47,8 +52,8 @@ function eventInstallation(ctx: ToolContext, app: IGithubApp): { id: number; rep
 
 /**
  * The installation a tool acts as for `target`: (1) the delivery's for a
- * run a GitHub channel of this app started (the default `github`, or any
- * name a githubChannel({ app }) took) on the same repository (compared
+ * run a GitHub channel of this app started (any name a
+ * githubChannel({ app }) took, `github` for an App without one) on the same repository (compared
  * case-insensitively, no request); (2) the App's installation on the
  * repository (`app.installationFor`); (3) the delivery's installation for
  * any repository, else the app's `installationId`, so a public repository

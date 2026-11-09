@@ -87,7 +87,7 @@ export function readGithubOptions(env: Env, name: string, options: Partial<Githu
 
         const value = read();
 
-        if (!(value !== undefined)) {
+        if (value === undefined) {
             return;
         }
 

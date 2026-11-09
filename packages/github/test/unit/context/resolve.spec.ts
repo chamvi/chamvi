@@ -134,36 +134,21 @@ describe('injectGithubContext across modules', () => {
     });
 
     it('an untargeted agent with no fallback gets a not-configured tool error, the run does not fail', async () => {
-        const errors: unknown[] = [];
+        const model = mockModel([
+            {
+                parts: [{
+                    type: 'tool-call',
+                    toolName: 'github_get_issue',
+                    input: { repo: 'octo/demo', number: 7 },
+                }],
+            },
+            { parts: [{ type: 'text', text: 'done' }] },
+        ]);
         const agent = defineModelAgent({
             name: 'stranger',
             instructions: 'stranger',
-            model: mockModel([
-                {
-                    parts: [{
-                        type: 'tool-call',
-                        toolName: 'probe',
-                        input: {},
-                    }],
-                },
-                { parts: [{ type: 'text', text: 'done' }] },
-            ]),
-            tools: {
-                probe: defineTool({
-                    inputSchema: z.object({}),
-                    execute: async (_input, { context }) => {
-                        try {
-                            await injectGithubContext(context).botLogin();
-                        } catch (error) {
-                            errors.push(error);
-
-                            throw error;
-                        }
-
-                        return 'ok';
-                    },
-                }),
-            },
+            model,
+            tools: (ctx) => injectGithubContext(ctx).readTools(),
         });
         const harness = await harnessWith([agent], [githubModule({
             name: 'acme',
@@ -182,7 +167,6 @@ describe('injectGithubContext across modules', () => {
         await engine.idle();
 
         expect((await engine.getRun(runId))?.status).toBe('completed');
-        expect(errors).toHaveLength(1);
-        expect((errors[0] as { code?: string }).code).toBe('connection_not_configured');
+        expect(JSON.stringify(model.doStreamCalls[1]?.prompt)).toContain('The connection \\"github\\" is not configured.');
     });
 });

@@ -39,36 +39,36 @@ export function githubConnectionDefinition(): ConnectionTypeDefinition {
         multiple: false,
         fields: [
             fieldOf('appId', {
-                label: 'App ID', 
-                kind: 'string', 
-                required: true, 
+                label: 'App ID',
+                kind: 'string',
+                required: true,
             }),
             fieldOf('privateKey', {
-                label: 'Private key', 
-                kind: 'secret', 
-                required: true, 
-                description: 'PEM; literal \\n sequences allowed.', 
+                label: 'Private key',
+                kind: 'secret',
+                required: true,
+                description: 'PEM; literal \\n sequences allowed.',
             }),
             fieldOf('webhookSecret', {
-                label: 'Webhook secret', 
-                kind: 'secret', 
-                required: true, 
-                description: 'Comma-separated during a rotation.', 
+                label: 'Webhook secret',
+                kind: 'secret',
+                required: true,
+                description: 'Comma-separated during a rotation.',
             }),
             fieldOf('installationId', {
-                label: 'Installation ID', 
-                kind: 'number', 
-                description: 'For runs not started by a delivery.', 
+                label: 'Installation ID',
+                kind: 'number',
+                description: 'For runs not started by a delivery.',
             }),
             fieldOf('slug', {
-                label: 'App slug', 
-                kind: 'string', 
-                description: 'Skips GET /app for the bot login.', 
+                label: 'App slug',
+                kind: 'string',
+                description: 'Skips GET /app for the bot login.',
             }),
             fieldOf('baseUrl', {
-                label: 'API URL', 
-                kind: 'string', 
-                description: 'Default https://api.github.com.', 
+                label: 'API URL',
+                kind: 'string',
+                description: 'Default https://api.github.com.',
             }),
         ],
     };
@@ -102,8 +102,42 @@ function appOptionsOf(values: ConnectionValues): GithubAppOptions {
     };
 }
 
-function storedSecretsOf(definition: ConnectionTypeDefinition, values: ConnectionValues): ConnectionValues {
-    return Object.fromEntries(Object.entries(values).filter(([key]) => definition.fields.some((field) => field.key === key && field.kind === 'secret')));
+/** The field a normalizer's message starts with, when it names one. */
+function refusedKey(definition: ConnectionTypeDefinition, message: string): string | undefined {
+    return definition.fields.find((field) => message.startsWith(`${field.key} `))?.key;
+}
+
+/** The connection without `keys`: unset, `missing` naming only the required fields left without a value, `incomplete`. */
+function withoutFields(definition: ConnectionTypeDefinition, resolved: ResolvedConnection, keys: readonly string[]): ResolvedConnection {
+    const values = Object.fromEntries(Object.entries(resolved.values).filter(([key]) => !keys.includes(key)));
+    const sources = Object.fromEntries(Object.entries(resolved.sources).map(([key, source]) => [key, keys.includes(key) ? { kind: 'unset' as const } : source]));
+
+    return {
+        ...resolved,
+        values,
+        sources,
+        missing: definition.fields.filter((field) => field.required && values[field.key] === undefined).map((field) => field.key),
+        state: 'incomplete',
+    };
+}
+
+/** Rethrows a refusal that is no stored problem: env and code errors still fail the start, env ones naming the variable, never the value. */
+function assertStoredRefusal(definition: ConnectionTypeDefinition, resolved: ResolvedConnection, error: InvalidAgentDefinitionError): void {
+    const key = refusedKey(definition, error.message);
+    const source = key === undefined ? undefined : resolved.sources[key];
+    const stored = key === undefined ?
+        Object.values(resolved.sources).some((candidate) => candidate.kind === 'store') :
+        source?.kind === 'store';
+
+    if (stored) {
+        return;
+    }
+
+    if (key !== undefined && source?.kind === 'env') {
+        throw new InvalidAgentDefinitionError(`${source.variable}${withoutValue(error.message.slice(key.length))}`);
+    }
+
+    throw error;
 }
 
 type LoadInput = {
@@ -118,9 +152,11 @@ type LoadInput = {
 
 /**
  * Resolves the connection (env, then the store) and builds its App: none
- * while it is not configured or a stored value the App refuses leaves it
- * incomplete, so the dashboard can repair it. A required field missing while
- * another comes from env throws naming the variable (`resolveConnection`).
+ * while it is not configured or a refused stored value leaves it without a
+ * required field. A refused stored value is dropped and the connection listed
+ * `incomplete`, so the dashboard can repair it. A required field missing from
+ * env and store while another comes from env throws naming the variable
+ * (`resolveConnection`), as does a refused value that is not stored.
  */
 export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConnection; app?: IGithubApp } {
     const {
@@ -140,7 +176,7 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
     });
     const build = (resolved: ResolvedConnection) => createGithubApp({ ...options, ...appOptionsOf(resolved.values) });
 
-    let resolved = resolve(row?.values);
+    const resolved = resolve(row?.values);
 
     if (resolved.state !== 'configured') {
         logger.warn(`The GitHub connection "${name}" is ${resolved.state.replace('_', ' ')}; it stays idle until it is configured.`);
@@ -148,22 +184,39 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
         return { resolved };
     }
 
-    try {
-        return { resolved, app: build(resolved) };
-    } catch (error) {
-        if (!row || !(error instanceof InvalidAgentDefinitionError)) {
-            throw error;
+    /**
+     * Drops the refused stored field (the optional stored ones when the
+     * message names none) and tries again. Each pass drops at least one
+     * field, and nothing here throws: the dashboard repairs what is left.
+     */
+    const recover = (current: ResolvedConnection, refusal: Error): { resolved: ResolvedConnection; app?: IGithubApp } => {
+        const key = refusedKey(definition, refusal.message);
+        const drop = key !== undefined && current.sources[key]?.kind === 'store' ?
+            [key] :
+            definition.fields.filter((field) => !field.required && current.sources[field.key]?.kind === 'store').map((field) => field.key);
+
+        if (drop.length === 0) {
+            logger.warn(`The GitHub connection "${name}" cannot be used (${withoutValue(refusal.message)}); it stays idle until it is repaired.`);
+
+            return { resolved: { ...current, state: 'incomplete' } };
         }
 
-        // the messages name the option, and `withoutValue` drops the rest; a stored value is never logged
-        logger.warn(`The GitHub connection "${name}" holds a stored value the App refuses (${withoutValue(error.message)}) and its stored settings are dropped.`);
-    }
+        logger.warn(`The GitHub connection "${name}" holds a stored value the App refuses (${withoutValue(refusal.message)}); it is ignored.`);
 
-    resolved = { ...resolve(storedSecretsOf(definition, row.values)), state: 'incomplete' };
+        const next = withoutFields(definition, current, drop);
 
-    if (resolved.missing.length > 0) {
-        return { resolved };
-    }
+        if (next.missing.length > 0) {
+            logger.warn(`The GitHub connection "${name}" is incomplete; it stays idle until it is repaired.`);
+
+            return { resolved: next };
+        }
+
+        try {
+            return { resolved: next, app: build(next) };
+        } catch (error) {
+            return recover(next, error as Error);
+        }
+    };
 
     try {
         return { resolved, app: build(resolved) };
@@ -172,9 +225,9 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
             throw error;
         }
 
-        logger.warn(`The GitHub connection "${name}" cannot be used (${withoutValue(error.message)}); it stays idle until it is repaired.`);
+        assertStoredRefusal(definition, resolved, error);
 
-        return { resolved };
+        return recover(resolved, error);
     }
 }
 

@@ -17,13 +17,12 @@ import type {
     IModule,
     StoredConnection,
 } from '@chamvi/app';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { InvalidAgentDefinitionError, assertConnectionName } from '@chamvi/core';
 import type { Agent, IEngine } from '@chamvi/core';
 import { createDeferredGithubApp } from '../app/deferred.ts';
 import { createGithubApp } from '../app/module.ts';
 import type { GithubAppOptions, IDeferredGithubApp, IGithubApp } from '../app/types.ts';
 import { githubChannel } from '../channel/module.ts';
-import { CHANNEL_NAME_PATTERN } from '../channel/constants.ts';
 import { provideGithubAppResolver } from '../context/module.ts';
 import type { IGithubAppResolver } from '../context/types.ts';
 import { githubAppCredentials } from '../credentials/module.ts';
@@ -153,8 +152,12 @@ export class GithubModule implements IModule {
             ...appOptions
         } = options;
 
-        if (name !== undefined && (typeof name !== 'string' || name.length > 64 || !CHANNEL_NAME_PATTERN.test(name))) {
-            throw new InvalidAgentDefinitionError('githubModule() name must match the agent-name rule (at most 64 characters).');
+        if (name !== undefined) {
+            try {
+                assertConnectionName(name);
+            } catch (error) {
+                throw new InvalidAgentDefinitionError(`githubModule() name: ${(error as Error).message}`);
+            }
         }
 
         const hasNonName = Array.isArray(agents) && agents.some((agent) => typeof agent !== 'string');

@@ -5,7 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { randomBytes } from 'node:crypto';
+import { createHmac, randomBytes } from 'node:crypto';
+import { mkdtempSync, readFileSync, writeFileSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import path from 'node:path';
 import {
     ConnectionNotConfiguredError,
     InvalidAgentDefinitionError,
@@ -20,7 +23,7 @@ import type {
     IConnectionTypeProvider,
     IStore,
 } from '@chamvi/core';
-import { createGithubApp, github } from '@chamvi/github';
+import { createGithubApp, github, injectGithubContext } from '@chamvi/github';
 import { ControllableClock, createFakeGithub } from '@chamvi/test-kit';
 import {
     afterEach,
@@ -40,7 +43,7 @@ import type { IContainer, IModule } from '@chamvi/app';
 import { createModuleHarness } from '@chamvi/app/testing';
 import type { ModuleHarness } from '@chamvi/app/testing';
 import { GITHUB_CONNECTION_TYPE, githubModule } from '@chamvi/github/module';
-import { textModel } from '../../utils/model.ts';
+import { mockModel, textModel } from '../../utils/model.ts';
 import {
     TOKENS,
     createRecordingLogger,
@@ -59,6 +62,51 @@ afterEach(async () => {
         await harness.stop();
     }
 });
+
+const ISSUES_OPENED = readFileSync(new URL('../../fixtures/deliveries/issues-opened.json', import.meta.url), 'utf8');
+
+function sign(body: string, secret: string): string {
+    return `sha256=${createHmac('sha256', secret).update(body).digest('hex')}`;
+}
+
+function deliver(port: number, channel: string, secret: string, delivery: string): Promise<Response> {
+    return fetch(`http://127.0.0.1:${port}/channels/${channel}`, {
+        method: 'POST',
+        headers: {
+            'content-type': 'application/json',
+            'x-github-event': 'issues',
+            'x-github-delivery': delivery,
+            'x-hub-signature-256': sign(ISSUES_OPENED, secret),
+        },
+        body: ISSUES_OPENED,
+    });
+}
+
+/** The modules over real HTTP on a free port. */
+async function serve(modules: IModule[], agents: Agent[]): Promise<{ harness: ModuleHarness; port: number }> {
+    const port = await freePort();
+    const harness = await createModuleHarness({
+        env: {
+            CHAMVI_TOKENS: TOKENS,
+            HOST: '127.0.0.1',
+            PORT: String(port),
+        },
+        keyring,
+        agents,
+        modules: [
+            configModule({ logger: createRecordingLogger() }),
+            storeModule(),
+            staticTokensModule(),
+            engineModule(),
+            httpModule({ metrics: false, rateLimit: false }),
+            ...modules,
+        ],
+    });
+
+    harnesses.push(harness);
+
+    return { harness, port };
+}
 
 function agentNamed(name: string, channels: Agent['definition']['channels'] = []): Agent {
     return defineModelAgent({
@@ -296,6 +344,169 @@ describe('githubModule configuration', () => {
         expect(() => module.app.appId).toThrow(ConnectionNotConfiguredError);
         expect(connectionsOf(harness)[0]!.resolved.state).toBe('incomplete');
         expect(logger.lines.join('\n')).not.toContain('not-a-key');
+    });
+
+    it('a refused stored optional value is dropped: required stored values stay and the App starts', async () => {
+        const store = createMemoryStore({ clock });
+        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+
+        await configs.create('github', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '7', slug: 'Not A Slug' },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'stored' } },
+        });
+
+        const logger = createRecordingLogger();
+        const module = githubModule({ env: { GITHUB_API_URL: 'https://ghe.example.com/api/v3' } });
+        const harness = await setup([module], { store, logger });
+        const { resolved } = connectionsOf(harness)[0]!;
+
+        expect(module.app.appId).toBe('7');
+        expect(resolved.state).toBe('incomplete');
+        expect(resolved.missing).toEqual([]);
+        expect(resolved.values.slug).toBeUndefined();
+        expect(resolved.sources.slug).toEqual({ kind: 'unset' });
+        expect(logger.lines.join('\n')).not.toContain('Not A Slug');
+    });
+
+    it('a refused stored required value with env set stays idle, listing only it as missing', async () => {
+        const store = createMemoryStore({ clock });
+        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+
+        await configs.create('github', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '7' },
+            secrets: { set: { privateKey: 'not-a-key', webhookSecret: 'stored' } },
+        });
+
+        const module = githubModule({ env: { GITHUB_API_URL: 'https://ghe.example.com/api/v3' } });
+        const harness = await setup([module], { store });
+        const { resolved } = connectionsOf(harness)[0]!;
+
+        expect(() => module.app.appId).toThrow(ConnectionNotConfiguredError);
+        expect(resolved.state).toBe('incomplete');
+        expect(resolved.missing).toEqual(['privateKey']);
+        expect(resolved.values.appId).toBe('7');
+    });
+
+    it('several refused stored values are all dropped', async () => {
+        const store = createMemoryStore({ clock });
+        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+
+        await configs.create('github', GITHUB_CONNECTION_TYPE, {
+            settings: {
+                appId: '7',
+                slug: 'Not A Slug',
+                baseUrl: 'http://plain.example',
+            },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'stored' } },
+        });
+
+        const module = githubModule({ env: {} });
+        const harness = await setup([module], { store });
+
+        expect(module.app.appId).toBe('7');
+        expect(connectionsOf(harness)[0]!.resolved.missing).toEqual([]);
+    });
+
+    it('a refused value that did not come from the store fails the start, even with a stored row', async () => {
+        const store = createMemoryStore({ clock });
+        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+
+        await configs.create('github', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '7' },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'stored' } },
+        });
+
+        await expect(setup([githubModule({ slug: 'Not A Slug', env: {} })], { store })).rejects.toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('a refused value from a variable file fails naming the variable, never the value', async () => {
+        const file = path.join(mkdtempSync(path.join(tmpdir(), 'chamvi-github-')), 'slug');
+
+        writeFileSync(file, 'Secret Slug');
+
+        const error = await setup([githubModule({ env: { ...envOf('GITHUB_'), GITHUB_APP_SLUG_FILE: file } })]).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect((error as Error).message).toContain('GITHUB_APP_SLUG');
+        expect((error as Error).message).not.toContain('Secret Slug');
+    });
+
+    it('a named instance takes deliveries under its own webhook secret and refuses the default\'s', async () => {
+        const { port } = await serve([
+            githubModule({ env: { ...envOf('GITHUB_'), GITHUB_WEBHOOK_SECRET: 'default-secret' } }),
+            githubModule({
+                name: 'acme',
+                agents: ['triager'],
+                env: {
+                    ...envOf('CHAMVI_GITHUB_ACME_'), 
+                    CHAMVI_GITHUB_ACME_WEBHOOK_SECRET: 'acme-secret', 
+                    CHAMVI_GITHUB_ACME_APP_SLUG: 'acme', 
+                },
+            }),
+        ], [agentNamed('triager')]);
+
+        expect((await deliver(port, 'acme', 'acme-secret', 'd-acme')).status).toBe(202);
+        expect((await deliver(port, 'acme', 'default-secret', 'd-other')).status).toBe(401);
+    });
+
+    it('a run from another App\'s channel uses its own App\'s installation, not the delivery\'s', async () => {
+        const fallbackFake = createFakeGithub({ appId: '1', clock });
+        const acmeFake = createFakeGithub({ appId: '2', clock });
+
+        acmeFake.installations.set('octo/demo', 77);
+        acmeFake.issues.set('octo/demo#7', {
+            number: 7, 
+            title: 'Hello', 
+            state: 'open', 
+        });
+
+        const triager = defineModelAgent({
+            name: 'triager',
+            instructions: 'triage',
+            model: mockModel([
+                {
+                    parts: [{
+                        type: 'tool-call',
+                        toolName: 'github_get_issue',
+                        input: { repo: 'octo/demo', number: 7 },
+                    }],
+                },
+                { parts: [{ type: 'text', text: 'done' }] },
+            ]),
+            channels: [github.on('issues.opened')],
+            tools: (ctx) => injectGithubContext(ctx).readTools(),
+        });
+        const { harness, port } = await serve([
+            githubModule({
+                env: {},
+                appId: '1',
+                privateKey: fallbackFake.privateKey,
+                webhookSecret: 'fallback-secret',
+                slug: 'fallback',
+                clock,
+                fetch: fallbackFake.fetch,
+            }),
+            githubModule({
+                name: 'acme',
+                agents: ['triager'],
+                env: {
+                    CHAMVI_GITHUB_ACME_APP_ID: '2',
+                    CHAMVI_GITHUB_ACME_APP_PRIVATE_KEY: acmeFake.privateKey,
+                    CHAMVI_GITHUB_ACME_WEBHOOK_SECRET: 'acme-secret',
+                },
+                clock,
+                fetch: acmeFake.fetch,
+            }),
+        ], [triager]);
+        const engine = harness.container.resolve(AppToken.ENGINE);
+
+        expect((await deliver(port, 'github', 'fallback-secret', 'd-cross')).status).toBe(202);
+        await engine.idle();
+
+        const exchanges = (requests: { path: string }[]) => requests.map((r) => r.path).filter((p) => p.endsWith('/access_tokens'));
+
+        expect(exchanges(acmeFake.requests)).toEqual(['/app/installations/77/access_tokens']);
+        expect(exchanges(fallbackFake.requests)).toEqual([]);
     });
 
     it('app option: listed, not editable', async () => {
