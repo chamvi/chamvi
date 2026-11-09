@@ -8,6 +8,7 @@
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import type {
     ConnectionField,
+    ConnectionFieldKind,
     ConnectionFieldSource,
     ConnectionState,
     ConnectionValue,
@@ -28,6 +29,31 @@ function define<T>(target: Record<string, T>, key: string, value: T): void {
     });
 }
 
+/** Types a raw variable by the field's kind; an invalid value is refused naming the variable, never echoing it. */
+function coerceVariable(kind: ConnectionFieldKind, variable: string, value: string): ConnectionValue {
+    if (kind === 'number') {
+        if (!/^\d+$/.test(value)) {
+            throw new InvalidAgentDefinitionError(`The variable ${variable} must be a whole number.`);
+        }
+
+        return Number(value);
+    }
+
+    if (kind === 'boolean') {
+        if (value !== 'true' && value !== 'false' && value !== '1' && value !== '0') {
+            throw new InvalidAgentDefinitionError(`The variable ${variable} must be true, false, 1 or 0.`);
+        }
+
+        return value === 'true' || value === '1';
+    }
+
+    if (kind === 'list') {
+        return value.split(',').map((item) => item.trim()).filter((item) => item.length > 0);
+    }
+
+    return value;
+}
+
 function resolveField(field: ConnectionField, input: ResolveConnectionInput): ResolvedField | undefined {
     if (input.preset && Object.hasOwn(input.preset, field.key)) {
         return input.preset[field.key];
@@ -39,7 +65,7 @@ function resolveField(field: ConnectionField, input: ResolveConnectionInput): Re
         const value = input.readVariable(variable);
 
         if (value !== undefined && value !== '') {
-            return { value, source: { kind: 'env', variable } };
+            return { value: coerceVariable(field.kind, variable, value), source: { kind: 'env', variable } };
         }
     }
 
@@ -52,7 +78,8 @@ function resolveField(field: ConnectionField, input: ResolveConnectionInput): Re
 
 /**
  * Resolves each field of a connection: a preset first, then its variable (an
- * empty one is unset), then the stored value, recording the source that won.
+ * empty one is unset, the rest typed by the field's kind), then the stored
+ * value, recording the source that won.
  * A required field missing while any field came from the environment is a
  * deployment error and throws InvalidAgentDefinitionError naming the variable,
  * never a value; a store-only gap stays `incomplete`, so the dashboard can

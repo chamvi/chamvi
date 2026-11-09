@@ -267,6 +267,117 @@ describe('resolveConnection', () => {
         expect(resolved.values).toEqual({ tls: false, port: 0 });
     });
 
+    describe('env coercion', () => {
+        const typed: ConnectionTypeDefinition = {
+            ...definition,
+            fields: [
+                {
+                    key: 'port', 
+                    label: 'Port', 
+                    kind: 'number', 
+                    env: () => 'PORT', 
+                },
+                {
+                    key: 'tls', 
+                    label: 'TLS', 
+                    kind: 'boolean', 
+                    env: () => 'TLS', 
+                },
+                {
+                    key: 'hosts', 
+                    label: 'Hosts', 
+                    kind: 'list', 
+                    env: () => 'HOSTS', 
+                },
+                {
+                    key: 'mode', 
+                    label: 'Mode', 
+                    kind: 'select', 
+                    options: ['a'], 
+                    env: () => 'MODE', 
+                },
+                {
+                    key: 'token', 
+                    label: 'Token', 
+                    kind: 'secret', 
+                    env: () => 'TOKEN', 
+                },
+            ],
+        };
+
+        it('coerces number, boolean and list from env', () => {
+            const resolved = resolve({
+                PORT: '993',
+                TLS: 'true',
+                HOSTS: ' a.example , ,b.example,',
+                MODE: 'a',
+                TOKEN: ' 1,2 ',
+            }, { definition: typed });
+
+            expect(resolved.values).toEqual({
+                port: 993,
+                tls: true,
+                hosts: ['a.example', 'b.example'],
+                mode: 'a',
+                token: ' 1,2 ',
+            });
+            expect(resolved.sources.port).toEqual({ kind: 'env', variable: 'PORT' });
+        });
+
+        it.each([
+            ['true', true],
+            ['false', false],
+            ['1', true],
+            ['0', false],
+        ])('coerces the boolean %s', (value, expected) => {
+            expect(resolve({ TLS: value }, { definition: typed }).values.tls).toBe(expected);
+        });
+
+        it('an invalid number names the variable and not the value', () => {
+            for (const value of ['secret-12', '-1', '1.5', ' 1']) {
+                const act = () => resolve({ PORT: value }, { definition: typed });
+
+                expect(act).toThrow(InvalidAgentDefinitionError);
+                expect(act).toThrow('PORT');
+
+                try {
+                    act();
+                } catch (error) {
+                    expect((error as Error).message).not.toContain(value);
+                }
+            }
+        });
+
+        it('an invalid boolean names the variable and not the value', () => {
+            for (const value of ['yes', 'TRUE']) {
+                const act = () => resolve({ TLS: value }, { definition: typed });
+
+                expect(act).toThrow(InvalidAgentDefinitionError);
+                expect(act).toThrow('TLS');
+
+                try {
+                    act();
+                } catch (error) {
+                    expect((error as Error).message).not.toContain(value);
+                }
+            }
+        });
+
+        it('does not coerce presets or stored values', () => {
+            const resolved = resolve({}, {
+                definition: typed,
+                preset: { port: { value: '993', source: { kind: 'code' } } },
+                stored: { tls: 'yes', hosts: 'a,b' },
+            });
+
+            expect(resolved.values).toEqual({
+                port: '993', 
+                tls: 'yes', 
+                hosts: 'a,b', 
+            });
+        });
+    });
+
     it('does not take a field value from the prototype chain', () => {
         const resolved = resolve({}, {
             definition: {
