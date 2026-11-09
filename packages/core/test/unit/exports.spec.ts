@@ -151,6 +151,10 @@ describe('public api', () => {
         'assertConnectionName',
         'createConnectionVault',
         'ConnectionHeldError',
+        'ConnectionChangedError',
+        'ConnectionNotConfiguredError',
+        'resolveConnection',
+        'storedConnectionName',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
@@ -480,6 +484,24 @@ describe('public api', () => {
         expectTypeOf<core.ILockRepository['renew']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
         expect(new core.LeaseLostError({ lock: 'connection:wa' })).toMatchObject({ code: 'lease_lost', lock: 'connection:wa' });
         expect(new core.LeaseLostError('r1')).toMatchObject({ code: 'lease_lost', runId: 'r1' });
+    });
+
+    it('exports the connection type contract', () => {
+        expect(core.ErrorCode.CONNECTION_NOT_CONFIGURED).toBe('connection_not_configured');
+        expect(core.ErrorCode.CONNECTION_CHANGED).toBe('connection_changed');
+        expectTypeOf<ReturnType<typeof core.resolveConnection>>().toEqualTypeOf<core.ResolvedConnection>();
+        expectTypeOf<Parameters<typeof core.resolveConnection>[0]>().toEqualTypeOf<core.ResolveConnectionInput>();
+        expectTypeOf<core.ConnectionFieldKind>().toEqualTypeOf<'string' | 'number' | 'boolean' | 'select' | 'list' | 'secret'>();
+        expectTypeOf<core.ConnectionValue>().toEqualTypeOf<string | number | boolean | readonly string[]>();
+        expectTypeOf<core.ConnectionValues>().toEqualTypeOf<Record<string, core.ConnectionValue>>();
+        expectTypeOf<core.ConnectionState>().toEqualTypeOf<'configured' | 'not_configured' | 'incomplete'>();
+        expectTypeOf<core.ConnectionField['env']>().toEqualTypeOf<((connection: string) => string | undefined) | undefined>();
+        expectTypeOf<core.ConnectionTypeDefinition['fields']>().toEqualTypeOf<readonly core.ConnectionField[]>();
+        expectTypeOf<core.ConnectionFieldSource>().toEqualTypeOf<
+        { kind: 'env'; variable: string } | { kind: 'store' } | { kind: 'code' } | { kind: 'unset' }
+        >();
+        expectTypeOf<core.DeclaredConnection['resolved']>().toEqualTypeOf<core.ResolvedConnection>();
+        expectTypeOf<ReturnType<core.IConnectionTypeProvider['connections']>>().toEqualTypeOf<readonly core.DeclaredConnection[]>();
     });
 
     it('exports the connection vault', () => {

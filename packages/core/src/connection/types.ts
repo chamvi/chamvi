@@ -171,3 +171,82 @@ export interface IConnectionHandle {
     subscribe(listener: () => void): () => void;
     readonly actions: ConnectionActions;
 }
+
+export type ConnectionFieldKind = 'string' | 'number' | 'boolean' | 'select' | 'list' | 'secret';
+
+export type ConnectionValue = string | number | boolean | readonly string[];
+
+export type ConnectionValues = Record<string, ConnectionValue>;
+
+/** One setting of a connection type: enough to render its form and find its variable. */
+export type ConnectionField = {
+    key: string;
+    label: string;
+    kind: ConnectionFieldKind;
+    required?: boolean;
+    description?: string;
+    /** The choices of a `select` field. */
+    options?: readonly string[];
+    /** The variable this field reads for a connection; undefined when it has none. */
+    env?: (connection: string) => string | undefined;
+};
+
+/** The public contract of a configurable connection type, first or third party. */
+export type ConnectionTypeDefinition = {
+    type: string;
+    label: string;
+    /** Whether the type allows several accounts ("Add account"). */
+    multiple: boolean;
+    fields: readonly ConnectionField[];
+    /** The duplicate guard of a multi-instance type (one mail address cannot be added twice). */
+    uniqueId?: (values: ConnectionValues) => string;
+    /** Checks saved values, never unsaved form input. */
+    test?: (values: ConnectionValues, signal: AbortSignal) => Promise<void>;
+};
+
+/** Where a field's value came from. */
+export type ConnectionFieldSource = { kind: 'env'; variable: string } |
+    { kind: 'store' } |
+    { kind: 'code' } |
+    { kind: 'unset' };
+
+/** `incomplete`: some field is set but a required one is not, only reachable without an env field. */
+export type ConnectionState = 'configured' | 'not_configured' | 'incomplete';
+
+export type ResolvedConnection = {
+    name: string;
+    values: ConnectionValues;
+    sources: Record<string, ConnectionFieldSource>;
+    /** The keys of the required fields without a value. */
+    missing: string[];
+    state: ConnectionState;
+};
+
+/** One connection a module declares, resolved for the API. */
+export type DeclaredConnection = {
+    name: string;
+    /** The account id tools, variables and the UI show, for a multi-instance type. */
+    account?: string;
+    editable: boolean;
+    deletable: boolean;
+    resolved: ResolvedConnection;
+    /** The stored revision this process loaded; a newer one means "restart to apply". */
+    loadedRevision?: number;
+};
+
+/** What a package registers for each connection type it configures. */
+export interface IConnectionTypeProvider {
+    readonly definition: ConnectionTypeDefinition;
+    /** Whether the dashboard may create accounts of this type. */
+    creatable(): boolean;
+    connections(): readonly DeclaredConnection[];
+}
+
+export type ResolveConnectionInput = {
+    definition: ConnectionTypeDefinition;
+    name: string;
+    readVariable: (variable: string) => string | undefined;
+    stored?: ConnectionValues;
+    /** Values from code or a JSON variable, which win over everything. */
+    preset?: Record<string, { value: ConnectionValue; source: ConnectionFieldSource }>;
+};
