@@ -14,4 +14,10 @@ export const Permission = {
 } as const;
 
 /** Where `authenticate` memoizes the principal in `event.store`; internal. */
+/**
+ * Creates accounts of a connection type. Not `connection:create`, which the
+ * read grant `connection:*` would match.
+ */
+export const CONNECTIONS_CREATE_PERMISSION = 'connections:create';
+
 export const PRINCIPAL = Symbol('chamvi:principal');

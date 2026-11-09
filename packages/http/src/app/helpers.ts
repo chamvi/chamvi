@@ -49,6 +49,8 @@ const CORE_STATUS: Record<string, number> = {
     [ErrorCode.AGENT_NOT_FOUND]: 404,
     [ErrorCode.RUN_NOT_FOUND]: 404,
     [ErrorCode.ARTIFACT_NOT_FOUND]: 404,
+    [ErrorCode.CONNECTION_CHANGED]: 409,
+    [ErrorCode.CONNECTION_HELD]: 409,
     [ErrorCode.REPOSITORY_NOT_FOUND]: 404,
     [ErrorCode.INVALID_RUN_STATE]: 409,
 };
@@ -216,6 +218,14 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         throw new InvalidAgentDefinitionError('connections must be a function returning the connection handles.');
     }
 
+    if (options.connectionTypes !== undefined && typeof options.connectionTypes !== 'function') {
+        throw new InvalidAgentDefinitionError('connectionTypes must be a function returning the connection type providers.');
+    }
+
+    if (options.uiPages !== undefined && typeof options.uiPages !== 'function') {
+        throw new InvalidAgentDefinitionError('uiPages must be a function returning the pages.');
+    }
+
     return {
         engine: options.engine,
         store: options.engine.store,
@@ -235,6 +245,9 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         routes: validateRoutes(options),
         channels,
         connections: options.connections ?? (() => []),
+        connectionTypes: options.connectionTypes ?? (() => []),
+        ...(options.connectionConfigs && { connectionConfigs: options.connectionConfigs }),
+        uiPages: options.uiPages ?? (() => []),
         // eslint-disable-next-line no-console
         onError: options.onError ?? ((error) => console.error('[chamvi]', error)),
     };

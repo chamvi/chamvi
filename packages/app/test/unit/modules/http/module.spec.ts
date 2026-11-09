@@ -215,6 +215,71 @@ describe('httpModule', () => {
         expect(logger.entries.find((e) => e.msg === 'listening')).toBeDefined();
     });
 
+    function contributesConfiguration(): IModule {
+        return contributing('connection-config', (container) => {
+            container.registerMany(AppToken.CONNECTION_TYPES, {
+                useValue: {
+                    definition: {
+                        type: 'mail',
+                        label: 'Mail',
+                        multiple: true,
+                        fields: [],
+                    },
+                    creatable: () => true,
+                    connections: () => [],
+                },
+            });
+            container.registerMany(AppToken.UI_PAGES, {
+                useValue: {
+                    slug: 'tool-mail',
+                    label: 'Mail',
+                    types: ['mail'],
+                    path: '/ui/ext/tool-mail',
+                },
+            });
+        });
+    }
+
+    const authorization = { authorization: `Bearer ${TOKEN}`, accept: 'application/json' };
+
+    it('passes the connection types, the config store and the pages to the http app', async () => {
+        const { harness, url } = await build({ modules: [contributesConfiguration()] });
+
+        await harness.setup();
+
+        const types = await (await fetch(url('/connection-types'), { headers: authorization })).json() as { data: { creatable: boolean }[] };
+        const pages = await (await fetch(url('/ui-pages'), { headers: authorization })).json() as { data: { path: string }[] };
+
+        expect(types.data[0]!.creatable).toBe(true);
+        expect(pages.data[0]!.path).toBe('/ui/ext/tool-mail');
+    });
+
+    it('keeps a store without connections env-only', async () => {
+        const { harness, url } = await build({
+            modules: [
+                contributesConfiguration(),
+                hooks({
+                    name: 'no-connections',
+                    engineCreated: (engine: IEngine) => {
+                        delete (engine.store as { connections?: unknown }).connections;
+                    },
+                }),
+            ],
+        });
+
+        await harness.setup();
+
+        const types = await (await fetch(url('/connection-types'), { headers: authorization })).json() as { data: { creatable: boolean }[] };
+        const create = await fetch(url('/connection-types/mail/connections'), {
+            method: 'POST',
+            headers: { ...authorization, 'content-type': 'application/json' },
+            body: JSON.stringify({ account: 'work', settings: {} }),
+        });
+
+        expect(types.data[0]!.creatable).toBe(false);
+        expect(create.status).toBe(409);
+    });
+
     it('basePath prefixes health', async () => {
         const { harness, url } = await build({ env: { CHAMVI_BASE_PATH: '/api' } });
 

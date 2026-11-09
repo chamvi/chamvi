@@ -24,6 +24,7 @@ import type {
     Authenticator,
     HttpRoute,
     IShutdown,
+    UiPage,
 } from '@chamvi/http';
 import type { DataSource } from 'typeorm';
 import type { AppOptions } from '../app/types.ts';
@@ -165,4 +166,6 @@ export type AppTokens = {
      * reading plain settings needs no `CHAMVI_ENCRYPTION_KEYS`.
      */
     CONNECTION_CONFIGS: IConnectionConfigStore;
+    /** A collection: the separately built pages modules contribute; the shell lists them from `GET /ui-pages`. */
+    UI_PAGES: UiPage;
 };

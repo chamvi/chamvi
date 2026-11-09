@@ -15,13 +15,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
-import {
-    buildCsp,
-    defaultRoot,
-    loadBuild,
-    renderIndex,
-    resolveBuildPath,
-} from '../../../src/routes/helpers.ts';
+import { buildCsp, loadBuild, resolveBuildPath } from '@chamvi/http';
+import { defaultRoot, renderIndex } from '../../../src/routes/helpers.ts';
 import { FIXTURE_BUILD } from '../../utils/app.ts';
 
 describe('resolveBuildPath', () => {

@@ -7,7 +7,11 @@
 
 import { hasPermission } from '@chamvi/core';
 import type { IConnectionHandle } from '@chamvi/core';
+import { IssueCode } from '@ebec/core';
 import { ForbiddenError, NotFoundError } from '@ebec/http';
+import { isObject } from 'smob';
+import { createValidupError, defineValidator } from 'validup';
+import type { ValidatorDescriptor } from 'validup';
 import type { HttpContext } from '../app/types.ts';
 import { connectionPermission } from '../auth/module.ts';
 import type { Principal } from '../auth/types.ts';
@@ -44,4 +48,47 @@ export function serializeConnection(handle: IConnectionHandle): ConnectionView {
         type: handle.type,
         status: handle.status(),
     };
+}
+
+/*
+ * Connection bodies carry secrets and may place them anywhere: these
+ * validators, and the field checks of `config.ts`, never echo a value.
+ */
+
+/** A plain object, with its values left to the caller. */
+export function isRecord(): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (!isObject(value)) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'must be an object');
+            }
+
+            return value;
+        },
+    });
+}
+
+/** `{ set?: { <field>: string }, clear?: string[] }` of a save. */
+export function isSecretsWrite(): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (!isObject(value)) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'must be an object');
+            }
+
+            const { set, clear } = value;
+
+            if (set !== undefined && !isObject(set)) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'set must be an object');
+            }
+
+            const isNameList = Array.isArray(clear) && clear.every((field) => typeof field === 'string');
+
+            if (clear !== undefined && !isNameList) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'clear must be an array of field names');
+            }
+
+            return { ...(set !== undefined && { set }), ...(clear !== undefined && { clear }) };
+        },
+    });
 }

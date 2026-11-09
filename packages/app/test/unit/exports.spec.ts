@@ -51,6 +51,7 @@ describe('public api', () => {
         'storeModule',
         'staticTokensModule',
         'consoleChannelModule',
+        'uiPageModule',
         'engineModule',
         'agentsModule',
         'schedulerModule',
@@ -134,6 +135,7 @@ describe('public api', () => {
             'SERVER',
             'SHUTDOWN',
             'STORE',
+            'UI_PAGES',
         ]);
     });
 

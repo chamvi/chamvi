@@ -18,11 +18,3 @@ export type UiRoutesOptions = {
     /** The build folder. Default the package's `dist/app`. */
     root?: string;
 };
-
-/** One file of the build. */
-export type BuildFile = {
-    bytes: Uint8Array;
-    type: string;
-    /** Under `assets/`: content-hashed, cached for a year. */
-    immutable: boolean;
-};

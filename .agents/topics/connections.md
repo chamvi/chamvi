@@ -26,7 +26,7 @@ A connection is one configured account of a provider (WhatsApp is the only one):
 | `test-kit/src/repository-contract/connection.ts` | `describeConnectionContract` inside `describeRepositoryContract()` |
 | `chat-whatsapp/src/auth/` | `createStoreWhatsAppAuth()`, `WHATSAPP_CONNECTION_TYPE` |
 | `chat-whatsapp/src/module/` | `whatsappModule()`, the handle (`helpers.ts`: statuses `-` to `_`, `stopped` as `disconnected`) |
-| `http/src/connections/` | The four `/connections` routes, `ConnectionView`, `ConnectionDetailView` |
+| `http/src/connections/` | The `/connections` handle routes (`module.ts`), the configuration API (`config.ts`), `ConnectionView`, `ConnectionDetailView`, `ConnectionSettingsView` |
 | `app/src/keyring/` | `readKeyring(env)`, `ENV_ENCRYPTION_KEYS` |
 | `ui/app/connections/` | `createConnectionsApi()`, `openConnectionStream()` (`api.ts`), `useConnections()`, `useConnection()` (`composables.ts`), `statusBadge()`, `qrDataUrl()`, `canWriteConnection()` (`helpers.ts`), `STATUS_BADGES`, `CONNECTIONS_POLL_MS`, `StatusBadge.vue`, `QrWidget.vue`, `ConnectionPanel.vue` |
 

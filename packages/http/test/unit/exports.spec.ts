@@ -25,11 +25,17 @@ describe('public api', () => {
         'assertMcpRunTool',
         'connectionPermission',
         'authup',
+        'buildCsp',
         'createHttpApp',
         'createShutdown',
         'httpChannel',
+        'isFileLike',
+        'loadBuild',
         'mcpChannel',
         'oidc',
+        'renderStaticIndex',
+        'resolveBuildPath',
+        'staticRoutes',
         'staticTokens',
         'webhookChannel',
     ])('exports %s', (name) => {
@@ -53,6 +59,10 @@ describe('public api', () => {
     it('exports the shutdown defaults', () => {
         expect(http.DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS).toBe(30_000);
         expect(http.DEFAULT_SHUTDOWN_CLOSE_TIMEOUT_MS).toBe(5_000);
+    });
+
+    it('exports the connection create permission', () => {
+        expect(http.CONNECTIONS_CREATE_PERMISSION).toBe('connections:create');
     });
 
     it('exports Permission', () => {

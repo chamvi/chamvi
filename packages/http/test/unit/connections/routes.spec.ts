@@ -389,6 +389,10 @@ describe('connection routes', () => {
         expect(routeLabel(event('GET', '/connections/alpha'), '', '/metrics')).toBe('/connections/:name');
         expect(routeLabel(event('GET', '/connections/alpha/events'), '', '/metrics')).toBe('/connections/:name/events');
         expect(routeLabel(event('POST', '/connections/alpha/reset'), '', '/metrics')).toBe('/connections/:name/reset');
+        expect(routeLabel(event('GET', '/connections/alpha/config'), '', '/metrics')).toBe('/connections/:name/config');
+        expect(routeLabel(event('POST', '/connections/alpha/test'), '', '/metrics')).toBe('/connections/:name/test');
+        expect(routeLabel(event('POST', '/connection-types/mail/connections'), '', '/metrics')).toBe('/connection-types/:type/connections');
+        expect(routeLabel(event('GET', '/ui-pages'), '', '/metrics')).toBe('/ui-pages');
         expect(isStreamRequest(event('GET', '/connections/alpha/events'), '')).toBe(true);
     });
 
