@@ -94,108 +94,86 @@ export function processFilesTool(options: FileToolsOptionsNormalized): Tool<Proc
             } = processInput(input);
             const signal = signalOf(context, abortSignal);
 
-            try {
-                signal.throwIfAborted();
+            const callKey = toolCallKey(context);
+            const files: Record<string, Uint8Array> = {};
 
-                const callKey = toolCallKey(context);
-                const files: Record<string, Uint8Array> = {};
+            if (inputs.length > 0) {
+                const metadata = await context.artifacts.list();
+                let size = 0;
 
-                if (inputs.length > 0) {
-                    const metadata = await context.artifacts.list();
+                for (const selected of inputs) {
+                    const artifact = metadata.find((item) => item.id === selected.artifactId && item.runId === context.run.runId);
 
-                    signal.throwIfAborted();
-
-                    let size = 0;
-
-                    for (const selected of inputs) {
-                        const artifact = metadata.find((item) => item.id === selected.artifactId && item.runId === context.run.runId);
-
-                        if (!artifact) {
-                            throw new ValidationError(`Artifact ${selected.artifactId} does not belong to this run.`);
-                        }
-
-                        assertSize(artifact.size, options.maxBytes);
-                        size += artifact.size;
-                        assertSize(size, options.maxBytes);
+                    if (!artifact) {
+                        throw new ValidationError(`Artifact ${selected.artifactId} does not belong to this run.`);
                     }
 
-                    size = 0;
+                    assertSize(artifact.size, options.maxBytes);
+                    size += artifact.size;
+                    assertSize(size, options.maxBytes);
+                }
 
-                    for (const selected of inputs) {
-                        signal.throwIfAborted();
+                for (const selected of inputs) {
+                    const loaded = await context.artifacts.get(selected.artifactId);
 
-                        const loaded = await context.artifacts.get(selected.artifactId);
-
-                        signal.throwIfAborted();
-
-                        if (!loaded) {
-                            throw new ValidationError(`Artifact ${selected.artifactId} is unavailable.`);
-                        }
-
-                        size += loaded.data.byteLength;
-                        assertSize(size, options.maxBytes);
-                        files[`/workspace/${selected.path}`] = loaded.data;
+                    if (!loaded) {
+                        throw new ValidationError(`Artifact ${selected.artifactId} is unavailable.`);
                     }
+
+                    files[`/workspace/${selected.path}`] = loaded.data;
                 }
-
-                const maxWorkOutputBytes = Math.max(FILES_MAX_DIAGNOSTIC_BYTES, options.maxBytes * 4);
-                const outcome = await runInterpreter({
-                    command,
-                    files,
-                    commands: FILES_COMMANDS,
-                    executionLimits: {
-                        ...FILES_RECORD_BUDGETS,
-                        maxExecutionTimeMs: options.timeoutMs,
-                        maxSourceBytes: FILES_MAX_COMMAND_BYTES,
-                        maxOutputSize: maxWorkOutputBytes,
-                        // Reserve synthetic files in addition to full selected input/output room.
-                        maxFileSystemBytes: FILES_FILESYSTEM_OVERHEAD_BYTES + options.maxBytes * 2,
-                    },
-                    outputs: outputs.map((selected) => selected.path),
-                    maxBytes: options.maxBytes,
-                }, { timeoutMs: options.timeoutMs, signal });
-
-                signal.throwIfAborted();
-
-                if (outcome.type === 'invalid') {
-                    throw new ValidationError(outcome.message);
-                }
-
-                if (outcome.type === 'failed') {
-                    throw new SandboxError(outcome.message, { cause: new Error(outcome.cause) });
-                }
-
-                const { stdout, stderr } = boundedDiagnostics(outcome.stdout, outcome.stderr);
-                const response: ProcessFilesResult = {
-                    exitCode: outcome.exitCode,
-                    stdout,
-                    stderr,
-                    artifacts: [],
-                };
-
-                if (outcome.exitCode !== 0) {
-                    return response;
-                }
-
-                const staged = outcome.outputs;
-
-                for (const [index, selected] of outputs.entries()) {
-                    signal.throwIfAborted();
-                    response.artifacts.push(await context.artifacts.put({
-                        key: `process_files:${createHash('sha256').update(JSON.stringify([callKey, selected.path])).digest('hex')}`,
-                        filename: selected.path,
-                        mediaType: selected.mediaType,
-                        data: staged[index]!,
-                    }));
-                    signal.throwIfAborted();
-                }
-
-                return response;
-            } catch (cause) {
-                signal.throwIfAborted();
-
-                throw cause;
             }
+
+            const maxWorkOutputBytes = Math.max(FILES_MAX_DIAGNOSTIC_BYTES, options.maxBytes * 4);
+            const outcome = await runInterpreter({
+                command,
+                files,
+                commands: FILES_COMMANDS,
+                executionLimits: {
+                    ...FILES_RECORD_BUDGETS,
+                    maxExecutionTimeMs: options.timeoutMs,
+                    maxSourceBytes: FILES_MAX_COMMAND_BYTES,
+                    maxOutputSize: maxWorkOutputBytes,
+                    // Reserve synthetic files in addition to full selected input/output room.
+                    maxFileSystemBytes: FILES_FILESYSTEM_OVERHEAD_BYTES + options.maxBytes * 2,
+                },
+                outputs: outputs.map((selected) => selected.path),
+                maxBytes: options.maxBytes,
+            }, { timeoutMs: options.timeoutMs, signal });
+
+            if (outcome.type === 'invalid') {
+                throw new ValidationError(outcome.message);
+            }
+
+            if (outcome.type === 'failed') {
+                throw new SandboxError(outcome.message, { cause: new Error(outcome.cause) });
+            }
+
+            const { stdout, stderr } = boundedDiagnostics(outcome.stdout, outcome.stderr);
+            const response: ProcessFilesResult = {
+                exitCode: outcome.exitCode,
+                stdout,
+                stderr,
+                artifacts: [],
+            };
+
+            if (outcome.exitCode !== 0) {
+                return response;
+            }
+
+            const staged = outcome.outputs;
+
+            for (const [index, selected] of outputs.entries()) {
+                signal.throwIfAborted();
+                response.artifacts.push(await context.artifacts.put({
+                    key: `process_files:${createHash('sha256').update(JSON.stringify([callKey, selected.path])).digest('hex')}`,
+                    filename: selected.path,
+                    mediaType: selected.mediaType,
+                    data: staged[index]!,
+                }));
+            }
+
+            return response;
         },
     });
 }

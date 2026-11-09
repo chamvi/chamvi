@@ -58,30 +58,4 @@ describe('list_artifacts', () => {
         await expect(listTool(fileTools(), input, ctx)).rejects.toThrow(ValidationError);
         expect(list).not.toHaveBeenCalled();
     });
-
-    it('propagates cancellation after an abort-ignoring store read', async () => {
-        const controller = new AbortController();
-        const reason = new Error('cancelled');
-        const ctx = toolContext('cancel', controller.signal);
-
-        vi.spyOn(ctx.artifacts, 'list').mockImplementation(async () => {
-            controller.abort(reason);
-
-            return [];
-        });
-        await expect(listTool(fileTools(), {}, ctx)).rejects.toBe(reason);
-    });
-});
-
-it('preserves the run cancellation reason on a rejected catalog read', async () => {
-    const controller = new AbortController();
-    const reason = new Error('run cancelled');
-    const ctx = toolContext('abort-error', controller.signal);
-
-    vi.spyOn(ctx.artifacts, 'list').mockImplementation(async () => {
-        controller.abort(reason);
-
-        throw new Error('store read aborted');
-    });
-    await expect(listTool(fileTools(), {}, ctx)).rejects.toBe(reason);
 });

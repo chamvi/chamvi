@@ -9,7 +9,7 @@ import { ValidationError, defineTool } from '@chamvi/core';
 import { jsonSchema } from 'ai';
 import type { Tool } from 'ai';
 import { FILES_MAX_FILES } from './constants.ts';
-import { inputObject, signalOf } from './helpers.ts';
+import { inputObject } from './helpers.ts';
 import type { ListArtifactsInput, ListArtifactsResult } from './types.ts';
 
 export function listArtifactsTool(): Tool<ListArtifactsInput, ListArtifactsResult> {
@@ -27,7 +27,7 @@ export function listArtifactsTool(): Tool<ListArtifactsInput, ListArtifactsResul
             },
             additionalProperties: false,
         }),
-        execute: async (input, { context, abortSignal }) => {
+        execute: async (input, { context }) => {
             const body = inputObject(input);
             const offset = body.offset === undefined ? 0 : body.offset;
 
@@ -35,22 +35,7 @@ export function listArtifactsTool(): Tool<ListArtifactsInput, ListArtifactsResul
                 throw new ValidationError('offset must be a nonnegative safe integer.');
             }
 
-            const signal = signalOf(context, abortSignal);
-
-            signal.throwIfAborted();
-
-            let artifacts;
-
-            try {
-                artifacts = await context.artifacts.list();
-            } catch (cause) {
-                signal.throwIfAborted();
-
-                throw cause;
-            }
-
-            signal.throwIfAborted();
-
+            const artifacts = await context.artifacts.list();
             const next = offset + FILES_MAX_FILES;
 
             return { artifacts: artifacts.slice(offset, next), ...(next < artifacts.length ? { nextOffset: next } : {}) };

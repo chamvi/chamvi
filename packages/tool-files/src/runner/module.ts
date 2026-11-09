@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { extname } from 'node:path';
 import { Worker } from 'node:worker_threads';
 import { FILES_WORKER_GRACE_MS, FILES_WORKER_HEAP_MB } from '../tools/constants.ts';
 import type {
@@ -13,8 +14,8 @@ import type {
     InterpreterOutcome,
 } from './types.ts';
 
-// The sources run under type stripping (tests); the build emits the thread next to the entry.
-const WORKER_URL = new URL(import.meta.url.endsWith('.ts') ? './worker.ts' : './worker.mjs', import.meta.url);
+// worker.ts beside this source under type stripping (tests), worker.mjs beside the built entry.
+const WORKER_URL = new URL(`./worker${extname(import.meta.url)}`, import.meta.url);
 const MAX_TIMER_MS = 2_147_483_647;
 
 function killed(exitCode: number, stderr: string): InterpreterOutcome {
@@ -35,6 +36,8 @@ function killed(exitCode: number, stderr: string): InterpreterOutcome {
  */
 export function runInterpreter(job: InterpreterJob, { timeoutMs, signal }: InterpreterLimits): Promise<InterpreterOutcome> {
     return new Promise((resolve, reject) => {
+        signal.throwIfAborted();
+
         const worker = new Worker(WORKER_URL, {
             name: 'chamvi-process-files',
             workerData: job,
@@ -79,9 +82,5 @@ export function runInterpreter(job: InterpreterJob, { timeoutMs, signal }: Inter
                 cause: `The interpreter thread exited with code ${code}.`,
             }));
         });
-
-        if (signal.aborted) {
-            onAbort();
-        }
     });
 }

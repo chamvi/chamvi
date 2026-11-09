@@ -148,20 +148,6 @@ describe('process_files', () => {
         expect(get).not.toHaveBeenCalled();
     });
 
-    it('rechecks actual aggregate bytes after metadata preflight', async () => {
-        const ctx = toolContext('actual');
-        const a = await ctx.artifacts.put({ mediaType: 'text/plain', data: text('12') });
-        const b = await ctx.artifacts.put({ mediaType: 'text/plain', data: text('34') });
-        const get = ctx.artifacts.get.bind(ctx.artifacts);
-
-        vi.spyOn(ctx.artifacts, 'get').mockImplementation(async (id) => {
-            const value = (await get(id))!;
-
-            return { ...value, data: text('123') };
-        });
-        await expect(callTool(fileTools({ maxBytes: 5 }), { command: 'cat a b', inputs: [{ artifactId: a.id, path: 'a' }, { artifactId: b.id, path: 'b' }] }, ctx)).rejects.toThrow(ValidationError);
-    });
-
     it.each(['missing', 'directory', 'oversize'])('preflights every output with no partial publication: %s', async (kind) => {
         const ctx = toolContext('outputs');
         const command = {
@@ -305,19 +291,6 @@ it('executes valid tiny byte allowances and enforces their exact import/export c
     expect(result.exitCode).toBe(0);
     expect(await read(ctx, result.artifacts[0]!.id)).toEqual(text('12345'));
     await expect(callTool(fileTools({ maxBytes: 5 }), { command: 'printf 123456 > out', outputs: [output('out')] }, ctx)).rejects.toThrow(ValidationError);
-});
-
-it('keeps the original cancellation reason when an artifact read rejects after abort', async () => {
-    const controller = new AbortController();
-    const reason = new Error('run cancelled');
-    const ctx = toolContext('abort-error', controller.signal);
-
-    vi.spyOn(ctx.artifacts, 'list').mockImplementation(async () => {
-        controller.abort(reason);
-
-        throw new Error('store operation aborted');
-    });
-    await expect(callTool(fileTools(), { command: 'cat in', inputs: [{ artifactId: 'id', path: 'in' }] }, ctx)).rejects.toBe(reason);
 });
 
 it('stops publication after cancellation without promising rollback of a successful put', async () => {
