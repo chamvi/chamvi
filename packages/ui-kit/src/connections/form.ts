@@ -97,6 +97,32 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
 
     const fields = computed<ConnectionFormField[]>(() => (definition.value?.fields ?? []).map((field) => toField(field, view.value)));
     const plainFields = () => fields.value.filter((field) => field.kind !== 'secret' && !field.lock);
+    /** Edited fields that decide where the secrets go; the server refuses them without the secrets again. */
+    const movedFields = computed(() => (name === undefined ? [] : plainFields().filter((field) => field.bindsSecrets &&
+        (drafts.value[field.key] ?? '') !== toDraft(view.value?.settings[field.key]))));
+
+    function mustReenter(field: ConnectionFormField): boolean {
+        return movedFields.value.length > 0 && field.kind === 'secret' && field.secretSet && !field.lock;
+    }
+
+    /** What a save of the edited destination needs; only names, never a value. */
+    const rebindNotice = computed(() => {
+        const moved = movedFields.value.map((field) => field.label).join(', ');
+        const secretFields = fields.value.filter((field) => field.kind === 'secret');
+        const locked = secretFields.filter((field) => field.lock);
+
+        if (moved === '') {
+            return undefined;
+        }
+
+        if (locked.length > 0) {
+            return `${moved} cannot change here: ${locked.map((field) => field.label).join(', ')} comes from the environment or code.`;
+        }
+
+        const secretList = secretFields.filter((field) => field.secretSet).map((field) => field.label).join(', ');
+
+        return secretList === '' ? undefined : `${moved} decides where the secrets are sent: enter ${secretList} again to save it.`;
+    });
 
     function seedDrafts(): void {
         drafts.value = Object.fromEntries(plainFields().map((field) => [field.key, toDraft(view.value?.settings[field.key])]));
@@ -306,6 +332,8 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
         testResult,
         confirmation,
         confirmError,
+        rebindNotice,
+        mustReenter,
         save,
         test,
         askClear,

@@ -8,7 +8,7 @@
 
 import { computed } from 'vue';
 import type { MeWire } from '../api/types.ts';
-import { canAddAccount, statusBadge } from '../connections/helpers.ts';
+import { canAddAccount, connectionBadge, connectionProblem } from '../connections/helpers.ts';
 import type { ConnectionTypeWire, ConnectionWire } from '../connections/types.ts';
 
 const props = defineProps<{
@@ -26,7 +26,8 @@ const accounts = computed(() => props.connections
     .map((connection) => ({
         name: connection.name,
         label: connection.account ?? connection.name,
-        badge: statusBadge(connection.status),
+        badge: connectionBadge(connection),
+        problem: connectionProblem(connection),
     })));
 
 const canAdd = computed(() => canAddAccount(props.type, props.principal?.permissions ?? []));
@@ -47,6 +48,7 @@ const canAdd = computed(() => canAddAccount(props.type, props.principal?.permiss
             class="nav-item"
             :data-account="account.name"
             :aria-current="current === account.name ? 'page' : undefined"
+            :title="account.problem"
             @click="emit('select', account.name)"
         >
             <span
@@ -56,6 +58,11 @@ const canAdd = computed(() => canAddAccount(props.type, props.principal?.permiss
                 :aria-label="account.badge.label"
             />
             {{ account.label }}
+            <span
+                v-if="account.problem"
+                class="hint"
+                data-testid="account-problem"
+            >{{ account.badge.label }}</span>
         </button>
         <p
             v-if="accounts.length === 0"

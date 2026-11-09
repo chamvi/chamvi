@@ -40,6 +40,8 @@ describe('public api', () => {
             'canAddAccount',
             'canWriteConnection',
             'clearStorage',
+            'connectionBadge',
+            'connectionProblem',
             'createApiClient',
             'createAuthGuard',
             'createConnectionConfigApi',

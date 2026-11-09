@@ -6,12 +6,18 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionStatus } from '@chamvi/core';
+import type { ConnectionState, ConnectionStatus } from '@chamvi/core';
 import { computed } from 'vue';
-import { statusBadge } from './helpers.ts';
+import { connectionBadge } from './helpers.ts';
 
-const props = defineProps<{ status: ConnectionStatus }>();
-const badge = computed(() => statusBadge(props.status));
+const props = defineProps<{
+    status: ConnectionStatus;
+    /** What the configuration lacks wins over the live status. */
+    state?: ConnectionState;
+    /** `false`: nothing runs in this process, so `status` says nothing. */
+    live?: boolean;
+}>();
+const badge = computed(() => connectionBadge(props));
 </script>
 
 <template>

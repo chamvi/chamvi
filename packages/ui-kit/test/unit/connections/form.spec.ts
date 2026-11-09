@@ -492,6 +492,83 @@ describe('ConnectionForm', () => {
         expect(form.root.querySelector('[role="alertdialog"]')?.textContent).toContain('stops the next start until it is set again');
     });
 
+    it('shows why a connection is incomplete and that nothing is configured, not a configured one', async () => {
+        const incomplete = await mount({ current: view({ state: 'incomplete', missing: ['Password'] }) });
+
+        expect(incomplete.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('Incomplete: Password missing.');
+
+        const refused = await mount({ current: view({ state: 'incomplete', reason: 'CHAMVI_PUBLIC_URL is required.' }) });
+
+        expect(refused.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('CHAMVI_PUBLIC_URL');
+
+        const empty = await mount({ current: view({ state: 'not_configured' }) });
+
+        expect(empty.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('Not configured');
+
+        const fine = await mount({});
+
+        expect(fine.root.querySelector('[data-testid="connection-state"]')).toBeNull();
+    });
+
+    describe('a field that decides where the secrets go', () => {
+        const BOUND: ConnectionTypeWire = {
+            ...TYPE,
+            fields: TYPE.fields.map((field) => (field.key === 'host' ? { ...field, bindsSecrets: true } : field)),
+        };
+
+        it('asks for the secret again once the field changed, and sends it', async () => {
+            const bodies: unknown[] = [];
+            const form = await mount({
+                type: BOUND,
+                routes: {
+                    'PUT /connections/mail-work/config': (body) => {
+                        bodies.push(body);
+
+                        return view();
+                    },
+                },
+            });
+
+            expect(form.input('password')).toBeNull();
+            expect(form.root.querySelector('[data-testid="connection-rebind"]')).toBeNull();
+
+            form.type(form.input('host')!, 'other.example.com');
+            await flush();
+
+            expect(form.root.querySelector('[data-testid="connection-rebind"]')?.textContent).toContain('enter Password again');
+
+            form.type(form.input('password')!, 'typed-again');
+            await form.submit();
+
+            expect(bodies).toEqual([{
+                settings: expect.objectContaining({ host: 'other.example.com' }),
+                secrets: { set: { password: 'typed-again' } },
+            }]);
+        });
+
+        it('says the change cannot be made for a secret from the environment', async () => {
+            const form = await mount({
+                type: BOUND,
+                current: withField(view(), 'password', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_PASSWORD' } }),
+            });
+
+            form.type(form.input('host')!, 'other.example.com');
+            await flush();
+
+            expect(form.root.querySelector('[data-testid="connection-rebind"]')?.textContent).toContain('cannot change here');
+        });
+
+        it('warns about nothing when the field keeps its value', async () => {
+            const form = await mount({ type: BOUND });
+
+            form.type(form.input('port')!, '1993');
+            await flush();
+
+            expect(form.root.querySelector('[data-testid="connection-rebind"]')).toBeNull();
+            expect(form.input('password')).toBeNull();
+        });
+    });
+
     it('shows the result of Test in the page', async () => {
         const form = await mount({ routes: { 'POST /connections/mail-work/test': () => ({ ok: false, message: 'Login refused.' }) } });
 

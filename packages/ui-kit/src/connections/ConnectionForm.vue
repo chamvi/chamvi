@@ -15,7 +15,7 @@ import {
 import { useAppContext } from '../context/module.ts';
 import { createConnectionConfigApi } from './api.ts';
 import { useConnectionForm } from './form.ts';
-import { canWriteConnection } from './helpers.ts';
+import { canWriteConnection, connectionProblem } from './helpers.ts';
 import type { ConnectionDeleted } from './types.ts';
 
 // mounted once per connection name (the caller keys it by the name)
@@ -50,9 +50,11 @@ const {
     testResult,
     confirmation,
     confirmError,
+    rebindNotice,
 } = form;
 
 const adding = computed(() => props.name === undefined);
+const problem = computed(() => (view.value ? connectionProblem(view.value) : undefined));
 const canWrite = computed(() => props.name === undefined ||
     canWriteConnection(session.principal.value?.permissions ?? [], props.name));
 const canEdit = computed(() => canWrite.value && (view.value?.editable ?? true));
@@ -135,6 +137,15 @@ watch(confirmation, async (open, previous) => {
         </div>
 
         <div
+            v-if="problem"
+            class="card notice"
+            role="status"
+            data-testid="connection-state"
+        >
+            {{ problem }}
+        </div>
+
+        <div
             v-if="!canWrite"
             class="card notice"
             data-testid="connection-form-readonly"
@@ -203,7 +214,7 @@ watch(confirmation, async (open, previous) => {
                 </template>
 
                 <template v-else-if="field.kind === 'secret'">
-                    <template v-if="canEdit && (!field.secretSet || replacing[field.key])">
+                    <template v-if="canEdit && (!field.secretSet || replacing[field.key] || form.mustReenter(field))">
                         <!-- a password input strips line breaks: a pasted PEM would be saved corrupted -->
                         <textarea
                             v-if="field.multiline"
@@ -367,6 +378,15 @@ watch(confirmation, async (open, previous) => {
                     {{ fieldErrors[field.key] }}
                 </p>
             </div>
+
+            <p
+                v-if="rebindNotice && canEdit"
+                class="hint"
+                role="status"
+                data-testid="connection-rebind"
+            >
+                {{ rebindNotice }}
+            </p>
 
             <p
                 v-if="formError"

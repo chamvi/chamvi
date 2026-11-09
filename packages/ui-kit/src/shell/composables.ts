@@ -32,6 +32,7 @@ export function useUiPages() {
     } = useConnections(createConnectionsApi(client));
     const registered = shallowRef<UiPageWire[]>([]);
     const types = shallowRef<ConnectionTypeWire[]>([]);
+    const typesLoaded = shallowRef(false);
 
     const read = async <T>(url: string): Promise<T[]> => {
         const body: unknown = await (await client.send(url)).json();
@@ -48,6 +49,7 @@ export function useUiPages() {
 
             registered.value = pages;
             types.value = connectionTypes;
+            typesLoaded.value = true;
             poller.stop();
 
             return undefined;
@@ -62,6 +64,7 @@ export function useUiPages() {
     return {
         pages: computed(() => visibleUiPages(registered.value, connections.value, session.principal.value?.permissions ?? [])),
         types,
+        typesLoaded,
         connections,
         loaded,
         refresh,

@@ -142,6 +142,13 @@ describe('ConnectionsPage', () => {
         expect(page.opened).toEqual([]);
     });
 
+    it('settles ?add once the types answered without its type', async () => {
+        const page = await mountPage('?add=1', { type: { ...MAIL, type: 'other' } });
+
+        expect(page.adding()).toBe(false);
+        expect(document.body.textContent).toContain('is not available in this app');
+    });
+
     it('ignores ?add without connections:create', async () => {
         const page = await mountPage('?add=1', { permissions: ['connection:*:read'] });
 

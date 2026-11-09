@@ -26,6 +26,7 @@ const props = defineProps<{
 const { session } = useAppContext();
 const {
     types,
+    typesLoaded,
     connections,
     loaded,
     refresh,
@@ -41,7 +42,8 @@ const accounts = computed(() => connections.value.filter((connection) => connect
 // the query is only a request: honoured once the list and the type can say whether it may be
 const adding = computed(() => addRequested.value && definition.value !== undefined &&
     canAddAccount(definition.value, session.principal.value?.permissions ?? []));
-const pending = computed(() => !loaded.value || (addRequested.value && !definition.value));
+// a type the app never serves stays absent: only the answer ends the wait
+const pending = computed(() => !loaded.value || (addRequested.value && !typesLoaded.value));
 const current = computed(() => {
     if (pending.value || adding.value) {
         return undefined;

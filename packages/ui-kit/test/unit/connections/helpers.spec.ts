@@ -10,8 +10,36 @@ import { describe, expect, it } from 'vitest';
 import { STATUS_BADGES } from '../../../src/connections/constants.ts';
 import {
     canWriteConnection,
+    connectionBadge,
+    connectionProblem,
     statusBadge,
 } from '../../../src/connections/helpers.ts';
+
+describe('connectionBadge', () => {
+    it('reads the configuration first', () => {
+        expect(connectionBadge({ status: 'disconnected', state: 'not_configured', live: false }).label).toBe('not configured');
+        expect(connectionBadge({ status: 'connected', state: 'incomplete' }).label).toBe('incomplete');
+    });
+
+    it('does not read a configured connection without a handle as disconnected', () => {
+        expect(connectionBadge({ status: 'disconnected', state: 'configured', live: false })).toEqual({ label: 'configured', tone: 'completed' });
+    });
+
+    it('keeps the live status of a handle, and of a connection with no configuration', () => {
+        expect(connectionBadge({ status: 'failed', state: 'configured' }).label).toBe('failed');
+        expect(connectionBadge({ status: 'pairing' }).label).toBe('pairing');
+    });
+});
+
+describe('connectionProblem', () => {
+    it('says what is missing or why, and nothing for a configured one', () => {
+        expect(connectionProblem({ state: 'not_configured' })).toBe('Not configured yet.');
+        expect(connectionProblem({ state: 'incomplete', missing: ['Password', 'Host'] })).toBe('Incomplete: Password, Host missing.');
+        expect(connectionProblem({ state: 'incomplete', reason: 'CHAMVI_PUBLIC_URL is required.' })).toBe('Incomplete: CHAMVI_PUBLIC_URL is required.');
+        expect(connectionProblem({ state: 'configured' })).toBeUndefined();
+        expect(connectionProblem({})).toBeUndefined();
+    });
+});
 
 const STATUSES: ConnectionStatus[] = [
     'disconnected',
