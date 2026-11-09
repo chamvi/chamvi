@@ -9,14 +9,13 @@ import { envJson, envSecret, envString } from '@chamvi/app';
 import type { Env } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
-import type { CalendarAccount } from '../client/types.ts';
 import { isTimeZone } from '../options/module.ts';
 import {
     CALENDAR_ACCOUNTS_VARIABLE,
     CALENDAR_TIMEZONE_VARIABLE,
     CALENDAR_VARIABLE_PREFIX,
 } from './constants.ts';
-import type { CalendarEnvEntry } from './types.ts';
+import type { CalendarEnvAccount, CalendarEnvEntry } from './types.ts';
 
 const ACCOUNT_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -33,9 +32,9 @@ export function variableOf(id: string, field: string): string {
 /**
  * The entries of `CHAMVI_CALENDAR_ACCOUNTS` (`[{ id?, url, address? }]`)
  * with their credentials from `CHAMVI_CALENDAR_<ID>_USER` (default the
- * address) and `CHAMVI_CALENDAR_<ID>_PASSWORD` (required), each also from a
- * `_FILE` variant; undefined without the variable. The id defaults to the
- * address with `@` and `.` as `-`. Errors are InvalidAgentDefinitionErrors
+ * address) and `CHAMVI_CALENDAR_<ID>_PASSWORD`, each also from a `_FILE`
+ * variant; undefined without the variable. A user or password in neither env
+ * nor store fails in `setup`. The id defaults to the address with `@` and `.` as `-`. Errors are InvalidAgentDefinitionErrors
  * naming the variable and index, never a value.
  */
 export function readCalendarEnvEntries(env: Env): CalendarEnvEntry[] | undefined {
@@ -91,26 +90,15 @@ export function readCalendarEnvEntries(env: Env): CalendarEnvEntry[] | undefined
             return fail(`${at}.url must be an http(s) URL.`);
         }
 
-        const userVariable = variableOf(id, 'USER');
-        const passwordVariable = variableOf(id, 'PASSWORD');
-        const user = envSecret(env, userVariable) ?? address;
-
-        if (user === undefined) {
-            return fail(`${userVariable} is required for ${at} (it has no address).`);
-        }
-
-        const password = envSecret(env, passwordVariable);
-
-        if (password === undefined) {
-            return fail(`${passwordVariable} is required for ${at}.`);
-        }
+        const user = envSecret(env, variableOf(id, 'USER')) ?? address;
+        const password = envSecret(env, variableOf(id, 'PASSWORD'));
 
         return {
             account: {
                 id,
                 url,
-                user,
-                password,
+                ...(user !== undefined && { user }),
+                ...(password !== undefined && { password }),
             },
             ...(address !== undefined && { address }),
         };
@@ -118,7 +106,7 @@ export function readCalendarEnvEntries(env: Env): CalendarEnvEntry[] | undefined
 }
 
 /** The accounts of `CHAMVI_CALENDAR_ACCOUNTS` (see `readCalendarEnvEntries`); undefined without the variable. */
-export function readCalendarAccountsFromEnv(env: Env): CalendarAccount[] | undefined {
+export function readCalendarAccountsFromEnv(env: Env): CalendarEnvAccount[] | undefined {
     return readCalendarEnvEntries(env)?.map((entry) => entry.account);
 }
 

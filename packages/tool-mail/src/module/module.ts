@@ -10,25 +10,26 @@ import type { Env, IContainer, IModule } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
 import { createMailClient } from '../client/module.ts';
-import type { IMailClient, MailAccount } from '../client/types.ts';
+import type { IMailClient } from '../client/types.ts';
 import { createUnconfiguredMailClient } from '../client/unconfigured.ts';
 import { provideMailContext } from '../context/module.ts';
 import { normalizeAccounts } from '../options/module.ts';
 import { MAIL_CONNECTION_TYPE, TOOL_MAIL_MODULE_NAME } from './constants.ts';
 import { readMailAccountsFromEnv } from './helpers.ts';
 import { loadMailAccounts, mailConnectionDefinition } from './type.ts';
-import type { ToolMailModuleOptions } from './types.ts';
+import type { MailEnvAccount, ToolMailModuleOptions } from './types.ts';
 
 /**
  * One mail client for the app, provided on the engine (`mailTools()`
  * without accounts injects it). The accounts (the `accounts` option, else
  * `CHAMVI_MAIL_ACCOUNTS` with its credential variables) are read and checked
  * when the factory is called (InvalidAgentDefinitionError, never echoing a
- * value). In start and job mode `setup` adds the accounts stored in the
- * connection store, the env winning per field; the `accounts` option pins the
- * set and a check stays off the store, which it may find behind its
- * migrations. The accounts are listed as connections of the type `mail`.
- * Without any, tools report a not-configured tool error. The lifecycle hook
+ * value). `setup` adds the accounts stored in the connection store, the env
+ * winning per field, and fails naming the variable for a declared account
+ * whose password is in neither; the `accounts` option pins the set, and a
+ * check that finds the store behind its migrations warns and goes on with the
+ * env. The accounts are listed as connections of the type `mail`. Without
+ * any, tools report a not-configured tool error. The lifecycle hook
  * provides the client (`engineCreated`) and logs out once the engine drained
  * (`drained`), `teardown` logs out too. Migrate mode does nothing.
  */
@@ -37,7 +38,7 @@ export class ToolMailModule implements IModule {
 
     readonly dependencies = [ModuleName.CONFIG, ModuleName.STORE, ModuleName.ENGINE];
 
-    protected accounts: MailAccount[] | undefined;
+    protected accounts: MailEnvAccount[] | undefined;
 
     /** The `accounts` option: the set is fixed, the store unread. */
     protected pinned: boolean;
@@ -73,7 +74,7 @@ export class ToolMailModule implements IModule {
             return;
         }
 
-        const connections = this.pinned || context.check ? undefined : container.resolve(AppToken.STORE).connections;
+        const connections = this.pinned ? undefined : container.resolve(AppToken.STORE).connections;
         // the token throws on a store without connections
         const configs = connections && container.resolve(AppToken.CONNECTION_CONFIGS);
         const definition = mailConnectionDefinition();
@@ -81,6 +82,7 @@ export class ToolMailModule implements IModule {
             definition,
             declared: this.accounts ?? [],
             pinned: this.pinned,
+            check: context.check === true,
             env: this.env,
             logger: container.resolve(AppToken.LOGGER),
             ...(connections && configs && { connections, configs }),

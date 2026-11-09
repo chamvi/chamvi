@@ -74,3 +74,6 @@ export const APP_ERROR_CODE = {
     /** A job's agent is a package agent that did not load, check or prepare, or a package failed before its agents were known. */
     PACKAGE_AGENT_FAILED: 'package_agent_failed',
 } as const;
+
+/** PostgreSQL's undefined_table and undefined_column. */
+export const SCHEMA_BEHIND_SQLSTATES: readonly string[] = ['42P01', '42703'];

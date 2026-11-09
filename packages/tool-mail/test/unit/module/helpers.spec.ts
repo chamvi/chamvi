@@ -139,10 +139,11 @@ describe('readMailAccountsFromEnv()', () => {
         expect(error.message).toContain('CHAMVI_MAIL_ME_PASSWORD_FILE');
     });
 
-    it('names the missing password variable', () => {
-        const error = errorOf(() => readMailAccountsFromEnv({ CHAMVI_MAIL_ACCOUNTS: accounts([{ address: 'admin@tada5hi.net', host: 'mail.tada5hi.net' }]) }));
+    it('leaves a missing password to setup', () => {
+        const [account] = readMailAccountsFromEnv({ CHAMVI_MAIL_ACCOUNTS: accounts([{ address: 'admin@tada5hi.net', host: 'mail.tada5hi.net' }]) }) ?? [];
 
-        expect(error.message).toContain('CHAMVI_MAIL_ADMIN_TADA5HI_NET_PASSWORD');
+        expect(account?.password).toBeUndefined();
+        expect(account?.host).toBe('mail.tada5hi.net');
     });
 
     it('names the variable for bad JSON', () => {

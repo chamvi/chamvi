@@ -226,7 +226,7 @@ describe('toolMailModule()', () => {
         };
 
         expect(messageOf(() => toolMailModule({ env: { [MAIL_ACCOUNTS_VARIABLE]: '{' } }))).toContain(MAIL_ACCOUNTS_VARIABLE);
-        expect(messageOf(() => toolMailModule({ env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([{ address: 'admin@tada5hi.net', host: 'mail.tada5hi.net' }]) } }))).toContain('CHAMVI_MAIL_ADMIN_TADA5HI_NET_PASSWORD');
+        expect(messageOf(() => toolMailModule({ env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([{ address: 'Not An Id!', host: 'mail.tada5hi.net' }]) } }))).toContain(MAIL_ACCOUNTS_VARIABLE);
         expect(messageOf(() => toolMailModule({ accounts: [accountOf(1, 'work', { port: 0 })] }))).not.toContain(PASSWORD);
         expect(() => toolMailModule({ env: 'nope' as never })).toThrow(InvalidAgentDefinitionError);
         expect(() => toolMailModule('nope' as never)).toThrow(InvalidAgentDefinitionError);

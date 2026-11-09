@@ -25,11 +25,12 @@ import type { CalendarEnvEntry, ToolCalendarModuleOptions } from './types.ts';
  * `accounts` option, else `CHAMVI_CALENDAR_ACCOUNTS` with its credential
  * variables) and the zone (`CHAMVI_CALENDAR_TIMEZONE`, else `timezone`) are
  * read and checked when the factory is called (InvalidAgentDefinitionError,
- * never echoing a value). In start and job mode `setup` adds the accounts
- * stored in the connection store, the env winning per field; the `accounts`
- * option pins the set and a check stays off the store, which it may find
- * behind its migrations. The accounts are listed as connections of the type
- * `calendar`. Without any, tools report a not-configured tool error. The
+ * never echoing a value). `setup` adds the accounts stored in the connection
+ * store, the env winning per field, and fails naming the variable for a
+ * declared account whose user or password is in neither; the `accounts`
+ * option pins the set, and a check that finds the store behind its migrations
+ * warns and goes on with the env. The accounts are listed as connections of
+ * the type `calendar`. Without any, tools report a not-configured tool error. The
  * lifecycle hook provides the client (`engineCreated`) and closes it once the
  * engine drained (`drained`), `teardown` closes it too. Migrate mode does
  * nothing.
@@ -83,7 +84,7 @@ export class ToolCalendarModule implements IModule {
             return;
         }
 
-        const connections = this.pinned || context.check ? undefined : container.resolve(AppToken.STORE).connections;
+        const connections = this.pinned ? undefined : container.resolve(AppToken.STORE).connections;
         // the token throws on a store without connections
         const configs = connections && container.resolve(AppToken.CONNECTION_CONFIGS);
         const definition = calendarConnectionDefinition();
@@ -91,6 +92,7 @@ export class ToolCalendarModule implements IModule {
             definition,
             declared: this.accounts ?? [],
             pinned: this.pinned,
+            check: context.check === true,
             env: this.env,
             logger: container.resolve(AppToken.LOGGER),
             ...(connections && configs && { connections, configs }),

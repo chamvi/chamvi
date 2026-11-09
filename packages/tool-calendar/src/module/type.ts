@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { envSecret } from '@chamvi/app';
+import { envSecret, isSchemaBehindError } from '@chamvi/app';
 import type { Env, ILogger } from '@chamvi/app';
 import {
     InvalidAgentDefinitionError,
@@ -42,9 +42,11 @@ type LoadInput = {
     /** The accounts of the `accounts` option (`pinned`) or of `CHAMVI_CALENDAR_ACCOUNTS`. */
     declared: readonly CalendarEnvEntry[];
     pinned: boolean;
+    /** A check tolerates a store behind its migrations. */
+    check: boolean;
     env: Env;
     logger: ILogger;
-    /** Absent when the store is not read: pinned accounts, a check, a store without connections. */
+    /** Absent when the store is not read: pinned accounts, a store without connections. */
     connections?: IConnectionRepository;
     configs?: IConnectionConfigStore;
 };
@@ -69,7 +71,7 @@ function credentialField(key: string, label: string, variable: string, extra: Pa
     };
 }
 
-/** The calendar connection type: one account per `calendar-<id>`, one URL once. */
+/** The calendar connection type: one account per `calendar-<id>`, one URL and user once. */
 export function calendarConnectionDefinition(): ConnectionTypeDefinition {
     return {
         type: CALENDAR_CONNECTION_TYPE,
@@ -90,7 +92,8 @@ export function calendarConnectionDefinition(): ConnectionTypeDefinition {
             credentialField('user', 'User', 'USER', { description: 'Default the address.' }),
             credentialField('password', 'Password', 'PASSWORD', { kind: 'secret', required: true }),
         ],
-        uniqueId: (values) => String(values.url ?? '').toLowerCase(),
+        // one CalDAV URL can serve many users (iCloud)
+        uniqueId: (values) => `${String(values.url ?? '').toLowerCase()}\n${String(values.user ?? values.address ?? '').toLowerCase()}`,
     };
 }
 
@@ -101,7 +104,7 @@ function presetOf(entry: CalendarEnvEntry, source: ConnectionFieldSource, pinned
         ['url', account.url],
         ['address', address],
         // the variables of an env account resolve per field; code sets these too
-        ...(pinned ? [['user', account.user], ['password', account.password]] as [string, string][] : []),
+        ...(pinned ? [['user', account.user as string], ['password', account.password as string]] as [string, string][] : []),
     ];
 
     return Object.fromEntries(entries
@@ -120,7 +123,8 @@ function toAccount(id: string, resolved: ResolvedConnection): CalendarAccount {
     };
 }
 
-async function readStoredAccounts(input: LoadInput): Promise<Map<string, StoredAccount>> {
+/** The stored accounts by id; undefined for a check on a store behind its migrations. */
+async function readStoredAccounts(input: LoadInput): Promise<Map<string, StoredAccount> | undefined> {
     const { connections, configs } = input;
     const stored = new Map<string, StoredAccount>();
 
@@ -128,13 +132,23 @@ async function readStoredAccounts(input: LoadInput): Promise<Map<string, StoredA
         return stored;
     }
 
-    for (const row of await connections.find()) {
-        const id = accountIdOf(row.name);
-        const config = id !== undefined && row.type === CALENDAR_CONNECTION_TYPE ? await configs.read(row.name) : undefined;
+    try {
+        for (const row of await connections.find()) {
+            const id = accountIdOf(row.name);
+            const config = id !== undefined && row.type === CALENDAR_CONNECTION_TYPE ? await configs.read(row.name) : undefined;
 
-        if (id !== undefined && config) {
-            stored.set(id, config);
+            if (id !== undefined && config) {
+                stored.set(id, config);
+            }
         }
+    } catch (error) {
+        if (!input.check || !isSchemaBehindError(error)) {
+            throw error;
+        }
+
+        input.logger.warn('The connection store is behind its migrations: the check sees the calendar accounts of the environment only.');
+
+        return undefined;
     }
 
     return stored;
@@ -156,7 +170,8 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
         logger,
         configs,
     } = input;
-    const stored = await readStoredAccounts(input);
+    const read = await readStoredAccounts(input);
+    const stored = read ?? new Map<string, StoredAccount>();
     const accounts: CalendarAccount[] = [];
     const connections: DeclaredConnection[] = [];
     const readVariable = (variable: string) => envSecret(env, variable);
@@ -176,7 +191,17 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
     };
 
     for (const entry of declared) {
-        const { id } = entry.account;
+        const {
+            id, 
+            user, 
+            password, 
+        } = entry.account;
+
+        // only an unread store may hold what the environment lacks
+        if (!read && (user === undefined || password === undefined)) {
+            continue;
+        }
+
         const row = stored.get(id);
         const source: ConnectionFieldSource = pinned ? { kind: 'code' } : { kind: 'env', variable: CALENDAR_ACCOUNTS_VARIABLE };
         const resolved = resolveConnection({
@@ -186,7 +211,11 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
             preset: presetOf(entry, source, pinned),
             ...(row && { stored: row.values }),
         });
-        const merged = pinned ? entry.account : toAccount(id, resolved);
+        const merged = pinned ? entry.account as CalendarAccount : toAccount(id, resolved);
+
+        if (merged.user === undefined) {
+            throw new InvalidAgentDefinitionError(`${variableOf(id, 'USER')} is required for the connection "${resolved.name}" (it has no address).`);
+        }
 
         normalizeAccounts([merged]);
         accounts.push(merged);

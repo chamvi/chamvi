@@ -6,9 +6,11 @@
  */
 
 import { ChamviError } from '@chamvi/core';
+import type { AgentIssue } from '@chamvi/http';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
-import { APP_ERROR_CODE, AppToken } from './constants.ts';
+import { isObject } from 'smob';
+import { APP_ERROR_CODE, AppToken, SCHEMA_BEHIND_SQLSTATES } from './constants.ts';
 import type {
     AppContext,
     ILifecycleHook,
@@ -84,4 +86,37 @@ export function reportingModule(module: IModule, report: AppContext['report']): 
             },
         }),
     };
+}
+
+/**
+ * Whether `error` is the database's "no such table or column": a store behind
+ * its migrations, which a check meets because it never migrates.
+ */
+export function isSchemaBehindError(error: unknown): boolean {
+    if (!isObject(error)) {
+        return false;
+    }
+
+    // TypeORM's QueryFailedError carries the driver's error, with its SQLSTATE
+    const code = isObject(error.driverError) ? error.driverError.code : error.code;
+
+    return typeof code === 'string' && SCHEMA_BEHIND_SQLSTATES.includes(code);
+}
+
+/** The `start --check` issues of the connections a module lists as incomplete; field names only, never a value. */
+export function connectionIssuesOf(container: IContainer): AgentIssue[] {
+    const at = container.resolve(AppToken.CLOCK).now();
+
+    return container.resolveAll(AppToken.CONNECTION_TYPES)
+        .flatMap((provider) => provider.connections())
+        .filter((connection) => connection.resolved.state === 'incomplete')
+        .map((connection) => {
+            const { missing } = connection.resolved;
+
+            return {
+                agent: connection.name,
+                message: `The connection "${connection.name}" is incomplete${missing.length > 0 ? `: missing ${missing.join(', ')}` : ''}.`,
+                at,
+            };
+        });
 }

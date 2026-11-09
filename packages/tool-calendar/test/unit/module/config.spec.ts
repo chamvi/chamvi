@@ -54,8 +54,11 @@ const STORED_PASSWORD = 'stored-secret-password';
 const keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
 
 const harnesses: ModuleHarness[] = [];
+const logLines: string[] = [];
 
 afterEach(async () => {
+    logLines.length = 0;
+
     for (const harness of harnesses.splice(0)) {
         await harness.stop();
     }
@@ -67,6 +70,11 @@ function fake(): FakeCalDav {
         name: 'Home',
         objects: [weeklyStandup()],
     }]);
+}
+
+/** What TypeORM throws for a table a migration has not created yet. */
+function behindSchemaError(): Error {
+    return Object.assign(new Error('relation "connection" does not exist'), { driverError: { code: '42P01' } });
 }
 
 function configsOf(store: IStore) {
@@ -130,7 +138,14 @@ async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
         keyring,
         ...rest,
         modules: [
-            configModule({ logger: createLogger({ level: 'error', write: () => {} }) }),
+            configModule({
+                logger: createLogger({
+                    level: 'warn',
+                    write: (line) => {
+                        logLines.push(line);
+                    },
+                }),
+            }),
             storeModule({ store }),
             engineModule(),
             toolCalendarModule(options),
@@ -217,7 +232,8 @@ describe('toolCalendarModule() configuration', () => {
         expect(definition.multiple).toBe(true);
         expect(definition.fields.map((field) => field.key)).toEqual(['url', 'address', 'user', 'password']);
         expect(definition.fields.find((field) => field.key === 'password')).toMatchObject({ kind: 'secret', required: true });
-        expect(definition.uniqueId?.({ url: 'https://DAV.example.com/x' })).toBe('https://dav.example.com/x');
+        expect(definition.uniqueId?.({ url: 'https://DAV.example.com/x', user: 'Peter' })).toBe('https://dav.example.com/x\npeter');
+        expect(definition.uniqueId?.({ url: 'https://DAV.example.com/x', address: 'Me@X.test' })).toBe('https://dav.example.com/x\nme@x.test');
     });
 
     it('loads env accounts and stored accounts together, env winning per field', async () => {
@@ -432,7 +448,7 @@ describe('toolCalendarModule() configuration', () => {
         expect(harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS).filter((hook) => hook.name === TOOL_CALENDAR_MODULE_NAME)).toEqual([]);
     });
 
-    it('a check reads and writes nothing', async () => {
+    it('a check reads and writes nothing to the store', async () => {
         const server = fake();
         const store = createMemoryStore();
 
@@ -445,9 +461,140 @@ describe('toolCalendarModule() configuration', () => {
             options: { env: envOf(), fetch: server.fetch },
         });
 
-        expect(calls).toEqual([]);
-        expect(providerOf(harness).connections().map((entry) => entry.name)).toEqual(['calendar-work']);
+        // the read half: the stored account is seen
+        expect(calls).toContain('find');
+        expect(calls).toContain('findConfig');
+        expect(providerOf(harness).connections().map((entry) => entry.name).sort()).toEqual(['calendar-home', 'calendar-work']);
+        // the write half: only reads reached the repository, and no server was contacted
+        expect(calls.filter((name) => !name.startsWith('find'))).toEqual([]);
         expect(server.requests).toEqual([]);
+    });
+
+    it('a check lists an incomplete stored account as incomplete', async () => {
+        const store = createMemoryStore();
+
+        await configsOf(store).create('calendar-home', CALENDAR_CONNECTION_TYPE, { settings: { url: FAKE_CALDAV_URL } });
+
+        const harness = await harnessOf({
+            store,
+            check: true,
+            options: { env: {} },
+        });
+
+        expect(connectionOf(harness, 'calendar-home').resolved.state).toBe('incomplete');
+    });
+
+    it('a check on a store behind its migrations warns and continues env-only', async () => {
+        const store = createMemoryStore();
+
+        store.connections!.find = async () => {
+            throw behindSchemaError();
+        };
+
+        const harness = await harnessOf({
+            store,
+            check: true,
+            options: { env: { ...envOf(), CHAMVI_CALENDAR_WORK_PASSWORD: '' } },
+        });
+
+        expect(logLines.some((line) => line.includes('behind'))).toBe(true);
+        expect(providerOf(harness).connections()).toEqual([]);
+    });
+
+    it('a check still fails on a read error that is not a behind schema', async () => {
+        const store = createMemoryStore();
+
+        store.connections!.find = async () => {
+            throw new Error('boom');
+        };
+
+        await expect(harnessOf({
+            store,
+            check: true,
+            options: { env: {} },
+        })).rejects.toThrow('boom');
+    });
+
+    it('a start fails on a behind schema: only a check tolerates it', async () => {
+        const store = createMemoryStore();
+
+        store.connections!.find = async () => {
+            throw behindSchemaError();
+        };
+
+        await expect(harnessOf({ store, options: { env: {} } })).rejects.toThrow('does not exist');
+    });
+
+    it('a declared account takes a password missing from env from the store', async () => {
+        const server = fake();
+        const store = createMemoryStore();
+
+        await configsOf(store).create('calendar-work', CALENDAR_CONNECTION_TYPE, { secrets: { set: { password: STORED_PASSWORD } } });
+
+        const harness = await harnessOf({
+            store,
+            agents: [listAgent()],
+            options: {
+                fetch: server.fetch,
+                env: {
+                    [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{
+                        id: 'work', 
+                        url: FAKE_CALDAV_URL, 
+                        address: 'work@icloud.com', 
+                    }]), 
+                },
+            },
+        });
+        const work = connectionOf(harness, 'calendar-work');
+
+        expect(work.resolved.sources.password).toEqual({ kind: 'store' });
+        expect(work.deletable).toBe(false);
+
+        const { step } = await runList(harness);
+
+        expect(step?.error).toBeUndefined();
+        expect(authorizationsOf(server).has(basic('work@icloud.com', STORED_PASSWORD))).toBe(true);
+    });
+
+    it('a declared account with its password in neither env nor store fails in setup naming the variable', async () => {
+        const env = {
+            [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{
+                id: 'work', 
+                url: FAKE_CALDAV_URL, 
+                address: 'work@icloud.com', 
+            }]), 
+        };
+
+        expect(() => toolCalendarModule({ env })).not.toThrow();
+        await expect(harnessOf({ store: createMemoryStore(), options: { env } })).rejects.toThrow(/CHAMVI_CALENDAR_WORK_PASSWORD/);
+    });
+
+    it('a declared account with no user and no address fails in setup naming the user variable', async () => {
+        const env = {
+            [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ id: 'work', url: FAKE_CALDAV_URL }]),
+            CHAMVI_CALENDAR_WORK_PASSWORD: PASSWORD,
+        };
+
+        expect(() => toolCalendarModule({ env })).not.toThrow();
+        await expect(harnessOf({ store: createMemoryStore(), options: { env } })).rejects.toThrow(/CHAMVI_CALENDAR_WORK_USER/);
+    });
+
+    it('a declared account with no user and no address takes the user from the store', async () => {
+        const store = createMemoryStore();
+
+        await configsOf(store).create('calendar-work', CALENDAR_CONNECTION_TYPE, { settings: { user: 'stored-user' } });
+
+        const harness = await harnessOf({
+            store,
+            options: {
+                env: {
+                    [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ id: 'work', url: FAKE_CALDAV_URL }]),
+                    CHAMVI_CALENDAR_WORK_PASSWORD: PASSWORD,
+                },
+            },
+        });
+
+        expect(connectionOf(harness, 'calendar-work').resolved.sources.user).toEqual({ kind: 'store' });
     });
 
     it('an invalid CHAMVI_CALENDAR_ACCOUNTS still throws at the factory', () => {

@@ -52,7 +52,7 @@ export type AppStartOptions = AppLifecycleOptions & {
 export type AppCheckOptions = AppStartOptions;
 
 export type AppCheckResult = {
-    /** The agent folders' and packages' load issues (`AGENT_ISSUES`); empty without an agents dir or packages. */
+    /** The agent folders' and packages' load issues (`AGENT_ISSUES`), then one per incomplete connection (`agent` holds its name). */
     issues: AgentIssue[];
 };
 

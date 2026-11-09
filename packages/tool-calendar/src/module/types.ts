@@ -19,8 +19,14 @@ export type ToolCalendarModuleOptions = {
     fetch?: typeof fetch;
 };
 
+/** An account of `CHAMVI_CALENDAR_ACCOUNTS`: a user or password not in env may come from the store, `setup` decides. */
+export type CalendarEnvAccount = Omit<CalendarAccount, 'user' | 'password'> & {
+    user?: string;
+    password?: string;
+};
+
 /** One entry of `CHAMVI_CALENDAR_ACCOUNTS`: the account and the address the variable named. */
 export type CalendarEnvEntry = {
-    account: CalendarAccount;
+    account: CalendarEnvAccount;
     address?: string;
 };

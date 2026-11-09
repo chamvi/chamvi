@@ -206,7 +206,7 @@ describe('toolCalendarModule()', () => {
 
     it('checks the env when the factory is called, never echoing a password', () => {
         expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: '{' } })).toThrow(InvalidAgentDefinitionError);
-        expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ url: FAKE_CALDAV_URL, address: 'me@icloud.com' }]) } })).toThrow(/CHAMVI_CALENDAR_ME_ICLOUD_COM_PASSWORD/);
+        expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ url: 'ftp://x.test', address: 'me@icloud.com' }]) } })).toThrow(/CHAMVI_CALENDAR_ACCOUNTS/);
         expect(() => toolCalendarModule({ env: { CHAMVI_CALENDAR_TIMEZONE: 'Mars/Olympus' } })).toThrow(/CHAMVI_CALENDAR_TIMEZONE/);
         expect(() => toolCalendarModule({ timezone: 'Mars/Olympus' })).toThrow(InvalidAgentDefinitionError);
         expect(() => toolCalendarModule({ fetch: 'nope' as unknown as typeof fetch })).toThrow(InvalidAgentDefinitionError);

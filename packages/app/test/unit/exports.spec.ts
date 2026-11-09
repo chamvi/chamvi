@@ -31,6 +31,7 @@ describe('public api', () => {
         'readKeyring',
         'approvalUrlOf',
         'createLogger',
+        'isSchemaBehindError',
         'runHooks',
         'throwIfStopped',
         'envString',

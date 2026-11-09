@@ -9,10 +9,10 @@ import { envJson, envSecret } from '@chamvi/app';
 import type { Env } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
-import type { MailAccount } from '../client/types.ts';
 import { ACCOUNT_ID_PATTERN } from '../options/constants.ts';
 import { normalizeAccount } from '../options/module.ts';
 import { MAIL_ACCOUNTS_VARIABLE, MAIL_VARIABLE_PREFIX } from './constants.ts';
+import type { MailEnvAccount } from './types.ts';
 
 // Every message names the variable, never its value (it may be a secret).
 function fail(message: string): never {
@@ -25,7 +25,7 @@ export function variableOf(id: string, field: string): string {
 }
 
 /** One entry of `CHAMVI_MAIL_ACCOUNTS` as an account; its fields are checked by `normalizeAccount`. */
-function accountOf(env: Env, entry: unknown, at: string, ids: Set<string>): MailAccount {
+function accountOf(env: Env, entry: unknown, at: string, ids: Set<string>): MailEnvAccount {
     if (!isObject(entry)) {
         return fail(`${at} must be an object.`);
     }
@@ -55,20 +55,14 @@ function accountOf(env: Env, entry: unknown, at: string, ids: Set<string>): Mail
         return fail(`${at}.host must be a non-empty string.`);
     }
 
-    const passwordVariable = variableOf(id, 'PASSWORD');
     const user = envSecret(env, variableOf(id, 'USER')) ?? address;
-    const password = envSecret(env, passwordVariable);
-
-    if (password === undefined) {
-        return fail(`${passwordVariable} is required for ${at}.`);
-    }
-
-    const account: MailAccount = {
+    const password = envSecret(env, variableOf(id, 'PASSWORD'));
+    const account: MailEnvAccount = {
         id,
         host,
         user,
-        password,
         address,
+        ...(password !== undefined && { password }),
     };
 
     for (const field of ['port', 'security', 'folders', 'gmail'] as const) {
@@ -78,7 +72,8 @@ function accountOf(env: Env, entry: unknown, at: string, ids: Set<string>): Mail
     }
 
     // the rest of the fields, named by the variable and index, never by a value
-    normalizeAccount(account, at);
+    // a missing password is no format error: the store may hold it, `setup` decides
+    normalizeAccount({ ...account, password: password ?? 'unset' }, at);
 
     return account;
 }
@@ -87,12 +82,13 @@ function accountOf(env: Env, entry: unknown, at: string, ids: Set<string>): Mail
  * The accounts of `CHAMVI_MAIL_ACCOUNTS` (`[{ id?, address, host, port?,
  * security?, folders?, gmail? }]`) with their credentials from
  * `CHAMVI_MAIL_<ID>_USER` (default the address) and
- * `CHAMVI_MAIL_<ID>_PASSWORD` (required), each also from a `_FILE` variant;
- * undefined without the variable. The id defaults to the address with `@`
+ * `CHAMVI_MAIL_<ID>_PASSWORD`, each also from a `_FILE` variant; undefined
+ * without the variable. A password in neither env nor store fails in `setup`.
+ * The id defaults to the address with `@`
  * and `.` as `-`. Errors are InvalidAgentDefinitionErrors naming the
  * variable and index, never a value.
  */
-export function readMailAccountsFromEnv(env: Env): MailAccount[] | undefined {
+export function readMailAccountsFromEnv(env: Env): MailEnvAccount[] | undefined {
     const value = envJson(env, MAIL_ACCOUNTS_VARIABLE);
 
     if (value === undefined) {

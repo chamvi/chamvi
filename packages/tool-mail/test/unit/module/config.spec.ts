@@ -58,9 +58,12 @@ const STORED_PASSWORD = 'stored-secret-password';
 const keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
 
 const harnesses: ModuleHarness[] = [];
+const logLines: string[] = [];
 const servers: FakeImap[] = [];
 
 afterEach(async () => {
+    logLines.length = 0;
+
     for (const harness of harnesses.splice(0)) {
         await harness.stop();
     }
@@ -76,6 +79,11 @@ async function fake(): Promise<FakeImap> {
     servers.push(server);
 
     return server;
+}
+
+/** What TypeORM throws for a table a migration has not created yet. */
+function behindSchemaError(): Error {
+    return Object.assign(new Error('relation "connection" does not exist'), { driverError: { code: '42P01' } });
 }
 
 function configsOf(store: IStore) {
@@ -147,7 +155,14 @@ async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
         keyring,
         ...rest,
         modules: [
-            configModule({ logger: createLogger({ level: 'error', write: () => {} }) }),
+            configModule({
+                logger: createLogger({
+                    level: 'warn',
+                    write: (line) => {
+                        logLines.push(line);
+                    },
+                }),
+            }),
             storeModule({ store }),
             engineModule(),
             toolMailModule(options),
@@ -486,7 +501,7 @@ describe('toolMailModule() configuration', () => {
         expect(harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS).filter((hook) => hook.name === TOOL_MAIL_MODULE_NAME)).toEqual([]);
     });
 
-    it('a check reads and writes nothing', async () => {
+    it('a check reads and writes nothing to the store', async () => {
         const server = await fake();
         const store = createMemoryStore();
 
@@ -499,9 +514,115 @@ describe('toolMailModule() configuration', () => {
             options: { env: envOf(envAccount(server.port)) },
         });
 
-        expect(calls).toEqual([]);
-        expect(providerOf(harness).connections().map((entry) => entry.name)).toEqual(['mail-work']);
+        // the read half: the stored account is seen
+        expect(calls).toContain('find');
+        expect(calls).toContain('findConfig');
+        expect(providerOf(harness).connections().map((entry) => entry.name).sort()).toEqual(['mail-home', 'mail-work']);
+        // the write half: only reads reached the repository, and no server was contacted
+        expect(calls.filter((name) => !name.startsWith('find'))).toEqual([]);
         expect(server.commands).toEqual([]);
+    });
+
+    it('a check lists an incomplete stored account as incomplete', async () => {
+        const store = createMemoryStore();
+
+        await configsOf(store).create('mail-home', MAIL_CONNECTION_TYPE, { settings: { host: '127.0.0.1' } });
+
+        const harness = await harnessOf({
+            store,
+            check: true,
+            options: { env: {} },
+        });
+
+        expect(connectionOf(harness, 'mail-home').resolved.state).toBe('incomplete');
+    });
+
+    it('a check on a store behind its migrations warns and continues env-only', async () => {
+        const server = await fake();
+        const store = createMemoryStore();
+
+        store.connections!.find = async () => {
+            throw behindSchemaError();
+        };
+
+        const harness = await harnessOf({
+            store,
+            check: true,
+            options: {
+                env: {
+                    ...envOf(envAccount(server.port)),
+                    CHAMVI_MAIL_WORK_PASSWORD: '',
+                },
+            },
+        });
+
+        expect(logLines.some((line) => line.includes('behind'))).toBe(true);
+        expect(providerOf(harness).connections()).toEqual([]);
+    });
+
+    it('a check still fails on a read error that is not a behind schema', async () => {
+        const store = createMemoryStore();
+
+        store.connections!.find = async () => {
+            throw new Error('boom');
+        };
+
+        await expect(harnessOf({
+            store,
+            check: true,
+            options: { env: {} },
+        })).rejects.toThrow('boom');
+    });
+
+    it('a start fails on a behind schema: only a check tolerates it', async () => {
+        const store = createMemoryStore();
+
+        store.connections!.find = async () => {
+            throw behindSchemaError();
+        };
+
+        await expect(harnessOf({ store, options: { env: {} } })).rejects.toThrow('does not exist');
+    });
+
+    it('a declared account takes a password missing from env from the store', async () => {
+        const server = await fake();
+        const store = createMemoryStore();
+
+        await configsOf(store).create('mail-work', MAIL_CONNECTION_TYPE, { secrets: { set: { password: STORED_PASSWORD } } });
+
+        const harness = await harnessOf({
+            store,
+            agents: [accountsAgent()],
+            options: { env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(server.port)]) } },
+        });
+        const work = connectionOf(harness, 'mail-work');
+
+        expect(work.resolved.sources.password).toEqual({ kind: 'store' });
+        expect(work.resolved.sources.host).toEqual({ kind: 'env', variable: MAIL_ACCOUNTS_VARIABLE });
+        expect(work.deletable).toBe(false);
+
+        const { step } = await runAccounts(harness);
+
+        expect(step?.error).toBeUndefined();
+        expect(logins(server).join('\n')).toContain(STORED_PASSWORD);
+    });
+
+    it('a declared account with its password in neither env nor store fails in setup naming the variable', async () => {
+        const env = { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(1)]) };
+
+        expect(() => toolMailModule({ env })).not.toThrow();
+        await expect(harnessOf({ store: createMemoryStore(), options: { env } })).rejects.toThrow(/CHAMVI_MAIL_WORK_PASSWORD/);
+    });
+
+    it('a store without connections fails a declared account missing its password', async () => {
+        const store: IStore = createMemoryStore();
+
+        delete store.connections;
+
+        await expect(harnessOf({
+            store,
+            options: { env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(1)]) } },
+        })).rejects.toThrow(/CHAMVI_MAIL_WORK_PASSWORD/);
     });
 
     it('an invalid CHAMVI_MAIL_ACCOUNTS still throws at the factory', () => {

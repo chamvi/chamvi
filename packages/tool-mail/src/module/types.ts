@@ -14,3 +14,6 @@ export type ToolMailModuleOptions = {
     /** The accounts to read; given, `CHAMVI_MAIL_ACCOUNTS` is not read. */
     accounts?: MailAccount[];
 };
+
+/** An account of `CHAMVI_MAIL_ACCOUNTS`: a password not in env may come from the store, `setup` decides. */
+export type MailEnvAccount = Omit<MailAccount, 'password'> & { password?: string };

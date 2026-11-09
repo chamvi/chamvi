@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { envSecret } from '@chamvi/app';
+import { envSecret, isSchemaBehindError } from '@chamvi/app';
 import type { Env, ILogger } from '@chamvi/app';
 import {
     InvalidAgentDefinitionError,
@@ -31,6 +31,7 @@ import {
     MAIL_CONNECTION_TYPE,
 } from './constants.ts';
 import { variableOf } from './helpers.ts';
+import type { MailEnvAccount } from './types.ts';
 
 type Preset = NonNullable<Parameters<typeof resolveConnection>[0]['preset']>;
 
@@ -39,11 +40,13 @@ type StoredAccount = { values: ConnectionValues; revision: number };
 type LoadInput = {
     definition: ConnectionTypeDefinition;
     /** The accounts of the `accounts` option (`pinned`) or of `CHAMVI_MAIL_ACCOUNTS`. */
-    declared: readonly MailAccount[];
+    declared: readonly MailEnvAccount[];
     pinned: boolean;
+    /** A check tolerates a store behind its migrations. */
+    check: boolean;
     env: Env;
     logger: ILogger;
-    /** Absent when the store is not read: pinned accounts, a check, a store without connections. */
+    /** Absent when the store is not read: pinned accounts, a store without connections. */
     connections?: IConnectionRepository;
     configs?: IConnectionConfigStore;
 };
@@ -108,14 +111,14 @@ export function mailConnectionDefinition(): ConnectionTypeDefinition {
 }
 
 /** What the factory took from code or the JSON variable, which wins over everything. */
-function presetOf(account: MailAccount, source: ConnectionFieldSource, pinned: boolean): Preset {
+function presetOf(account: MailEnvAccount, source: ConnectionFieldSource, pinned: boolean): Preset {
     const entries: [string, ConnectionValue | undefined][] = [
         ['address', pinned ? account.address ?? account.user : account.address],
         ['host', account.host],
         ['port', account.port],
         ['security', account.security],
         // the variables of an env account resolve per field; code sets these too
-        ...(pinned ? [['user', account.user], ['password', account.password]] as [string, string][] : []),
+        ...(pinned ? [['user', account.user], ['password', account.password as string]] as [string, string][] : []),
     ];
 
     return Object.fromEntries(entries
@@ -123,7 +126,7 @@ function presetOf(account: MailAccount, source: ConnectionFieldSource, pinned: b
         .map(([key, value]) => [key, { value, source }]));
 }
 
-function toAccount(id: string, resolved: ResolvedConnection, declared?: MailAccount): MailAccount {
+function toAccount(id: string, resolved: ResolvedConnection, declared?: MailEnvAccount): MailAccount {
     const { values } = resolved;
     const address = values.address as string | undefined;
 
@@ -140,7 +143,8 @@ function toAccount(id: string, resolved: ResolvedConnection, declared?: MailAcco
     };
 }
 
-async function readStoredAccounts(input: LoadInput): Promise<Map<string, StoredAccount>> {
+/** The stored accounts by id; undefined for a check on a store behind its migrations. */
+async function readStoredAccounts(input: LoadInput): Promise<Map<string, StoredAccount> | undefined> {
     const { connections, configs } = input;
     const stored = new Map<string, StoredAccount>();
 
@@ -148,13 +152,23 @@ async function readStoredAccounts(input: LoadInput): Promise<Map<string, StoredA
         return stored;
     }
 
-    for (const row of await connections.find()) {
-        const id = accountIdOf(row.name);
-        const config = id !== undefined && row.type === MAIL_CONNECTION_TYPE ? await configs.read(row.name) : undefined;
+    try {
+        for (const row of await connections.find()) {
+            const id = accountIdOf(row.name);
+            const config = id !== undefined && row.type === MAIL_CONNECTION_TYPE ? await configs.read(row.name) : undefined;
 
-        if (id !== undefined && config) {
-            stored.set(id, config);
+            if (id !== undefined && config) {
+                stored.set(id, config);
+            }
         }
+    } catch (error) {
+        if (!input.check || !isSchemaBehindError(error)) {
+            throw error;
+        }
+
+        input.logger.warn('The connection store is behind its migrations: the check sees the mail accounts of the environment only.');
+
+        return undefined;
     }
 
     return stored;
@@ -176,7 +190,8 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
         logger,
         configs,
     } = input;
-    const stored = await readStoredAccounts(input);
+    const read = await readStoredAccounts(input);
+    const stored = read ?? new Map<string, StoredAccount>();
     const accounts: MailAccount[] = [];
     const connections: DeclaredConnection[] = [];
     const readVariable = (variable: string) => envSecret(env, variable);
@@ -196,6 +211,11 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
     };
 
     for (const account of declared) {
+        // only an unread store may hold what the environment lacks
+        if (!read && account.password === undefined) {
+            continue;
+        }
+
         const row = stored.get(account.id);
         const source: ConnectionFieldSource = pinned ? { kind: 'code' } : { kind: 'env', variable: MAIL_ACCOUNTS_VARIABLE };
         const resolved = resolveConnection({
@@ -205,7 +225,7 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             preset: presetOf(account, source, pinned),
             ...(row && { stored: row.values }),
         });
-        const merged = pinned ? account : toAccount(account.id, resolved, account);
+        const merged = pinned ? account as MailAccount : toAccount(account.id, resolved, account);
 
         normalizeAccount(merged, `Mail account "${account.id}"`);
         accounts.push(merged);
