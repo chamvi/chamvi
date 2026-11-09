@@ -20,7 +20,6 @@ chamvi/
 │   ├── http/                        # @chamvi/http (same layout; aliases core, test-kit and itself to src)
 │   ├── test-kit/                    # @chamvi/test-kit (same layout; aliases core and itself to src)
 │   ├── github/                      # @chamvi/github (same layout)
-│   │   └── test/fixtures/deliveries/ # Recorded GitHub webhook bodies (issues.opened, a bot's issue_comment)
 │   ├── channel-openclaw/            # @chamvi/channel-openclaw (fake gateway in test/utils/openclaw.ts)
 │   ├── chat/                        # @chamvi/chat (fake Chat SDK adapter in test/utils/)
 │   ├── chat-discord/                # @chamvi/chat-discord (aliases as chat-whatsapp; fake discord.js clients and fetch in test/utils/)
@@ -28,11 +27,11 @@ chamvi/
 │   ├── sandbox/                     # @chamvi/sandbox (same layout; aliases core, itself and its /module, sandbox-local, app, app/testing, http, channel-cron, store-db; private test/utils/clock.ts)
 │   ├── sandbox-local/               # @chamvi/sandbox-local (aliases core, sandbox, test-kit and itself)
 │   ├── sandbox-docker/              # @chamvi/sandbox-docker (same aliases as local, plus coding for test/unit/coding.spec.ts; fixture images in test/fixtures/{no-git,no-cache,no-init,entrypoint})
-│   │   └── test/global-setup.ts     # dockerode ping() gate, builds images/sandbox-dev as chamvi/sandbox-dev:test, removes the test cache volume
 │   ├── sandbox-k8s/                 # @chamvi/sandbox-k8s (same aliases; tests drive a fake IPodClient, test/utils/client.ts)
 │   ├── coding/                      # @chamvi/coding (aliases core, sandbox, sandbox-local, test-kit and itself)
 │   ├── skills/                      # @chamvi/skills (optional skill runtime, catalogs, bundles and pinned Git sources)
 │   ├── tool-files/                  # @chamvi/tool-files
+│   ├── tool-utils/                  # @chamvi/tool-utils
 │   ├── tool-web/                    # @chamvi/tool-web (aliases core, test-kit and itself; fake transport, fetch and lookup in test/utils/web.ts)
 │   ├── tool-mail/                   # @chamvi/tool-mail (aliases as knowledge; fake IMAP server in test/utils/imap.ts)
 │   ├── tool-calendar/               # @chamvi/tool-calendar (aliases as knowledge; fake CalDAV fetch in test/utils/caldav.ts)
@@ -62,7 +61,6 @@ chamvi/
 │   ├── actions/{install,build}/     # Composite actions
 │   ├── workflows/{ci,release,docs,images}.yml # CI (one Node 26 check job plus the Chromium e2e job), release-please + npm publish, docs to GitHub Pages, sandbox image (craneship, amd64 + arm64)
 │   ├── ISSUE_TEMPLATE/              # Bug report and feature request templates
-│   ├── FUNDING.yml                  # GitHub Sponsors
 │   └── dependabot.yml               # Daily npm + github-actions updates, docker for images/sandbox-dev, images/node
 ├── .husky/commit-msg                # Runs commitlint
 ├── CONTRIBUTING.md, SECURITY.md, CODE_OF_CONDUCT.md
@@ -98,6 +96,7 @@ chamvi/
 | `@chamvi/coding` | Exists (0.1.0) | `codingTools()` (read_file, write_file, edit_file, multi_edit, grep, glob, list_files, bash with kept cwd and exports and output logs, background jobs with bash_output and bash_kill, git_diff), optional path-scoped instructions on ordinary UTF-8 workspace `read_file` results (its own default-on `repositoryInstructions` flag, independent of the manager), the `ICodingBackend` contract; depends on `smob`, peer on core, sandbox and `ai` |
 | `@chamvi/skills` | Exists (0.5.0) | Skill domain types, catalogs, custom adapters and per-engine runtime; `gitSkills()`/`loadSkillBundle()` carry the runtime automatically; bundle hashing/loading and `prepareSkills()` for setup/build; core peer, no runtime or peer app edge and no module registration (a devDependency on `@chamvi/app` for its integration tests, acyclic), Node >=26.0.0 plus Git for source preparation |
 | `@chamvi/tool-files` | Exists (unpublished) | `fileTools()`: `list_artifacts`, `process_files`; depends on `just-bash`, `smob`, peer on core and `ai` |
+| `@chamvi/tool-utils` | Exists (unpublished) | `utilityTools()`: `current_time`, date math, `calculate`, `run_info`; depends on `decimal.js`, `smob`, peer on core and `ai` |
 | `@chamvi/tool-web` | Exists (0.5.0) | `webTools()`: `web_fetch` (public pages through a hapic client, an address check per hop); depends on `hapic`, `mdream`, `smob`, peer on core and `ai` |
 | `@chamvi/tool-mail` | Exists (unpublished) | `mailTools()`: five read-only IMAP tools (EXAMINE, BODY.PEEK), `createMailClient()`; `/module`: `toolMailModule()`; depends on `imapflow`, `postal-mime`, `unpdf`, `fflate`, `smob`, peer on core and `ai` |
 | `@chamvi/tool-calendar` | Exists (unpublished) | `calendarTools()`: two read-only CalDAV tools (PROPFIND, REPORT, GET), `createCalendarClient()`; `/module`: `toolCalendarModule()`; depends on `tsdav`, `ical.js`, `smob`, peer on core and `ai` |

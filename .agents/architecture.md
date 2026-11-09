@@ -113,6 +113,7 @@ Read on demand (never imported by `CLAUDE.md`) before changing that area.
 | [sandbox-git.md](topics/sandbox-git.md) | Workspace git credentials, redaction, git tools |
 | [coding.md](topics/coding.md) | `@chamvi/coding` tools, repository instructions |
 | [file-tools.md](topics/file-tools.md) | `@chamvi/tool-files` |
+| [utility-tools.md](topics/utility-tools.md) | `@chamvi/tool-utils` |
 | [web-tools.md](topics/web-tools.md) | `@chamvi/tool-web` |
 | [mail-tools.md](topics/mail-tools.md) | `@chamvi/tool-mail` |
 | [calendar-tools.md](topics/calendar-tools.md) | `@chamvi/tool-calendar` |
