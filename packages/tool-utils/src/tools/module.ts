@@ -8,6 +8,7 @@
 import type { Tool, ToolSet } from 'ai';
 import { normalizeOptions } from '../options/module.ts';
 import type { UtilityToolName, UtilityToolsOptions, UtilityToolsOptionsNormalized } from '../options/types.ts';
+import { calculateTool } from './calculate.ts';
 import { currentTimeTool } from './current-time.ts';
 import { dateAddTool } from './date-add.ts';
 import { dateDiffTool } from './date-diff.ts';
@@ -25,6 +26,7 @@ const REGISTRY: Partial<Record<UtilityToolName, ToolBuilder>> = {
     date_diff: dateDiffTool,
     date_info: dateInfoTool,
     next_weekday: nextWeekdayTool,
+    calculate: calculateTool,
 };
 
 /**
