@@ -456,7 +456,7 @@ describe('githubModule configuration', () => {
         expect((await deliver(port, 'acme', 'default-secret', 'd-other')).status).toBe(401);
     });
 
-    it('a run from another App\'s channel uses its own App\'s installation, not the delivery\'s', async () => {
+    it('a run carrying another App\'s delivery uses its own App\'s installation', async () => {
         const fallbackFake = createFakeGithub({ appId: '1', clock });
         const acmeFake = createFakeGithub({ appId: '2', clock });
 
@@ -480,10 +480,9 @@ describe('githubModule configuration', () => {
                 },
                 { parts: [{ type: 'text', text: 'done' }] },
             ]),
-            channels: [github.on('issues.opened')],
             tools: (ctx) => injectGithubContext(ctx).readTools(),
         });
-        const { harness, port } = await serve([
+        const { harness } = await serve([
             githubModule({
                 env: {},
                 appId: '1',
@@ -507,7 +506,13 @@ describe('githubModule configuration', () => {
         ], [triager]);
         const engine = harness.container.resolve(AppToken.ENGINE);
 
-        expect((await deliver(port, 'github', 'fallback-secret', 'd-cross')).status).toBe(202);
+        // a subscription is refused at startup: only a dispatch can name the fallback's channel for this agent
+        await engine.dispatch({
+            agent: 'triager',
+            trigger: 'github',
+            channel: 'github',
+            payload: { installationId: 1, payload: { repository: { full_name: 'octo/demo' } } },
+        });
         await engine.idle();
 
         const exchanges = (requests: { path: string }[]) => requests.map((r) => r.path).filter((p) => p.endsWith('/access_tokens'));

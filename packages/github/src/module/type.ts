@@ -19,6 +19,7 @@ import type {
 } from '@chamvi/core';
 import { createGithubApp } from '../app/module.ts';
 import type { GithubAppOptions, IGithubApp } from '../app/types.ts';
+import { verifyGithubApp } from '../app/verify.ts';
 import { GITHUB_CONNECTION_TYPE } from './constants.ts';
 import { splitSecrets, variableOf, withoutValue } from './helpers.ts';
 import type { GithubEnvOption } from './types.ts';
@@ -32,7 +33,7 @@ function fieldOf(key: GithubEnvOption, field: Omit<ConnectionField, 'key' | 'env
 }
 
 /** The GitHub connection type: one App per module, its name the module's. */
-export function githubConnectionDefinition(): ConnectionTypeDefinition {
+export function githubConnectionDefinition(options: Pick<GithubAppOptions, 'fetch' | 'clock'> = {}): ConnectionTypeDefinition {
     return {
         type: GITHUB_CONNECTION_TYPE,
         label: 'GitHub',
@@ -70,8 +71,17 @@ export function githubConnectionDefinition(): ConnectionTypeDefinition {
                 label: 'API URL',
                 kind: 'string',
                 description: 'Default https://api.github.com.',
+                bindsSecrets: true,
             }),
         ],
+        // saved values only; a normalizer's message may quote the value
+        test: async (values, signal) => {
+            try {
+                await verifyGithubApp({ ...options, ...appOptionsOf(values) }, signal);
+            } catch (error) {
+                throw error instanceof InvalidAgentDefinitionError ? new InvalidAgentDefinitionError(withoutValue(error.message)) : error;
+            }
+        },
     };
 }
 
@@ -199,12 +209,12 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
         if (drop.length === 0) {
             logger.warn(`The GitHub connection "${name}" cannot be used (${withoutValue(refusal.message)}); it stays idle until it is repaired.`);
 
-            return { resolved: { ...current, state: 'incomplete' } };
+            return { resolved: { ...current, state: 'incomplete', reason: withoutValue(refusal.message) } };
         }
 
         logger.warn(`The GitHub connection "${name}" holds a stored value the App refuses (${withoutValue(refusal.message)}); it is ignored.`);
 
-        const next = withoutFields(definition, current, drop);
+        const next = { ...withoutFields(definition, current, drop), reason: withoutValue(refusal.message) };
 
         if (next.missing.length > 0) {
             logger.warn(`The GitHub connection "${name}" is incomplete; it stays idle until it is repaired.`);

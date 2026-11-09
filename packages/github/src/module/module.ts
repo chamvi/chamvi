@@ -71,15 +71,25 @@ function assertUnambiguous(list: readonly GithubInstance[], instance: GithubInst
     }
 }
 
-/** Refuses an agent on this instance's channel that the instance does not serve: its tools would act as another App. */
-function assertSubscriber(instance: GithubInstance, agent: Agent): void {
-    if (instance.agents === undefined || instance.agents.includes(agent.name)) {
+/**
+ * Refuses an agent on this instance's channel that the instance does not
+ * serve, as its tools would act as another App: outside a targeted module's
+ * `agents`, or on the fallback's channel while another module targets it.
+ */
+function assertSubscriber(list: readonly GithubInstance[], instance: GithubInstance, agent: Agent): void {
+    const subscribed = (agent.definition.channels ?? []).some((subscription) => subscription.channel === instance.channelName);
+
+    if (!subscribed) {
         return;
     }
 
-    const subscribed = (agent.definition.channels ?? []).some((subscription) => subscription.channel === instance.channelName);
+    if (instance.agents === undefined) {
+        const target = list.find((other) => other.agents?.includes(agent.name));
 
-    if (subscribed) {
+        if (target) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" subscribes to the channel "${instance.channelName}" of the GitHub module "${instance.name}", but the module "${target.name}" targets it.`);
+        }
+    } else if (!instance.agents.includes(agent.name)) {
         throw new InvalidAgentDefinitionError(`Agent "${agent.name}" subscribes to the channel "${instance.channelName}" of the GitHub module "${instance.name}", whose agents exclude it.`);
     }
 }
@@ -220,19 +230,22 @@ export class GithubModule implements IModule {
             // one provider for every instance, whichever is set up first
             container.registerMany(AppToken.CONNECTION_TYPES, {
                 useValue: {
-                    definition: githubConnectionDefinition(),
+                    definition: githubConnectionDefinition(this.appOptions),
                     creatable: () => false,
                     connections: () => instances.list.flatMap((entry) => (entry.connection ? [entry.connection] : [])),
                 },
             });
         }
 
+        // every instance again: a fallback set up first only learns now what this module targets
         for (const agent of context.agents) {
-            assertSubscriber(instance, agent);
+            for (const entry of instances.list) {
+                assertSubscriber(instances.list, entry, agent);
+            }
         }
 
         // a folder agent loaded later: refused as a load issue
-        container.registerMany(AppToken.AGENT_CHECKS, { useValue: (agent) => assertSubscriber(instance, agent) });
+        container.registerMany(AppToken.AGENT_CHECKS, { useValue: (agent) => assertSubscriber(instances.list, instance, agent) });
 
         const definition = githubConnectionDefinition();
         const editable = !this.isPinned() && container.resolve(AppToken.STORE).connections !== undefined;
