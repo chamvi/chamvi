@@ -100,6 +100,8 @@ A run can start with files ([attachments](/guide/channels#attachments)) and tool
 
 `defineSimpleAgent()` builds a **simple agent** (`kind: 'simple'`), one with `run(payload, ctx)` in place of `model` and `instructions`: the engine runs the function as a durable run, with no model call. It takes `name`, `description` (the text of its MCP run tool), `channels`, `concurrencyMaxRuns`, a plain `tools` set, `trust`, `hooks`, `toolPolicy`, `state` and `budget`; `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext` or a tools factory next to `run` are an `InvalidAgentDefinitionError`. Of the budget only `timeoutMs` and `maxSubtreeTokens` apply. `agent.kind` (`'model'` or `'simple'`) tells the two kinds apart and narrows `agent.definition`; the engine refuses an agent whose `kind` is neither or disagrees with its definition. A simple agent fans out runs that its function can wait on, see [Simple agents](/guide/dispatch#simple-agents).
 
+Declared tools preserve their SDK output types in `ctx.tools`. Inputs stay `unknown` because the engine validates raw values before schema transforms. Keep the concrete tool-set type when declaring or returning tools; annotating it only as `ToolSet` loses that information. Dynamic tool names keep `unknown` results. Inferred types do not validate returned values or result rewrites by hooks.
+
 ## Many agents per engine
 
 One engine runs any number of agents. They share the store, the engine's local concurrency limit and the channels. Optional agent and subscription ceilings also apply across replicas sharing the store; see [Concurrency](/guide/concurrency):

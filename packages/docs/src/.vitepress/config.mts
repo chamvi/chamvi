@@ -200,6 +200,7 @@ export default defineConfig({
                         { text: '@chamvi/skills', link: '/reference/skills' },
                         { text: '@chamvi/test-kit', link: '/reference/test-kit' },
                         { text: '@chamvi/tool-calendar', link: '/reference/tool-calendar' },
+                        { text: '@chamvi/tool-files', link: '/reference/tool-files' },
                         { text: '@chamvi/tool-mail', link: '/reference/tool-mail' },
                         { text: '@chamvi/tool-web', link: '/reference/tool-web' },
                         { text: '@chamvi/ui', link: '/reference/ui' },

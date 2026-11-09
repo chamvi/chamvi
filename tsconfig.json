@@ -32,6 +32,7 @@
             "@chamvi/test-kit": ["./packages/test-kit/src/index.ts"],
             "@chamvi/tool-calendar": ["./packages/tool-calendar/src/index.ts"],
             "@chamvi/tool-calendar/module": ["./packages/tool-calendar/src/module/index.ts"],
+            "@chamvi/tool-files": ["./packages/tool-files/src/index.ts"],
             "@chamvi/tool-mail": ["./packages/tool-mail/src/index.ts"],
             "@chamvi/tool-mail/module": ["./packages/tool-mail/src/module/index.ts"],
             "@chamvi/tool-web": ["./packages/tool-web/src/index.ts"],

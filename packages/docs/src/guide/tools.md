@@ -79,6 +79,18 @@ Every tool built with `defineTool()` gets `context.run.signal` (a factory gets i
 
 A recovered run repeats the step that was in progress when the process died. A plain tool that posts a comment would post it again. Use [`defineEffectTool()`](/guide/effect-tools) for every tool that changes something outside the run.
 
+## File processing tools
+
+[`@chamvi/tool-files`](/reference/tool-files) adds `list_artifacts` and `process_files` for JSON, CSV and text transformations without a coding workspace. A model first lists current-run artifact IDs, maps selected inputs to relative paths, then selects output paths and media types to publish files. Follow `nextOffset` as `offset` for more metadata pages.
+
+<<< @/snippets/tool-files.ts#agent
+
+Every call starts with fresh files, environment and cwd `/workspace`. To use an earlier output, pass its returned artifact ID explicitly as a later input. Both tools taint the run. Output metadata uses native `Artifact` objects; read selected results through `ctx.artifacts.get(id)` or pass their IDs to existing artifact-aware tools. Processing sends no channel messages itself.
+
+Defaults are 5 MiB separately for imported/exported bytes, 16 inputs and outputs each, and 30 seconds of interpreter execution. A nonzero exit returns diagnostics and no output artifacts; invalid inputs/outputs raise `ValidationError`. Cancellation prevents further writes once observed but cannot undo successful writes. Same-call replay retains output artifact IDs; separate calls keep separate artifacts even for the same filename. Computation can repeat on simple-agent approval replay.
+
+Supported commands include `jq`, `xan`, `awk`, `sed`, `rg` and text/file utilities, with bounded source, output, scratch space and hardened execution budgets. Networking, custom commands, Python, JavaScript, SQL, archive commands and real executables are unavailable. This runs on a worker thread with no VM isolation; use [Docker/Kubernetes coding workspaces](/guide/workspaces) for Git, dependencies, builds, tests and servers. See the [reference](/reference/tool-files#commands-and-limits) for the fixed command set and limits.
+
 ## Web research tools
 
 [`@chamvi/tool-web`](/reference/tool-web) gives an agent `web_fetch`: any public page as markdown (or text, or the raw body), a registry document such as `https://registry.npmjs.org/<name>` as JSON. It runs in the chamvi process through a [hapic](https://github.com/tada5hi/hapic) client that takes the proxy from `HTTP_PROXY`/`HTTPS_PROXY`, and reaches public addresses only: every URL and redirect target is resolved and refused when it points at a loopback, private, link-local or metadata address (`allowUrl` can open an internal host). Release notes between two versions of a GitHub project come from `@chamvi/github`'s `github_list_releases` and `github_compare`.
