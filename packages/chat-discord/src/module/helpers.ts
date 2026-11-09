@@ -43,9 +43,9 @@ export function presetOf(
     options: Pick<DiscordModuleOptions, 'token' | 'applicationId' | 'policy'>,
 ): Record<string, { value: ConnectionValue; source: ConnectionFieldSource }> {
     const {
-        token, 
-        applicationId, 
-        policy, 
+        token,
+        applicationId,
+        policy,
     } = options;
     const entries: [string, ConnectionValue | undefined][] = [
         ['token', token],

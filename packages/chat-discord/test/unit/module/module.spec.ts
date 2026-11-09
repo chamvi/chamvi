@@ -13,6 +13,7 @@ import {
     it,
 } from 'vitest';
 import {
+    ConnectionNotConfiguredError,
     InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
@@ -237,7 +238,8 @@ describe('discordModule', () => {
 
         expect(channel).toBeDefined();
         expect(channel?.start).toBeUndefined();
-        expect(channel?.out).toBeUndefined();
+        await expect(channel?.out?.({} as never, 'address', {} as never))
+            .rejects.toBeInstanceOf(ConnectionNotConfiguredError);
         expect(w.connection().resolved.state).toBe('not_configured');
         expect(w.connection().editable).toBe(true);
         expect(w.lines.join('\n')).toContain('is not configured');
@@ -395,6 +397,15 @@ describe('discordModule', () => {
         expect(() => world({ patch: { name: 'Not Valid' } })).toThrow(/discordModule: name/);
     });
 
+    it.each(['dm', 'x-dm', 'support-bot-dm'])('refuses the name %s, whose USERS variable is a DM allowlist', (name) => {
+        expect(() => world({ patch: { name } })).toThrow(InvalidAgentDefinitionError);
+        expect(() => world({ patch: { name } })).toThrow(/discordModule: name/);
+    });
+
+    it.each(['dms', 'dm-bot', 'adm'])('accepts the name %s', (name) => {
+        expect(() => world({ moduleEnv: {}, patch: { name } })).not.toThrow();
+    });
+
     it('a stored value the channel refuses leaves it idle and repairable', async () => {
         const store = await storedWorld('discord', {
             settings: { applicationId: APP_ID, guilds: [SENTINEL_TOKEN] },
@@ -429,6 +440,13 @@ describe('discordModule', () => {
         const env = world({ patch: { approvalUrl: undefined } });
 
         await expect(env.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
+    });
+
+    it('an env deployment with an old row still fails without CHAMVI_PUBLIC_URL', async () => {
+        const store = await storedWorld('discord', { settings: { applicationId: 'old-row' } });
+        const w = world({ store, patch: { approvalUrl: undefined } });
+
+        await expect(w.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
     });
 
     it('a store without connections is env-only and read-only', async () => {

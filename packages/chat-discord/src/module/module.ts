@@ -6,6 +6,7 @@
  */
 
 import {
+    ConnectionNotConfiguredError,
     InvalidAgentDefinitionError,
     assertConnectionName,
     resolveConnection,
@@ -59,10 +60,10 @@ function invalid(message: string): InvalidAgentDefinitionError {
  * connection store. `setup` resolves the connection and contributes its
  * channel, named after the module; agents subscribe before that with
  * `module.on()`. A not configured module contributes an idle channel, so
- * subscribed agents can start: it never logs in and has no outbound. A stored
- * value the channel refuses leaves it idle too (`incomplete`), for the
- * dashboard to repair. Only the engine's start logs in, so a check connects
- * to nothing. Migrate mode does nothing.
+ * subscribed agents can start: it never logs in and its `out` throws
+ * ConnectionNotConfiguredError. A stored value the channel refuses leaves it
+ * idle too (`incomplete`), for the dashboard to repair. Only the engine's
+ * start logs in, so a check connects to nothing. Migrate mode does nothing.
  */
 export class DiscordModule implements IModule {
     readonly name: string;
@@ -89,6 +90,11 @@ export class DiscordModule implements IModule {
             assertConnectionName(name);
         } catch (error) {
             throw invalid(`name: ${(error as Error).message}`);
+        }
+
+        // `<x>-dm` + USERS is the variable of `<x>` + DM_USERS (`dm`: the default instance's)
+        if (name === 'dm' || name.endsWith('-dm')) {
+            throw invalid('name must not be `dm` or end in `-dm`: its USERS variable would be another instance\'s DM allowlist.');
         }
 
         if (options.env !== undefined && !isObject(options.env)) {
@@ -167,7 +173,10 @@ export class DiscordModule implements IModule {
             try {
                 this.chat = this.build(container, resolved, logger);
             } catch (error) {
-                if (!row || !(error instanceof InvalidAgentDefinitionError)) {
+                const fromStore = Object.values(resolved.sources).some((source) => source.kind === 'store');
+
+                // only a stored value can be repaired in the dashboard
+                if (!fromStore || !(error instanceof InvalidAgentDefinitionError)) {
                     throw error;
                 }
 
@@ -181,7 +190,10 @@ export class DiscordModule implements IModule {
 
         this.declare(container, declaredConnection(this.connection, resolved, editable, row));
 
-        const channel: IChannel = this.chat?.channel ?? { name: this.connection };
+        const channel: IChannel = this.chat?.channel ?? {
+            name: this.connection,
+            out: () => Promise.reject(new ConnectionNotConfiguredError(this.connection)),
+        };
 
         container.registerMany(AppToken.CHANNELS, { useValue: channel });
     }
@@ -189,9 +201,9 @@ export class DiscordModule implements IModule {
     /** Every field comes from code: nothing is left for env or the store to set. */
     protected isPinned(): boolean {
         const {
-            token, 
-            applicationId, 
-            policy, 
+            token,
+            applicationId,
+            policy,
         } = this.options;
 
         return token !== undefined && applicationId !== undefined && policy !== undefined;
