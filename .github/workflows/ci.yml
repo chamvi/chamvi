@@ -61,7 +61,7 @@ jobs:
               if: steps.browser-cache.outputs.cache-hit == 'true'
               run: npx playwright install-deps chromium
             - name: Smoke test
-              run: npm run test:e2e -w @chamvi/ui -w @chamvi/tool-mail-ui
+              run: npm run test:e2e -w @chamvi/ui -w @chamvi/tool-mail-ui -w @chamvi/chat-whatsapp-ui
               env:
                   CI: true
             - name: Upload the report

@@ -24,3 +24,5 @@ packages/ui/test-results/
 packages/ui/playwright-report/
 packages/tool-mail-ui/test-results/
 packages/tool-mail-ui/playwright-report/
+packages/chat-whatsapp-ui/test-results/
+packages/chat-whatsapp-ui/playwright-report/

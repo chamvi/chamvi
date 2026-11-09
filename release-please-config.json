@@ -34,7 +34,10 @@
         "packages/ui": {"component": "ui"},
         "packages/ui-kit": {"component": "ui-kit"},
         "packages/tool-mail-ui": {"component": "tool-mail-ui"},
-        "packages/tool-calendar-ui": {"component": "tool-calendar-ui"}
+        "packages/tool-calendar-ui": {"component": "tool-calendar-ui"},
+        "packages/github-ui": {"component": "github-ui"},
+        "packages/chat-discord-ui": {"component": "chat-discord-ui"},
+        "packages/chat-whatsapp-ui": {"component": "chat-whatsapp-ui"}
     },
     "plugins": [
         {
@@ -70,7 +73,10 @@
                 "ui",
                 "ui-kit",
                 "tool-mail-ui",
-                "tool-calendar-ui"
+                "tool-calendar-ui",
+                "github-ui",
+                "chat-discord-ui",
+                "chat-whatsapp-ui"
             ]
         },
         {

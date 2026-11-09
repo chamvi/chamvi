@@ -8,7 +8,6 @@
 
 import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import QrWidget from '../connections/QrWidget.vue';
 import {
     ConnectionPanel,
     NavIcon,
@@ -38,18 +37,5 @@ const write = computed(() => canWriteConnection(session.principal.value?.permiss
         :api="api"
         :name="name"
         :write="write"
-    >
-        <template #widgets="{ widgets }">
-            <section
-                v-for="(widget, index) in widgets"
-                :key="`${widget.kind}:${index}`"
-                class="card connection-widget"
-            >
-                <QrWidget
-                    v-if="widget.kind === 'qr'"
-                    :value="widget.value"
-                />
-            </section>
-        </template>
-    </ConnectionPanel>
+    />
 </template>

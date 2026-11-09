@@ -43,7 +43,10 @@
             "@chamvi/ui-kit": ["./packages/ui-kit/src/index.ts"],
             "@chamvi/ui-kit/vite": ["./packages/ui-kit/src/vite/index.ts"],
             "@chamvi/tool-mail-ui/module": ["./packages/tool-mail-ui/src/module/index.ts"],
-            "@chamvi/tool-calendar-ui/module": ["./packages/tool-calendar-ui/src/module/index.ts"]
+            "@chamvi/tool-calendar-ui/module": ["./packages/tool-calendar-ui/src/module/index.ts"],
+            "@chamvi/github-ui/module": ["./packages/github-ui/src/module/index.ts"],
+            "@chamvi/chat-discord-ui/module": ["./packages/chat-discord-ui/src/module/index.ts"],
+            "@chamvi/chat-whatsapp-ui/module": ["./packages/chat-whatsapp-ui/src/module/index.ts"]
         }
     }
 }

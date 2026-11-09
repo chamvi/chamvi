@@ -319,7 +319,7 @@ test('choose an option on an approval card', async ({ page, request }) => {
     expect(errors).toEqual([]);
 });
 
-test('a connection pairs live: QR while pairing, gone once connected, reset pairs again', async ({ page, request }) => {
+test('a connection shows its status live and resets, a qr widget is the provider page\'s', async ({ page, request }) => {
     const errors = watchErrors(page);
 
     // a known start whatever ran before (a retry included): pairing with a QR
@@ -338,16 +338,15 @@ test('a connection pairs live: QR while pairing, gone once connected, reset pair
 
     const qr = page.getByTestId('connection-qr');
 
-    await expect(qr).toBeVisible();
-    await expect(qr).toHaveAttribute('src', /^data:image\/svg\+xml,/);
+    await expect(page.getByTestId('connection-status')).toHaveText('pairing');
+    await expect(qr).toHaveCount(0);
     // the pairing string itself is never on the page as text
     await expect(page.getByText('demo-pairing-material')).toHaveCount(0);
 
     expect((await request.post(`${E2E_ORIGIN}/demo/connect`, { headers: AUTH })).status()).toBe(204);
     await expect(page.getByTestId('connection-status')).toHaveText('connected');
-    await expect(qr).toHaveCount(0);
 
-    // reset asks in the page, then a new QR arrives over the stream
+    // reset asks in the page, then the status changes over the stream
     page.on('dialog', (dialog) => {
         errors.push(`browser dialog: ${dialog.message()}`);
         void dialog.dismiss();
@@ -360,7 +359,7 @@ test('a connection pairs live: QR while pairing, gone once connected, reset pair
     await page.getByTestId('connection-reset').click();
     await page.getByTestId('connection-reset-yes').click();
     await expect(page.getByTestId('connection-status')).toHaveText('pairing');
-    await expect(qr).toBeVisible();
+    await expect(qr).toHaveCount(0);
     await expect(page.getByTestId('connection-reset-confirm')).toHaveCount(0);
     expect(errors).toEqual([]);
 });

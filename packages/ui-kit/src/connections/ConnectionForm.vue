@@ -70,7 +70,7 @@ const heading = computed(() => {
         return `Add ${label} account`;
     }
 
-    return definition.value?.multiple ? `${label} account: ${accountId.value}` : `${label}: ${accountId.value}`;
+    return definition.value?.multiple ? `${label} account: ${accountId.value}` : `${label}: ${props.name}`;
 });
 
 // the button that had the focus leaves the DOM: the focus follows into the confirmation and back

@@ -10,7 +10,6 @@ import { describe, expect, it } from 'vitest';
 import { STATUS_BADGES } from '../../../src/connections/constants.ts';
 import {
     canWriteConnection,
-    qrDataUrl,
     statusBadge,
 } from '../../../src/connections/helpers.ts';
 
@@ -51,25 +50,8 @@ describe('statusBadge', () => {
     });
 });
 
-describe('qrDataUrl', () => {
-    it('renders the value to an SVG data URL, offline', () => {
-        const url = qrDataUrl('2@pairing-material,abc,def');
-
-        expect(url.startsWith('data:image/svg+xml,')).toBe(true);
-
-        const svg = decodeURIComponent(url.slice('data:image/svg+xml,'.length));
-
-        expect(svg).toMatch(/^<svg[\s>]/);
-        expect(svg).not.toContain('pairing-material');
-    });
-
-    it('differs per value', () => {
-        expect(qrDataUrl('a')).not.toBe(qrDataUrl('b'));
-    });
-});
-
 describe('permissions', () => {
-    it('the QR, the live stream and reset need the write grant', () => {
+    it('widgets, the live stream and reset need the write grant', () => {
         expect(canWriteConnection(['connection:whatsapp:write'], 'whatsapp')).toBe(true);
         expect(canWriteConnection(['connection:*:write'], 'whatsapp')).toBe(true);
         expect(canWriteConnection(['*'], 'whatsapp')).toBe(true);

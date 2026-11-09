@@ -57,7 +57,6 @@ describe('public api', () => {
             'pageQuery',
             'parseEventStream',
             'path',
-            'qrDataUrl',
             'readConfig',
             'retryDelayOf',
             'runListQuery',
