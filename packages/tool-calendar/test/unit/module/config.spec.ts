@@ -494,11 +494,67 @@ describe('toolCalendarModule() configuration', () => {
         const harness = await harnessOf({
             store,
             check: true,
-            options: { env: { ...envOf(), CHAMVI_CALENDAR_WORK_PASSWORD: '' } },
+            options: { env: envOf() },
         });
 
         expect(logLines.some((line) => line.includes('behind'))).toBe(true);
-        expect(providerOf(harness).connections()).toEqual([]);
+        expect(providerOf(harness).connections().map((entry) => entry.name)).toEqual(['calendar-work']);
+    });
+
+    it('a check on a behind store still fails a declared account with no password in env', async () => {
+        const store = createMemoryStore();
+
+        store.connections!.find = async () => {
+            throw behindSchemaError();
+        };
+
+        await expect(harnessOf({
+            store,
+            check: true,
+            options: { env: { ...envOf(), CHAMVI_CALENDAR_WORK_PASSWORD: '' } },
+        })).rejects.toThrow(/CHAMVI_CALENDAR_WORK_PASSWORD/);
+    });
+
+    it('an unreadable stored account fails the start naming the connection', async () => {
+        const store = createMemoryStore();
+
+        await seed(store, 'home');
+
+        await expect(harnessOf({
+            store,
+            keyring: createKeyring([{ id: 'k1', key: randomBytes(32) }]),
+            options: { env: {} },
+        })).rejects.toThrow(/calendar-home/);
+    });
+
+    it('an invalid stored value on a declared account is dropped and the account listed incomplete', async () => {
+        const store = createMemoryStore();
+
+        await configsOf(store).create('calendar-work', CALENDAR_CONNECTION_TYPE, {
+            settings: { user: '' },
+            secrets: { set: { password: STORED_PASSWORD } },
+        });
+
+        const harness = await harnessOf({
+            store,
+            options: {
+                env: {
+                    [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{
+                        id: 'work', 
+                        url: FAKE_CALDAV_URL, 
+                        address: 'work@icloud.com', 
+                    }]), 
+                }, 
+            },
+        });
+        const work = connectionOf(harness, 'calendar-work');
+
+        expect(work.resolved.state).toBe('incomplete');
+        expect(work.resolved.sources.user).toEqual({ kind: 'unset' });
+        expect(work.resolved.sources.password).toEqual({ kind: 'store' });
+        expect(work.deletable).toBe(false);
+        expect(logLines.some((line) => line.includes('user'))).toBe(true);
+        expect(logLines.join('\n')).not.toContain(STORED_PASSWORD);
     });
 
     it('a check still fails on a read error that is not a behind schema', async () => {

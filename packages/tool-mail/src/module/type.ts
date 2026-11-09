@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { envSecret, isSchemaBehindError } from '@chamvi/app';
-import type { Env, ILogger } from '@chamvi/app';
+import { envSecret } from '@chamvi/app';
+import type { Env, ILogger, StoredConnection } from '@chamvi/app';
 import {
     InvalidAgentDefinitionError,
     resolveConnection,
@@ -19,8 +19,6 @@ import type {
     ConnectionValue,
     ConnectionValues,
     DeclaredConnection,
-    IConnectionConfigStore,
-    IConnectionRepository,
     ResolvedConnection,
 } from '@chamvi/core';
 import type { MailAccount } from '../client/types.ts';
@@ -35,20 +33,17 @@ import type { MailEnvAccount } from './types.ts';
 
 type Preset = NonNullable<Parameters<typeof resolveConnection>[0]['preset']>;
 
-type StoredAccount = { values: ConnectionValues; revision: number };
-
 type LoadInput = {
     definition: ConnectionTypeDefinition;
     /** The accounts of the `accounts` option (`pinned`) or of `CHAMVI_MAIL_ACCOUNTS`. */
     declared: readonly MailEnvAccount[];
     pinned: boolean;
-    /** A check tolerates a store behind its migrations. */
-    check: boolean;
     env: Env;
     logger: ILogger;
-    /** Absent when the store is not read: pinned accounts, a store without connections. */
-    connections?: IConnectionRepository;
-    configs?: IConnectionConfigStore;
+    /** The stored rows of the type; none for pinned accounts. */
+    rows: readonly StoredConnection[];
+    /** Whether the store can take a save: no for pinned accounts or a store without connections. */
+    editable: boolean;
 };
 
 function accountIdOf(name: string): string | undefined {
@@ -143,43 +138,18 @@ function toAccount(id: string, resolved: ResolvedConnection, declared?: MailEnvA
     };
 }
 
-/** The stored accounts by id; undefined for a check on a store behind its migrations. */
-async function readStoredAccounts(input: LoadInput): Promise<Map<string, StoredAccount> | undefined> {
-    const { connections, configs } = input;
-    const stored = new Map<string, StoredAccount>();
-
-    if (!connections || !configs) {
-        return stored;
-    }
-
-    try {
-        for (const row of await connections.find()) {
-            const id = accountIdOf(row.name);
-            const config = id !== undefined && row.type === MAIL_CONNECTION_TYPE ? await configs.read(row.name) : undefined;
-
-            if (id !== undefined && config) {
-                stored.set(id, config);
-            }
-        }
-    } catch (error) {
-        if (!input.check || !isSchemaBehindError(error)) {
-            throw error;
-        }
-
-        input.logger.warn('The connection store is behind its migrations: the check sees the mail accounts of the environment only.');
-
-        return undefined;
-    }
-
-    return stored;
+/** Only the stored secrets: what stays of a row whose settings the client refuses. */
+function storedSecretsOf(definition: ConnectionTypeDefinition, values: ConnectionValues): ConnectionValues {
+    return Object.fromEntries(Object.entries(values).filter(([key]) => definition.fields.some((field) => field.key === key && field.kind === 'secret')));
 }
 
 /**
  * The accounts the client reads and the connections the dashboard lists:
  * the declared ones (env winning per field over a stored row of the same
  * id), then the stored ones. A stored account that is incomplete or invalid
- * is listed for repair and not used; a declared one that does not hold fails
- * the start (InvalidAgentDefinitionError, never echoing a value).
+ * is listed for repair and not used; a declared one drops a stored setting
+ * the client refuses, is listed incomplete and stays in use, and fails the
+ * start only for what env and store both lack (never echoing a value).
  */
 export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: MailAccount[]; connections: DeclaredConnection[] }> {
     const {
@@ -188,46 +158,60 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
         pinned,
         env,
         logger,
-        configs,
+        rows,
+        editable,
     } = input;
-    const read = await readStoredAccounts(input);
-    const stored = read ?? new Map<string, StoredAccount>();
+    const stored = new Map(rows.flatMap((row) => {
+        const id = accountIdOf(row.name);
+
+        return id === undefined ? [] : [[id, row] as const];
+    }));
     const accounts: MailAccount[] = [];
     const connections: DeclaredConnection[] = [];
     const readVariable = (variable: string) => envSecret(env, variable);
-    const list = (id: string, resolved: ResolvedConnection, deletable: boolean, row: StoredAccount | undefined) => {
+    const list = (id: string, resolved: ResolvedConnection, deletable: boolean, row: StoredConnection | undefined) => {
         const name = storedConnectionName(MAIL_CONNECTION_TYPE, id);
 
         if (name.length <= MAIL_CONNECTION_NAME_MAX_LENGTH) {
             connections.push({
                 name,
                 account: id,
-                editable: !pinned && configs !== undefined,
+                editable,
                 deletable,
                 resolved,
-                ...(row && { loadedRevision: row.revision }),
+                ...(row && { loadedRevision: row.revision, loadedCreatedAt: row.createdAt }),
             });
         }
     };
 
     for (const account of declared) {
-        // only an unread store may hold what the environment lacks
-        if (!read && account.password === undefined) {
-            continue;
-        }
-
         const row = stored.get(account.id);
         const source: ConnectionFieldSource = pinned ? { kind: 'code' } : { kind: 'env', variable: MAIL_ACCOUNTS_VARIABLE };
-        const resolved = resolveConnection({
+        const resolve = (values: ConnectionValues | undefined) => resolveConnection({
             definition,
             name: storedConnectionName(MAIL_CONNECTION_TYPE, account.id),
             readVariable,
             preset: presetOf(account, source, pinned),
-            ...(row && { stored: row.values }),
+            ...(values && { stored: values }),
         });
-        const merged = pinned ? account as MailAccount : toAccount(account.id, resolved, account);
+        const label = `Mail account "${account.id}"`;
+        let resolved = resolve(row?.values);
+        let merged = pinned ? account as MailAccount : toAccount(account.id, resolved, account);
 
-        normalizeAccount(merged, `Mail account "${account.id}"`);
+        try {
+            normalizeAccount(merged, label);
+        } catch (error) {
+            if (!row || !(error instanceof InvalidAgentDefinitionError)) {
+                throw error;
+            }
+
+            // a stored setting the client refuses must not stop the app whose dashboard repairs it
+            logger.warn(`${error.message} The stored settings are dropped.`);
+            resolved = { ...resolve(storedSecretsOf(definition, row.values)), state: 'incomplete' };
+            merged = toAccount(account.id, resolved, account);
+            normalizeAccount(merged, label);
+        }
+
         accounts.push(merged);
         list(account.id, resolved, false, row);
     }

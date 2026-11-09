@@ -200,6 +200,10 @@ async function buildSettingsView(ctx: HttpContext, target: ConfigTarget): Promis
         name,
     } = target;
     const stored = await ctx.connectionConfigs?.describe(name);
+    const loadedCreatedAt = declared?.loadedCreatedAt;
+    // a delete and create again restarts the revision count: only the row's age tells them apart
+    const row = loadedCreatedAt ? await ctx.store.connections?.findOne(name) : undefined;
+    const recreated = row !== undefined && row.createdAt.getTime() !== loadedCreatedAt?.getTime();
     const fields: ConnectionSettingsFieldView[] = [];
     const settings: [string, unknown][] = [];
 
@@ -232,7 +236,7 @@ async function buildSettingsView(ctx: HttpContext, target: ConfigTarget): Promis
         settings: Object.fromEntries(settings),
         fields,
         // a pinned connection never loads the store: a leftover row is no pending change
-        restartRequired: declared?.editable !== false && stored?.revision !== declared?.loadedRevision,
+        restartRequired: declared?.editable !== false && (stored?.revision !== declared?.loadedRevision || recreated),
         editable: isEditable(ctx, target),
         deletable: isDeletable(ctx, target),
     };

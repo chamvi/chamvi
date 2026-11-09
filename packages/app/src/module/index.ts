@@ -14,7 +14,11 @@ export {
     AppToken,
     ModuleName,
 } from './constants.ts';
-export { isSchemaBehindError, runHooks, throwIfStopped } from './helpers.ts';
+export {
+    readStoredConnections,
+    runHooks,
+    throwIfStopped,
+} from './helpers.ts';
 export type * from './types.ts';
 
 /** The container and module contracts a module factory is written against (eldin, orkos). */

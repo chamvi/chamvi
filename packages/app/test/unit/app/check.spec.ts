@@ -21,10 +21,10 @@ import {
     AppToken,
     configModule,
     createApp,
-    isSchemaBehindError,
     storeModule,
 } from '@chamvi/app';
 import type { AppCheckResult, IApp, IModule } from '@chamvi/app';
+import { isSchemaBehindError } from '../../../src/module/helpers.ts';
 import {
     agentFile,
     provider,

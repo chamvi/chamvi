@@ -136,6 +136,7 @@ function world(options: WorldOptions = {}) {
         app,
         store,
         real,
+        clock,
         declared,
         errors,
     };
@@ -472,6 +473,47 @@ describe('connection configuration', () => {
             const after = await json(await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() }));
 
             expect(before.restartRequired).toBe(false);
+            expect(after.restartRequired).toBe(true);
+        });
+
+        it('restartRequired is true once the loaded account was deleted and created again', async () => {
+            const {
+                app, 
+                real, 
+                clock, 
+            } = world({
+                declared: (definition) => [declare(definition, 'mail-work', {}, {
+                    account: 'work',
+                    deletable: true,
+                    loadedRevision: 1,
+                    loadedCreatedAt: new Date(1_000_000),
+                })],
+            });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            const before = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
+            expect(before.restartRequired).toBe(false);
+
+            const deleted = await call(app, 'DELETE', '/connections/mail-work', { token: ADMIN_TOKEN });
+
+            expect(deleted.status).toBe(200);
+            clock.advance(5_000);
+
+            const created = await call(app, 'POST', '/connection-types/mail/connections', {
+                token: ADMIN_TOKEN,
+                body: {
+                    account: 'work',
+                    settings: { host: 'h' },
+                    secrets: { password: PASSWORD },
+                },
+            });
+
+            expect(created.status).toBe(201);
+
+            const after = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
             expect(after.restartRequired).toBe(true);
         });
 

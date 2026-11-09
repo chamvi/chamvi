@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { AppToken, ModuleName } from '@chamvi/app';
+import { AppToken, ModuleName, readStoredConnections } from '@chamvi/app';
 import type { Env, IContainer, IModule } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
@@ -84,24 +84,22 @@ export class ToolCalendarModule implements IModule {
             return;
         }
 
-        const connections = this.pinned ? undefined : container.resolve(AppToken.STORE).connections;
-        // the token throws on a store without connections
-        const configs = connections && container.resolve(AppToken.CONNECTION_CONFIGS);
+        const editable = !this.pinned && container.resolve(AppToken.STORE).connections !== undefined;
         const definition = calendarConnectionDefinition();
         const loaded = await loadCalendarAccounts({
             definition,
             declared: this.accounts ?? [],
             pinned: this.pinned,
-            check: context.check === true,
             env: this.env,
             logger: container.resolve(AppToken.LOGGER),
-            ...(connections && configs && { connections, configs }),
+            rows: this.pinned ? [] : await readStoredConnections(container, CALENDAR_CONNECTION_TYPE),
+            editable,
         });
 
         container.registerMany(AppToken.CONNECTION_TYPES, {
             useValue: {
                 definition,
-                creatable: () => configs !== undefined,
+                creatable: () => editable,
                 connections: () => loaded.connections,
             },
         });

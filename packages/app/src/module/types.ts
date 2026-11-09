@@ -7,6 +7,7 @@
 
 import type {
     Agent,
+    ConnectionValues,
     IChannel,
     IClock,
     IConnectionConfigStore,
@@ -93,6 +94,17 @@ export type GitCredentialSource = {
         password: string;
         expiresAt?: Date
     } | undefined>;
+};
+
+/** A stored connection as `readStoredConnections()` returns it. */
+export type StoredConnection = {
+    name: string;
+    /** The settings and decrypted secrets. */
+    values: ConnectionValues;
+    /** The config revision read; the connection's `loadedRevision`. */
+    revision: number;
+    /** The row's creation time; the connection's `loadedCreatedAt`. */
+    createdAt: Date;
 };
 
 export interface ILifecycleHook {

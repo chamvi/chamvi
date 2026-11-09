@@ -548,16 +548,66 @@ describe('toolMailModule() configuration', () => {
         const harness = await harnessOf({
             store,
             check: true,
-            options: {
-                env: {
-                    ...envOf(envAccount(server.port)),
-                    CHAMVI_MAIL_WORK_PASSWORD: '',
-                },
-            },
+            options: { env: envOf(envAccount(server.port)) },
         });
 
         expect(logLines.some((line) => line.includes('behind'))).toBe(true);
-        expect(providerOf(harness).connections()).toEqual([]);
+        expect(providerOf(harness).connections().map((entry) => entry.name)).toEqual(['mail-work']);
+    });
+
+    it('a check on a behind store still fails a declared account with no password in env', async () => {
+        const store = createMemoryStore();
+
+        store.connections!.find = async () => {
+            throw behindSchemaError();
+        };
+
+        await expect(harnessOf({
+            store,
+            check: true,
+            options: { env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(1)]) } },
+        })).rejects.toThrow(/CHAMVI_MAIL_WORK_PASSWORD/);
+    });
+
+    it('an unreadable stored account fails the start naming the connection', async () => {
+        const store = createMemoryStore();
+
+        await seed(store, 'home', 1);
+
+        await expect(harnessOf({
+            store,
+            keyring: createKeyring([{ id: 'k1', key: randomBytes(32) }]),
+            options: { env: {} },
+        })).rejects.toThrow(/mail-home/);
+    });
+
+    it('an invalid stored value on a declared account is dropped and the account listed incomplete', async () => {
+        const store = createMemoryStore();
+
+        await configsOf(store).create('mail-work', MAIL_CONNECTION_TYPE, {
+            settings: { port: 70_000, user: 'stored-user' },
+            secrets: { set: { password: STORED_PASSWORD } },
+        });
+
+        const withoutPort: Record<string, unknown> = envAccount(1);
+
+        delete withoutPort.port;
+
+        const harness = await harnessOf({
+            store,
+            options: { env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([withoutPort]) } },
+        });
+        const work = connectionOf(harness, 'mail-work');
+
+        expect(work.resolved.state).toBe('incomplete');
+        expect(work.resolved.values.port).toBeUndefined();
+        expect(work.resolved.sources.port).toEqual({ kind: 'unset' });
+        // a stored secret is no refused value: the dashboard's password stays
+        expect(work.resolved.sources.password).toEqual({ kind: 'store' });
+        expect(work.deletable).toBe(false);
+        expect(logLines.some((line) => line.includes('work') && line.includes('port'))).toBe(true);
+        expect(logLines.join('\n')).not.toContain('70000');
+        expect(logLines.join('\n')).not.toContain(STORED_PASSWORD);
     });
 
     it('a check still fails on a read error that is not a behind schema', async () => {
