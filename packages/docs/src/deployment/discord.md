@@ -118,6 +118,19 @@ A send is one `POST /channels/<channel or thread>/messages` with the body `{ con
 
 `chatModule()` contributes the channel to `AppToken.CHANNELS`; the engine starts and stops it. It adds no env variable and constructs nothing, so `chamvi start --check` reads no token and opens no Gateway connection.
 
+`discordModule()` (`@chamvi/chat-discord/module`) configures the bot from env or the dashboard instead of code:
+
+<<< @/snippets/chat.ts#discord-app-module
+
+| Variable | Field | |
+|---|---|---|
+| `CHAMVI_DISCORD_TOKEN` (`_FILE`) | Bot token | Required, a secret |
+| `CHAMVI_DISCORD_APPLICATION_ID` | Application id | Required |
+| `CHAMVI_DISCORD_GUILDS`, `_CHANNELS`, `_USERS`, `_ROLES`, `_DM_USERS` | The policy | Comma-separated Discord ids; empty `_DM_USERS` turns direct messages off |
+| `CHAMVI_DISCORD_REQUIRE_MENTION` | Require mention | `true`, `false`, `1`, `0`; default `true` |
+
+A module with `name` (the connection, channel, account and env prefix; default `discord`) reads `CHAMVI_DISCORD_<NAME>_*` (upper-cased, `-` as `_`). The names `dm` and `*-dm` are refused, since `<NAME>_USERS` would be another instance's `DM_USERS`. Code options win over env and the store, and a given `policy` fixes all its fields. A partial env fails the start naming the missing variable; nothing set starts an idle channel, which [`chatDiscordUiModule()`](/guide/ui#connection-pages) can configure. Saved values apply after a restart.
+
 ## What is not guaranteed
 
 - **No lossless or offline ingestion.** A message that arrives while the connector is down, or that the process loses before it is stored as runs, is not fetched later. Channel history is not read.

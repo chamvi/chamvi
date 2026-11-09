@@ -79,7 +79,7 @@ Read by `readConfig(env, { mode, dev })` once per lifecycle; the optional module
 | `CHAMVI_CONFIG_FILE` | engine | path of a JSON file, relative to the working directory | unset: `./chamvi.json` when it exists | never |
 | `CHAMVI_PROVIDER_<NAME>_TYPE`, `_API_KEY`, `_BASE_URL`, `_HEADER_<HEADER>` | engine | type, secret, absolute http(s) URL, secret | unset; each field wins over the config file and code for provider `<name>` (upper snake case: `TEAM_A` is `team-a`) | `_TYPE` when no other source declares `<name>`; `_API_KEY` for every type but `openai-compatible` ([providers](/guide/models#providers)) |
 | `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GOOGLE_GENERATIVE_AI_API_KEY`, `MISTRAL_API_KEY`, `XAI_API_KEY` | engine | string | unset | a model string names that implicit provider and nothing declares it; `ANTHROPIC_BASE_URL`, `OPENAI_BASE_URL` set its base URL ([implicit providers](/guide/models#implicit-providers)) |
-| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (PEM, literal `\n` allowed), `GITHUB_WEBHOOK_SECRET` (comma-separated for rotation) | `githubModule` | string | none | `githubModule()` without options |
+| `GITHUB_APP_ID`, `GITHUB_APP_PRIVATE_KEY` (PEM, literal `\n` allowed), `GITHUB_WEBHOOK_SECRET` (comma-separated for rotation); `CHAMVI_GITHUB_<NAME>_*` for a module with `name` | `githubModule` | string | none | any of them set (a partial env fails the start; nothing set in env or the store starts idle) |
 | `GITHUB_INSTALLATION_ID`, `GITHUB_APP_SLUG`, `GITHUB_API_URL` | `githubModule` | int, slug, https URL | unset | never |
 | `OPENCLAW_BASE_URL`, `OPENCLAW_HOOKS_TOKEN`, `OPENCLAW_CHANNEL`, `OPENCLAW_TO` | `openclawModule` | URL, string, string, string | none | `openclawModule()` without options |
 | `OPENCLAW_HOOKS_PATH`, `OPENCLAW_AGENT_ID`, `OPENCLAW_ACCOUNT_ID` | `openclawModule` | string | `/hooks`, unset, unset | never |
@@ -93,7 +93,7 @@ Read by `readConfig(env, { mode, dev })` once per lifecycle; the optional module
 | `CHAMVI_SANDBOX_STORAGE_CLASS` | `sandboxModule` | storage class name | the `persistence.storageClassName` option, else the cluster default; only with persistence | never |
 | `CHAMVI_DEPLOYMENT` | `sandboxModule` | label value (at most 63 letters, digits, `-`, `_`, `.`) | the `deployment` option, else `default` | several apps share one Docker host or namespace (one value per app); only with a value are the workspaces of runs the store does not hold collected |
 | `CHAMVI_KNOWLEDGE_MODEL` | `knowledgeModule` | `'<provider>/<model id>'` | the `embeddingModel` option, else none: creating a [managed collection](/guide/knowledge#managed-collections) answers 409 | never |
-| `CHAMVI_ENCRYPTION_KEYS` | config (`AppToken.KEYRING`) | `<id>:<base64 of 32 bytes>[,<id>:<base64>...]`, ids by the agent-name rule, the first active | unset | a module resolves `AppToken.KEYRING` (e.g. [`whatsappModule()`](/deployment/whatsapp#with-chamvi-app)); read only then, so an app without one needs no key. Rows wrapped under an older listed key stay readable ([rotation](/deployment/whatsapp#session-store)) |
+| `CHAMVI_ENCRYPTION_KEYS` | config (`AppToken.KEYRING`) | `<id>:<base64 of 32 bytes>[,<id>:<base64>...]`, ids by the agent-name rule, the first active | unset | a module resolves `AppToken.KEYRING` (e.g. [`whatsappModule()`](/deployment/whatsapp#with-chamvi-app)) or a [dashboard save](/guide/ui#connection-pages) stores a secret; read only then, so an env-only app needs no key. Rows wrapped under an older listed key stay readable ([rotation](/deployment/whatsapp#session-store)) |
 
 ```ts
 function readConfig(env: Env, options: ReadConfigOptions): AppConfig;
@@ -167,6 +167,12 @@ function openclawModule(options?: OpenclawModuleOptions): IModule;         // 'c
 // @chamvi/ui/module
 function uiModule(options?: UiModuleOptions): IModule;                     // 'chamvi:ui'
 
+// @chamvi/tool-mail-ui/module, and likewise the calendar, GitHub, Discord and WhatsApp pages
+function toolMailUiModule(options?: { uiBase?: string }): IModule;         // serves a page at <uiBase>/ext/<slug>
+
+// @chamvi/app
+function uiPageModule(options: UiPageModuleOptions): IModule;              // the helper behind every *-ui module
+
 // @chamvi/knowledge/module
 function knowledgeModule(options?: KnowledgeModuleOptions): KnowledgeModule; // .knowledge: IKnowledge, 'chamvi:knowledge'
 
@@ -175,7 +181,7 @@ function authupModule(options?: AuthupModuleOptions): IModule;             // 'c
 function oidcModule(options: OidcOptions): IModule;                        // 'chamvi:oidc', no env form
 ```
 
-Each factory reads `options.env ?? process.env` when it is called and throws `InvalidAgentDefinitionError` naming a missing or malformed variable. Options win over env, except `CHAMVI_SANDBOX_PROVIDER`, `CHAMVI_SANDBOX_NAMESPACE`, `CHAMVI_SANDBOX_IMAGE`, `CHAMVI_SANDBOX_IMAGES` (over `allowImage`), `CHAMVI_SANDBOX_SUSPEND_AFTER_MS`, `CHAMVI_SANDBOX_PERSISTENCE`, `CHAMVI_SANDBOX_DOCKER_SUSPEND`, `CHAMVI_SANDBOX_STORAGE_CLASS` and `CHAMVI_DEPLOYMENT`, which win over the sandbox options, and `CHAMVI_KNOWLEDGE_MODEL`, which wins over `embeddingModel`. The GitHub and OpenClaw modules contribute their channel to `AppToken.CHANNELS`, defaulting `approvalUrl` to the dashboard link built from `CHAMVI_PUBLIC_URL` and using the app's clock; tools reach a channel with `ctx.channels.findOne(name)`. `githubModule` and `sandboxModule` provide their instance on the engine in the `engineCreated` hook; tools reach it through the package's context pair ([github](/reference/github#context), [sandbox](/reference/sandbox#context)).
+Each factory reads `options.env ?? process.env` when it is called and throws `InvalidAgentDefinitionError` naming a missing or malformed variable. `githubModule()` and `discordModule()` decide a missing value in `setup`, where the store is readable (malformed values still throw at the factory). Options win over env, except `CHAMVI_SANDBOX_PROVIDER`, `CHAMVI_SANDBOX_NAMESPACE`, `CHAMVI_SANDBOX_IMAGE`, `CHAMVI_SANDBOX_IMAGES` (over `allowImage`), `CHAMVI_SANDBOX_SUSPEND_AFTER_MS`, `CHAMVI_SANDBOX_PERSISTENCE`, `CHAMVI_SANDBOX_DOCKER_SUSPEND`, `CHAMVI_SANDBOX_STORAGE_CLASS` and `CHAMVI_DEPLOYMENT`, which win over the sandbox options, and `CHAMVI_KNOWLEDGE_MODEL`, which wins over `embeddingModel`. The GitHub and OpenClaw modules contribute their channel to `AppToken.CHANNELS`, defaulting `approvalUrl` to the dashboard link built from `CHAMVI_PUBLIC_URL` and using the app's clock; tools reach a channel with `ctx.channels.findOne(name)`. `githubModule` and `sandboxModule` provide their instance on the engine in the `engineCreated` hook; tools reach it through the package's context pair ([github](/reference/github#context), [sandbox](/reference/sandbox#context)).
 
 <<< ../../../github/src/module/types.ts{ts}
 

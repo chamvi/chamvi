@@ -22,11 +22,45 @@ Open `/ui/` and paste a token; the dashboard opens on the agents overview. Nothi
 | Run | Status, budgets (steps, tokens, time), the envelope (channel, subscription, address, payload) and the step timeline (llm, tool and wait steps, inputs and outputs collapsed). For a [dispatched](/guide/dispatch) run, a "dispatched from" link to its parent; for a parent, its dispatched runs (agent, role, status, at most 100, refreshed as the run updates), the subtree token total, and a "Waits for N dispatched runs" callout while it waits on them. Listing dispatched runs needs `run:read`; an agent-scoped token sees a note instead. Live over the run's SSE stream, including the streamed text of the step in progress. A cancel button with a confirmation. | `run:read` or `agent:<name>:run`; `run:cancel` to cancel |
 | Approvals | Each waiting run with the request's title and body, the tool, the channel it went out through, the expiry countdown and a reason field; a request with [options](/guide/approvals#offering-options) shows them as radios (one) or checkboxes (several), each `detail` preformatted in a closed `Details` block (a diff colored by line), and Approve waits for a fitting selection; [files](/guide/approvals#showing-files) of the request and of each option show as thumbnails with their filename (PNG, JPEG, GIF and WebP inline, a click opens them full size; any other type is a download); Approve or Deny (`POST /runs/:id/approve`). The sidebar shows the count. | `run:read` to list, `agent:<name>:approve` to answer |
 | Schedules | The cron subscriptions per agent with the next fire time in the subscription's time zone. | `run:read` |
-| Connections | The connections the app's modules expose (e.g. a [WhatsApp session](/deployment/whatsapp#session-store)) with type and status; a connection's page shows its pairing QR live while it pairs, rendered in the browser, and Reset session behind a confirmation in the page. Listed in the sidebar only when there is a connection you may read. | `connection:<name>:read`; `connection:<name>:write` for the QR, the live view and reset |
+| Connections | The connections the app's modules expose (e.g. a [WhatsApp session](/deployment/whatsapp#session-store)) with type and status; a connection's page shows its live status and Reset session behind a confirmation in the page. Configuring a connection happens on its [page](#connection-pages). Listed in the sidebar only when there is a connection you may read. | `connection:<name>:read`; `connection:<name>:write` for the live view and reset |
 
 Agent names link to the agent page from every other page. The 24 h figures come from the newest 100 runs (of the agent on its page, of the whole app on the overview and the runs page), since the API has no time filter: more runs than that in a day show `100+`. Only tools that need an approval are listed, because an agent may build its tool set per run.
 
 A principal without the grant a page needs sees a notice naming it; the rest of the dashboard keeps working. An approval link from a channel's message needs read access to its run (`run:read` or `agent:<name>:run`) besides `agent:<name>:approve`.
+
+## Connection pages
+
+Mail, calendar, GitHub, Discord and WhatsApp connections are configured on their own pages, one package each. Add the page's module next to the provider's module:
+
+| Page | Module | Package |
+|---|---|---|
+| Mail | `toolMailUiModule()` | `@chamvi/tool-mail-ui/module` |
+| Calendar | `toolCalendarUiModule()` | `@chamvi/tool-calendar-ui/module` |
+| GitHub | `githubUiModule()` | `@chamvi/github-ui/module` |
+| Discord | `chatDiscordUiModule()` | `@chamvi/chat-discord-ui/module` |
+| WhatsApp | `chatWhatsappUiModule()` | `@chamvi/chat-whatsapp-ui/module` |
+
+```ts
+import { toolMailModule } from '@chamvi/tool-mail/module';
+import { toolMailUiModule } from '@chamvi/tool-mail-ui/module';
+import { uiModule } from '@chamvi/ui/module';
+
+const modules = [uiModule(), toolMailModule(), toolMailUiModule()];
+```
+
+Each page is served at `<uiBase>/ext/<slug>` and gets a sidebar item, shown to a principal who may read a connection of its type or holds `connections:create`. A connection without a page is listed under Connections and cannot be edited. A dashboard not at the default `/ui` needs the same value on both sides: `uiModule({ basePath: '/admin' })` and `toolMailUiModule({ uiBase: '/admin' })`.
+
+A page shows one state per field:
+
+| The field | The form |
+|---|---|
+| Unset or stored | Editable |
+| Set from env or a `_FILE` variable | Locked, naming the variable; env wins over a stored value |
+| A stored secret | "Set", with Replace and Clear; a value is never shown or returned by the API |
+
+Saved values take effect at the next start; the page shows "Saved. Restart the app to apply." until a process has loaded them. Saving a secret, or anything that creates a stored connection, needs `CHAMVI_ENCRYPTION_KEYS` and is refused with a message naming it otherwise. Clearing a required secret is allowed and leaves the connection `incomplete` (a `chamvi start --check` issue, not a failed start, unless an env field is set too).
+
+Editing and deleting need `connection:<name>:write`, adding an account of a multi-account type (mail, calendar) `connections:create`. Deleting is offered for stored accounts only; an account declared in env or a module cannot be deleted.
 
 ## Sign-in
 
@@ -67,7 +101,7 @@ Every answer goes through `POST /runs/:id/approve` by approval id, as the signed
 - Every answer carries a Content-Security-Policy (`default-src 'self'`, scripts only from the build, `connect-src` and `form-action` add the authup origin, images also from `blob:` (approval files, read with the bearer token), `frame-ancestors 'none'`), `x-content-type-options: nosniff`, `x-frame-options: DENY` and `referrer-policy: no-referrer`. Fonts and icons are part of the build; nothing loads from a CDN.
 - The route checks no credentials (the build holds no secret) and skips the rate limiter.
 
-Behind a proxy that mounts the app under a prefix, set the app's `basePath`; the dashboard follows it. Invalid options throw `InvalidAgentDefinitionError`; a missing build is reported on the first request (500 and `onError`), so the build may land later, e.g. in a container image.
+Behind a proxy that mounts the app under a prefix, set the app's `basePath`; the dashboard and the [connection pages](#connection-pages) follow it. Invalid options throw `InvalidAgentDefinitionError`; a missing build is reported on the first request (500 and `onError`), so the build may land later, e.g. in a container image.
 
 ## Live updates
 

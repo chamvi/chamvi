@@ -25,7 +25,7 @@ Before a live cutover:
 
 ## Pairing
 
-The first start of an unpaired session emits a QR reference (it rotates periodically until scanned: Baileys shows the first for 60 s, each later one for 20 s). With `whatsappModule()` it shows on the dashboard's [Connections page](/guide/ui#pages), live, to a principal holding `connection:<name>:write`: open `/ui/connections/<name>` and scan it with the phone (WhatsApp, Linked devices, Link a device). With `createWhatsAppChat()` it goes to `onPairing`; render it there. Either way it is never logged. There is no phone-number pairing code yet. Once paired, the session is stored and later starts connect without a QR.
+The first start of an unpaired session emits a QR reference (it rotates periodically until scanned: Baileys shows the first for 60 s, each later one for 20 s). With `whatsappModule()` it shows on the WhatsApp page of the dashboard, live, to a principal holding `connection:<name>:write`. That page ships in `@chamvi/chat-whatsapp-ui`: add [`chatWhatsappUiModule()`](/guide/ui#connection-pages) to the app's modules, open `/ui/ext/chat-whatsapp?connection=<name>` and scan it with the phone (WhatsApp, Linked devices, Link a device). With `createWhatsAppChat()` it goes to `onPairing`; render it there. Either way it is never logged. There is no phone-number pairing code yet. Once paired, the session is stored and later starts connect without a QR.
 
 ## Session store
 
@@ -153,7 +153,7 @@ A send posts the raw text to the chat's jid with a message id derived from the s
 
 ### With @chamvi/app
 
-`whatsappModule()` (`@chamvi/chat-whatsapp/module`) is the production path: the session in the app store, pairing and reset on the dashboard.
+`whatsappModule()` (`@chamvi/chat-whatsapp/module`) is the production path: the session in the app store, pairing and reset on the dashboard. `chatWhatsappUiModule()` (`@chamvi/chat-whatsapp-ui/module`) adds the page that shows the QR; without it the connection is listed and can be reset, but cannot pair.
 
 <<< @/snippets/chat.ts#whatsapp-store
 
