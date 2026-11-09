@@ -325,12 +325,12 @@ describe('engine artifact processing', () => {
         const waiting = (await store.runs.findOne(runId))!;
 
         expect(waiting.status).toBe('waiting');
-        expect(input.inputs![0]!.artifactId).toBe(`${runId}.0000`);
         expect(waiting.taint?.source).toBe('tool:list_artifacts');
 
         const artifacts = await store.artifacts.find(runId);
 
         expect(artifacts).toHaveLength(2);
+        expect(input.inputs![0]!.artifactId).toBe(artifacts.find((item) => item.filename === 'in.json')!.id);
 
         const result = artifacts.find((item) => item.filename === 'result.json')!;
 

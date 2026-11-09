@@ -32,7 +32,7 @@ chamvi/
 │   ├── sandbox-k8s/                 # @chamvi/sandbox-k8s (same aliases; tests drive a fake IPodClient, test/utils/client.ts)
 │   ├── coding/                      # @chamvi/coding (aliases core, sandbox, sandbox-local, test-kit and itself)
 │   ├── skills/                      # @chamvi/skills (optional skill runtime, catalogs, bundles and pinned Git sources)
-│   ├── tool-files/                  # @chamvi/tool-files (fresh artifact processing)
+│   ├── tool-files/                  # @chamvi/tool-files
 │   ├── tool-web/                    # @chamvi/tool-web (aliases core, test-kit and itself; fake transport, fetch and lookup in test/utils/web.ts)
 │   ├── tool-mail/                   # @chamvi/tool-mail (aliases as knowledge; fake IMAP server in test/utils/imap.ts)
 │   ├── tool-calendar/               # @chamvi/tool-calendar (aliases as knowledge; fake CalDAV fetch in test/utils/caldav.ts)
@@ -97,7 +97,7 @@ chamvi/
 | `@chamvi/sandbox-k8s` | Exists (0.1.0) | `createKubernetesSandbox()`, `createPodClient()`: one pod per workspace (root inside, a hardened mode, an optional cache claim); depends on `@kubernetes/client-node`, `smob`, peer on core and sandbox |
 | `@chamvi/coding` | Exists (0.1.0) | `codingTools()` (read_file, write_file, edit_file, multi_edit, grep, glob, list_files, bash with kept cwd and exports and output logs, background jobs with bash_output and bash_kill, git_diff), optional path-scoped instructions on ordinary UTF-8 workspace `read_file` results (its own default-on `repositoryInstructions` flag, independent of the manager), the `ICodingBackend` contract; depends on `smob`, peer on core, sandbox and `ai` |
 | `@chamvi/skills` | Exists (0.5.0) | Skill domain types, catalogs, custom adapters and per-engine runtime; `gitSkills()`/`loadSkillBundle()` carry the runtime automatically; bundle hashing/loading and `prepareSkills()` for setup/build; core peer, no runtime or peer app edge and no module registration (a devDependency on `@chamvi/app` for its integration tests, acyclic), Node >=26.0.0 plus Git for source preparation |
-| `@chamvi/tool-files` | Exists (unpublished) | `fileTools()`: `list_artifacts`, `process_files`; depends on exact `just-bash` 3.6.0 and `smob`, peers on core and `ai` |
+| `@chamvi/tool-files` | Exists (unpublished) | `fileTools()`: `list_artifacts`, `process_files`; depends on `just-bash`, `smob`, peer on core and `ai` |
 | `@chamvi/tool-web` | Exists (0.5.0) | `webTools()`: `web_fetch` (public pages through a hapic client, an address check per hop); depends on `hapic`, `mdream`, `smob`, peer on core and `ai` |
 | `@chamvi/tool-mail` | Exists (unpublished) | `mailTools()`: five read-only IMAP tools (EXAMINE, BODY.PEEK), `createMailClient()`; `/module`: `toolMailModule()`; depends on `imapflow`, `postal-mime`, `unpdf`, `fflate`, `smob`, peer on core and `ai` |
 | `@chamvi/tool-calendar` | Exists (unpublished) | `calendarTools()`: two read-only CalDAV tools (PROPFIND, REPORT, GET), `createCalendarClient()`; `/module`: `toolCalendarModule()`; depends on `tsdav`, `ical.js`, `smob`, peer on core and `ai` |
