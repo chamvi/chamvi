@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunWire, StepWire } from '../../app/api/types.ts';
+import type { RunWire, StepWire } from '@chamvi/ui-kit';
 
 export function wireRun(overrides: Partial<RunWire> = {}): RunWire {
     return {

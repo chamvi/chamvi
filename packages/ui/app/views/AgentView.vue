@@ -20,21 +20,23 @@ import {
     oldestWaiting,
 } from '../agents/helpers.ts';
 import type { ChannelChip as Chip } from '../agents/types.ts';
-import type { StartRunResult } from '../api/types.ts';
+import type { StartRunResult } from '@chamvi/ui-kit';
 import { approvalLinkQuery } from '../approvals/helpers.ts';
-import { hasPermission } from '../auth/helpers.ts';
+import {
+    NavIcon,
+    StatusChip,
+    hasPermission,
+    useAppContext,
+} from '@chamvi/ui-kit';
 import AgentRuns from '../components/agent-runs/AgentRuns.vue';
 import AgentStatePanel from '../components/agent-state/AgentStatePanel.vue';
 import ChannelChip from '../components/channel-chip/ChannelChip.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import ExpiryCountdown from '../components/expiry-countdown/ExpiryCountdown.vue';
-import NavIcon from '../components/nav-icon/NavIcon.vue';
 import ScheduleCard from '../components/schedule-card/ScheduleCard.vue';
 import StartRunModal from '../components/start-run/StartRunModal.vue';
-import StatusChip from '../components/status-chip/StatusChip.vue';
 import { panelId, tabId } from '../components/tab-list/helpers.ts';
 import TabList from '../components/tab-list/TabList.vue';
-import { useAppContext } from '../context/module.ts';
 import { RouteName } from '../router/constants.ts';
 import { formatTokens, shortId } from '../runs/helpers.ts';
 import { formatFireTime } from '../schedules/helpers.ts';

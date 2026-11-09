@@ -21,7 +21,12 @@
         ".": {
             "types": "./dist/index.d.ts",
             "import": "./dist/index.mjs"
-        }
+        },
+        "./vite": {
+            "types": "./dist/vite/index.d.ts",
+            "import": "./dist/vite.mjs"
+        },
+        "./style.css": "./dist/style.css"
     },
     "files": [
         "dist",

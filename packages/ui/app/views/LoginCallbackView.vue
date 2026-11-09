@@ -8,8 +8,7 @@
 
 import { onMounted, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
-import BrandLogo from '../components/brand-logo/BrandLogo.vue';
-import { useAppContext } from '../context/module.ts';
+import { BrandLogo, useAppContext  } from '@chamvi/ui-kit';
 import { RouteName } from '../router/constants.ts';
 
 const { session } = useAppContext();

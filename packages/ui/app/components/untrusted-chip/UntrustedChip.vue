@@ -6,7 +6,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunWire } from '../../api/types.ts';
+import type { RunWire } from '@chamvi/ui-kit';
 
 defineProps<{ taint?: RunWire['taint'] }>();
 </script>

@@ -9,17 +9,6 @@ import { describe, expect, it } from 'vitest';
 import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
 import QrWidget from '../../../../app/connections/QrWidget.vue';
-import StatusBadge from '../../../../app/connections/StatusBadge.vue';
-
-describe('StatusBadge', () => {
-    it('renders the label in the tone of the status', async () => {
-        const html = await renderToString(createSSRApp(StatusBadge, { status: 'held_elsewhere' }));
-
-        expect(html).toContain('chip-waiting');
-        expect(html).toContain('held elsewhere');
-        expect(html).toContain('data-testid="connection-status"');
-    });
-});
 
 describe('QrWidget', () => {
     it('renders the QR as an img with a data: URL, never the value as text', async () => {

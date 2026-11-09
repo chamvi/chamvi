@@ -5,5 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-// removed with the importers' rewrite in the next commit
-export * from '@chamvi/ui-kit';
+export type DefinePageConfigOptions = {
+    /** The page's Vite root (`app` beside the page package's `dist/`). */
+    root: string;
+};

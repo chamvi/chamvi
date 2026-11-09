@@ -14,7 +14,7 @@ import {
     watch,
 } from 'vue';
 import { RouterLink } from 'vue-router';
-import type { RunWire } from '../../api/types.ts';
+import type { RunWire } from '@chamvi/ui-kit';
 import {
     approvalWaitOf,
     canApprove,
@@ -25,15 +25,13 @@ import {
 import { useArtifactTiles } from '../../artifacts/composables.ts';
 import { approvalArtifactIds } from '../../artifacts/helpers.ts';
 import type { ArtifactTile } from '../../artifacts/types.ts';
-import { useAppContext } from '../../context/module.ts';
+import { NavIcon, StatusChip, useAppContext  } from '@chamvi/ui-kit';
 import { RouteName } from '../../router/constants.ts';
 import { shortId } from '../../runs/helpers.ts';
 import ArtifactStrip from '../artifact-strip/ArtifactStrip.vue';
 import ArtifactViewer from '../artifact-viewer/ArtifactViewer.vue';
 import ExpiryCountdown from '../expiry-countdown/ExpiryCountdown.vue';
 import JsonBlock from '../json-block/JsonBlock.vue';
-import NavIcon from '../nav-icon/NavIcon.vue';
-import StatusChip from '../status-chip/StatusChip.vue';
 
 const props = defineProps<{
     run: RunWire;

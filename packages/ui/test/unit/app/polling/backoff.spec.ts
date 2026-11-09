@@ -15,8 +15,8 @@ import {
 } from 'vitest';
 import { effectScope, ref } from 'vue';
 import type { Ref } from 'vue';
-import { ApiError } from '../../../../app/api/error.ts';
-import type { IApiClient } from '../../../../app/api/types.ts';
+import { ApiError } from '@chamvi/ui-kit';
+import type { IApiClient } from '@chamvi/ui-kit';
 import { useApprovals } from '../../../../app/approvals/composables.ts';
 import { INBOX_POLL_MS } from '../../../../app/approvals/constants.ts';
 import { useRunActivity, useRunCounts, useRunList } from '../../../../app/runs/composables.ts';

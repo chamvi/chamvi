@@ -8,8 +8,8 @@
 
 import { ref, watch } from 'vue';
 import { createStartKeys, parsePayload } from '../../agents/helpers.ts';
-import { ApiError } from '../../api/error.ts';
-import type { StartRunResult } from '../../api/types.ts';
+import { ApiError } from '@chamvi/ui-kit';
+import type { StartRunResult } from '@chamvi/ui-kit';
 
 const props = defineProps<{
     agent: string;

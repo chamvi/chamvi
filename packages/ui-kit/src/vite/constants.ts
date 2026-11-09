@@ -5,5 +5,4 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-// removed with the importers' rewrite in the next commit
-export * from '@chamvi/ui-kit';
+export const ICONS_ID = 'virtual:chamvi-icons';

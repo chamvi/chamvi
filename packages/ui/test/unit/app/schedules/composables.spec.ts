@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope } from 'vue';
-import type { ScheduleWire } from '../../../../app/api/types.ts';
+import type { ScheduleWire } from '@chamvi/ui-kit';
 import { groupByAgent } from '../../../../app/schedules/helpers.ts';
 import { withoutIteratorHelpers } from '../../../utils/iterator.ts';
 import { useSchedules } from '../../../../app/schedules/composables.ts';

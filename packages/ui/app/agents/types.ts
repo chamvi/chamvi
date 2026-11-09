@@ -6,7 +6,7 @@
  */
 
 import type { RunStatusLiteral } from '@chamvi/core';
-import type { RunWire, ScheduleWire } from '../api/types.ts';
+import type { RunWire, ScheduleWire } from '@chamvi/ui-kit';
 
 /** One subscription of an agent, as its chip shows it. */
 export type ChannelChip = {

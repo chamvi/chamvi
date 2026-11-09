@@ -9,15 +9,17 @@
 import { useColorMode } from '@vuecs/design';
 import { computed, provide } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import type { MeWire } from '../../api/types.ts';
+import type { MeWire } from '@chamvi/ui-kit';
 import { useApprovals } from '../../approvals/composables.ts';
 import { INBOX } from '../../approvals/constants.ts';
-import { createConnectionsApi } from '../../connections/api.ts';
-import { useConnections } from '../../connections/composables.ts';
-import { useAppContext } from '../../context/module.ts';
+import {
+    BrandLogo,
+    NavIcon,
+    createConnectionsApi,
+    useAppContext,
+    useConnections,
+} from '@chamvi/ui-kit';
 import { RouteName } from '../../router/constants.ts';
-import BrandLogo from '../brand-logo/BrandLogo.vue';
-import NavIcon from '../nav-icon/NavIcon.vue';
 
 const props = defineProps<{ principal?: MeWire }>();
 

@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { RunWire } from '../../../../app/api/types.ts';
+import type { RunWire } from '@chamvi/ui-kit';
 import {
     canApprove,
     detailLines,

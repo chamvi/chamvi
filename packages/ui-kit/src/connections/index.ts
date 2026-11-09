@@ -10,6 +10,5 @@ export * from './composables.ts';
 export { default as ConnectionPanel } from './ConnectionPanel.vue';
 export * from './constants.ts';
 export * from './helpers.ts';
-export { default as QrWidget } from './QrWidget.vue';
 export { default as StatusBadge } from './StatusBadge.vue';
 export * from './types.ts';

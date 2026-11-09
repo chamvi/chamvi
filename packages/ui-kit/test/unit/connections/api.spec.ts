@@ -6,15 +6,17 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ApiError, RECONNECT_DELAYS_MS, createApiClient  } from '@chamvi/ui-kit';
-import { createConnectionsApi, openConnectionStream } from '../../../../app/connections/api.ts';
-import type { ConnectionStreamEvent } from '../../../../app/connections/types.ts';
+import { ApiError } from '../../../src/api/error.ts';
+import { createApiClient } from '../../../src/api/module.ts';
+import { createConnectionsApi, openConnectionStream } from '../../../src/connections/api.ts';
+import type { ConnectionStreamEvent } from '../../../src/connections/types.ts';
+import { RECONNECT_DELAYS_MS } from '../../../src/sse/constants.ts';
 import {
     createFakeFetch,
     json,
     sse,
-} from '../../../utils/fetch.ts';
-import type { FakeAnswer } from '../../../utils/fetch.ts';
+} from '../../utils/fetch.ts';
+import type { FakeAnswer } from '../../utils/fetch.ts';
 
 function setup(answers: FakeAnswer[]) {
     const { fetch, requests } = createFakeFetch(answers);

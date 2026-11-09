@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope, nextTick, ref } from 'vue';
-import type { AgentWire, PageQuery } from '../../../../app/api/types.ts';
+import type { AgentWire, PageQuery } from '@chamvi/ui-kit';
 import { KV_PAGE_SIZE } from '../../../../app/state/constants.ts';
 import { useAgentState } from '../../../../app/state/composables.ts';
 import { apiError, fakeClient } from '../../../utils/client.ts';

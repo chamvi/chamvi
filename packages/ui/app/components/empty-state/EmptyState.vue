@@ -6,13 +6,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import NavIcon from '../nav-icon/NavIcon.vue';
-import type { IconName } from '../nav-icon/types.ts';
+import { NavIcon } from '@chamvi/ui-kit';
+import type { IconName } from '@chamvi/ui-kit';
 
 defineProps<{
-    icon: IconName; 
-    title: string; 
-    text?: string 
+    icon: IconName;
+    title: string;
+    text?: string
 }>();
 </script>
 

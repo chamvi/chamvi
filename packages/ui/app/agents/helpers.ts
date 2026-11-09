@@ -10,8 +10,8 @@ import type {
     RunPage,
     RunWire,
     ScheduleWire,
-} from '../api/types.ts';
-import { hasPermission } from '../auth/helpers.ts';
+} from '@chamvi/ui-kit';
+import { hasPermission } from '@chamvi/ui-kit';
 import { shortId } from '../runs/helpers.ts';
 import { ACTIVITY_WINDOW_MS } from './constants.ts';
 import type {

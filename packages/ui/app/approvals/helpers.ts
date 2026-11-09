@@ -6,9 +6,8 @@
  */
 
 import { isObject } from 'smob';
-import type { ApiError } from '../api/error.ts';
-import type { RunWire } from '../api/types.ts';
-import { hasPermission } from '../auth/helpers.ts';
+import type { ApiError, RunWire  } from '@chamvi/ui-kit';
+import { hasPermission } from '@chamvi/ui-kit';
 import { shortId } from '../runs/helpers.ts';
 import { JSON_BODY_MAX_LENGTH } from './constants.ts';
 import type {

@@ -8,11 +8,13 @@
 
 import { computed, ref } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { ApiError } from '../api/error.ts';
-import { safeReturnPath } from '../auth/helpers.ts';
-import BrandLogo from '../components/brand-logo/BrandLogo.vue';
+import {
+    ApiError,
+    BrandLogo,
+    safeReturnPath,
+    useAppContext,
+} from '@chamvi/ui-kit';
 import { UI_VERSION } from '../config/constants.ts';
-import { useAppContext } from '../context/module.ts';
 
 const { config, session } = useAppContext();
 const route = useRoute();

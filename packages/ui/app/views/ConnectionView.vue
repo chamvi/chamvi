@@ -8,11 +8,14 @@
 
 import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import NavIcon from '../components/nav-icon/NavIcon.vue';
-import { createConnectionsApi } from '../connections/api.ts';
-import ConnectionPanel from '../connections/ConnectionPanel.vue';
-import { canWriteConnection } from '../connections/helpers.ts';
-import { useAppContext } from '../context/module.ts';
+import QrWidget from '../connections/QrWidget.vue';
+import {
+    ConnectionPanel,
+    NavIcon,
+    canWriteConnection,
+    createConnectionsApi,
+    useAppContext,
+} from '@chamvi/ui-kit';
 import { RouteName } from '../router/constants.ts';
 
 const { client, session } = useAppContext();
@@ -35,5 +38,18 @@ const write = computed(() => canWriteConnection(session.principal.value?.permiss
         :api="api"
         :name="name"
         :write="write"
-    />
+    >
+        <template #widgets="{ widgets }">
+            <section
+                v-for="(widget, index) in widgets"
+                :key="`${widget.kind}:${index}`"
+                class="card connection-widget"
+            >
+                <QrWidget
+                    v-if="widget.kind === 'qr'"
+                    :value="widget.value"
+                />
+            </section>
+        </template>
+    </ConnectionPanel>
 </template>

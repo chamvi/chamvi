@@ -8,19 +8,21 @@
 
 import { RouterLink } from 'vue-router';
 import EmptyState from '../components/empty-state/EmptyState.vue';
-import NavIcon from '../components/nav-icon/NavIcon.vue';
+import {
+    NavIcon,
+    StatusBadge,
+    createConnectionsApi,
+    useAppContext,
+    useConnections,
+} from '@chamvi/ui-kit';
 import PageHead from '../components/page-head/PageHead.vue';
-import { createConnectionsApi } from '../connections/api.ts';
-import { useConnections } from '../connections/composables.ts';
-import StatusBadge from '../connections/StatusBadge.vue';
-import { useAppContext } from '../context/module.ts';
 import { RouteName } from '../router/constants.ts';
 
 const { client } = useAppContext();
 const {
-    connections, 
-    error, 
-    loaded, 
+    connections,
+    error,
+    loaded,
 } = useConnections(createConnectionsApi(client));
 </script>
 

@@ -6,15 +6,11 @@
  */
 
 import { isObject } from 'smob';
-import {
-    ApiError,
-    FATAL_STREAM_STATUSES,
-    RECONNECT_DELAYS_MS,
-    sleep as defaultSleep,
-    parseEventStream,
-    path,
-} from '@chamvi/ui-kit';
-import type { SseEvent } from '@chamvi/ui-kit';
+import { ApiError } from '../api/error.ts';
+import { path } from '../api/helpers.ts';
+import { FATAL_STREAM_STATUSES, RECONNECT_DELAYS_MS } from '../sse/constants.ts';
+import { sleep as defaultSleep, parseEventStream } from '../sse/helpers.ts';
+import type { SseEvent } from '../sse/types.ts';
 import type {
     ConnectionDetailWire,
     ConnectionStreamEvent,

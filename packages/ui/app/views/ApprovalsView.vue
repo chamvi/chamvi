@@ -9,7 +9,7 @@
 import { useToast } from '@vuecs/overlays';
 import { computed, inject, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import type { RunWire } from '../api/types.ts';
+import type { RunWire } from '@chamvi/ui-kit';
 import { useApprovals, useLinkedApproval } from '../approvals/composables.ts';
 import { INBOX, INBOX_POLL_MS  } from '../approvals/constants.ts';
 import {
@@ -20,13 +20,15 @@ import {
     readApprovalLink,
 } from '../approvals/helpers.ts';
 import type { AnswerResult, DecidedApproval } from '../approvals/types.ts';
-import { hasPermission } from '../auth/helpers.ts';
+import {
+    NavIcon,
+    StatusChip,
+    hasPermission,
+    useAppContext,
+} from '@chamvi/ui-kit';
 import ApprovalCallout from '../components/approval-callout/ApprovalCallout.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
-import NavIcon from '../components/nav-icon/NavIcon.vue';
 import PageHead from '../components/page-head/PageHead.vue';
-import StatusChip from '../components/status-chip/StatusChip.vue';
-import { useAppContext } from '../context/module.ts';
 import { RouteName } from '../router/constants.ts';
 import { shortId } from '../runs/helpers.ts';
 

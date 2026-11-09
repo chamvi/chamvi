@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IApiClient } from '../api/types.ts';
+import type { IApiClient } from '@chamvi/ui-kit';
 
 /**
  * One artifact as the dashboard shows it: `loading` (metadata or bytes on

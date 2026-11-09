@@ -10,7 +10,7 @@ import { useColorMode } from '@vuecs/design';
 import { computed } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
 import AppShell from './components/app-shell/AppShell.vue';
-import { useAppContext } from './context/module.ts';
+import { useAppContext } from '@chamvi/ui-kit';
 import { RouteName } from './router/constants.ts';
 
 const route = useRoute();

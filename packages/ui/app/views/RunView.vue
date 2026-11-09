@@ -10,18 +10,20 @@ import { useAlertDialog, useToast } from '@vuecs/overlays';
 import { computed, onScopeDispose, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAgents } from '../agents/composables.ts';
-import { ApiError } from '../api/error.ts';
+import {
+    ApiError,
+    NavIcon,
+    StatusChip,
+    useAppContext,
+} from '@chamvi/ui-kit';
 import { approvalLinkQuery, approvalWaitOf } from '../approvals/helpers.ts';
 import JsonBlock from '../components/json-block/JsonBlock.vue';
-import NavIcon from '../components/nav-icon/NavIcon.vue';
-import StatusChip from '../components/status-chip/StatusChip.vue';
 import StepItem from '../components/step-item/StepItem.vue';
 import { errorText } from '../components/step-item/helpers.ts';
 import UntrustedChip from '../components/untrusted-chip/UntrustedChip.vue';
 import UsageMeter from '../components/usage-meter/UsageMeter.vue';
-import { useAppContext } from '../context/module.ts';
 import { RouteName } from '../router/constants.ts';
-import type { RunWire } from '../api/types.ts';
+import type { RunWire } from '@chamvi/ui-kit';
 import { useRunChildren, useRunDetail } from '../runs/composables.ts';
 import {
     canCancel,

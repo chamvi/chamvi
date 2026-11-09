@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import * as kit from '@chamvi/ui-kit';
+import * as vite from '@chamvi/ui-kit/vite';
 
 describe('public api', () => {
     it('exports the kit', () => {
@@ -14,35 +15,65 @@ describe('public api', () => {
             'APP_CONTEXT',
             'AUTHUP_STORAGE_PREFIX',
             'ApiError',
+            'BrandLogo',
             'CONFIG_ELEMENT_ID',
+            'CONNECTIONS_POLL_MS',
+            'ConnectionPanel',
             'DEV_CONFIG',
             'FATAL_STREAM_STATUSES',
             'LOGIN_ROUTE_NAME',
+            'NavIcon',
             'RATE_LIMIT_BACKOFF_MS',
             'RECONNECT_DELAYS_MS',
             'RETURN_STORAGE_KEY',
+            'STATUS_BADGES',
             'STORAGE_PREFIX',
+            'StatusBadge',
+            'StatusChip',
             'TOKEN_STORAGE_KEY',
             'asApiError',
+            'canWriteConnection',
             'clearStorage',
             'createApiClient',
             'createAuthGuard',
+            'createConnectionsApi',
             'createPoller',
             'createSession',
             'createSessionCookies',
+            'default',
             'documentVisibility',
             'hasPermission',
+            'install',
+            'installComponents',
+            'mountPage',
+            'openConnectionStream',
             'pageQuery',
             'parseEventStream',
             'path',
+            'qrDataUrl',
             'readConfig',
             'retryDelayOf',
             'runListQuery',
             'safeReturnPath',
             'sleep',
+            'statusBadge',
             'toApiError',
             'useAppContext',
+            'useConnection',
+            'useConnections',
             'withQuery',
         ]);
+    });
+
+    it('@chamvi/ui-kit/vite exports definePageConfig', () => {
+        expect(Object.keys(vite).sort()).toEqual([
+            'definePageConfig',
+        ]);
+    });
+
+    it.each([
+        'definePageConfig',
+    ])('the main entry keeps %s out', (name) => {
+        expect(Object.keys(kit)).not.toContain(name);
     });
 });
