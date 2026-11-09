@@ -28,7 +28,7 @@ import { IssueCode, defineIssueItem } from '@ebec/core';
 import type { Issue } from '@ebec/core';
 import { ConflictError, ForbiddenError, NotFoundError } from '@ebec/http';
 import { defineCoreHandler } from 'routup';
-import type { App, IAppEvent } from 'routup';
+import type { App } from 'routup';
 import { Container, ValidupError } from 'validup';
 import type { HttpContext } from '../app/types.ts';
 import { CONNECTIONS_CREATE_PERMISSION } from '../auth/constants.ts';
@@ -36,13 +36,14 @@ import { authenticate } from '../auth/helpers.ts';
 import { connectionPermission } from '../auth/module.ts';
 import type { Principal } from '../auth/types.ts';
 import { readJsonBody, validateBody } from '../request/helpers.ts';
-import { isString } from '../request/validators.ts';
 import type { UiPage } from '../static/types.ts';
 import {
     canRead,
     canWrite,
+    isAccountId,
     isRecord,
     isSecretsWrite,
+    param,
     serializeConnection,
 } from './helpers.ts';
 import type {
@@ -67,10 +68,6 @@ const TEST_MESSAGE_MAX_LENGTH = 500;
 
 const NO_STORE_MESSAGE = 'This app stores no connections: its settings come from the environment or code.';
 
-function param(event: IAppEvent, name: string): string {
-    return event.params[name] ?? '';
-}
-
 function accountOf(name: string, type: string): string | undefined {
     return name.startsWith(`${type}-`) ? name.slice(type.length + 1) : undefined;
 }
@@ -80,16 +77,29 @@ function isStorableText(value: unknown): value is string {
     return typeof value === 'string' && !value.includes('\0') && value.isWellFormed();
 }
 
-function findDeclared(ctx: HttpContext, name: string): ConfigTarget | undefined {
+/**
+ * A provider's list is the state of the last start: a stored account deleted
+ * since has no row, and is no longer declared. Connections with no row by
+ * nature (env, module) are not deletable, so a missing row says nothing.
+ */
+function isDeleted(ctx: HttpContext, declared: DeclaredConnection, hasRow: boolean): boolean {
+    return ctx.connectionConfigs !== undefined && declared.deletable && !hasRow;
+}
+
+async function findDeclared(ctx: HttpContext, name: string): Promise<ConfigTarget | undefined> {
     for (const provider of ctx.connectionTypes()) {
         const declared = provider.connections().find((connection) => connection.name === name);
 
         if (declared) {
-            return {
-                name,
-                definition: provider.definition,
-                declared,
-            };
+            const hasRow = !declared.deletable || await ctx.store.connections?.findOne(name) !== undefined;
+
+            return isDeleted(ctx, declared, hasRow) ?
+                undefined :
+                {
+                    name,
+                    definition: provider.definition,
+                    declared,
+                };
         }
     }
 
@@ -102,7 +112,7 @@ function creatableProvider(ctx: HttpContext, type: string): IConnectionTypeProvi
 
 /** The declared connection, else a stored account of a creatable type (created after the start). */
 async function findTarget(ctx: HttpContext, name: string): Promise<ConfigTarget | undefined> {
-    const declared = findDeclared(ctx, name);
+    const declared = await findDeclared(ctx, name);
 
     if (declared) {
         return declared;
@@ -114,16 +124,20 @@ async function findTarget(ctx: HttpContext, name: string): Promise<ConfigTarget 
     return provider ? { name, definition: provider.definition } : undefined;
 }
 
-/** The target `name` the principal may read (404, then 403), or may write with `write`. */
+/**
+ * The target `name` the principal may read, or may write with `write`: 403
+ * before any lookup, so a principal without the grant cannot probe names;
+ * then 404.
+ */
 async function requireTarget(ctx: HttpContext, principal: Principal, name: string, write = false): Promise<ConfigTarget> {
+    if (write ? !canWrite(principal, name) : !canRead(principal, name)) {
+        throw new ForbiddenError({ message: `Missing permission "${connectionPermission(name, write ? 'write' : 'read')}".` });
+    }
+
     const target = await findTarget(ctx, name);
 
     if (!target) {
         throw new NotFoundError({ message: `The connection "${name}" has no configuration.` });
-    }
-
-    if (write ? !canWrite(principal, name) : !canRead(principal, name)) {
-        throw new ForbiddenError({ message: `Missing permission "${connectionPermission(name, write ? 'write' : 'read')}".` });
     }
 
     return target;
@@ -181,9 +195,9 @@ function isDeletable(ctx: HttpContext, target: ConfigTarget): boolean {
 /** Read from the store on every call: a provider's snapshot is the state of the last start. */
 async function buildSettingsView(ctx: HttpContext, target: ConfigTarget): Promise<ConnectionSettingsView> {
     const {
-        definition, 
-        declared, 
-        name, 
+        definition,
+        declared,
+        name,
     } = target;
     const stored = await ctx.connectionConfigs?.describe(name);
     const fields: ConnectionSettingsFieldView[] = [];
@@ -217,7 +231,8 @@ async function buildSettingsView(ctx: HttpContext, target: ConfigTarget): Promis
         state,
         settings: Object.fromEntries(settings),
         fields,
-        restartRequired: stored?.revision !== declared?.loadedRevision,
+        // a pinned connection never loads the store: a leftover row is no pending change
+        restartRequired: declared?.editable !== false && stored?.revision !== declared?.loadedRevision,
         editable: isEditable(ctx, target),
         deletable: isDeletable(ctx, target),
     };
@@ -414,6 +429,8 @@ async function assertUnique(ctx: HttpContext, provider: IConnectionTypeProvider,
     }
 
     const wanted = definition.uniqueId(values);
+    const rows = await ctx.store.connections?.find() ?? [];
+    const rowNames = new Set(rows.map((row) => row.name));
     const declaredNames = new Set<string>();
 
     for (const candidate of ctx.connectionTypes()) {
@@ -422,6 +439,10 @@ async function assertUnique(ctx: HttpContext, provider: IConnectionTypeProvider,
         }
 
         for (const declared of candidate.connections()) {
+            if (isDeleted(ctx, declared, rowNames.has(declared.name))) {
+                continue;
+            }
+
             declaredNames.add(declared.name);
 
             if (definition.uniqueId(declared.resolved.values) === wanted) {
@@ -430,7 +451,7 @@ async function assertUnique(ctx: HttpContext, provider: IConnectionTypeProvider,
         }
     }
 
-    for (const row of await ctx.store.connections?.find() ?? []) {
+    for (const row of rows) {
         if (row.type !== definition.type || declaredNames.has(row.name)) {
             continue;
         }
@@ -500,13 +521,19 @@ function testFailureMessage(error: unknown, secrets: readonly string[]): string 
 export async function listConnections(ctx: HttpContext): Promise<ConnectionView[]> {
     const views = new Map<string, ConnectionView>(ctx.connections().map((handle) => [handle.name, serializeConnection(handle)]));
     const declared = new Set<string>();
+    const rows = ctx.connectionConfigs && ctx.connectionTypes().length > 0 ? await ctx.store.connections?.find() ?? [] : [];
+    const rowNames = new Set(rows.map((row) => row.name));
 
     for (const provider of ctx.connectionTypes()) {
         for (const connection of provider.connections()) {
+            if (isDeleted(ctx, connection, rowNames.has(connection.name))) {
+                continue;
+            }
+
             const target = {
-                name: connection.name, 
-                definition: provider.definition, 
-                declared: connection, 
+                name: connection.name,
+                definition: provider.definition,
+                declared: connection,
             };
 
             declared.add(connection.name);
@@ -524,25 +551,23 @@ export async function listConnections(ctx: HttpContext): Promise<ConnectionView[
         }
     }
 
-    if (ctx.connectionConfigs && ctx.store.connections && ctx.connectionTypes().length > 0) {
-        for (const row of await ctx.store.connections.find()) {
-            const provider = !declared.has(row.name) && creatableProvider(ctx, row.type);
+    for (const row of rows) {
+        const provider = !declared.has(row.name) && creatableProvider(ctx, row.type);
 
-            if (provider) {
-                const account = accountOf(row.name, row.type);
-                const target = { name: row.name, definition: provider.definition };
+        if (provider) {
+            const account = accountOf(row.name, row.type);
+            const target = { name: row.name, definition: provider.definition };
 
-                views.set(row.name, {
-                    ...(views.get(row.name) ?? {
-                        name: row.name,
-                        type: row.type,
-                        status: 'disconnected',
-                    }),
-                    ...(account !== undefined && { account }),
-                    editable: isEditable(ctx, target),
-                    deletable: isDeletable(ctx, target),
-                });
-            }
+            views.set(row.name, {
+                ...(views.get(row.name) ?? {
+                    name: row.name,
+                    type: row.type,
+                    status: 'disconnected',
+                }),
+                ...(account !== undefined && { account }),
+                editable: isEditable(ctx, target),
+                deletable: isDeletable(ctx, target),
+            });
         }
     }
 
@@ -610,7 +635,7 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
 
         const container = new Container<ConnectionCreateBody>();
 
-        container.mount('account', isString({ min: 1, max: 64 }));
+        container.mount('account', isAccountId());
         container.mount('settings', isRecord());
         container.mount('secrets', { optional: true }, isRecord());
 
@@ -619,7 +644,7 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
 
         assertConnectionName(name);
 
-        if (findDeclared(ctx, name)) {
+        if (await findDeclared(ctx, name)) {
             throw new ConflictError({ message: `The connection "${name}" already exists.` });
         }
 

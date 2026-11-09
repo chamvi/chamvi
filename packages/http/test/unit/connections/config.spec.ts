@@ -260,9 +260,23 @@ describe('connection configuration', () => {
 
         it('answers 404 for an unknown connection and 403 without read', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+            const reader = tokenFor('run:read');
 
             expect((await call(app, 'GET', '/connections/nope/config', { token: ADMIN_TOKEN })).status).toBe(404);
-            expect((await call(app, 'GET', '/connections/mail-work/config', { token: tokenFor('run:read') })).status).toBe(403);
+            expect((await call(app, 'GET', '/connections/mail-work/config', { token: reader })).status).toBe(403);
+            // the same answer whether or not it exists: a name is not probed
+            expect((await call(app, 'GET', '/connections/nope/config', { token: reader })).status).toBe(403);
+            expect((await call(app, 'GET', '/connections/NOT_VALID/config', { token: reader })).status).toBe(403);
+        });
+
+        it('answers 403 before any lookup on the write routes', async () => {
+            const { app } = world();
+            const reader = tokenFor('connection:nope:read');
+
+            expect((await call(app, 'PUT', '/connections/nope/config', { token: reader, body: {} })).status).toBe(403);
+            expect((await call(app, 'DELETE', '/connections/nope', { token: reader })).status).toBe(403);
+            expect((await call(app, 'POST', '/connections/nope/test', { token: reader })).status).toBe(403);
+            expect((await call(app, 'PUT', '/connections/nope/config', { token: tokenFor('connection:nope:write'), body: {} })).status).toBe(404);
         });
 
         it('stays readable on a store without connections', async () => {
@@ -271,9 +285,9 @@ describe('connection configuration', () => {
             const view = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
 
             expect(view).toMatchObject({
-                state: 'not_configured', 
-                editable: false, 
-                deletable: false, 
+                state: 'not_configured',
+                editable: false,
+                deletable: false,
             });
         });
     });
@@ -461,6 +475,16 @@ describe('connection configuration', () => {
             expect(after.restartRequired).toBe(true);
         });
 
+        it('does not ask for a restart of a pinned connection with a leftover row', async () => {
+            const { app, real } = world({ declared: (definition) => [declare(definition, 'mail-work', {}, { editable: false })] });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' } });
+
+            const view = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
+            expect(view.restartRequired).toBe(false);
+        });
+
         it('refuses a connection that is not editable', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work', {}, { editable: false })] });
 
@@ -532,9 +556,9 @@ describe('connection configuration', () => {
 
         it('connections:create can', async () => {
             const {
-                app, 
-                store, 
-                real, 
+                app,
+                store,
+                real,
             } = world();
 
             const response = await create(app, tokenFor(CREATE));
@@ -551,6 +575,17 @@ describe('connection configuration', () => {
             });
             expect(await store.connections!.findOne('mail-work')).toMatchObject({ type: 'mail' });
             expect((await real.read('mail-work'))?.values).toEqual({ host: 'imap.example', password: PASSWORD });
+        });
+
+        it('never echoes a refused account', async () => {
+            const { app } = world();
+
+            for (const account of [[PASSWORD], `${PASSWORD}\0`, PASSWORD.repeat(4)]) {
+                const response = await create(app, tokenFor(CREATE), { ...body, account });
+
+                expect(response.status).toBe(400);
+                expect(await response.text()).not.toContain(PASSWORD);
+            }
         });
 
         it('a duplicate uniqueId is 409', async () => {
@@ -612,9 +647,9 @@ describe('connection configuration', () => {
 
         it('repairs a row a crashed create left without config', async () => {
             const {
-                app, 
-                store, 
-                real, 
+                app,
+                store,
+                real,
             } = world();
 
             await real.create('mail-work', 'mail', {});
@@ -684,9 +719,9 @@ describe('connection configuration', () => {
 
         it('reports a failed test without the secret', async () => {
             const {
-                app, 
-                real, 
-                errors, 
+                app,
+                real,
+                errors,
             } = world({
                 definition: mailDefinition({
                     test: async (values) => {
@@ -741,9 +776,9 @@ describe('connection configuration', () => {
     describe('deleting', () => {
         it('delete is refused for module-declared and env-declared connections', async () => {
             const {
-                app, 
-                store, 
-                real, 
+                app,
+                store,
+                real,
             } = world({
                 declared: (definition) => [
                     declare(definition, 'mail-module'),
@@ -760,9 +795,9 @@ describe('connection configuration', () => {
 
         it('deletes a stored account of a multi-instance type', async () => {
             const {
-                app, 
-                store, 
-                real, 
+                app,
+                store,
+                real,
             } = world();
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' } });
@@ -775,11 +810,90 @@ describe('connection configuration', () => {
             expect(await store.connections!.findOne('mail-work')).toBeUndefined();
         });
 
+        function deletableWorld() {
+            return world({
+                declared: (definition) => [declare(definition, 'mail-work', {}, {
+                    account: 'work',
+                    deletable: true,
+                    loadedRevision: 1,
+                    resolved: resolveConnection({
+                        definition,
+                        name: 'mail-work',
+                        readVariable: () => undefined,
+                        stored: { host: 'imap.example', password: 'x' },
+                    }),
+                })],
+            });
+        }
+
+        const account = {
+            account: 'work',
+            settings: { host: 'imap.example' },
+            secrets: { password: PASSWORD },
+        };
+
+        it('treats a deleted account as gone, not as the snapshot of the last start', async () => {
+            const {
+                app,
+                real,
+                store,
+            } = deletableWorld();
+
+            await real.create('mail-work', 'mail', { settings: { host: 'imap.example' }, secrets: { set: { password: PASSWORD } } });
+            await call(app, 'DELETE', '/connections/mail-work', { token: ADMIN_TOKEN });
+
+            const list = await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }));
+            const put = await call(app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'other' }, secrets: { set: { password: PASSWORD } } },
+            });
+
+            expect(list.data).toEqual([]);
+            expect(put.status).toBe(404);
+            expect(await store.connections!.findOne('mail-work')).toBeUndefined();
+        });
+
+        it('lets a just-deleted account and its identity be added again', async () => {
+            const { app, real } = deletableWorld();
+
+            await real.create('mail-work', 'mail', { settings: { host: 'imap.example' }, secrets: { set: { password: PASSWORD } } });
+            await call(app, 'DELETE', '/connections/mail-work', { token: ADMIN_TOKEN });
+
+            const response = await call(app, 'POST', '/connection-types/mail/connections', { token: tokenFor(CREATE), body: account });
+
+            expect(response.status).toBe(201);
+            expect((await json(response)).restartRequired).toBe(true);
+        });
+
+        it('lets the identity of a deleted account be added under another name', async () => {
+            const { app, real } = deletableWorld();
+
+            await real.create('mail-work', 'mail', { settings: { host: 'imap.example' }, secrets: { set: { password: PASSWORD } } });
+            await call(app, 'DELETE', '/connections/mail-work', { token: ADMIN_TOKEN });
+
+            const response = await call(app, 'POST', '/connection-types/mail/connections', {
+                token: tokenFor(CREATE),
+                body: { ...account, account: 'other' },
+            });
+
+            expect(response.status).toBe(201);
+        });
+
+        it('keeps a deletable connection declared while its row exists', async () => {
+            const { app, real } = deletableWorld();
+
+            await real.create('mail-work', 'mail', { settings: { host: 'imap.example' }, secrets: { set: { password: PASSWORD } } });
+
+            const response = await call(app, 'POST', '/connection-types/mail/connections', { token: tokenFor(CREATE), body: account });
+
+            expect(response.status).toBe(409);
+        });
+
         it('a held connection answers 409', async () => {
             const {
-                app, 
-                store, 
-                real, 
+                app,
+                store,
+                real,
             } = world();
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' } });

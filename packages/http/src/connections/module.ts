@@ -15,15 +15,12 @@ import { authenticate } from '../auth/helpers.ts';
 import {
     canRead,
     canWrite,
+    param,
     requireHandle,
     serializeConnection,
 } from './helpers.ts';
 import { listConnections, registerConnectionConfigRoutes } from './config.ts';
 import type { ConnectionDetailView, ConnectionView } from './types.ts';
-
-function param(event: IAppEvent, name: string): string {
-    return event.params[name] ?? '';
-}
 
 /**
  * Streams a connection as SSE: `status` (`{ status }`) and `widgets`

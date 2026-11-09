@@ -12,10 +12,15 @@ import { ForbiddenError, NotFoundError } from '@ebec/http';
 import { isObject } from 'smob';
 import { createValidupError, defineValidator } from 'validup';
 import type { ValidatorDescriptor } from 'validup';
+import type { IAppEvent } from 'routup';
 import type { HttpContext } from '../app/types.ts';
 import { connectionPermission } from '../auth/module.ts';
 import type { Principal } from '../auth/types.ts';
 import type { ConnectionView } from './types.ts';
+
+export function param(event: IAppEvent, name: string): string {
+    return event.params[name] ?? '';
+}
 
 /** `connection:<name>:write`. */
 export function canWrite(principal: Principal, name: string): boolean {
@@ -61,6 +66,22 @@ export function isRecord(): ValidatorDescriptor {
         run: ({ value }) => {
             if (!isObject(value)) {
                 throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'must be an object');
+            }
+
+            return value;
+        },
+    });
+}
+
+/** The longest connection name: an account id is never longer than the name built from it. */
+const ACCOUNT_ID_MAX_LENGTH = 64;
+
+/** A create's account id; the name it builds is checked by the connection-name rule. */
+export function isAccountId(): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (typeof value !== 'string' || value.length === 0 || value.length > ACCOUNT_ID_MAX_LENGTH || value.includes('\0')) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, `must be a string of 1 to ${ACCOUNT_ID_MAX_LENGTH} characters`);
             }
 
             return value;
