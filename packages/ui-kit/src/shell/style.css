@@ -825,3 +825,13 @@ a.aprow:focus-visible { box-shadow: inset 3px 0 0 var(--ch-wait), inset 0 0 0 2p
 @media (prefers-reduced-motion: reduce) {
     *, *::before, *::after { animation: none !important; transition: none !important; }
 }
+
+/* the schema form of a connection */
+.connection-form { display: grid; gap: 14px; max-width: 560px; }
+.banner { padding: 9px 13px; border-radius: var(--ch-radius); background: var(--ch-wait-tint); color: var(--ch-wait); font-size: 13.5px; }
+.connection-fields { display: grid; gap: 15px; padding: 18px; }
+.field-value { display: flex; align-items: center; justify-content: space-between; gap: 10px; min-height: 36px; padding: 4px 11px; border: 1px solid var(--ch-line); border-radius: var(--ch-radius); font-size: 13.5px; }
+.field-value-locked { background: var(--ch-sunken); color: var(--ch-muted); }
+.field-value-actions { display: inline-flex; gap: 4px; }
+.connection-confirm { display: grid; gap: 10px; padding: 12px 13px; border: 1px solid var(--ch-line); border-radius: var(--ch-radius); background: var(--ch-sunken); font-size: 13.5px; }
+.connection-delete { margin-left: auto; }

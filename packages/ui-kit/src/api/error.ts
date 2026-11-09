@@ -6,6 +6,7 @@
  */
 
 import { BaseError } from '@ebec/core';
+import type { Issue } from '@ebec/core';
 
 /** A non-2xx answer of the chamvi API (`{ status, code, message }`), or `http_<status>` for any other body. */
 export class ApiError extends BaseError {
@@ -14,8 +15,12 @@ export class ApiError extends BaseError {
     /** `Retry-After` in seconds, when the answer carried one. */
     readonly retryAfter: number | undefined;
 
-    constructor(status: number, code: string, message: string, retryAfter?: number) {
-        super({ message, code });
+    constructor(status: number, code: string, message: string, retryAfter?: number, issues?: readonly Issue[]) {
+        super({
+            message,
+            code,
+            ...(issues && { issues }),
+        });
         this.status = status;
         this.retryAfter = retryAfter;
     }
