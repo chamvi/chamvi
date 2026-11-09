@@ -171,7 +171,7 @@ async function mount(options: {
         calls,
         emitted,
         field: (key: string) => root.querySelector<HTMLElement>(`[data-field="${CSS.escape(key)}"]`)!,
-        input: (key: string) => root.querySelector<HTMLInputElement>(`[data-field="${CSS.escape(key)}"] input, [data-field="${CSS.escape(key)}"] select`),
+        input: (key: string) => root.querySelector<HTMLInputElement>(['input', 'select', 'textarea'].map((tag) => `[data-field="${CSS.escape(key)}"] ${tag}`).join(', ')),
         button: (text: string) => Array.from(root.querySelectorAll('button')).find((entry) => entry.textContent?.trim() === text),
         submit: async () => {
             root.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
@@ -583,6 +583,86 @@ describe('ConnectionForm', () => {
 
         expect(form.button('Save')).toBeUndefined();
         expect(form.button('Test')).toBeDefined();
+    });
+
+    it('keeps the newlines of a multi-line secret, in a textarea, and clears it after save', async () => {
+        const pem = '-----BEGIN KEY-----\nline\n-----END KEY-----\n';
+        const type: ConnectionTypeWire = {
+            ...TYPE,
+            fields: TYPE.fields.map((field) => (field.key === 'password' ? { ...field, multiline: true } : field)),
+        };
+        const unset = withField(view(), 'password', { source: { kind: 'unset' }, set: false });
+        const put = vi.fn(() => withField(unset, 'password', { source: { kind: 'store' }, set: true }));
+        const form = await mount({
+            type,
+            current: unset,
+            routes: { 'PUT /connections/mail-work/config': put },
+        });
+        const area = form.root.querySelector<HTMLTextAreaElement>('[data-field="password"] textarea')!;
+
+        expect(form.root.querySelector('[data-field="password"] input')).toBeNull();
+
+        form.type(area as unknown as HTMLInputElement, pem);
+
+        expect(area.getAttribute('value')).toBeNull();
+
+        await form.submit();
+
+        expect(put.mock.calls[0]![0 as never]).toMatchObject({ secrets: { set: { password: pem } } });
+        expect(form.root.querySelector('[data-field="password"] textarea')).toBeNull();
+
+        form.button('Replace')!.click();
+        await flush();
+
+        expect(form.root.querySelector<HTMLTextAreaElement>('[data-field="password"] textarea')!.value).toBe('');
+    });
+
+    it('renders a multi-line string as a textarea and sends it unchanged', async () => {
+        const type: ConnectionTypeWire = {
+            ...TYPE,
+            fields: [{
+                key: 'host',
+                label: 'Notes',
+                kind: 'string',
+                multiline: true,
+            }],
+        };
+        const current = view({ settings: { host: 'a\nb' }, fields: [{ key: 'host', source: { kind: 'store' } }] });
+        const put = vi.fn(() => current);
+        const form = await mount({
+            type,
+            current,
+            routes: { 'PUT /connections/mail-work/config': put },
+        });
+        const area = form.root.querySelector<HTMLTextAreaElement>('[data-field="host"] textarea')!;
+
+        expect(area.value).toBe('a\nb');
+
+        await form.submit();
+
+        expect(put.mock.calls[0]![0 as never]).toEqual({ settings: { host: 'a\nb' } });
+    });
+
+    it('shows the issues of a clear that failed', async () => {
+        const form = await mount({
+            routes: {
+                'PUT /connections/mail-work/config': () => {
+                    throw new ApiError(400, 'validation_error', 'Invalid input', undefined, [{
+                        type: 'item',
+                        code: 'value_invalid',
+                        path: ['secrets', 'set', 'password'],
+                        message: 'is required',
+                    } as never]);
+                },
+            },
+        });
+
+        form.button('Clear')!.click();
+        await flush();
+        form.button('Clear secret')!.click();
+        await flush();
+
+        expect(form.root.querySelector('[role="alertdialog"]')?.textContent).toContain('Password is required');
     });
 
     it('explains a connection it cannot load', async () => {

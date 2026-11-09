@@ -7,11 +7,16 @@
 
 import type { ConnectionStatus } from '@chamvi/core';
 import { hasPermission } from '../auth/helpers.ts';
-import { STATUS_BADGES } from './constants.ts';
-import type { ConnectionBadge } from './types.ts';
+import { CONNECTIONS_CREATE_PERMISSION, STATUS_BADGES } from './constants.ts';
+import type { ConnectionBadge, ConnectionTypeWire } from './types.ts';
 
 export function statusBadge(status: ConnectionStatus): ConnectionBadge {
     return Object.hasOwn(STATUS_BADGES, status) ? STATUS_BADGES[status] : { label: String(status), tone: 'queued' };
+}
+
+/** Accounts of the type can be added here, by this principal; `creatable` is false when the app cannot store them. */
+export function canAddAccount(type: ConnectionTypeWire, permissions: readonly string[]): boolean {
+    return type.multiple && type.creatable && hasPermission(permissions, CONNECTIONS_CREATE_PERMISSION);
 }
 
 /** Widgets, the live stream and reset need `connection:<name>:write`. */

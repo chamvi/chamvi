@@ -263,6 +263,8 @@ export type ConnectionField = {
     description?: string;
     /** The choices of a `select` field. */
     options?: readonly string[];
+    /** A `string` or `secret` whose value has line breaks (a PEM): a single-line input would strip them. */
+    multiline?: boolean;
     /** The variable this field reads for a connection; undefined when it has none. */
     env?: (connection: string) => string | undefined;
 };

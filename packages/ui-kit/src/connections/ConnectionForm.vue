@@ -203,15 +203,29 @@ watch(confirmation, async (open, previous) => {
                 </template>
 
                 <template v-else-if="field.kind === 'secret'">
-                    <input
-                        v-if="canEdit && (!field.secretSet || replacing[field.key])"
-                        :id="`connection-${field.key}`"
-                        v-model="secrets[field.key]"
-                        class="input"
-                        type="password"
-                        autocomplete="new-password"
-                        :aria-required="field.required === true"
-                    >
+                    <template v-if="canEdit && (!field.secretSet || replacing[field.key])">
+                        <!-- a password input strips line breaks: a pasted PEM would be saved corrupted -->
+                        <textarea
+                            v-if="field.multiline"
+                            :id="`connection-${field.key}`"
+                            v-model="secrets[field.key]"
+                            class="textarea mono"
+                            rows="6"
+                            autocomplete="off"
+                            autocapitalize="off"
+                            spellcheck="false"
+                            :aria-required="field.required === true"
+                        />
+                        <input
+                            v-else
+                            :id="`connection-${field.key}`"
+                            v-model="secrets[field.key]"
+                            class="input"
+                            type="password"
+                            autocomplete="new-password"
+                            :aria-required="field.required === true"
+                        >
+                    </template>
                     <div
                         v-if="field.secretSet"
                         class="field-value"
@@ -312,6 +326,16 @@ watch(confirmation, async (open, previous) => {
                         </option>
                     </template>
                 </select>
+
+                <textarea
+                    v-else-if="field.multiline"
+                    :id="`connection-${field.key}`"
+                    v-model="drafts[field.key]"
+                    class="textarea"
+                    rows="4"
+                    :disabled="!canEdit"
+                    :aria-required="field.required === true"
+                />
 
                 <input
                     v-else

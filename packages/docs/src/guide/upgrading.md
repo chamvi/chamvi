@@ -4,7 +4,7 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 ## Upgrading to 0.9
 
-Connections can be configured in the dashboard, on a page per provider ([Connection pages](/guide/ui#connection-pages)). An env-only deployment keeps working: no existing variable changed, and `CHAMVI_ENCRYPTION_KEYS` is needed only once a secret is stored. The migration `ConnectionConfig1794230765000` adds the settings and secrets tables and runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`).
+Connections can be configured in the dashboard, on a page per provider ([Connection pages](/guide/ui#connection-pages)). An env-only deployment keeps working: no existing variable changed, and `CHAMVI_ENCRYPTION_KEYS` is needed once the dashboard saves a connection, also one with plain settings only, since every stored connection has its own data key. The migration `ConnectionConfig1794230765000` adds the settings and secrets tables and runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`).
 
 ### Breaking changes
 
@@ -26,7 +26,7 @@ Each is optional and names a field of a named instance; the default instance kee
 ### Steps
 
 1. Add `chatWhatsappUiModule()` if the app uses `whatsappModule()`, and the other `*-ui` modules for the connections you want to configure in the dashboard.
-2. Set `CHAMVI_ENCRYPTION_KEYS` if the dashboard will store secrets.
+2. Set `CHAMVI_ENCRYPTION_KEYS` if the dashboard will save connections.
 3. A dashboard not at `/ui`: pass the same value as `uiBase` to every `*-ui` module.
 4. Replace any reference to the old GitHub module id.
 

@@ -46,6 +46,7 @@ export type ConnectionTypeFieldView = {
     required?: boolean;
     description?: string;
     options?: readonly string[];
+    multiline?: boolean;
 };
 
 /** One entry of `GET /connection-types`. */

@@ -378,13 +378,16 @@ function toConfigUpdate(
     const newSettings = Object.fromEntries(settings);
     const newSecrets = Object.fromEntries(set);
 
+    // clearing is the one way a required value may go, also when an earlier clear already took another
+    const clearOnly = !input.settings && set.length === 0 && clear.length > 0;
+
     for (const field of definition.fields) {
-        if (!field.required || lockOf(target, field)) {
+        if (clearOnly || !field.required || lockOf(target, field)) {
             continue;
         }
 
         if (field.kind === 'secret') {
-            // clearing is the one way a required value may go: the connection reports incomplete
+            // a cleared one is allowed: the connection reports incomplete
             if (!clear.includes(field.key) && !Object.hasOwn(newSecrets, field.key) && !isStored(field, stored)) {
                 fail(['secrets', 'set', field.key], 'is required');
             }
@@ -502,6 +505,7 @@ function serializeType(ctx: HttpContext, provider: IConnectionTypeProvider): Con
             ...(field.required !== undefined && { required: field.required }),
             ...(field.description !== undefined && { description: field.description }),
             ...(field.options !== undefined && { options: field.options }),
+            ...(field.multiline !== undefined && { multiline: field.multiline }),
         })),
     };
 }

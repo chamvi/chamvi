@@ -134,6 +134,23 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
         formError.value = Object.keys(perField).length > 0 ? undefined : statusOf(error);
     }
 
+    /** The failure of a confirmed action, which has no field to show an issue at. */
+    function confirmFailure(cause: unknown): string {
+        const error = asApiError(cause);
+        const issues = flattenIssueItems(error.issues ?? []);
+
+        if (issues.length === 0) {
+            return statusOf(error);
+        }
+
+        return issues.map((issue) => {
+            const key = String(issue.path?.at(-1) ?? '');
+            const label = fields.value.find((field) => field.key === key)?.label;
+
+            return label ? `${label} ${issue.message}` : issue.message;
+        }).join('; ');
+    }
+
     async function load(): Promise<void> {
         try {
             const types = await api.types();
@@ -266,7 +283,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
                 dropSecret(open.key);
                 confirmation.value = undefined;
             } catch (e) {
-                confirmError.value = statusOf(asApiError(e));
+                confirmError.value = confirmFailure(e);
             }
         });
     }

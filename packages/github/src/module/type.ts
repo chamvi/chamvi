@@ -47,6 +47,7 @@ export function githubConnectionDefinition(): ConnectionTypeDefinition {
                 label: 'Private key',
                 kind: 'secret',
                 required: true,
+                multiline: true,
                 description: 'PEM; literal \\n sequences allowed.',
             }),
             fieldOf('webhookSecret', {

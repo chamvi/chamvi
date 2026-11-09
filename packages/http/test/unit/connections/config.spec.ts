@@ -146,7 +146,86 @@ async function json(response: Response): Promise<any> {
     return response.json();
 }
 
+function twoSecretsDefinition(): ConnectionTypeDefinition {
+    return mailDefinition({
+        fields: [
+            {
+                key: 'password',
+                label: 'Password',
+                kind: 'secret',
+                required: true,
+            },
+            {
+                key: 'token',
+                label: 'Token',
+                kind: 'secret',
+                required: true,
+            },
+        ],
+        uniqueId: undefined,
+    });
+}
+
 describe('connection configuration', () => {
+    describe('clearing secrets', () => {
+        it('clears one required secret after another: a clear-only request checks no other field', async () => {
+            const { app } = world({ definition: twoSecretsDefinition() });
+
+            await call(app, 'POST', '/connection-types/mail/connections', {
+                token: ADMIN_TOKEN,
+                body: {
+                    account: 'work',
+                    settings: {},
+                    secrets: { password: PASSWORD, token: 'other-secret' },
+                },
+            });
+
+            const first = await call(app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { secrets: { clear: ['password'] } },
+            });
+            const second = await call(app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { secrets: { clear: ['token'] } },
+            });
+
+            expect(first.status).toBe(200);
+            expect(second.status).toBe(200);
+            expect((await json(second)).state).toBe('not_configured');
+        });
+
+        it('keeps the required checks on a save that also carries settings', async () => {
+            const { app } = world();
+
+            await call(app, 'POST', '/connection-types/mail/connections', {
+                token: ADMIN_TOKEN,
+                body: {
+                    account: 'work',
+                    settings: { host: 'imap' },
+                    secrets: { password: PASSWORD },
+                },
+            });
+
+            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: {}, secrets: { clear: ['password'] } },
+            });
+
+            expect(response.status).toBe(400);
+            expect((await json(response)).issues[0]).toMatchObject({ path: ['settings', 'host'] });
+        });
+    });
+
+    it('carries multiline in GET /connection-types', async () => {
+        const base = mailDefinition();
+        const definition = { ...base, fields: base.fields.map((field) => (field.key === 'password' ? { ...field, multiline: true } : field)) };
+        const { app } = world({ definition });
+        const [type] = (await json(await call(app, 'GET', '/connection-types', { token: tokenFor() }))).data;
+
+        expect(type.fields[2]).toMatchObject({ key: 'password', multiline: true });
+        expect(type.fields[0]).not.toHaveProperty('multiline');
+    });
+
     describe('listing', () => {
         it('lists a declared connection with no handle', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work', {}, { account: 'work' })] });

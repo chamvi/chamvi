@@ -41,4 +41,4 @@ A connection is one configured account of a provider, in three tiers: plain sett
 
 - The repository contract runs against memory and Postgres (the fence after expiry, for another owner, a taken-over and a released lock, and another lock of the owner, all writing nothing). The vault runs on a `ControllableClock`.
 - `chat-whatsapp/test/unit/auth/kill.spec.ts` SIGKILLs a child writing Baileys-shaped batches to Postgres (`test/fixtures/kill-writer.ts`, preloaded by `kill-hooks.ts`, which compiles workspace sources with swc: jiti cannot load the store-db entities); its suite has a Postgres global setup.
-- ui-kit: `test/unit/connections/` (Node, SSR for the components); the e2e demos of `ui` and `chat-whatsapp-ui` hold a fake handle (`POST /demo/connect` links it).
+- ui-kit: `test/unit/connections/` (happy-dom for `form.spec.ts`, `panel.spec.ts` and `page.spec.ts`, else Node with SSR); the e2e demos of `ui` and `chat-whatsapp-ui` hold a fake handle (`POST /demo/connect` links it).

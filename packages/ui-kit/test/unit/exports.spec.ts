@@ -37,6 +37,7 @@ describe('public api', () => {
             'StatusChip',
             'TOKEN_STORAGE_KEY',
             'asApiError',
+            'canAddAccount',
             'canWriteConnection',
             'clearStorage',
             'createApiClient',

@@ -80,3 +80,55 @@ test('deletes the account after a confirmation in the page and opens nothing sta
     await expect(page.getByTestId('connection-form-error')).toHaveCount(0);
     expect(errors).toEqual([]);
 });
+
+test('a multi-line secret reaches the API with its newlines', async ({ page }) => {
+    const errors = watchErrors(page);
+    const pem = '-----BEGIN PRIVATE KEY-----\nMIIEvQIBADANBgkq\nhkiG9w0BAQEFAASC\n-----END PRIVATE KEY-----\n';
+
+    // the mail type has no multi-line field: the served definition gets one
+    await page.route('**/connection-types', async (route) => {
+        const response = await route.fetch();
+        const body = await response.json() as { data: { fields: { key: string; multiline?: boolean }[] }[] };
+
+        for (const field of body.data.flatMap((type) => type.fields)) {
+            if (field.key === 'password') {
+                field.multiline = true;
+            }
+        }
+
+        await route.fulfill({ response, json: body });
+    });
+
+    await page.goto('/ui/ext/tool-mail?add=1');
+    await signIn(page);
+
+    await page.getByLabel('Account id').fill('pem');
+    await page.getByLabel('Address').fill('pem@example.com');
+    await page.getByLabel('IMAP host').fill('imap.example.com');
+
+    const area = page.locator('[data-field="password"] textarea');
+
+    await area.fill(pem);
+    expect(await area.getAttribute('value')).toBeNull();
+    expect(await area.evaluate((element) => element.outerHTML)).not.toContain('MIIEvQIBADANBgkq');
+
+    const created = page.waitForRequest((request) => request.method() === 'POST' && request.url().endsWith('/connection-types/mail/connections'));
+
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    expect(((await created).postDataJSON() as { secrets: { password: string } }).secrets.password).toBe(pem);
+    await expect(page.getByTestId('secret-set')).toHaveText('Set');
+
+    // the replacement goes through a PUT, cleared again once saved
+    await page.getByRole('button', { name: 'Replace' }).click();
+    await expect(area).toHaveValue('');
+    await area.fill(pem);
+
+    const saved = page.waitForRequest((request) => request.method() === 'PUT');
+
+    await page.getByRole('button', { name: 'Save' }).click();
+
+    expect(((await saved).postDataJSON() as { secrets: { set: { password: string } } }).secrets.set.password).toBe(pem);
+    await expect(area).toHaveCount(0);
+    expect(errors).toEqual([]);
+});

@@ -43,6 +43,7 @@ import type { IContainer, IModule } from '@chamvi/app';
 import { createModuleHarness } from '@chamvi/app/testing';
 import type { ModuleHarness } from '@chamvi/app/testing';
 import { GITHUB_CONNECTION_TYPE, githubModule } from '@chamvi/github/module';
+import { githubConnectionDefinition } from '../../../src/module/type.ts';
 import { mockModel, textModel } from '../../utils/model.ts';
 import {
     TOKENS,
@@ -153,6 +154,12 @@ function envOf(prefix: string): Record<string, string> {
         [`${prefix}WEBHOOK_SECRET`]: 'a',
     };
 }
+
+describe('githubConnectionDefinition', () => {
+    it('declares the private key multi-line, so a pasted PEM keeps its newlines', () => {
+        expect(githubConnectionDefinition().fields.find((field) => field.key === 'privateKey')).toMatchObject({ multiline: true });
+    });
+});
 
 describe('githubModule configuration', () => {
     it('two modules targeting one agent fail at startup', async () => {

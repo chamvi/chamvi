@@ -8,9 +8,7 @@
 
 import { computed } from 'vue';
 import type { MeWire } from '../api/types.ts';
-import { hasPermission } from '../auth/helpers.ts';
-import { CONNECTIONS_CREATE_PERMISSION } from '../connections/constants.ts';
-import { statusBadge } from '../connections/helpers.ts';
+import { canAddAccount, statusBadge } from '../connections/helpers.ts';
 import type { ConnectionTypeWire, ConnectionWire } from '../connections/types.ts';
 
 const props = defineProps<{
@@ -31,10 +29,7 @@ const accounts = computed(() => props.connections
         badge: statusBadge(connection.status),
     })));
 
-// `creatable` is false when this app cannot store accounts of the type: Add would only be refused
-const canAdd = computed(() => props.type.multiple &&
-    props.type.creatable &&
-    hasPermission(props.principal?.permissions ?? [], CONNECTIONS_CREATE_PERMISSION));
+const canAdd = computed(() => canAddAccount(props.type, props.principal?.permissions ?? []));
 </script>
 
 <template>
