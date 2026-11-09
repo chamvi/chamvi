@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { readFileSync } from 'node:fs';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { toArray, toBool, toInt } from 'envix';
 import type {
@@ -19,6 +20,7 @@ import type {
 
 const INTEGER_PATTERN = /^\d+$/;
 const BOOLEAN_PATTERN = /^(?:true|false|1|0)$/;
+const FILE_SUFFIX = '_FILE';
 
 // Every message names the variable and the rule, never the value (it may be a secret).
 function fail(message: string): never {
@@ -171,4 +173,47 @@ export function envOneOf<T extends string>(env: Env, name: string, values: reado
     }
 
     return value as T;
+}
+
+function isSet(value: string | undefined): value is string {
+    return typeof value === 'string' && value.length > 0;
+}
+
+/**
+ * The value of `name`, or of the file `<name>_FILE` names (one trailing
+ * newline trimmed); undefined when neither is set. Both set, an unreadable
+ * file or an empty one is an InvalidAgentDefinitionError naming the variable.
+ */
+export function envSecret(env: Env, name: string): string | undefined {
+    const fileName = `${name}${FILE_SUFFIX}`;
+    const value = env[name];
+    const file = env[fileName];
+
+    if (isSet(value) && isSet(file)) {
+        return fail(`${name} and ${fileName} are both set: set one of them.`);
+    }
+
+    if (isSet(value)) {
+        return value;
+    }
+
+    if (!isSet(file)) {
+        return undefined;
+    }
+
+    let content: string;
+
+    try {
+        content = readFileSync(file, 'utf8');
+    } catch {
+        return fail(`${fileName}: the file cannot be read.`);
+    }
+
+    content = content.replace(/\r?\n$/, '');
+
+    if (content.length === 0) {
+        return fail(`${fileName}: the file is empty.`);
+    }
+
+    return content;
 }

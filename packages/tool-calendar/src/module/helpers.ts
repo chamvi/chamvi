@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { readFileSync } from 'node:fs';
-import { envJson, envString } from '@chamvi/app';
+import { envJson, envSecret, envString } from '@chamvi/app';
 import type { Env } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
@@ -16,7 +15,6 @@ import {
     CALENDAR_ACCOUNTS_VARIABLE,
     CALENDAR_TIMEZONE_VARIABLE,
     CALENDAR_VARIABLE_PREFIX,
-    FILE_VARIABLE_SUFFIX,
 } from './constants.ts';
 
 const ACCOUNT_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
@@ -24,49 +22,6 @@ const ACCOUNT_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 // Every message names the variable, never its value (it may be a secret).
 function fail(message: string): never {
     throw new InvalidAgentDefinitionError(message);
-}
-
-function isSet(value: string | undefined): value is string {
-    return typeof value === 'string' && value.length > 0;
-}
-
-/**
- * The value of `name`, or of the file `<name>_FILE` names (one trailing
- * newline trimmed); undefined when neither is set. Both set, an unreadable
- * file or an empty one is an InvalidAgentDefinitionError naming the variable.
- */
-export function readSecretVariable(env: Env, name: string): string | undefined {
-    const fileName = `${name}${FILE_VARIABLE_SUFFIX}`;
-    const value = env[name];
-    const file = env[fileName];
-
-    if (isSet(value) && isSet(file)) {
-        return fail(`${name} and ${fileName} are both set: set one of them.`);
-    }
-
-    if (isSet(value)) {
-        return value;
-    }
-
-    if (!isSet(file)) {
-        return undefined;
-    }
-
-    let content: string;
-
-    try {
-        content = readFileSync(file, 'utf8');
-    } catch {
-        return fail(`${fileName}: the file cannot be read.`);
-    }
-
-    content = content.replace(/\r?\n$/, '');
-
-    if (content.length === 0) {
-        return fail(`${fileName}: the file is empty.`);
-    }
-
-    return content;
 }
 
 /** `CHAMVI_CALENDAR_<ID>_<field>`: the id upper-cased, `-` as `_`. */
@@ -137,13 +92,13 @@ export function readCalendarAccountsFromEnv(env: Env): CalendarAccount[] | undef
 
         const userVariable = variableOf(id, 'USER');
         const passwordVariable = variableOf(id, 'PASSWORD');
-        const user = readSecretVariable(env, userVariable) ?? address;
+        const user = envSecret(env, userVariable) ?? address;
 
         if (user === undefined) {
             return fail(`${userVariable} is required for ${at} (it has no address).`);
         }
 
-        const password = readSecretVariable(env, passwordVariable);
+        const password = envSecret(env, passwordVariable);
 
         if (password === undefined) {
             return fail(`${passwordVariable} is required for ${at}.`);

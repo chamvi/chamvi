@@ -9,7 +9,9 @@ import type {
     Agent,
     IChannel,
     IClock,
+    IConnectionConfigStore,
     IConnectionHandle,
+    IConnectionTypeProvider,
     IEngine,
     IKeyring,
     IModelResolver,
@@ -154,4 +156,13 @@ export type AppTokens = {
     KEYRING: IKeyring;
     /** A collection: the connection handles modules contribute; the http app serves them at `/connections`. */
     CONNECTIONS: IConnectionHandle;
+    /** A collection: the connection types modules contribute. */
+    CONNECTION_TYPES: IConnectionTypeProvider;
+    /**
+     * The settings and sealed secrets of connections, over `STORE`: list
+     * `ModuleName.STORE` in `dependencies` to resolve it in `setup`. Built
+     * lazily; the keyring is resolved only when a secret is touched, so
+     * reading plain settings needs no `CHAMVI_ENCRYPTION_KEYS`.
+     */
+    CONNECTION_CONFIGS: IConnectionConfigStore;
 };

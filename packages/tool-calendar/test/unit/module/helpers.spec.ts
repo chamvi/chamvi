@@ -19,7 +19,6 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import {
     readCalendarAccountsFromEnv,
     readCalendarTimezoneFromEnv,
-    readSecretVariable,
 } from '../../../src/module/helpers.ts';
 
 const PASSWORD = 'pa55-w0rd-never-echoed';
@@ -187,28 +186,5 @@ describe('readCalendarTimezoneFromEnv()', () => {
     it('refuses another value, naming the variable', () => {
         expect(() => readCalendarTimezoneFromEnv({ CHAMVI_CALENDAR_TIMEZONE: 'W. Europe Standard Time' }))
             .toThrow(/CHAMVI_CALENDAR_TIMEZONE/);
-    });
-});
-
-describe('readSecretVariable()', () => {
-    it('is undefined when neither form is set', () => {
-        expect(readSecretVariable({}, 'X')).toBeUndefined();
-        expect(readSecretVariable({ X: '', X_FILE: '' }, 'X')).toBeUndefined();
-    });
-
-    it('trims only one trailing newline of a file', async () => {
-        const file = join(dir, 'crlf');
-
-        await writeFile(file, 'value\n\r\n');
-
-        expect(readSecretVariable({ X_FILE: file }, 'X')).toBe('value\n');
-    });
-
-    it('refuses an empty file', async () => {
-        const file = join(dir, 'empty');
-
-        await writeFile(file, '\n');
-
-        expect(() => readSecretVariable({ X_FILE: file }, 'X')).toThrow(/X_FILE/);
     });
 });
