@@ -120,14 +120,17 @@ const filtered = computed(() => !!filter.value.agent || !!filter.value.status?.l
         </div>
 
         <div class="toolbar">
-            <label class="field">
-                <span class="field-label">Agent</span>
+            <VCFormGroup label-tag="span">
+                <template #label>
+                    <label for="runs-agent">Agent</label>
+                </template>
                 <VCFormSelect
+                    id="runs-agent"
                     v-model="agent"
                     :options="agentOptions"
                     placeholder="all agents"
                 />
-            </label>
+            </VCFormGroup>
             <div
                 class="field"
                 style="min-width: 0; flex: 1"

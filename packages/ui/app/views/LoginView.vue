@@ -6,7 +6,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { computed, ref } from 'vue';
+import { IFieldValidation } from '@ilingo/validup-vue';
+import { useValidup } from '@validup/vue';
+import { Container } from 'validup';
+import {
+    computed,
+    reactive,
+    ref,
+} from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
     ApiError,
@@ -16,12 +23,20 @@ import {
     useAppContext,
 } from '@chamvi/ui-kit';
 import { UI_VERSION } from '../config/constants.ts';
+import { isFilled } from '../forms/validators.ts';
 
 const { config, session } = useAppContext();
 const route = useRoute();
 const router = useRouter();
 
-const token = ref('');
+const form = reactive({ token: '' });
+const tokenForm = new Container<{ token: string }>();
+
+tokenForm.mount('token', isFilled());
+
+// lazy: an untouched sign-in page shows no message
+const v = useValidup(tokenForm, form, { lazy: true });
+/** A refused or failed sign-in; an empty token is the field's issue. */
 const error = ref<string>();
 const busy = ref(false);
 
@@ -30,18 +45,20 @@ const authupHost = computed(() => (config.auth.authup ? new URL(config.auth.auth
 const { host } = globalThis.location;
 
 async function useToken(): Promise<void> {
-    if (!token.value.trim()) {
-        error.value = 'Paste a token first.';
+    error.value = undefined;
 
+    const checked = await v.$validate();
+
+    if (!checked.success) {
         return;
     }
 
     busy.value = true;
-    error.value = undefined;
 
     try {
-        await session.signInWithToken(token.value.trim());
-        token.value = '';
+        await session.signInWithToken(checked.data.token);
+        form.token = '';
+        v.$reset();
 
         // a *-ui page is outside this router: only a full navigation reaches it
         if (isPagePath(returnTo.value, config.uiBase)) {
@@ -111,17 +128,28 @@ async function useAuthup(): Promise<void> {
                     v-if="config.auth.tokens"
                     @submit.prevent="useToken"
                 >
-                    <label class="field">
-                        <span class="field-label">Bearer token</span>
-                        <VCFormInput
-                            v-model="token"
-                            class="mono"
-                            type="password"
-                            placeholder="paste a static token"
-                            autocomplete="off"
-                            name="token"
-                        />
-                    </label>
+                    <IFieldValidation
+                        v-slot="{ value: validation }"
+                        :field="v.fields.token"
+                    >
+                        <VCFormGroup
+                            label-tag="span"
+                            :validation="validation"
+                        >
+                            <template #label>
+                                <label for="login-token">Bearer token</label>
+                            </template>
+                            <VCFormInput
+                                id="login-token"
+                                v-model="v.fields.token.$model.value"
+                                class="mono"
+                                type="password"
+                                placeholder="paste a static token"
+                                autocomplete="off"
+                                name="token"
+                            />
+                        </VCFormGroup>
+                    </IFieldValidation>
                     <VCButton
                         type="submit"
                         :class="['btn', 'btn-block', { 'btn-primary': !config.auth.authup }]"

@@ -7,6 +7,12 @@
  */
 
 import {
+    VCFormCheckbox,
+    VCFormCheckboxGroup,
+    VCFormRadio,
+    VCFormRadioGroup,
+} from '@vuecs/forms';
+import {
     computed,
     nextTick,
     onMounted,
@@ -62,6 +68,21 @@ const chosen = computed<string[]>(() => {
 /** A JSON body (a trust approval: the tool, its input and the taint) is pretty-printed; any other body stays text. */
 const structured = computed(() => (waiting.value?.body ? jsonBody(waiting.value.body) : undefined));
 const approvable = computed(() => !waiting.value || canApprove(waiting.value, chosen.value));
+/** The choice: one checkbox group (an array) or one radio group (an id), each row its own markup. */
+const choiceGroup = computed(() => (multiple.value ? VCFormCheckboxGroup : VCFormRadioGroup));
+const choiceControl = computed(() => (multiple.value ? VCFormCheckbox : VCFormRadio));
+const choiceModel = computed(() => (multiple.value ? selected.value : single.value));
+
+function choose(value: unknown): void {
+    if (multiple.value) {
+        selected.value = Array.isArray(value) ? value.map(String) : [];
+    } else {
+        single.value = value === null || value === undefined ? undefined : String(value);
+    }
+}
+
+/** By position: an option id may hold characters an element id cannot. */
+const optionId = (index: number) => `option-${props.run.id}-${index}`;
 
 const { client } = useAppContext();
 /** The images of the wait point: loaded once mounted, reloaded (and the old URLs revoked) per approval id. */
@@ -194,46 +215,49 @@ watch(() => props.highlight, reveal);
                     <legend class="field-label">
                         {{ multiple ? 'Choose one or more' : 'Choose one' }}
                     </legend>
-                    <div
-                        v-for="option in options"
-                        :key="option.id"
-                        class="callout-option"
+                    <component
+                        :is="choiceGroup"
+                        :model-value="choiceModel"
+                        :name="`option-${run.id}`"
+                        :disabled="!canAnswer"
+                        class="callout-option-list"
+                        @update:model-value="choose"
                     >
-                        <label
-                            data-testid="approval-option"
-                            :data-option="option.id"
+                        <div
+                            v-for="(option, index) in options"
+                            :key="option.id"
+                            class="callout-option"
                         >
-                            <input
-                                v-if="multiple"
-                                v-model="selected"
-                                type="checkbox"
-                                :value="option.id"
-                                :disabled="!canAnswer"
+                            <div
+                                class="callout-option-head"
+                                data-testid="approval-option"
+                                :data-option="option.id"
                             >
-                            <input
-                                v-else
-                                v-model="single"
-                                type="radio"
-                                :name="`option-${run.id}`"
-                                :value="option.id"
-                                :disabled="!canAnswer"
-                            >
-                            <span>{{ option.label }}</span>
-                            <span class="mono muted">{{ option.id }}</span>
-                        </label>
-                        <ArtifactStrip
-                            :tiles="artifacts.tilesOf(option.artifacts)"
-                            @open="view"
-                            @download="artifacts.download"
-                        />
-                        <details v-if="option.detail">
-                            <summary>Details</summary>
-                            <pre class="option-detail"><template
-                                v-for="(line, index) in detailLines(option.detail)"
-                                :key="index"
-                            ><span :class="line.kind ? `diff-${line.kind}` : undefined">{{ line.text }}</span>{{ '\n' }}</template></pre>
-                        </details>
-                    </div>
+                                <component
+                                    :is="choiceControl"
+                                    :id="optionId(index)"
+                                    :value="option.id"
+                                    :label="false"
+                                />
+                                <label :for="optionId(index)">
+                                    <span>{{ option.label }}</span>
+                                    <span class="mono muted">{{ option.id }}</span>
+                                </label>
+                            </div>
+                            <ArtifactStrip
+                                :tiles="artifacts.tilesOf(option.artifacts)"
+                                @open="view"
+                                @download="artifacts.download"
+                            />
+                            <details v-if="option.detail">
+                                <summary>Details</summary>
+                                <pre class="option-detail"><template
+                                    v-for="(line, index) in detailLines(option.detail)"
+                                    :key="index"
+                                ><span :class="line.kind ? `diff-${line.kind}` : undefined">{{ line.text }}</span>{{ '\n' }}</template></pre>
+                            </details>
+                        </div>
+                    </component>
                 </fieldset>
             </div>
             <div>
@@ -255,12 +279,13 @@ watch(() => props.highlight, reveal);
                         {{ notified.text }}
                     </dd>
                 </dl>
-                <label
+                <VCFormGroup
                     v-if="canAnswer"
-                    class="field"
-                    :for="id"
+                    label-tag="span"
                 >
-                    <span class="field-label">Reason (optional, sent to the model)</span>
+                    <template #label>
+                        <label :for="id">Reason (optional, sent to the model)</label>
+                    </template>
                     <VCFormTextarea
                         :id="id"
                         v-model="reason"
@@ -268,7 +293,7 @@ watch(() => props.highlight, reveal);
                         rows="3"
                         placeholder="Why, in one line"
                     />
-                </label>
+                </VCFormGroup>
             </div>
         </div>
         <div class="callout-foot">

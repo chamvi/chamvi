@@ -69,20 +69,23 @@ const shown = computed(() => agents.value.filter((agent) => matchesName(agent, q
             </p>
         </div>
         <div class="toolbar">
-            <label
-                class="field"
+            <VCFormGroup
+                label-tag="span"
                 style="width: 260px; max-width: 100%"
             >
-                <span class="field-label">Filter by name</span>
-                <input
+                <template #label>
+                    <label for="agent-filter">Filter by name</label>
+                </template>
+                <VCFormInput
+                    id="agent-filter"
                     v-model="query"
-                    class="input mono"
+                    class="mono"
                     type="search"
                     placeholder="e.g. triage"
                     autocomplete="off"
                     name="agent-filter"
-                >
-            </label>
+                />
+            </VCFormGroup>
         </div>
         <div
             v-if="shown.length > 0"
