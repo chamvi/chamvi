@@ -87,10 +87,12 @@ describe('mountPage', () => {
         expect(replace).not.toHaveBeenCalled();
     });
 
-    it('sends a page without a principal to the dashboard login, unmounted', async () => {
+    it('sends a page without a principal to the dashboard login, unmounted, with its way back', async () => {
+        window.history.replaceState({}, '', '/console/ext/mail?a=1#b');
+
         await mountPage(Page);
 
-        expect(replace).toHaveBeenCalledWith('/console/login');
+        expect(replace).toHaveBeenCalledWith('/console/login?redirect=%2Fconsole%2Fext%2Fmail%3Fa%3D1%23b');
         expect(document.querySelector('#page')).toBeNull();
     });
 
@@ -139,16 +141,17 @@ describe('mountPage', () => {
             window.sessionStorage.setItem(TOKEN_STORAGE_KEY, 'good');
         });
 
-        it('signs a routerless page out and sends it to the dashboard login', async () => {
+        it('signs a routerless page out and sends it to the dashboard login, keeping the way back', async () => {
             const fetch = vi.fn(async () => json(ME));
 
+            window.history.replaceState({}, '', '/console/ext/mail?a=1#b');
             vi.stubGlobal('fetch', fetch);
             await mountPage(Caller);
 
             fetch.mockImplementation(async () => json({ message: 'expired' }, 401));
             await expect(client!.listAgents()).rejects.toThrow();
 
-            await vi.waitFor(() => expect(replace).toHaveBeenCalledWith('/console/login'));
+            await vi.waitFor(() => expect(replace).toHaveBeenCalledWith('/console/login?redirect=%2Fconsole%2Fext%2Fmail%3Fa%3D1%23b'));
             expect(window.sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
         });
 

@@ -14,6 +14,7 @@ import {
 } from 'vitest';
 import { effectScope } from 'vue';
 import { useConnection, useConnections } from '../../../src/connections/composables.ts';
+import { CONNECTIONS_POLL_MS } from '../../../src/connections/constants.ts';
 import type { ConnectionDetailWire, IConnectionsApi } from '../../../src/connections/types.ts';
 import { ApiError } from '../../../src/api/error.ts';
 import { apiError } from '../../utils/client.ts';
@@ -160,6 +161,67 @@ describe('useConnection', () => {
         expect(state.error.value?.status).toBe(403);
         expect(state.widgets.value).toEqual([]);
         scope.stop();
+    });
+
+    it('polls a writer\'s connection with no handle instead of opening the stream', async () => {
+        const stream = vi.fn(async () => {
+            throw apiError(404, 'not_found');
+        });
+        const scope = effectScope();
+        const state = scope.run(() => useConnection(fakeApi({
+            get: async () => ({
+                name: 'mail-work',
+                type: 'mail',
+                status: 'disconnected',
+                widgets: [],
+                canReset: false,
+                live: false,
+            }),
+            stream,
+        }), 'mail-work', { write: true }))!;
+
+        await flush();
+        expect(state.connection.value?.status).toBe('disconnected');
+        expect(stream).not.toHaveBeenCalled();
+        expect(state.error.value).toBeUndefined();
+        scope.stop();
+    });
+
+    it('stops polling and opens the stream once a handle runs', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const live = liveStream();
+            const stream = vi.fn(async () => live.response);
+            let hasHandle = false;
+            const get = vi.fn(async () => ({
+                name: 'mail-work',
+                type: 'mail',
+                status: 'disconnected' as const,
+                widgets: [],
+                canReset: false,
+                live: hasHandle,
+            }));
+            const scope = effectScope();
+            const state = scope.run(() => useConnection(fakeApi({ get, stream }), 'mail-work', { write: true }))!;
+
+            await vi.advanceTimersByTimeAsync(0);
+            expect(get).toHaveBeenCalledTimes(1);
+            expect(stream).not.toHaveBeenCalled();
+
+            hasHandle = true;
+            await vi.advanceTimersByTimeAsync(CONNECTIONS_POLL_MS);
+            expect(get).toHaveBeenCalledTimes(2);
+            expect(stream).toHaveBeenCalledTimes(1);
+
+            await vi.advanceTimersByTimeAsync(CONNECTIONS_POLL_MS * 3);
+            expect(get).toHaveBeenCalledTimes(2);
+            expect(stream).toHaveBeenCalledTimes(1);
+            expect(state.error.value).toBeUndefined();
+            scope.stop();
+        } finally {
+            vi.useRealTimers();
+        }
     });
 
     it('a missing connection is a 404 error', async () => {

@@ -102,7 +102,8 @@ export function useConnection(api: IConnectionsApi, name: string, options: UseCo
             widgets.value = options.write ? detail.widgets ?? [] : [];
             error.value = undefined;
 
-            if (options.write && !disposed) {
+            // no handle in this process means no stream: keep polling until one runs
+            if (options.write && !disposed && detail.live !== false) {
                 // the stream carries every change from here on
                 poller.stop();
                 follow();

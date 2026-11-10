@@ -17,3 +17,7 @@ export const E2E_CONNECTION = 'whatsapp';
 
 /** The pairing string the demo connection shows as its QR. */
 export const E2E_QR = '2@demo-pairing-material';
+
+/** The demo's `*-ui` page, served at `/ui/ext/<slug>`. */
+export const E2E_PAGE_SLUG = 'demo';
+export const E2E_PAGE_LABEL = 'Demo page';

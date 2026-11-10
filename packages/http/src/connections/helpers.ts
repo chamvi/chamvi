@@ -32,16 +32,21 @@ export function canRead(principal: Principal, name: string): boolean {
     return canWrite(principal, name) || hasPermission(principal.permissions, connectionPermission(name, 'read'));
 }
 
-/** The handle of `name` the principal may read (404, then 403), or may write with `write`. */
+/** 403 unless the principal may read `name`, or may write it with `write`: before any lookup, so a refusal says nothing about the name. */
+export function assertConnectionAccess(principal: Principal, name: string, write = false): void {
+    if (write ? !canWrite(principal, name) : !canRead(principal, name)) {
+        throw new ForbiddenError({ message: `Missing permission "${connectionPermission(name, write ? 'write' : 'read')}".` });
+    }
+}
+
+/** The handle of `name` the principal may read (403, then 404), or may write with `write`. */
 export function requireHandle(ctx: HttpContext, principal: Principal, name: string, write = false): IConnectionHandle {
+    assertConnectionAccess(principal, name, write);
+
     const handle = ctx.connections().find((candidate) => candidate.name === name);
 
     if (!handle) {
         throw new NotFoundError({ message: `The connection "${name}" does not exist.` });
-    }
-
-    if (write ? !canWrite(principal, name) : !canRead(principal, name)) {
-        throw new ForbiddenError({ message: `Missing permission "${connectionPermission(name, write ? 'write' : 'read')}".` });
     }
 
     return handle;

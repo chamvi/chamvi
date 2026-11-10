@@ -6,7 +6,7 @@
  */
 
 import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core';
-import type { ConnectionDetailView, ConnectionView } from '@chamvi/http';
+import type { ConnectionDetailView, ConnectionTypeView, ConnectionView } from '@chamvi/http';
 import type { ApiError } from '../api/error.ts';
 import type { IApiClient } from '../api/types.ts';
 
@@ -16,6 +16,9 @@ export type ConnectionWire = ConnectionView;
 export type ConnectionDetailWire = ConnectionDetailView;
 
 export type ConnectionWidgetWire = ConnectionWidget;
+
+/** One entry of `GET /connection-types`. */
+export type ConnectionTypeWire = ConnectionTypeView;
 
 /** The chip a status renders as: its words and one of the dashboard's status tones. */
 export type ConnectionBadge = {

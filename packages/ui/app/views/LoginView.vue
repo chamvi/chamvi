@@ -11,6 +11,7 @@ import { useRoute, useRouter } from 'vue-router';
 import {
     ApiError,
     BrandLogo,
+    isPagePath,
     safeReturnPath,
     useAppContext,
 } from '@chamvi/ui-kit';
@@ -24,7 +25,7 @@ const token = ref('');
 const error = ref<string>();
 const busy = ref(false);
 
-const returnTo = computed(() => safeReturnPath(route.query.redirect));
+const returnTo = computed(() => safeReturnPath(route.query.redirect, '/', config.uiBase));
 const authupHost = computed(() => (config.auth.authup ? new URL(config.auth.authup.url).host : ''));
 const { host } = globalThis.location;
 
@@ -41,6 +42,14 @@ async function useToken(): Promise<void> {
     try {
         await session.signInWithToken(token.value.trim());
         token.value = '';
+
+        // a *-ui page is outside this router: only a full navigation reaches it
+        if (isPagePath(returnTo.value, config.uiBase)) {
+            globalThis.location.assign(returnTo.value);
+
+            return;
+        }
+
         await router.replace(returnTo.value);
     } catch (e) {
         error.value = e instanceof ApiError && e.status === 401 ?

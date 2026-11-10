@@ -9,7 +9,7 @@
 import { useColorMode } from '@vuecs/design';
 import { computed } from 'vue';
 import { RouterView, useRoute, useRouter } from 'vue-router';
-import AppShell from './components/app-shell/AppShell.vue';
+import DashboardShell from './components/dashboard-shell/DashboardShell.vue';
 import { useAppContext } from '@chamvi/ui-kit';
 import { RouteName } from './router/constants.ts';
 
@@ -35,13 +35,13 @@ async function signOut(): Promise<void> {
 <template>
     <VCToastProvider>
         <RouterView v-if="ready && bare" />
-        <AppShell
+        <DashboardShell
             v-else-if="shell"
             :principal="session.principal.value"
             @sign-out="signOut"
         >
             <RouterView />
-        </AppShell>
+        </DashboardShell>
         <VCToaster position="bottom-right" />
     </VCToastProvider>
     <VCAlertDialogProvider />

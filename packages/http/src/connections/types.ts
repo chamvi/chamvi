@@ -29,11 +29,13 @@ export type ConnectionView = {
     deletable?: boolean;
 };
 
-/** `GET /connections/:name`: `widgets` and `canReset` only for a holder of `connection:<name>:write`. */
+/** `GET /connections/:name`: `widgets`, `canReset` and `live` only for a holder of `connection:<name>:write`. */
 export type ConnectionDetailView = ConnectionView & {
     widgets?: ConnectionWidget[];
     /** The connection offers a reset (`POST /connections/:name/reset` does not answer 404). */
     canReset?: boolean;
+    /** A handle runs in this process: `GET /connections/:name/events` does not answer 404. */
+    live?: boolean;
 };
 
 /** A field of `GET /connection-types`: what a form needs. */

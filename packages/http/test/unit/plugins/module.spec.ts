@@ -8,7 +8,12 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpRoute } from '@chamvi/http';
 import type { App, IAppEvent } from 'routup';
-import { isOperationalPath, isStreamRequest, routeLabel } from '../../../src/plugins/helpers.ts';
+import {
+    isOperationalPath,
+    isStreamRequest,
+    isUnlimitedRoute,
+    routeLabel,
+} from '../../../src/plugins/helpers.ts';
 import {
     ADMIN_TOKEN,
     call,
@@ -296,6 +301,33 @@ describe('route labels', () => {
         path,
         ...(prefix ? { prefix } : {}),
         handler: async () => ({ status: 204 }),
+    });
+
+    it.each([
+        ['outer first', ['/ui', '/ui/ext/mail']],
+        ['inner first', ['/ui/ext/mail', '/ui']],
+    ])('labels a nested prefix route by the most specific one (%s)', (_order, paths) => {
+        const routes = paths.map((path) => extra(path, true));
+        const label = (path: string) => routeLabel({ method: 'POST', path } as IAppEvent, '', '/metrics', routes);
+
+        expect(label('/ui/ext/mail/accounts')).toBe('/ui/ext/mail/*');
+        expect(label('/ui/agents')).toBe('/ui/*');
+    });
+
+    it.each([
+        ['outer first', '/ui', ['/ui', '/ui/ext/mail']],
+        ['inner first', '/ui', ['/ui/ext/mail', '/ui']],
+        ['outer first', '/ui/ext/mail', ['/ui', '/ui/ext/mail']],
+        ['inner first', '/ui/ext/mail', ['/ui/ext/mail', '/ui']],
+    ])('applies the rate limit choice of the most specific route (%s, %s unlimited)', (_order, free, paths) => {
+        const routes = paths.map((path): HttpRoute => ({
+            ...extra(path, true),
+            ...(path === free ? { rateLimit: false as const } : {}),
+        }));
+        const unlimited = (path: string) => isUnlimitedRoute({ method: 'POST', path } as IAppEvent, '', routes);
+
+        expect(unlimited('/ui/agents')).toBe(free === '/ui');
+        expect(unlimited('/ui/ext/mail/x')).toBe(free === '/ui/ext/mail');
     });
 
     it('labels an extra route by its path', () => {

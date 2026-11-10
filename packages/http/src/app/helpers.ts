@@ -117,8 +117,10 @@ function validateRoutes(options: HttpAppOptions): HttpRoute[] {
         }
 
         const prefix = prefixRoute.path.toLowerCase();
+        // a nested prefix route is fine: registerRoutes serves the most specific first
         const covered = routes.find((other) => other !== prefixRoute &&
             other.method === prefixRoute.method &&
+            (!other.prefix || other.path.toLowerCase() === prefix) &&
             isAtOrUnder(other.path.toLowerCase(), prefix));
 
         if (covered) {

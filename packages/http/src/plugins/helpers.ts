@@ -42,11 +42,16 @@ function matchesRoute(route: HttpRoute, path: string): boolean {
     return path === own || (route.prefix === true && path.startsWith(`${own}/`));
 }
 
-/** A request to one of the extra routes declared `rateLimit: false` (method and path, under `basePath`). */
-export function isUnlimitedRoute(event: IAppEvent, basePath: string, routes: readonly HttpRoute[]): boolean {
-    const path = routePath(event, basePath);
+/** The matching route `registerRoutes` serves: every match is a prefix of `path`, so the longest is the most specific. */
+function findRoute(routes: readonly HttpRoute[], path: string): HttpRoute | undefined {
+    return routes.filter((route) => matchesRoute(route, path)).toSorted((a, b) => b.path.length - a.path.length)[0];
+}
 
-    return routes.some((route) => route.rateLimit === false && route.method === event.method && matchesRoute(route, path));
+/** A request served by an extra route declared `rateLimit: false` (method and path, under `basePath`). */
+export function isUnlimitedRoute(event: IAppEvent, basePath: string, routes: readonly HttpRoute[]): boolean {
+    const route = findRoute(routes.filter((candidate) => candidate.method === event.method), routePath(event, basePath));
+
+    return route?.rateLimit === false;
 }
 
 /** The routes of the app as metric labels, matched against the path without `basePath`; keep in step with the route modules. */
@@ -90,7 +95,7 @@ export function routeLabel(
         return metricsPath;
     }
 
-    const extra = extraRoutes.find((route) => matchesRoute(route, path));
+    const extra = findRoute(extraRoutes, path);
 
     if (extra !== undefined) {
         return extra.prefix ? `${extra.path}/*` : extra.path;

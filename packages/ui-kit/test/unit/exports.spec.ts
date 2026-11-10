@@ -14,9 +14,12 @@ describe('public api', () => {
         expect(Object.keys(kit).sort()).toEqual([
             'APP_CONTEXT',
             'AUTHUP_STORAGE_PREFIX',
+            'AccountsColumn',
             'ApiError',
+            'AppShell',
             'BrandLogo',
             'CONFIG_ELEMENT_ID',
+            'CONNECTIONS_CREATE_PERMISSION',
             'CONNECTIONS_POLL_MS',
             'ConnectionPanel',
             'DEV_CONFIG',
@@ -45,6 +48,7 @@ describe('public api', () => {
             'hasPermission',
             'install',
             'installComponents',
+            'isPagePath',
             'mountPage',
             'openConnectionStream',
             'pageQuery',
@@ -61,6 +65,7 @@ describe('public api', () => {
             'useAppContext',
             'useConnection',
             'useConnections',
+            'useUiPages',
             'withQuery',
         ]);
     });

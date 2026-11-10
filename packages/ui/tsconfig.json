@@ -5,6 +5,7 @@
         "test/**/*"
     ],
     "exclude": [
-        "test/unit/app/**/*"
+        "test/unit/app/**/*",
+        "test/e2e/demo/page"
     ]
 }

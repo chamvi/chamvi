@@ -67,7 +67,10 @@ export function registerRoutes(app: App, ctx: HttpContext): void {
         basePath: ctx.basePath,
     };
 
-    for (const route of ctx.routes) {
+    // routup answers with the first match: a nested prefix route must come before the one around it, in any given order
+    const ordered = [...ctx.routes].sort((a, b) => b.path.split('/').length - a.path.split('/').length);
+
+    for (const route of ordered) {
         const handler = defineCoreHandler(async (event) => respond(event, await route.handler(toRouteRequest(event, ctx, route), routeCtx)));
         const paths = route.prefix ? [route.path, `${route.path}{/*rest}`] : [route.path];
 

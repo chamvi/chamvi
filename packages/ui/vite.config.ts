@@ -11,5 +11,5 @@ export default defineConfig(({ command }) => mergeConfig(definePageConfig({ root
     base: command === 'build' ? './' : '/ui/',
     // the login footer's "chamvi 0.1"
     define: { __CHAMVI_VERSION__: JSON.stringify(version) },
-    server: { proxy: Object.fromEntries(['/agents', '/runs', '/schedules', '/connections', '/me'].map((path) => [path, API])) },
+    server: { proxy: Object.fromEntries(['/agents', '/runs', '/schedules', '/connections', '/connection-types', '/ui-pages', '/me'].map((path) => [path, API])) },
 }));
