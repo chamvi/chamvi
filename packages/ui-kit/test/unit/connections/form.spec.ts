@@ -141,7 +141,7 @@ async function mount(options: {
 
         return new Response(JSON.stringify(await responder(init.body)));
     };
-    const emitted: { created: string[]; deleted: unknown[] } = { created: [], deleted: [] };
+    const emitted: { created: unknown[]; deleted: unknown[] } = { created: [], deleted: [] };
     const root = document.createElement('div');
 
     document.body.append(root);
@@ -153,7 +153,7 @@ async function mount(options: {
     const app = createApp(defineComponent(() => () => h(ConnectionForm, {
         type: 'mail',
         ...(name === undefined ? {} : { name }),
-        onCreated: (created: string) => {
+        onCreated: (created: unknown) => {
             emitted.created.push(created);
         },
         onDeleted: (deleted: unknown) => {
@@ -243,6 +243,28 @@ describe('ConnectionForm', () => {
         await flush();
 
         expect(form.input('password')?.value).toBe('');
+    });
+
+    it('locks every edit while a save is pending, so no change is lost to its answer', async () => {
+        const { promise, resolve: answer } = Promise.withResolvers<ConnectionSettingsWire>();
+        const put = vi.fn(() => promise);
+        const form = await mount({ routes: { 'PUT /connections/mail-work/config': put } });
+
+        form.type(form.input('host')!, 'imap.other');
+        await form.submit();
+
+        expect(put).toHaveBeenCalledTimes(1);
+        expect(form.input('host')!.disabled).toBe(true);
+        expect(form.input('security')!.disabled).toBe(true);
+        expect(form.button('Replace')!.disabled).toBe(true);
+        expect(form.button('Clear')!.disabled).toBe(true);
+
+        answer(view({ settings: { host: 'imap.other', port: 993 } }));
+        await flush();
+
+        expect(form.input('host')!.disabled).toBe(false);
+        expect(form.input('host')!.value).toBe('imap.other');
+        expect(form.button('Replace')!.disabled).toBe(false);
     });
 
     it('sends the complete settings with an empty value unset and a number typed', async () => {
@@ -551,7 +573,7 @@ describe('ConnectionForm', () => {
             },
             secrets: { password: 'hunter2' },
         });
-        expect(form.emitted.created).toEqual(['mail-work']);
+        expect(form.emitted.created).toEqual([{ name: 'mail-work', restartRequired: false }]);
         expect(form.root.innerHTML).not.toContain('hunter2');
     });
 

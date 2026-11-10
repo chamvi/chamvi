@@ -78,9 +78,11 @@ export type UseConnectionFormOptions = {
     /** Absent while adding an account. */
     name?: string;
     type: string;
-    onCreated: (name: string) => void;
+    onCreated: (result: ConnectionCreated) => void;
     onDeleted: (result: ConnectionDeleted) => void;
 };
+
+export type ConnectionCreated = { name: string; restartRequired: boolean };
 
 export type ConnectionDeleted = { name: string; restartRequired: boolean };
 

@@ -184,7 +184,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
                     });
 
                     secrets.value = {};
-                    options.onCreated(created.name);
+                    options.onCreated({ name: created.name, restartRequired: created.restartRequired });
 
                     return;
                 }

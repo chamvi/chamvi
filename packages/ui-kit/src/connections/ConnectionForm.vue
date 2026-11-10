@@ -16,7 +16,7 @@ import { useAppContext } from '../context/module.ts';
 import { createConnectionConfigApi } from './api.ts';
 import { useConnectionForm } from './form.ts';
 import { canWriteConnection } from './helpers.ts';
-import type { ConnectionDeleted } from './types.ts';
+import type { ConnectionCreated, ConnectionDeleted } from './types.ts';
 
 // mounted once per connection name (the caller keys it by the name)
 const props = defineProps<{
@@ -25,13 +25,13 @@ const props = defineProps<{
     type: string;
 }>();
 
-const emit = defineEmits<{ created: [name: string]; deleted: [result: ConnectionDeleted] }>();
+const emit = defineEmits<{ created: [result: ConnectionCreated]; deleted: [result: ConnectionDeleted] }>();
 
 const { client, session } = useAppContext();
 const form = useConnectionForm(createConnectionConfigApi(client), {
     ...(props.name === undefined ? {} : { name: props.name }),
     type: props.type,
-    onCreated: (name) => emit('created', name),
+    onCreated: (result) => emit('created', result),
     onDeleted: (result) => emit('deleted', result),
 });
 const {
@@ -210,6 +210,7 @@ watch(confirmation, async (open, previous) => {
                         class="input"
                         type="password"
                         autocomplete="new-password"
+                        :disabled="busy"
                         :aria-required="field.required === true"
                     >
                     <div
@@ -224,6 +225,7 @@ watch(confirmation, async (open, previous) => {
                             <button
                                 type="button"
                                 class="btn btn-sm btn-ghost"
+                                :disabled="busy"
                                 @click="replacing[field.key] = !replacing[field.key]; secrets[field.key] = ''"
                             >
                                 {{ replacing[field.key] ? 'Keep current' : 'Replace' }}
@@ -232,6 +234,7 @@ watch(confirmation, async (open, previous) => {
                                 type="button"
                                 class="btn btn-sm btn-ghost btn-danger"
                                 :data-clear="field.key"
+                                :disabled="busy"
                                 @click="form.askClear(field)"
                             >
                                 Clear
@@ -289,7 +292,7 @@ watch(confirmation, async (open, previous) => {
                     :id="`connection-${field.key}`"
                     v-model="drafts[field.key]"
                     class="input"
-                    :disabled="!canEdit"
+                    :disabled="!canEdit || busy"
                 >
                     <option value="">
                         Not set
@@ -320,7 +323,7 @@ watch(confirmation, async (open, previous) => {
                     class="input"
                     :inputmode="field.kind === 'number' ? 'numeric' : undefined"
                     autocomplete="off"
-                    :disabled="!canEdit"
+                    :disabled="!canEdit || busy"
                     :aria-required="field.required === true"
                 >
 
