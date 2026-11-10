@@ -6,7 +6,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { computed, shallowRef } from 'vue';
+import { computed, shallowRef, watch } from 'vue';
 import { hasPermission } from '../auth/helpers.ts';
 import { useAppContext } from '../context/module.ts';
 import AccountsColumn from '../shell/AccountsColumn.vue';
@@ -37,9 +37,33 @@ const adding = shallowRef(query.has('add'));
 const deletedNotice = shallowRef(false);
 // an account the principal added but may not read (connections:create alone): confirmed here, never opened
 const createdNotice = shallowRef<ConnectionCreated>();
+// deleted here while the list may still hold them; a name leaves once a list arrives without it
+const removed = shallowRef<ReadonlySet<string>>(new Set());
 
 const definition = computed(() => types.value.find((entry) => entry.type === props.type));
-const accounts = computed(() => connections.value.filter((connection) => connection.type === props.type));
+const listed = computed(() => connections.value.filter((connection) => !removed.value.has(connection.name)));
+const accounts = computed(() => listed.value.filter((connection) => connection.type === props.type));
+
+watch(connections, (list) => {
+    const names = new Set(list.map((connection) => connection.name));
+    const still = [...removed.value].filter((name) => names.has(name));
+
+    if (still.length < removed.value.size) {
+        removed.value = new Set(still);
+    }
+});
+
+function forget(name: string, gone: boolean): void {
+    const next = new Set(removed.value);
+
+    if (gone) {
+        next.add(name);
+    } else {
+        next.delete(name);
+    }
+
+    removed.value = next;
+}
 const current = computed(() => (adding.value ? undefined : chosen.value ?? accounts.value[0]?.name));
 
 /** The open account lives in the query, so a reload (after a restart, say) comes back to it. */
@@ -67,6 +91,9 @@ function open(name: string | undefined, add = false): void {
 }
 
 function onCreated(result: ConnectionCreated): void {
+    // the same name created again is a new account
+    forget(result.name, false);
+
     const permissions = session.principal.value?.permissions ?? [];
 
     // write implies read; the form of an unreadable account would only show its 403
@@ -81,6 +108,7 @@ function onCreated(result: ConnectionCreated): void {
 }
 
 function onDeleted(result: ConnectionDeleted): void {
+    forget(result.name, true);
     open(undefined);
     deletedNotice.value = result.restartRequired;
     refresh();
@@ -96,7 +124,7 @@ function onDeleted(result: ConnectionDeleted): void {
             <AccountsColumn
                 v-if="definition"
                 :type="definition"
-                :connections="connections"
+                :connections="listed"
                 :principal="session.principal.value"
                 :current="current"
                 @select="open($event)"

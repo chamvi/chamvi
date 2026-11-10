@@ -70,7 +70,7 @@ afterEach(() => {
     globalThis.history.replaceState({}, '', '/');
 });
 
-async function mountPage(permissions: string[]) {
+async function mountPage(permissions: string[], world: { list?: unknown[]; search?: string } = {}) {
     const requests: string[] = [];
     const principal: MeWire = {
         id: 'peter',
@@ -88,7 +88,11 @@ async function mountPage(permissions: string[]) {
             }
 
             if (url === '/connections') {
-                return json({ data: [] });
+                return json({ data: world.list ?? [] });
+            }
+
+            if (method === 'DELETE' && url.startsWith('/connections/')) {
+                return json({ restartRequired: true });
             }
 
             if (url === '/ui-pages') {
@@ -99,8 +103,10 @@ async function mountPage(permissions: string[]) {
                 return json({ data: [TYPE] });
             }
 
-            if (url === '/connections/mail-work/config') {
-                return json(CREATED);
+            const config = /^\/connections\/([a-z-]+)\/config$/.exec(url);
+
+            if (config) {
+                return json({ ...CREATED, name: config[1] });
             }
 
             throw new Error(`unexpected ${method} ${url}`);
@@ -117,7 +123,7 @@ async function mountPage(permissions: string[]) {
             storage: window.sessionStorage,
         },
     });
-    globalThis.history.replaceState({}, '', '/ui/ext/tool-mail/?add=1');
+    globalThis.history.replaceState({}, '', `/ui/ext/tool-mail/${world.search ?? '?add=1'}`);
     document.body.innerHTML = '<div id="app"></div>';
     app.mount('#app');
     mounted = app;
@@ -165,5 +171,32 @@ describe('ConnectionsPage', () => {
         expect(page.requests).toContain('GET /connections/mail-work/config');
         expect(page.root.querySelector('[data-testid="connection-created"]')).toBeNull();
         expect(globalThis.location.search).toBe('?connection=mail-work');
+    });
+
+    it('drops a deleted account at once, though the refreshed list still holds it', async () => {
+        const list = ['mail-work', 'mail-home'].map((name) => ({
+            name,
+            type: 'mail',
+            status: 'disconnected',
+        }));
+        const page = await mountPage(['*'], { list, search: '' });
+        const button = (text: string) => Array.from(page.root.querySelectorAll('button')).find((entry) => entry.textContent?.trim() === text)!;
+
+        expect(page.requests).toContain('GET /connections/mail-work/config');
+
+        button('Delete').click();
+        await flush();
+        button('Delete account').click();
+        await flush();
+        await flush();
+        await nextTick();
+
+        expect(page.requests).toContain('DELETE /connections/mail-work');
+        // the list answered after the delete is stale: it still names mail-work
+        expect(page.requests.filter((request) => request === 'GET /connections').length).toBeGreaterThan(1);
+        expect(page.root.querySelector('[data-account="mail-work"]')).toBeNull();
+        expect(page.root.querySelector('[data-account="mail-home"]')).not.toBeNull();
+        expect(page.requests).toContain('GET /connections/mail-home/config');
+        expect(page.root.querySelector('[data-testid="connection-deleted"]')).not.toBeNull();
     });
 });

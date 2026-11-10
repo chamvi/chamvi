@@ -27,6 +27,9 @@ import type {
 } from './types.ts';
 import { ACCOUNT_KEY, buildConnectionContainer } from './validators.ts';
 
+/** The code of a server issue shown at its field: untranslated, so its own message shows. */
+const SERVER_ISSUE_CODE = 'connection_config';
+
 function toDraft(value: unknown): string {
     if (Array.isArray(value)) {
         return value.join(', ');
@@ -148,7 +151,13 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
         const known = new Set([...(adding ? [ACCOUNT_KEY] : []), ...fields.value.map((field) => field.key)]);
         const issues = flattenIssueItems(error.issues ?? [])
             .filter((issue) => known.has(String(issue.path?.at(-1) ?? '')))
-            .map((issue) => ({ ...issue, path: [String(issue.path.at(-1))] }));
+            // the server says what is wrong in the message (every issue is value_invalid): a code the
+            // catalog does not know keeps that wording instead of the catalog's generic one
+            .map((issue) => ({
+                ...issue,
+                code: SERVER_ISSUE_CODE,
+                path: [String(issue.path.at(-1))],
+            }));
 
         v.setExternalIssues(issues);
         formError.value = issues.length > 0 ? undefined : statusOf(error);

@@ -392,8 +392,8 @@ describe('ConnectionForm', () => {
         form.type(form.input('password')!, 'hunter2');
         await form.submit();
 
-        // translated by its code (the ilingo validup catalog)
-        expect(form.message('host')).toBe('The value is invalid');
+        // the server's own wording, not the catalog's generic text for its value_invalid code
+        expect(form.message('host')).toBe('is required');
         expect(form.root.querySelector('[data-testid="connection-form-failure"]')).toBeNull();
         expect(form.input('password')?.value).toBe('hunter2');
 
