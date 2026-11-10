@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope, ref } from 'vue';
-import type { ArtifactWire } from '../../../../app/api/types.ts';
+import type { ArtifactWire } from '@chamvi/ui-kit';
 import { useArtifactTiles } from '../../../../app/artifacts/composables.ts';
 import type { ObjectUrls } from '../../../../app/artifacts/types.ts';
 import { apiError, fakeClient } from '../../../utils/client.ts';
@@ -84,9 +84,9 @@ function setup(options: { ids?: string[]; reads?: Record<string, () => Promise<B
         },
     });
     const {
-        urls, 
-        live, 
-        revoked, 
+        urls,
+        live,
+        revoked,
     } = fakeUrls();
     const key = ref<string | undefined>('call-1:0');
     const ids = ref(options.ids ?? ['a', 'b', 'c', 'd', 'e']);

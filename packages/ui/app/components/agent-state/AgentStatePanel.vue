@@ -7,13 +7,13 @@
  */
 
 import { computed, ref, watch } from 'vue';
-import type { DocEntry, KvEntry } from '../../api/types.ts';
+import type { DocEntry, KvEntry } from '@chamvi/ui-kit';
 import type { useAgentState } from '../../state/composables.ts';
 import { DOC_PAGE_SIZE } from '../../state/constants.ts';
 import { docColumns, inlineJson } from '../../state/helpers.ts';
 import EmptyState from '../empty-state/EmptyState.vue';
 import JsonBlock from '../json-block/JsonBlock.vue';
-import NavIcon from '../nav-icon/NavIcon.vue';
+import { NavIcon } from '@chamvi/ui-kit';
 import { panelId, tabId } from '../tab-list/helpers.ts';
 import TabList from '../tab-list/TabList.vue';
 

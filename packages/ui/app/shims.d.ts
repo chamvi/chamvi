@@ -12,12 +12,5 @@ declare module '*.vue' {
     export default component;
 }
 
-declare module 'virtual:chamvi-icons' {
-    import type { IconifyJSON } from '@iconify/types';
-
-    const icons: IconifyJSON;
-    export default icons;
-}
-
 /** The package version, replaced at build time (vite.config.ts `define`). */
 declare const __CHAMVI_VERSION__: string;

@@ -11,6 +11,6 @@ import * as kit from '@chamvi/ui-kit';
 describe('package entry', () => {
     it('resolves', () => {
         expect(kit).toBeDefined();
-        expect(kit.createApiClient).toBeTypeOf('function');
+        expect(kit.mountPage).toBeTypeOf('function');
     });
 });

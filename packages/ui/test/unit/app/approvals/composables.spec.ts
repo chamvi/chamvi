@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope } from 'vue';
-import type { ApproveBody, RunListFilter } from '../../../../app/api/types.ts';
+import type { ApproveBody, RunListFilter } from '@chamvi/ui-kit';
 import { useApprovals } from '../../../../app/approvals/composables.ts';
 import { apiError, fakeClient } from '../../../utils/client.ts';
 import { wireRun } from '../../../utils/runs.ts';

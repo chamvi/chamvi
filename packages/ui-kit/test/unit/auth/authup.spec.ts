@@ -14,8 +14,9 @@ import {
     vi,
 } from 'vitest';
 import { createApp } from 'vue';
-import { AUTHUP_STORAGE_PREFIX, clearStorage, createSessionCookies } from '@chamvi/ui-kit';
-import { MemoryStorage } from '../../../utils/storage.ts';
+import { AUTHUP_STORAGE_PREFIX } from '../../../src/auth/constants.ts';
+import { clearStorage, createSessionCookies } from '../../../src/auth/helpers.ts';
+import { MemoryStorage } from '../../utils/storage.ts';
 
 // the kit needs a browser and an authup server: only its install options
 // and the store's token are observed here
@@ -105,7 +106,7 @@ describe('createAuthupAdapter', () => {
     });
 
     it('hands the kit storage-backed cookie functions, never document.cookie', async () => {
-        const { createAuthupAdapter } = await import('../../../../app/auth/authup.ts');
+        const { createAuthupAdapter } = await import('../../../src/auth/authup.ts');
         const storage = new MemoryStorage();
 
         createAuthupAdapter(createApp(ROOT), CONFIG, '/ui', storage);
@@ -129,7 +130,7 @@ describe('createAuthupAdapter', () => {
     });
 
     it('refresh is true while a token is in place, also when another call already rotated it', async () => {
-        const { createAuthupAdapter } = await import('../../../../app/auth/authup.ts');
+        const { createAuthupAdapter } = await import('../../../src/auth/authup.ts');
         const adapter = createAuthupAdapter(createApp(ROOT), CONFIG, '/ui', new MemoryStorage());
 
         kit.store.accessToken = 'rotated-by-another-request';

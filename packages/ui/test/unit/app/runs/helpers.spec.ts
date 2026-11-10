@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { hasPermission } from '../../../../app/auth/helpers.ts';
+import { hasPermission } from '@chamvi/ui-kit';
 import {
     canCancel,
     childRole,

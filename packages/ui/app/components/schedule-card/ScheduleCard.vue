@@ -8,11 +8,11 @@
 
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
-import type { RunWire, ScheduleWire } from '../../api/types.ts';
+import type { RunWire, ScheduleWire } from '@chamvi/ui-kit';
 import { RouteName } from '../../router/constants.ts';
 import { describeCron, formatFireTime } from '../../schedules/helpers.ts';
 import ExpiryCountdown from '../expiry-countdown/ExpiryCountdown.vue';
-import StatusChip from '../status-chip/StatusChip.vue';
+import { StatusChip } from '@chamvi/ui-kit';
 
 const props = defineProps<{
     schedule: ScheduleWire;

@@ -7,12 +7,12 @@
 
 import type { ConnectionStatus } from '@chamvi/core';
 import { describe, expect, it } from 'vitest';
-import { STATUS_BADGES } from '../../../../app/connections/constants.ts';
+import { STATUS_BADGES } from '../../../src/connections/constants.ts';
 import {
     canWriteConnection,
     qrDataUrl,
     statusBadge,
-} from '../../../../app/connections/helpers.ts';
+} from '../../../src/connections/helpers.ts';
 
 const STATUSES: ConnectionStatus[] = [
     'disconnected',

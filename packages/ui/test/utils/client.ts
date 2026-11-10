@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ApiError } from '../../app/api/error.ts';
-import type { IApiClient, MeWire } from '../../app/api/types.ts';
+import { ApiError } from '@chamvi/ui-kit';
+import type { IApiClient, MeWire } from '@chamvi/ui-kit';
 
 /** A client whose every method throws unless the test overrides it. */
 export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {

@@ -6,7 +6,7 @@
  */
 
 import { isObject } from 'smob';
-import type { StepWire } from '../../api/types.ts';
+import type { StepWire } from '@chamvi/ui-kit';
 import { formatTokens } from '../../runs/helpers.ts';
 
 export type LlmOutput = {

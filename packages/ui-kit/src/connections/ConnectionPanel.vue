@@ -8,7 +8,6 @@
 
 import { nextTick, ref, watch } from 'vue';
 import { useConnection } from './composables.ts';
-import QrWidget from './QrWidget.vue';
 import StatusBadge from './StatusBadge.vue';
 import type { IConnectionsApi } from './types.ts';
 
@@ -97,16 +96,10 @@ watch(confirming, async (open) => {
             >
                 The live view stopped: {{ error.code }} · {{ error.message }}
             </div>
-            <section
-                v-for="(widget, index) in widgets"
-                :key="`${widget.kind}:${index}`"
-                class="card connection-widget"
-            >
-                <QrWidget
-                    v-if="widget.kind === 'qr'"
-                    :value="widget.value"
-                />
-            </section>
+            <slot
+                name="widgets"
+                :widgets="widgets"
+            />
 
             <section
                 v-if="connection.canReset"

@@ -13,12 +13,12 @@ import {
     vi,
 } from 'vitest';
 import { effectScope } from 'vue';
-import { useConnection, useConnections } from '../../../../app/connections/composables.ts';
-import type { ConnectionDetailWire, IConnectionsApi } from '../../../../app/connections/types.ts';
-import { ApiError } from '../../../../app/api/error.ts';
-import { apiError } from '../../../utils/client.ts';
-import { sse } from '../../../utils/fetch.ts';
-import { flush } from '../../../utils/timers.ts';
+import { useConnection, useConnections } from '../../../src/connections/composables.ts';
+import type { ConnectionDetailWire, IConnectionsApi } from '../../../src/connections/types.ts';
+import { ApiError } from '../../../src/api/error.ts';
+import { apiError } from '../../utils/client.ts';
+import { sse } from '../../utils/fetch.ts';
+import { flush } from '../../utils/timers.ts';
 
 const DETAIL: ConnectionDetailWire = {
     name: 'whatsapp',
@@ -185,9 +185,9 @@ describe('useConnection', () => {
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
             get: async () => ({
-                ...DETAIL, 
-                status: 'logged_out', 
-                widgets: [], 
+                ...DETAIL,
+                status: 'logged_out',
+                widgets: [],
             }),
             stream: async () => sse([]),
             reset: async (name) => {

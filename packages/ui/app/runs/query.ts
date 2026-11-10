@@ -7,7 +7,7 @@
 
 import type { RunStatusLiteral } from '@chamvi/core';
 import type { LocationQuery, LocationQueryRaw } from 'vue-router';
-import type { RunListFilter } from '../api/types.ts';
+import type { RunListFilter } from '@chamvi/ui-kit';
 import { RUN_LIST_PAGE_SIZE, RUN_STATUSES } from './constants.ts';
 
 const first = (value: LocationQuery[string] | undefined): string | undefined => (Array.isArray(value) ? value[0] : value) ?? undefined;

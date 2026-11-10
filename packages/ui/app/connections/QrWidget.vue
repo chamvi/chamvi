@@ -7,7 +7,7 @@
  */
 
 import { computed } from 'vue';
-import { qrDataUrl } from './helpers.ts';
+import { qrDataUrl } from '@chamvi/ui-kit';
 
 // pairing material: rendered here only, never shown as text or logged
 const props = defineProps<{ value: string }>();

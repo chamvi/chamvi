@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunWire } from '../api/types.ts';
+import type { RunWire } from '@chamvi/ui-kit';
 
 /** A run's approval wait point on the wire (a dispatch wait is no human wait). */
 export type ApprovalWaitWire = Extract<NonNullable<RunWire['waiting']>, { kind: 'approval' }>;
@@ -38,9 +38,9 @@ export type LinkedApprovalState =    { kind: 'loading' } |
     { kind: 'forbidden'; run: RunWire } |
     { kind: 'answered'; run: RunWire } |
     {
-        kind: 'moved-on'; 
-        reason: MovedOnReason; 
-        run: RunWire 
+        kind: 'moved-on';
+        reason: MovedOnReason;
+        run: RunWire
     } |
     { kind: 'unreadable' } |
     { kind: 'not-found' } |

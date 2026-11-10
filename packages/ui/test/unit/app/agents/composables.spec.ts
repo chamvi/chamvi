@@ -14,13 +14,13 @@ import {
 import { effectScope, nextTick, ref } from 'vue';
 import { ACTIVITY_LIMIT, AGENTS_POLL_MS } from '../../../../app/agents/constants.ts';
 import { useAgentDetail, useAgentRollups } from '../../../../app/agents/composables.ts';
-import { ApiError } from '../../../../app/api/error.ts';
+import { ApiError } from '@chamvi/ui-kit';
 import type {
     AgentWire,
     RunListFilter,
     RunPage,
     RunWire,
-} from '../../../../app/api/types.ts';
+} from '@chamvi/ui-kit';
 import { apiError, fakeClient } from '../../../utils/client.ts';
 import { wireRun } from '../../../utils/runs.ts';
 import { flush } from '../../../utils/timers.ts';

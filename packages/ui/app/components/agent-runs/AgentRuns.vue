@@ -9,8 +9,8 @@
 import type { RunStatusLiteral } from '@chamvi/core';
 import { computed, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import type { AgentWire, RunListFilter } from '../../api/types.ts';
-import { useAppContext } from '../../context/module.ts';
+import type { AgentWire, RunListFilter } from '@chamvi/ui-kit';
+import { useAppContext } from '@chamvi/ui-kit';
 import { useRunList } from '../../runs/composables.ts';
 import { RUN_STATUSES } from '../../runs/constants.ts';
 import { filterFromQuery, queryFromFilter } from '../../runs/query.ts';
