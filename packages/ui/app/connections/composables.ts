@@ -6,9 +6,8 @@
  */
 
 import { onScopeDispose, shallowRef } from 'vue';
-import type { ApiError } from '../api/error.ts';
-import { asApiError, retryDelayOf } from '../api/helpers.ts';
-import { createPoller } from '../polling/module.ts';
+import type { ApiError } from '@chamvi/ui-kit';
+import { asApiError, createPoller, retryDelayOf  } from '@chamvi/ui-kit';
 import { openConnectionStream } from './api.ts';
 import { CONNECTIONS_POLL_MS } from './constants.ts';
 import type {

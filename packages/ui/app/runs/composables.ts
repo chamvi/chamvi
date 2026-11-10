@@ -13,18 +13,17 @@ import {
 } from 'vue';
 import type { Ref } from 'vue';
 import type { RunStatusLiteral } from '@chamvi/core';
-import type { ApiError } from '../api/error.ts';
-import { asApiError, retryDelayOf } from '../api/helpers.ts';
 import type {
+    ApiError,
     IApiClient,
     RunListFilter,
     RunPage,
     RunWire,
-} from '../api/types.ts';
+} from '@chamvi/ui-kit';
+import { asApiError, createPoller, retryDelayOf  } from '@chamvi/ui-kit';
 import { ACTIVITY_LIMIT } from '../agents/constants.ts';
 import { summarizeActivity } from '../agents/helpers.ts';
 import type { Activity } from '../agents/types.ts';
-import { createPoller } from '../polling/module.ts';
 import { openRunStream } from '../sse/module.ts';
 import type { IRunStream, RunStreamOptions } from '../sse/types.ts';
 import {

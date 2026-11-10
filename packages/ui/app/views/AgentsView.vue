@@ -12,7 +12,7 @@ import { channelChips, hiddenRunsNotice, matchesName } from '../agents/helpers.t
 import AgentCard from '../components/agent-card/AgentCard.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';
-import { useAppContext } from '../context/module.ts';
+import { useAppContext } from '@chamvi/ui-kit';
 
 const { client, session } = useAppContext();
 const permissions = computed(() => session.principal.value?.permissions ?? []);

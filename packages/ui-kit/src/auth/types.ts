@@ -42,3 +42,13 @@ export type SessionDeps = {
     /** Leaves the page for the authorize URL. Default `location.assign`. */
     navigate?: (url: string) => void;
 };
+
+export type SessionCookieOptions = {
+    path?: string;
+};
+
+export type SessionCookies = {
+    cookieGet: (key: string) => unknown;
+    cookieSet: (key: string, value: unknown) => void;
+    cookieUnset: (key: string, options?: SessionCookieOptions) => void;
+};

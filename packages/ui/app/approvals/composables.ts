@@ -12,10 +12,13 @@ import {
     watch,
 } from 'vue';
 import type { Ref } from 'vue';
-import { ApiError } from '../api/error.ts';
-import type { IApiClient, RunDetail, RunWire } from '../api/types.ts';
-import { createPoller } from '../polling/module.ts';
-import { asApiError, retryDelayOf } from '../api/helpers.ts';
+import {
+    ApiError,
+    asApiError,
+    createPoller,
+    retryDelayOf,
+} from '@chamvi/ui-kit';
+import type { IApiClient, RunDetail, RunWire } from '@chamvi/ui-kit';
 import { INBOX_PAGE_SIZE, INBOX_POLL_MS } from './constants.ts';
 import { approvalWaitOf } from './helpers.ts';
 import type { AnswerResult, ApprovalLink } from './types.ts';

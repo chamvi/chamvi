@@ -2,6 +2,8 @@ import { defineConfig, devices } from '@playwright/test';
 
 export default defineConfig({
     testDir: 'test/e2e',
+    // no path aliases: what a spec imports from the app reaches the built kit, not its Vue sources
+    tsconfig: './tsconfig.build.json',
     fullyParallel: false,
     workers: 1,
     forbidOnly: !!process.env.CI,

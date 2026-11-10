@@ -6,10 +6,8 @@
  */
 
 import { onScopeDispose, shallowRef } from 'vue';
-import type { ApiError } from '../api/error.ts';
-import type { IApiClient, ScheduleWire } from '../api/types.ts';
-import { createPoller } from '../polling/module.ts';
-import { asApiError, retryDelayOf } from '../api/helpers.ts';
+import type { ApiError, IApiClient, ScheduleWire  } from '@chamvi/ui-kit';
+import { asApiError, createPoller, retryDelayOf  } from '@chamvi/ui-kit';
 import { SCHEDULES_POLL_MS } from './constants.ts';
 
 /** `GET /schedules`, refreshed every `SCHEDULES_POLL_MS` while the scope lives. */

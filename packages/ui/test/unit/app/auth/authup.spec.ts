@@ -14,8 +14,7 @@ import {
     vi,
 } from 'vitest';
 import { createApp } from 'vue';
-import { AUTHUP_STORAGE_PREFIX } from '../../../../app/auth/constants.ts';
-import { clearStorage, createSessionCookies } from '../../../../app/auth/helpers.ts';
+import { AUTHUP_STORAGE_PREFIX, clearStorage, createSessionCookies } from '@chamvi/ui-kit';
 import { MemoryStorage } from '../../../utils/storage.ts';
 
 // the kit needs a browser and an authup server: only its install options

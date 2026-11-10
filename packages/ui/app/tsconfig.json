@@ -6,7 +6,6 @@
     "include": [
         "./**/*.ts",
         "./**/*.vue",
-        "../src/config/**/*.ts",
         "../test/unit/app/**/*.ts"
     ]
 }

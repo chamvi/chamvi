@@ -18,8 +18,8 @@ import {
 import { createPinia } from 'pinia';
 import type { App } from 'vue';
 import type { UiAuthupConfig } from '../../src/config/types.ts';
-import { createSessionCookies } from './helpers.ts';
-import type { IAuthupAdapter } from './types.ts';
+import { createSessionCookies } from '@chamvi/ui-kit';
+import type { IAuthupAdapter } from '@chamvi/ui-kit';
 
 /**
  * Installs `@authup/client-web-kit` (with its own pinia, before vuecs, as

@@ -6,7 +6,7 @@
  */
 
 import type { NavigationGuard } from 'vue-router';
-import { RouteName } from '../router/constants.ts';
+import { LOGIN_ROUTE_NAME } from './constants.ts';
 import type { ISession } from './types.ts';
 
 /**
@@ -31,6 +31,6 @@ export function createAuthGuard(session: ISession): NavigationGuard {
             return true;
         }
 
-        return { name: RouteName.LOGIN, query: { redirect: to.fullPath } };
+        return { name: LOGIN_ROUTE_NAME, query: { redirect: to.fullPath } };
     };
 }

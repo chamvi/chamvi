@@ -6,24 +6,16 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ApiError } from '../../../../app/api/error.ts';
-import { createApiClient } from '../../../../app/api/module.ts';
-import { RECONNECT_DELAYS_MS } from '../../../../app/sse/constants.ts';
-import { parseEventStream } from '../../../../app/sse/helpers.ts';
+import type { ApiError } from '@chamvi/ui-kit';
+import { RECONNECT_DELAYS_MS, createApiClient  } from '@chamvi/ui-kit';
 import { openRunStream } from '../../../../app/sse/module.ts';
-import type { RunStreamEvent, SseEvent } from '../../../../app/sse/types.ts';
+import type { RunStreamEvent } from '../../../../app/sse/types.ts';
 import {
     createFakeFetch,
     json,
     sse,
 } from '../../../utils/fetch.ts';
 import type { FakeAnswer } from '../../../utils/fetch.ts';
-
-async function collect(chunks: string[]): Promise<SseEvent[]> {
-    const events: SseEvent[] = await Array.fromAsync(parseEventStream(sse(chunks).body!));
-
-    return events;
-}
 
 const run = (status: string) => `event: run.updated\ndata: ${JSON.stringify({ id: 'r1', status })}\n\n`;
 const step = (index: number) => `event: step.appended\nid: ${index}\ndata: ${JSON.stringify({
@@ -75,40 +67,6 @@ function setup(answers: FakeAnswer[]) {
         settled: () => settled,
     };
 }
-
-describe('parseEventStream', () => {
-    it('parses events split across chunks', async () => {
-        expect(await collect(['event: run.upd', 'ated\nda', 'ta: {"a":1}\n', '\nevent: ping\ndata:\n\n'])).toEqual([
-            { event: 'run.updated', data: '{"a":1}' },
-            { event: 'ping', data: '' },
-        ]);
-    });
-
-    it('parses CRLF and multi-line data, and ignores comments', async () => {
-        expect(await collect([': keep-alive\r\n\r\nevent: x\r\nid: 7\r\ndata: one\r\ndata: two\r\n\r\ndata: plain\n\n'])).toEqual([
-            {
-                event: 'x',
-                data: 'one\ntwo',
-                id: '7',
-            },
-            { event: 'message', data: 'plain' },
-        ]);
-    });
-
-    it('decodes UTF-8 split inside a character', async () => {
-        const bytes = new TextEncoder().encode('data: é\n\n');
-        const body = new ReadableStream<Uint8Array>({
-            start(controller) {
-                controller.enqueue(bytes.slice(0, 7));
-                controller.enqueue(bytes.slice(7));
-                controller.close();
-            },
-        });
-        const events: SseEvent[] = await Array.fromAsync(parseEventStream(body));
-
-        expect(events).toEqual([{ event: 'message', data: 'é' }]);
-    });
-});
 
 describe('openRunStream', () => {
     it('emits run, step and delta events', async () => {

@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createPoller } from '../../../../app/polling/module.ts';
-import { createFakeTimers, flush } from '../../../utils/timers.ts';
+import { createPoller } from '../../../src/polling/module.ts';
+import { createFakeTimers, flush } from '../../utils/timers.ts';
 
 describe('createPoller', () => {
     it('does not overlap runs', async () => {

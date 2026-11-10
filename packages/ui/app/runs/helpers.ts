@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunWire, StepWire } from '../api/types.ts';
-import { hasPermission } from '../auth/helpers.ts';
+import type { RunWire, StepWire } from '@chamvi/ui-kit';
+import { hasPermission } from '@chamvi/ui-kit';
 import type { RunStreamEvent } from '../sse/types.ts';
 import { CANCELABLE_STATUSES, PARENT_LABELS, SETTLED_STATUSES } from './constants.ts';
 

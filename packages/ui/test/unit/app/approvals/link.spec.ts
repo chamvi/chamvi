@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { effectScope, ref, shallowRef } from 'vue';
 import { createMemoryHistory } from 'vue-router';
-import type { RunWire } from '../../../../app/api/types.ts';
+import type { IAuthupAdapter, RunWire  } from '@chamvi/ui-kit';
 import { useLinkedApproval } from '../../../../app/approvals/composables.ts';
 import {
     approvalLinkQuery,
@@ -17,12 +17,13 @@ import {
     readApprovalLink,
 } from '../../../../app/approvals/helpers.ts';
 import type { ApprovalLink, DecidedApproval } from '../../../../app/approvals/types.ts';
-import { RETURN_STORAGE_KEY } from '../../../../app/auth/constants.ts';
-import { createAuthGuard } from '../../../../app/auth/guard.ts';
-import { safeReturnPath } from '../../../../app/auth/helpers.ts';
-import { createSession } from '../../../../app/auth/module.ts';
-import type { IAuthupAdapter } from '../../../../app/auth/types.ts';
-import { DEV_CONFIG } from '../../../../app/config/constants.ts';
+import {
+    DEV_CONFIG,
+    RETURN_STORAGE_KEY,
+    createAuthGuard,
+    createSession,
+    safeReturnPath,
+} from '@chamvi/ui-kit';
 import { RouteName } from '../../../../app/router/constants.ts';
 import { createUiRouter } from '../../../../app/router/module.ts';
 import {

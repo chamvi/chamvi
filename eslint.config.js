@@ -28,7 +28,7 @@ export default [
     {
         // the dashboard ships to Vite's default browser target (Safari 16.4, Firefox 114),
         // which lacks the ES2025 iterator helpers and gets no polyfill
-        files: ['packages/ui/app/**/*.{ts,vue}'],
+        files: ['packages/ui/app/**/*.{ts,vue}', 'packages/ui-kit/src/**/*.{ts,vue}'],
         rules: {
             // Error.isError is newer than the dashboard's browser target.
             'unicorn/prefer-error-is-error': 'off',

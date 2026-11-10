@@ -39,7 +39,9 @@
             "@chamvi/tool-utils": ["./packages/tool-utils/src/index.ts"],
             "@chamvi/tool-web": ["./packages/tool-web/src/index.ts"],
             "@chamvi/ui": ["./packages/ui/src/index.ts"],
-            "@chamvi/ui/module": ["./packages/ui/src/module/index.ts"]
+            "@chamvi/ui/module": ["./packages/ui/src/module/index.ts"],
+            "@chamvi/ui-kit": ["./packages/ui-kit/src/index.ts"],
+            "@chamvi/ui-kit/vite": ["./packages/ui-kit/src/vite/index.ts"]
         }
     }
 }

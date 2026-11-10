@@ -15,3 +15,6 @@ export const RETURN_STORAGE_KEY = 'chamvi.return';
 
 /** The authup kit's "cookies" (tokens, expiry, realm) live in `sessionStorage` under this prefix. */
 export const AUTHUP_STORAGE_PREFIX = 'chamvi.authup.';
+
+/** The route a visit without a principal goes to; a router using the guard must name it so. */
+export const LOGIN_ROUTE_NAME = 'login';

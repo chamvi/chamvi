@@ -6,11 +6,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ApiError } from '../../../../app/api/error.ts';
-import { createApiClient } from '../../../../app/api/module.ts';
+import { ApiError, RECONNECT_DELAYS_MS, createApiClient  } from '@chamvi/ui-kit';
 import { createConnectionsApi, openConnectionStream } from '../../../../app/connections/api.ts';
 import type { ConnectionStreamEvent } from '../../../../app/connections/types.ts';
-import { RECONNECT_DELAYS_MS } from '../../../../app/sse/constants.ts';
 import {
     createFakeFetch,
     json,
@@ -159,9 +157,9 @@ describe('openConnectionStream', () => {
 
     it('reconnects after a drop with the backoff', async () => {
         const {
-            delays, 
-            finished, 
-            requests, 
+            delays,
+            finished,
+            requests,
         } = follow([
             sse([]),
             new Response('down', { status: 502 }),
@@ -182,9 +180,9 @@ describe('openConnectionStream', () => {
 
     it('stops on a 403 and reports it', async () => {
         const {
-            errors, 
-            finished, 
-            requests, 
+            errors,
+            finished,
+            requests,
         } = follow([json({ status: 403, code: 'forbidden' }, 403)]);
 
         await finished;
