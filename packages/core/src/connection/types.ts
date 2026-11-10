@@ -36,6 +36,29 @@ export type ConnectionEntryWrite = {
     clear?: boolean;
 };
 
+/** A connection's plain settings and its sealed secrets, as the repository stores them. */
+export type ConnectionConfig = {
+    /** The data key the secrets are sealed under, read in the same snapshot as them. */
+    keyId: string;
+    wrappedKey: Uint8Array;
+    settings: Record<string, unknown>;
+    /** Sealed bytes by field name; the repository never sees plaintext. */
+    secrets: Map<string, Uint8Array>;
+    /** Bumped by every `writeConfig`, starting at 0. */
+    revision: number;
+};
+
+/**
+ * One atomic config change: `settings` replaces the stored settings as a whole
+ * (absent keeps them), then `setSecrets` writes, then `clearSecrets` removes
+ * (a field in both ends cleared).
+ */
+export type ConnectionConfigWrite = {
+    settings?: Record<string, unknown>;
+    setSecrets?: Record<string, Uint8Array>;
+    clearSecrets?: readonly string[];
+};
+
 /** The store lock lease (`ILockRepository`) a write must hold at write time. */
 export type ConnectionFence = {
     lock: string;
@@ -126,6 +149,59 @@ export interface IConnectionSession {
     close(): Promise<void>;
 }
 
+export type ConnectionConfigStoreOptions = {
+    /** Must hold `connections`; its `locks` guard `delete`. */
+    store: IStore;
+    /** Resolved only when a data key is needed: an app without keys can still describe and read secret-free connections. */
+    keyring: () => IKeyring;
+    /** Stamps created rows (default systemClock). */
+    clock?: IClock;
+};
+
+/** What an API may show of a connection's config: secrets by name only. */
+export type ConnectionConfigView = {
+    settings: Record<string, unknown>;
+    /** The names of the stored secrets, sorted; never their values. */
+    secretsSet: string[];
+    revision: number;
+};
+
+/** One config save: `settings` replaces the stored settings as a whole (absent keeps them). */
+export type ConnectionConfigUpdate = {
+    settings?: Record<string, unknown>;
+    secrets?: {
+        set?: Record<string, string>;
+        clear?: readonly string[];
+    };
+};
+
+/**
+ * Settings and sealed secrets of a connection, written from any replica
+ * without the provider's lease: a running session's entries and data key
+ * stay untouched. Secrets are sealed with the connection's data key, bound to
+ * `<name>\0secret\0<field>`.
+ */
+export interface IConnectionConfigStore {
+    /**
+     * Creates the row with a fresh wrapped data key, then saves `update`.
+     * Resolves false, changing nothing, when the name is taken.
+     */
+    create(name: string, type: string, update: ConnectionConfigUpdate): Promise<boolean>;
+    /** Never resolves the keyring. */
+    describe(name: string): Promise<ConnectionConfigView | undefined>;
+    /** The settings and decrypted secrets; resolves the keyring only when secrets exist. */
+    read(name: string): Promise<{ values: ConnectionValues; revision: number } | undefined>;
+    /**
+     * Saves `update` and returns the new revision; resolves the keyring only
+     * to set a secret. RepositoryNotFoundError when absent,
+     * ConnectionChangedError when a recreate replaced the data key meanwhile
+     * (nothing is written).
+     */
+    update(name: string, update: ConnectionConfigUpdate): Promise<number>;
+    /** Removes the connection under a one-shot lease; ConnectionHeldError while the lease is held. */
+    delete(name: string, owner: string): Promise<void>;
+}
+
 /**
  * The live state of a connection as its provider sees it in this process
  * (not stored): `held_elsewhere` while another process holds its lease.
@@ -171,3 +247,82 @@ export interface IConnectionHandle {
     subscribe(listener: () => void): () => void;
     readonly actions: ConnectionActions;
 }
+
+export type ConnectionFieldKind = 'string' | 'number' | 'boolean' | 'select' | 'list' | 'secret';
+
+export type ConnectionValue = string | number | boolean | readonly string[];
+
+export type ConnectionValues = Record<string, ConnectionValue>;
+
+/** One setting of a connection type: enough to render its form and find its variable. */
+export type ConnectionField = {
+    key: string;
+    label: string;
+    kind: ConnectionFieldKind;
+    required?: boolean;
+    description?: string;
+    /** The choices of a `select` field. */
+    options?: readonly string[];
+    /** The variable this field reads for a connection; undefined when it has none. */
+    env?: (connection: string) => string | undefined;
+};
+
+/** The public contract of a configurable connection type, first or third party. */
+export type ConnectionTypeDefinition = {
+    type: string;
+    label: string;
+    /** Whether the type allows several accounts ("Add account"). */
+    multiple: boolean;
+    fields: readonly ConnectionField[];
+    /** The duplicate guard of a multi-instance type (one mail address cannot be added twice). */
+    uniqueId?: (values: ConnectionValues) => string;
+    /** Checks saved values, never unsaved form input. */
+    test?: (values: ConnectionValues, signal: AbortSignal) => Promise<void>;
+};
+
+/** Where a field's value came from. */
+export type ConnectionFieldSource = { kind: 'env'; variable: string } |
+    { kind: 'store' } |
+    { kind: 'code' } |
+    { kind: 'unset' };
+
+/** `incomplete`: some field is set but a required one is not, only reachable without an env field. */
+export type ConnectionState = 'configured' | 'not_configured' | 'incomplete';
+
+export type ResolvedConnection = {
+    name: string;
+    values: ConnectionValues;
+    sources: Record<string, ConnectionFieldSource>;
+    /** The keys of the required fields without a value. */
+    missing: string[];
+    state: ConnectionState;
+};
+
+/** One connection a module declares, resolved for the API. */
+export type DeclaredConnection = {
+    name: string;
+    /** The account id tools, variables and the UI show, for a multi-instance type. */
+    account?: string;
+    editable: boolean;
+    deletable: boolean;
+    resolved: ResolvedConnection;
+    /** The stored revision this process loaded; a newer one means "restart to apply". */
+    loadedRevision?: number;
+};
+
+/** What a package registers for each connection type it configures. */
+export interface IConnectionTypeProvider {
+    readonly definition: ConnectionTypeDefinition;
+    /** Whether the dashboard may create accounts of this type. */
+    creatable(): boolean;
+    connections(): readonly DeclaredConnection[];
+}
+
+export type ResolveConnectionInput = {
+    definition: ConnectionTypeDefinition;
+    name: string;
+    readVariable: (variable: string) => string | undefined;
+    stored?: ConnectionValues;
+    /** Values from code or a JSON variable, which win over everything. */
+    preset?: Record<string, { value: ConnectionValue; source: ConnectionFieldSource }>;
+};

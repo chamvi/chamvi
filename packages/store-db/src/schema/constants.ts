@@ -11,6 +11,7 @@ import {
     CheckpointEntity,
     ConnectionEntity,
     ConnectionEntryEntity,
+    ConnectionSecretEntity,
     ConversationEntity,
     ConversationItemEntity,
     ConversationNoteEntity,
@@ -24,7 +25,7 @@ import {
     RunEntity,
     StepEntity,
 } from '../entities/index.ts';
-import { UuidBaseline1794096000000 } from '../migrations/index.ts';
+import { ConnectionConfig1794230765000, UuidBaseline1794096000000 } from '../migrations/index.ts';
 
 export const STORE_ENTITIES = [
     RunEntity,
@@ -43,9 +44,10 @@ export const STORE_ENTITIES = [
     ConversationOperationEntity,
     ConnectionEntity,
     ConnectionEntryEntity,
+    ConnectionSecretEntity,
 ];
 
-export const STORE_MIGRATIONS = [UuidBaseline1794096000000];
+export const STORE_MIGRATIONS = [UuidBaseline1794096000000, ConnectionConfig1794230765000];
 
 export const MIGRATION_LOCK_NAME = 'chamvi:migrations';
 

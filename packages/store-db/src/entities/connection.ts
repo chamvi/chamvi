@@ -11,7 +11,7 @@ import {
     Index,
     PrimaryColumn,
 } from 'typeorm';
-import { TableName } from './constants.ts';
+import { JSON_VALUE_TRANSFORMER, TableName } from './constants.ts';
 
 @Entity({ name: TableName.CONNECTIONS })
 export class ConnectionEntity {
@@ -43,6 +43,22 @@ export class ConnectionEntity {
 
     @Column({ name: 'wrapped_key', type: 'bytea' })
     wrappedKey!: Buffer;
+
+    /** Plain settings, written by `writeConfig`, kept by `replace`. */
+    @Column({
+        name: 'settings',
+        type: 'jsonb',
+        default: {},
+        transformer: JSON_VALUE_TRANSFORMER,
+    })
+    settings!: Record<string, unknown>;
+
+    @Column({
+        name: 'config_revision',
+        type: 'integer',
+        default: 0,
+    })
+    configRevision!: number;
 
     @Column({ name: 'created_at', type: 'timestamp with time zone' })
     createdAt!: Date;

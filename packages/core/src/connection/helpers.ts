@@ -21,6 +21,9 @@ export const dataKeyContextOf = (name: string) => `connection:${name}`;
 /** The AAD of one entry: a sealed value opens only under its own connection and key. */
 export const entryAadOf = (name: string, key: string) => `${name}\0${key}`;
 
+/** The AAD of one secret: entry keys hold no NUL, so `secret\0<field>` is no entry key. */
+export const secretAadOf = (name: string, field: string) => `${name}\0secret\0${field}`;
+
 /** The checked open options with the lease ttl resolved. */
 export function normalizeOpenOptions(input: ConnectionOpenOptionsInput): ConnectionOpenOptions {
     const leaseTtlMs = input.leaseTtlMs ?? DEFAULT_CONNECTION_LEASE_TTL_MS;

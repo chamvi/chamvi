@@ -9,16 +9,19 @@ import { systemClock } from '../../clock/index.ts';
 import type { IClock } from '../../clock/index.ts';
 import {
     assertConnection,
+    assertConnectionConfigWrite,
     assertConnectionEntryKey,
     assertConnectionEntryWrite,
     assertConnectionName,
 } from '../../connection/validate.ts';
 import type {
     Connection,
+    ConnectionConfig,
+    ConnectionConfigWrite,
     ConnectionEntryWrite,
     ConnectionFence,
 } from '../../connection/types.ts';
-import { LeaseLostError, RepositoryNotFoundError } from '../../errors/index.ts';
+import { ConnectionChangedError, LeaseLostError, RepositoryNotFoundError } from '../../errors/index.ts';
 import type { IConnectionRepository } from '../types.ts';
 import { compareCodePoints } from './helpers.ts';
 import type { MemoryConnectionRepositoryOptions } from './types.ts';
@@ -26,6 +29,9 @@ import type { MemoryConnectionRepositoryOptions } from './types.ts';
 type Held = {
     connection: Connection;
     entries: Map<string, Uint8Array>;
+    settings: Record<string, unknown>;
+    secrets: Map<string, Uint8Array>;
+    revision: number;
 };
 
 const copyConnection = (connection: Connection): Connection => ({
@@ -79,7 +85,13 @@ export class MemoryConnectionRepository implements IConnectionRepository {
             return false;
         }
 
-        this.connections.set(connection.name, { connection: copyConnection(connection), entries: new Map() });
+        this.connections.set(connection.name, {
+            connection: copyConnection(connection),
+            entries: new Map(),
+            settings: {},
+            secrets: new Map(),
+            revision: 0,
+        });
 
         return true;
     }
@@ -109,15 +121,30 @@ export class MemoryConnectionRepository implements IConnectionRepository {
             .sort((a, b) => compareCodePoints(a.name, b.name));
     }
 
-    async delete(name: string): Promise<void> {
+    async delete(name: string, fence?: ConnectionFence): Promise<void> {
         assertConnectionName(name);
+
+        if (fence) {
+            this.assertFence(name, fence);
+        }
+
         this.connections.delete(name);
     }
 
     async replace(connection: Connection, fence: ConnectionFence): Promise<void> {
         assertConnection(connection);
         this.assertFence(connection.name, fence);
-        this.connections.set(connection.name, { connection: copyConnection(connection), entries: new Map() });
+
+        const previous = this.connections.get(connection.name);
+
+        // the secrets are sealed under the replaced data key; the settings are plain
+        this.connections.set(connection.name, {
+            connection: copyConnection(connection),
+            entries: new Map(),
+            settings: previous?.settings ?? {},
+            secrets: new Map(),
+            revision: previous?.revision ?? 0,
+        });
     }
 
     async findEntry(name: string, key: string): Promise<Uint8Array | undefined> {
@@ -167,5 +194,50 @@ export class MemoryConnectionRepository implements IConnectionRepository {
         }
 
         held.connection.updatedAt = this.clock.now();
+    }
+
+    async findConfig(name: string): Promise<ConnectionConfig | undefined> {
+        assertConnectionName(name);
+
+        const held = this.connections.get(name);
+
+        if (!held) {
+            return undefined;
+        }
+
+        return {
+            keyId: held.connection.keyId,
+            wrappedKey: new Uint8Array(held.connection.wrappedKey),
+            settings: structuredClone(held.settings),
+            secrets: new Map(held.secrets.entries().map(([field, value]) => [field, new Uint8Array(value)])),
+            revision: held.revision,
+        };
+    }
+
+    async writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array): Promise<number> {
+        assertConnectionConfigWrite(write, expectedWrappedKey);
+
+        const held = this.held(name);
+
+        if (Buffer.compare(held.connection.wrappedKey, expectedWrappedKey) !== 0) {
+            throw new ConnectionChangedError(name);
+        }
+
+        if (write.settings) {
+            held.settings = structuredClone(write.settings);
+        }
+
+        for (const [field, value] of Object.entries(write.setSecrets ?? {})) {
+            held.secrets.set(field, new Uint8Array(value));
+        }
+
+        for (const field of write.clearSecrets ?? []) {
+            held.secrets.delete(field);
+        }
+
+        held.revision += 1;
+        held.connection.updatedAt = this.clock.now();
+
+        return held.revision;
     }
 }

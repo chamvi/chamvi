@@ -25,6 +25,7 @@ export const TableName = {
     AGENT_REVISIONS: 'chamvi_agent_revisions',
     CONNECTIONS: 'chamvi_connections',
     CONNECTION_ENTRIES: 'chamvi_connection_entries',
+    CONNECTION_SECRETS: 'chamvi_connection_secrets',
 } as const;
 
 /**

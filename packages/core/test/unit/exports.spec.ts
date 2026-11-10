@@ -146,11 +146,17 @@ describe('public api', () => {
         'open',
         'DecryptionFailedError',
         'assertConnection',
+        'assertConnectionConfigWrite',
         'assertConnectionEntryKey',
         'assertConnectionEntryWrite',
         'assertConnectionName',
+        'createConnectionConfigStore',
         'createConnectionVault',
         'ConnectionHeldError',
+        'ConnectionChangedError',
+        'ConnectionNotConfiguredError',
+        'resolveConnection',
+        'storedConnectionName',
     ])('exports %s', (name) => {
         expect(core).toHaveProperty(name);
         expect(core[name as keyof typeof core]).toBeTypeOf('function');
@@ -460,6 +466,7 @@ describe('public api', () => {
     it('exports the connection repository contract', () => {
         expect(core.CONNECTION_ENTRY_KEY_MAX_LENGTH).toBe(255);
         expect(core.CONNECTION_TYPE_MAX_LENGTH).toBe(64);
+        expect(core.CONNECTION_SECRET_FIELD_MAX_LENGTH).toBe(64);
         expectTypeOf<core.IStore['connections']>().toEqualTypeOf<core.IConnectionRepository | undefined>();
         expectTypeOf<ReturnType<typeof core.createMemoryStore>['connections']>()
             .toEqualTypeOf<core.IConnectionRepository>();
@@ -477,9 +484,54 @@ describe('public api', () => {
             clear?: boolean;
         }>();
         expectTypeOf<core.ConnectionFence>().toEqualTypeOf<{ lock: string; owner: string }>();
+        expectTypeOf<core.ConnectionConfig>().toEqualTypeOf<{
+            keyId: string;
+            wrappedKey: Uint8Array;
+            settings: Record<string, unknown>;
+            secrets: Map<string, Uint8Array>;
+            revision: number;
+        }>();
+        expectTypeOf<core.ConnectionConfigWrite>().toEqualTypeOf<{
+            settings?: Record<string, unknown>;
+            setSecrets?: Record<string, Uint8Array>;
+            clearSecrets?: readonly string[];
+        }>();
         expectTypeOf<core.ILockRepository['renew']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
         expect(new core.LeaseLostError({ lock: 'connection:wa' })).toMatchObject({ code: 'lease_lost', lock: 'connection:wa' });
         expect(new core.LeaseLostError('r1')).toMatchObject({ code: 'lease_lost', runId: 'r1' });
+    });
+
+    it('exports the connection type contract', () => {
+        expect(core.ErrorCode.CONNECTION_NOT_CONFIGURED).toBe('connection_not_configured');
+        expect(core.ErrorCode.CONNECTION_CHANGED).toBe('connection_changed');
+        expectTypeOf<ReturnType<typeof core.resolveConnection>>().toEqualTypeOf<core.ResolvedConnection>();
+        expectTypeOf<Parameters<typeof core.resolveConnection>[0]>().toEqualTypeOf<core.ResolveConnectionInput>();
+        expectTypeOf<core.ConnectionFieldKind>().toEqualTypeOf<'string' | 'number' | 'boolean' | 'select' | 'list' | 'secret'>();
+        expectTypeOf<core.ConnectionValue>().toEqualTypeOf<string | number | boolean | readonly string[]>();
+        expectTypeOf<core.ConnectionValues>().toEqualTypeOf<Record<string, core.ConnectionValue>>();
+        expectTypeOf<core.ConnectionState>().toEqualTypeOf<'configured' | 'not_configured' | 'incomplete'>();
+        expectTypeOf<core.ConnectionField['env']>().toEqualTypeOf<((connection: string) => string | undefined) | undefined>();
+        expectTypeOf<core.ConnectionTypeDefinition['fields']>().toEqualTypeOf<readonly core.ConnectionField[]>();
+        expectTypeOf<core.ConnectionFieldSource>().toEqualTypeOf<
+        { kind: 'env'; variable: string } | { kind: 'store' } | { kind: 'code' } | { kind: 'unset' }
+        >();
+        expectTypeOf<core.DeclaredConnection['resolved']>().toEqualTypeOf<core.ResolvedConnection>();
+        expectTypeOf<ReturnType<core.IConnectionTypeProvider['connections']>>().toEqualTypeOf<readonly core.DeclaredConnection[]>();
+    });
+
+    it('exports the connection config store', () => {
+        expect(core).not.toHaveProperty('secretAadOf');
+        expectTypeOf<ReturnType<typeof core.createConnectionConfigStore>>().toEqualTypeOf<core.IConnectionConfigStore>();
+        expectTypeOf<Parameters<typeof core.createConnectionConfigStore>[0]>().toEqualTypeOf<core.ConnectionConfigStoreOptions>();
+        expectTypeOf<core.ConnectionConfigView>().toEqualTypeOf<{
+            settings: Record<string, unknown>;
+            secretsSet: string[];
+            revision: number;
+        }>();
+        expectTypeOf<core.ConnectionConfigUpdate>().toEqualTypeOf<{
+            settings?: Record<string, unknown>;
+            secrets?: { set?: Record<string, string>; clear?: readonly string[] };
+        }>();
     });
 
     it('exports the connection vault', () => {

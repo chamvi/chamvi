@@ -8,6 +8,9 @@
 /** Longest connection entry key, the store's varchar width. */
 export const CONNECTION_ENTRY_KEY_MAX_LENGTH = 255;
 
+/** Longest name of a connection's secret field, the store's varchar width. */
+export const CONNECTION_SECRET_FIELD_MAX_LENGTH = 64;
+
 /** Longest connection type and key id. */
 export const CONNECTION_TYPE_MAX_LENGTH = 64;
 

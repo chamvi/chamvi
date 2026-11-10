@@ -13,6 +13,7 @@ import {
     CheckpointEntity,
     ConnectionEntity,
     ConnectionEntryEntity,
+    ConnectionSecretEntity,
     ConversationEntity,
     ConversationItemEntity,
     ConversationNoteEntity,
@@ -27,6 +28,7 @@ const FOREIGN_KEYS = [
     [TableName.CHECKPOINTS, 'conversation_scope_id', TableName.CONVERSATIONS, 'NO ACTION'],
     [TableName.CHECKPOINTS, 'run_id', TableName.RUNS, 'NO ACTION'],
     [TableName.CONNECTION_ENTRIES, 'connection_id', TableName.CONNECTIONS, 'CASCADE'],
+    [TableName.CONNECTION_SECRETS, 'connection_id', TableName.CONNECTIONS, 'CASCADE'],
     [TableName.CONVERSATION_ITEMS, 'run_id', TableName.RUNS, 'NO ACTION'],
     [TableName.CONVERSATION_ITEMS, 'scope_id', TableName.CONVERSATIONS, 'NO ACTION'],
     [TableName.CONVERSATION_NOTES, 'run_id', TableName.RUNS, 'NO ACTION'],
@@ -140,6 +142,12 @@ async function seed(ds: DataSource): Promise<Seeded> {
         key: 'a',
         value: Buffer.from([1]),
     });
+    await ds.getRepository(ConnectionSecretEntity).insert({
+        id: randomUUID(),
+        connectionId,
+        name: 'password',
+        value: Buffer.from([1]),
+    });
 
     return {
         runId, 
@@ -203,6 +211,7 @@ describePostgres('relational integrity', () => {
 
         await ds.getRepository(ConnectionEntity).delete({ id: connectionId });
         expect(await ds.getRepository(ConnectionEntryEntity).countBy({ connectionId })).toBe(0);
+        expect(await ds.getRepository(ConnectionSecretEntity).countBy({ connectionId })).toBe(0);
     });
 
     it('loads related rows through normal TypeORM relations', async () => {

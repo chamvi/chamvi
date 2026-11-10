@@ -9,6 +9,8 @@ import type { AgentRevision } from '../agent/types.ts';
 import type { Artifact } from '../artifact/types.ts';
 import type {
     Connection,
+    ConnectionConfig,
+    ConnectionConfigWrite,
     ConnectionEntryWrite,
     ConnectionFence,
 } from '../connection/types.ts';
@@ -209,12 +211,13 @@ export interface IAgentRevisionRepository {
 }
 
 /**
- * Connections and their runtime-state entries (opaque sealed bytes: the
- * repository never sees plaintext). Values are copied in and out as plain
+ * Connections, their runtime-state entries (opaque sealed bytes: the
+ * repository never sees plaintext) and their config (plain settings and sealed
+ * secrets, kept apart from the entries). Values are copied in and out as plain
  * Uint8Arrays. A name breaking the agent-name rule, an entry key outside 1 to
- * 255 characters or with NUL, or a malformed batch throws ValidationError
- * before anything is written; entry calls on an unknown connection throw
- * RepositoryNotFoundError.
+ * 255 characters or with NUL, a secret field outside 1 to 64 characters or
+ * with NUL, or a malformed batch throws ValidationError before anything is
+ * written; entry calls on an unknown connection throw RepositoryNotFoundError.
  */
 export interface IConnectionRepository {
     /** Atomic insert-if-absent: resolves false and keeps the stored connection when the name is taken. */
@@ -223,11 +226,18 @@ export interface IConnectionRepository {
     findOneOrFail(name: string): Promise<Connection>;
     /** Every connection, ordered by name in code-point order (`COLLATE "C"`). */
     find(): Promise<Connection[]>;
-    /** Removes the connection and its entries; a missing name is a no-op. */
-    delete(name: string): Promise<void>;
     /**
-     * Atomic, all or nothing: deletes the connection of `connection.name` with
-     * its entries (if present) and inserts `connection`. The replacement is
+     * Removes the connection with its entries and config; a missing name is a
+     * no-op. With `fence`, it must name the lease `connection:<name>` its owner
+     * holds unexpired at write time, checked atomically with the delete;
+     * otherwise LeaseLostError and nothing is deleted.
+     */
+    delete(name: string, fence?: ConnectionFence): Promise<void>;
+    /**
+     * Atomic, all or nothing: swaps the connection of `connection.name` for
+     * `connection` (inserts it if absent), dropping its entries and secrets
+     * (they are sealed under the replaced data key) and keeping its settings
+     * and config revision. The replacement is
      * validated as by `insert` (ValidationError) before anything else; `fence`
      * must name the lease `connection:<name>` its owner holds unexpired at
      * write time, checked atomically with the write; otherwise LeaseLostError
@@ -244,6 +254,19 @@ export interface IConnectionRepository {
      * LeaseLostError and nothing is written.
      */
     writeEntries(name: string, write: ConnectionEntryWrite, fence: ConnectionFence): Promise<void>;
+    /**
+     * A consistent read of the data key (`keyId`, `wrappedKey`), settings,
+     * sealed secrets and revision; undefined when the connection is absent.
+     */
+    findConfig(name: string): Promise<ConnectionConfig | undefined>;
+    /**
+     * Atomic; bumps `revision` and `updatedAt` and returns the new revision.
+     * RepositoryNotFoundError when absent; ConnectionChangedError when the
+     * stored wrappedKey differs from `expectedWrappedKey` (nothing is
+     * written). Takes no fence: any replica may write while a session holds
+     * the lease, and entries and the data key stay untouched.
+     */
+    writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array): Promise<number>;
 }
 
 /** A store of repositories that may use independent storage implementations. */
