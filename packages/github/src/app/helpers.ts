@@ -118,6 +118,11 @@ export function registerChannelName(app: object, name: string): void {
     names.add(name);
 }
 
+/** Whether any githubChannel() was made for `app`. */
+export function hasChannel(app: object): boolean {
+    return (CHANNEL_NAMES.get(app)?.size ?? 0) > 0;
+}
+
 /** Whether a githubChannel() of `app` is named `name`. */
 export function isChannelOf(app: object, name: unknown): boolean {
     return typeof name === 'string' && (CHANNEL_NAMES.get(app)?.has(name) ?? false);

@@ -13,9 +13,11 @@ describe('@chamvi/github/module', () => {
         expect(module.githubModule).toBeTypeOf('function');
         expect(module.GithubModule).toBeTypeOf('function');
         expect(module.GITHUB_MODULE_NAME).toBe('chamvi:github');
+        expect(module.GITHUB_CONNECTION_TYPE).toBe('github');
     });
 
     it('keeps its helpers internal', () => {
-        expect(module).not.toHaveProperty('createGithubAppFromEnv');
+        expect(module).not.toHaveProperty('readGithubOptions');
+        expect(module).not.toHaveProperty('loadGithubConnection');
     });
 });

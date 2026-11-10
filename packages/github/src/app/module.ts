@@ -19,16 +19,12 @@ import {
     normalizeSlug,
     toInstallation,
 } from './helpers.ts';
-import { resolveMergeMethod, toolError } from '../tools/helpers.ts';
-import { createPullRequestWriteTools } from '../tools/merge.ts';
-import { createProposalTools, normalizeProposals } from '../tools/proposals.ts';
-import { createPullRequestTools } from '../tools/pulls.ts';
-import { createReadTools } from '../tools/read.ts';
-import { createRepositoryTools } from '../tools/repositories.ts';
+import { toolError } from '../tools/helpers.ts';
+import { normalizeProposals } from '../tools/proposals.ts';
 import { GITHUB_REQUEST_ERROR_CODE } from '../tools/constants.ts';
-import { createWriteTools } from '../tools/write.ts';
 import { verifySignature } from '../webhook/helpers.ts';
 import { INSTALLATION_CACHE_TTL_MS } from './constants.ts';
+import { buildReadTools, buildWriteTools } from './tools.ts';
 import type {
     GithubAppOptions,
     GithubBotIdentity,
@@ -203,20 +199,10 @@ export function createGithubApp(options: GithubAppOptions): IGithubApp {
             return verifySignature(secrets, body, signature);
         },
         readTools(): ToolSet {
-            return {
-                ...createReadTools(app),
-                ...createRepositoryTools(app),
-                ...createPullRequestTools(app),
-            };
+            return buildReadTools(app);
         },
         writeTools(toolsOptions?: GithubWriteToolsOptions): ToolSet {
-            const mergeMethod = resolveMergeMethod(toolsOptions?.mergeMethod);
-
-            return {
-                ...createWriteTools(app),
-                ...createPullRequestWriteTools(app, { mergeMethod }),
-                ...(proposals && createProposalTools(app, proposals)),
-            };
+            return buildWriteTools(app, proposals, toolsOptions);
         },
     };
 
