@@ -6,8 +6,10 @@
  */
 
 import { flattenIssueItems } from '@ebec/core';
+import { useValidup } from '@validup/vue';
 import {
     computed,
+    reactive,
     ref,
     shallowRef,
 } from 'vue';
@@ -16,14 +18,14 @@ import { asApiError } from '../api/helpers.ts';
 import type {
     ConnectionFormConfirmation,
     ConnectionFormField,
+    ConnectionFormValues,
     ConnectionSettingsWire,
     ConnectionTestWire,
     ConnectionTypeWire,
     IConnectionConfigApi,
     UseConnectionFormOptions,
 } from './types.ts';
-
-const ACCOUNT_FIELD = 'account';
+import { ACCOUNT_KEY, buildConnectionContainer } from './validators.ts';
 
 function toDraft(value: unknown): string {
     if (Array.isArray(value)) {
@@ -84,54 +86,72 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
     const view = shallowRef<ConnectionSettingsWire>();
     const loadError = shallowRef<ApiError>();
     const loaded = shallowRef(false);
-    const account = ref('');
-    const drafts = ref<Record<string, string>>({});
-    const secrets = ref<Record<string, string>>({});
+    /** The text of every control, checked by the container; a typed secret lives here until saved. */
+    const values = reactive<ConnectionFormValues>({});
     const replacing = ref<Record<string, boolean>>({});
     const busy = shallowRef(false);
+    /** A refused save with no issue at a field. */
     const formError = shallowRef<string>();
-    const fieldErrors = shallowRef<Record<string, string>>({});
     const testResult = shallowRef<ConnectionTestWire>();
     const confirmation = shallowRef<ConnectionFormConfirmation>();
     const confirmError = shallowRef<string>();
 
     const fields = computed<ConnectionFormField[]>(() => (definition.value?.fields ?? []).map((field) => toField(field, view.value)));
     const plainFields = () => fields.value.filter((field) => field.kind !== 'secret' && !field.lock);
+    const adding = name === undefined;
+    const container = computed(() => buildConnectionContainer(fields.value, adding));
+    const v = useValidup(container, values);
 
-    function seedDrafts(): void {
-        drafts.value = Object.fromEntries(plainFields().map((field) => [field.key, toDraft(view.value?.settings[field.key])]));
+    /** Every control from the stored settings, secrets empty; the account id while adding stays. */
+    function seedValues(): void {
+        const account = values[ACCOUNT_KEY] ?? '';
+
+        for (const key of Object.keys(values)) {
+            delete values[key];
+        }
+
+        if (adding) {
+            values[ACCOUNT_KEY] = account;
+        }
+
+        for (const field of fields.value) {
+            if (!field.lock) {
+                values[field.key] = field.kind === 'secret' ? '' : toDraft(view.value?.settings[field.key]);
+            }
+        }
     }
 
     function buildSettings(): Record<string, unknown> {
-        return Object.fromEntries(plainFields().map((field) => [field.key, toSetting(field, drafts.value[field.key] ?? '')]));
+        return Object.fromEntries(plainFields().map((field) => [field.key, toSetting(field, values[field.key] ?? '')]));
     }
 
     function typedSecrets(): Record<string, string> {
         return Object.fromEntries(fields.value
-            .filter((field) => field.kind === 'secret' && !field.lock && (secrets.value[field.key] ?? '') !== '')
-            .map((field) => [field.key, secrets.value[field.key]!]));
+            .filter((field) => field.kind === 'secret' && !field.lock && (values[field.key] ?? '') !== '')
+            .map((field) => [field.key, values[field.key]!]));
     }
 
     function dropSecret(key: string): void {
-        secrets.value = without(secrets.value, key);
+        values[key] = '';
         replacing.value = without(replacing.value, key);
     }
 
+    /** Replace opens an empty input for a set secret, Keep current closes it; neither shows the stored value. */
+    function toggleReplace(key: string): void {
+        replacing.value = { ...replacing.value, [key]: !replacing.value[key] };
+        values[key] = '';
+    }
+
+    /** The server's issues at their fields (its paths end in the field key), anything else at the form. */
     function showSaveError(cause: unknown): void {
         const error = asApiError(cause);
-        const known = new Set([ACCOUNT_FIELD, ...fields.value.map((field) => field.key)]);
-        const perField: Record<string, string> = {};
+        const known = new Set([...(adding ? [ACCOUNT_KEY] : []), ...fields.value.map((field) => field.key)]);
+        const issues = flattenIssueItems(error.issues ?? [])
+            .filter((issue) => known.has(String(issue.path?.at(-1) ?? '')))
+            .map((issue) => ({ ...issue, path: [String(issue.path.at(-1))] }));
 
-        for (const issue of flattenIssueItems(error.issues ?? [])) {
-            const key = String(issue.path?.at(-1) ?? '');
-
-            if (known.has(key)) {
-                perField[key] = issue.message;
-            }
-        }
-
-        fieldErrors.value = perField;
-        formError.value = Object.keys(perField).length > 0 ? undefined : statusOf(error);
+        v.setExternalIssues(issues);
+        formError.value = issues.length > 0 ? undefined : statusOf(error);
     }
 
     async function load(): Promise<void> {
@@ -144,7 +164,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
                 view.value = await api.read(name);
             }
 
-            seedDrafts();
+            seedValues();
         } catch (e) {
             loadError.value = asApiError(e);
         } finally {
@@ -170,20 +190,30 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
     async function save(): Promise<void> {
         await exclusive(async () => {
             formError.value = undefined;
-            fieldErrors.value = {};
+            v.setExternalIssues([]);
             testResult.value = undefined;
+
+            // every field shows its issue; nothing is sent while one has any
+            const checked = await v.$validate();
+
+            if (!checked.success) {
+                return;
+            }
 
             try {
                 const set = typedSecrets();
 
                 if (name === undefined) {
                     const created = await api.create(options.type, {
-                        account: account.value,
+                        account: values[ACCOUNT_KEY] ?? '',
                         settings: buildSettings(),
                         ...(Object.keys(set).length > 0 && { secrets: set }),
                     });
 
-                    secrets.value = {};
+                    for (const key of Object.keys(set)) {
+                        values[key] = '';
+                    }
+
                     options.onCreated({ name: created.name, restartRequired: created.restartRequired });
 
                     return;
@@ -193,9 +223,9 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
                     settings: buildSettings(),
                     ...(Object.keys(set).length > 0 && { secrets: { set } }),
                 });
-                secrets.value = {};
                 replacing.value = {};
-                seedDrafts();
+                seedValues();
+                v.$reset();
             } catch (e) {
                 showSaveError(e);
             }
@@ -279,18 +309,17 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
         loaded,
         loadError,
         fields,
-        account,
-        drafts,
-        secrets,
+        values,
+        v,
         replacing,
         busy,
         formError,
-        fieldErrors,
         testResult,
         confirmation,
         confirmError,
         save,
         test,
+        toggleReplace,
         askClear,
         askDelete,
         cancelConfirmation,

@@ -66,6 +66,9 @@ export type ConnectionFormField = ConnectionTypeWire['fields'][number] & {
     secretSet: boolean;
 };
 
+/** The text of every control the form writes, by field key (plus `account` while adding); empty is unset. */
+export type ConnectionFormValues = Record<string, string>;
+
 /** The open in-page confirmation of the form, at most one. */
 export type ConnectionFormConfirmation = { kind: 'delete' } | {
     kind: 'clear'; 

@@ -27,6 +27,7 @@ import ConnectionsPage from '../../../src/connections/ConnectionsPage.vue';
 import type { ConnectionTypeWire } from '../../../src/connections/types.ts';
 import { install } from '../../../src/module.ts';
 import { fakeClient } from '../../utils/client.ts';
+import { installFormKit } from '../../utils/forms.ts';
 import { json } from '../../utils/fetch.ts';
 import { flush } from '../../utils/timers.ts';
 
@@ -107,6 +108,7 @@ async function mountPage(permissions: string[]) {
     });
     const app = createApp(defineComponent(() => () => h(ConnectionsPage, { slug: 'tool-mail', type: 'mail' })));
 
+    installFormKit(app);
     install(app, {
         context: {
             config: CONFIG,
@@ -127,10 +129,13 @@ async function mountPage(permissions: string[]) {
         requests,
         root: document.body,
         add: async () => {
-            const input = document.querySelector<HTMLInputElement>('[data-field="host"] input')!;
+            for (const [key, value] of [['account', 'work'], ['host', 'imap.example.com']] as const) {
+                const input = document.querySelector<HTMLInputElement>(`[data-field="${CSS.escape(key)}"] input`)!;
 
-            input.value = 'imap.example.com';
-            input.dispatchEvent(new Event('input'));
+                input.value = value;
+                input.dispatchEvent(new Event('input'));
+            }
+
             document.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
             await flush();
             await flush();
