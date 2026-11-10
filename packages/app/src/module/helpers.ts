@@ -15,6 +15,7 @@ import type {
     AppContext,
     ILifecycleHook,
     LifecyclePhase,
+    ReadStoredConnectionsOptions,
     StoredConnection,
 } from './types.ts';
 
@@ -143,10 +144,16 @@ async function readStoredConnection(container: IContainer, name: string): Promis
  * module's `setup` (list `ModuleName.STORE` in `dependencies`). Nothing for a
  * store without connections. A row that cannot be read (undecryptable, stored
  * secrets without `CHAMVI_ENCRYPTION_KEYS`) throws InvalidAgentDefinitionError
- * naming the connection, never a value. A check never migrates: one that
+ * naming the connection, never a value. With `name`, only that row is read:
+ * rows of other names are skipped before decryption, so an unreadable row of
+ * another module cannot fail this one. A check never migrates: one that
  * finds the store behind its migrations warns and returns nothing.
  */
-export async function readStoredConnections(container: IContainer, type: string): Promise<StoredConnection[]> {
+export async function readStoredConnections(
+    container: IContainer,
+    type: string,
+    options: ReadStoredConnectionsOptions = {},
+): Promise<StoredConnection[]> {
     const { connections } = container.resolve(AppToken.STORE);
 
     if (!connections) {
@@ -157,7 +164,8 @@ export async function readStoredConnections(container: IContainer, type: string)
 
     try {
         for (const row of await connections.find()) {
-            const config = row.type === type ? await readStoredConnection(container, row.name) : undefined;
+            const selected = row.type === type && (options.name === undefined || row.name === options.name);
+            const config = selected ? await readStoredConnection(container, row.name) : undefined;
 
             if (config) {
                 stored.push({

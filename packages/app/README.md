@@ -184,7 +184,7 @@ Modules are orkos `IModule`s on an eldin container. The built-in ones are always
 | `schedulerModule({ owner?, lockTtlMs? })` | `chamvi:scheduler` | `@chamvi/app` | the `cron` channel (`cronChannel()` of `@chamvi/channel-cron`; in start mode it fires only with `CHAMVI_SCHEDULER`) |
 | `httpModule()` | `chamvi:http` | `@chamvi/app` | the `http`, `mcp` and `webhook` channels (webhooks authenticate with the app's authenticators), `createHttpApp()` mounting every contributed channel with an `in` at `/channels/<name>`, the graceful shutdown, listens last |
 | `consoleChannelModule({ name?, write? })` | `chamvi:console` (`chamvi:console:<name>` with a name) | `@chamvi/app` | `consoleChannel()` (name `console`, out only) |
-| `githubModule()` | `chamvi:github:<name>` | `@chamvi/github/module` | the GitHub App and its channel (`github`: signed deliveries at `/channels/github`, comments out); `injectGithubContext(ctx)` and `ctx.channels.findOne('github')` for tools |
+| `githubModule()` | `chamvi:github:<name>` | `@chamvi/github/module` | the GitHub App and its channel (`<name>`, default `github` or `channel.name` when set: signed deliveries at `/channels/<name>`, comments out); `injectGithubContext(ctx)` and `ctx.channels.findOne('github')` for tools |
 | `sandboxModule({ provider?, ... })` | `chamvi:sandbox` | `@chamvi/sandbox/module` | the run-scoped workspace manager (`.manager`, `injectSandboxContext(ctx)`), closed after the engine drained |
 | `openclawModule()` | `chamvi:channel:<name>` | `@chamvi/channel-openclaw/module` | `openclawChannel()` (name `openclaw`, out only), `ctx.channels.findOne('openclaw')` |
 | `uiModule()` | `chamvi:ui` | `@chamvi/ui/module` | the dashboard at `<basePath>/ui` |

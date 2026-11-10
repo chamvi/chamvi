@@ -419,6 +419,47 @@ describe('githubModule configuration', () => {
         await expect(setup([githubModule({ slug: 'Not A Slug', env: {} })], { store })).rejects.toThrow(InvalidAgentDefinitionError);
     });
 
+    it('a code value refused after a stored one is dropped fails the start instead of idling', async () => {
+        const store = createMemoryStore({ clock });
+        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+
+        await configs.create('github', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '7', slug: 'Not A Slug' },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'stored' } },
+        });
+
+        const error = await setup([githubModule({ baseUrl: 'http://plain.example', env: {} })], { store }).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect((error as Error).message).toMatch(/^baseUrl must /);
+    });
+
+    it('an unreadable stored row of another name does not fail the module', async () => {
+        const store = createMemoryStore({ clock });
+        const configs = createConnectionConfigStore({ store, keyring: () => createKeyring([{ id: 'k1', key: randomBytes(32) }]) });
+
+        await configs.create('github-old', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '9' },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'old' } },
+        });
+        await createConnectionConfigStore({ store, keyring: () => keyring }).create('github-acme', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '7' },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'stored' } },
+        });
+
+        const fromEnv = githubModule({ env: envOf('GITHUB_') });
+        const fromStore = githubModule({
+            name: 'github-acme', 
+            agents: ['acme'], 
+            env: {}, 
+        });
+
+        await setup([fromEnv, fromStore], { store, agents: [agentNamed('acme')] });
+
+        expect(fromEnv.app.appId).toBe('1');
+        expect(fromStore.app.appId).toBe('7');
+    });
+
     it('a refused value from a variable file fails naming the variable, never the value', async () => {
         const file = path.join(mkdtempSync(path.join(tmpdir(), 'chamvi-github-')), 'slug');
 
