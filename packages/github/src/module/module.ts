@@ -306,9 +306,9 @@ export class GithubModule implements IModule {
     }
 
     protected async readRow(container: IContainer): Promise<StoredConnection | undefined> {
-        const rows = await readStoredConnections(container, GITHUB_CONNECTION_TYPE);
+        const [row] = await readStoredConnections(container, GITHUB_CONNECTION_TYPE, { name: this.connection });
 
-        return rows.find((row) => row.name === this.connection);
+        return row;
     }
 
     protected warnUnknownAgents(container: IContainer, engine: IEngine): void {
