@@ -17,7 +17,8 @@ import {
 } from 'vitest';
 import { defineComponent, h } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import { TOKEN_STORAGE_KEY } from '../../../src/auth/constants.ts';
+import type { IApiClient } from '../../../src/api/types.ts';
+import { LOGIN_ROUTE_NAME, TOKEN_STORAGE_KEY } from '../../../src/auth/constants.ts';
 import { CONFIG_ELEMENT_ID } from '../../../src/config/constants.ts';
 import { useAppContext } from '../../../src/context/module.ts';
 import { mountPage } from '../../../src/shell/mount.ts';
@@ -108,5 +109,79 @@ describe('mountPage', () => {
         expect(document.querySelector('#page')?.textContent).toBe('/console');
         expect(fetch).not.toHaveBeenCalled();
         expect(replace).not.toHaveBeenCalled();
+    });
+
+    describe('a 401 that stands', () => {
+        let client: IApiClient | undefined;
+
+        const Caller = defineComponent(() => {
+            ({ client } = useAppContext());
+
+            return () => h('p', { id: 'page' });
+        });
+
+        const createLoginRouter = () => createRouter({
+            history: createMemoryHistory(),
+            routes: [
+                { path: '/', component: { render: () => null } },
+                { path: '/private', component: { render: () => null } },
+                {
+                    path: '/login',
+                    name: LOGIN_ROUTE_NAME,
+                    component: { render: () => null },
+                    meta: { public: true },
+                },
+            ],
+        });
+
+        beforeEach(() => {
+            client = undefined;
+            window.sessionStorage.setItem(TOKEN_STORAGE_KEY, 'good');
+        });
+
+        it('signs a routerless page out and sends it to the dashboard login', async () => {
+            const fetch = vi.fn(async () => json(ME));
+
+            vi.stubGlobal('fetch', fetch);
+            await mountPage(Caller);
+
+            fetch.mockImplementation(async () => json({ message: 'expired' }, 401));
+            await expect(client!.listAgents()).rejects.toThrow();
+
+            await vi.waitFor(() => expect(replace).toHaveBeenCalledWith('/console/login'));
+            expect(window.sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+        });
+
+        it('signs a routed page out and replaces the route with the login, keeping the way back', async () => {
+            vi.stubGlobal('fetch', vi.fn(async () => json({ message: 'expired' }, 401)));
+
+            const router = createLoginRouter();
+
+            await router.push('/private?tab=runs');
+            await mountPage(Caller, { router: () => router });
+            await expect(client!.listAgents()).rejects.toThrow();
+
+            await vi.waitFor(() => expect(router.currentRoute.value.name).toBe(LOGIN_ROUTE_NAME));
+            expect(router.currentRoute.value.query).toEqual({ redirect: '/private?tab=runs' });
+            expect(window.sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
+            expect(replace).not.toHaveBeenCalled();
+        });
+
+        it('leaves a public route and its session alone', async () => {
+            vi.stubGlobal('fetch', vi.fn(async () => json({ message: 'bad token' }, 401)));
+
+            const router = createLoginRouter();
+
+            await router.push('/login');
+            await mountPage(Caller, { router: () => router });
+            await expect(client!.listAgents()).rejects.toThrow();
+            await new Promise((resolve) => {
+                setTimeout(resolve, 0); 
+            });
+
+            expect(router.currentRoute.value.fullPath).toBe('/login');
+            expect(window.sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBe('good');
+            expect(replace).not.toHaveBeenCalled();
+        });
     });
 });
