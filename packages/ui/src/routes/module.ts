@@ -7,25 +7,24 @@
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { IClock } from '@chamvi/core';
-import type { HttpRoute, HttpRouteResult } from '@chamvi/http';
+import {
+    STATIC_SECURITY_HEADERS,
+    buildCsp,
+    isFileLike,
+    loadBuild,
+    resolveBuildPath,
+} from '@chamvi/http';
+import type { BuildFile, HttpRoute, HttpRouteResult } from '@chamvi/http';
 import type { UiAuthupConfig, UiConfig } from '../config/types.ts';
 import {
     ASSET_CACHE_CONTROL,
     BUILD_RETRY_MS,
     DEFAULT_UI_BASE_PATH,
     DOCUMENT_CACHE_CONTROL,
-    SECURITY_HEADERS,
     UI_BASE_PATH_PATTERN,
 } from './constants.ts';
-import {
-    buildCsp,
-    defaultRoot,
-    isFileLike,
-    loadBuild,
-    renderIndex,
-    resolveBuildPath,
-} from './helpers.ts';
-import type { BuildFile, UiRoutesOptions } from './types.ts';
+import { defaultRoot, renderIndex } from './helpers.ts';
+import type { UiRoutesOptions } from './types.ts';
 
 function assertAuthup(authup: UiAuthupConfig): void {
     let url: URL;
@@ -126,7 +125,7 @@ export function uiRoutes(options: UiRoutesOptions = {}): HttpRoute[] {
                 auth: { tokens, ...(authup ? { authup: { ...authup } } : {}) },
             };
 
-            entry = { config, headers: { ...SECURITY_HEADERS, 'content-security-policy': buildCsp(config) } };
+            entry = { config, headers: { ...STATIC_SECURITY_HEADERS, 'content-security-policy': buildCsp(config) } };
             rendered.set(apiBase, entry);
         }
 

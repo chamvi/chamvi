@@ -5,14 +5,17 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/core';
+import { ChamviError, InvalidAgentDefinitionError } from '@chamvi/core';
+import type { AgentIssue } from '@chamvi/http';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
-import { APP_ERROR_CODE, AppToken } from './constants.ts';
+import { isObject } from 'smob';
+import { APP_ERROR_CODE, AppToken, SCHEMA_BEHIND_SQLSTATES } from './constants.ts';
 import type {
     AppContext,
     ILifecycleHook,
     LifecyclePhase,
+    StoredConnection,
 } from './types.ts';
 
 /** The reason the context signal aborts with once stop() is called (internal). */
@@ -84,4 +87,96 @@ export function reportingModule(module: IModule, report: AppContext['report']): 
             },
         }),
     };
+}
+
+/**
+ * Whether `error` is the database's "no such table or column": a store behind
+ * its migrations, which a check meets because it never migrates.
+ */
+export function isSchemaBehindError(error: unknown): boolean {
+    if (!isObject(error)) {
+        return false;
+    }
+
+    // TypeORM's QueryFailedError carries the driver's error, with its SQLSTATE
+    const code = isObject(error.driverError) ? error.driverError.code : error.code;
+
+    return typeof code === 'string' && SCHEMA_BEHIND_SQLSTATES.includes(code);
+}
+
+/** The `start --check` issues of the connections a module lists as incomplete; field names only, never a value. */
+export function connectionIssuesOf(container: IContainer): AgentIssue[] {
+    const at = container.resolve(AppToken.CLOCK).now();
+
+    return container.resolveAll(AppToken.CONNECTION_TYPES)
+        .flatMap((provider) => provider.connections())
+        .filter((connection) => connection.resolved.state === 'incomplete')
+        .map((connection) => {
+            const { missing } = connection.resolved;
+
+            return {
+                agent: connection.name,
+                message: `The connection "${connection.name}" is incomplete${missing.length > 0 ? `: missing ${missing.join(', ')}` : ''}.`,
+                at,
+            };
+        });
+}
+
+/** One row's stored config; a failure names the connection, never a value. */
+async function readStoredConnection(container: IContainer, name: string): Promise<Pick<StoredConnection, 'values' | 'revision'> | undefined> {
+    try {
+        return await container.resolve(AppToken.CONNECTION_CONFIGS).read(name);
+    } catch (error) {
+        if (isSchemaBehindError(error)) {
+            throw error;
+        }
+
+        // our messages name variables, key ids and connections; a driver's may quote anything
+        const reason = error instanceof ChamviError ? error.message : 'the read failed';
+
+        throw new InvalidAgentDefinitionError(`The connection "${name}" cannot be read: ${reason}`);
+    }
+}
+
+/**
+ * The stored connections of `type` with their decrypted values, for a
+ * module's `setup` (list `ModuleName.STORE` in `dependencies`). Nothing for a
+ * store without connections. A row that cannot be read (undecryptable, stored
+ * secrets without `CHAMVI_ENCRYPTION_KEYS`) throws InvalidAgentDefinitionError
+ * naming the connection, never a value. A check never migrates: one that
+ * finds the store behind its migrations warns and returns nothing.
+ */
+export async function readStoredConnections(container: IContainer, type: string): Promise<StoredConnection[]> {
+    const { connections } = container.resolve(AppToken.STORE);
+
+    if (!connections) {
+        return [];
+    }
+
+    const stored: StoredConnection[] = [];
+
+    try {
+        for (const row of await connections.find()) {
+            const config = row.type === type ? await readStoredConnection(container, row.name) : undefined;
+
+            if (config) {
+                stored.push({
+                    name: row.name,
+                    values: config.values,
+                    revision: config.revision,
+                    createdAt: row.createdAt,
+                });
+            }
+        }
+    } catch (error) {
+        if (!container.resolve(AppToken.CONTEXT).check || !isSchemaBehindError(error)) {
+            throw error;
+        }
+
+        container.resolve(AppToken.LOGGER).warn(`The connection store is behind its migrations: the check sees the ${type} connections of the environment only.`);
+
+        return [];
+    }
+
+    return stored;
 }

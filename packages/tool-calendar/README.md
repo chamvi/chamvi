@@ -124,7 +124,7 @@ export default createApp({
 
 `USER` and `PASSWORD` can also be read from a file: `CHAMVI_CALENDAR_<ID>_PASSWORD_FILE=/run/secrets/icloud` (a mounted Secret; one trailing newline is trimmed). Setting both forms is an error.
 
-The module reads the variables when it is called; a malformed value fails the boot with an `InvalidAgentDefinitionError` that names the variable, never its value. Without accounts (no variable, no `accounts` option) it does nothing, and `calendarTools()` without accounts fails each call with `context_not_provided`. The `accounts` option replaces the variable; `timezone` and `fetch` are options too. Sessions are dropped once the engine drained; `migrate` does nothing.
+The module reads the variables when it is called; a malformed value fails the boot with an `InvalidAgentDefinitionError` that names the variable, never its value. Accounts saved in the dashboard's connection store are added at start, a variable winning per field. Without any account the tools return a `connection_not_configured` tool error. The `accounts` option replaces the variable and the store; `timezone` and `fetch` are options too. Sessions are dropped once the engine drained; `migrate` does nothing.
 
 ## Privacy
 

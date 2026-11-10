@@ -5,19 +5,17 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { readFileSync } from 'node:fs';
-import { envJson, envString } from '@chamvi/app';
+import { envJson, envSecret, envString } from '@chamvi/app';
 import type { Env } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
-import type { CalendarAccount } from '../client/types.ts';
 import { isTimeZone } from '../options/module.ts';
 import {
     CALENDAR_ACCOUNTS_VARIABLE,
     CALENDAR_TIMEZONE_VARIABLE,
     CALENDAR_VARIABLE_PREFIX,
-    FILE_VARIABLE_SUFFIX,
 } from './constants.ts';
+import type { CalendarEnvAccount, CalendarEnvEntry } from './types.ts';
 
 const ACCOUNT_ID = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 
@@ -26,63 +24,20 @@ function fail(message: string): never {
     throw new InvalidAgentDefinitionError(message);
 }
 
-function isSet(value: string | undefined): value is string {
-    return typeof value === 'string' && value.length > 0;
-}
-
-/**
- * The value of `name`, or of the file `<name>_FILE` names (one trailing
- * newline trimmed); undefined when neither is set. Both set, an unreadable
- * file or an empty one is an InvalidAgentDefinitionError naming the variable.
- */
-export function readSecretVariable(env: Env, name: string): string | undefined {
-    const fileName = `${name}${FILE_VARIABLE_SUFFIX}`;
-    const value = env[name];
-    const file = env[fileName];
-
-    if (isSet(value) && isSet(file)) {
-        return fail(`${name} and ${fileName} are both set: set one of them.`);
-    }
-
-    if (isSet(value)) {
-        return value;
-    }
-
-    if (!isSet(file)) {
-        return undefined;
-    }
-
-    let content: string;
-
-    try {
-        content = readFileSync(file, 'utf8');
-    } catch {
-        return fail(`${fileName}: the file cannot be read.`);
-    }
-
-    content = content.replace(/\r?\n$/, '');
-
-    if (content.length === 0) {
-        return fail(`${fileName}: the file is empty.`);
-    }
-
-    return content;
-}
-
 /** `CHAMVI_CALENDAR_<ID>_<field>`: the id upper-cased, `-` as `_`. */
-function variableOf(id: string, field: string): string {
+export function variableOf(id: string, field: string): string {
     return `${CALENDAR_VARIABLE_PREFIX}${id.toUpperCase().replaceAll('-', '_')}_${field}`;
 }
 
 /**
- * The accounts of `CHAMVI_CALENDAR_ACCOUNTS` (`[{ id?, url, address? }]`)
+ * The entries of `CHAMVI_CALENDAR_ACCOUNTS` (`[{ id?, url, address? }]`)
  * with their credentials from `CHAMVI_CALENDAR_<ID>_USER` (default the
- * address) and `CHAMVI_CALENDAR_<ID>_PASSWORD` (required), each also from a
- * `_FILE` variant; undefined without the variable. The id defaults to the
- * address with `@` and `.` as `-`. Errors are InvalidAgentDefinitionErrors
+ * address) and `CHAMVI_CALENDAR_<ID>_PASSWORD`, each also from a `_FILE`
+ * variant; undefined without the variable. A user or password in neither env
+ * nor store fails in `setup`. The id defaults to the address with `@` and `.` as `-`. Errors are InvalidAgentDefinitionErrors
  * naming the variable and index, never a value.
  */
-export function readCalendarAccountsFromEnv(env: Env): CalendarAccount[] | undefined {
+export function readCalendarEnvEntries(env: Env): CalendarEnvEntry[] | undefined {
     const value = envJson(env, CALENDAR_ACCOUNTS_VARIABLE);
 
     if (value === undefined) {
@@ -95,7 +50,7 @@ export function readCalendarAccountsFromEnv(env: Env): CalendarAccount[] | undef
 
     const ids = new Set<string>();
 
-    return value.map((entry: unknown, index): CalendarAccount => {
+    return value.map((entry: unknown, index): CalendarEnvEntry => {
         const at = `${CALENDAR_ACCOUNTS_VARIABLE}[${index}]`;
 
         if (!isObject(entry)) {
@@ -135,27 +90,24 @@ export function readCalendarAccountsFromEnv(env: Env): CalendarAccount[] | undef
             return fail(`${at}.url must be an http(s) URL.`);
         }
 
-        const userVariable = variableOf(id, 'USER');
-        const passwordVariable = variableOf(id, 'PASSWORD');
-        const user = readSecretVariable(env, userVariable) ?? address;
-
-        if (user === undefined) {
-            return fail(`${userVariable} is required for ${at} (it has no address).`);
-        }
-
-        const password = readSecretVariable(env, passwordVariable);
-
-        if (password === undefined) {
-            return fail(`${passwordVariable} is required for ${at}.`);
-        }
+        const user = envSecret(env, variableOf(id, 'USER')) ?? address;
+        const password = envSecret(env, variableOf(id, 'PASSWORD'));
 
         return {
-            id,
-            url,
-            user,
-            password,
+            account: {
+                id,
+                url,
+                ...(user !== undefined && { user }),
+                ...(password !== undefined && { password }),
+            },
+            ...(address !== undefined && { address }),
         };
     });
+}
+
+/** The accounts of `CHAMVI_CALENDAR_ACCOUNTS` (see `readCalendarEnvEntries`); undefined without the variable. */
+export function readCalendarAccountsFromEnv(env: Env): CalendarEnvAccount[] | undefined {
+    return readCalendarEnvEntries(env)?.map((entry) => entry.account);
 }
 
 /** `CHAMVI_CALENDAR_TIMEZONE`: an IANA zone id or `UTC` (InvalidAgentDefinitionError); undefined when unset. */

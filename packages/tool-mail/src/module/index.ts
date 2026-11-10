@@ -5,6 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export { MAIL_ACCOUNTS_VARIABLE, TOOL_MAIL_MODULE_NAME } from './constants.ts';
+export { MAIL_ACCOUNTS_VARIABLE, MAIL_CONNECTION_TYPE, TOOL_MAIL_MODULE_NAME } from './constants.ts';
 export * from './module.ts';
 export type * from './types.ts';

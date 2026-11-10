@@ -7,9 +7,12 @@
 
 import type {
     Agent,
+    ConnectionValues,
     IChannel,
     IClock,
+    IConnectionConfigStore,
     IConnectionHandle,
+    IConnectionTypeProvider,
     IEngine,
     IKeyring,
     IModelResolver,
@@ -22,6 +25,7 @@ import type {
     Authenticator,
     HttpRoute,
     IShutdown,
+    UiPage,
 } from '@chamvi/http';
 import type { DataSource } from 'typeorm';
 import type { AppOptions } from '../app/types.ts';
@@ -92,6 +96,17 @@ export type GitCredentialSource = {
     } | undefined>;
 };
 
+/** A stored connection as `readStoredConnections()` returns it. */
+export type StoredConnection = {
+    name: string;
+    /** The settings and decrypted secrets. */
+    values: ConnectionValues;
+    /** The config revision read; the connection's `loadedRevision`. */
+    revision: number;
+    /** The row's creation time; the connection's `loadedCreatedAt`. */
+    createdAt: Date;
+};
+
 export interface ILifecycleHook {
     readonly name: string;
     /** After verified preparation, before `engine.start()` (start and job); a check skips preparation. */
@@ -154,4 +169,15 @@ export type AppTokens = {
     KEYRING: IKeyring;
     /** A collection: the connection handles modules contribute; the http app serves them at `/connections`. */
     CONNECTIONS: IConnectionHandle;
+    /** A collection: the connection types modules contribute. */
+    CONNECTION_TYPES: IConnectionTypeProvider;
+    /**
+     * The settings and sealed secrets of connections, over `STORE`: list
+     * `ModuleName.STORE` in `dependencies` to resolve it in `setup`. Built
+     * lazily; the keyring is resolved only when a secret is touched, so
+     * reading plain settings needs no `CHAMVI_ENCRYPTION_KEYS`.
+     */
+    CONNECTION_CONFIGS: IConnectionConfigStore;
+    /** A collection: the separately built pages modules contribute; the shell lists them from `GET /ui-pages`. */
+    UI_PAGES: UiPage;
 };

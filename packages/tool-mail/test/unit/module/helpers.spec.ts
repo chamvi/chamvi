@@ -16,7 +16,7 @@ import {
     it,
 } from 'vitest';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { readMailAccountsFromEnv, readSecretVariable } from '../../../src/module/helpers.ts';
+import { readMailAccountsFromEnv } from '../../../src/module/helpers.ts';
 
 const PASSWORD = 'pa55-w0rd-never-echoed';
 
@@ -139,10 +139,11 @@ describe('readMailAccountsFromEnv()', () => {
         expect(error.message).toContain('CHAMVI_MAIL_ME_PASSWORD_FILE');
     });
 
-    it('names the missing password variable', () => {
-        const error = errorOf(() => readMailAccountsFromEnv({ CHAMVI_MAIL_ACCOUNTS: accounts([{ address: 'admin@tada5hi.net', host: 'mail.tada5hi.net' }]) }));
+    it('leaves a missing password to setup', () => {
+        const [account] = readMailAccountsFromEnv({ CHAMVI_MAIL_ACCOUNTS: accounts([{ address: 'admin@tada5hi.net', host: 'mail.tada5hi.net' }]) }) ?? [];
 
-        expect(error.message).toContain('CHAMVI_MAIL_ADMIN_TADA5HI_NET_PASSWORD');
+        expect(account?.password).toBeUndefined();
+        expect(account?.host).toBe('mail.tada5hi.net');
     });
 
     it('names the variable for bad JSON', () => {
@@ -201,28 +202,5 @@ describe('readMailAccountsFromEnv()', () => {
         }));
 
         expect(error.message).toContain(message);
-    });
-});
-
-describe('readSecretVariable()', () => {
-    it('is undefined when neither form is set', () => {
-        expect(readSecretVariable({}, 'X')).toBeUndefined();
-        expect(readSecretVariable({ X: '', X_FILE: '' }, 'X')).toBeUndefined();
-    });
-
-    it('trims only one trailing newline of a file', async () => {
-        const file = join(dir, 'crlf');
-
-        await writeFile(file, 'value\n\r\n');
-
-        expect(readSecretVariable({ X_FILE: file }, 'X')).toBe('value\n');
-    });
-
-    it('refuses an empty file', async () => {
-        const file = join(dir, 'empty');
-
-        await writeFile(file, '\n');
-
-        expect(() => readSecretVariable({ X_FILE: file }, 'X')).toThrow(/X_FILE/);
     });
 });

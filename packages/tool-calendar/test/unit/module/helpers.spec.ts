@@ -19,7 +19,6 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import {
     readCalendarAccountsFromEnv,
     readCalendarTimezoneFromEnv,
-    readSecretVariable,
 } from '../../../src/module/helpers.ts';
 
 const PASSWORD = 'pa55-w0rd-never-echoed';
@@ -129,19 +128,20 @@ describe('readCalendarAccountsFromEnv()', () => {
         expect(error.message).toContain('CHAMVI_CALENDAR_ME_PASSWORD_FILE');
     });
 
-    it('names the missing password variable', () => {
-        const error = errorOf(() => readCalendarAccountsFromEnv({ CHAMVI_CALENDAR_ACCOUNTS: accounts([{ url: 'https://caldav.icloud.com', address: 'admin@tada5hi.net' }]) }));
+    it('leaves a missing password to setup', () => {
+        const [account] = readCalendarAccountsFromEnv({ CHAMVI_CALENDAR_ACCOUNTS: accounts([{ url: 'https://caldav.icloud.com', address: 'admin@tada5hi.net' }]) }) ?? [];
 
-        expect(error.message).toContain('CHAMVI_CALENDAR_ADMIN_TADA5HI_NET_PASSWORD');
+        expect(account?.password).toBeUndefined();
+        expect(account?.url).toBe('https://caldav.icloud.com');
     });
 
-    it('needs a user without an address', () => {
-        const error = errorOf(() => readCalendarAccountsFromEnv({
+    it('leaves a user without an address to setup', () => {
+        const [account] = readCalendarAccountsFromEnv({
             CHAMVI_CALENDAR_ACCOUNTS: accounts([{ id: 'work', url: 'https://dav.example.com/' }]),
             CHAMVI_CALENDAR_WORK_PASSWORD: PASSWORD,
-        }));
+        }) ?? [];
 
-        expect(error.message).toContain('CHAMVI_CALENDAR_WORK_USER');
+        expect(account?.user).toBeUndefined();
     });
 
     it('names the variable for bad JSON', () => {
@@ -187,28 +187,5 @@ describe('readCalendarTimezoneFromEnv()', () => {
     it('refuses another value, naming the variable', () => {
         expect(() => readCalendarTimezoneFromEnv({ CHAMVI_CALENDAR_TIMEZONE: 'W. Europe Standard Time' }))
             .toThrow(/CHAMVI_CALENDAR_TIMEZONE/);
-    });
-});
-
-describe('readSecretVariable()', () => {
-    it('is undefined when neither form is set', () => {
-        expect(readSecretVariable({}, 'X')).toBeUndefined();
-        expect(readSecretVariable({ X: '', X_FILE: '' }, 'X')).toBeUndefined();
-    });
-
-    it('trims only one trailing newline of a file', async () => {
-        const file = join(dir, 'crlf');
-
-        await writeFile(file, 'value\n\r\n');
-
-        expect(readSecretVariable({ X_FILE: file }, 'X')).toBe('value\n');
-    });
-
-    it('refuses an empty file', async () => {
-        const file = join(dir, 'empty');
-
-        await writeFile(file, '\n');
-
-        expect(() => readSecretVariable({ X_FILE: file }, 'X')).toThrow(/X_FILE/);
     });
 });

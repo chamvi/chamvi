@@ -363,6 +363,49 @@ describe('resolveConnection', () => {
             }
         });
 
+        it('a select value outside its options names the variable and not the value', () => {
+            const act = () => resolve({ MODE: 'hunter2-mode' }, { definition: typed });
+
+            expect(act).toThrow(InvalidAgentDefinitionError);
+            expect(act).toThrow('MODE');
+
+            try {
+                act();
+            } catch (error) {
+                expect((error as Error).message).not.toContain('hunter2-mode');
+            }
+        });
+
+        it('a number above the safe integer range names the variable and not the value', () => {
+            expect(resolve({ PORT: String(Number.MAX_SAFE_INTEGER) }, { definition: typed }).values.port).toBe(Number.MAX_SAFE_INTEGER);
+
+            for (const value of ['9007199254740992', '9'.repeat(400)]) {
+                const act = () => resolve({ PORT: value }, { definition: typed });
+
+                expect(act).toThrow(InvalidAgentDefinitionError);
+                expect(act).toThrow('PORT');
+
+                try {
+                    act();
+                } catch (error) {
+                    expect((error as Error).message).not.toContain(value);
+                }
+            }
+        });
+
+        it('a list that coerces to empty is unset', () => {
+            const unset = resolve({ HOSTS: ' , ,' }, { definition: typed });
+
+            expect(unset.values).toEqual({});
+            expect(unset.sources.hosts).toEqual({ kind: 'unset' });
+            expect(unset.state).toBe('not_configured');
+
+            const stored = resolve({ HOSTS: ',' }, { definition: typed, stored: { hosts: ['kept.example'] } });
+
+            expect(stored.values.hosts).toEqual(['kept.example']);
+            expect(stored.sources.hosts).toEqual({ kind: 'store' });
+        });
+
         it('does not coerce presets or stored values', () => {
             const resolved = resolve({}, {
                 definition: typed,

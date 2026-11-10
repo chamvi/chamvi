@@ -5,6 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export { CALENDAR_ACCOUNTS_VARIABLE, CALENDAR_TIMEZONE_VARIABLE, TOOL_CALENDAR_MODULE_NAME } from './constants.ts';
+export {
+    CALENDAR_ACCOUNTS_VARIABLE,
+    CALENDAR_CONNECTION_TYPE,
+    CALENDAR_TIMEZONE_VARIABLE,
+    TOOL_CALENDAR_MODULE_NAME,
+} from './constants.ts';
 export * from './module.ts';
 export type * from './types.ts';

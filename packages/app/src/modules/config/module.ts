@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { systemClock } from '@chamvi/core';
+import { createConnectionConfigStore, systemClock } from '@chamvi/core';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { readConfig } from '../../config/module.ts';
@@ -16,7 +16,8 @@ import type { ConfigModuleOptions } from './types.ts';
 
 /**
  * Reads the app config from the context env and registers `CONFIG`,
- * `CLOCK`, `LOGGER` and the lazy `KEYRING` (unless one is registered).
+ * `CLOCK`, `LOGGER`, the lazy `KEYRING` and the lazy `CONNECTION_CONFIGS`
+ * (each unless one is registered).
  */
 export class ConfigModule implements IModule {
     readonly name: string = ModuleName.CONFIG;
@@ -40,6 +41,17 @@ export class ConfigModule implements IModule {
         // lazy: the variable is read, and must exist, only when a module resolves the keyring
         if (!container.has(AppToken.KEYRING)) {
             container.register(AppToken.KEYRING, { useFactory: () => readKeyring(context.env) });
+        }
+
+        // lazy: the store exists only once its module ran, and only a secret needs the keyring
+        if (!container.has(AppToken.CONNECTION_CONFIGS)) {
+            container.register(AppToken.CONNECTION_CONFIGS, {
+                useFactory: () => createConnectionConfigStore({
+                    store: container.resolve(AppToken.STORE),
+                    keyring: () => container.resolve(AppToken.KEYRING),
+                    clock: container.resolve(AppToken.CLOCK),
+                }),
+            });
         }
     }
 }

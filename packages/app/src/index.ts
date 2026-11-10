@@ -32,6 +32,7 @@ export type {
     HttpSubscriptionOptions,
     Principal,
     StaticToken,
+    UiPage,
     WebhookSubscriptionOptions,
 // eslint-disable-next-line @tada5hi/no-reexport-shims -- Preserve the published HTTP types in the public facade.
 } from '@chamvi/http';
@@ -48,5 +49,6 @@ export * from './modules/engine/index.ts';
 export * from './modules/http/index.ts';
 export * from './modules/scheduler/index.ts';
 export * from './modules/static-tokens/index.ts';
+export * from './modules/ui-page/index.ts';
 export * from './modules/repository/index.ts';
 export * from './package/index.ts';

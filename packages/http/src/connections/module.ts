@@ -15,14 +15,12 @@ import { authenticate } from '../auth/helpers.ts';
 import {
     canRead,
     canWrite,
+    param,
     requireHandle,
     serializeConnection,
 } from './helpers.ts';
+import { listConnections, registerConnectionConfigRoutes } from './config.ts';
 import type { ConnectionDetailView, ConnectionView } from './types.ts';
-
-function param(event: IAppEvent, name: string): string {
-    return event.params[name] ?? '';
-}
 
 /**
  * Streams a connection as SSE: `status` (`{ status }`) and `widgets`
@@ -139,7 +137,8 @@ function streamConnection(event: IAppEvent, ctx: HttpContext, handle: IConnectio
 }
 
 /**
- * `GET /connections`, `GET /connections/:name`, `GET /connections/:name/events`,
+ * `GET /connections` (the handles and the declared connections), and
+ * `GET /connections/:name`, `GET /connections/:name/events`,
  * `POST /connections/:name/reset` over the app's connection handles.
  * `connection:<name>:read` lists and shows a connection, `:write` (which
  * implies read) also sees its widgets (a pairing QR), streams it and resets
@@ -150,12 +149,9 @@ function streamConnection(event: IAppEvent, ctx: HttpContext, handle: IConnectio
 export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
     app.get('/connections', defineCoreHandler(async (event): Promise<{ data: ConnectionView[] }> => {
         const principal = await authenticate(event, ctx);
+        const views = await listConnections(ctx);
 
-        return {
-            data: ctx.connections()
-                .filter((handle) => canRead(principal, handle.name))
-                .map(serializeConnection),
-        };
+        return { data: views.filter((view) => canRead(principal, view.name)) };
     }));
 
     app.get('/connections/:name', defineCoreHandler(async (event): Promise<ConnectionDetailView> => {
@@ -202,4 +198,6 @@ export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
 
         return serializeConnection(handle);
     }));
+
+    registerConnectionConfigRoutes(app, ctx);
 }

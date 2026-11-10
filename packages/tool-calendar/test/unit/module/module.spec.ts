@@ -122,12 +122,12 @@ async function runPlanner(harness: ModuleHarness) {
 }
 
 describe('toolCalendarModule()', () => {
-    it('is named chamvi:tool-calendar and needs the config and engine modules', () => {
+    it('is named chamvi:tool-calendar and needs the config, store and engine modules', () => {
         const module = toolCalendarModule({ env: {} });
 
         expect(module).toBeInstanceOf(ToolCalendarModule);
         expect(module.name).toBe(TOOL_CALENDAR_MODULE_NAME);
-        expect(module.dependencies).toEqual([ModuleName.CONFIG, ModuleName.ENGINE]);
+        expect(module.dependencies).toEqual([ModuleName.CONFIG, ModuleName.STORE, ModuleName.ENGINE]);
     });
 
     it('provides the env accounts\' client to tools without accounts', async () => {
@@ -176,15 +176,12 @@ describe('toolCalendarModule()', () => {
         expect(server.requests[0]?.authorization).toBe(`Basic ${btoa(`code@icloud.com:${PASSWORD}`)}`);
     });
 
-    it('provides nothing without accounts: the tool fails with context_not_provided', async () => {
+    it('keeps the context provided without accounts: the tool fails with connection_not_configured', async () => {
         const harness = await harnessOf(toolCalendarModule({ env: {} }), { agents: [plannerAgent()] });
-        const hooks = harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS).filter((hook) => hook.name === TOOL_CALENDAR_MODULE_NAME);
+        const { run, step } = await runPlanner(harness);
 
-        expect(hooks).toEqual([]);
-
-        const { step } = await runPlanner(harness);
-
-        expect(step?.error).toMatchObject({ code: 'context_not_provided' });
+        expect(run?.status).toBe('completed');
+        expect(step?.error).toMatchObject({ code: 'connection_not_configured' });
     });
 
     it('closes the client once the engine drained: the next call logs in again', async () => {
@@ -209,7 +206,7 @@ describe('toolCalendarModule()', () => {
 
     it('checks the env when the factory is called, never echoing a password', () => {
         expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: '{' } })).toThrow(InvalidAgentDefinitionError);
-        expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ url: FAKE_CALDAV_URL, address: 'me@icloud.com' }]) } })).toThrow(/CHAMVI_CALENDAR_ME_ICLOUD_COM_PASSWORD/);
+        expect(() => toolCalendarModule({ env: { [CALENDAR_ACCOUNTS_VARIABLE]: JSON.stringify([{ url: 'ftp://x.test', address: 'me@icloud.com' }]) } })).toThrow(/CHAMVI_CALENDAR_ACCOUNTS/);
         expect(() => toolCalendarModule({ env: { CHAMVI_CALENDAR_TIMEZONE: 'Mars/Olympus' } })).toThrow(/CHAMVI_CALENDAR_TIMEZONE/);
         expect(() => toolCalendarModule({ timezone: 'Mars/Olympus' })).toThrow(InvalidAgentDefinitionError);
         expect(() => toolCalendarModule({ fetch: 'nope' as unknown as typeof fetch })).toThrow(InvalidAgentDefinitionError);

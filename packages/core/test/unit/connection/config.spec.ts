@@ -347,6 +347,17 @@ describe('createConnectionConfigStore', () => {
             });
         });
 
+        it('keeps a leading byte order mark of a secret', async () => {
+            const { config } = setup();
+            const secret = `\uFEFF${PLAINTEXT}`;
+
+            await config.create('mail-work', 'mail', { secrets: { set: { password: secret } } });
+
+            const result = await config.read('mail-work');
+
+            expect(result?.values.password).toBe(secret);
+        });
+
         it('keeps a secret field named __proto__ an own value', async () => {
             const { config } = setup();
 

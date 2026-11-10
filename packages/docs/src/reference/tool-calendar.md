@@ -66,7 +66,7 @@ const CALENDAR_TIMEZONE_VARIABLE: 'CHAMVI_CALENDAR_TIMEZONE';
 | `CHAMVI_CALENDAR_<ID>_PASSWORD` | Required |
 | `CHAMVI_CALENDAR_TIMEZONE` | The IANA zone event times are given in, default `Europe/Berlin` |
 
-Each credential can come from a file instead: `CHAMVI_CALENDAR_<ID>_PASSWORD_FILE` (one trailing newline trimmed; setting both forms is an error). The variables are read and checked when the factory is called; an error names the variable, never its value. Without accounts the module does nothing. In start and job mode and a check it builds one client on the app's clock, provides it on the engine (`injectCalendarContext(ctx)`) and drops its sessions once the engine drained; migrate mode does nothing.
+Each credential can come from a file instead: `CHAMVI_CALENDAR_<ID>_PASSWORD_FILE` (one trailing newline trimmed; setting both forms is an error). The variables are read and checked when the factory is called; an error names the variable, never its value. Accounts stored in the connection store are added at start, a variable winning per field (`accounts` pins the set); a password in neither env nor store fails at startup naming the variable. Without any account the context stays provided and tools return a `connection_not_configured` tool error. In start and job mode and a check it builds one client on the app's clock, provides it on the engine (`injectCalendarContext(ctx)`) and drops its sessions once the engine drained; migrate mode does nothing.
 
 ## Types
 

@@ -178,7 +178,8 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
                 return undefined;
             }
 
-            const decoder = new TextDecoder();
+            // ignoreBOM keeps a leading U+FEFF: the default decoder would strip it from a stored secret
+            const decoder = new TextDecoder('utf-8', { ignoreBOM: true });
             const secrets = config.secrets.size > 0 ?
                 withDataKey(name, config, (dataKey) => Object.fromEntries(
                     config.secrets.entries().map(([field, sealed]) => [

@@ -17,4 +17,5 @@ export * from './me/index.ts';
 export * from './request/index.ts';
 export * from './runs/index.ts';
 export * from './shutdown/index.ts';
+export * from './static/index.ts';
 export * from './subscriptions/index.ts';

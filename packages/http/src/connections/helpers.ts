@@ -7,11 +7,20 @@
 
 import { hasPermission } from '@chamvi/core';
 import type { IConnectionHandle } from '@chamvi/core';
+import { IssueCode } from '@ebec/core';
 import { ForbiddenError, NotFoundError } from '@ebec/http';
+import { isObject } from 'smob';
+import { createValidupError, defineValidator } from 'validup';
+import type { ValidatorDescriptor } from 'validup';
+import type { IAppEvent } from 'routup';
 import type { HttpContext } from '../app/types.ts';
 import { connectionPermission } from '../auth/module.ts';
 import type { Principal } from '../auth/types.ts';
 import type { ConnectionView } from './types.ts';
+
+export function param(event: IAppEvent, name: string): string {
+    return event.params[name] ?? '';
+}
 
 /** `connection:<name>:write`. */
 export function canWrite(principal: Principal, name: string): boolean {
@@ -44,4 +53,63 @@ export function serializeConnection(handle: IConnectionHandle): ConnectionView {
         type: handle.type,
         status: handle.status(),
     };
+}
+
+/*
+ * Connection bodies carry secrets and may place them anywhere: these
+ * validators, and the field checks of `config.ts`, never echo a value.
+ */
+
+/** A plain object, with its values left to the caller. */
+export function isRecord(): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (!isObject(value)) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'must be an object');
+            }
+
+            return value;
+        },
+    });
+}
+
+/** The longest connection name: an account id is never longer than the name built from it. */
+const ACCOUNT_ID_MAX_LENGTH = 64;
+
+/** A create's account id; the name it builds is checked by the connection-name rule. */
+export function isAccountId(): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (typeof value !== 'string' || value.length === 0 || value.length > ACCOUNT_ID_MAX_LENGTH || value.includes('\0')) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, `must be a string of 1 to ${ACCOUNT_ID_MAX_LENGTH} characters`);
+            }
+
+            return value;
+        },
+    });
+}
+
+/** `{ set?: { <field>: string }, clear?: string[] }` of a save. */
+export function isSecretsWrite(): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (!isObject(value)) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'must be an object');
+            }
+
+            const { set, clear } = value;
+
+            if (set !== undefined && !isObject(set)) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'set must be an object');
+            }
+
+            const isNameList = Array.isArray(clear) && clear.every((field) => typeof field === 'string');
+
+            if (clear !== undefined && !isNameList) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'clear must be an array of field names');
+            }
+
+            return { ...(set !== undefined && { set }), ...(clear !== undefined && { clear }) };
+        },
+    });
 }

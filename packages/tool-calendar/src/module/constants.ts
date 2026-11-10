@@ -16,5 +16,8 @@ export const CALENDAR_TIMEZONE_VARIABLE = 'CHAMVI_CALENDAR_TIMEZONE';
 /** The prefix of an account's credential variables: `CHAMVI_CALENDAR_<ID>_USER`, `..._PASSWORD`. */
 export const CALENDAR_VARIABLE_PREFIX = 'CHAMVI_CALENDAR_';
 
-/** The suffix of a variable naming a file that holds the value (a mounted Secret). */
-export const FILE_VARIABLE_SUFFIX = '_FILE';
+/** The connection type of a calendar account; its stored name is `calendar-<id>`. */
+export const CALENDAR_CONNECTION_TYPE = 'calendar';
+
+/** A longer stored name (a long env-only id) is used but not listed. */
+export const CALENDAR_CONNECTION_NAME_MAX_LENGTH = 64;

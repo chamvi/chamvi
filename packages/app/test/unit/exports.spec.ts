@@ -31,6 +31,7 @@ describe('public api', () => {
         'readKeyring',
         'approvalUrlOf',
         'createLogger',
+        'readStoredConnections',
         'runHooks',
         'throwIfStopped',
         'envString',
@@ -40,6 +41,7 @@ describe('public api', () => {
         'envList',
         'envJson',
         'envOneOf',
+        'envSecret',
         'loadAgent',
         'loadAgents',
         'hashAgentFolder',
@@ -50,6 +52,7 @@ describe('public api', () => {
         'storeModule',
         'staticTokensModule',
         'consoleChannelModule',
+        'uiPageModule',
         'engineModule',
         'agentsModule',
         'schedulerModule',
@@ -119,6 +122,8 @@ describe('public api', () => {
             'CLOCK',
             'CONFIG',
             'CONNECTIONS',
+            'CONNECTION_CONFIGS',
+            'CONNECTION_TYPES',
             'CONTEXT',
             'DATA_SOURCE',
             'ENGINE',
@@ -131,6 +136,7 @@ describe('public api', () => {
             'SERVER',
             'SHUTDOWN',
             'STORE',
+            'UI_PAGES',
         ]);
     });
 

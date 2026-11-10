@@ -9,7 +9,9 @@ import type {
     Agent,
     IChannel,
     IClock,
+    IConnectionConfigStore,
     IConnectionHandle,
+    IConnectionTypeProvider,
     IEngine,
     IStore,
 } from '@chamvi/core';
@@ -20,6 +22,7 @@ import type { AppOptionsInput } from 'routup';
 import type { AgentIssue } from '../agents/types.ts';
 import type { Authenticator, Principal } from '../auth/types.ts';
 import type { IShutdown } from '../shutdown/types.ts';
+import type { UiPage } from '../static/types.ts';
 
 // #region options
 export type CorsOptions = CorsPluginOptions;
@@ -110,6 +113,19 @@ export type HttpAppOptions = {
      * Default: none, the list is empty.
      */
     connections?: () => readonly IConnectionHandle[];
+    /**
+     * The configurable connection types (`/connection-types`, the declared
+     * connections listed at `/connections`), read per request. Default: none.
+     */
+    connectionTypes?: () => readonly IConnectionTypeProvider[];
+    /**
+     * Where connection settings and secrets are saved. Absent (a store
+     * without `connections`): connections are read-only, no save or create
+     * is accepted.
+     */
+    connectionConfigs?: IConnectionConfigStore;
+    /** The separately built pages `GET /ui-pages` lists, read per request. Default: none. */
+    uiPages?: () => readonly UiPage[];
 };
 
 // #endregion options
@@ -220,5 +236,8 @@ export type HttpContext = {
     channels: IChannel[];
     /** The connection handles, read per request. */
     connections: () => readonly IConnectionHandle[];
+    connectionTypes: () => readonly IConnectionTypeProvider[];
+    connectionConfigs?: IConnectionConfigStore;
+    uiPages: () => readonly UiPage[];
     onError: (error: unknown) => void;
 };

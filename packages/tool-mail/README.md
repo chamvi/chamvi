@@ -127,7 +127,7 @@ export default createApp({
 
 `USER` and `PASSWORD` can also be read from a file: `CHAMVI_MAIL_<ID>_PASSWORD_FILE=/run/secrets/gmail` (a mounted Secret; one trailing newline is trimmed). Setting both forms is an error.
 
-The module reads the variables when it is called; a malformed value fails the boot with an `InvalidAgentDefinitionError` that names the variable and the index, never a value. Without accounts (no variable, no `accounts` option) it does nothing, and `mailTools()` without accounts fails each call with `context_not_provided`. The `accounts` option replaces the variable. Connections are logged out once the engine drained; `migrate` does nothing.
+The module reads the variables when it is called; a malformed value fails the boot with an `InvalidAgentDefinitionError` that names the variable and the index, never a value. Accounts saved in the dashboard's connection store are added at start, a variable winning per field. Without any account the tools return a `connection_not_configured` tool error. The `accounts` option replaces the variable and the store. Connections are logged out once the engine drained; `migrate` does nothing.
 
 ## Privacy
 

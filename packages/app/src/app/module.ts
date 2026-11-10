@@ -17,6 +17,7 @@ import type { Env } from '../env/types.ts';
 import type { ModelProviders, ProviderConfig } from '../models/types.ts';
 import { AppToken } from '../module/constants.ts';
 import {
+    connectionIssuesOf,
     createStoppedError,
     reportingModule,
     runHooks,
@@ -321,12 +322,15 @@ export class App implements IApp {
         return result;
     }
 
-    /** setup() without the start steps, the agent folders' issues, then the teardown. */
+    /** setup() without the start steps, the agent folders' and the incomplete connections' issues, then the teardown. */
     protected async checkOnce(lifecycle: Lifecycle): Promise<AppCheckResult> {
         await this.setup(lifecycle);
 
         const { container } = lifecycle;
-        const issues = container.has(AppToken.AGENT_ISSUES) ? [...container.resolve(AppToken.AGENT_ISSUES)()] : [];
+        const issues = [
+            ...container.has(AppToken.AGENT_ISSUES) ? container.resolve(AppToken.AGENT_ISSUES)() : [],
+            ...connectionIssuesOf(container),
+        ];
 
         await this.teardown(lifecycle);
 

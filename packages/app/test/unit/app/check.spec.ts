@@ -24,6 +24,7 @@ import {
     storeModule,
 } from '@chamvi/app';
 import type { AppCheckResult, IApp, IModule } from '@chamvi/app';
+import { isSchemaBehindError } from '../../../src/module/helpers.ts';
 import {
     agentFile,
     provider,
@@ -310,6 +311,63 @@ describe('App.check', () => {
         const error = await rejectionOf(app.check({ env }));
 
         expect(error.code).toBe('invalid_agent_definition');
+    });
+
+    it('recognizes only a missing table or column as a behind schema', () => {
+        expect(isSchemaBehindError({ driverError: { code: '42P01' } })).toBe(true);
+        expect(isSchemaBehindError({ code: '42703' })).toBe(true);
+        expect(isSchemaBehindError({ driverError: { code: '23505' } })).toBe(false);
+        expect(isSchemaBehindError(new Error('boom'))).toBe(false);
+        expect(isSchemaBehindError('42P01')).toBe(false);
+    });
+
+    it('reports an incomplete connection as an issue, a not configured one not', async () => {
+        const resolved = (state: 'incomplete' | 'not_configured', missing: string[]) => ({
+            name: state === 'incomplete' ? 'mail-home' : 'mail-idle',
+            values: {},
+            sources: {},
+            missing,
+            state,
+        });
+        const connections: IModule = {
+            name: 'connection-types',
+            setup: async (container) => {
+                container.registerMany(AppToken.CONNECTION_TYPES, {
+                    useValue: {
+                        definition: {
+                            type: 'mail',
+                            label: 'Mail',
+                            multiple: true,
+                            fields: [],
+                        },
+                        creatable: () => true,
+                        connections: () => [
+                            {
+                                name: 'mail-home',
+                                editable: true,
+                                deletable: true,
+                                resolved: resolved('incomplete', ['password']),
+                            },
+                            {
+                                name: 'mail-idle',
+                                editable: true,
+                                deletable: true,
+                                resolved: resolved('not_configured', []),
+                            },
+                        ],
+                    },
+                });
+            },
+        };
+        const { app } = build({ modules: [connections] });
+        const { env } = await envFor();
+
+        const { issues } = await app.check({ env });
+
+        expect(issues).toHaveLength(1);
+        expect(issues[0]).toMatchObject({ agent: 'mail-home' });
+        expect(issues[0]?.message).toContain('mail-home');
+        expect(issues[0]?.message).toContain('password');
     });
 
     it('runs the paired engineCreated and drained hooks, never started or stopping', async () => {

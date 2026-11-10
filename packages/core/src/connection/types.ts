@@ -308,6 +308,8 @@ export type DeclaredConnection = {
     resolved: ResolvedConnection;
     /** The stored revision this process loaded; a newer one means "restart to apply". */
     loadedRevision?: number;
+    /** The row's `createdAt` this process loaded; another one means the account was deleted and created again. */
+    loadedCreatedAt?: Date;
 };
 
 /** What a package registers for each connection type it configures. */

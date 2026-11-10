@@ -140,12 +140,12 @@ async function runAssistant(harness: ModuleHarness) {
 const logins = (server: FakeImap) => untagged(server.commands).filter((command) => command.startsWith('LOGIN')).length;
 
 describe('toolMailModule()', () => {
-    it('is named chamvi:tool-mail and needs the config and engine modules', () => {
+    it('is named chamvi:tool-mail and needs the config, store and engine modules', () => {
         const module = toolMailModule({ env: {} });
 
         expect(module).toBeInstanceOf(ToolMailModule);
         expect(module.name).toBe(TOOL_MAIL_MODULE_NAME);
-        expect(module.dependencies).toEqual([ModuleName.CONFIG, ModuleName.ENGINE]);
+        expect(module.dependencies).toEqual([ModuleName.CONFIG, ModuleName.STORE, ModuleName.ENGINE]);
     });
 
     it('provides the env accounts\' client to tools without accounts', async () => {
@@ -172,15 +172,12 @@ describe('toolMailModule()', () => {
         expect(untagged(server.commands).find((command) => command.startsWith('LOGIN'))).toContain('code@y.test');
     });
 
-    it('provides nothing without accounts: the tool fails with context_not_provided', async () => {
+    it('keeps the context provided without accounts: the tool fails with connection_not_configured', async () => {
         const harness = await harnessOf(toolMailModule({ env: {} }), { agents: [assistantAgent()] });
-        const hooks = harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS).filter((hook) => hook.name === TOOL_MAIL_MODULE_NAME);
+        const { run, step } = await runAssistant(harness);
 
-        expect(hooks).toEqual([]);
-
-        const { step } = await runAssistant(harness);
-
-        expect(step?.error).toMatchObject({ code: 'context_not_provided' });
+        expect(run?.status).toBe('completed');
+        expect(step?.error).toMatchObject({ code: 'connection_not_configured' });
     });
 
     it('closes the client once the engine drained: the next call logs in again', async () => {
@@ -229,7 +226,7 @@ describe('toolMailModule()', () => {
         };
 
         expect(messageOf(() => toolMailModule({ env: { [MAIL_ACCOUNTS_VARIABLE]: '{' } }))).toContain(MAIL_ACCOUNTS_VARIABLE);
-        expect(messageOf(() => toolMailModule({ env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([{ address: 'admin@tada5hi.net', host: 'mail.tada5hi.net' }]) } }))).toContain('CHAMVI_MAIL_ADMIN_TADA5HI_NET_PASSWORD');
+        expect(messageOf(() => toolMailModule({ env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([{ address: 'Not An Id!', host: 'mail.tada5hi.net' }]) } }))).toContain(MAIL_ACCOUNTS_VARIABLE);
         expect(messageOf(() => toolMailModule({ accounts: [accountOf(1, 'work', { port: 0 })] }))).not.toContain(PASSWORD);
         expect(() => toolMailModule({ env: 'nope' as never })).toThrow(InvalidAgentDefinitionError);
         expect(() => toolMailModule('nope' as never)).toThrow(InvalidAgentDefinitionError);

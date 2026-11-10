@@ -6,7 +6,7 @@
  */
 
 export * from './authup/index.ts';
-export { Permission } from './constants.ts';
+export { CONNECTIONS_CREATE_PERMISSION, Permission } from './constants.ts';
 export * from './module.ts';
 export * from './oidc/index.ts';
 export * from './static-tokens/index.ts';

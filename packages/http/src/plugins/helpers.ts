@@ -51,7 +51,7 @@ export function isUnlimitedRoute(event: IAppEvent, basePath: string, routes: rea
 
 /** The routes of the app as metric labels, matched against the path without `basePath`; keep in step with the route modules. */
 const ROUTE_TEMPLATES: Array<[RegExp, string]> = [
-    [/^\/(?:healthz|readyz|agents|schedules|runs|mcp|me|connections)$/, ''],
+    [/^\/(?:healthz|readyz|agents|schedules|runs|mcp|me|connections|connection-types|ui-pages)$/, ''],
     [/^\/runs\/[^/]+$/, '/runs/:id'],
     [/^\/runs\/[^/]+\/stream$/, '/runs/:id/stream'],
     [/^\/runs\/[^/]+\/cancel$/, '/runs/:id/cancel'],
@@ -66,6 +66,9 @@ const ROUTE_TEMPLATES: Array<[RegExp, string]> = [
     [/^\/connections\/[^/]+$/, '/connections/:name'],
     [/^\/connections\/[^/]+\/events$/, '/connections/:name/events'],
     [/^\/connections\/[^/]+\/reset$/, '/connections/:name/reset'],
+    [/^\/connections\/[^/]+\/config$/, '/connections/:name/config'],
+    [/^\/connections\/[^/]+\/test$/, '/connections/:name/test'],
+    [/^\/connection-types\/[^/]+\/connections$/, '/connection-types/:type/connections'],
 ];
 
 /** Every request that matches no route shares this label. */
