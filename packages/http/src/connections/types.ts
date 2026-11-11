@@ -16,7 +16,8 @@ import type {
 /**
  * One entry of `GET /connections` (never widgets): the handles and the
  * declared connections. `status` is `disconnected` for a connection with no
- * handle in this process; the configuration fields only come with a type.
+ * handle in this process (`live: false`, which is no failure); the
+ * configuration fields only come with a type.
  */
 export type ConnectionView = {
     name: string;
@@ -25,17 +26,21 @@ export type ConnectionView = {
     /** The account id tools and variables use, for a multi-instance type. */
     account?: string;
     state?: ConnectionState;
+    /** The labels of the required fields without a value, when `state` is `incomplete`. */
+    missing?: string[];
+    /** Why the last start could not use it, when known: names options or variables, never a value. */
+    reason?: string;
+    /** `false`: no handle runs in this process, so `status` says nothing about the connection. */
+    live?: boolean;
     editable?: boolean;
     deletable?: boolean;
 };
 
-/** `GET /connections/:name`: `widgets`, `canReset` and `live` only for a holder of `connection:<name>:write`. */
+/** `GET /connections/:name`: `widgets`, `canReset` and `live: true` only for a holder of `connection:<name>:write`. */
 export type ConnectionDetailView = ConnectionView & {
     widgets?: ConnectionWidget[];
     /** The connection offers a reset (`POST /connections/:name/reset` does not answer 404). */
     canReset?: boolean;
-    /** A handle runs in this process: `GET /connections/:name/events` does not answer 404. */
-    live?: boolean;
 };
 
 /** A field of `GET /connection-types`: what a form needs. */
@@ -46,6 +51,9 @@ export type ConnectionTypeFieldView = {
     required?: boolean;
     description?: string;
     options?: readonly string[];
+    multiline?: boolean;
+    /** Changing it needs every secret of the connection again. */
+    bindsSecrets?: boolean;
 };
 
 /** One entry of `GET /connection-types`. */
@@ -74,6 +82,10 @@ export type ConnectionSettingsFieldView = {
 export type ConnectionSettingsView = {
     type: string;
     state: ConnectionState;
+    /** The labels of the required fields without a value, when `state` is `incomplete`. */
+    missing?: string[];
+    /** Why the last start could not use it, when known and no save is waiting for a restart. */
+    reason?: string;
     settings: Record<string, unknown>;
     fields: ConnectionSettingsFieldView[];
     /** The stored revision is not the one this process loaded. */

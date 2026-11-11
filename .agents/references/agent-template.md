@@ -141,3 +141,7 @@ Checked against this file's contract map only (no fresh downstream checkout). No
 ## Connection store keyring (#165, #166, #167; 0.8.0)
 
 Checked `main` at `3664d9e`: `src/modules.ts` does not list `whatsappModule()`, so the starter never resolves the keyring and `CHAMVI_ENCRYPTION_KEYS` stays optional. `.env.example` and `.agents/deployment.md` name it for apps that add the module.
+
+## Connection configuration and provider pages (unreleased)
+
+Checked `main` at `d993dd98`: `src/modules.ts`. No template change, and no existing env name or public `@chamvi/app` API changed. The starter lists `uiModule()` and only commented examples (github, sandbox, openclaw, console), none of which needs a `*-ui` module; `whatsappModule()` is not listed, so the pairing upgrade step does not reach it. The commented `githubModule()` stays valid: the comment's "reads `GITHUB_*` when called" still holds for format errors, while an unset env now starts idle instead of throwing, which a documentation follow-up may mention.

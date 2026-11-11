@@ -12,6 +12,7 @@ import type {
     DeclaredConnection,
     ResolvedConnection,
 } from '@chamvi/core';
+import { verifyDiscordToken } from '../discord/verify.ts';
 import { DISCORD_CONNECTION_TYPE } from './constants.ts';
 import { variableOf } from './helpers.ts';
 import type { DiscordField } from './types.ts';
@@ -25,7 +26,7 @@ function fieldOf(key: DiscordField, field: Omit<ConnectionField, 'key' | 'env'>)
 }
 
 /** The Discord connection type: one bot per module, its name the module's. */
-export function discordConnectionDefinition(): ConnectionTypeDefinition {
+export function discordConnectionDefinition(options: { apiUrl?: string; fetch?: typeof fetch } = {}): ConnectionTypeDefinition {
     return {
         type: DISCORD_CONNECTION_TYPE,
         label: 'Discord',
@@ -72,6 +73,8 @@ export function discordConnectionDefinition(): ConnectionTypeDefinition {
                 description: 'A guild message must mention the bot or reply to it. Default true.',
             }),
         ],
+        // saved values only
+        test: (values, signal) => verifyDiscordToken(values.token as string, { signal, ...options }),
     };
 }
 

@@ -173,7 +173,7 @@ async function mount(options: {
         calls,
         emitted,
         field: (key: string) => root.querySelector<HTMLElement>(`[data-field="${CSS.escape(key)}"]`)!,
-        input: (key: string) => root.querySelector<HTMLInputElement>(`[data-field="${CSS.escape(key)}"] input`),
+        input: (key: string) => root.querySelector<HTMLInputElement>(['input', 'textarea'].map((tag) => `[data-field="${CSS.escape(key)}"] ${tag}`).join(', ')),
         /** A select's trigger (vuecs/Reka: a button showing the chosen label). */
         select: (key: string) => root.querySelector<HTMLButtonElement>(`[data-field="${CSS.escape(key)}"] [role="combobox"]`),
         /** The validation message under a field. */
@@ -595,6 +595,83 @@ describe('ConnectionForm', () => {
         expect(form.root.querySelector('[role="alertdialog"]')?.textContent).toContain('stops the next start until it is set again');
     });
 
+    it('shows why a connection is incomplete and that nothing is configured, not a configured one', async () => {
+        const incomplete = await mount({ current: view({ state: 'incomplete', missing: ['Password'] }) });
+
+        expect(incomplete.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('Incomplete: Password missing.');
+
+        const refused = await mount({ current: view({ state: 'incomplete', reason: 'CHAMVI_PUBLIC_URL is required.' }) });
+
+        expect(refused.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('CHAMVI_PUBLIC_URL');
+
+        const empty = await mount({ current: view({ state: 'not_configured' }) });
+
+        expect(empty.root.querySelector('[data-testid="connection-state"]')?.textContent).toContain('Not configured');
+
+        const fine = await mount({});
+
+        expect(fine.root.querySelector('[data-testid="connection-state"]')).toBeNull();
+    });
+
+    describe('a field that decides where the secrets go', () => {
+        const BOUND: ConnectionTypeWire = {
+            ...TYPE,
+            fields: TYPE.fields.map((field) => (field.key === 'host' ? { ...field, bindsSecrets: true } : field)),
+        };
+
+        it('asks for the secret again once the field changed, and sends it', async () => {
+            const bodies: unknown[] = [];
+            const form = await mount({
+                type: BOUND,
+                routes: {
+                    'PUT /connections/mail-work/config': (body) => {
+                        bodies.push(body);
+
+                        return view();
+                    },
+                },
+            });
+
+            expect(form.input('password')).toBeNull();
+            expect(form.root.querySelector('[data-testid="connection-rebind"]')).toBeNull();
+
+            form.type(form.input('host')!, 'other.example.com');
+            await flush();
+
+            expect(form.root.querySelector('[data-testid="connection-rebind"]')?.textContent).toContain('enter Password again');
+
+            form.type(form.input('password')!, 'typed-again');
+            await form.submit();
+
+            expect(bodies).toEqual([{
+                settings: expect.objectContaining({ host: 'other.example.com' }),
+                secrets: { set: { password: 'typed-again' } },
+            }]);
+        });
+
+        it('says the change cannot be made for a secret from the environment', async () => {
+            const form = await mount({
+                type: BOUND,
+                current: withField(view(), 'password', { source: { kind: 'env', variable: 'CHAMVI_MAIL_WORK_PASSWORD' } }),
+            });
+
+            form.type(form.input('host')!, 'other.example.com');
+            await flush();
+
+            expect(form.root.querySelector('[data-testid="connection-rebind"]')?.textContent).toContain('cannot change here');
+        });
+
+        it('warns about nothing when the field keeps its value', async () => {
+            const form = await mount({ type: BOUND });
+
+            form.type(form.input('port')!, '1993');
+            await flush();
+
+            expect(form.root.querySelector('[data-testid="connection-rebind"]')).toBeNull();
+            expect(form.input('password')).toBeNull();
+        });
+    });
+
     it('shows the result of Test in the page', async () => {
         const form = await mount({ routes: { 'POST /connections/mail-work/test': () => ({ ok: false, message: 'Login refused.' }) } });
 
@@ -686,6 +763,88 @@ describe('ConnectionForm', () => {
 
         expect(form.button('Save')).toBeUndefined();
         expect(form.button('Test')).toBeDefined();
+    });
+
+    it('keeps the newlines of a multi-line secret, in a textarea, and clears it after save', async () => {
+        const pem = '-----BEGIN KEY-----\nline\n-----END KEY-----\n';
+        const type: ConnectionTypeWire = {
+            ...TYPE,
+            fields: TYPE.fields.map((field) => (field.key === 'password' ? { ...field, multiline: true } : field)),
+        };
+        const unset = withField(view(), 'password', { source: { kind: 'unset' }, set: false });
+        const put = vi.fn(() => withField(unset, 'password', { source: { kind: 'store' }, set: true }));
+        const form = await mount({
+            type,
+            current: unset,
+            routes: { 'PUT /connections/mail-work/config': put },
+        });
+        const area = form.root.querySelector<HTMLTextAreaElement>('[data-field="password"] textarea')!;
+
+        expect(form.root.querySelector('[data-field="password"] input')).toBeNull();
+
+        form.type(area as unknown as HTMLInputElement, pem);
+
+        // the typed secret never reaches the markup (vuecs renders an empty value attribute)
+        expect(area.getAttribute('value') ?? '').not.toContain('line');
+        expect(form.root.innerHTML).not.toContain('BEGIN KEY');
+
+        await form.submit();
+
+        expect(put.mock.calls[0]![0 as never]).toMatchObject({ secrets: { set: { password: pem } } });
+        expect(form.root.querySelector('[data-field="password"] textarea')).toBeNull();
+
+        form.button('Replace')!.click();
+        await flush();
+
+        expect(form.root.querySelector<HTMLTextAreaElement>('[data-field="password"] textarea')!.value).toBe('');
+    });
+
+    it('renders a multi-line string as a textarea and sends it unchanged', async () => {
+        const type: ConnectionTypeWire = {
+            ...TYPE,
+            fields: [{
+                key: 'host',
+                label: 'Notes',
+                kind: 'string',
+                multiline: true,
+            }],
+        };
+        const current = view({ settings: { host: 'a\nb' }, fields: [{ key: 'host', source: { kind: 'store' } }] });
+        const put = vi.fn(() => current);
+        const form = await mount({
+            type,
+            current,
+            routes: { 'PUT /connections/mail-work/config': put },
+        });
+        const area = form.root.querySelector<HTMLTextAreaElement>('[data-field="host"] textarea')!;
+
+        expect(area.value).toBe('a\nb');
+
+        await form.submit();
+
+        expect(put.mock.calls[0]![0 as never]).toEqual({ settings: { host: 'a\nb' } });
+    });
+
+    it('shows the issues of a clear that failed', async () => {
+        const form = await mount({
+            routes: {
+                'PUT /connections/mail-work/config': () => {
+                    throw new ApiError(400, 'validation_error', 'Invalid input', undefined, [{
+                        type: 'item',
+                        code: 'value_invalid',
+                        path: ['secrets', 'set', 'password'],
+                        message: 'is required',
+                    } as never]);
+                },
+            },
+        });
+
+        form.button('Clear')!.click();
+        await flush();
+        form.button('Clear secret')!.click();
+        await flush();
+
+        expect(form.root.querySelector('[role="alertdialog"]')?.textContent).toContain('Password is required');
     });
 
     it('explains a connection it cannot load', async () => {

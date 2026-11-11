@@ -11,6 +11,7 @@ import EmptyState from '../components/empty-state/EmptyState.vue';
 import {
     NavIcon,
     StatusBadge,
+    connectionProblem,
     createConnectionsApi,
     useAppContext,
     useConnections,
@@ -88,7 +89,18 @@ const {
                             {{ connection.type }}
                         </td>
                         <td>
-                            <StatusBadge :status="connection.status" />
+                            <StatusBadge
+                                :status="connection.status"
+                                :state="connection.state"
+                                :live="connection.live"
+                            />
+                            <p
+                                v-if="connectionProblem(connection)"
+                                class="hint"
+                                data-testid="connection-problem"
+                            >
+                                {{ connectionProblem(connection) }}
+                            </p>
                         </td>
                         <td>
                             <span class="go"><NavIcon name="go" /></span>

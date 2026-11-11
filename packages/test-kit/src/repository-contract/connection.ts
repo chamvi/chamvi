@@ -524,6 +524,26 @@ export function describeConnectionContract(setup: Setup): void {
         expect(await connections.writeConfig('wa', {}, key)).toBe(4);
     });
 
+    it('refuses a config write whose expected revision is stale, writing nothing', async ({ skip }) => {
+        const { connections } = await prepare(skip);
+        const key = makeConnection('wa').wrappedKey;
+
+        await connections.insert(makeConnection('wa'));
+        expect(await connections.writeConfig('wa', { settings: { host: 'a' } }, key, 0)).toBe(1);
+
+        // another save landed after this one read revision 0
+        await expect(connections.writeConfig('wa', {
+            settings: { host: 'b' },
+            setSecrets: { password: bytes(7) },
+        }, key, 0)).rejects.toMatchObject({ code: 'connection_changed' });
+        expect(await connections.findConfig('wa')).toMatchObject({
+            settings: { host: 'a' },
+            secrets: new Map(),
+            revision: 1,
+        });
+        expect(await connections.writeConfig('wa', { settings: { host: 'b' } }, key, 1)).toBe(2);
+    });
+
     it('writes config with no lease held', async ({ skip }) => {
         const { connections, hold } = await prepare(skip);
         const key = makeConnection('wa').wrappedKey;

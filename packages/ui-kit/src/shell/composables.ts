@@ -32,6 +32,7 @@ export function useUiPages() {
     } = useConnections(createConnectionsApi(client));
     const registered = shallowRef<UiPageWire[]>([]);
     const types = shallowRef<ConnectionTypeWire[]>([]);
+    const typesLoaded = shallowRef(false);
 
     const read = async <T>(url: string): Promise<T[]> => {
         const body: unknown = await (await client.send(url)).json();
@@ -39,29 +40,35 @@ export function useUiPages() {
         return isObject(body) && Array.isArray(body.data) ? body.data as T[] : [];
     };
 
-    const poller = createPoller(async () => {
-        try {
-            const [pages, connectionTypes] = await Promise.all([
-                read<UiPageWire>('/ui-pages'),
-                read<ConnectionTypeWire>('/connection-types'),
-            ]);
+    // one poller per list: a failing or stalled page list never holds back the types an add form waits for
+    const readOnce = <T>(url: string, apply: (items: T[]) => void) => {
+        const poller = createPoller(async () => {
+            try {
+                apply(await read<T>(url));
+                poller.stop();
 
-            registered.value = pages;
-            types.value = connectionTypes;
-            poller.stop();
+                return undefined;
+            } catch (error) {
+                return retryDelayOf(asApiError(error));
+            }
+        }, CONNECTIONS_POLL_MS);
 
-            return undefined;
-        } catch (e) {
-            return retryDelayOf(asApiError(e));
-        }
-    }, CONNECTIONS_POLL_MS);
+        poller.start();
+        onScopeDispose(() => poller.stop());
+    };
 
-    poller.start();
-    onScopeDispose(() => poller.stop());
+    readOnce<UiPageWire>('/ui-pages', (items) => {
+        registered.value = items;
+    });
+    readOnce<ConnectionTypeWire>('/connection-types', (items) => {
+        types.value = items;
+        typesLoaded.value = true;
+    });
 
     return {
         pages: computed(() => visibleUiPages(registered.value, connections.value, session.principal.value?.permissions ?? [])),
         types,
+        typesLoaded,
         connections,
         loaded,
         refresh,

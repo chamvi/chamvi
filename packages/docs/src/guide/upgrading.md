@@ -2,6 +2,34 @@
 
 chamvi is pre-1.0: a minor release may break the API. Each section lists what changed and the exact replacement.
 
+## Upgrading to 0.9
+
+Connections can be configured in the dashboard, on a page per provider ([Connection pages](/guide/ui#connection-pages)). An env-only deployment keeps working: no existing variable changed, and `CHAMVI_ENCRYPTION_KEYS` is needed once the dashboard saves a connection, also one with plain settings only, since every stored connection has its own data key. The migration `ConnectionConfig1794230765000` adds the settings and secrets tables and runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`).
+
+### Breaking changes
+
+| Change | Before | Replacement |
+|---|---|---|
+| WhatsApp pairing | `@chamvi/ui` showed the QR on its Connections page | Add `chatWhatsappUiModule()` (`@chamvi/chat-whatsapp-ui/module`) to keep pairing; the QR is at `<uiBase>/ext/chat-whatsapp`. The generic Connections page keeps the status and Reset session |
+| `githubModule()` with a missing required variable | The factory threw | The factory throws for a malformed value only. A partial env fails the start in `setup` naming the variable; nothing set starts idle (tools report not configured, webhooks answer 503) |
+| `GITHUB_MODULE_NAME` (`@chamvi/github/module`) | The module's id | The prefix only: the id is `chamvi:github:<name>`, by default `chamvi:github:github`. Change a `dependencies` entry that named the old id |
+
+### New variables
+
+Each is optional and names a field of a named instance; the default instance keeps its variables.
+
+| Variables | Read by |
+|---|---|
+| `CHAMVI_GITHUB_<NAME>_APP_ID`, `_APP_PRIVATE_KEY`, `_WEBHOOK_SECRET`, `_INSTALLATION_ID`, `_APP_SLUG`, `_API_URL` | `githubModule({ name })` |
+| `CHAMVI_DISCORD_*`, `CHAMVI_DISCORD_<NAME>_*` | [`discordModule()`](/deployment/discord#with-chamvi-app) |
+
+### Steps
+
+1. Add `chatWhatsappUiModule()` if the app uses `whatsappModule()`, and the other `*-ui` modules for the connections you want to configure in the dashboard.
+2. Set `CHAMVI_ENCRYPTION_KEYS` if the dashboard will save connections.
+3. A dashboard not at `/ui`: pass the same value as `uiBase` to every `*-ui` module.
+4. Replace any reference to the old GitHub module id.
+
 ## Upgrading to 0.8
 
 The Postgres store (`@chamvi/store-db`) now gives every table a single `id` primary key, a time-ordered UUID v7 (the append-only steps and conversation items use a bigint). Run ids, artifact ids and, in Postgres, conversation scope ids are UUIDs. The eight earlier migrations are replaced by one baseline migration, and **an existing database cannot be upgraded in place: the new version needs a new, empty database.** The in-memory store is unaffected.

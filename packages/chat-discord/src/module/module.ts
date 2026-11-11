@@ -13,6 +13,7 @@ import {
 } from '@chamvi/core';
 import type {
     ChannelSubscription,
+    ConnectionTypeDefinition,
     ConversationRef,
     IChannel,
     ResolvedConnection,
@@ -44,7 +45,12 @@ import type {
     DiscordConversationInput,
 } from '../discord/types.ts';
 import { DISCORD_CONNECTION_TYPE, DISCORD_MODULE_NAME } from './constants.ts';
-import { assertEnvFormat, policyOf, presetOf } from './helpers.ts';
+import {
+    assertEnvFormat,
+    createDiscordHandle,
+    policyOf,
+    presetOf,
+} from './helpers.ts';
 import { declaredConnection, discordConnectionDefinition } from './type.ts';
 import type { DiscordInstances, DiscordModuleOptions } from './types.ts';
 
@@ -78,6 +84,8 @@ export class DiscordModule implements IModule {
     protected options: DiscordModuleOptions;
 
     protected chat: DiscordChatSetup | undefined;
+
+    protected handle: ReturnType<typeof createDiscordHandle> | undefined;
 
     constructor(options: DiscordModuleOptions) {
         if (!isObject(options)) {
@@ -163,6 +171,15 @@ export class DiscordModule implements IModule {
         }
 
         const logger = container.resolve(AppToken.LOGGER);
+
+        const handle = createDiscordHandle({
+            name: this.connection,
+            status: () => this.status(),
+            onError: (error) => logger.error('discord error', error, { connection: this.connection }),
+        });
+
+        this.handle = handle;
+
         const pinned = this.isPinned();
         const editable = !pinned && container.resolve(AppToken.STORE).connections !== undefined;
         const row = pinned ? undefined : await this.readRow(container);
@@ -182,13 +199,21 @@ export class DiscordModule implements IModule {
 
                 // these messages name the option, never a value
                 logger.warn(`The Discord connection "${this.connection}" cannot be used (${error.message}); it stays idle until it is repaired.`);
-                resolved = { ...resolved, state: 'incomplete' };
+                resolved = {
+                    ...resolved, 
+                    state: 'incomplete', 
+                    reason: error.message, 
+                };
             }
         } else {
             logger.warn(`The Discord connection "${this.connection}" is ${resolved.state.replace('_', ' ')}; it stays idle until it is configured.`);
         }
 
-        this.declare(container, declaredConnection(this.connection, resolved, editable, row));
+        this.declare(container, {
+            ...declaredConnection(this.connection, resolved, editable, row),
+            // the shared provider's type closes over the first module's options: this one tests its own
+            test: this.definition().test,
+        });
 
         const channel: IChannel = this.chat?.channel ?? {
             name: this.connection,
@@ -196,6 +221,11 @@ export class DiscordModule implements IModule {
         };
 
         container.registerMany(AppToken.CHANNELS, { useValue: channel });
+
+        // an idle module has no connection to report; a job serves no dashboard
+        if (this.chat && context.mode === 'start') {
+            container.registerMany(AppToken.CONNECTIONS, { useValue: handle });
+        }
     }
 
     /** Every field comes from code: nothing is left for env or the store to set. */
@@ -251,10 +281,26 @@ export class DiscordModule implements IModule {
             applicationId: values.applicationId as string,
             policy: this.options.policy ?? policyOf(values),
             approvalUrl,
+            onStatusChange: () => {
+                try {
+                    this.options.onStatusChange?.();
+                } finally {
+                    // the dashboard's stream follows the status even when the app's callback throws
+                    this.handle?.notify();
+                }
+            },
             onError: this.options.onError ?? ((error) => logger.error('discord error', error, { connection: this.connection })),
         };
 
         return createDiscordChat(options);
+    }
+
+    /** The connection type with this module's API endpoint and fetch. */
+    protected definition(): ConnectionTypeDefinition {
+        return discordConnectionDefinition({
+            ...(this.options.apiUrl !== undefined && { apiUrl: this.options.apiUrl }),
+            ...(this.options.fetch !== undefined && { fetch: this.options.fetch }),
+        });
     }
 
     /** One provider for every module, whichever is set up first. */
@@ -268,7 +314,7 @@ export class DiscordModule implements IModule {
             INSTANCES.set(container, created);
             container.registerMany(AppToken.CONNECTION_TYPES, {
                 useValue: {
-                    definition: discordConnectionDefinition(),
+                    definition: this.definition(),
                     creatable: () => false,
                     connections: () => created.connections,
                 },

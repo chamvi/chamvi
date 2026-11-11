@@ -436,6 +436,7 @@ describe('discordModule', () => {
         await stored.harness.setup();
         expect(stored.clients.clients).toEqual([]);
         expect(stored.connection().resolved.state).toBe('incomplete');
+        expect(stored.connection().resolved.reason).toContain('CHAMVI_PUBLIC_URL');
 
         const env = world({ patch: { approvalUrl: undefined } });
 

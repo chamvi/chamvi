@@ -155,6 +155,7 @@ export type DiscordConnectionOptions = {
     /** Every message the current client receives, with the bot's own user id. */
     onMessage(message: DiscordInboundMessage, botId: string): void;
     onError(error: unknown): void;
+    onStatusChange?(): void;
 };
 
 /** The Gateway connection (internal). */
@@ -214,6 +215,8 @@ export type DiscordChatOptions = {
     clock?: IClock;
     /** Failures nobody awaits; default console.error. Never gets the token. */
     onError?: (error: unknown) => void;
+    /** Called after every change of `status()`. */
+    onStatusChange?: () => void;
     /** The logger of the Chat and the adapter; default a console logger at level `warn`. */
     logger?: Logger;
     /** The Chat's bot user name; default `chamvi`. */

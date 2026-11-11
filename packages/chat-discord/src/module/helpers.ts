@@ -13,9 +13,10 @@ import type {
     ConnectionTypeDefinition,
     ConnectionValue,
     ConnectionValues,
+    IConnectionHandle,
 } from '@chamvi/core';
 import { isSnowflake } from '../discord/policy.ts';
-import type { DiscordPolicy } from '../discord/types.ts';
+import type { DiscordConnectionStatus, DiscordPolicy } from '../discord/types.ts';
 import { DISCORD_CONNECTION_TYPE } from './constants.ts';
 import type { DiscordField, DiscordModuleOptions } from './types.ts';
 
@@ -117,5 +118,42 @@ export function policyOf(values: ConnectionValues): DiscordPolicy {
         roles: list('roles'),
         dms: dmUsers.length > 0 ? { users: dmUsers } : false,
         ...(values.requireMention !== undefined && { requireMention: values.requireMention as boolean }),
+    };
+}
+
+/** The connection handle of one bot: its Gateway status, nothing to show and no reset. */
+export function createDiscordHandle(input: {
+    name: string;
+    status: () => DiscordConnectionStatus;
+    onError: (error: unknown) => void;
+}): IConnectionHandle & { notify(): void } {
+    const listeners = new Set<() => void>();
+
+    return {
+        name: input.name,
+        type: DISCORD_CONNECTION_TYPE,
+        status() {
+            const status = input.status();
+
+            return status === 'stopped' ? 'disconnected' : status;
+        },
+        widgets: () => [],
+        subscribe(listener) {
+            listeners.add(listener);
+
+            return () => {
+                listeners.delete(listener);
+            };
+        },
+        actions: {},
+        notify() {
+            for (const listener of [...listeners]) {
+                try {
+                    listener();
+                } catch (error) {
+                    input.onError(error);
+                }
+            }
+        },
     };
 }

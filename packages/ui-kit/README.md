@@ -4,6 +4,14 @@ The shared base of the chamvi dashboard (`@chamvi/ui`) and its `*-ui` pages: the
 
 Vue, vue-router and the vuecs packages are peer dependencies. A page bundles the kit at build time, so nothing but the built page reaches the app.
 
+## Installation
+
+```bash
+npm install @chamvi/ui-kit --save-dev
+```
+
+ESM only. A `*-ui` package bundles the kit; a page is registered with its own `/module` entry over `uiPageModule()` from `@chamvi/app`.
+
 ## A page on the kit
 
 ```ts

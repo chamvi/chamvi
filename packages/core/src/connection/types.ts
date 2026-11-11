@@ -175,6 +175,11 @@ export type ConnectionConfigUpdate = {
     };
 };
 
+export type ConnectionConfigUpdateOptions = {
+    /** The revision the caller's checks read; another save since then refuses the write. */
+    revision?: number;
+};
+
 /**
  * Settings and sealed secrets of a connection, written from any replica
  * without the provider's lease: a running session's entries and data key
@@ -194,10 +199,11 @@ export interface IConnectionConfigStore {
     /**
      * Saves `update` and returns the new revision; resolves the keyring only
      * to set a secret. RepositoryNotFoundError when absent,
-     * ConnectionChangedError when a recreate replaced the data key meanwhile
-     * (nothing is written).
+     * ConnectionChangedError when a recreate replaced the data key meanwhile,
+     * or when `options.revision` is no longer the stored one (nothing is
+     * written).
      */
-    update(name: string, update: ConnectionConfigUpdate): Promise<number>;
+    update(name: string, update: ConnectionConfigUpdate, options?: ConnectionConfigUpdateOptions): Promise<number>;
     /** Removes the connection under a one-shot lease; ConnectionHeldError while the lease is held. */
     delete(name: string, owner: string): Promise<void>;
 }
@@ -263,6 +269,10 @@ export type ConnectionField = {
     description?: string;
     /** The choices of a `select` field. */
     options?: readonly string[];
+    /** A `string` or `secret` whose value has line breaks (a PEM): a single-line input would strip them. */
+    multiline?: boolean;
+    /** Decides where a secret is sent (a host, a URL): changing it needs every secret of the connection again. */
+    bindsSecrets?: boolean;
     /** The variable this field reads for a connection; undefined when it has none. */
     env?: (connection: string) => string | undefined;
 };
@@ -296,6 +306,8 @@ export type ResolvedConnection = {
     /** The keys of the required fields without a value. */
     missing: string[];
     state: ConnectionState;
+    /** Why a start could not use it: names options or variables, never a value. */
+    reason?: string;
 };
 
 /** One connection a module declares, resolved for the API. */
@@ -310,6 +322,11 @@ export type DeclaredConnection = {
     loadedRevision?: number;
     /** The row's `createdAt` this process loaded; another one means the account was deleted and created again. */
     loadedCreatedAt?: Date;
+    /**
+     * This connection's test, when it differs from its type's (one provider
+     * serves modules with their own endpoint or fetch); else the type's.
+     */
+    test?: ConnectionTypeDefinition['test'];
 };
 
 /** What a package registers for each connection type it configures. */

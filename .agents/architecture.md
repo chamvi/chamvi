@@ -23,7 +23,7 @@ Each rule has its detail in a topic file; these are the ones a change outside th
 - **Channels** ([channels.md](topics/channels.md)): the presence of `start`, `in` and `out` is a channel's only capability. Outbound is tool-driven: the engine sends nothing of its own except the approval requests a tool asked for. `ChannelHandle.emit()` is an effect keyed by run, channel and canonical message, so `out` must be idempotent on `message.key`. Dispatches (#129) reach `agent.on()` roles of the caller's or another agent (`from`), depth per role up to 8; lineage (`parent`, `parentRunId`) is never forgeable through `engine.dispatch()`.
 - **Trust** ([trust.md](topics/trust.md)): `Run.taint` is durable first-exposure provenance, persisted before an untrusted result or error reaches the model (a failed write fails the execution). `guardWhenTainted` runs after the before hook and before effect lookup; trust approval arguments stay in the private inbox/API, the source channel gets only a generic notification. Destination exemptions (source address, `defaultAddress`) fix the destination, not the content. Shell is not gated; this is no sandbox, DLP or injection defense.
 - **Approvals** ([approvals.md](topics/approvals.md)): `approve()` works only inside a tool-call frame; ids are `<stepIndex>:<toolCallId>:<n>`, taken before any await. A suspended call re-runs its code before `approve()` on resume (the replay rule). No resume tokens: an approval is answered only by run and approval id, and no message carries a credential.
-- **Connections** ([connections.md](topics/connections.md)): sealing above the repository (the store holds sealed bytes only); writes fenced by the lease `connection:<name>` in their transaction; the QR only via the `connection:<name>:write` API.
+- **Connections** ([connections.md](topics/connections.md)): sealing above the repository (the store holds sealed bytes only); entry writes fenced by the lease `connection:<name>` in their transaction, settings and secrets written without it; the QR only via the `connection:<name>:write` API.
 - **Packages without a `/module` import of `@chamvi/app`**: see conventions.md → *Feature package modules* and *Dependency graph*; the package graph stays acyclic in all four dependency fields.
 
 ## Run Lifecycle
@@ -101,7 +101,7 @@ Read on demand (never imported by `CLAUDE.md`) before changing that area.
 | [channels.md](topics/channels.md) | `IChannel`, subscriptions, outbound handles, dispatch, envelope, execution ceilings, channel rate limits |
 | [trust.md](topics/trust.md) | Run taint, tool classifications, outbound gate, destination exemptions, `extract()`, boundary limits |
 | [approvals.md](topics/approvals.md) | Tool-call frame, `approve()`, suspension, delivery, answers, choice options, pending calls |
-| [connections.md](topics/connections.md) | Keyring, connection vault, lease fence, `/connections`, the dashboard page |
+| [connections.md](topics/connections.md) | Keyring, vault, lease fence, stored configuration, `/connections`, the pages |
 | [store.md](topics/store.md) | `@chamvi/store-db`: Postgres store, migrations, divergences from memory, module map |
 | [conversations.md](topics/conversations.md) | Conversation memory, trusted intake, notes, privileged APIs |
 | [cron.md](topics/cron.md) | `@chamvi/channel-cron`, `runJob()` |
@@ -118,5 +118,5 @@ Read on demand (never imported by `CLAUDE.md`) before changing that area.
 | [mail-tools.md](topics/mail-tools.md) | `@chamvi/tool-mail` |
 | [calendar-tools.md](topics/calendar-tools.md) | `@chamvi/tool-calendar` |
 | [knowledge.md](topics/knowledge.md) | `@chamvi/knowledge` |
-| [ui.md](topics/ui.md) | `@chamvi/ui` |
+| [ui.md](topics/ui.md) | `@chamvi/ui`, `@chamvi/ui-kit`, the `*-ui` pages |
 | [app.md](topics/app.md) | `@chamvi/app` lifecycle, modules, config, models, agent folders, check; `@chamvi/cli` |

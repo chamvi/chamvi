@@ -13,6 +13,7 @@ import AccountsColumn from '../shell/AccountsColumn.vue';
 import AppShell from '../shell/AppShell.vue';
 import { useUiPages } from '../shell/composables.ts';
 import ConnectionForm from './ConnectionForm.vue';
+import { canAddAccount } from './helpers.ts';
 import type { ConnectionCreated, ConnectionDeleted } from './types.ts';
 
 /** A `*-ui` page's whole content: the shell, its accounts column and the form of the open account. */
@@ -26,6 +27,7 @@ const props = defineProps<{
 const { session } = useAppContext();
 const {
     types,
+    typesLoaded,
     connections,
     loaded,
     refresh,
@@ -33,7 +35,7 @@ const {
 
 const query = new URLSearchParams(globalThis.location.search);
 const chosen = shallowRef(query.get('connection') ?? undefined);
-const adding = shallowRef(query.has('add'));
+const addRequested = shallowRef(query.has('add'));
 const deletedNotice = shallowRef(false);
 // an account the principal added but may not read (connections:create alone): confirmed here, never opened
 const createdNotice = shallowRef<ConnectionCreated>();
@@ -64,7 +66,22 @@ function forget(name: string, gone: boolean): void {
 
     removed.value = next;
 }
-const current = computed(() => (adding.value ? undefined : chosen.value ?? accounts.value[0]?.name));
+
+// the query is only a request: honoured once the list and the type can say whether it may be
+const adding = computed(() => addRequested.value && definition.value !== undefined &&
+    canAddAccount(definition.value, session.principal.value?.permissions ?? []));
+// a type the app never serves stays absent: only the answer ends the wait
+const pending = computed(() => !loaded.value || (addRequested.value && !typesLoaded.value));
+const current = computed(() => {
+    if (pending.value || adding.value) {
+        return undefined;
+    }
+
+    // another type's connection never opens here; a name not listed yet (just created) does
+    const foreign = listed.value.some((connection) => connection.name === chosen.value && connection.type !== props.type);
+
+    return (foreign ? undefined : chosen.value) ?? accounts.value[0]?.name;
+});
 
 /** The open account lives in the query, so a reload (after a restart, say) comes back to it. */
 function remember(): void {
@@ -73,7 +90,7 @@ function remember(): void {
     url.searchParams.delete('connection');
     url.searchParams.delete('add');
 
-    if (adding.value) {
+    if (addRequested.value) {
         url.searchParams.set('add', '1');
     } else if (chosen.value) {
         url.searchParams.set('connection', chosen.value);
@@ -84,7 +101,7 @@ function remember(): void {
 
 function open(name: string | undefined, add = false): void {
     chosen.value = name;
-    adding.value = add;
+    addRequested.value = add;
     deletedNotice.value = false;
     createdNotice.value = undefined;
     remember();
@@ -167,7 +184,7 @@ function onDeleted(result: ConnectionDeleted): void {
             @deleted="onDeleted"
         />
         <div
-            v-else-if="loaded && !createdNotice"
+            v-else-if="!pending && !createdNotice"
             class="card notice"
             data-testid="connections-empty"
         >

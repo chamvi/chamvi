@@ -39,6 +39,31 @@ const CONNECTIONS: ConnectionWire[] = [
         type: 'whatsapp', 
         status: 'pairing', 
     },
+    {
+        name: 'mail-new',
+        type: 'mail',
+        status: 'disconnected',
+        live: false,
+        account: 'new',
+        state: 'not_configured',
+    },
+    {
+        name: 'mail-half',
+        type: 'mail',
+        status: 'disconnected',
+        live: false,
+        account: 'half',
+        state: 'incomplete',
+        missing: ['Password'],
+    },
+    {
+        name: 'mail-idle',
+        type: 'mail',
+        status: 'disconnected',
+        live: false,
+        account: 'idle',
+        state: 'configured',
+    },
 ];
 
 function me(permissions: string[]): MeWire {
@@ -73,6 +98,22 @@ describe('AccountsColumn', () => {
         expect(html).not.toContain('wa<');
         expect(html).toContain('dot-completed');
         expect(html).toContain('dot-failed');
+    });
+
+    it('shows a not configured and an incomplete account, and says why', async () => {
+        const html = await render({});
+
+        expect(html).toMatch(/data-account="mail-new"[\s\S]*not configured/u);
+        expect(html).toMatch(/data-account="mail-half"[^>]*title="Incomplete: Password missing\."/u);
+        expect(html).toContain('>incomplete<');
+    });
+
+    it('does not read a configured account without a live handle as a failure', async () => {
+        const html = await render({});
+        const idle = /data-account="mail-idle"[\s\S]*?<\/button>/u.exec(html)?.[0] ?? '';
+
+        expect(idle).toContain('dot-completed');
+        expect(idle).not.toContain('disconnected');
     });
 
     it('marks the current account', async () => {

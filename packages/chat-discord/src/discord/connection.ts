@@ -202,9 +202,23 @@ export function createDiscordConnection(options: DiscordConnectionOptions): Disc
         !generation.closed &&
         (client === undefined || generation.client === client);
 
+    const changeStatus = (next: DiscordConnectionStatus) => {
+        if (status === next) {
+            return;
+        }
+
+        status = next;
+
+        try {
+            options.onStatusChange?.();
+        } catch (error) {
+            report(error);
+        }
+    };
+
     const setStatus = (generation: Generation, next: DiscordConnectionStatus) => {
         if (current === generation && (!generation.failed || next === 'stopped')) {
-            status = next;
+            changeStatus(next);
         }
     };
 
@@ -473,7 +487,7 @@ export function createDiscordConnection(options: DiscordConnectionOptions): Disc
         };
 
         current = generation;
-        status = 'connecting';
+        changeStatus('connecting');
 
         // an abort (a stop during the start, or later) closes this generation
         const onAbort = () => {

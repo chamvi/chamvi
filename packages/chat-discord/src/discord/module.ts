@@ -92,7 +92,7 @@ function assertOptions(options: DiscordChatOptions): void {
         }
     }
 
-    for (const key of ['onError', 'clientFactory', 'fetch'] as const) {
+    for (const key of ['onError', 'onStatusChange', 'clientFactory', 'fetch'] as const) {
         if (options[key] !== undefined && typeof options[key] !== 'function') {
             throw invalid(`${key} must be a function.`);
         }
@@ -300,6 +300,7 @@ export function createDiscordChat(options: DiscordChatOptions): DiscordChatSetup
         clientFactory: options.clientFactory ?? defaultClientFactory,
         onMessage,
         onError,
+        ...(options.onStatusChange && { onStatusChange: options.onStatusChange }),
     });
     const sender = createDiscordSender({
         apiUrl,

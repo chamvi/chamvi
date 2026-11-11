@@ -8,6 +8,7 @@
 
 import { nextTick, ref, watch } from 'vue';
 import { useConnection } from './composables.ts';
+import { connectionProblem } from './helpers.ts';
 import StatusBadge from './StatusBadge.vue';
 import type { IConnectionsApi } from './types.ts';
 
@@ -56,13 +57,24 @@ watch(confirming, async (open) => {
     </div>
 
     <template v-if="connection">
+        <div
+            v-if="connectionProblem(connection)"
+            class="card notice"
+            data-testid="connection-state"
+        >
+            {{ connectionProblem(connection) }}
+        </div>
         <section class="card run-head">
             <div class="run-head-top">
                 <div class="run-title">
                     <h1 class="display">
                         {{ connection.name }}
                     </h1>
-                    <StatusBadge :status="connection.status" />
+                    <StatusBadge
+                        :status="connection.status"
+                        :state="connection.state"
+                        :live="connection.live"
+                    />
                 </div>
                 <dl class="facts">
                     <div>

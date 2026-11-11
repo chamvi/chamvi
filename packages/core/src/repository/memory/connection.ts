@@ -214,12 +214,13 @@ export class MemoryConnectionRepository implements IConnectionRepository {
         };
     }
 
-    async writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array): Promise<number> {
+    async writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array, expectedRevision?: number): Promise<number> {
         assertConnectionConfigWrite(write, expectedWrappedKey);
 
         const held = this.held(name);
 
-        if (Buffer.compare(held.connection.wrappedKey, expectedWrappedKey) !== 0) {
+        if (Buffer.compare(held.connection.wrappedKey, expectedWrappedKey) !== 0 ||
+            (expectedRevision !== undefined && held.revision !== expectedRevision)) {
             throw new ConnectionChangedError(name);
         }
 

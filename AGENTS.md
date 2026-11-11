@@ -21,7 +21,7 @@ npm run lint
 - **Package manager**: npm (workspaces)
 - **Build orchestration**: nx (`nx run-many`), packages built with tsdown (ESM only)
 
-Packages live in `packages/*`. `@chamvi/app`, `@chamvi/channel-cron`, `@chamvi/channel-openclaw`, `@chamvi/chat`, `@chamvi/chat-discord`, `@chamvi/chat-whatsapp`, `@chamvi/cli`, `@chamvi/coding`, `@chamvi/core`, `@chamvi/github`, `@chamvi/http`, `@chamvi/knowledge`, `@chamvi/sandbox`, `@chamvi/sandbox-docker`, `@chamvi/sandbox-k8s`, `@chamvi/sandbox-local`, `@chamvi/skills`, `@chamvi/store-db`, `@chamvi/test-kit`, `@chamvi/tool-calendar`, `@chamvi/tool-files`, `@chamvi/tool-mail`, `@chamvi/tool-utils`, `@chamvi/tool-web` and `@chamvi/ui` exist today (container images in `images/*`); the others are planned (see [Project Structure](.agents/structure.md)).
+Packages live in `packages/*`. `@chamvi/app`, `@chamvi/channel-cron`, `@chamvi/channel-openclaw`, `@chamvi/chat`, `@chamvi/chat-discord`, `@chamvi/chat-whatsapp`, `@chamvi/cli`, `@chamvi/coding`, `@chamvi/core`, `@chamvi/github`, `@chamvi/http`, `@chamvi/knowledge`, `@chamvi/sandbox`, `@chamvi/sandbox-docker`, `@chamvi/sandbox-k8s`, `@chamvi/sandbox-local`, `@chamvi/skills`, `@chamvi/store-db`, `@chamvi/test-kit`, `@chamvi/tool-calendar`, `@chamvi/tool-files`, `@chamvi/tool-mail`, `@chamvi/tool-utils`, `@chamvi/tool-web`, `@chamvi/ui`, `@chamvi/ui-kit` and `@chamvi/{tool-mail,tool-calendar,github,chat-discord,chat-whatsapp}-ui` exist today (container images in `images/*`); the others are planned (see [Project Structure](.agents/structure.md)).
 
 ## Detailed Guides
 

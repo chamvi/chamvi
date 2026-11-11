@@ -104,6 +104,32 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
     const adding = name === undefined;
     const container = computed(() => buildConnectionContainer(fields.value, adding));
     const v = useValidup(container, values);
+    /** Edited fields that decide where the secrets go; the server refuses them without the secrets again. */
+    const movedFields = computed(() => (adding ? [] : plainFields().filter((field) => field.bindsSecrets &&
+        (values[field.key] ?? '') !== toDraft(view.value?.settings[field.key]))));
+
+    function mustReenter(field: ConnectionFormField): boolean {
+        return movedFields.value.length > 0 && field.kind === 'secret' && field.secretSet && !field.lock;
+    }
+
+    /** What a save of the edited destination needs; only names, never a value. */
+    const rebindNotice = computed(() => {
+        const moved = movedFields.value.map((field) => field.label).join(', ');
+        const secretFields = fields.value.filter((field) => field.kind === 'secret');
+        const locked = secretFields.filter((field) => field.lock);
+
+        if (moved === '') {
+            return undefined;
+        }
+
+        if (locked.length > 0) {
+            return `${moved} cannot change here: ${locked.map((field) => field.label).join(', ')} comes from the environment or code.`;
+        }
+
+        const secretList = secretFields.filter((field) => field.secretSet).map((field) => field.label).join(', ');
+
+        return secretList === '' ? undefined : `${moved} decides where the secrets are sent: enter ${secretList} again to save it.`;
+    });
 
     /** Every control from the stored settings, secrets empty; the account id while adding stays. */
     function seedValues(): void {
@@ -161,6 +187,23 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
 
         v.setExternalIssues(issues);
         formError.value = issues.length > 0 ? undefined : statusOf(error);
+    }
+
+    /** The failure of a confirmed action, which has no field to show an issue at. */
+    function confirmFailure(cause: unknown): string {
+        const error = asApiError(cause);
+        const issues = flattenIssueItems(error.issues ?? []);
+
+        if (issues.length === 0) {
+            return statusOf(error);
+        }
+
+        return issues.map((issue) => {
+            const key = String(issue.path?.at(-1) ?? '');
+            const label = fields.value.find((field) => field.key === key)?.label;
+
+            return label ? `${label} ${issue.message}` : issue.message;
+        }).join('; ');
     }
 
     async function load(): Promise<void> {
@@ -305,7 +348,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
                 dropSecret(open.key);
                 confirmation.value = undefined;
             } catch (e) {
-                confirmError.value = statusOf(asApiError(e));
+                confirmError.value = confirmFailure(e);
             }
         });
     }
@@ -326,6 +369,8 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
         testResult,
         confirmation,
         confirmError,
+        rebindNotice,
+        mustReenter,
         save,
         test,
         toggleReplace,

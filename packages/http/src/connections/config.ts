@@ -7,6 +7,8 @@
 
 import {
     ChamviError,
+    ConnectionChangedError,
+    ErrorCode,
     InvalidAgentDefinitionError,
     assertConnectionName,
     hasPermission,
@@ -65,6 +67,9 @@ type ConfigTarget = {
 
 /** A test failure's message is cut to this; a provider's error text can be long. */
 const TEST_MESSAGE_MAX_LENGTH = 500;
+
+/** How long a connection test may take: its server may never answer, and an HTTP client may never go away. */
+const TEST_TIMEOUT_MS = 30_000;
 
 const NO_STORE_MESSAGE = 'This app stores no connections: its settings come from the environment or code.';
 
@@ -223,20 +228,27 @@ async function buildSettingsView(ctx: HttpContext, target: ConfigTarget): Promis
 
     const isSet = (key: string) => fields.some((field) => field.key === key && field.source.kind !== 'unset');
     const hasValue = definition.fields.some((field) => isSet(field.key));
-    const complete = definition.fields.every((field) => !field.required || isSet(field.key));
+    const missing = definition.fields.filter((field) => field.required && !isSet(field.key)).map((field) => field.label);
+    // a pinned connection never loads the store: a leftover row is no pending change
+    const restartRequired = declared?.editable !== false && (stored?.revision !== declared?.loadedRevision || recreated);
+    // what the last start refused stays true until a restart applied a save
+    const refused = !restartRequired && declared?.resolved.state === 'incomplete';
+    // so does a module that declared itself idle (a policy in code without its credentials)
+    const idle = !restartRequired && declared?.resolved.state === 'not_configured';
     let state: ConnectionSettingsView['state'] = 'not_configured';
 
-    if (hasValue) {
-        state = complete ? 'configured' : 'incomplete';
+    if (hasValue && !idle) {
+        state = missing.length === 0 && !refused ? 'configured' : 'incomplete';
     }
 
     return {
         type: definition.type,
         state,
+        ...(state === 'incomplete' && missing.length > 0 && { missing }),
+        ...(refused && declared?.resolved.reason !== undefined && { reason: declared.resolved.reason }),
         settings: Object.fromEntries(settings),
         fields,
-        // a pinned connection never loads the store: a leftover row is no pending change
-        restartRequired: declared?.editable !== false && (stored?.revision !== declared?.loadedRevision || recreated),
+        restartRequired,
         editable: isEditable(ctx, target),
         deletable: isDeletable(ctx, target),
     };
@@ -378,13 +390,16 @@ function toConfigUpdate(
     const newSettings = Object.fromEntries(settings);
     const newSecrets = Object.fromEntries(set);
 
+    // clearing is the one way a required value may go, also when an earlier clear already took another
+    const clearOnly = !input.settings && set.length === 0 && clear.length > 0;
+
     for (const field of definition.fields) {
-        if (!field.required || lockOf(target, field)) {
+        if (clearOnly || !field.required || lockOf(target, field)) {
             continue;
         }
 
         if (field.kind === 'secret') {
-            // clearing is the one way a required value may go: the connection reports incomplete
+            // a cleared one is allowed: the connection reports incomplete
             if (!clear.includes(field.key) && !Object.hasOwn(newSecrets, field.key) && !isStored(field, stored)) {
                 fail(['secrets', 'set', field.key], 'is required');
             }
@@ -425,14 +440,19 @@ function lockedValues(target: ConfigTarget): ConnectionValues {
     }));
 }
 
-async function assertUnique(ctx: HttpContext, provider: IConnectionTypeProvider, values: ConnectionValues): Promise<void> {
-    const { definition } = provider;
+/** What a duplicate check compares: the stored settings, with env and code winning. */
+function identityValues(target: ConfigTarget, settings: ConnectionConfigView['settings'] | undefined): ConnectionValues {
+    return { ...settings as ConnectionValues | undefined, ...lockedValues(target) };
+}
 
+/** Refuses `values` when another connection of the type has their identity; `self` is the account being edited. */
+async function assertUnique(ctx: HttpContext, definition: ConnectionTypeDefinition, values: ConnectionValues, self?: string): Promise<void> {
     if (!definition.uniqueId) {
         return;
     }
 
     const wanted = definition.uniqueId(values);
+    const conflict = new ConflictError({ message: 'An account with the same identity already exists.' });
     const rows = await ctx.store.connections?.find() ?? [];
     const rowNames = new Set(rows.map((row) => row.name));
     const declaredNames = new Set<string>();
@@ -449,22 +469,88 @@ async function assertUnique(ctx: HttpContext, provider: IConnectionTypeProvider,
 
             declaredNames.add(declared.name);
 
-            if (definition.uniqueId(declared.resolved.values) === wanted) {
-                throw new ConflictError({ message: 'An account with the same identity already exists.' });
+            if (declared.name === self) {
+                continue;
+            }
+
+            // a provider's list is the last start's: the store holds any edit since
+            const stored = rowNames.has(declared.name) ? await ctx.connectionConfigs?.describe(declared.name) : undefined;
+            const current = stored ?
+                identityValues({
+                    name: declared.name, 
+                    definition, 
+                    declared, 
+                }, stored.settings) :
+                declared.resolved.values;
+
+            if (definition.uniqueId(current) === wanted) {
+                throw conflict;
             }
         }
     }
 
     for (const row of rows) {
-        if (row.type !== definition.type || declaredNames.has(row.name)) {
+        if (row.type !== definition.type || declaredNames.has(row.name) || row.name === self) {
             continue;
         }
 
         const stored = await ctx.connectionConfigs?.describe(row.name);
 
         if (stored && definition.uniqueId(stored.settings as ConnectionValues) === wanted) {
-            throw new ConflictError({ message: 'An account with the same identity already exists.' });
+            throw conflict;
         }
+    }
+}
+
+/**
+ * A save moving a field that decides where secrets go must bring every secret
+ * again: otherwise whoever may edit settings could send the stored ones to a
+ * host of their choice. An env or code secret cannot be re-entered, so such a
+ * change is refused (409, naming the field and the secret's origin only).
+ */
+function assertSecretsRebound(target: ConfigTarget, stored: ConnectionConfigView | undefined, update: ConnectionConfigUpdate): void {
+    if (!update.settings) {
+        return;
+    }
+
+    const { fields } = target.definition;
+    const moved = fields.filter((field) => field.bindsSecrets &&
+        !lockOf(target, field) &&
+        JSON.stringify(update.settings?.[field.key]) !== JSON.stringify(stored?.settings[field.key]));
+    const [first] = moved;
+
+    if (first === undefined) {
+        return;
+    }
+
+    const issues: Issue[] = [];
+
+    for (const field of fields) {
+        if (field.kind !== 'secret') {
+            continue;
+        }
+
+        const lock = lockOf(target, field);
+
+        if (lock) {
+            const origin = lock.kind === 'env' ? `${field.label} is set from ${lock.variable}` : `${field.label} is set in code`;
+
+            throw new ConflictError({ message: `${first.label} cannot change here: ${origin}, and it decides where that secret is sent.` });
+        }
+
+        const carried = update.secrets?.set?.[field.key] !== undefined || update.secrets?.clear?.includes(field.key) === true;
+
+        if (!carried && isStored(field, stored)) {
+            issues.push(defineIssueItem({
+                code: IssueCode.VALUE_INVALID,
+                path: ['secrets', 'set', field.key],
+                message: `must be entered again: ${first.label} changes where it is sent`,
+            }));
+        }
+    }
+
+    if (issues.length > 0) {
+        throw new ValidupError(issues);
     }
 }
 
@@ -502,8 +588,38 @@ function serializeType(ctx: HttpContext, provider: IConnectionTypeProvider): Con
             ...(field.required !== undefined && { required: field.required }),
             ...(field.description !== undefined && { description: field.description }),
             ...(field.options !== undefined && { options: field.options }),
+            ...(field.multiline !== undefined && { multiline: field.multiline }),
+            ...(field.bindsSecrets !== undefined && { bindsSecrets: field.bindsSecrets }),
         })),
     };
+}
+
+/**
+ * Runs a test within TEST_TIMEOUT_MS on the clock: the test's signal aborts,
+ * and a test that ignores it still ends here.
+ */
+async function runTest(
+    ctx: HttpContext,
+    test: NonNullable<ConnectionTypeDefinition['test']>,
+    values: ConnectionValues,
+    outer: AbortSignal,
+): Promise<void> {
+    const controller = new AbortController();
+    let timer: { clear(): void } | undefined;
+    const deadline = new Promise<never>((_resolve, reject) => {
+        timer = ctx.clock.setTimeout(() => {
+            const error = new ChamviError({ message: 'The connection test timed out.', code: ErrorCode.TIMEOUT });
+
+            controller.abort(error);
+            reject(error);
+        }, TEST_TIMEOUT_MS);
+    });
+
+    try {
+        await Promise.race([test(values, AbortSignal.any([outer, controller.signal])), deadline]);
+    } finally {
+        timer?.clear();
+    }
 }
 
 /** Every failure's message is shown to an operator: only ours, with the saved secrets removed. */
@@ -516,6 +632,25 @@ function testFailureMessage(error: unknown, secrets: readonly string[]): string 
         .filter((secret) => secret.length > 0)
         .reduce((message, secret) => message.replaceAll(secret, '[secret]'), error.message)
         .slice(0, TEST_MESSAGE_MAX_LENGTH);
+}
+
+/** What a listing shows of a connection's configuration: read from the store, as the form does. */
+async function configurationOf(ctx: HttpContext, target: ConfigTarget): Promise<Pick<ConnectionView, 'state' | 'missing' | 'reason' | 'editable' | 'deletable'>> {
+    const {
+        state,
+        missing,
+        reason,
+        editable,
+        deletable,
+    } = await buildSettingsView(ctx, target);
+
+    return {
+        state,
+        ...(missing && { missing }),
+        ...(reason !== undefined && { reason }),
+        editable,
+        deletable,
+    };
 }
 
 /**
@@ -546,11 +681,10 @@ export async function listConnections(ctx: HttpContext): Promise<ConnectionView[
                     name: connection.name,
                     type: provider.definition.type,
                     status: 'disconnected',
+                    live: false,
                 }),
                 ...(connection.account !== undefined && { account: connection.account }),
-                state: connection.resolved.state,
-                editable: isEditable(ctx, target),
-                deletable: isDeletable(ctx, target),
+                ...await configurationOf(ctx, target),
             });
         }
     }
@@ -560,17 +694,16 @@ export async function listConnections(ctx: HttpContext): Promise<ConnectionView[
 
         if (provider) {
             const account = accountOf(row.name, row.type);
-            const target = { name: row.name, definition: provider.definition };
 
             views.set(row.name, {
                 ...(views.get(row.name) ?? {
                     name: row.name,
                     type: row.type,
                     status: 'disconnected',
+                    live: false,
                 }),
                 ...(account !== undefined && { account }),
-                editable: isEditable(ctx, target),
-                deletable: isDeletable(ctx, target),
+                ...await configurationOf(ctx, { name: row.name, definition: provider.definition }),
             });
         }
     }
@@ -654,7 +787,7 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
 
         const update = toConfigUpdate(definition, { settings: body.settings, ...(body.secrets && { set: body.secrets }) }, undefined, undefined);
 
-        await assertUnique(ctx, provider, { ...update.settings, ...update.secrets?.set } as ConnectionValues);
+        await assertUnique(ctx, definition, { ...update.settings, ...update.secrets?.set } as ConnectionValues);
         await refuseWithoutKeyring(async () => {
             if (!await configs.create(name, type, update)) {
                 await repairBareRow(ctx, name, type, update);
@@ -695,10 +828,27 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
             ...(body.secrets?.clear && { clear: body.secrets.clear }),
         }, target, stored);
 
+        assertSecretsRebound(target, stored, update);
+
+        if (update.settings && target.definition.uniqueId) {
+            const before = target.definition.uniqueId(identityValues(target, stored?.settings));
+            const after = identityValues(target, update.settings);
+
+            // an unchanged identity stays allowed: env may already declare a twin
+            if (target.definition.uniqueId(after) !== before) {
+                await assertUnique(ctx, target.definition, after, target.name);
+            }
+        }
+
         await refuseWithoutKeyring(async () => {
-            // a declared connection has no row until its first save; create leaves an existing one alone
-            if (stored || !await configs.create(target.name, target.definition.type, update)) {
-                await configs.update(target.name, update);
+            // a declared connection has no row until its first save; create leaves an existing one alone.
+            // The checks above read `stored`: a save that landed since then refuses this one (409),
+            // so a rebinding check never passes on a snapshot another save replaced
+            if (stored) {
+                await configs.update(target.name, update, { revision: stored.revision });
+            } else if (!await configs.create(target.name, target.definition.type, update)) {
+                // another save created the row meanwhile: these checks never saw its values
+                throw new ConnectionChangedError(target.name);
             }
         });
 
@@ -724,8 +874,10 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
     app.post('/connections/:name/test', defineCoreHandler(async (event): Promise<ConnectionTestView> => {
         const target = await requireTarget(ctx, await authenticate(event, ctx), param(event, 'name'), true);
         const { definition } = target;
+        // a module's own test (its endpoint, its fetch) wins over the type's, which the first module built
+        const test = target.declared?.test ?? definition.test;
 
-        if (!definition.test) {
+        if (!test) {
             throw new NotFoundError({ message: `The connection type "${definition.type}" offers no test.` });
         }
 
@@ -735,11 +887,16 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
         const missing = definition.fields.filter((field) => field.required && !Object.hasOwn(values, field.key));
 
         if (missing.length > 0) {
-            throw new ConflictError({ message: `Save ${missing.map((field) => field.label).join(', ')} first.` });
+            // a built App passed in code holds no values this process could test with
+            throw new ConflictError({
+                message: isEditable(ctx, target) ?
+                    `Save ${missing.map((field) => field.label).join(', ')} first.` :
+                    `The connection "${target.name}" is set in code and cannot be tested here.`,
+            });
         }
 
         try {
-            await definition.test(values, event.request.signal);
+            await runTest(ctx, test, values, event.request.signal);
 
             return { ok: true };
         } catch (error) {

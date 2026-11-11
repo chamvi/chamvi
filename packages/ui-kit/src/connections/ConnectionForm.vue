@@ -11,6 +11,7 @@ import {
     VCFormGroup,
     VCFormInput,
     VCFormSelect,
+    VCFormTextarea,
 } from '@vuecs/forms';
 import type { FormOption } from '@vuecs/forms';
 import {
@@ -22,7 +23,7 @@ import {
 import { useAppContext } from '../context/module.ts';
 import { createConnectionConfigApi } from './api.ts';
 import { useConnectionForm } from './form.ts';
-import { canWriteConnection } from './helpers.ts';
+import { canWriteConnection, connectionProblem } from './helpers.ts';
 import type { ConnectionCreated, ConnectionDeleted, ConnectionFormField } from './types.ts';
 import { ACCOUNT_KEY, isRequiredField } from './validators.ts';
 
@@ -55,9 +56,11 @@ const {
     testResult,
     confirmation,
     confirmError,
+    rebindNotice,
 } = form;
 
 const adding = computed(() => props.name === undefined);
+const problem = computed(() => (view.value ? connectionProblem(view.value) : undefined));
 const canWrite = computed(() => props.name === undefined ||
     canWriteConnection(session.principal.value?.permissions ?? [], props.name));
 const canEdit = computed(() => canWrite.value && (view.value?.editable ?? true));
@@ -162,6 +165,15 @@ watch(confirmation, async (open, previous) => {
         </div>
 
         <div
+            v-if="problem"
+            class="card notice"
+            role="status"
+            data-testid="connection-state"
+        >
+            {{ problem }}
+        </div>
+
+        <div
             v-if="!canWrite"
             class="card notice"
             data-testid="connection-form-readonly"
@@ -234,15 +246,30 @@ watch(confirmation, async (open, previous) => {
                     </template>
 
                     <template v-else-if="field.kind === 'secret'">
-                        <VCFormInput
-                            v-if="canEdit && (!field.secretSet || replacing[field.key])"
-                            :id="`connection-${field.key}`"
-                            v-model="fieldOf(field.key).$model.value"
-                            type="password"
-                            autocomplete="new-password"
-                            :disabled="busy"
-                            :aria-required="isRequiredField(field)"
-                        />
+                        <template v-if="canEdit && (!field.secretSet || replacing[field.key] || form.mustReenter(field))">
+                            <!-- a password input strips line breaks: a pasted PEM would be saved corrupted -->
+                            <VCFormTextarea
+                                v-if="field.multiline"
+                                :id="`connection-${field.key}`"
+                                v-model="fieldOf(field.key).$model.value"
+                                class="mono"
+                                rows="6"
+                                autocomplete="off"
+                                autocapitalize="off"
+                                spellcheck="false"
+                                :disabled="busy"
+                                :aria-required="isRequiredField(field)"
+                            />
+                            <VCFormInput
+                                v-else
+                                :id="`connection-${field.key}`"
+                                v-model="fieldOf(field.key).$model.value"
+                                type="password"
+                                autocomplete="new-password"
+                                :disabled="busy"
+                                :aria-required="isRequiredField(field)"
+                            />
+                        </template>
                         <div
                             v-if="field.secretSet"
                             class="field-value"
@@ -327,6 +354,15 @@ watch(confirmation, async (open, previous) => {
                         @update:model-value="(next: unknown) => choose(field.key, next)"
                     />
 
+                    <VCFormTextarea
+                        v-else-if="field.multiline"
+                        :id="`connection-${field.key}`"
+                        v-model="fieldOf(field.key).$model.value"
+                        rows="4"
+                        :disabled="!canEdit || busy"
+                        :aria-required="isRequiredField(field)"
+                    />
+
                     <VCFormInput
                         v-else
                         :id="`connection-${field.key}`"
@@ -351,6 +387,15 @@ watch(confirmation, async (open, previous) => {
                     </p>
                 </VCFormGroup>
             </IFieldValidation>
+
+            <p
+                v-if="rebindNotice && canEdit"
+                class="hint"
+                role="status"
+                data-testid="connection-rebind"
+            >
+                {{ rebindNotice }}
+            </p>
 
             <p
                 v-if="formError"
