@@ -146,7 +146,7 @@ export function createFakeOpenclaw(input: {
         const request = new Request(resource as RequestInfo, init);
         // the caller's signal: undici's Request follows it through a WeakRef to
         // its own controller, so once the Request is collected its signal never aborts
-        const signal = init?.signal ?? request.signal;
+        const signal = init?.signal ?? (init?.signal === undefined && resource instanceof Request ? resource.signal : request.signal);
 
         if (signal.aborted) {
             throw signal.reason;
