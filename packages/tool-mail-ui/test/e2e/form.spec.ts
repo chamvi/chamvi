@@ -45,6 +45,9 @@ test('adds a mail account, sees restart to apply, reload keeps the session', asy
     await page.getByLabel('Address').fill('agent@example.com');
     await page.getByLabel('IMAP host').fill('imap.example.com');
     await page.locator('[data-field="password"] input').fill('s3cret-value');
+    // the typed secret stays a DOM property, never markup
+    expect(await page.locator('[data-field="password"] input').getAttribute('value')).toBeNull();
+    expect(await page.locator('form').evaluate((element) => element.outerHTML)).not.toContain('s3cret-value');
     await page.getByRole('button', { name: 'Save' }).click();
 
     await expect(page.getByText('Saved. Restart the app to apply.')).toBeVisible();
