@@ -179,8 +179,8 @@ export const phoneAssistant = defineModelAgent({
     instructions: 'Answer with the reply tool.',
     conversation: true,
     channels: [phone.on()],
-    // whatsappModule's channel is named after its connection
-    tools: { reply: replyOn('whatsapp') },
+    // the channel's own name (`chat` unless the options set `name`), not the connection's
+    tools: { reply: replyOn(phone.channel.name) },
 });
 
 export const phoneApp = createApp({

@@ -118,7 +118,7 @@ A send is one `POST /channels/<channel or thread>/messages` with the body `{ con
 
 `chatModule()` contributes the channel to `AppToken.CHANNELS`; the engine starts and stops it. It adds no env variable and constructs nothing, so `chamvi start --check` reads no token and opens no Gateway connection.
 
-`discordModule()` (`@chamvi/chat-discord/module`) configures the bot from env or the dashboard instead of code:
+`discordModule()` (`@chamvi/chat-discord/module`) configures the bot from env or the dashboard instead of code (`replyOn` is the reply tool of [Memory and trust](/reference/chat#memory-and-trust)):
 
 <<< @/snippets/chat.ts#discord-app-module
 
