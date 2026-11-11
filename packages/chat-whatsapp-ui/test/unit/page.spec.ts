@@ -184,6 +184,20 @@ describe('the WhatsApp page', () => {
         expect(testId('connection-reset-confirm')).toBeNull();
     });
 
+    it.each(['other', 'gone'])('opens the first WhatsApp session for ?connection=%s, not a foreign or stale one', async (name) => {
+        globalThis.history.replaceState({}, '', `/ui/ext/chat-whatsapp/?connection=${name}`);
+
+        try {
+            const { calls, root } = await mount({ permissions: ['*'] });
+
+            expect(calls.some((call) => call.url.startsWith(`/connections/${name}`))).toBe(false);
+            expect(calls).toContainEqual({ method: 'GET', url: '/connections/wa' });
+            expect(root.querySelector('h1')?.textContent).toContain('wa');
+        } finally {
+            globalThis.history.replaceState({}, '', '/');
+        }
+    });
+
     it('says so when the app has no WhatsApp connection', async () => {
         const { testId } = await mount({ permissions: ['*'], connections: [] });
 

@@ -25,7 +25,12 @@ const api = createConnectionsApi(client);
 
 const chosen = shallowRef(new URLSearchParams(globalThis.location.search).get('connection') ?? undefined);
 const sessions = computed(() => connections.value.filter((connection) => connection.type === WHATSAPP_TYPE.type));
-const current = computed(() => chosen.value ?? sessions.value[0]?.name);
+// a query naming another type's connection, or one that is gone, falls back to the first session
+const current = computed(() => {
+    const listed = sessions.value.some((entry) => entry.name === chosen.value);
+
+    return listed ? chosen.value : sessions.value[0]?.name;
+});
 const write = computed(() => current.value !== undefined &&
     canWriteConnection(session.principal.value?.permissions ?? [], current.value));
 
