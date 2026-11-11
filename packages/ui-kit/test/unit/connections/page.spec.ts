@@ -17,48 +17,48 @@ import {
     createApp,
     defineComponent,
     h,
+    nextTick,
     shallowRef,
 } from 'vue';
 import type { App } from 'vue';
-import type { IApiClient, MeWire } from '../../../src/api/types.ts';
+import type { MeWire } from '../../../src/api/types.ts';
+import type { UiConfig } from '../../../src/config/types.ts';
 import ConnectionsPage from '../../../src/connections/ConnectionsPage.vue';
-import type { ConnectionTypeWire, ConnectionWire } from '../../../src/connections/types.ts';
+import type { ConnectionTypeWire } from '../../../src/connections/types.ts';
 import { install } from '../../../src/module.ts';
 import { fakeClient } from '../../utils/client.ts';
+import { installFormKit } from '../../utils/forms.ts';
 import { json } from '../../utils/fetch.ts';
 import { flush } from '../../utils/timers.ts';
 
-const MAIL: ConnectionTypeWire = {
+const CONFIG: UiConfig = {
+    apiBase: '',
+    uiBase: '/ui',
+    auth: { tokens: true },
+};
+
+const TYPE: ConnectionTypeWire = {
     type: 'mail',
     label: 'Mail',
     multiple: true,
     creatable: true,
     testable: false,
-    fields: [],
+    fields: [{
+        key: 'host',
+        label: 'IMAP host',
+        kind: 'string',
+    }],
 };
 
-const CONNECTIONS: ConnectionWire[] = [
-    {
-        name: 'mail-work',
-        type: 'mail',
-        status: 'disconnected',
-        account: 'work',
-    },
-    {
-        name: 'whatsapp',
-        type: 'whatsapp',
-        status: 'connected',
-    },
-];
-
-const SETTINGS = {
+const CREATED = {
+    name: 'mail-work',
     type: 'mail',
     state: 'configured',
-    settings: {},
-    fields: [],
-    restartRequired: false,
+    settings: { host: 'imap.example.com' },
+    fields: [{ key: 'host', source: { kind: 'store' } }],
+    restartRequired: true,
     editable: true,
-    deletable: false,
+    deletable: true,
 };
 
 let mounted: App | undefined;
@@ -67,22 +67,32 @@ afterEach(() => {
     mounted?.unmount();
     mounted = undefined;
     document.body.innerHTML = '';
-    globalThis.history.replaceState(null, '', '/');
+    globalThis.history.replaceState({}, '', '/');
 });
 
-async function mountPage(search: string, options: { permissions?: string[]; type?: ConnectionTypeWire } = {}) {
-    globalThis.history.replaceState(null, '', `/${search}`);
-
+async function mountPage(permissions: string[], world: { list?: unknown[]; search?: string } = {}) {
+    const requests: string[] = [];
     const principal: MeWire = {
         id: 'peter',
         kind: 'token',
-        permissions: options.permissions ?? ['*'],
+        permissions,
     };
-    const opened: string[] = [];
-    const client: IApiClient = fakeClient({
-        send: async (url: string) => {
+    const client = fakeClient({
+        send: async (url: string, init: { method?: string } = {}) => {
+            const method = init.method ?? 'GET';
+
+            requests.push(`${method} ${url}`);
+
+            if (method === 'POST' && url === '/connection-types/mail/connections') {
+                return json(CREATED);
+            }
+
             if (url === '/connections') {
-                return json({ data: CONNECTIONS });
+                return json({ data: world.list ?? [] });
+            }
+
+            if (method === 'DELETE' && url.startsWith('/connections/')) {
+                return json({ restartRequired: true });
             }
 
             if (url === '/ui-pages') {
@@ -90,75 +100,103 @@ async function mountPage(search: string, options: { permissions?: string[]; type
             }
 
             if (url === '/connection-types') {
-                return json({ data: [options.type ?? MAIL] });
+                return json({ data: [TYPE] });
             }
 
-            opened.push(url);
+            const config = /^\/connections\/([a-z-]+)\/config$/.exec(url);
 
-            return json(SETTINGS);
+            if (config) {
+                return json({ ...CREATED, name: config[1] });
+            }
+
+            throw new Error(`unexpected ${method} ${url}`);
         },
     });
     const app = createApp(defineComponent(() => () => h(ConnectionsPage, { slug: 'tool-mail', type: 'mail' })));
 
+    installFormKit(app);
     install(app, {
         context: {
-            config: {
-                apiBase: '',
-                uiBase: '/ui',
-                auth: { tokens: true },
-            },
+            config: CONFIG,
             client,
-            session: { principal: shallowRef(principal) } as never,
+            session: { principal: shallowRef(principal), signOut: async () => undefined } as never,
             storage: window.sessionStorage,
         },
     });
+    globalThis.history.replaceState({}, '', `/ui/ext/tool-mail/${world.search ?? '?add=1'}`);
     document.body.innerHTML = '<div id="app"></div>';
     app.mount('#app');
     mounted = app;
     await flush();
     await flush();
-    await flush();
+    await nextTick();
 
-    return { opened, adding: () => document.body.querySelector('[data-field="account"]') !== null };
+    return {
+        requests,
+        root: document.body,
+        add: async () => {
+            for (const [key, value] of [['account', 'work'], ['host', 'imap.example.com']] as const) {
+                const input = document.querySelector<HTMLInputElement>(`[data-field="${CSS.escape(key)}"] input`)!;
+
+                input.value = value;
+                input.dispatchEvent(new Event('input'));
+            }
+
+            document.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
+            await flush();
+            await flush();
+            await nextTick();
+        },
+    };
 }
 
 describe('ConnectionsPage', () => {
-    it('opens the connection the query names', async () => {
-        const page = await mountPage('?connection=mail-work');
+    it('confirms an account a creator cannot read instead of opening its form', async () => {
+        const page = await mountPage(['connections:create']);
 
-        expect(page.opened).toEqual(['/connections/mail-work/config']);
+        await page.add();
+
+        expect(page.requests).toContain('POST /connection-types/mail/connections');
+        expect(page.requests).not.toContain('GET /connections/mail-work/config');
+        expect(page.root.querySelector('[data-testid="connection-created"]')?.textContent).toContain('Added mail-work.');
+        expect(page.root.querySelector('[data-testid="connection-created"]')?.textContent).toContain('Restart the app to apply.');
+        expect(page.root.querySelector('[data-testid="connections-empty"]')).toBeNull();
     });
 
-    it('ignores a connection of another type', async () => {
-        const page = await mountPage('?connection=whatsapp');
+    it('opens the form of an account its creator may read', async () => {
+        const page = await mountPage(['connections:create', 'connection:*:write']);
 
-        expect(page.opened).toEqual(['/connections/mail-work/config']);
+        await page.add();
+
+        expect(page.requests).toContain('GET /connections/mail-work/config');
+        expect(page.root.querySelector('[data-testid="connection-created"]')).toBeNull();
+        expect(globalThis.location.search).toBe('?connection=mail-work');
     });
 
-    it('honours ?add for a creator of a multi-instance type', async () => {
-        const page = await mountPage('?add=1');
+    it('drops a deleted account at once, though the refreshed list still holds it', async () => {
+        const list = ['mail-work', 'mail-home'].map((name) => ({
+            name,
+            type: 'mail',
+            status: 'disconnected',
+        }));
+        const page = await mountPage(['*'], { list, search: '' });
+        const button = (text: string) => Array.from(page.root.querySelectorAll('button')).find((entry) => entry.textContent?.trim() === text)!;
 
-        expect(page.adding()).toBe(true);
-        expect(page.opened).toEqual([]);
-    });
+        expect(page.requests).toContain('GET /connections/mail-work/config');
 
-    it('settles ?add once the types answered without its type', async () => {
-        const page = await mountPage('?add=1', { type: { ...MAIL, type: 'other' } });
+        button('Delete').click();
+        await flush();
+        button('Delete account').click();
+        await flush();
+        await flush();
+        await nextTick();
 
-        expect(page.adding()).toBe(false);
-        expect(document.body.textContent).toContain('is not available in this app');
-    });
-
-    it('ignores ?add without connections:create', async () => {
-        const page = await mountPage('?add=1', { permissions: ['connection:*:read'] });
-
-        expect(page.adding()).toBe(false);
-        expect(page.opened).toEqual(['/connections/mail-work/config']);
-    });
-
-    it('ignores ?add for a single-instance type', async () => {
-        const page = await mountPage('?add=1', { type: { ...MAIL, multiple: false } });
-
-        expect(page.adding()).toBe(false);
+        expect(page.requests).toContain('DELETE /connections/mail-work');
+        // the list answered after the delete is stale: it still names mail-work
+        expect(page.requests.filter((request) => request === 'GET /connections').length).toBeGreaterThan(1);
+        expect(page.root.querySelector('[data-account="mail-work"]')).toBeNull();
+        expect(page.root.querySelector('[data-account="mail-home"]')).not.toBeNull();
+        expect(page.requests).toContain('GET /connections/mail-home/config');
+        expect(page.root.querySelector('[data-testid="connection-deleted"]')).not.toBeNull();
     });
 });

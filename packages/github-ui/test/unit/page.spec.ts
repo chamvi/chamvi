@@ -15,7 +15,7 @@ import {
 } from 'vitest';
 import { createApp, shallowRef } from 'vue';
 import type { App } from 'vue';
-import { APP_CONTEXT } from '@chamvi/ui-kit';
+import { APP_CONTEXT, installVuecs } from '@chamvi/ui-kit';
 import type { AppContext, ConnectionSettingsWire, ConnectionTypeWire } from '@chamvi/ui-kit';
 import Page from '../../app/App.vue';
 
@@ -72,6 +72,8 @@ async function mount(names: string[]): Promise<HTMLElement> {
     document.body.append(root);
 
     const app = createApp(Page);
+
+    installVuecs(app);
 
     app.provide(APP_CONTEXT, {
         config: {

@@ -16,7 +16,7 @@ import {
 } from 'vitest';
 import { createApp, shallowRef } from 'vue';
 import type { App } from 'vue';
-import { APP_CONTEXT } from '@chamvi/ui-kit';
+import { APP_CONTEXT, installVuecs } from '@chamvi/ui-kit';
 import type { AppContext, ConnectionDetailWire } from '@chamvi/ui-kit';
 import Page from '../../app/App.vue';
 
@@ -101,6 +101,8 @@ async function mount(options: {
 
     const app = createApp(Page);
 
+    installVuecs(app);
+
     app.provide(APP_CONTEXT, {
         config: {
             apiBase: '', 
@@ -180,6 +182,20 @@ describe('the WhatsApp page', () => {
         expect(posts()).toEqual([{ method: 'POST', url: '/connections/wa/reset' }]);
         expect(dialog).not.toHaveBeenCalled();
         expect(testId('connection-reset-confirm')).toBeNull();
+    });
+
+    it.each(['other', 'gone'])('opens the first WhatsApp session for ?connection=%s, not a foreign or stale one', async (name) => {
+        globalThis.history.replaceState({}, '', `/ui/ext/chat-whatsapp/?connection=${name}`);
+
+        try {
+            const { calls, root } = await mount({ permissions: ['*'] });
+
+            expect(calls.some((call) => call.url.startsWith(`/connections/${name}`))).toBe(false);
+            expect(calls).toContainEqual({ method: 'GET', url: '/connections/wa' });
+            expect(root.querySelector('h1')?.textContent).toContain('wa');
+        } finally {
+            globalThis.history.replaceState({}, '', '/');
+        }
     });
 
     it('says so when the app has no WhatsApp connection', async () => {

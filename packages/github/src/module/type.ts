@@ -49,7 +49,7 @@ export function githubConnectionDefinition(options: Pick<GithubAppOptions, 'fetc
                 kind: 'secret',
                 required: true,
                 multiline: true,
-                description: 'PEM; literal \\n sequences allowed.',
+                description: 'The downloaded PEM, pasted as is.',
             }),
             fieldOf('webhookSecret', {
                 label: 'Webhook secret',
@@ -198,7 +198,8 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
     /**
      * Drops the refused stored field (the optional stored ones when the
      * message names none) and tries again. Each pass drops at least one
-     * field, and nothing here throws: the dashboard repairs what is left.
+     * field. A stored refusal never throws (the dashboard repairs what is
+     * left); a retry refused by an env or code value fails the start.
      */
     const recover = (current: ResolvedConnection, refusal: Error): { resolved: ResolvedConnection; app?: IGithubApp } => {
         const key = refusedKey(definition, refusal.message);
@@ -231,7 +232,13 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
         try {
             return { resolved: next, app: build(next) };
         } catch (error) {
-            return recover(next, error as Error);
+            if (!(error instanceof InvalidAgentDefinitionError)) {
+                throw error;
+            }
+
+            assertStoredRefusal(definition, next, error);
+
+            return recover(next, error);
         }
     };
 

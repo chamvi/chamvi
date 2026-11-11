@@ -71,6 +71,21 @@ describe('createGithubApp', () => {
         expect(fake.tokensIssued).toBeGreaterThan(0);
     });
 
+    it.each([
+        ['without its line breaks (a password input strips them)', ''],
+        ['with spaces for line breaks', ' '],
+    ])('accepts a PEM %s', async (_name, separator) => {
+        const flat = fake.privateKey.trim().replaceAll(/\r?\n/g, separator);
+
+        expect(flat).not.toContain('\n');
+
+        const issued = fake.tokensIssued;
+        const gh = createGithubApp(options({ privateKey: flat }));
+
+        await (await gh.octokit(44)).request('GET /rate_limit');
+        expect(fake.tokensIssued).toBe(issued + 1);
+    });
+
     it('accepts a PKCS#8 key', async () => {
         const pkcs8 = createPrivateKey(fake.privateKey).export({ type: 'pkcs8', format: 'pem' }).toString();
 

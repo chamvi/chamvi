@@ -54,6 +54,7 @@ describe('public api', () => {
             'hasPermission',
             'install',
             'installComponents',
+            'installVuecs',
             'isPagePath',
             'mountPage',
             'openConnectionStream',

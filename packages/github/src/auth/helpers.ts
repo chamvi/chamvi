@@ -10,10 +10,33 @@ import type { KeyObject } from 'node:crypto';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { JWT_BACKDATE_SECONDS, JWT_TTL_SECONDS } from './constants.ts';
 
-/** The App's private key (PKCS#1 or PKCS#8 PEM); literal "\n" sequences become newlines. */
+const PEM_BLOCK = /^\s*-----BEGIN ([A-Z0-9 ]+)-----([\s\S]*?)-----END \1-----\s*$/;
+
+/**
+ * A PEM block whose line breaks were lost (a password input strips them,
+ * some secret stores turn them into spaces), rebuilt with 64-character lines;
+ * any other text unchanged.
+ */
+function rewrapPem(pem: string): string {
+    const match = PEM_BLOCK.exec(pem);
+
+    if (!match) {
+        return pem;
+    }
+
+    const [, label, body] = match;
+    const lines = body!.replaceAll(/\s+/g, '').match(/.{1,64}/g) ?? [];
+
+    return [`-----BEGIN ${label}-----`, ...lines, `-----END ${label}-----`, ''].join('\n');
+}
+
+/**
+ * The App's private key (PKCS#1 or PKCS#8 PEM); literal "\n" sequences
+ * become newlines, and a key without its line breaks is rewrapped.
+ */
 export function normalizePrivateKey(pem: string): KeyObject {
     try {
-        const key = createPrivateKey(pem.replaceAll('\\n', '\n'));
+        const key = createPrivateKey(rewrapPem(pem.replaceAll('\\n', '\n')));
 
         if (key.asymmetricKeyType !== 'rsa') {
             throw new TypeError('not an RSA key');

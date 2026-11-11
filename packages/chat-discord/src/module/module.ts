@@ -235,9 +235,9 @@ export class DiscordModule implements IModule {
     }
 
     protected async readRow(container: IContainer): Promise<StoredConnection | undefined> {
-        const rows = await readStoredConnections(container, DISCORD_CONNECTION_TYPE);
+        const [row] = await readStoredConnections(container, DISCORD_CONNECTION_TYPE, { name: this.connection });
 
-        return rows.find((row) => row.name === this.connection);
+        return row;
     }
 
     protected resolve(row: StoredConnection | undefined): ResolvedConnection {

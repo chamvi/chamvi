@@ -37,5 +37,17 @@ const write = computed(() => canWriteConnection(session.principal.value?.permiss
         :api="api"
         :name="name"
         :write="write"
-    />
+    >
+        <!-- pairing material renders on the provider's page, never here: the dashboard names no provider -->
+        <template #widgets="{ widgets }">
+            <div
+                v-if="widgets.some((widget) => widget.kind === 'qr')"
+                class="card notice"
+                data-testid="connection-pairing"
+            >
+                This connection waits to be paired. Its QR shows on its page in the sidebar.
+                No page there? Add the dashboard module of its type's <b class="mono">-ui</b> package to the app.
+            </div>
+        </template>
+    </ConnectionPanel>
 </template>

@@ -5,6 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import vuecs from '@vuecs/core';
+import installForms from '@vuecs/forms';
+import tailwind from '@vuecs/theme-tailwind';
 import { describe, expect, it } from 'vitest';
 import { createSSRApp } from 'vue';
 import { renderToString } from 'vue/server-renderer';
@@ -16,7 +19,7 @@ import { RouteName } from '../../../../app/router/constants.ts';
 import { fakeClient } from '../../../utils/client.ts';
 import { wireRun } from '../../../utils/runs.ts';
 
-async function render(run: RunWire): Promise<string> {
+async function render(run: RunWire, canAnswer = false): Promise<string> {
     const router = createRouter({
         history: createMemoryHistory(),
         routes: [
@@ -37,14 +40,16 @@ async function render(run: RunWire): Promise<string> {
     await router.push('/');
     await router.isReady();
 
-    const app = createSSRApp(ApprovalCallout, { run, canAnswer: false });
+    const app = createSSRApp(ApprovalCallout, { run, canAnswer });
 
     app.use(router);
+    app.use(vuecs, { themes: [tailwind()] });
+    app.use(installForms);
     // SSR never mounts, so the client is never asked
     app.provide(APP_CONTEXT, { client: fakeClient() } as unknown as AppContext);
 
-    // the vuecs components are global in the app; here they render as nothing
-    for (const name of ['VCCountdown', 'VCTimeago', 'VCButton', 'VCFormTextarea', 'VCModal']) {
+    // the other vuecs components are global in the app; here they render as nothing
+    for (const name of ['VCCountdown', 'VCTimeago', 'VCButton', 'VCModal']) {
         app.component(name, { render: () => null });
     }
 
@@ -135,12 +140,16 @@ describe('ApprovalCallout', () => {
         expect(html).toContain('data-testid="approval-options"');
         expect(html).toContain('Choose one');
 
-        const radios = html.match(/<input[^>]*type="radio"[^>]*>/g) ?? [];
+        expect(html.match(/role="radiogroup"/g)).toHaveLength(1);
+
+        const radios = html.match(/<button[^>]*role="radio"[^>]*>/g) ?? [];
 
         expect(radios).toHaveLength(2);
 
-        for (const radio of radios) {
-            expect(radio).toContain('name="option-r1"');
+        // every option labelled by its own label
+        for (const [index, radio] of radios.entries()) {
+            expect(radio).toContain(`id="option-r1-${index}"`);
+            expect(html).toContain(`<label for="option-r1-${index}">`);
         }
 
         expect(html.match(/<details/g)).toHaveLength(1);
@@ -163,16 +172,29 @@ describe('ApprovalCallout', () => {
             },
         }));
 
-        expect(html.match(/<input[^>]*type="checkbox"[^>]*>/g)).toHaveLength(2);
-        expect(html).not.toContain('type="radio"');
+        expect(html.match(/<button[^>]*role="checkbox"[^>]*>/g)).toHaveLength(2);
+        expect(html).not.toContain('role="radio"');
         expect(html).toContain('Choose one or more');
+    });
+
+    it('disables the choice without the approve grant and enables it with', async () => {
+        const run = wireRun({ status: 'waiting', waiting: { ...waiting, options } });
+        const reader = await render(run);
+        const approver = await render(run, true);
+
+        const disabledRadios = (html: string) => (html.match(/<button[^>]*role="radio"[^>]*>/g) ?? []).filter((radio) => / disabled /.test(radio));
+
+        expect(disabledRadios(reader)).toHaveLength(2);
+        expect(disabledRadios(approver)).toHaveLength(0);
+        expect(approver).toContain('Reason (optional, sent to the model)');
+        expect(approver).toContain('<textarea');
     });
 
     it('renders a plain approval without options', async () => {
         const html = await render(wireRun({ status: 'waiting', waiting }));
 
-        expect(html).not.toContain('type="radio"');
-        expect(html).not.toContain('type="checkbox"');
+        expect(html).not.toContain('role="radio"');
+        expect(html).not.toContain('role="checkbox"');
         expect(html).not.toContain('data-testid="approval-options"');
     });
 

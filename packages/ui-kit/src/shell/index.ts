@@ -13,3 +13,4 @@ export * from './mount.ts';
 export { default as NavIcon } from './NavIcon.vue';
 export { default as StatusChip } from './StatusChip.vue';
 export * from './types.ts';
+export * from './vuecs.ts';
