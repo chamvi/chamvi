@@ -41,8 +41,9 @@ export async function verifyDiscordToken(
         throw failure('Discord cannot be reached.');
     }
 
-    // only the status counts: release the connection instead of leaving the body to the garbage collector
-    await response.body?.cancel().catch(() => undefined);
+    // only the status counts: release the connection instead of leaving the body to the garbage collector.
+    // Not awaited: a cancel stays pending while a clone of the response is unread
+    response.body?.cancel().catch(() => undefined);
 
     if (response.status === 401 || response.status === 403) {
         throw failure('Discord refused the bot token.');

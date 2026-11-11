@@ -246,6 +246,29 @@ describe('the Discord connection test', () => {
         expect(responses.map((response) => response.bodyUsed)).toEqual([true]);
     });
 
+    it('reports the status when the body cancellation never settles', async () => {
+        const pending = verifyDiscordToken('t', {
+            signal: new AbortController().signal,
+            fetch: (async () => {
+                const response = new Response('{"id":"1"}', { status: 401 });
+
+                // the unread branch of a clone keeps a cancel of the other one pending
+                response.clone();
+
+                return response;
+            }) as typeof fetch,
+        });
+
+        const settled = await Promise.race([
+            pending.then(() => 'resolved', (error: Error) => error.message),
+            new Promise((resolve) => {
+                setTimeout(resolve, 200, 'pending');
+            }),
+        ]);
+
+        expect(settled).toBe('Discord refused the bot token.');
+    });
+
     it('is bounded by its signal', async () => {
         const controller = new AbortController();
         const reason = new Error('stop');
