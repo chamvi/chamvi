@@ -61,7 +61,7 @@ jobs:
               if: steps.browser-cache.outputs.cache-hit == 'true'
               run: npx playwright install-deps chromium
             - name: Smoke test
-              run: npm run test:e2e -w @chamvi/ui
+              run: npm run test:e2e -w @chamvi/ui -w @chamvi/tool-mail-ui
               env:
                   CI: true
             - name: Upload the report
@@ -69,5 +69,5 @@ jobs:
               uses: actions/upload-artifact@v7
               with:
                   name: playwright-report
-                  path: packages/ui/playwright-report
+                  path: packages/*/playwright-report
                   retention-days: 7

@@ -13,11 +13,15 @@ import { sleep as defaultSleep, parseEventStream } from '../sse/helpers.ts';
 import type { SseEvent } from '../sse/types.ts';
 import type {
     ConnectionDetailWire,
+    ConnectionSettingsWire,
     ConnectionStreamEvent,
     ConnectionStreamOptions,
+    ConnectionTestWire,
+    ConnectionTypeWire,
     ConnectionWidgetWire,
     ConnectionWire,
     ConnectionsTransport,
+    IConnectionConfigApi,
     IConnectionStream,
     IConnectionsApi,
 } from './types.ts';
@@ -44,6 +48,27 @@ export function createConnectionsApi(transport: ConnectionsTransport): IConnecti
             headers: { accept: 'text/event-stream' },
             signal,
         }),
+    };
+}
+
+/** The configuration routes over the app's API client. A secret travels only in a request body. */
+export function createConnectionConfigApi(transport: ConnectionsTransport): IConnectionConfigApi {
+    const config = (name: string) => `${path('connections', name)}/config`;
+
+    return {
+        types: async () => {
+            const body = await readJson(await transport.send('/connection-types'));
+
+            return isObject(body) && Array.isArray(body.data) ? body.data as ConnectionTypeWire[] : [];
+        },
+        read: async (name) => await readJson(await transport.send(config(name))) as ConnectionSettingsWire,
+        create: async (type, body) => await readJson(await transport.send(`${path('connection-types', type)}/connections`, {
+            method: 'POST',
+            body,
+        })) as ConnectionSettingsWire & { name: string },
+        save: async (name, body) => await readJson(await transport.send(config(name), { method: 'PUT', body })) as ConnectionSettingsWire,
+        remove: async (name) => await readJson(await transport.send(path('connections', name), { method: 'DELETE' })) as { restartRequired: boolean },
+        test: async (name) => await readJson(await transport.send(`${path('connections', name)}/test`, { method: 'POST' })) as ConnectionTestWire,
     };
 }
 

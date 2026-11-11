@@ -6,7 +6,16 @@
  */
 
 import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core';
-import type { ConnectionDetailView, ConnectionTypeView, ConnectionView } from '@chamvi/http';
+import type {
+    ConnectionCreateBody,
+    ConnectionDetailView,
+    ConnectionSaveBody,
+    ConnectionSettingsFieldView,
+    ConnectionSettingsView,
+    ConnectionTestView,
+    ConnectionTypeView,
+    ConnectionView,
+} from '@chamvi/http';
 import type { ApiError } from '../api/error.ts';
 import type { IApiClient } from '../api/types.ts';
 
@@ -19,6 +28,11 @@ export type ConnectionWidgetWire = ConnectionWidget;
 
 /** One entry of `GET /connection-types`. */
 export type ConnectionTypeWire = ConnectionTypeView;
+
+/** `GET /connections/:name/config`: a secret only ever as a `set` flag. */
+export type ConnectionSettingsWire = ConnectionSettingsView;
+
+export type ConnectionTestWire = ConnectionTestView;
 
 /** The chip a status renders as: its words and one of the dashboard's status tones. */
 export type ConnectionBadge = {
@@ -33,6 +47,47 @@ export interface IConnectionsApi {
     reset(name: string): Promise<ConnectionWire>;
     stream(name: string, signal: AbortSignal): Promise<Response>;
 }
+
+/** The configuration routes: types, an account's settings, create, save, delete and test. */
+export interface IConnectionConfigApi {
+    types(): Promise<ConnectionTypeWire[]>;
+    read(name: string): Promise<ConnectionSettingsWire>;
+    create(type: string, body: ConnectionCreateBody): Promise<ConnectionSettingsWire & { name: string }>;
+    save(name: string, body: ConnectionSaveBody): Promise<ConnectionSettingsWire>;
+    remove(name: string): Promise<{ restartRequired: boolean }>;
+    test(name: string): Promise<ConnectionTestWire>;
+}
+
+/** One field as the form draws it: its definition, what locks it, whether a secret has a value. */
+export type ConnectionFormField = ConnectionTypeWire['fields'][number] & {
+    /** Env or code sets it: the form shows where from and writes nothing. */
+    lock?: Extract<ConnectionSettingsFieldView['source'], { kind: 'env' | 'code' }>;
+    /** A secret with a stored value. The value itself never reaches the page. */
+    secretSet: boolean;
+};
+
+/** The text of every control the form writes, by field key (plus `account` while adding); empty is unset. */
+export type ConnectionFormValues = Record<string, string>;
+
+/** The open in-page confirmation of the form, at most one. */
+export type ConnectionFormConfirmation = { kind: 'delete' } | {
+    kind: 'clear'; 
+    key: string; 
+    label: string; 
+    stopsNextStart: boolean 
+};
+
+export type UseConnectionFormOptions = {
+    /** Absent while adding an account. */
+    name?: string;
+    type: string;
+    onCreated: (result: ConnectionCreated) => void;
+    onDeleted: (result: ConnectionDeleted) => void;
+};
+
+export type ConnectionCreated = { name: string; restartRequired: boolean };
+
+export type ConnectionDeleted = { name: string; restartRequired: boolean };
 
 /** What the connections client needs of the app's API client. */
 export type ConnectionsTransport = Pick<IApiClient, 'send'>;

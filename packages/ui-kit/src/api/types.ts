@@ -99,6 +99,8 @@ export type ApiClientOptions = {
 /** A raw request through the client: bearer, refresh and errors as for every call. */
 export type ApiSendInit = {
     method?: string;
+    /** Sent as JSON. */
+    body?: unknown;
     headers?: Record<string, string>;
     signal?: AbortSignal;
 };

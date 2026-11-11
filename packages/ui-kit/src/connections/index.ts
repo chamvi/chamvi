@@ -7,7 +7,9 @@
 
 export * from './api.ts';
 export * from './composables.ts';
+export { default as ConnectionForm } from './ConnectionForm.vue';
 export { default as ConnectionPanel } from './ConnectionPanel.vue';
+export { default as ConnectionsPage } from './ConnectionsPage.vue';
 export * from './constants.ts';
 export * from './helpers.ts';
 export { default as StatusBadge } from './StatusBadge.vue';

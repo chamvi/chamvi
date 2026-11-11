@@ -25,7 +25,11 @@ import type { UiPageWire } from './types.ts';
  */
 export function useUiPages() {
     const { client, session } = useAppContext();
-    const { connections, loaded } = useConnections(createConnectionsApi(client));
+    const {
+        connections,
+        loaded,
+        refresh,
+    } = useConnections(createConnectionsApi(client));
     const registered = shallowRef<UiPageWire[]>([]);
     const types = shallowRef<ConnectionTypeWire[]>([]);
 
@@ -60,5 +64,6 @@ export function useUiPages() {
         types,
         connections,
         loaded,
+        refresh,
     };
 }

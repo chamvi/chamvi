@@ -6,8 +6,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ref, watch } from 'vue';
-import { createStartKeys, parsePayload } from '../../agents/helpers.ts';
+import { IFieldValidation } from '@ilingo/validup-vue';
+import { useValidup } from '@validup/vue';
+import { Container } from 'validup';
+import {
+    reactive,
+    ref,
+    watch,
+} from 'vue';
+import { createStartKeys } from '../../agents/helpers.ts';
+import { isPayload } from '../../forms/validators.ts';
 import { ApiError } from '@chamvi/ui-kit';
 import type { StartRunResult } from '@chamvi/ui-kit';
 
@@ -21,7 +29,13 @@ const props = defineProps<{
 const emit = defineEmits<{ started: [result: StartRunResult] }>();
 const open = defineModel<boolean>('open', { required: true });
 
-const payload = ref('{}');
+const form = reactive({ payload: '{}' });
+const payloadForm = new Container<{ payload: string }>();
+
+payloadForm.mount('payload', isPayload());
+
+const v = useValidup(payloadForm, form);
+/** A start the API refused; invalid JSON is the field's issue. */
 const error = ref<string>();
 const busy = ref(false);
 const keys = createStartKeys();
@@ -35,19 +49,19 @@ watch(open, (value) => {
 });
 
 async function submit(): Promise<void> {
-    const parsed = parsePayload(payload.value);
+    error.value = undefined;
 
-    if (!parsed.ok) {
-        error.value = parsed.message;
+    const checked = await v.$validate();
 
+    if (!checked.success) {
         return;
     }
 
     busy.value = true;
-    error.value = undefined;
 
     try {
-        const result = await props.start(parsed.value, keys.keyFor(payload.value));
+        // the validator returns the parsed payload; the key follows the text, so a retry of the same text dedupes
+        const result = await props.start(checked.data.payload, keys.keyFor(form.payload));
 
         keys.succeeded();
         open.value = false;
@@ -77,16 +91,30 @@ async function submit(): Promise<void> {
                         as {{ invoker }}
                     </template>. The payload becomes the run's first message, checked against the trigger's schema if it has one.
                 </VCModalDescription>
-                <label class="field">
-                    <span class="field-label">Payload (JSON)</span>
-                    <textarea
-                        v-model="payload"
-                        class="textarea mono"
-                        rows="7"
-                        spellcheck="false"
-                        name="payload"
-                    />
-                </label>
+                <IFieldValidation
+                    v-slot="{ value: validation }"
+                    :field="v.fields.payload"
+                >
+                    <VCFormGroup
+                        label-tag="span"
+                        :validation="validation"
+                    >
+                        <template #label>
+                            <label :for="`payload-${agent}`">Payload (JSON)</label>
+                        </template>
+                        <VCFormTextarea
+                            :id="`payload-${agent}`"
+                            v-model="v.fields.payload.$model.value"
+                            class="textarea mono"
+                            rows="7"
+                            spellcheck="false"
+                            name="payload"
+                        />
+                        <template #hint>
+                            Empty sends {}.
+                        </template>
+                    </VCFormGroup>
+                </IFieldValidation>
                 <p
                     v-if="error"
                     class="form-err"

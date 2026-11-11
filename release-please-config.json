@@ -32,7 +32,9 @@
         "packages/tool-utils": {"component": "tool-utils"},
         "packages/tool-web": {"component": "tool-web"},
         "packages/ui": {"component": "ui"},
-        "packages/ui-kit": {"component": "ui-kit"}
+        "packages/ui-kit": {"component": "ui-kit"},
+        "packages/tool-mail-ui": {"component": "tool-mail-ui"},
+        "packages/tool-calendar-ui": {"component": "tool-calendar-ui"}
     },
     "plugins": [
         {
@@ -66,7 +68,9 @@
                 "tool-utils",
                 "tool-web",
                 "ui",
-                "ui-kit"
+                "ui-kit",
+                "tool-mail-ui",
+                "tool-calendar-ui"
             ]
         },
         {

@@ -30,7 +30,9 @@ import { createSession } from '../auth/module.ts';
 import type { IAuthupAdapter } from '../auth/types.ts';
 import { readConfig } from '../config/module.ts';
 import { install } from '../module.ts';
+import { FORM_THEME } from './constants.ts';
 import type { MountPageOptions } from './types.ts';
+import { installValidation } from './validation.ts';
 
 /**
  * Boots one page: icons, authup when configured, vuecs, the session, the
@@ -56,7 +58,7 @@ export async function mountPage(component: Component, options: MountPageOptions 
         adapter = createAuthupAdapter(app, config.auth.authup, config.uiBase);
     }
 
-    app.use(vuecs, { themes: [tailwind()], icons: [lucide()] });
+    app.use(vuecs, { themes: [tailwind(), FORM_THEME], icons: [lucide()] });
 
     for (const plugin of [
         installIcon,
@@ -72,6 +74,8 @@ export async function mountPage(component: Component, options: MountPageOptions 
     ]) {
         app.use(plugin);
     }
+
+    installValidation(app);
 
     let client: IApiClient;
     const session = createSession(config, {

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { Issue } from '@ebec/core';
 import { isObject } from 'smob';
 import { RATE_LIMIT_BACKOFF_MS } from './constants.ts';
 import { ApiError } from './error.ts';
@@ -78,7 +79,13 @@ export async function toApiError(response: Response): Promise<ApiError> {
     const retryAfter = retryAfterOf(response);
 
     if (isObject(body) && typeof body.code === 'string') {
-        return new ApiError(response.status, body.code, typeof body.message === 'string' ? body.message : response.statusText, retryAfter);
+        return new ApiError(
+            response.status,
+            body.code,
+            typeof body.message === 'string' ? body.message : response.statusText,
+            retryAfter,
+            Array.isArray(body.issues) ? body.issues as Issue[] : undefined,
+        );
     }
 
     return new ApiError(response.status, `http_${response.status}`, response.statusText || `HTTP ${response.status}`, retryAfter);
