@@ -90,6 +90,7 @@ Any name is checkable (an app may check its own, such as `release_manage`). Thes
 - `can(holder, name, { attributes, now })` is true when one binding of that name passes for the resource in `attributes`. Bindings of one name are a disjunction, the policies of one binding a conjunction (or the binding's `permission.decisionStrategy`). Without `attributes` a policy over them fails: the check asks about every resource.
 - `canSome(holder, name, options)` treats a policy whose data is missing (no `attributes`, no `identity`) as passed: may the holder do this to some resource? A list route uses it, then checks each row with `can`.
 - `now` feeds the `date` and `time` policies (default the real clock); the holder's `identity` feeds `identity` policies.
+- A binding's `realmScope` is not evaluated: whoever builds the bindings settles realm reach first (the authup authenticator of `@chamvi/http` drops grants that do not reach the deployment's realm).
 - Both fail closed and never reject: an entry that is not a binding, an unknown policy type, a `permissionBinding` policy node and a `realmMatch` policy node grant nothing (a resource carries no realm here; realm reach is settled when the bindings are built).
 
 ## License
