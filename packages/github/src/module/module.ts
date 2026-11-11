@@ -271,7 +271,11 @@ export class GithubModule implements IModule {
             resolved = pinnedConnection(this.connection, definition, this.app);
         }
 
-        instance.connection = declaredConnection(this.connection, resolved, editable, row);
+        instance.connection = {
+            ...declaredConnection(this.connection, resolved, editable, row),
+            // the shared provider's type closes over the first module's fetch and clock: this one tests with its own
+            test: githubConnectionDefinition(this.appOptions).test,
+        };
 
         const config = container.resolve(AppToken.CONFIG);
         const approvalUrl = this.channelOptions.approvalUrl ?? approvalUrlOf(config);

@@ -13,6 +13,7 @@ import {
 } from '@chamvi/core';
 import type {
     ChannelSubscription,
+    ConnectionTypeDefinition,
     ConversationRef,
     IChannel,
     ResolvedConnection,
@@ -208,7 +209,11 @@ export class DiscordModule implements IModule {
             logger.warn(`The Discord connection "${this.connection}" is ${resolved.state.replace('_', ' ')}; it stays idle until it is configured.`);
         }
 
-        this.declare(container, declaredConnection(this.connection, resolved, editable, row));
+        this.declare(container, {
+            ...declaredConnection(this.connection, resolved, editable, row),
+            // the shared provider's type closes over the first module's options: this one tests its own
+            test: this.definition().test,
+        });
 
         const channel: IChannel = this.chat?.channel ?? {
             name: this.connection,
@@ -286,6 +291,14 @@ export class DiscordModule implements IModule {
         return createDiscordChat(options);
     }
 
+    /** The connection type with this module's API endpoint and fetch. */
+    protected definition(): ConnectionTypeDefinition {
+        return discordConnectionDefinition({
+            ...(this.options.apiUrl !== undefined && { apiUrl: this.options.apiUrl }),
+            ...(this.options.fetch !== undefined && { fetch: this.options.fetch }),
+        });
+    }
+
     /** One provider for every module, whichever is set up first. */
     protected declare(container: IContainer, connection: DiscordInstances['connections'][number]): void {
         let instances = INSTANCES.get(container);
@@ -297,10 +310,7 @@ export class DiscordModule implements IModule {
             INSTANCES.set(container, created);
             container.registerMany(AppToken.CONNECTION_TYPES, {
                 useValue: {
-                    definition: discordConnectionDefinition({
-                        ...(this.options.apiUrl !== undefined && { apiUrl: this.options.apiUrl }),
-                        ...(this.options.fetch !== undefined && { fetch: this.options.fetch }),
-                    }),
+                    definition: this.definition(),
                     creatable: () => false,
                     connections: () => created.connections,
                 },

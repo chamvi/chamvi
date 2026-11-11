@@ -162,6 +162,40 @@ describe('the GitHub connection test', () => {
         expect(text).not.toContain('not-https.test');
     });
 
+    it('tests each module with its own fetch, not the first module\'s', async () => {
+        const fake = createFakeGithub({ appId: '1', clock });
+        const first: string[] = [];
+        const second: string[] = [];
+        const recording = (seen: string[]): typeof fetch => async (input, init) => {
+            seen.push(String(input));
+
+            return fake.fetch(input, init);
+        };
+        const { call } = await serve([
+            githubModule({
+                env: {},
+                clock,
+                fetch: recording(first),
+            }),
+            githubModule({
+                name: 'acme',
+                agents: ['someone-else'],
+                env: {},
+                clock,
+                fetch: recording(second),
+            }),
+        ]);
+        const response = await call('PUT', '/connections/acme/config', {
+            settings: { appId: '1' },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'whsec-value' } },
+        });
+
+        expect(response.status).toBe(200);
+        expect(await (await call('POST', '/connections/acme/test')).json()).toEqual({ ok: true });
+        expect(second).toEqual(['https://api.github.com/app']);
+        expect(first).toEqual([]);
+    });
+
     it('is bounded by its signal', async () => {
         const fake = createFakeGithub({ appId: '1', clock });
         const controller = new AbortController();

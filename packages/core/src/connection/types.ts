@@ -316,6 +316,11 @@ export type DeclaredConnection = {
     loadedRevision?: number;
     /** The row's `createdAt` this process loaded; another one means the account was deleted and created again. */
     loadedCreatedAt?: Date;
+    /**
+     * This connection's test, when it differs from its type's (one provider
+     * serves modules with their own endpoint or fetch); else the type's.
+     */
+    test?: ConnectionTypeDefinition['test'];
 };
 
 /** What a package registers for each connection type it configures. */

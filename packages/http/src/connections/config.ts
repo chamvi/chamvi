@@ -232,9 +232,11 @@ async function buildSettingsView(ctx: HttpContext, target: ConfigTarget): Promis
     const restartRequired = declared?.editable !== false && (stored?.revision !== declared?.loadedRevision || recreated);
     // what the last start refused stays true until a restart applied a save
     const refused = !restartRequired && declared?.resolved.state === 'incomplete';
+    // so does a module that declared itself idle (a policy in code without its credentials)
+    const idle = !restartRequired && declared?.resolved.state === 'not_configured';
     let state: ConnectionSettingsView['state'] = 'not_configured';
 
-    if (hasValue) {
+    if (hasValue && !idle) {
         state = missing.length === 0 && !refused ? 'configured' : 'incomplete';
     }
 
@@ -866,8 +868,10 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
     app.post('/connections/:name/test', defineCoreHandler(async (event): Promise<ConnectionTestView> => {
         const target = await requireTarget(ctx, await authenticate(event, ctx), param(event, 'name'), true);
         const { definition } = target;
+        // a module's own test (its endpoint, its fetch) wins over the type's, which the first module built
+        const test = target.declared?.test ?? definition.test;
 
-        if (!definition.test) {
+        if (!test) {
             throw new NotFoundError({ message: `The connection type "${definition.type}" offers no test.` });
         }
 
@@ -886,7 +890,7 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
         }
 
         try {
-            await runTest(ctx, definition.test, values, event.request.signal);
+            await runTest(ctx, test, values, event.request.signal);
 
             return { ok: true };
         } catch (error) {

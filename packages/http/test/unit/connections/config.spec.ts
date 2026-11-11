@@ -801,7 +801,17 @@ describe('connection configuration', () => {
     });
 
     describe('state in the listing and the view', () => {
-        const declareIncomplete = (definition: ConnectionTypeDefinition) => [declare(definition, 'mail-work', {}, { account: 'work', loadedRevision: 1 })];
+        // the start resolved the revision it loaded: the host alone, no password
+        const declareIncomplete = (definition: ConnectionTypeDefinition) => [declare(definition, 'mail-work', {}, {
+            account: 'work',
+            loadedRevision: 1,
+            resolved: resolveConnection({
+                definition,
+                name: 'mail-work',
+                readVariable: () => undefined,
+                stored: { host: 'h' },
+            }),
+        })];
 
         it('reports an incomplete connection and the labels it lacks', async () => {
             const { app, real } = world({ declared: declareIncomplete });

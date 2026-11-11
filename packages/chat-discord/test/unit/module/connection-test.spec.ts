@@ -67,6 +67,8 @@ type ServeInput = {
     moduleEnv?: Record<string, string>;
     appEnv?: Record<string, string>;
     patch?: Partial<DiscordModuleOptions>;
+    /** A second module, named and configured on its own. */
+    second?: Partial<DiscordModuleOptions>;
 };
 
 async function serve(input: ServeInput = {}) {
@@ -84,6 +86,17 @@ async function serve(input: ServeInput = {}) {
         state: createMemoryState(),
         clientFactory: clients.factory,
         ...input.patch,
+    });
+    const second = input.second && discordModule({
+        env: input.moduleEnv ?? {},
+        resolveInvoker: (identity) => ({
+            id: identity.author,
+            kind: 'discord',
+            permissions: [],
+        }),
+        state: createMemoryState(),
+        clientFactory: clients.factory,
+        ...input.second,
     });
     const harness = await createModuleHarness({
         env: {
@@ -119,6 +132,7 @@ async function serve(input: ServeInput = {}) {
             engineModule(),
             httpModule({ metrics: false, rateLimit: false }),
             module,
+            ...(second ? [second] : []),
         ],
     });
 
@@ -172,6 +186,32 @@ describe('the Discord connection test', () => {
 
         expect(await response.json()).toEqual({ ok: true });
         expect(api.calls).toEqual([{ url: 'https://discord.test/api/users/@me', authorization: `Bot ${SENTINEL_TOKEN}` }]);
+    });
+
+    it('tests each module against its own API, not the first module\'s', async () => {
+        const first = discordApi();
+        const other = discordApi();
+        const { call } = await serve({
+            moduleEnv: {
+                ...ENV,
+                CHAMVI_DISCORD_EU_TOKEN: 'eu-token',
+                CHAMVI_DISCORD_EU_APPLICATION_ID: APP_ID,
+            },
+            appEnv: PUBLIC,
+            patch: { fetch: first.fetch, apiUrl: 'https://discord.test/api' },
+            second: {
+                name: 'eu',
+                fetch: other.fetch,
+                apiUrl: 'https://discord.eu.test/api',
+            },
+        });
+
+        expect(await (await call('POST', '/connections/eu/test')).json()).toEqual({ ok: true });
+        expect(other.calls).toEqual([{ url: 'https://discord.eu.test/api/users/@me', authorization: 'Bot eu-token' }]);
+        expect(first.calls).toEqual([]);
+
+        expect(await (await call('POST', '/connections/discord/test')).json()).toEqual({ ok: true });
+        expect(first.calls).toEqual([{ url: 'https://discord.test/api/users/@me', authorization: `Bot ${SENTINEL_TOKEN}` }]);
     });
 
     it('reports a refused token without a value or the server text', async () => {
@@ -240,6 +280,16 @@ describe('the Discord connection handle', () => {
         expect(handle!.status()).toBe('connected');
         expect(changes).toBeGreaterThan(0);
         unsubscribe();
+    });
+
+    it('lists a module with a policy in code alone as not configured, not incomplete', async () => {
+        const { call } = await serve({ appEnv: PUBLIC, patch: { policy: { guilds: [GUILD] } } });
+        const listed = await (await call('GET', '/connections')).json() as { data: Record<string, unknown>[] };
+        const config = await (await call('GET', '/connections/discord/config')).json() as Record<string, unknown>;
+
+        expect(listed.data).toEqual([expect.objectContaining({ name: 'discord', state: 'not_configured' })]);
+        expect(listed.data[0]!.missing).toBeUndefined();
+        expect(config.state).toBe('not_configured');
     });
 
     it('contributes no handle while idle', async () => {
