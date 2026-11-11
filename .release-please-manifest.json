@@ -30,5 +30,6 @@
     "packages/knowledge": "0.8.0",
     "packages/tool-files": "0.8.0",
     "packages/tool-mail": "0.8.0",
-    "packages/tool-calendar": "0.8.0"
+    "packages/tool-calendar": "0.8.0",
+    "packages/access": "0.8.0"
 }

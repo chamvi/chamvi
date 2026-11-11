@@ -6,6 +6,7 @@ export default defineConfig({
         // the sources, not dist
         alias: [
             { find: /^@chamvi\/tool-utils$/, replacement: fileURLToPath(new URL('../src/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/access$/, replacement: fileURLToPath(new URL('../../access/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/core$/, replacement: fileURLToPath(new URL('../../core/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/test-kit$/, replacement: fileURLToPath(new URL('../../test-kit/src/index.ts', import.meta.url)) },
         ],

@@ -1,0 +1,56 @@
+{
+    "name": "@chamvi/access",
+    "version": "0.8.0",
+    "type": "module",
+    "description": "Permission checks for chamvi: static permission names evaluated over authup policy bindings, in Node.js and the browser.",
+    "author": {
+        "name": "Peter Placzek",
+        "email": "contact@tada5hi.net",
+        "url": "https://github.com/tada5hi"
+    },
+    "homepage": "https://chamvi.dev",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/chamvi/chamvi.git",
+        "directory": "packages/access"
+    },
+    "main": "dist/index.mjs",
+    "types": "dist/index.d.mts",
+    "exports": {
+        "./package.json": "./package.json",
+        ".": {
+            "types": "./dist/index.d.mts",
+            "import": "./dist/index.mjs"
+        }
+    },
+    "files": [
+        "dist",
+        "NOTICE"
+    ],
+    "engines": {
+        "node": ">=26.0.0"
+    },
+    "scripts": {
+        "build:types": "tsc --noEmit -p tsconfig.build.json",
+        "build:js": "tsdown",
+        "build": "npm run build:types && npm run build:js",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test": "vitest --config test/vitest.config.ts --run",
+        "test:coverage": "vitest --config test/vitest.config.ts --run --coverage"
+    },
+    "keywords": [
+        "chamvi",
+        "permission",
+        "authorization",
+        "policy",
+        "authup"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "license": "Apache-2.0",
+    "dependencies": {
+        "@authup/access": "^1.0.0-beta.74",
+        "smob": "^1.6.2"
+    }
+}
