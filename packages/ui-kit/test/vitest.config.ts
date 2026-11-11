@@ -7,6 +7,7 @@ export default defineConfig({
     resolve: {
         // the sources, not dist
         alias: [
+            { find: /^@chamvi\/access$/, replacement: fileURLToPath(new URL('../../access/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/core$/, replacement: fileURLToPath(new URL('../../core/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/http$/, replacement: fileURLToPath(new URL('../../http/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/ui-kit$/, replacement: fileURLToPath(new URL('../src/index.ts', import.meta.url)) },

@@ -23,6 +23,7 @@ export default defineConfig({
     resolve: {
         // the sources, not dist
         alias: [
+            { find: /^@chamvi\/access$/, replacement: source('access/src/index.ts') },
             { find: /^@chamvi\/core$/, replacement: source('core/src/index.ts') },
             { find: /^@chamvi\/core\/conversation\/persistence$/, replacement: source('core/src/conversation/persistence/index.ts') },
             { find: /^@chamvi\/http$/, replacement: source('http/src/index.ts') },

@@ -2,6 +2,7 @@
     "extends": "./tsconfig.build.json",
     "compilerOptions": {
         "paths": {
+            "@chamvi/access": ["./packages/access/src/index.ts"],
             "@chamvi/app": ["./packages/app/src/index.ts"],
             "@chamvi/app/authup": ["./packages/app/src/authup/index.ts"],
             "@chamvi/app/testing": ["./packages/app/src/testing/index.ts"],
