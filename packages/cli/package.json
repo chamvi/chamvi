@@ -68,8 +68,8 @@
         "@chamvi/github": "^0.8.0",
         "@chamvi/test-kit": "^0.8.0",
         "@swc/core": "^1.16.22",
-        "ai": "^7.0.163",
-        "tsdown": "^0.23.5",
+        "ai": "^7.0.165",
+        "tsdown": "^0.23.7",
         "unplugin-swc": "^2.0.0"
     },
     "peerDependencies": {

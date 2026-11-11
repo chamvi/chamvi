@@ -57,7 +57,7 @@
     "devDependencies": {
         "@chamvi/core": "^0.8.0",
         "@chamvi/test-kit": "^0.8.0",
-        "ai": "^7.0.163"
+        "ai": "^7.0.165"
     },
     "peerDependencies": {
         "@chamvi/core": "^0.8.0",

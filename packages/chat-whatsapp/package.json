@@ -64,7 +64,7 @@
         "@chamvi/test-kit": "^0.8.0",
         "@swc/core": "^1.16.22",
         "@testcontainers/postgresql": "^12.2.1",
-        "ai": "^7.0.163",
+        "ai": "^7.0.165",
         "baileys": "7.0.0-rc14",
         "chat": "^4.44.0",
         "pg": "^8.23.1",

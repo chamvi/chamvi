@@ -55,8 +55,8 @@
         "@chamvi/tool-mail": "^0.8.0",
         "@chamvi/ui": "^0.8.0",
         "@chamvi/ui-kit": "^0.8.0",
-        "@playwright/test": "^1.64.1",
-        "ai": "^7.0.163",
+        "@playwright/test": "^1.65.0",
+        "ai": "^7.0.165",
         "vite": "^8.3.6",
         "vue": "^3.5.45",
         "vue-tsc": "^3.3.14"
