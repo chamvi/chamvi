@@ -42,6 +42,11 @@ describe('date_diff', () => {
         await expect(diff({ from: '2026-01-01', to: '2026-01-01T23:30:00Z' })).resolves.toMatchObject({ days: 1 });
     });
 
+    it('reduces a space-separated instant to its date in the zone', async () => {
+        await expect(diff({ from: '2026-01-01', to: '2026-01-01 23:30Z' })).resolves.toMatchObject({ days: 1 });
+        await expect(diff({ from: '2026-01-01 23:30-05:00', to: '2026-01-02' })).resolves.toMatchObject({ days: 0 });
+    });
+
     it('names the bad field', async () => {
         await expect(diff({ from: '2026-01-01', to: 'nope' })).rejects.toThrow(/to/);
     });

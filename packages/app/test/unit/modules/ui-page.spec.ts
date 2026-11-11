@@ -22,10 +22,11 @@ import {
 } from 'vitest';
 import {
     AppToken,
+    ModuleName,
     configModule,
     uiPageModule,
 } from '@chamvi/app';
-import type { Env } from '@chamvi/app';
+import type { Env, IModule, UiAuth } from '@chamvi/app';
 import { ControllableClock } from '@chamvi/test-kit';
 import { buildHarness } from '../../utils/harness.ts';
 import type { Harness } from '../../utils/harness.ts';
@@ -45,7 +46,21 @@ afterEach(async () => {
     await rm(root, { recursive: true, force: true });
 });
 
-async function contributions(env: Env, options: { uiBase?: string; slug?: string } = {}) {
+/** Stands in for `@chamvi/ui`'s `uiModule()`: registers the sign-in its dashboard serves. */
+function dashboardModule(auth: UiAuth): IModule {
+    return {
+        name: ModuleName.UI,
+        async setup(container) {
+            container.register(AppToken.UI_AUTH, { useValue: auth });
+        },
+    };
+}
+
+async function contributions(env: Env, options: {
+    uiBase?: string;
+    slug?: string;
+    dashboard?: IModule;
+} = {}) {
     const clock = new ControllableClock(new Date('2026-11-09T00:00:00Z'));
     const harness = buildHarness({
         env,
@@ -59,6 +74,8 @@ async function contributions(env: Env, options: { uiBase?: string; slug?: string
                 root,
                 ...(options.uiBase ? { uiBase: options.uiBase } : {}),
             }),
+            // after the page: the page must still see the dashboard's sign-in
+            ...(options.dashboard ? [options.dashboard] : []),
         ],
     });
 
@@ -74,8 +91,8 @@ async function contributions(env: Env, options: { uiBase?: string; slug?: string
     };
 }
 
-async function renderIndex(env: Env): Promise<{ result: HttpRouteResult; html: string }> {
-    const { clock, routes } = await contributions(env);
+async function renderIndex(env: Env, dashboard?: IModule): Promise<{ result: HttpRouteResult; html: string }> {
+    const { clock, routes } = await contributions(env, dashboard ? { dashboard } : {});
     const result = await routes[0]!.handler(
         {
             request: new Request('http://test/ui/ext/tool-mail'),
@@ -144,5 +161,18 @@ describe('uiPageModule()', () => {
 
         expect(html).toContain('"clientId":"client"');
         expect(result.headers?.['content-security-policy']).toContain("connect-src 'self' https://auth.example;");
+    });
+
+    it('signs in like the dashboard module, whatever the env says', async () => {
+        const authup = { url: 'https://auth.example/base', clientId: 'code-client' };
+        const { result, html } = await renderIndex(
+            { CHAMVI_UI_AUTHUP_CLIENT_ID: 'env-client', AUTHUP_URL: 'https://env.example' },
+            dashboardModule({ tokens: false, authup }),
+        );
+
+        expect(html).toContain('"auth":{"tokens":false,"authup":{"url":"https://auth.example/base","clientId":"code-client"}}');
+        expect(html).not.toContain('env-client');
+        expect(result.headers?.['content-security-policy']).toContain("connect-src 'self' https://auth.example;");
+        expect(result.headers?.['content-security-policy']).toContain("form-action 'self' https://auth.example;");
     });
 });

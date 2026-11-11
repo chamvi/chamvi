@@ -327,7 +327,7 @@ describe('toolMailModule() configuration', () => {
         expect(home.resolved.state).toBe('configured');
     });
 
-    it('a stored account reads its variables, the env winning', async () => {
+    it('a stored account ignores the variables named after it, with a warning', async () => {
         const server = await fake();
         const store = createMemoryStore();
 
@@ -336,13 +336,19 @@ describe('toolMailModule() configuration', () => {
         const harness = await harnessOf({
             store,
             agents: [accountsAgent()],
-            options: { env: { CHAMVI_MAIL_HOME_USER: 'env-user' } },
+            options: { env: { CHAMVI_MAIL_HOME_USER: 'env-user', CHAMVI_MAIL_HOME_PASSWORD: PASSWORD } },
         });
 
         await runAccounts(harness);
 
-        expect(logins(server).join('\n')).toContain('env-user');
-        expect(connectionOf(harness, 'mail-home').resolved.sources.user).toEqual({ kind: 'env', variable: 'CHAMVI_MAIL_HOME_USER' });
+        expect(logins(server).join('\n')).toContain(STORED_PASSWORD);
+        expect(logins(server).join('\n')).not.toContain('env-user');
+        expect(logins(server).join('\n')).not.toContain(PASSWORD);
+        expect(connectionOf(harness, 'mail-home').resolved.sources).toMatchObject({ user: { kind: 'unset' }, password: { kind: 'store' } });
+        expect(logLines.join('\n')).toContain('CHAMVI_MAIL_HOME_USER');
+        expect(logLines.join('\n')).toContain('CHAMVI_MAIL_HOME_PASSWORD');
+        expect(logLines.join('\n')).not.toContain('env-user');
+        expect(logLines.join('\n')).not.toContain(PASSWORD);
     });
 
     it('a stored account missing a required field is listed incomplete and not used', async () => {
@@ -382,15 +388,17 @@ describe('toolMailModule() configuration', () => {
         expect(step?.error).toMatchObject({ code: 'connection_not_configured' });
     });
 
-    it('a stored account partly set from the env without its password fails naming the variable', async () => {
+    it('a stored account without its password stays incomplete whatever its variables hold: the app starts', async () => {
         const store = createMemoryStore();
 
         await configsOf(store).create('mail-home', MAIL_CONNECTION_TYPE, { settings: { address: 'home@y.test', host: '127.0.0.1' } });
 
-        await expect(harnessOf({
+        const harness = await harnessOf({
             store,
-            options: { env: { CHAMVI_MAIL_HOME_USER: 'env-user' } },
-        })).rejects.toThrow(/CHAMVI_MAIL_HOME_PASSWORD/);
+            options: { env: { CHAMVI_MAIL_HOME_USER: 'env-user', CHAMVI_MAIL_HOME_PASSWORD: PASSWORD } },
+        });
+
+        expect(connectionOf(harness, 'mail-home').resolved).toMatchObject({ state: 'incomplete', missing: ['password'] });
     });
 
     it('ignores a row of the type that is no account name', async () => {

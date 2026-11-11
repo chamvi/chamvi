@@ -13,7 +13,7 @@ import type {
     ResolvedConnection,
 } from '@chamvi/core';
 import { verifyDiscordToken } from '../discord/verify.ts';
-import { DISCORD_CONNECTION_TYPE } from './constants.ts';
+import { DISCORD_CONNECTION_TYPE, DISCORD_OPTION_FIELDS } from './constants.ts';
 import { variableOf } from './helpers.ts';
 import type { DiscordField } from './types.ts';
 
@@ -76,6 +76,18 @@ export function discordConnectionDefinition(options: { apiUrl?: string; fetch?: 
         // saved values only
         test: (values, signal) => verifyDiscordToken(values.token as string, { signal, ...options }),
     };
+}
+
+/** The field a `createDiscordChat` refusal names (`createDiscordChat: policy.roles[0] must ...`), when it names one. */
+export function refusedField(message: string): DiscordField | undefined {
+    const option = /^createDiscordChat: ([\w.]+)[\s[]/.exec(message)?.[1];
+
+    return option !== undefined && Object.hasOwn(DISCORD_OPTION_FIELDS, option) ? DISCORD_OPTION_FIELDS[option] : undefined;
+}
+
+/** Whether the store holds every required field: a connection made in the dashboard, not by the deployment. */
+export function isStoreMade(definition: ConnectionTypeDefinition, resolved: ResolvedConnection): boolean {
+    return definition.fields.every((field) => !field.required || resolved.sources[field.key]?.kind === 'store');
 }
 
 /** How an instance appears in the dashboard. */

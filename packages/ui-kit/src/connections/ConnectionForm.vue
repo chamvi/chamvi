@@ -246,7 +246,7 @@ watch(confirmation, async (open, previous) => {
                     </template>
 
                     <template v-else-if="field.kind === 'secret'">
-                        <template v-if="canEdit && (!field.secretSet || replacing[field.key] || form.mustReenter(field))">
+                        <template v-if="canEdit && form.showsSecretInput(field)">
                             <!-- a password input strips line breaks: a pasted PEM would be saved corrupted -->
                             <VCFormTextarea
                                 v-if="field.multiline"

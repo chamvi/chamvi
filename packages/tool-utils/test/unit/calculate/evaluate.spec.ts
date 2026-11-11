@@ -33,7 +33,13 @@ describe('evaluateExpression', () => {
         ['floor(1.9)', '1'],
         ['ceil(1.1)', '2'],
         ['100 * 1.1', '110'],
-        ['100 + (10%)', '100.1'],
+        // a product, a power or a function argument makes the percentage a plain number
+        ['100 + 10%*1', '100.1'],
+        ['100 + 10%^1', '100.1'],
+        ['sum(100, 10%)', '100.1'],
+        ['100 + (10% * 1)', '100.1'],
+        ['(10%) * 100', '10'],
+        ['(10%)', '0.1'],
         ['1 - 2 - 3', '-4'],
         ['8 / 2 / 2', '2'],
     ])('%s = %s', (expression, expected) => {
@@ -47,6 +53,10 @@ describe('evaluateExpression', () => {
     it.each([
         '100 + 10%',
         '100 - 10%',
+        '100 + (10%)',
+        '100 + ((10%))',
+        '(10%) + 100',
+        '100 - -(10%)',
         'foo',
         'foo(1)',
         'constructor',

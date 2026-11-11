@@ -143,6 +143,18 @@ export type Server = {
     close(closeActiveConnections?: boolean): Promise<void>;
 };
 
+/** The dashboard's sign-in, shared by its `*-ui` pages (one session, so one CSP for the authup refresh). */
+export type UiAuth = {
+    /** Offer the token-paste sign-in (static bearer tokens). */
+    tokens: boolean;
+    authup?: {
+        /** The authup API URL. */
+        url: string;
+        clientId: string;
+        realmId?: string;
+    };
+};
+
 export type AppTokens = {
     CONTEXT: AppContext;
     CONFIG: AppConfig;
@@ -186,4 +198,9 @@ export type AppTokens = {
     CONNECTION_CONFIGS: IConnectionConfigStore;
     /** A collection: the separately built pages modules contribute; the shell lists them from `GET /ui-pages`. */
     UI_PAGES: UiPage;
+    /**
+     * The sign-in the dashboard serves (`uiModule()` registers it in `setup`);
+     * a `*-ui` page reads it, else `readUiAuth()` of the env.
+     */
+    UI_AUTH: UiAuth;
 };

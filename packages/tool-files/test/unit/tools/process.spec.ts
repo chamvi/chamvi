@@ -138,6 +138,39 @@ describe('process_files', () => {
         expect(list).not.toHaveBeenCalled();
     });
 
+    it.each([
+        [['x', 'x/y'], 'x', 'x/y'],
+        [['x/y', 'x'], 'x', 'x/y'],
+        [['a/b', './a/b/c/d'], 'a/b', 'a/b/c/d'],
+    ])('refuses a selected path that is a directory of another: %j', async (paths, file, nested) => {
+        const ctx = toolContext('prefix');
+        const list = vi.spyOn(ctx.artifacts, 'list');
+        const inputs = paths.map((path, index) => ({ artifactId: String(index), path }));
+        const outputs = paths.map((path) => output(path));
+
+        for (const input of [{ command: 'echo x', inputs }, { command: 'echo x', outputs }]) {
+            const error = await callTool(fileTools(), input, ctx).catch((cause: unknown) => cause);
+
+            expect(error).toBeInstanceOf(ValidationError);
+            expect((error as Error).message).toContain(`"${file}"`);
+            expect((error as Error).message).toContain(`"${nested}"`);
+        }
+
+        expect(list).not.toHaveBeenCalled();
+    });
+
+    it('accepts sibling paths that only share a name prefix', async () => {
+        const ctx = toolContext('siblings');
+        const a = await ctx.artifacts.put({ mediaType: 'text/plain', data: text('a') });
+        const b = await ctx.artifacts.put({ mediaType: 'text/plain', data: text('b') });
+        const result = await callTool(fileTools(), {
+            command: 'cat x x.y/z',
+            inputs: [{ artifactId: a.id, path: 'x' }, { artifactId: b.id, path: 'x.y/z' }],
+        }, ctx);
+
+        expect(result.stdout).toBe('ab');
+    });
+
     it('checks aggregate input metadata before reading any selected file', async () => {
         const ctx = toolContext('metadata');
         const a = await ctx.artifacts.put({ mediaType: 'text/plain', data: text('123') });

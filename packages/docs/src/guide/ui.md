@@ -48,7 +48,7 @@ import { uiModule } from '@chamvi/ui/module';
 const modules = [uiModule(), toolMailModule(), toolMailUiModule()];
 ```
 
-Each page is served at `<uiBase>/ext/<slug>` and gets a sidebar item, shown to a principal who may read a connection of its type or holds `connections:create`. A connection without a page is listed under Connections and cannot be edited. A dashboard not at the default `/ui` needs the same value on both sides: `uiModule({ basePath: '/admin' })` and `toolMailUiModule({ uiBase: '/admin' })`. The sign-in modes of the package pages come only from the environment (`CHAMVI_UI_AUTHUP_CLIENT_ID`, `AUTHUP_URL`, `CHAMVI_UI_AUTHUP_REALM_ID`): `uiModule({ auth })` in code configures the dashboard alone, so a deployment using it needs the same values in the environment for the package pages.
+Each page is served at `<uiBase>/ext/<slug>` and gets a sidebar item, shown to a principal who may read a connection of its type or holds `connections:create`. A connection without a page is listed under Connections and cannot be edited. A dashboard not at the default `/ui` needs the same value on both sides: `uiModule({ basePath: '/admin' })` and `toolMailUiModule({ uiBase: '/admin' })`. The package pages sign in like the dashboard: `uiModule({ auth })` in code configures them too, and without `uiModule()` they read the environment (`CHAMVI_UI_AUTHUP_CLIENT_ID`, `AUTHUP_URL`, `CHAMVI_UI_AUTHUP_REALM_ID`).
 
 A page shows one state per field:
 
@@ -64,8 +64,8 @@ The accounts column and the Connections overview show `not configured`, `incompl
 
 Editing and deleting need `connection:<name>:write`, adding an account of a multi-account type (mail, calendar) `connections:create`. Deleting is offered for stored accounts only; an account declared in env or a module cannot be deleted.
 
-::: warning Grant `connections:create` like a credential
-Env wins over a stored value field by field, also for an account added here. A leftover variable such as `CHAMVI_MAIL_WORK_PASSWORD` therefore becomes the password of an account `work` that someone with `connections:create` adds, with a host of their choosing, from the next start on; a test or a tool call then sends it there. Remove the variables of accounts you no longer declare, give `connections:create` only to principals you would trust with those secrets, and keep the app's outbound network limited (the chart's egress policy).
+::: tip An account added here takes its secrets from the store alone
+Env wins over a stored value field by field only for an account the environment declares (one listed in `CHAMVI_MAIL_ACCOUNTS` or `CHAMVI_CALENDAR_ACCOUNTS`). An account that exists only in the store never reads `CHAMVI_MAIL_<ID>_USER`, `CHAMVI_MAIL_<ID>_PASSWORD`, their `_FILE` forms or the calendar equivalents: a leftover `CHAMVI_MAIL_WORK_PASSWORD` is not the password of an account `work` someone adds here, and the start logs a warning naming each ignored variable. An account deleted and added again is tested with its stored values only. Whoever holds `connections:create` still chooses where the secrets they enter are sent, so grant it deliberately and keep the app's outbound network limited (the chart's egress policy).
 :::
 
 ## Sign-in

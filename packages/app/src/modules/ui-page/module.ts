@@ -8,40 +8,25 @@
 import { buildCsp, staticRoutes } from '@chamvi/http';
 import type { StaticCspConfig } from '@chamvi/http';
 import type { IContainer } from 'eldin';
-import type { IModule } from 'orkos';
-import { envString, envUrl } from '../../env/module.ts';
-import type { Env } from '../../env/types.ts';
-import { AppToken } from '../../module/constants.ts';
+import type { IModule, ModuleDependency } from 'orkos';
+import { AppToken, ModuleName } from '../../module/constants.ts';
+import { readUiAuth } from '../../module/helpers.ts';
 import type { UiPageModuleOptions } from './types.ts';
 
 const DEFAULT_UI_BASE = '/ui';
 
-/** The dashboard's sign-in, as `uiModule()` reads it: a page shares its session, so its CSP must let the authup refresh through. */
-function readPageAuth(env: Env) {
-    const clientId = envString(env, 'CHAMVI_UI_AUTHUP_CLIENT_ID');
-
-    if (typeof clientId === 'undefined') {
-        return { tokens: true };
-    }
-
-    const realmId = envString(env, 'CHAMVI_UI_AUTHUP_REALM_ID');
-
-    return {
-        tokens: true,
-        authup: {
-            url: envUrl(env, 'AUTHUP_URL', { required: true, protocols: ['http:', 'https:'] }),
-            clientId,
-            ...(typeof realmId === 'string' && { realmId }),
-        },
-    };
-}
-
 /**
  * Serves a prebuilt `*-ui` page at `<uiBase>/ext/<slug>` (`HTTP_ROUTES`) and
- * registers it with the shell (`UI_PAGES`).
+ * registers it with the shell (`UI_PAGES`). The page shares the dashboard's
+ * session, so it signs in like the dashboard: the `UI_AUTH` the dashboard
+ * module registered (it sets up first), else `readUiAuth()` of the env.
  */
 export class UiPageModule implements IModule {
     readonly name: string;
+
+    readonly dependencies: (string | ModuleDependency)[] = [
+        { name: ModuleName.UI, optional: true },
+    ];
 
     protected options: UiPageModuleOptions;
 
@@ -59,7 +44,9 @@ export class UiPageModule implements IModule {
         } = this.options;
         const uiBase = this.options.uiBase ?? DEFAULT_UI_BASE;
         const path = `${uiBase}/ext/${slug}`;
-        const auth = readPageAuth(container.resolve(AppToken.CONTEXT).env);
+        const auth = container.has(AppToken.UI_AUTH) ?
+            container.resolve(AppToken.UI_AUTH) :
+            readUiAuth(container.resolve(AppToken.CONTEXT).env);
 
         for (const route of staticRoutes({
             path,

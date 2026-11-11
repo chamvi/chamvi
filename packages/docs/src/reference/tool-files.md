@@ -37,7 +37,7 @@ Returns up to 16 native current-run `Artifact` metadata objects without loading 
 
 Each call creates a fresh in-memory filesystem, environment and cwd `/workspace`. `inputs` maps selected current-run artifact IDs to relative paths; `outputs` selects files to publish as native run artifacts. Both lists default to empty, at most 16 items each. No unrelated artifacts, host files or previous call state are imported. Pass a returned artifact ID explicitly to a later call to retain a file. Unselected files disappear after the call.
 
-Paths name relative POSIX files of at most 255 UTF-8 bytes: no absolute paths, `..` components, backslashes, control characters or directory-only paths. Harmless `.` and repeated separators normalize; duplicate normalized paths within a selection are refused. An output may name an input path. Media types are `type/subtype` without parameters.
+Paths name relative POSIX files of at most 255 UTF-8 bytes: no absolute paths, `..` components, backslashes, control characters or directory-only paths. Harmless `.` and repeated separators normalize; duplicate normalized paths within a selection are refused, as is a path that is the directory of another selected path (`x` with `x/y`). An output may name an input path. Media types are `type/subtype` without parameters.
 
 Each selected output must be a regular file and the complete output selection must fit the byte bound before any publication. Raw output bytes are preserved. Returned `Artifact` metadata is the existing core type, usable with `ctx.artifacts.get(id)` and existing artifact-aware tools. No channel delivery happens automatically. See [Artifacts](/reference/#artifacts).
 

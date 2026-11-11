@@ -12,6 +12,19 @@ import { GITHUB_REQUEST_ERROR_CODE } from '../tools/constants.ts';
 import { normalizeAppId, normalizeBaseUrl } from './helpers.ts';
 import type { GithubAppOptions } from './types.ts';
 
+/** The fixed sentence of a failed `GET /app`: a bad JWT gets 401 or 403, a wrong API URL usually 404. */
+function refusalOf(status: number | undefined): string {
+    if (status === 401 || status === 403) {
+        return 'GitHub refused the App ID or private key.';
+    }
+
+    if (status === 404) {
+        return 'GitHub answered 404 at the configured API URL; a GitHub Enterprise Server URL ends in /api/v3.';
+    }
+
+    return 'GitHub cannot be reached at the configured API URL.';
+}
+
 /**
  * Creates the App's JWT and calls `GET /app` on its `baseUrl`, bounded by
  * `signal`. A malformed option is an InvalidAgentDefinitionError; a refusal or a
@@ -38,11 +51,8 @@ export async function verifyGithubApp(
     } catch (error) {
         signal.throwIfAborted();
 
-        const { status } = (error as { status?: number });
-        const refused = status === 401 || status === 403 || status === 404;
-
         throw new ChamviError({
-            message: refused ? 'GitHub refused the App ID or private key.' : 'GitHub cannot be reached at the configured API URL.',
+            message: refusalOf((error as { status?: number }).status),
             code: GITHUB_REQUEST_ERROR_CODE,
         });
     }

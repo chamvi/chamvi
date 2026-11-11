@@ -5,15 +5,17 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { AppToken } from '@chamvi/app';
+import { AppToken, readUiAuth } from '@chamvi/app';
 import type { IContainer, IModule } from '@chamvi/app';
 import { uiRoutes } from '../routes/module.ts';
 import type { UiRoutesOptions } from '../routes/types.ts';
 import { UI_MODULE_NAME } from './constants.ts';
-import { readAuth } from './helpers.ts';
 import type { UiModuleOptions } from './types.ts';
 
-/** Contributes the dashboard's `uiRoutes()` to `AppToken.HTTP_ROUTES`. */
+/**
+ * Contributes the dashboard's `uiRoutes()` to `AppToken.HTTP_ROUTES` and its
+ * sign-in to `AppToken.UI_AUTH`, which the `*-ui` pages serve too.
+ */
 export class UiModule implements IModule {
     readonly name: string = UI_MODULE_NAME;
 
@@ -24,14 +26,25 @@ export class UiModule implements IModule {
 
         this.options = {
             ...options,
-            auth: options.auth ?? readAuth(env ?? process.env),
+            auth: options.auth ?? readUiAuth(env ?? process.env),
         };
     }
 
     async setup(container: IContainer): Promise<void> {
-        for (const route of uiRoutes(this.options)) {
+        // validates the options, auth included, before anything is registered
+        const routes = uiRoutes(this.options);
+        const authup = this.options.auth?.authup;
+
+        for (const route of routes) {
             container.registerMany(AppToken.HTTP_ROUTES, { useValue: route });
         }
+
+        container.register(AppToken.UI_AUTH, {
+            useValue: {
+                tokens: this.options.auth?.tokens ?? true,
+                ...(authup && { authup }),
+            },
+        });
     }
 }
 

@@ -25,7 +25,8 @@ import type { MailEnvAccount, ToolMailModuleOptions } from './types.ts';
  * `CHAMVI_MAIL_ACCOUNTS` with its credential variables) are read and checked
  * when the factory is called (InvalidAgentDefinitionError, never echoing a
  * value). `setup` adds the accounts stored in the connection store, the env
- * winning per field, and fails naming the variable for a declared account
+ * winning per field of a declared account only (a stored-only one reads no
+ * variable), and fails naming the variable for a declared account
  * whose password is in neither; the `accounts` option pins the set, and a
  * check that finds the store behind its migrations warns and goes on with the
  * env. The accounts are listed as connections of the type `mail`. Without

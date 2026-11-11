@@ -15,6 +15,7 @@ import {
     storedConnectionName,
 } from '@chamvi/core';
 import type {
+    Connection,
     ConnectionConfigUpdate,
     ConnectionConfigView,
     ConnectionField,
@@ -84,11 +85,25 @@ function isStorableText(value: unknown): value is string {
 
 /**
  * A provider's list is the state of the last start: a stored account deleted
- * since has no row, and is no longer declared. Connections with no row by
- * nature (env, module) are not deletable, so a missing row says nothing.
+ * since has no row and is not declared, and neither is a row created under
+ * its name after that start (another `createdAt`), which must not inherit the
+ * env and code values the start resolved for the account it loaded (#197).
+ * Connections with no row by nature (env, module) are not deletable, so a
+ * missing row says nothing.
  */
-function isDeleted(ctx: HttpContext, declared: DeclaredConnection, hasRow: boolean): boolean {
-    return ctx.connectionConfigs !== undefined && declared.deletable && !hasRow;
+function isDeleted(ctx: HttpContext, declared: DeclaredConnection, row: Pick<Connection, 'createdAt'> | undefined): boolean {
+    if (ctx.connectionConfigs === undefined || !declared.deletable) {
+        return false;
+    }
+
+    const { loadedCreatedAt } = declared;
+
+    return !row || (loadedCreatedAt !== undefined && row.createdAt.getTime() !== loadedCreatedAt.getTime());
+}
+
+/** Whether the last start loaded `name`: the process holds it until a restart, whatever the store says now. */
+function isLoaded(ctx: HttpContext, name: string): boolean {
+    return ctx.connectionTypes().some((provider) => provider.connections().some((connection) => connection.name === name));
 }
 
 async function findDeclared(ctx: HttpContext, name: string): Promise<ConfigTarget | undefined> {
@@ -96,9 +111,9 @@ async function findDeclared(ctx: HttpContext, name: string): Promise<ConfigTarge
         const declared = provider.connections().find((connection) => connection.name === name);
 
         if (declared) {
-            const hasRow = !declared.deletable || await ctx.store.connections?.findOne(name) !== undefined;
+            const row = declared.deletable ? await ctx.store.connections?.findOne(name) : undefined;
 
-            return isDeleted(ctx, declared, hasRow) ?
+            return isDeleted(ctx, declared, row) ?
                 undefined :
                 {
                     name,
@@ -382,13 +397,17 @@ function toConfigUpdate(
     }
 
     const clear = input.clear ?? [];
-
-    for (const key of clear) {
-        secretField(key, ['secrets', 'clear', key]);
-    }
-
     const newSettings = Object.fromEntries(settings);
     const newSecrets = Object.fromEntries(set);
+
+    for (const key of clear) {
+        const path = ['secrets', 'clear', key];
+
+        // the store applies a clear after a set: the new value would be dropped without a word
+        if (secretField(key, path) && Object.hasOwn(newSecrets, key)) {
+            fail(path, 'is also set: either set or clear it');
+        }
+    }
 
     // clearing is the one way a required value may go, also when an earlier clear already took another
     const clearOnly = !input.settings && set.length === 0 && clear.length > 0;
@@ -454,7 +473,7 @@ async function assertUnique(ctx: HttpContext, definition: ConnectionTypeDefiniti
     const wanted = definition.uniqueId(values);
     const conflict = new ConflictError({ message: 'An account with the same identity already exists.' });
     const rows = await ctx.store.connections?.find() ?? [];
-    const rowNames = new Set(rows.map((row) => row.name));
+    const rowsByName = new Map(rows.map((row) => [row.name, row]));
     const declaredNames = new Set<string>();
 
     for (const candidate of ctx.connectionTypes()) {
@@ -463,7 +482,7 @@ async function assertUnique(ctx: HttpContext, definition: ConnectionTypeDefiniti
         }
 
         for (const declared of candidate.connections()) {
-            if (isDeleted(ctx, declared, rowNames.has(declared.name))) {
+            if (isDeleted(ctx, declared, rowsByName.get(declared.name))) {
                 continue;
             }
 
@@ -474,7 +493,7 @@ async function assertUnique(ctx: HttpContext, definition: ConnectionTypeDefiniti
             }
 
             // a provider's list is the last start's: the store holds any edit since
-            const stored = rowNames.has(declared.name) ? await ctx.connectionConfigs?.describe(declared.name) : undefined;
+            const stored = rowsByName.has(declared.name) ? await ctx.connectionConfigs?.describe(declared.name) : undefined;
             const current = stored ?
                 identityValues({
                     name: declared.name, 
@@ -554,22 +573,40 @@ function assertSecretsRebound(target: ConfigTarget, stored: ConnectionConfigView
     }
 }
 
+/** Whether a save would leave the stored configuration as it is: such a save writes nothing and asks for no restart. */
+function isUnchanged(update: ConnectionConfigUpdate, stored: ConnectionConfigView | undefined): boolean {
+    if (update.secrets) {
+        return false;
+    }
+
+    if (!update.settings) {
+        return true;
+    }
+
+    const before = stored?.settings ?? {};
+    const keys = Object.keys(update.settings);
+
+    return keys.length === Object.keys(before).length &&
+        keys.every((key) => Object.hasOwn(before, key) && JSON.stringify(update.settings?.[key]) === JSON.stringify(before[key]));
+}
+
 /**
  * `create` found the name taken: a row with no config is what a crash between
  * the row and its config leaves, so the typed values repair it; anything else
- * is a real clash.
+ * is a real clash. The same row is what a create in flight holds before its
+ * config write, so the repair is guarded by the revision it read: one of the
+ * two writes is refused (409).
  */
 async function repairBareRow(ctx: HttpContext, name: string, type: string, update: ConnectionConfigUpdate): Promise<void> {
     const configs = requireConfigs(ctx);
     const row = await ctx.store.connections?.findOne(name);
     const stored = await configs.describe(name);
-    const isBare = row?.type === type && stored?.revision === 0;
 
-    if (!isBare) {
+    if (row?.type !== type || stored?.revision !== 0) {
         throw new ConflictError({ message: `The connection "${name}" already exists.` });
     }
 
-    await configs.update(name, update);
+    await configs.update(name, update, { revision: stored.revision });
 }
 
 function serializeType(ctx: HttpContext, provider: IConnectionTypeProvider): ConnectionTypeView {
@@ -661,11 +698,11 @@ export async function listConnections(ctx: HttpContext): Promise<ConnectionView[
     const views = new Map<string, ConnectionView>(ctx.connections().map((handle) => [handle.name, serializeConnection(handle)]));
     const declared = new Set<string>();
     const rows = ctx.connectionConfigs && ctx.connectionTypes().length > 0 ? await ctx.store.connections?.find() ?? [] : [];
-    const rowNames = new Set(rows.map((row) => row.name));
+    const rowsByName = new Map(rows.map((row) => [row.name, row]));
 
     for (const provider of ctx.connectionTypes()) {
         for (const connection of provider.connections()) {
-            if (isDeleted(ctx, connection, rowNames.has(connection.name))) {
+            if (isDeleted(ctx, connection, rowsByName.get(connection.name))) {
                 continue;
             }
 
@@ -840,6 +877,12 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
             }
         }
 
+        event.response.headers.set('cache-control', 'private, no-store');
+
+        if (isUnchanged(update, stored)) {
+            return buildSettingsView(ctx, target);
+        }
+
         await refuseWithoutKeyring(async () => {
             // a declared connection has no row until its first save; create leaves an existing one alone.
             // The checks above read `stored`: a save that landed since then refuses this one (409),
@@ -851,8 +894,6 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
                 throw new ConnectionChangedError(target.name);
             }
         });
-
-        event.response.headers.set('cache-control', 'private, no-store');
 
         return buildSettingsView(ctx, target);
     }));
@@ -868,7 +909,7 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
 
         await configs.delete(target.name, `http:${principal.id}`);
 
-        return { restartRequired: target.declared !== undefined };
+        return { restartRequired: isLoaded(ctx, target.name) };
     }));
 
     app.post('/connections/:name/test', defineCoreHandler(async (event): Promise<ConnectionTestView> => {

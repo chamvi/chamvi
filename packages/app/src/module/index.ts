@@ -16,6 +16,7 @@ export {
 } from './constants.ts';
 export {
     readStoredConnections,
+    readUiAuth,
     runHooks,
     throwIfStopped,
 } from './helpers.ts';
