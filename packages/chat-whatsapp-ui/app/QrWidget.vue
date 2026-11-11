@@ -7,7 +7,7 @@
  */
 
 import { computed } from 'vue';
-import { qrDataUrl } from '@chamvi/ui-kit';
+import { qrDataUrl } from './helpers.ts';
 
 // pairing material: rendered here only, never shown as text or logged
 const props = defineProps<{ value: string }>();
@@ -26,3 +26,9 @@ const src = computed(() => qrDataUrl(props.value));
         <figcaption>Scan with the app to link this connection. The code changes while it waits.</figcaption>
     </figure>
 </template>
+
+<style scoped>
+.qr-widget { display: grid; justify-items: start; gap: 10px; margin: 0; }
+.qr-widget img { width: 264px; max-width: 100%; height: auto; background: #fff; border-radius: var(--ch-radius); image-rendering: pixelated; }
+.qr-widget figcaption { font-size: 12.5px; color: var(--ch-muted); }
+</style>

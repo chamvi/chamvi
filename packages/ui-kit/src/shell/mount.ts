@@ -8,19 +8,6 @@
  */
 
 import { addCollection } from '@iconify/vue';
-import installButton from '@vuecs/button';
-import vuecs from '@vuecs/core';
-import installCountdown from '@vuecs/countdown';
-import installElements from '@vuecs/elements';
-import installForms from '@vuecs/forms';
-import installIcon from '@vuecs/icon';
-import lucide from '@vuecs/icons-lucide';
-import installOverlays from '@vuecs/overlays';
-import installPagination from '@vuecs/pagination';
-import installPlaceholder from '@vuecs/placeholder';
-import installTable from '@vuecs/table';
-import tailwind from '@vuecs/theme-tailwind';
-import installTimeago from '@vuecs/timeago';
 import { createApp } from 'vue';
 import type { Component } from 'vue';
 import { createApiClient } from '../api/module.ts';
@@ -30,9 +17,8 @@ import { createSession } from '../auth/module.ts';
 import type { IAuthupAdapter } from '../auth/types.ts';
 import { readConfig } from '../config/module.ts';
 import { install } from '../module.ts';
-import { FORM_THEME } from './constants.ts';
 import type { MountPageOptions } from './types.ts';
-import { installValidation } from './validation.ts';
+import { installVuecs } from './vuecs.ts';
 
 /**
  * Boots one page: icons, authup when configured, vuecs, the session, the
@@ -58,24 +44,7 @@ export async function mountPage(component: Component, options: MountPageOptions 
         adapter = createAuthupAdapter(app, config.auth.authup, config.uiBase);
     }
 
-    app.use(vuecs, { themes: [tailwind(), FORM_THEME], icons: [lucide()] });
-
-    for (const plugin of [
-        installIcon,
-        installButton,
-        installCountdown,
-        installElements,
-        installForms,
-        installOverlays,
-        installPagination,
-        installPlaceholder,
-        installTable,
-        installTimeago,
-    ]) {
-        app.use(plugin);
-    }
-
-    installValidation(app);
+    installVuecs(app);
 
     let client: IApiClient;
     const session = createSession(config, {

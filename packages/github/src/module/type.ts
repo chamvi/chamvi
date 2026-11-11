@@ -47,7 +47,7 @@ export function githubConnectionDefinition(): ConnectionTypeDefinition {
                 label: 'Private key',
                 kind: 'secret',
                 required: true,
-                description: 'PEM; literal \\n sequences allowed.',
+                description: 'The downloaded PEM, pasted as is.',
             }),
             fieldOf('webhookSecret', {
                 label: 'Webhook secret',

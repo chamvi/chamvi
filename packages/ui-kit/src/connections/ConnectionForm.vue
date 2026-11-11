@@ -75,7 +75,7 @@ const heading = computed(() => {
         return `Add ${label} account`;
     }
 
-    return definition.value?.multiple ? `${label} account: ${accountId.value}` : `${label}: ${accountId.value}`;
+    return definition.value?.multiple ? `${label} account: ${accountId.value}` : `${label}: ${props.name}`;
 });
 
 /** A field's validation state; its `$model` writes mark it dirty and drop the server's issue there. */
