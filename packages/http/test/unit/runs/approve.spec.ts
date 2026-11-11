@@ -10,11 +10,13 @@ import {
     expect,
     it,
 } from 'vitest';
+import { Permission } from '@chamvi/access';
 import {
     ADMIN_TOKEN,
     approvalWaitOf,
     call,
     createRunTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import type { TestAppOverrides } from '../../utils/app.ts';
@@ -47,7 +49,7 @@ describe('POST /runs/:id/approve', () => {
             runId,
             waiting,
         } = await pausedGate();
-        const approver = tokenFor('agent:gate:approve', 'run:read');
+        const approver = tokenFor(restricted(Permission.AGENT_APPROVE, { name: 'gate' }), Permission.RUN_READ);
         const response = await call(app, 'POST', `/runs/${runId}/approve`, {
             token: approver,
             body: { approvalId: waiting.approvalId, approved: true },
@@ -66,7 +68,7 @@ describe('POST /runs/:id/approve', () => {
         expect(wait?.output).toEqual({
             approvalId: waiting.approvalId,
             approved: true,
-            approver: { id: 'p:agent:gate:approve,run:read', kind: 'token' },
+            approver: { id: 'p:chamvi_agent_approve,chamvi_run_read', kind: 'token' },
         });
         await engine.drain();
     });
@@ -178,7 +180,7 @@ describe('POST /runs/:id/approve', () => {
     it('404 before 403', async () => {
         const { app, engine } = createRunTestApp();
         const response = await call(app, 'POST', '/runs/unknown/approve', {
-            token: tokenFor('run:read'),
+            token: tokenFor(Permission.RUN_READ),
             body: { approvalId: 'a', approved: true },
         });
 
@@ -198,7 +200,7 @@ describe('POST /runs/:id/approve', () => {
         await engine.drain();
     });
 
-    it('403 without agent:<agent>:approve', async () => {
+    it('403 without chamvi_agent_approve', async () => {
         const {
             app,
             engine,
@@ -207,14 +209,40 @@ describe('POST /runs/:id/approve', () => {
             waiting,
         } = await pausedGate();
         const response = await call(app, 'POST', `/runs/${runId}/approve`, {
-            token: tokenFor('agent:gate:run', 'run:read'),
+            token: tokenFor(restricted(Permission.AGENT_RUN, { name: 'gate' }), Permission.RUN_READ),
             body: { approvalId: waiting.approvalId, approved: true },
         });
 
         expect(response.status).toBe(403);
-        expect((await response.json()).message).toBe('Missing permission "agent:gate:approve".');
+        expect((await response.json()).message).toBe('Missing permission "chamvi_agent_approve".');
         expect((await store.runs.findOne(runId))?.status).toBe('waiting');
         await engine.drain();
+    });
+
+    it('approves only the agent a restricted approve grant names', async () => {
+        const gate = await pausedGate();
+        const token = tokenFor(restricted(Permission.AGENT_APPROVE, { name: 'choose' }));
+        const refused = await call(gate.app, 'POST', `/runs/${gate.runId}/approve`, {
+            token,
+            body: { approvalId: gate.waiting.approvalId, approved: true },
+        });
+
+        expect(refused.status).toBe(403);
+        expect((await gate.store.runs.findOne(gate.runId))?.status).toBe('waiting');
+        await gate.engine.drain();
+
+        const choose = await pausedGate({}, 'choose');
+        const allowed = await call(choose.app, 'POST', `/runs/${choose.runId}/approve`, {
+            token,
+            body: {
+                approvalId: choose.waiting.approvalId,
+                approved: true,
+                selected: ['a'],
+            },
+        });
+
+        expect(allowed.status).toBe(202);
+        await choose.engine.drain();
     });
 
     it('authorizes before reading the body', async () => {
@@ -224,7 +252,7 @@ describe('POST /runs/:id/approve', () => {
             runId,
         } = await pausedGate({ bodyLimit: 1024 });
         const response = await call(app, 'POST', `/runs/${runId}/approve`, {
-            token: tokenFor('run:read'),
+            token: tokenFor(Permission.RUN_READ),
             body: { approvalId: 'a'.repeat(4096), approved: true },
         });
 

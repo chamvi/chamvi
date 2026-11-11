@@ -86,7 +86,7 @@ export async function createAgentServer(model: LanguageModel) {
             tokens: [{
                 value: token,
                 id: 'ci',
-                permissions: ['*'],
+                permissions: '*',
             }],
         }),
         shutdown,
@@ -113,22 +113,22 @@ Paths are relative to `basePath` (default none).
 
 | Method and path | Permission | Answer |
 |---|---|---|
-| `POST /agents/:name/runs` | `agent:<name>:run` | `202 { runId, deduplicated }`; body `{ payload?, idempotencyKey?, address?, attachments? }`, the key also as an `Idempotency-Key` header; the agent needs an `http.on()` subscription; runs carry channel `http` |
-| `GET /runs` | `run:read`, or `agent:<agent>:run` with `filter[agent]=<agent>` | `200 { data, meta: { total, limit, offset } }` |
-| `GET /runs/:id` | `run:read` or `agent:<run.agent>:run` | `200` the run plus its `steps` |
+| `POST /agents/:name/runs` | `chamvi_agent_run` | `202 { runId, deduplicated }`; body `{ payload?, idempotencyKey?, address?, attachments? }`, the key also as an `Idempotency-Key` header; the agent needs an `http.on()` subscription; runs carry channel `http` |
+| `GET /runs` | the read rule of each listed run's agent (below) | `200 { data, meta: { total, limit, offset } }` |
+| `GET /runs/:id` | the read rule of the run's agent (below) | `200` the run plus its `steps` |
 | `GET /runs/:id/stream` | as `GET /runs/:id` | SSE: `run.updated`, `step.appended` (`id` = step index), `delta` (live model output, no `id`), `ping`; ends once the run settled. `Last-Event-ID` or `?after=<step index>` resumes; `503` with `Retry-After` over `stream.maxOpen` |
 | `GET /runs/:id/artifacts` | as `GET /runs/:id` | `200 { data: Artifact[] }`: the run's attachments and the files its tools stored |
 | `GET /runs/:id/artifacts/:artifactId` | as `GET /runs/:id` | `200` the bytes: stored media type, `content-disposition: attachment` (RFC 5987 `filename*` when named), `nosniff`, `private, no-store`; `404 artifact_not_found` for an unknown artifact or one of another run |
-| `POST /runs/:id/cancel` | `run:cancel` | `202 { runId, status }` |
-| `POST /runs/:id/approve` | `agent:<run.agent>:approve` | `202 { runId, status: 'queued' }`; body `{ approvalId, approved, reason? }`; answers the run's current wait point without a token (409 for another `approvalId`, an expired wait point or a run not waiting) |
+| `POST /runs/:id/cancel` | `chamvi_run_cancel` | `202 { runId, status }` |
+| `POST /runs/:id/approve` | `chamvi_agent_approve` | `202 { runId, status: 'queued' }`; body `{ approvalId, approved, reason? }`; answers the run's current wait point without a token (409 for another `approvalId`, an expired wait point or a run not waiting) |
 | `POST /channels/<name>[/...]` | the channel's own | Whatever the channel's `in` answers; only for the channels in the `channels` option (see [Channels](#channels)) |
-| `GET /agents` | `run:read` | `200 { data: AgentSummary[], issues }`: subscriptions `{ channel, id, hook? }` (`hook`: the path of a subscription to a webhook channel this app mounts), budget, state collections; `issues` lists agents that failed to load |
-| `GET /schedules` | `run:read` | `200 { data: ScheduleSummary[] }`: every cron subscription (`@chamvi/channel-cron`'s `cron.on()`) with its channel and next fire time (from the definitions, not from a running scheduler) |
-| `GET /agents/:name/state/kv` | `state:read` | `200 { data: Array<{ key, value }> }` in key code-point order; `page[limit]` (default 50, at most 100), `page[offset]` |
-| `GET /agents/:name/state/kv/:key` | `state:read` | `200 { key, value }` (`null` when unset) |
-| `PATCH /agents/:name/state/kv/:key` | `state:write` | `200 { key, value }`; body `{ value }` |
-| `GET /agents/:name/state/collections/:collection` | `state:read` | `200 { data }`, each document `{ id, ...fields }` (a non-object document as `{ id, doc }`); top-level equality filters (`filter[status]=open`; rapiq turns `42`, `007`, `true` and `null` into a number, boolean or null, so double-quote a value to match it as a string: `filter[issue]="42"`), `page[limit]`; `id` is the store id, not a document field, so `filter[id]` is 400; a `page[offset]` above 0 is 400 (the store pages by limit only) |
-| `GET /me` | authenticated | `200 { id, kind, name?, permissions }`: the caller itself (the name as an invoker records it), with its own permissions only |
+| `GET /agents` | `chamvi_run_read` (lists the agents it reaches) | `200 { data: AgentSummary[], issues }`: subscriptions `{ channel, id, hook? }` (`hook`: the path of a subscription to a webhook channel this app mounts), budget, state collections; `issues` lists agents that failed to load |
+| `GET /schedules` | `chamvi_run_read` (of the agents it reaches) | `200 { data: ScheduleSummary[] }`: every cron subscription (`@chamvi/channel-cron`'s `cron.on()`) with its channel and next fire time (from the definitions, not from a running scheduler) |
+| `GET /agents/:name/state/kv` | `chamvi_state_read` | `200 { data: Array<{ key, value }> }` in key code-point order; `page[limit]` (default 50, at most 100), `page[offset]` |
+| `GET /agents/:name/state/kv/:key` | `chamvi_state_read` | `200 { key, value }` (`null` when unset) |
+| `PATCH /agents/:name/state/kv/:key` | `chamvi_state_write` | `200 { key, value }`; body `{ value }` |
+| `GET /agents/:name/state/collections/:collection` | `chamvi_state_read` | `200 { data }`, each document `{ id, ...fields }` (a non-object document as `{ id, doc }`); top-level equality filters (`filter[status]=open`; rapiq turns `42`, `007`, `true` and `null` into a number, boolean or null, so double-quote a value to match it as a string: `filter[issue]="42"`), `page[limit]`; `id` is the store id, not a document field, so `filter[id]` is 400; a `page[offset]` above 0 is 400 (the store pages by limit only) |
+| `GET /me` | authenticated | `200 { id, kind, name?, permissions, identity? }`: the caller itself (the name as an invoker records it), with its own permission bindings only, for a client to evaluate with `@chamvi/access` |
 | `/mcp` | authenticated | The MCP endpoint (see [MCP tools](#mcp-tools)) |
 | `GET /healthz` | none | `200 { status: 'ok' }` |
 | `GET /readyz` | none | `200`, or `503 { status: 'unavailable', reason }` with `shutting-down`, `draining` or `store-unreachable` |
@@ -142,7 +142,7 @@ Bodies are JSON (`application/json` or `*+json`), at most `bodyLimit` bytes (413
 
 `GET /runs/:id` answers 404 before 403, so any authenticated principal can tell whether a run id exists; run ids are random UUIDs. Runs on the wire never carry the internal `claim` (owner and lease).
 
-`POST /agents/:name/runs` and MCP `run_<agent>` record the authenticated principal as the run's invoker (`run.trigger.invoker`: `id`, `kind`, `permissions`, and a `name` from the `name` or `preferred_username` claim, never `email`, since every reader of the run sees it; static tokens have none), so tool code and a core `toolPolicy` can tell who started the run. `POST /runs/:id/approve` and MCP `approve_run` record the approver on the `wait` step (`output.approver`). Both come only from the authenticator, never from a body. Webhook runs have no invoker. The invoker and approver leave the package (REST, SSE, MCP) without their `permissions`, so a `run:read` holder never learns another principal's grants.
+`POST /agents/:name/runs` and MCP `run_<agent>` record the authenticated principal as the run's invoker (`run.trigger.invoker`: `id`, `kind`, `permissions`, `identity` when the authenticator set one, and a `name` from the `name` or `preferred_username` claim, never `email`, since every reader of the run sees it; static tokens have none), so tool code and a core `toolPolicy` can tell who started the run. `POST /runs/:id/approve` and MCP `approve_run` record the approver on the `wait` step (`output.approver`). Both come only from the authenticator, never from a body. Webhook runs have no invoker. The invoker and approver leave the package (REST, SSE, MCP) without their `permissions`, so a reader of the run never learns another principal's grants.
 
 The SSE stream follows the run through `engine.on` and polls the store every `stream.pollMs` (default 2 s), so it also sees a run executing on another replica. `delta` events (`data: { step, kind: 'text' | 'reasoning', text }`) forward the engine's `run.delta` while the model writes (`step` is the checkpoint step index of the `llm` step being generated (one per model call), not the `step.appended` `id`, which also counts `tool` and `wait` rows); they have no `id` (`Last-Event-ID` stays a step index), are never replayed and come only from the replica executing the run. `Last-Event-ID` resumes after a step index; the query `?after=<step index>` does the same for clients that cannot set the header (a non-negative integer, given once, else 400). When both are present a valid `Last-Event-ID` wins, since it carries the client's progress on a reconnect while the URL stays the one of the first connect; a malformed `Last-Event-ID` reads as absent and `?after` applies.
 
@@ -152,22 +152,26 @@ Each app caps the open SSE streams plus the MCP `run_<agent>` calls that wait (`
 
 ## Permissions
 
-| Permission | Grants |
-|---|---|
-| `agent:<name>:run` | Start runs of the agent (REST, `webhookChannel()` deliveries, MCP `run_<name>`) and read them |
-| `agent:<name>:approve` | Answer the agent's approvals (`POST /runs/:id/approve`, MCP `approve_run`) |
-| `run:read` | Read and list every run, the agents and the schedules |
-| `run:cancel` | Cancel runs |
-| `state:read`, `state:write` | Read and write agent state |
-| `*` | Everything |
+A principal holds permission bindings (`{ permission: { name }, policies? }`, authup's `PermissionPolicyBinding` with resolved policy trees), checked with `can()` and `canSome()` of `@chamvi/access`: a binding grants its name when its policies pass for the resource's attributes, at the engine clock's time. Names are static; a policy narrows a grant to resources, e.g. `{ type: 'attributes', query: { name: 'triage' } }` for one agent.
 
-A `*` segment matches exactly one segment: `agent:*:run` grants `agent:triage:run` but not `agent:triage:approve`, and `agent:*` grants neither. Matching is case-sensitive. `agentPermission(agent, action)` is exported; to check a principal yourself, use `hasPermission(principal.permissions, permission)` from `@chamvi/core`, the matcher the routes use.
+| Permission | Attributes | Grants |
+|---|---|---|
+| `chamvi_agent_run` | `name`, `private` | Start runs of the agent (REST, `webhookChannel()` deliveries, MCP `run_<name>`) and read them when the agent is not private |
+| `chamvi_agent_approve` | `name`, `private` | Answer the agent's approvals (`POST /runs/:id/approve`, MCP `approve_run`) |
+| `chamvi_agent_read` | `name`, `private` | Read the agent's runs and, for a private agent, its state; unrestricted, list every run |
+| `chamvi_run_read` | `agent` | Read and list the runs of a public agent; list the agents and schedules |
+| `chamvi_run_cancel` | `agent` | Cancel the agent's runs |
+| `chamvi_state_read`, `chamvi_state_write` | `name` | Read and write the agent's state |
+| `chamvi_connection_read`, `chamvi_connection_write` | `name`, `type` | Read a connection (`/connections`, its configuration); write also sees its widgets (a pairing QR), streams, resets, edits, tests and deletes it. Write implies read |
+| `chamvi_connection_create` | `type` | Create accounts of the type |
+
+A route on one resource checks with its attributes (`can`), before it answers 404, so a restricted principal cannot probe names; an agent the app does not hold counts as `private: true`. A collection gate (`GET /agents`, `GET /schedules`, `GET /runs` without a filter) checks without attributes (`canSome`: a policy whose data is missing passes), then each row is checked with its own attributes. A private agent's runs and state need `chamvi_agent_read` for it; `GET /runs` without `filter[agent]` lists every run only for an unrestricted `chamvi_agent_read`, otherwise the runs of the registered agents the principal may read. `request.authorize(name, attributes?)` of an extra route takes any name, an app's own included.
 
 `POST /runs/:id/approve { approvalId, approved, reason? }` answers the current wait point with the approve permission alone; another `approvalId` than the run's current one, an expired wait point, a run that is not waiting and a second answer are 409.
 
 ## Authenticators
 
-`auth` takes one authenticator or a chain; the first principal wins. An authenticator resolves `undefined` for a request it does not recognize (the chain continues) and throws a 401 for credentials it rejects. A resolved principal needs a non-empty `id` and `kind` and a `permissions` array of strings; anything else is a server misconfiguration (500, reported to `onError`) and ends the chain.
+`auth` takes one authenticator or a chain; the first principal wins. An authenticator resolves `undefined` for a request it does not recognize (the chain continues) and throws a 401 for credentials it rejects. A resolved principal needs a non-empty `id` and `kind`, a `permissions` array of permission bindings and, when given, an `identity` of type `user` or `client` with a non-empty `id`; anything else is a server misconfiguration (500, reported to `onError`) and ends the chain.
 
 ```ts
 const ciToken = process.env.CI_TOKEN;
@@ -178,18 +182,22 @@ auth: [
             tokens: [{
                 value: ciToken,
                 id: 'ci',
-                permissions: ['agent:deploy:run'],
+                permissions: [{
+                    permission: { name: 'chamvi_agent_run' },
+                    policies: [{ type: 'attributes', query: { name: 'deploy' } }],
+                }],
             }],
         })] :
         []),
-    // an authup TokenVerifier in remote mode (with a creator), so tokens carry their grants
-    authup({ verifier }),
+    // an authup TokenVerifier in remote mode (with a creator), so tokens carry their grants;
+    // catalog() reads authup's GET /authorization, realm() names chamvi's realm
+    authup({ verifier, catalog, realm }),
     oidc({ issuers: [githubActions], principal: mapGithubClaims }),
 ],
 ```
 
-- **`staticTokens({ tokens: [{ value, id, permissions }] })`**: bearer tokens (`value`) of at least 16 characters, compared by SHA-256 digest. A `value` may appear once; several tokens may share an `id`, so a rotated token can overlap with the old one. Fits CI and service accounts. Put it **before** `authup()` and `oidc()`: `authup()` in remote mode sends every bearer that is not a JWT to the authup server's introspection endpoint, so a static token placed after it leaks to that server on every request.
-- **`authup({ verifier })`**: verifies through `@authup/server-adapter-web`. A token grants its permissions only when its `scope` contains `global`; other tokens keep their identity but grant nothing (so they answer 403). Local verification always yields no permissions: grants need remote mode (`creator`, introspection). Permission `policies`, `realm_id` and `client_id` are not evaluated. Caching: a cached result is served until the token's `exp`, so in local mode it outlives a disabled signing key and in remote mode a revoked token (`maxRemoteCacheTTL` bounds remote caching); without `cache`, nothing is cached.
+- **`staticTokens({ tokens: [{ value, id, permissions }] })`**: bearer tokens (`value`) of at least 16 characters, compared by SHA-256 digest. `permissions` is `'*'` (every `chamvi_*` permission, unrestricted) or an array of bindings, kept as configured; anything else (an old string such as `agent:triage:run`) throws `InvalidAgentDefinitionError`. A `value` may appear once; several tokens may share an `id`, so a rotated token can overlap with the old one. Fits CI and service accounts. Put it **before** `authup()` and `oidc()`: `authup()` in remote mode sends every bearer that is not a JWT to the authup server's introspection endpoint, so a static token placed after it leaks to that server on every request.
+- **`authup({ verifier, catalog, realm, catalogMaxAgeMs?, clock?, onError? })`**: verifies through `@authup/server-adapter-web`. A token grants its permissions only when its `scope` contains `global` and its subject is a user or a client; other tokens keep their identity but grant nothing (so they answer 403). Local verification always yields no permissions: grants need remote mode (`creator`, introspection). Each grant becomes a binding whose policies are resolved from authup's catalog (`catalog()` reads `GET /authorization`, which needs `permission_read` with a realm scope of `ownOrNull` or wider, since `own` does not reach the global definitions and they arrive with `policies: null`, reported to `onError` once per read; cached in the process for `catalogMaxAgeMs` (default 60 s, on `clock`), read again earlier when a grant names a definition or policy the copy lacks; a body that is not a catalog counts as a failed read): the definition's trees without their `permissionBinding` check, then the grant's own trees. Realm reach is settled at login against `realm()`, the realm of chamvi's authup client: an `own` grant works for identities of that realm, other realms need `any`. A grant that cannot be expressed exactly (a definition with `policies: null`, a tree this copy cannot project, a binding check under `invert` or a non-unanimous composite, a definition owned by another realm or a client) is dropped; the other grants still apply. A catalog or realm that cannot be read grants nothing and goes to `onError` (default `console.error`); static tokens keep working. Caching: a cached result is served until the token's `exp`, so in local mode it outlives a disabled signing key and in remote mode a revoked token (`maxRemoteCacheTTL` bounds remote caching); without `cache`, nothing is cached.
 - **`oidc({ issuers, principal })`**: any OIDC issuer through vouchly, e.g. GitHub Actions tokens. Every issuer needs an `audience` (vouchly skips the `aud` check without one, so a public issuer's tokens for any audience would pass; `oidc()` throws otherwise). `principal` is **required** and maps the verified claims to a principal (or `undefined` to refuse it): a public issuer lets anyone mint a token for your audience, so the deployment decides which `sub` or `repository` gets which grants. A token from an issuer that is not configured passes to the next authenticator; an unreachable issuer answers 503.
 
 ## Channels
@@ -197,7 +205,7 @@ auth: [
 Agents subscribe to channels (`defineModelAgent({ channels: [...] })`, see `@chamvi/core`); the engine holds the channel instances (`new Engine({ channels })`). This package ships three:
 
 - **`httpChannel()`** (name `http`) and **`mcpChannel()`** (name `mcp`): no `in`, no `out`. **`http.on({ schema? })`** is the control-plane subscription (id `http`, at most one per agent): REST `POST /agents/:name/runs` starts runs through it as channel `http`, and MCP `run_<name>` as channel `mcp`, so the two keep separate idempotency scopes. An agent without it answers 404 on REST and gets no MCP tool. `schema` (any Standard Schema) validates the payload; failures answer 400 with `issues`. The engine refuses an `http.on()` subscription unless it holds `httpChannel()`.
-- **`webhookChannel({ auth, name?, bodyLimit? })`** (name `webhook` by default): **`webhook.on(path, { schema?, idempotencyKey?, concurrencyKey? })`** (id `webhook:<path>`, many per agent) is served on its own path under the agent: `webhook.on('/issues')` on agent `intake` is `POST /channels/webhook/intake/issues`, a path of `/` is `/channels/webhook/intake` (`GET /agents` lists each `hook` URL). The match is exact, a trailing slash included. A delivery needs a principal of `auth` (one authenticator or a chain, as the app's `auth`; required, since the app never authenticates channel routes) holding `agent:<agent>:run`, checked before the body is read. The body is any JSON value of at most `bodyLimit` bytes (default 1 MiB; 413 above, 415 for another media type) and is the payload. The idempotency key comes from the `Idempotency-Key` header, else from `idempotencyKey(payload)`; retried deliveries with one key create one run. It answers 202 right away and never runs the agent synchronously; runs carry no invoker. A second instance (`webhookChannel({ name: 'hooks', auth })`) makes its subscriptions with its own `on()`. Signature-verified webhooks (GitHub) are `@chamvi/github`'s channel.
+- **`webhookChannel({ auth, name?, bodyLimit? })`** (name `webhook` by default): **`webhook.on(path, { schema?, idempotencyKey?, concurrencyKey? })`** (id `webhook:<path>`, many per agent) is served on its own path under the agent: `webhook.on('/issues')` on agent `intake` is `POST /channels/webhook/intake/issues`, a path of `/` is `/channels/webhook/intake` (`GET /agents` lists each `hook` URL). The match is exact, a trailing slash included. A delivery needs a principal of `auth` (one authenticator or a chain, as the app's `auth`; required, since the app never authenticates channel routes) holding `chamvi_agent_run` for the agent, checked before the body is read. The body is any JSON value of at most `bodyLimit` bytes (default 1 MiB; 413 above, 415 for another media type) and is the payload. The idempotency key comes from the `Idempotency-Key` header, else from `idempotencyKey(payload)`; retried deliveries with one key create one run. It answers 202 right away and never runs the agent synchronously; runs carry no invoker. A second instance (`webhookChannel({ name: 'hooks', auth })`) makes its subscriptions with its own `on()`. Signature-verified webhooks (GitHub) are `@chamvi/github`'s channel.
 
 `createHttpApp({ channels })` mounts `POST /channels/<name>` and `POST /channels/<name>/...` for exactly the listed channels (each needs an `in` and must be the object the engine holds under its name; else `InvalidAgentDefinitionError`). These routes are rate-limited but never authenticated by the app: each channel checks its own credentials. `in({ request, subpath }, ctx)` gets the raw request (body unread; read it with this package's `readRequestBody(request, { limit })`, which answers 413 above the limit and closes the connection) and the raw subpath (`''` for the bare path, else starting with `/`, still percent-encoded), and `ctx.dispatch` dispatches as the channel. Its `Response` is sent as is; a thrown error renders like any route's error. Any other `/channels/...` path is 404.
 
@@ -291,11 +299,9 @@ process.once('SIGTERM', () => {
 | `httpChannel`, `mcpChannel`, `webhookChannel` | function | The channels REST, MCP and generic webhooks dispatch as |
 | `http`, `webhook` | constant | Subscription builders: `http.on({ schema? })`, `webhook.on(path, options?)` |
 | `HTTP_CHANNEL_NAME`, `MCP_CHANNEL_NAME`, `WEBHOOK_CHANNEL_NAME` | constant | `http`, `mcp`, `webhook` |
-| `agentPermission` | function | `agent:<agent>:<action>` (matching is core's `hasPermission`) |
-| `Permission` | constant | `ALL`, `RUN_READ`, `RUN_CANCEL`, `STATE_READ`, `STATE_WRITE` |
 | `DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS`, `DEFAULT_SHUTDOWN_CLOSE_TIMEOUT_MS` | constant | `30_000`, `5_000` |
 
-Types: `HttpAppOptions`, `McpOptions`, `CorsOptions`, `RateLimitOptions`, `PrometheusOptions`, `TrustProxyInput`, `Principal`, `Authenticator`, `PermissionName`, `AgentAction`, `StaticToken`, `StaticTokensOptions`, `AuthupOptions`, `OidcOptions`, `IShutdown`, `ShutdownOptions`, `RunView`, `InvokerView`, `RunListQuery`, `RunSummary`, `RunToolResult`, `AgentSummary`, `ScheduleSummary`, `ScheduleOverlap`, `WebhookChannel`, `WebhookChannelOptions`, `HttpSubscriber`, `HttpSubscriptionOptions`, `WebhookSubscriber`, `WebhookSubscriptionOptions`.
+Types: `HttpAppOptions`, `McpOptions`, `CorsOptions`, `RateLimitOptions`, `PrometheusOptions`, `TrustProxyInput`, `Principal`, `Authenticator`, `StaticToken`, `StaticTokensOptions`, `AuthupOptions`, `OidcOptions`, `IShutdown`, `ShutdownOptions`, `RunView`, `InvokerView`, `RunListQuery`, `RunSummary`, `RunToolResult`, `AgentSummary`, `ScheduleSummary`, `ScheduleOverlap`, `WebhookChannel`, `WebhookChannelOptions`, `HttpSubscriber`, `HttpSubscriptionOptions`, `WebhookSubscriber`, `WebhookSubscriptionOptions`.
 
 ## License
 

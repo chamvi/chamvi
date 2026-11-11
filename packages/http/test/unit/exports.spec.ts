@@ -11,6 +11,7 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
+import type { PermissionBinding, PermissionIdentity } from '@chamvi/access';
 import * as http from '@chamvi/http';
 
 describe('public api', () => {
@@ -21,9 +22,7 @@ describe('public api', () => {
     });
 
     it.each([
-        'agentPermission',
         'assertMcpRunTool',
-        'connectionPermission',
         'authup',
         'buildCsp',
         'createHttpApp',
@@ -51,9 +50,20 @@ describe('public api', () => {
         expect(http.WEBHOOK_CHANNEL_NAME).toBe('webhook');
     });
 
-    it('leaves permission matching to core', () => {
-        // core's hasPermission(principal.permissions, wanted) is the one matcher
-        expect(http).not.toHaveProperty('hasPermission');
+    it.each([
+        'agentPermission',
+        'connectionPermission',
+        'CONNECTIONS_CREATE_PERMISSION',
+        'Permission',
+        'hasPermission',
+    ])('leaves %s to @chamvi/access', (name) => {
+        expect(http).not.toHaveProperty(name);
+    });
+
+    it('types principals with permission bindings', () => {
+        expectTypeOf<http.Principal['permissions']>().toEqualTypeOf<readonly PermissionBinding[]>();
+        expectTypeOf<http.Principal['identity']>().toEqualTypeOf<PermissionIdentity | undefined>();
+        expectTypeOf<http.StaticToken['permissions']>().toEqualTypeOf<readonly PermissionBinding[] | '*'>();
     });
 
     it('exports the shutdown defaults', () => {
@@ -61,26 +71,13 @@ describe('public api', () => {
         expect(http.DEFAULT_SHUTDOWN_CLOSE_TIMEOUT_MS).toBe(5_000);
     });
 
-    it('exports the connection create permission', () => {
-        expect(http.CONNECTIONS_CREATE_PERMISSION).toBe('connections:create');
-    });
-
-    it('exports Permission', () => {
-        expect(http.Permission).toEqual({
-            ALL: '*',
-            RUN_READ: 'run:read',
-            RUN_CANCEL: 'run:cancel',
-            STATE_READ: 'state:read',
-            STATE_WRITE: 'state:write',
-        });
-    });
-
     it('exports the MeView and ApproveBody types', () => {
         expectTypeOf<http.MeView>().toEqualTypeOf<{
             id: string;
             kind: string;
             name?: string;
-            permissions: string[];
+            permissions: PermissionBinding[];
+            identity?: PermissionIdentity;
         }>();
         expectTypeOf<http.ApproveBody>().toEqualTypeOf<{
             approvalId: string;

@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
 import type { IStore } from '@chamvi/core';
 import { http } from '@chamvi/http';
@@ -15,6 +16,7 @@ import {
     call,
     createRunTestApp,
     createTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
@@ -142,7 +144,7 @@ describe('GET /runs', () => {
                 channels: [http.on()],
             })],
         });
-        const token = tokenFor('agent:007:run');
+        const token = tokenFor(restricted(Permission.AGENT_RUN, { name: '007' }));
 
         expect((await call(app, 'POST', '/agents/007/runs', { token })).status).toBe(202);
 
@@ -154,22 +156,39 @@ describe('GET /runs', () => {
         }
     });
 
-    it('lets run:read list without a filter', async () => {
+    it('lets chamvi_run_read list without a filter', async () => {
         const { app } = await setup();
 
         expect((await call(app, 'GET', '/runs', { token: READER_TOKEN })).status).toBe(200);
     });
 
-    it('needs a filter to a runnable agent without run:read', async () => {
-        const { app } = await setup();
-        const token = tokenFor('agent:echo:run');
-        const denied = await call(app, 'GET', '/runs', { token });
+    it('lists only the agents a restricted run grant reaches without a filter', async () => {
+        const { app, ids } = await setup();
+        const token = tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' }));
+        const listed = await call(app, 'GET', '/runs', { token });
 
-        expect(denied.status).toBe(403);
-        expect((await denied.json()).message).toBe('Missing permission "run:read".');
+        expect(listed.status).toBe(200);
+        expect((await listed.json() as ListBody).data.map((run) => run.id)).toEqual([ids[0], ids[2]]);
         expect((await call(app, 'GET', '/runs?filter[agent]=echo', { token })).status).toBe(200);
         expect((await call(app, 'GET', '/runs?filter[agent]=gate', { token })).status).toBe(403);
         expect((await call(app, 'GET', '/runs')).status).toBe(401);
+    });
+
+    it('answers 403 without any grant that reads runs', async () => {
+        const { app } = await setup();
+        const denied = await call(app, 'GET', '/runs', { token: tokenFor(Permission.RUN_CANCEL) });
+
+        expect(denied.status).toBe(403);
+        expect((await denied.json()).message).toBe('Missing permission "chamvi_run_read".');
+    });
+
+    it('lists only the runs of the agent a restricted read grant names', async () => {
+        const { app, ids } = await setup();
+        const token = tokenFor(restricted(Permission.AGENT_READ, { name: 'gate' }));
+        const body = await (await call(app, 'GET', '/runs', { token })).json() as ListBody;
+
+        expect(body.data.map((run) => run.id)).toEqual([ids[1]]);
+        expect(body.meta.total).toBe(1);
     });
 
     it('lists a run\'s children', async () => {
@@ -199,7 +218,7 @@ describe('GET /runs', () => {
         expect(echo.data.map((run) => run.id)).toEqual([children[0]]);
     });
 
-    it('an agent-scoped reader sees only children of its agent with filter[agent], 403 without', async () => {
+    it('an agent-scoped reader sees only children of its agent', async () => {
         const {
             app,
             store,
@@ -207,9 +226,11 @@ describe('GET /runs', () => {
         } = await setup();
         const [parentId] = ids as [string];
         const children = await insertChildren(store, parentId, ['echo', 'gate']);
-        const token = tokenFor('agent:echo:run');
+        const token = tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' }));
 
-        expect((await call(app, 'GET', `/runs?filter[parent]=${parentId}`, { token })).status).toBe(403);
+        const unfiltered = await call(app, 'GET', `/runs?filter[parent]=${parentId}`, { token });
+
+        expect((await unfiltered.json() as ListBody).data.map((run) => run.id)).toEqual([children[0]]);
         expect((await call(app, 'GET', `/runs?filter[parent]=${parentId}&filter[agent]=gate`, { token })).status).toBe(403);
 
         const response = await call(app, 'GET', `/runs?filter[parent]=${parentId}&filter[agent]=echo`, { token });

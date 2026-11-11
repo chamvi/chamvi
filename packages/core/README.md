@@ -263,7 +263,7 @@ After exposure, outbound tools require durable approval (or are denied). The gat
 
 ### Invokers and tool access
 
-A run can carry its invoker: who started it, as an authenticator resolved it (`@chamvi/http` sets it from the request's principal). `toolPolicy` decides per tool whether the run may use it; a refused tool is not offered to the model.
+A run can carry its invoker: who started it, as an authenticator resolved it (`@chamvi/http` sets it from the request's principal). Its `permissions` are authup permission bindings (`{ permission: { name }, policies? }`), checked with `can()` of `@chamvi/access`. `toolPolicy` decides per tool whether the run may use it; a refused tool is not offered to the model.
 
 ```typescript
 const ops = defineModelAgent({
@@ -271,13 +271,13 @@ const ops = defineModelAgent({
     model,
     instructions: 'Operate the service.',
     tools: { deploy, rollback },
-    // offers a tool only when the invoker holds tool:ops:<tool>; cron and webhook runs get none
+    // offers a tool only when the invoker holds chamvi_tool_use for { agent: 'ops', name: <tool> }; cron and webhook runs get none
     toolPolicy: requireToolPermission(),
     hooks: {
         // release managers deploy without asking
         async beforeToolExecution({ toolName, input }, ctx) {
             const { invoker } = ctx.run.trigger;
-            if (toolName !== 'deploy' || (invoker && hasPermission(invoker.permissions, 'release:manage'))) return input;
+            if (toolName !== 'deploy' || (invoker && await can(invoker, 'release_manage'))) return input;
             const decision = await approve(ctx, { title: 'Deploy?' });
             if (!decision.approved) throw new ToolDeniedError('Deploy denied.');
             return input;
@@ -290,7 +290,14 @@ const { runId } = await engine.dispatch({
     trigger: 'http',
     channel: 'http',
     payload: {},
-    invoker: { id: 'u-42', kind: 'user', permissions: ['tool:ops:deploy'] },
+    invoker: {
+        id: 'u-42',
+        kind: 'user',
+        permissions: [{
+            permission: { name: Permission.TOOL_USE },
+            policies: [{ type: 'attributes', query: { agent: 'ops', name: 'deploy' } }],
+        }],
+    },
 });
 
 // later, once the run waits: the approver is recorded on the run's wait step
@@ -298,11 +305,11 @@ const { approvalId } = (await engine.getRun(runId))!.waiting!;
 await engine.approve(runId, { approvalId, approved: true, approver: { id: 'u-7', kind: 'user', permissions: [] } });
 ```
 
-- The invoker (`{ id, kind, name?, permissions }`) is a snapshot taken at dispatch. A run keeps it across approvals and restarts; revoking a grant later does not reach a run that already holds it.
+- The invoker (`{ id, kind, name?, permissions, identity? }`) is a snapshot taken at dispatch. A run keeps it across approvals and restarts; revoking a grant later does not reach a run that already holds it.
 - With an invoker, the `idempotencyKey` is scoped to it (`<agent>:<channel>:<kind>:<id>`): only the same invoker's retry is deduplicated, another invoker with the same key gets its own run.
 - Tool code sees it as `context.run.trigger.invoker` in tools and the factory and `ctx.run.trigger.invoker` in effect hooks and the agent hooks.
 - The policy covers state tools too. A call to a refused tool that still arrives fails as a tool error and the run goes on: the step records it as `tool_not_allowed` (`ToolNotAllowedError`), whether the model called it anyway (the model sees the AI SDK's unavailable-tool error) or an approved call from an older history reached the engine's re-check.
-- Permissions are `:`-separated: `*` alone grants everything, a `*` segment matches one segment, and segment counts must match. `requireToolPermission({ withoutInvoker: 'allow' })` lets runs without an invoker use every tool.
+- A binding passes when all its policies pass (`attributes`, `identity`, `date`, `time`, ...); several bindings of one name are alternatives. The policy is evaluated with the engine clock at each check, so a `time` policy that closes while the run waits on an approval refuses the resumed call. An entry that is not a binding (a string, for example) grants nothing. `requireToolPermission({ withoutInvoker: 'allow' })` lets runs without an invoker use every tool.
 
 ### Agent state
 
@@ -386,7 +393,7 @@ A missing value throws `ContextNotProvidedError` (`context_not_provided`, naming
 | `tools` | `ToolSet \| (ctx) => ToolSet` | none | A plain tool set, or a factory called for each execution |
 | `toolsContext` | `Record<string, unknown>` | none | Per tool name, the context of a tool that is not chamvi's, passed through by reference |
 | `state` | `Record<string, StandardSchemaV1>` | none | Typed state collections |
-| `toolPolicy` | `(toolName, { run }) => boolean` | none | Tools the run may use, e.g. `requireToolPermission()` |
+| `toolPolicy` | `(toolName, { run, now }) => boolean \| Promise<boolean>` | none | Tools the run may use, e.g. `requireToolPermission()` |
 | `budget` | `{ maxSteps, maxTokens?, timeoutMs? }` | `{ maxSteps: 20, timeoutMs: 900_000 }` | Per run; the timeout applies to each execution |
 | `hooks` | `AgentHooks` | none | `beforeToolExecution` / `afterToolExecution` around every tool call: rewrite input or output, gate a tool with `approve()` |
 | `output` | `Output` | none | AI SDK structured output; a completed run's `output` is the parsed value |
@@ -430,8 +437,7 @@ See the [instructions guide](https://chamvi.dev/guide/agents#instructions) for t
 | `approve` | function | `approve(ctx, { title, body?, timeoutMs? })`: a durable approval from inside a tool call |
 | `DEFAULT_APPROVAL_TIMEOUT_MS`, `APPROVAL_TIMEOUT_MAX_MS` | constant | `86_400_000` (24 h), `2_147_483_647` |
 | `createAgentState`, `createStateTools` | function | State API over a store, and `createStateTools(schema)`, the generated state tools (they read `context.state`) |
-| `hasPermission`, `matchesPermission`, `toolPermission` | function | Permission matching and the `tool:<agent>:<tool>` permission |
-| `requireToolPermission` | function | A `toolPolicy` that checks the invoker's permissions |
+| `requireToolPermission` | function | A `toolPolicy` that checks `chamvi_tool_use` with `{ agent, name }` on the invoker's bindings |
 | `consoleChannel` | function | `consoleChannel({ name?, write? })`: a development channel, out only, logging each message (default name `console`, default `write` `console.log`) |
 | `assertTriggerKey`, `normalizeEnvelope` | function | The 255-character, no-NUL rule for envelope keys and addresses; the read-back of envelopes stored before channels (`source`, `thread`) for store implementations |
 | `isArtifactMediaType` | function | The media type rule for attachments and artifacts (`type/subtype`, no parameters) |
@@ -447,7 +453,7 @@ See the [instructions guide](https://chamvi.dev/guide/agents#instructions) for t
 | `ErrorCode` | object | The `code` of every error above |
 | `systemClock` | object | The default `IClock` |
 
-Types: `Agent`, `AgentDefinition`, `ToolContext`, `ContextKey`, `IContextProvider`, `ToolPolicy`, `AgentHooks`, `ToolCallInfo`, `TriggerEnvelope`, `Invoker`, `Run`, `RunStatus`, `Step`, `Checkpoint`, `WaitPoint`, `Budget`, `Usage`, `ApprovalRequestInput`, `ApprovalDecision`, `ApprovalAnswer`, `IStore` and its capability interfaces, `MemoryStoreOptions`, `Artifact`, `ArtifactInput`, `IRunArtifacts`, `IChannel`, `ChannelSubscription`, `ChannelContext`, `ChannelMessage`, `ChannelSendOptions`, `ChannelHandle`, `EmitMessage`, `ConsoleChannelOptions`, `IAgentState`, `RunEvent`, `EngineOptions`, `ModelRef`, `IModelResolver`, `IClock`.
+Types: `Agent`, `AgentDefinition`, `ToolContext`, `ContextKey`, `IContextProvider`, `ToolPolicy`, `ToolPolicyContext`, `AgentHooks`, `ToolCallInfo`, `TriggerEnvelope`, `Invoker`, `Run`, `RunStatus`, `Step`, `Checkpoint`, `WaitPoint`, `Budget`, `Usage`, `ApprovalRequestInput`, `ApprovalDecision`, `ApprovalAnswer`, `IStore` and its capability interfaces, `MemoryStoreOptions`, `Artifact`, `ArtifactInput`, `IRunArtifacts`, `IChannel`, `ChannelSubscription`, `ChannelContext`, `ChannelMessage`, `ChannelSendOptions`, `ChannelHandle`, `EmitMessage`, `ConsoleChannelOptions`, `IAgentState`, `RunEvent`, `EngineOptions`, `ModelRef`, `IModelResolver`, `IClock`.
 
 Test helpers (`ControllableClock`, `describeRepositoryContract`) live in [`@chamvi/test-kit`](../test-kit).
 

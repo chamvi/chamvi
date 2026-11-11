@@ -12,6 +12,7 @@ import {
     it,
     vi,
 } from 'vitest';
+import { Permission } from '@chamvi/access';
 import {
     ConnectionChangedError,
     InvalidAgentDefinitionError,
@@ -29,16 +30,16 @@ import type {
     IStore,
 } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
-import { CONNECTIONS_CREATE_PERMISSION } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
     call,
     createTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 
 const PASSWORD = 'hunter2-plaintext-secret';
-const CREATE = CONNECTIONS_CREATE_PERMISSION;
+const CREATE = Permission.CONNECTION_CREATE;
 
 function mailDefinition(overrides: Partial<ConnectionTypeDefinition> = {}): ConnectionTypeDefinition {
     return {
@@ -230,7 +231,7 @@ describe('connection configuration', () => {
         it('lists a declared connection with no handle', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work', {}, { account: 'work' })] });
 
-            const response = await call(app, 'GET', '/connections', { token: tokenFor('connection:mail-work:read') });
+            const response = await call(app, 'GET', '/connections', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'mail-work' })) });
 
             expect(response.status).toBe(200);
             expect((await json(response)).data).toEqual([{
@@ -248,7 +249,7 @@ describe('connection configuration', () => {
         it('hides a declared connection from a principal without read', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
-            const response = await call(app, 'GET', '/connections', { token: tokenFor('connection:other:read') });
+            const response = await call(app, 'GET', '/connections', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'other' })) });
 
             expect((await json(response)).data).toEqual([]);
         });
@@ -313,7 +314,7 @@ describe('connection configuration', () => {
 
             await real.create('mail-work', 'mail', { settings: { port: 993, host: 'stored-host' } });
 
-            const response = await call(app, 'GET', '/connections/mail-work/config', { token: tokenFor('connection:mail-work:read') });
+            const response = await call(app, 'GET', '/connections/mail-work/config', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'mail-work' })) });
             const body = await response.text();
 
             expect(response.status).toBe(200);
@@ -341,7 +342,7 @@ describe('connection configuration', () => {
 
         it('answers 404 for an unknown connection and 403 without read', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
-            const reader = tokenFor('run:read');
+            const reader = tokenFor(Permission.RUN_READ);
 
             expect((await call(app, 'GET', '/connections/nope/config', { token: ADMIN_TOKEN })).status).toBe(404);
             expect((await call(app, 'GET', '/connections/mail-work/config', { token: reader })).status).toBe(403);
@@ -352,12 +353,12 @@ describe('connection configuration', () => {
 
         it('answers 403 before any lookup on the write routes', async () => {
             const { app } = world();
-            const reader = tokenFor('connection:nope:read');
+            const reader = tokenFor(restricted(Permission.CONNECTION_READ, { name: 'nope' }));
 
             expect((await call(app, 'PUT', '/connections/nope/config', { token: reader, body: {} })).status).toBe(403);
             expect((await call(app, 'DELETE', '/connections/nope', { token: reader })).status).toBe(403);
             expect((await call(app, 'POST', '/connections/nope/test', { token: reader })).status).toBe(403);
-            expect((await call(app, 'PUT', '/connections/nope/config', { token: tokenFor('connection:nope:write'), body: {} })).status).toBe(404);
+            expect((await call(app, 'PUT', '/connections/nope/config', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'nope' })), body: {} })).status).toBe(404);
         });
 
         it('stays readable on a store without connections', async () => {
@@ -450,15 +451,15 @@ describe('connection configuration', () => {
             expect(await store.connections!.findOne('mail-work')).toBeUndefined();
         });
 
-        it('requires connection:<name>:write to save', async () => {
+        it('requires chamvi_connection_write to save', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
             const read = await call(app, 'PUT', '/connections/mail-work/config', {
-                token: tokenFor('connection:mail-work:read'),
+                token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'mail-work' })),
                 body: saveBody(),
             });
             const write = await call(app, 'PUT', '/connections/mail-work/config', {
-                token: tokenFor('connection:mail-work:write'),
+                token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'mail-work' })),
                 body: saveBody(),
             });
 
@@ -668,15 +669,35 @@ describe('connection configuration', () => {
             return call(app, 'POST', '/connection-types/mail/connections', { token, body: payload });
         }
 
-        it('connection:* cannot create', async () => {
+        it('a connection write grant cannot create', async () => {
             const { app } = world();
 
-            const response = await create(app, tokenFor('connection:*'));
+            const response = await create(app, tokenFor(Permission.CONNECTION_WRITE));
 
             expect(response.status).toBe(403);
         });
 
-        it('connections:create can', async () => {
+        it('a create grant restricted to another type cannot create, one restricted to this type can', async () => {
+            const { app } = world();
+            const calendar = await create(app, tokenFor(restricted(CREATE, { type: 'calendar' })));
+
+            expect(calendar.status).toBe(403);
+            expect(await calendar.json()).toMatchObject({ message: 'Missing permission "chamvi_connection_create".' });
+            expect((await create(app, tokenFor(restricted(CREATE, { type: 'mail' })))).status).toBe(201);
+        });
+
+        it('a write grant restricted by type reads and edits only that type\'s accounts', async () => {
+            const { app } = world({ declared: (definition) => [declare(definition, 'mail-work', { MAIL_HOST: 'h', MAIL_PASSWORD: 'p' })] });
+            const mail = tokenFor(restricted(Permission.CONNECTION_WRITE, { type: 'mail' }));
+            const calendar = tokenFor(restricted(Permission.CONNECTION_WRITE, { type: 'calendar' }));
+
+            expect((await call(app, 'GET', '/connections/mail-work/config', { token: mail })).status).toBe(200);
+            expect((await call(app, 'GET', '/connections/mail-work/config', { token: calendar })).status).toBe(403);
+            // an unknown name is refused like a foreign one, so a restricted grant cannot probe names
+            expect((await call(app, 'GET', '/connections/nope/config', { token: mail })).status).toBe(403);
+        });
+
+        it('chamvi_connection_create can', async () => {
             const {
                 app,
                 store,
@@ -859,7 +880,7 @@ describe('connection configuration', () => {
 
             const view = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
             const list = await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }));
-            const detail = await json(await call(app, 'GET', '/connections/mail-work', { token: tokenFor('connection:mail-work:read') }));
+            const detail = await json(await call(app, 'GET', '/connections/mail-work', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'mail-work' })) }));
 
             expect(view).toMatchObject({ state: 'incomplete', reason: 'approvalUrl is required, or CHAMVI_PUBLIC_URL.' });
             expect(list.data[0].reason).toBe(view.reason);
@@ -1185,7 +1206,7 @@ describe('connection configuration', () => {
             await real.create('mail-work', 'mail', { settings: { host: 'saved-host' }, secrets: { set: { password: PASSWORD } } });
 
             const response = await call(app, 'POST', '/connections/mail-work/test', {
-                token: tokenFor('connection:mail-work:write'),
+                token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'mail-work' })),
                 body: { settings: { host: 'unsaved-host' } },
             });
 
@@ -1295,7 +1316,7 @@ describe('connection configuration', () => {
             });
             const without = world({ declared: (types) => [declare(types, 'mail-work')] });
 
-            expect((await call(app, 'POST', '/connections/mail-work/test', { token: tokenFor('connection:mail-work:read') })).status).toBe(403);
+            expect((await call(app, 'POST', '/connections/mail-work/test', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'mail-work' })) })).status).toBe(403);
             expect((await call(app, 'POST', '/connections/mail-work/test', { token: ADMIN_TOKEN })).status).toBe(409);
             expect((await call(without.app, 'POST', '/connections/mail-work/test', { token: ADMIN_TOKEN })).status).toBe(404);
         });
@@ -1330,9 +1351,9 @@ describe('connection configuration', () => {
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' } });
 
-            expect((await call(app, 'DELETE', '/connections/mail-work', { token: tokenFor('connection:mail-work:read') })).status).toBe(403);
+            expect((await call(app, 'DELETE', '/connections/mail-work', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'mail-work' })) })).status).toBe(403);
 
-            const response = await call(app, 'DELETE', '/connections/mail-work', { token: tokenFor('connection:mail-work:write') });
+            const response = await call(app, 'DELETE', '/connections/mail-work', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'mail-work' })) });
 
             expect(response.status).toBe(200);
             expect(await store.connections!.findOne('mail-work')).toBeUndefined();

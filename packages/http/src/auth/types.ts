@@ -5,20 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Permission } from './constants.ts';
-
-export type PermissionName = typeof Permission[keyof typeof Permission];
-
-export type AgentAction = 'run' | 'approve' | 'read';
-
-/** What a connection permission grants: `write` implies `read`. */
-export type ConnectionAction = 'read' | 'write';
+import type { PermissionBinding, PermissionIdentity } from '@chamvi/access';
 
 export type Principal = {
     id: string;
     kind: 'token' | 'authup' | 'oidc' | (string & {});
-    /** Granted permissions, e.g. `agent:triage:run`, `run:read` or `*`. */
-    permissions: readonly string[];
+    /** Granted permissions: authup bindings with resolved policy trees (plain data). */
+    permissions: readonly PermissionBinding[];
+    /** What an `identity` policy evaluates; set by `authup()`. */
+    identity?: PermissionIdentity;
     claims?: Record<string, unknown>;
 };
 

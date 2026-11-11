@@ -71,7 +71,7 @@ export function oidc(options: OidcOptions): Authenticator {
         if (!isPrincipal(principal)) {
             // a server misconfiguration (500 and onError), not a client error
             throw new InvalidAgentDefinitionError(
-                `The oidc() principal mapper of issuer "${result.issuer.id}" must return a non-empty id and kind and a permissions array of strings.`,
+                `The oidc() principal mapper of issuer "${result.issuer.id}" must return a non-empty id and kind and a permissions array of permission bindings.`,
             );
         }
 

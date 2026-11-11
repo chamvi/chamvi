@@ -37,7 +37,7 @@ function toRouteRequest(event: IAppEvent, ctx: HttpContext, route: HttpRoute): H
             headers: request.headers,
             signal: request.signal,
         }),
-        authorize: (permission) => authorize(event, ctx, permission),
+        authorize: (permission, attributes) => authorize(event, ctx, permission, attributes),
         readBody: () => {
             body ??= (async () => {
                 assertContentLength(event, ctx.bodyLimit);

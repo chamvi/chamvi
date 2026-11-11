@@ -7,7 +7,7 @@
 
 import type { ToolExecutionOptions, ToolSet } from 'ai';
 import { isObject } from 'smob';
-import { ToolNotAllowedError } from '../errors/index.ts';
+import { FatalToolError, ToolNotAllowedError } from '../errors/index.ts';
 import type { IEffectRepository } from '../repository/types.ts';
 import type { ToolContext, ToolTrust } from '../tool/types.ts';
 import { hasToolContext } from '../tool/helpers.ts';
@@ -189,8 +189,20 @@ export function wrapToolsForRun(
 
             return result;
         };
-        const check = () => {
-            if (allow && !allow(name)) {
+        const check = async () => {
+            if (!allow) {
+                return;
+            }
+
+            let allowed: boolean;
+
+            try {
+                allowed = await allow(name);
+            } catch (error) {
+                throw new FatalToolError(`The tool policy failed for "${name}": ${Error.isError(error) ? error.message : String(error)}`);
+            }
+
+            if (!allowed) {
                 throw new ToolNotAllowedError(name);
             }
         };
@@ -273,12 +285,11 @@ export function wrapToolsForRun(
         };
 
         if (!(EFFECT in def)) {
-            if (!classified && !hooks.beforeToolExecution && !hooks.afterToolExecution) {
+            // the synchronous pass-through (a streamed result stays streaming) has no policy to await
+            if (!allow && !classified && !hooks.beforeToolExecution && !hooks.afterToolExecution) {
                 wrapped[name] = {
                     ...def,
                     execute: (input: unknown, callOptions: unknown) => inFrame(callOptions, () => {
-                        check();
-
                         const result = execute.call(def, input, callOptions);
 
                         if (isAsyncIterable(result)) {
@@ -298,7 +309,7 @@ export function wrapToolsForRun(
                 wrapped[name] = {
                     ...def,
                     execute: (input: unknown, callOptions: unknown) => inFrame(callOptions, async function* streamed() {
-                        check();
+                        await check();
 
                         const final = await before(input, callOptions);
 
@@ -336,7 +347,7 @@ export function wrapToolsForRun(
             wrapped[name] = {
                 ...def,
                 execute: (input: unknown, callOptions: unknown) => inFrame(callOptions, async () => {
-                    check();
+                    await check();
 
                     const final = await before(input, callOptions);
                     let result: unknown = await readResult(() => execute.call(def, final, callOptions));
@@ -400,7 +411,7 @@ export function wrapToolsForRun(
         wrapped[name] = {
             ...def,
             execute: (input: unknown, callOptions: unknown) => inFrame(callOptions, async () => {
-                check();
+                await check();
 
                 const final = await before(input, callOptions);
                 const key = effectHooks?.effectKey ?

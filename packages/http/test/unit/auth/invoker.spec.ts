@@ -6,11 +6,16 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission } from '@chamvi/access';
+import type { PermissionBinding } from '@chamvi/access';
 import { toInvoker } from '../../../src/auth/helpers.ts';
+
+const READ: PermissionBinding = { permission: { name: Permission.RUN_READ } };
+const USER_ID = '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d';
 
 describe('toInvoker', () => {
     it('keeps id, kind and a copy of the permissions, never the claims', () => {
-        const permissions = ['run:read'];
+        const permissions = [READ];
         const invoker = toInvoker({
             id: 'u1',
             kind: 'oidc',
@@ -21,9 +26,26 @@ describe('toInvoker', () => {
         expect(invoker).toEqual({
             id: 'u1',
             kind: 'oidc',
-            permissions: ['run:read'],
+            permissions: [READ],
         });
         expect(invoker.permissions).not.toBe(permissions);
+    });
+
+    it('keeps a copy of the identity', () => {
+        const identity = {
+            type: 'user' as const,
+            id: USER_ID,
+            realmId: null,
+        };
+        const invoker = toInvoker({
+            id: USER_ID,
+            kind: 'authup',
+            permissions: [READ],
+            identity,
+        });
+
+        expect(invoker.identity).toEqual(identity);
+        expect(invoker.identity).not.toBe(identity);
     });
 
     it('takes the name from name, then preferred_username, never email', () => {
@@ -58,11 +80,11 @@ describe('toInvoker', () => {
         expect(toInvoker({
             id: 'ci',
             kind: 'token',
-            permissions: ['*'],
+            permissions: [READ],
         })).toEqual({
             id: 'ci',
             kind: 'token',
-            permissions: ['*'],
+            permissions: [READ],
         });
     });
 });

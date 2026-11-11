@@ -18,6 +18,7 @@ import {
     vi,
 } from 'vitest';
 import { z } from 'zod';
+import { Permission } from '@chamvi/access';
 import {
     Engine,
     InvalidAgentDefinitionError,
@@ -56,7 +57,7 @@ const alice: Invoker = {
     id: 'u-alice',
     kind: 'user',
     name: 'Alice',
-    permissions: ['tool:release:deploy'],
+    permissions: [{ permission: { name: Permission.TOOL_USE }, policies: [{ type: 'attributes', query: { name: 'deploy' } } as never] }],
 };
 
 const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] });

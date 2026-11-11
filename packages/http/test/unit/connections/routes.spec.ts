@@ -11,6 +11,7 @@ import {
     it,
     vi,
 } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type {
     ConnectionStatus,
@@ -25,6 +26,7 @@ import {
     call,
     createTestApp,
     flush,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { SseReader } from '../../utils/sse.ts';
@@ -89,7 +91,7 @@ describe('connection routes', () => {
         const handles = [fakeHandle('alpha'), fakeHandle('beta'), fakeHandle('gamma')];
         const { app } = world(handles);
 
-        const scoped = await call(app, 'GET', '/connections', { token: tokenFor('connection:alpha:read', 'connection:beta:write') });
+        const scoped = await call(app, 'GET', '/connections', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'alpha' }), restricted(Permission.CONNECTION_WRITE, { name: 'beta' })) });
         const text = await scoped.text();
 
         expect(scoped.status).toBe(200);
@@ -115,8 +117,8 @@ describe('connection routes', () => {
         expect((JSON.parse(allText) as { data: unknown[] }).data).toHaveLength(3);
         expect(allText).not.toContain('SECRET-QR-REFERENCE');
 
-        // a wildcard of the wrong segment count matches nothing
-        const wrong = await call(app, 'GET', '/connections', { token: tokenFor('connection:*') });
+        // a grant of another name lists nothing
+        const wrong = await call(app, 'GET', '/connections', { token: tokenFor(Permission.CONNECTION_CREATE) });
 
         expect(await wrong.json()).toEqual({ data: [] });
         expect((await call(app, 'GET', '/connections')).status).toBe(401);
@@ -135,7 +137,7 @@ describe('connection routes', () => {
 
     it('tells a writer when the connection offers no reset', async () => {
         const { app } = world([fakeHandle('beta', { reset: false })]);
-        const detail = await call(app, 'GET', '/connections/beta', { token: tokenFor('connection:beta:write') });
+        const detail = await call(app, 'GET', '/connections/beta', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'beta' })) });
 
         expect(await detail.json()).toMatchObject({ canReset: false });
     });
@@ -143,7 +145,7 @@ describe('connection routes', () => {
     it('shows widgets on the detail only with write', async () => {
         const { app } = world([fakeHandle('alpha')]);
 
-        const read = await call(app, 'GET', '/connections/alpha', { token: tokenFor('connection:alpha:read') });
+        const read = await call(app, 'GET', '/connections/alpha', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'alpha' })) });
         const readText = await read.text();
 
         expect(read.status).toBe(200);
@@ -154,7 +156,7 @@ describe('connection routes', () => {
         });
         expect(readText).not.toContain('SECRET-QR-REFERENCE');
 
-        const write = await call(app, 'GET', '/connections/alpha', { token: tokenFor('connection:alpha:write') });
+        const write = await call(app, 'GET', '/connections/alpha', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'alpha' })) });
 
         expect(await write.json()).toEqual({
             name: 'alpha',
@@ -167,12 +169,54 @@ describe('connection routes', () => {
 
         expect((await call(app, 'GET', '/connections/alpha')).status).toBe(401);
         expect((await call(app, 'GET', '/connections/omega', { token: ADMIN_TOKEN })).status).toBe(404);
-        expect((await call(app, 'GET', '/connections/alpha', { token: tokenFor('connection:beta:write') })).status).toBe(403);
+        expect((await call(app, 'GET', '/connections/alpha', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'beta' })) })).status).toBe(403);
+    });
+
+    it('a write grant restricted to one connection reads and writes only it', async () => {
+        const handles = [fakeHandle('alpha'), fakeHandle('beta')];
+        const { app } = world(handles);
+        const token = tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'alpha' }));
+
+        expect(await (await call(app, 'GET', '/connections', { token })).json()).toEqual({
+            data: [{
+                name: 'alpha',
+                type: 'whatsapp',
+                status: 'pairing',
+            }],
+        });
+        expect(await (await call(app, 'GET', '/connections/alpha', { token })).json()).toMatchObject({ widgets: [{ kind: 'qr', value: QR }] });
+        expect((await call(app, 'GET', '/connections/beta', { token })).status).toBe(403);
+        expect((await stream(app, 'beta', token)).status).toBe(403);
+        expect((await call(app, 'POST', '/connections/beta/reset', { token })).status).toBe(403);
+        expect(handles[1]!.reset).not.toHaveBeenCalled();
+    });
+
+    it('a read grant restricted to one connection never reaches its QR or reset', async () => {
+        const fake = fakeHandle('alpha');
+        const { app } = world([fake]);
+        const token = tokenFor(restricted(Permission.CONNECTION_READ, { name: 'alpha' }));
+        const detail = await call(app, 'GET', '/connections/alpha', { token });
+
+        expect(detail.status).toBe(200);
+        expect(await detail.text()).not.toContain('SECRET-QR-REFERENCE');
+        expect((await stream(app, 'alpha', token)).status).toBe(403);
+        expect((await call(app, 'POST', '/connections/alpha/reset', { token })).status).toBe(403);
+        expect(fake.reset).not.toHaveBeenCalled();
+    });
+
+    it('a grant restricted by type reaches every connection of that type', async () => {
+        const { app } = world([fakeHandle('alpha'), fakeHandle('beta')]);
+        const whatsapp = tokenFor(restricted(Permission.CONNECTION_READ, { type: 'whatsapp' }));
+        const mail = tokenFor(restricted(Permission.CONNECTION_READ, { type: 'mail' }));
+
+        expect((await (await call(app, 'GET', '/connections', { token: whatsapp })).json()).data).toHaveLength(2);
+        expect(await (await call(app, 'GET', '/connections', { token: mail })).json()).toEqual({ data: [] });
+        expect((await call(app, 'GET', '/connections/alpha', { token: mail })).status).toBe(403);
     });
 
     it('answers 403 whether or not the connection exists', async () => {
         const { app } = world([fakeHandle('alpha')]);
-        const token = tokenFor('connection:beta:read');
+        const token = tokenFor(restricted(Permission.CONNECTION_READ, { name: 'beta' }));
 
         for (const name of ['alpha', 'omega']) {
             expect((await call(app, 'GET', `/connections/${name}`, { token })).status).toBe(403);
@@ -198,13 +242,13 @@ describe('connection routes', () => {
         };
         const { app } = world([], { connectionTypes: () => [provider as never] });
 
-        expect(await (await call(app, 'GET', '/connections/mail-work', { token: tokenFor('connection:mail-work:read') })).json()).toMatchObject({
+        expect(await (await call(app, 'GET', '/connections/mail-work', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'mail-work' })) })).json()).toMatchObject({
             name: 'mail-work',
             type: 'mail',
             status: 'disconnected',
         });
 
-        const written = await (await call(app, 'GET', '/connections/mail-work', { token: tokenFor('connection:mail-work:write') })).json() as Record<string, unknown>;
+        const written = await (await call(app, 'GET', '/connections/mail-work', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'mail-work' })) })).json() as Record<string, unknown>;
 
         expect(written).toMatchObject({
             status: 'disconnected',
@@ -226,11 +270,11 @@ describe('connection routes', () => {
         const fake = fakeHandle('alpha');
         const { app } = world([fake]);
 
-        expect((await stream(app, 'alpha', tokenFor('connection:alpha:read'))).status).toBe(403);
+        expect((await stream(app, 'alpha', tokenFor(restricted(Permission.CONNECTION_READ, { name: 'alpha' })))).status).toBe(403);
         expect((await stream(app, 'omega', ADMIN_TOKEN)).status).toBe(404);
 
         const controller = new AbortController();
-        const response = await stream(app, 'alpha', tokenFor('connection:alpha:write'), controller.signal);
+        const response = await stream(app, 'alpha', tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'alpha' })), controller.signal);
 
         expect(response.status).toBe(200);
         expect(response.headers.get('content-type')).toMatch(/text\/event-stream/);
@@ -379,10 +423,10 @@ describe('connection routes', () => {
         const bare = fakeHandle('beta', { reset: false });
         const { app } = world([fake, bare]);
 
-        expect((await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor('connection:alpha:read') })).status).toBe(403);
+        expect((await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'alpha' })) })).status).toBe(403);
         expect(fake.reset).not.toHaveBeenCalled();
 
-        const response = await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor('connection:alpha:write') });
+        const response = await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'alpha' })) });
 
         expect(response.status).toBe(202);
         expect(await response.json()).toEqual({
@@ -409,7 +453,7 @@ describe('connection routes', () => {
 
         fake.reset.mockImplementationOnce(() => pending.promise);
 
-        const response = await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor('connection:alpha:write') });
+        const response = await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'alpha' })) });
 
         expect(response.status).toBe(202);
         expect(fake.reset).toHaveBeenCalledTimes(1);
@@ -427,7 +471,7 @@ describe('connection routes', () => {
 
         fake.set('held_elsewhere');
 
-        const response = await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor('connection:alpha:write') });
+        const response = await call(app, 'POST', '/connections/alpha/reset', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'alpha' })) });
         const body = await response.json() as { message?: string };
 
         expect(response.status).toBe(409);

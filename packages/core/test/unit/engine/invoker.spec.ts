@@ -26,6 +26,8 @@ import type {
     Invoker,
     RunContext,
 } from '@chamvi/core';
+import { Permission, allPermissions } from '@chamvi/access';
+import type { PermissionBinding } from '@chamvi/access';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { gateTool, recordApprovals } from '../../utils/approvals.ts';
@@ -46,7 +48,10 @@ const alice: Invoker = {
     id: 'u-alice',
     kind: 'user',
     name: 'Alice',
-    permissions: ['tool:release:deploy', 'tool:release:state_notes_list'],
+    permissions: [{
+        permission: { name: Permission.TOOL_USE },
+        policies: [{ type: 'attributes', query: { agent: 'release', name: { $in: ['deploy', 'state_notes_list'] } } } as never],
+    }],
 };
 
 const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] });
@@ -64,10 +69,11 @@ type Setup = {
     state?: AgentDefinition['state'];
     toolPolicy?: AgentDefinition['toolPolicy'];
     hooks?: AgentDefinition['hooks'];
+    now?: Date;
 };
 
 function setup(s: Setup) {
-    const clock = new ControllableClock(new Date(1_000_000));
+    const clock = new ControllableClock(s.now ?? new Date(1_000_000));
     const store = createMemoryStore({ clock });
     const agent = defineModelAgent({
         name: 'release',
@@ -78,12 +84,15 @@ function setup(s: Setup) {
         toolPolicy: s.toolPolicy,
         hooks: s.hooks,
     });
+    const errors: unknown[] = [];
     const engine = new Engine({
         store,
         agents: [agent],
         clock,
         claimTtlMs: 30,
-        onError: () => {},
+        onError: (error) => {
+            errors.push(error);
+        },
     });
 
     engines.push(engine);
@@ -94,6 +103,7 @@ function setup(s: Setup) {
         clock,
         store,
         engine,
+        errors,
         notifier,
     };
 }
@@ -114,15 +124,28 @@ const toolNames = (model: ReturnType<typeof mockModel>, i: number) => (model.doS
 describe('invoker', () => {
     it('stores a copy of the invoker on the run', async () => {
         const { engine, store } = setup({ model: mockModel([]) });
-        const invoker = { ...alice, permissions: [...alice.permissions] };
+        const invoker = structuredClone(alice) as Invoker & { permissions: PermissionBinding[] };
         const { runId } = await engine.dispatch(env(invoker));
 
-        invoker.permissions.push('*');
+        invoker.permissions.push({ permission: { name: Permission.AGENT_RUN } });
+        invoker.permissions[0]!.policies!.length = 0;
         invoker.name = 'Mallory';
 
         const run = await store.runs.findOne(runId);
 
         expect(run?.trigger.invoker).toEqual(alice);
+    });
+
+    it('keeps the identity of an invoker', async () => {
+        const { engine, store } = setup({ model: mockModel([]) });
+        const identity = {
+            type: 'user' as const,
+            id: '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d',
+            realmId: null,
+        };
+        const { runId } = await engine.dispatch(env({ ...alice, identity }));
+
+        expect((await store.runs.findOne(runId))?.trigger.invoker).toEqual({ ...alice, identity });
     });
 
     it('keeps only the invoker fields', async () => {
@@ -139,7 +162,12 @@ describe('invoker', () => {
         ['a missing kind', { id: 'x', permissions: [] }],
         ['an empty kind', { ...alice, kind: '' }],
         ['permissions not an array', { ...alice, permissions: 'tool:release:deploy' }],
-        ['a non-string permission', { ...alice, permissions: ['ok', 1] }],
+        ['an old string permission', { ...alice, permissions: ['tool:release:deploy'] }],
+        ['the old all grant', { ...alice, permissions: ['*'] }],
+        ['a binding without a name', { ...alice, permissions: [{ permission: {} }] }],
+        ['a policy without a type', { ...alice, permissions: [{ permission: { name: 'x' }, policies: [{}] }] }],
+        ['an identity of an unknown type', { ...alice, identity: { type: 'robot', id: 'x' } }],
+        ['an identity without an id', { ...alice, identity: { type: 'user', id: '' } }],
         ['a non-string name', { ...alice, name: 42 }],
     ])('rejects %s before any write', async (_label, invoker) => {
         const { engine, store } = setup({ model: mockModel([]) });
@@ -169,7 +197,7 @@ describe('invoker', () => {
         const bob: Invoker = {
             id: 'u-bob',
             kind: 'user',
-            permissions: ['*'],
+            permissions: allPermissions(),
         };
         const second = await engine.dispatch(env(bob, 'same'));
 
@@ -297,6 +325,230 @@ describe('tool policy', () => {
         await engine.dispatch(env());
         await engine.idle();
         expect(toolNames(model, 1)).toEqual([]);
+    });
+
+    it('denies a run stored with old string permissions without throwing', async () => {
+        let executed = 0;
+        const model = mockModel([callTool('deploy'), text('done')]);
+        const {
+            engine,
+            errors,
+            store,
+        } = setup({
+            model,
+            tools: () => ({
+                deploy: tool({
+                    inputSchema: z.object({}),
+                    execute: async () => {
+                        executed++;
+
+                        return 'deployed';
+                    },
+                }),
+            }),
+            toolPolicy: requireToolPermission(),
+        });
+
+        // a run queued before the upgrade: intake refuses this shape, the store still holds it
+        const { runId } = await engine.dispatch(env(alice));
+        const stored = await store.runs.findOne(runId);
+
+        await store.runs.update(runId, {
+            trigger: {
+                ...stored!.trigger,
+                invoker: { ...alice, permissions: ['tool:release:deploy', '*', 'agent:release:run'] as never },
+            },
+        });
+
+        await engine.start();
+        await engine.idle();
+
+        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect(toolNames(model, 0)).toEqual([]);
+        expect(executed).toBe(0);
+
+        const step = (await store.steps.find(runId)).find((s) => s.kind === 'tool');
+
+        expect(step).toMatchObject({ name: 'deploy', error: { code: 'tool_not_allowed' } });
+        expect(errors).toEqual([]);
+    });
+
+    it('filters the offered tools with an async policy', async () => {
+        const model = mockModel([text('done')]);
+        const { engine } = setup({
+            model,
+            tools: () => ({ deploy, rollback }),
+            toolPolicy: async (name) => name === 'deploy',
+        });
+
+        await engine.start();
+        await engine.dispatch(env(alice));
+        await engine.idle();
+        expect(toolNames(model, 0)).toEqual(['deploy']);
+    });
+
+    it('records tool_not_allowed for a call to a tool an async policy refuses', async () => {
+        let executed = 0;
+        const model = mockModel([callTool('deploy'), text('done')]);
+        const { engine, store } = setup({
+            model,
+            tools: () => ({
+                deploy: tool({
+                    inputSchema: z.object({}),
+                    execute: async () => {
+                        executed++;
+
+                        return 'deployed';
+                    },
+                }),
+                rollback,
+            }),
+            toolPolicy: async (name) => name === 'rollback',
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch(env(alice));
+
+        await engine.idle();
+        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect(executed).toBe(0);
+
+        const step = (await store.steps.find(runId)).find((s) => s.kind === 'tool');
+
+        expect(step).toMatchObject({ name: 'deploy', error: { code: 'tool_not_allowed' } });
+    });
+
+    it('fails the run when the policy rejects', async () => {
+        const model = mockModel([text('done')]);
+        const { engine, store } = setup({
+            model,
+            tools: () => ({ deploy }),
+            toolPolicy: async () => {
+                throw new Error('policy store down');
+            },
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch(env(alice));
+
+        await engine.idle();
+        expect((await store.runs.findOne(runId))?.status).toBe('failed');
+        expect(model.doStreamCalls).toHaveLength(0);
+    });
+
+    it('fails the run when the policy rejects at the per-call re-check', async () => {
+        let checks = 0;
+        let executed = 0;
+        const model = mockModel([callTool('deploy'), text('done')]);
+        const { engine, store } = setup({
+            model,
+            tools: () => ({
+                deploy: tool({
+                    inputSchema: z.object({}),
+                    execute: async () => {
+                        executed++;
+
+                        return 'deployed';
+                    },
+                }),
+            }),
+            toolPolicy: async () => {
+                if (checks++ > 0) {
+                    throw new Error('policy store down');
+                }
+
+                return true;
+            },
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch(env(alice));
+
+        await engine.idle();
+        expect(executed).toBe(0);
+        expect(await store.runs.findOne(runId)).toMatchObject({ status: 'failed', error: { code: 'FatalToolError' } });
+    });
+
+    it('passes the engine clock time to the policy', async () => {
+        const seen: Date[] = [];
+        const model = mockModel([text('done')]);
+        const now = new Date(2026, 10, 11, 10, 0);
+        const { engine } = setup({
+            model,
+            now,
+            tools: () => ({ deploy }),
+            toolPolicy: (_name, ctx) => {
+                seen.push(ctx.now);
+
+                return true;
+            },
+        });
+
+        await engine.start();
+        await engine.dispatch(env(alice));
+        await engine.idle();
+        expect(seen[0]).toEqual(now);
+    });
+
+    it('re-evaluates a time policy with the engine clock when a call resumes after its approval', async () => {
+        let deployed = 0;
+        const model = mockModel([callTool('deploy'), text('could not deploy')]);
+        const office: Invoker = {
+            id: 'u-carol',
+            kind: 'user',
+            permissions: [{
+                permission: { name: Permission.TOOL_USE },
+                policies: [{
+                    type: 'time', 
+                    start: '09:00', 
+                    end: '11:00', 
+                } as never],
+            }],
+        };
+        const {
+            engine,
+            store,
+            clock,
+            notifier,
+        } = setup({
+            model,
+            now: new Date(2026, 10, 11, 10, 0),
+            tools: () => ({
+                deploy: tool({
+                    inputSchema: z.object({}),
+                    execute: async () => {
+                        deployed++;
+
+                        return 'deployed';
+                    },
+                }),
+            }),
+            toolPolicy: requireToolPermission(),
+            hooks: gateTool('deploy'),
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch(env(office));
+
+        await engine.idle();
+        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect(toolNames(model, 0)).toEqual(['deploy']);
+
+        // the window closes while the run waits
+        clock.advance(2 * 60 * 60 * 1000);
+        await engine.approve(notifier.calls[0]!.runId, { approvalId: notifier.calls[0]!.approvalId, approved: true });
+        await engine.idle();
+
+        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect(deployed).toBe(0);
+
+        const step = (await store.steps.find(runId)).find((s) => s.kind === 'tool');
+
+        expect(step).toMatchObject({ name: 'deploy', error: { code: 'tool_not_allowed' } });
     });
 
     it('passes the run context to the policy', async () => {
@@ -445,7 +697,7 @@ describe('tool policy', () => {
         const approver: Invoker = {
             id: 'u-bob',
             kind: 'user',
-            permissions: ['agent:release:approve'],
+            permissions: [{ permission: { name: Permission.AGENT_APPROVE } }],
         };
 
         await engine.approve(notifier.calls[0]!.runId, {

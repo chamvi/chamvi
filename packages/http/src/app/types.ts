@@ -140,9 +140,11 @@ export type HttpRouteRequest = {
      * Runs the app's authenticators over the request, once per request (every
      * call, and a built-in route's check, shares the result): 401 with
      * `WWW-Authenticate: Bearer` without a principal, 403 when `permission`
-     * is given and not granted. A route that never calls it stays unauthenticated.
+     * is given and not granted: for the resource `attributes` when given,
+     * else for some resource (a binding whose policies need the missing
+     * attributes passes). A route that never calls it stays unauthenticated.
      */
-    authorize(permission?: string): Promise<Principal>;
+    authorize(permission?: string, attributes?: Record<string, unknown>): Promise<Principal>;
     /**
      * The raw body, at most `bodyLimit` bytes: 413 above it (content-length
      * refused unread, else drained like readJsonBody), 415 for a non-JSON

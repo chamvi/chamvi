@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
+import { Permission } from '@chamvi/access';
 import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import {
     http,
@@ -18,7 +19,9 @@ import {
     READER_TOKEN,
     call,
     createTestApp,
+    restricted,
     testAuth,
+    tokenFor,
 } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
 
@@ -213,11 +216,20 @@ describe('POST /channels/webhook/:agent/<path>', () => {
         expect((await store.runs.findOne(runId))?.trigger.trigger).toBe(trigger);
     });
 
-    it('needs agent:<agent>:run', async () => {
+    it('needs chamvi_agent_run', async () => {
         const { app } = setup();
 
         expect((await call(app, 'POST', ISSUES, { token: READER_TOKEN, body: { id: '1' } })).status).toBe(403);
         expect((await call(app, 'POST', ISSUES, { body: { id: '1' } })).status).toBe(401);
+    });
+
+    it('refuses a run grant restricted to another agent', async () => {
+        const { app } = setup();
+        const refused = await call(app, 'POST', ISSUES, { token: tokenFor(restricted(Permission.AGENT_RUN, { name: 'raw' })), body: { id: '1' } });
+
+        expect(refused.status).toBe(403);
+        expect((await refused.json()).message).toBe('Missing permission "chamvi_agent_run".');
+        expect((await call(app, 'POST', ISSUES, { token: tokenFor(restricted(Permission.AGENT_RUN, { name: 'intake' })), body: { id: '1' } })).status).toBe(202);
     });
 
     it('answers 404 while the http app does not mount the channel', async () => {

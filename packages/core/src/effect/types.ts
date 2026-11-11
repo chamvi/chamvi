@@ -65,8 +65,11 @@ export type ToolCallFrame = {
 
 export type WrapToolsOptions = {
     trust?: AgentTrust;
-    /** Re-checks every call: a refused one throws ToolNotAllowedError. */
-    allow?: (toolName: string) => boolean;
+    /**
+     * Re-checks every call: a refused one throws ToolNotAllowedError, a
+     * rejecting one FatalToolError (the run fails).
+     */
+    allow?: (toolName: string) => boolean | Promise<boolean>;
     /** The agent's tool hooks, run for every call of every tool. */
     hooks?: AgentHooks;
     /**

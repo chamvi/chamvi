@@ -22,7 +22,9 @@ import {
     READER_TOKEN,
     call,
     createTestApp,
-    testAuth,
+    permissionsAuth,
+    restricted,
+    tokenFor,
 } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
 
@@ -622,7 +624,7 @@ describe('extra routes: authorize()', () => {
         const counting: Authenticator = async (request) => {
             calls++;
 
-            return testAuth(request);
+            return permissionsAuth(request);
         };
         const principals: Principal[] = [];
         const { app } = createTestApp({
@@ -636,12 +638,29 @@ describe('extra routes: authorize()', () => {
                 },
             })],
         });
-        const response = await call(app, 'POST', '/extra', { token: ADMIN_TOKEN });
+        const response = await call(app, 'POST', '/extra', { token: tokenFor('knowledge:write') });
 
         expect(response.status).toBe(200);
-        expect(await response.json()).toEqual({ id: 'admin' });
+        expect(await response.json()).toEqual({ id: 'p:knowledge:write' });
         expect(principals[1]).toBe(principals[0]);
         expect(calls).toBe(1);
+    });
+
+    it('checks an app-defined permission against the resource attributes it is given', async () => {
+        const { app } = createTestApp({
+            routes: [route({
+                handler: async (request) => {
+                    const principal = await request.authorize('knowledge:read', { name: 'docs' });
+
+                    return { status: 200, body: { id: principal.id } };
+                },
+            })],
+        });
+
+        expect((await call(app, 'POST', '/extra', { token: tokenFor(restricted('knowledge:read', { name: 'docs' })) })).status).toBe(200);
+        expect((await call(app, 'POST', '/extra', { token: tokenFor(restricted('knowledge:read', { name: 'wiki' })) })).status).toBe(403);
+        // "*" covers the chamvi permissions only
+        expect((await call(app, 'POST', '/extra', { token: ADMIN_TOKEN })).status).toBe(403);
     });
 
     it('a route that never calls authorize() stays unauthenticated', async () => {

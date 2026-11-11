@@ -5,16 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { hasPermission } from '@chamvi/core';
+import { Permission } from '@chamvi/access';
 import type { IConnectionHandle } from '@chamvi/core';
 import { IssueCode } from '@ebec/core';
-import { ForbiddenError, NotFoundError } from '@ebec/http';
+import { NotFoundError } from '@ebec/http';
 import { isObject } from 'smob';
 import { createValidupError, defineValidator } from 'validup';
 import type { ValidatorDescriptor } from 'validup';
 import type { IAppEvent } from 'routup';
 import type { HttpContext } from '../app/types.ts';
-import { connectionPermission } from '../auth/module.ts';
+import { forbidden, isGranted } from '../auth/helpers.ts';
 import type { Principal } from '../auth/types.ts';
 import type { ConnectionView } from './types.ts';
 
@@ -22,28 +22,45 @@ export function param(event: IAppEvent, name: string): string {
     return event.params[name] ?? '';
 }
 
-/** `connection:<name>:write`. */
-export function canWrite(principal: Principal, name: string): boolean {
-    return hasPermission(principal.permissions, connectionPermission(name, 'write'));
+/**
+ * The resource attributes of a connection (`{ name, type }`), without
+ * `type` for a name the app does not know: a policy over the type then
+ * fails, so a refusal of an unknown name looks like any other.
+ */
+export function connectionResource(name: string, type: string | undefined): Record<string, unknown> {
+    return type === undefined ? { name } : { name, type };
 }
 
-/** `connection:<name>:read` or `:write` (write implies read). */
-export function canRead(principal: Principal, name: string): boolean {
-    return canWrite(principal, name) || hasPermission(principal.permissions, connectionPermission(name, 'read'));
+/** `chamvi_connection_write` for the connection. */
+export function canWrite(ctx: HttpContext, principal: Principal, resource: Record<string, unknown>): Promise<boolean> {
+    return isGranted(principal, Permission.CONNECTION_WRITE, ctx.clock, resource);
 }
 
-/** 403 unless the principal may read `name`, or may write it with `write`: before any lookup, so a refusal says nothing about the name. */
-export function assertConnectionAccess(principal: Principal, name: string, write = false): void {
-    if (write ? !canWrite(principal, name) : !canRead(principal, name)) {
-        throw new ForbiddenError({ message: `Missing permission "${connectionPermission(name, write ? 'write' : 'read')}".` });
+/** `chamvi_connection_read` or `chamvi_connection_write` (write implies read). */
+export async function canRead(ctx: HttpContext, principal: Principal, resource: Record<string, unknown>): Promise<boolean> {
+    return await canWrite(ctx, principal, resource) || isGranted(principal, Permission.CONNECTION_READ, ctx.clock, resource);
+}
+
+/**
+ * 403 unless the principal may read the connection, or may write it with
+ * `write`: before a 404, so a refusal says nothing about the name.
+ */
+export async function assertConnectionAccess(
+    ctx: HttpContext,
+    principal: Principal,
+    resource: Record<string, unknown>,
+    write = false,
+): Promise<void> {
+    if (write ? !await canWrite(ctx, principal, resource) : !await canRead(ctx, principal, resource)) {
+        throw forbidden(write ? Permission.CONNECTION_WRITE : Permission.CONNECTION_READ);
     }
 }
 
 /** The handle of `name` the principal may read (403, then 404), or may write with `write`. */
-export function requireHandle(ctx: HttpContext, principal: Principal, name: string, write = false): IConnectionHandle {
-    assertConnectionAccess(principal, name, write);
-
+export async function requireHandle(ctx: HttpContext, principal: Principal, name: string, write = false): Promise<IConnectionHandle> {
     const handle = ctx.connections().find((candidate) => candidate.name === name);
+
+    await assertConnectionAccess(ctx, principal, connectionResource(name, handle?.type), write);
 
     if (!handle) {
         throw new NotFoundError({ message: `The connection "${name}" does not exist.` });

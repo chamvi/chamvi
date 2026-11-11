@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { z } from 'zod';
 import { defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
@@ -14,6 +15,7 @@ import {
     READER_TOKEN,
     call,
     createTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
@@ -64,14 +66,27 @@ describe('state kv', () => {
         expect((await call(app, 'PATCH', KV, { token: ADMIN_TOKEN })).status).toBe(400);
     });
 
-    it('needs state:read and state:write', async () => {
+    it('needs chamvi_state_read and chamvi_state_write', async () => {
         const { app } = setup();
 
         expect((await call(app, 'GET', KV, { token: READER_TOKEN })).status).toBe(403);
-        expect((await call(app, 'GET', KV, { token: tokenFor('state:read') })).status).toBe(200);
-        expect((await call(app, 'PATCH', KV, { token: tokenFor('state:read'), body: { value: 1 } })).status).toBe(403);
-        expect((await call(app, 'PATCH', KV, { token: tokenFor('state:write'), body: { value: 1 } })).status).toBe(200);
+        expect((await call(app, 'GET', KV, { token: tokenFor(Permission.STATE_READ) })).status).toBe(200);
+        expect((await call(app, 'PATCH', KV, { token: tokenFor(Permission.STATE_READ), body: { value: 1 } })).status).toBe(403);
+        expect((await call(app, 'PATCH', KV, { token: tokenFor(Permission.STATE_WRITE), body: { value: 1 } })).status).toBe(200);
         expect((await call(app, 'GET', KV)).status).toBe(401);
+    });
+
+    it('checks a restricted state grant against the agent name, before the lookup', async () => {
+        const { app } = setup();
+        const intake = tokenFor(restricted(Permission.STATE_READ, { name: 'intake' }));
+        const other = tokenFor(restricted(Permission.STATE_READ, { name: 'echo' }));
+        const refused = await call(app, 'GET', KV, { token: other });
+
+        expect((await call(app, 'GET', KV, { token: intake })).status).toBe(200);
+        expect(refused.status).toBe(403);
+        expect((await refused.json()).message).toBe('Missing permission "chamvi_state_read".');
+        // an unknown agent is refused like a foreign one
+        expect((await call(app, 'GET', '/agents/nope/state/kv/x', { token: intake })).status).toBe(403);
     });
 
     it('answers 404 for an unknown agent', async () => {
@@ -103,25 +118,25 @@ describe('state of a private agent', () => {
         '/agents/alfred/state/collections/notes',
     ];
 
-    it('needs agent:<name>:read besides state:read', async () => {
+    it('needs chamvi_agent_read besides chamvi_state_read', async () => {
         const { app } = privateSetup();
 
         for (const path of paths) {
-            const denied = await call(app, 'GET', path, { token: tokenFor('state:read') });
+            const denied = await call(app, 'GET', path, { token: tokenFor(Permission.STATE_READ) });
 
             expect(denied.status, path).toBe(403);
-            expect((await denied.json()).message).toBe('State of agent "alfred" needs agent:alfred:read.');
-            expect((await call(app, 'GET', path, { token: tokenFor('state:read', 'agent:alfred:read') })).status, path).toBe(200);
+            expect((await denied.json()).message).toBe('State of agent "alfred" needs chamvi_agent_read.');
+            expect((await call(app, 'GET', path, { token: tokenFor(Permission.STATE_READ, restricted(Permission.AGENT_READ, { name: 'alfred' })) })).status, path).toBe(200);
             expect((await call(app, 'GET', path, { token: ADMIN_TOKEN })).status, path).toBe(200);
         }
     });
 
-    it('needs agent:<name>:read besides state:write', async () => {
+    it('needs chamvi_agent_read besides chamvi_state_write', async () => {
         const { app } = privateSetup();
         const path = '/agents/alfred/state/kv/cursor';
 
-        expect((await call(app, 'PATCH', path, { token: tokenFor('state:write'), body: { value: 1 } })).status).toBe(403);
-        expect((await call(app, 'PATCH', path, { token: tokenFor('state:write', 'agent:alfred:read'), body: { value: 1 } })).status).toBe(200);
+        expect((await call(app, 'PATCH', path, { token: tokenFor(Permission.STATE_WRITE), body: { value: 1 } })).status).toBe(403);
+        expect((await call(app, 'PATCH', path, { token: tokenFor(Permission.STATE_WRITE, restricted(Permission.AGENT_READ, { name: 'alfred' })), body: { value: 1 } })).status).toBe(200);
     });
 });
 
@@ -136,7 +151,7 @@ describe('state kv listing', () => {
         await store.state.set('intake', 'a', { n: 1 });
         await store.state.set('echo', 'x', true);
 
-        const all = await call(app, 'GET', LIST, { token: tokenFor('state:read') });
+        const all = await call(app, 'GET', LIST, { token: tokenFor(Permission.STATE_READ) });
 
         expect(all.status).toBe(200);
         expect(await all.json()).toEqual({
@@ -147,12 +162,12 @@ describe('state kv listing', () => {
             ],
         });
 
-        const page = await call(app, 'GET', `${LIST}?page[limit]=1&page[offset]=1`, { token: tokenFor('state:read') });
+        const page = await call(app, 'GET', `${LIST}?page[limit]=1&page[offset]=1`, { token: tokenFor(Permission.STATE_READ) });
 
         expect(await page.json()).toEqual({ data: [{ key: 'a', value: { n: 1 } }] });
     });
 
-    it('403 without state:read', async () => {
+    it('403 without chamvi_state_read', async () => {
         const { app } = setup();
 
         expect((await call(app, 'GET', LIST, { token: READER_TOKEN })).status).toBe(403);
@@ -298,10 +313,10 @@ describe('state collections', () => {
         expect((await response.json()).message).toBe('Only top-level equality filters are supported.');
     });
 
-    it('needs state:read', async () => {
+    it('needs chamvi_state_read', async () => {
         const { app } = await seeded();
 
         expect((await call(app, 'GET', ISSUES, { token: READER_TOKEN })).status).toBe(403);
-        expect((await call(app, 'GET', ISSUES, { token: tokenFor('state:read') })).status).toBe(200);
+        expect((await call(app, 'GET', ISSUES, { token: tokenFor(Permission.STATE_READ) })).status).toBe(200);
     });
 });

@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission, allPermissions } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
 import { webhook } from '@chamvi/http';
 import type { Principal } from '@chamvi/http';
@@ -16,12 +17,14 @@ import {
     createRunAgents,
     createRunTestApp,
     permissionsAuth,
+    restricted,
     testAuth,
 } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
 import { readEvents } from '../../utils/sse.ts';
 
 const ALICE_TOKEN = 'alice';
+const ALICE_PERMISSIONS = [restricted(Permission.AGENT_RUN, { name: 'gate' }), restricted(Permission.AGENT_APPROVE, { name: 'gate' }), restricted(Permission.TOOL_USE, { agent: 'gate', name: 'deploy' })];
 
 /** `Bearer alice`: an authup-like principal with claims. */
 async function aliceAuth(request: Request): Promise<Principal | undefined> {
@@ -32,7 +35,7 @@ async function aliceAuth(request: Request): Promise<Principal | undefined> {
     return {
         id: 'user-1',
         kind: 'authup',
-        permissions: ['agent:gate:run', 'agent:gate:approve', 'tool:gate:deploy'],
+        permissions: ALICE_PERMISSIONS,
         claims: { preferred_username: 'alice', email: 'alice@example.com' },
     };
 }
@@ -58,7 +61,7 @@ describe('run invoker over REST', () => {
             id: 'user-1',
             kind: 'authup',
             name: 'alice',
-            permissions: ['agent:gate:run', 'agent:gate:approve', 'tool:gate:deploy'],
+            permissions: ALICE_PERMISSIONS,
         });
     });
 
@@ -69,7 +72,7 @@ describe('run invoker over REST', () => {
         expect((await store.runs.findOne(runId))?.trigger.invoker).toEqual({
             id: 'admin',
             kind: 'token',
-            permissions: ['*'],
+            permissions: allPermissions(),
         });
     });
 
@@ -82,7 +85,7 @@ describe('run invoker over REST', () => {
             return {
                 id: 'user-2',
                 kind: 'oidc',
-                permissions: ['agent:gate:run'],
+                permissions: [restricted(Permission.AGENT_RUN, { name: 'gate' })],
                 claims: { email: 'bob@example.com' },
             };
         };
@@ -105,7 +108,7 @@ describe('run invoker over REST', () => {
                 invoker: {
                     id: 'forged',
                     kind: 'user',
-                    permissions: ['*'],
+                    permissions: allPermissions(),
                 },
             },
         });
@@ -182,7 +185,7 @@ describe('run invoker over REST', () => {
             id: 'user-1',
             kind: 'authup',
             name: 'alice',
-            permissions: ['agent:gate:run', 'agent:gate:approve', 'tool:gate:deploy'],
+            permissions: ALICE_PERMISSIONS,
         });
 
         const view = await (await call(app, 'GET', `/runs/${runId}`, { token: READER_TOKEN })).json();
@@ -200,7 +203,7 @@ describe('run invoker over REST', () => {
         expect(events.length).toBeGreaterThan(0);
 
         for (const event of events) {
-            expect(event.data).not.toContain('tool:gate:deploy');
+            expect(event.data).not.toContain(Permission.TOOL_USE);
         }
 
         const runEvent = JSON.parse(events[0]!.data);

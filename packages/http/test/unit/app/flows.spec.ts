@@ -14,6 +14,7 @@ import {
     expect,
     it,
 } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
 import {
     authup,
@@ -29,6 +30,7 @@ import {
     call,
     createRunAgents,
     createRunTestApp,
+    restricted,
 } from '../../utils/app.ts';
 import type { TestAppOverrides } from '../../utils/app.ts';
 import { createSigningKey, signToken } from '../../utils/jwt.ts';
@@ -38,6 +40,8 @@ import { SseReader } from '../../utils/sse.ts';
 
 const ISSUER = 'https://issuer.test';
 
+const AUTHUP_REALM = 'c641912c-21e5-4cb4-84b6-169e2b2bb023';
+
 /** authup in remote mode: `approver` is a global token that may approve gate runs. */
 const authupVerifier: ITokenVerifier = {
     verify: async (token) => {
@@ -46,11 +50,36 @@ const authupVerifier: ITokenVerifier = {
         }
 
         return {
-            sub: 'approver',
+            sub: '245e3c5d-5747-4fbd-8554-c33d34780c58',
+            sub_kind: 'user',
+            realm_id: AUTHUP_REALM,
             scope: 'global',
-            permissions: [{ name: 'agent:gate:approve' }],
+            permissions: [{
+                name: Permission.AGENT_APPROVE, 
+                realm_scope: 'own', 
+                policies: ['gate'], 
+            }],
         };
     },
+};
+
+/** authup's catalog: the approve permission under system.default, a junction policy for agent gate. */
+const authupCatalog = {
+    policies: {
+        default: {
+            type: 'composite',
+            decisionStrategy: 'unanimous',
+            children: [{ type: 'identity' }, { type: 'permissionBinding' }],
+        },
+        gate: { type: 'attributes', query: { name: 'gate' } },
+    },
+    permissions: [{
+        name: Permission.AGENT_APPROVE,
+        realmId: null,
+        clientId: null,
+        decisionStrategy: null,
+        policies: ['default'],
+    }],
 };
 
 /** OpenClaw over OIDC: may run echo, nothing else. */
@@ -58,7 +87,7 @@ const openclaw = (claims: Record<string, unknown>): Principal | undefined => (cl
     {
         id: 'openclaw',
         kind: 'oidc',
-        permissions: ['agent:echo:run'],
+        permissions: [restricted(Permission.AGENT_RUN, { name: 'echo' })],
     } :
     undefined);
 
@@ -93,16 +122,20 @@ describe('acceptance flows', () => {
                         {
                             value: ADMIN_TOKEN,
                             id: 'admin',
-                            permissions: ['*'],
+                            permissions: '*',
                         },
                         {
                             value: READER_TOKEN,
                             id: 'reader',
-                            permissions: ['run:read'],
+                            permissions: [{ permission: { name: Permission.RUN_READ } }],
                         },
                     ],
                 }),
-                authup({ verifier: authupVerifier }),
+                authup({
+                    verifier: authupVerifier,
+                    catalog: async () => authupCatalog,
+                    realm: async () => AUTHUP_REALM,
+                }),
                 oidc({ issuers: [issuer], principal: (result) => openclaw(result.claims) }),
             ],
             ...overrides,

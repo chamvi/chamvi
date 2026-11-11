@@ -12,6 +12,7 @@ import {
     it,
     vi,
 } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { Engine, createMemoryStore } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
@@ -23,6 +24,7 @@ import {
     createRunAgents,
     createRunTestApp,
     flush,
+    restricted,
     testChannels,
     tokenFor,
 } from '../../utils/app.ts';
@@ -448,10 +450,10 @@ describe('GET /runs/:id/stream', () => {
 
         expect(missing.status).toBe(404);
         expect(missing.headers.get('content-type')).toMatch(/application\/json/);
-        expect((await call(app, 'GET', `/runs/${runId}/stream`, { token: tokenFor('agent:other:run') })).status).toBe(403);
+        expect((await call(app, 'GET', `/runs/${runId}/stream`, { token: tokenFor(restricted(Permission.AGENT_RUN, { name: 'other' })) })).status).toBe(403);
         expect((await call(app, 'GET', `/runs/${runId}/stream`)).status).toBe(401);
 
-        const allowed = await call(app, 'GET', `/runs/${runId}/stream`, { token: tokenFor('agent:echo:run') });
+        const allowed = await call(app, 'GET', `/runs/${runId}/stream`, { token: tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' })) });
 
         expect(allowed.status).toBe(200);
         await allowed.body?.cancel();

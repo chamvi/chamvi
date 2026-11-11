@@ -32,6 +32,8 @@ import {
     webhookChannel,
 } from '@chamvi/http';
 import type { HttpAppOptions, Principal } from '@chamvi/http';
+import { Permission } from '@chamvi/access';
+import type { PermissionBinding } from '@chamvi/access';
 import type { App } from 'routup';
 import { approvalModel, textModel } from './model.ts';
 
@@ -45,12 +47,12 @@ export const testAuth = staticTokens({
         {
             value: ADMIN_TOKEN,
             id: 'admin',
-            permissions: ['*'],
+            permissions: '*',
         },
         {
             value: READER_TOKEN,
             id: 'reader',
-            permissions: ['run:read'],
+            permissions: [{ permission: { name: Permission.RUN_READ } }],
         },
     ],
 });
@@ -313,7 +315,25 @@ export function createRunTestApp(overrides: TestAppOverrides = {}) {
     return { ...setup, approvalIdOf: (runId: string) => approvalIdOf(setup.store, runId) };
 }
 
-/** An authenticator that maps `Bearer p:<a>,<b>` to a principal with those permissions. */
+/** A grant `tokenFor` takes: a name (an unrestricted binding) or a binding. */
+export type TestGrant = string | PermissionBinding;
+
+function toBinding(grant: TestGrant): PermissionBinding {
+    return typeof grant === 'string' ? { permission: { name: grant } } : grant;
+}
+
+/** A binding of `name` restricted by one `attributes` policy over the resource. */
+export function restricted(name: string, query: Record<string, unknown>): PermissionBinding {
+    return {
+        permission: { name },
+        policies: [{ type: 'attributes', query } as never],
+    };
+}
+
+/**
+ * An authenticator that maps `Bearer p:<base64url JSON bindings>` to a
+ * principal holding those bindings, id `p:<names joined by ,>`.
+ */
 export async function permissionsAuth(request: Request): Promise<Principal | undefined> {
     const match = /^Bearer p:(.*)$/.exec(request.headers.get('authorization') ?? '');
 
@@ -321,18 +341,22 @@ export async function permissionsAuth(request: Request): Promise<Principal | und
         return undefined;
     }
 
-    const permissions = match[1] ? match[1].split(',') : [];
+    const permissions = match[1] ? JSON.parse(Buffer.from(match[1], 'base64url').toString('utf8')) as PermissionBinding[] : [];
 
     return {
-        id: `p:${match[1]}`,
+        id: `p:${permissions.map((binding) => binding.permission.name).join(',')}`,
         kind: 'token',
         permissions,
     };
 }
 
-/** The bearer token `permissionsAuth` reads as exactly these permissions. */
-export function tokenFor(...permissions: string[]): string {
-    return `p:${permissions.join(',')}`;
+/** The bearer token `permissionsAuth` reads as exactly these grants. */
+export function tokenFor(...grants: TestGrant[]): string {
+    if (grants.length === 0) {
+        return 'p:';
+    }
+
+    return `p:${Buffer.from(JSON.stringify(grants.map(toBinding))).toString('base64url')}`;
 }
 
 /** Waits until every pending microtask and immediate ran. */

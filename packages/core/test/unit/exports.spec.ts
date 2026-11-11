@@ -31,6 +31,12 @@ describe('public api', () => {
         expect(core).not.toHaveProperty('createMemoryRepositories');
     });
 
+    it('leaves permission checks to @chamvi/access', () => {
+        for (const name of ['hasPermission', 'matchesPermission', 'toolPermission', 'PERMISSION_ALL', 'can', 'Permission']) {
+            expect(core).not.toHaveProperty(name);
+        }
+    });
+
     it('publishes conversation persistence separately from the agent api', () => {
         const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
@@ -111,9 +117,6 @@ describe('public api', () => {
         'ToolDeniedError',
         'IncompleteResponseError',
         'SandboxError',
-        'hasPermission',
-        'matchesPermission',
-        'toolPermission',
         'requireToolPermission',
         'isArtifactMediaType',
         'artifactFilePart',

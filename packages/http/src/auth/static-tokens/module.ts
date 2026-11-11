@@ -5,6 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { allPermissions, isPermissionBinding } from '@chamvi/access';
+import type { PermissionBinding } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { readBearerToken } from '../helpers.ts';
 import type { Authenticator, Principal } from '../types.ts';
@@ -13,9 +15,35 @@ import { hashToken } from './helpers.ts';
 import type { StaticTokensOptions } from './types.ts';
 
 /**
+ * The bindings a token's `permissions` stand for, a copy: `'*'` is every
+ * chamvi permission unrestricted. Anything but `'*'` or an array of bindings
+ * is a configuration error.
+ */
+function readPermissions(id: string, permissions: unknown): PermissionBinding[] {
+    if (permissions === '*') {
+        return allPermissions();
+    }
+
+    const isBindingList = Array.isArray(permissions) && permissions.every((permission) => isPermissionBinding(permission));
+
+    if (isBindingList) {
+        try {
+            return structuredClone(permissions);
+        } catch {
+            // a binding holding a function or another value structuredClone refuses
+        }
+    }
+
+    throw new InvalidAgentDefinitionError(
+        `Static token "${id}": permissions must be "*" or an array of permission bindings ({ permission: { name }, policies? }).`,
+    );
+}
+
+/**
  * Bearer tokens configured up front (CI, OpenClaw). Tokens are looked up by
  * their SHA-256, never compared as strings. An unknown token resolves
- * `undefined`, so the chain continues.
+ * `undefined`, so the chain continues. A token's `permissions` are `'*'`
+ * (every chamvi permission, unrestricted) or bindings, kept as configured.
  */
 export function staticTokens(options: StaticTokensOptions): Authenticator {
     const { tokens } = options;
@@ -51,7 +79,7 @@ export function staticTokens(options: StaticTokensOptions): Authenticator {
         principals.set(digest, {
             id,
             kind: 'token',
-            permissions: [...permissions],
+            permissions: readPermissions(id, permissions),
         });
     }
 
@@ -64,6 +92,6 @@ export function staticTokens(options: StaticTokensOptions): Authenticator {
 
         const principal = principals.get(hashToken(token));
 
-        return principal ? { ...principal, permissions: [...principal.permissions] } : undefined;
+        return principal ? { ...principal, permissions: structuredClone(principal.permissions) } : undefined;
     };
 }

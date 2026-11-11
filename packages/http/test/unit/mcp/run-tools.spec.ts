@@ -11,6 +11,7 @@ import {
     it,
     vi,
 } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { z } from 'zod';
 import {
     Engine,
@@ -25,6 +26,7 @@ import {
     call,
     createRunAgents,
     createRunTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
@@ -163,7 +165,7 @@ describe('mcp run_<agent>', () => {
 
     it('lists only the agents the principal may run', async () => {
         const { app } = createRunTestApp();
-        const client = await connectMcp(app, tokenFor('agent:echo:run'));
+        const client = await connectMcp(app, tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' })));
         const names = (await client.listTools()).tools.map((t) => t.name);
 
         expect(names).toContain('run_echo');

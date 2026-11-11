@@ -6,11 +6,20 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission, allPermissions, can } from '@chamvi/access';
+import type { PermissionBinding } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { staticTokens } from '@chamvi/http';
 
 const TOKEN = 'ci-token-0123456789';
 const ROTATED = 'ci-token-9876543210';
+const ADMIN = 'admin-token-0123456789';
+
+const READ: PermissionBinding = { permission: { name: Permission.RUN_READ } };
+const TRIAGE_ONLY: PermissionBinding = {
+    permission: { name: Permission.AGENT_RUN },
+    policies: [{ type: 'attributes', query: { name: 'triage' } } as never],
+};
 
 const request = (authorization?: string) => new Request('http://test', { headers: authorization ? { authorization } : {} });
 
@@ -19,7 +28,7 @@ describe('staticTokens', () => {
         tokens: [{
             value: TOKEN,
             id: 'ci',
-            permissions: ['run:read'],
+            permissions: [READ],
         }],
     });
 
@@ -27,8 +36,78 @@ describe('staticTokens', () => {
         expect(await auth(request(`Bearer ${TOKEN}`))).toEqual({
             id: 'ci',
             kind: 'token',
-            permissions: ['run:read'],
+            permissions: [READ],
         });
+    });
+
+    it('expands "*" to every chamvi permission, unrestricted', async () => {
+        const admin = staticTokens({
+            tokens: [{
+                value: ADMIN, 
+                id: 'admin', 
+                permissions: '*', 
+            }], 
+        });
+
+        expect(await admin(request(`Bearer ${ADMIN}`))).toEqual({
+            id: 'admin',
+            kind: 'token',
+            permissions: allPermissions(),
+        });
+    });
+
+    it('keeps a restricted binding as configured', async () => {
+        const restricted = staticTokens({
+            tokens: [{
+                value: ADMIN, 
+                id: 'triage', 
+                permissions: [TRIAGE_ONLY], 
+            }], 
+        });
+        const principal = await restricted(request(`Bearer ${ADMIN}`));
+
+        expect(principal?.permissions).toEqual([TRIAGE_ONLY]);
+        await expect(can(principal!, Permission.AGENT_RUN, { attributes: { name: 'triage', private: false } })).resolves.toBe(true);
+        await expect(can(principal!, Permission.AGENT_RUN, { attributes: { name: 'other', private: false } })).resolves.toBe(false);
+    });
+
+    it('answers a copy, so a caller cannot change the configured grants', async () => {
+        const restricted = staticTokens({
+            tokens: [{
+                value: ADMIN, 
+                id: 'triage', 
+                permissions: [TRIAGE_ONLY], 
+            }], 
+        });
+        const first = await restricted(request(`Bearer ${ADMIN}`));
+
+        (first!.permissions[0] as { permission: { name: string } }).permission.name = 'changed';
+
+        expect((await restricted(request(`Bearer ${ADMIN}`)))?.permissions).toEqual([TRIAGE_ONLY]);
+    });
+
+    it.each([
+        ['an old string entry', ['agent:triage:run']],
+        ['"*" inside the list', ['*']],
+        ['a binding without a name', [{ permission: {} }]],
+        ['a string other than "*"', 'run:read'],
+    ])('rejects %s, naming the token and the binding shape', (_name, permissions) => {
+        expect(() => staticTokens({
+            tokens: [{
+                value: ADMIN, 
+                id: 'ci', 
+                permissions: permissions as never, 
+            }], 
+        })).toThrow(
+            'Static token "ci": permissions must be "*" or an array of permission bindings ({ permission: { name }, policies? }).',
+        );
+        expect(() => staticTokens({
+            tokens: [{
+                value: ADMIN, 
+                id: 'ci', 
+                permissions: permissions as never, 
+            }], 
+        })).toThrow(InvalidAgentDefinitionError);
     });
 
     it('resolves undefined without a header or for an unknown token', async () => {
@@ -46,12 +125,12 @@ describe('staticTokens', () => {
                 {
                     value: TOKEN,
                     id: 'ci',
-                    permissions: ['run:read'],
+                    permissions: [READ],
                 },
                 {
                     value: ROTATED,
                     id: 'ci',
-                    permissions: ['run:read'],
+                    permissions: [READ],
                 },
             ],
         });
@@ -95,12 +174,12 @@ describe('staticTokens', () => {
                 {
                     value: TOKEN,
                     id: 'ci',
-                    permissions: ['run:read'],
+                    permissions: [READ],
                 },
                 {
                     value: TOKEN,
                     id: 'admin',
-                    permissions: ['*'],
+                    permissions: '*',
                 },
             ],
         })).toThrow(InvalidAgentDefinitionError);

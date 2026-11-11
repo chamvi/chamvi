@@ -15,6 +15,8 @@ import {
     expect,
     it,
 } from 'vitest';
+import { Permission } from '@chamvi/access';
+import type { PermissionBinding } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { oidc } from '@chamvi/http';
 import { createSigningKey, signToken } from '../../utils/jwt.ts';
@@ -83,15 +85,30 @@ describe('oidc', () => {
         });
     });
 
-    it('lets the mapper grant permissions from claims', async () => {
+    it('lets the mapper grant permission bindings from claims', async () => {
+        const deploy: PermissionBinding = {
+            permission: { name: Permission.AGENT_RUN },
+            policies: [{ type: 'attributes', query: { name: 'deploy' } } as never],
+        };
         const auth = make((r) => ({
             id: String(r.claims.sub),
             kind: 'oidc',
-            permissions: r.claims.repository === 'acme/x' ? ['agent:deploy:run'] : [],
+            permissions: r.claims.repository === 'acme/x' ? [deploy] : [],
         }));
         const token = await signToken(key.privateKey, claims({ repository: 'acme/x' }));
 
-        expect((await auth(request(token)))?.permissions).toEqual(['agent:deploy:run']);
+        expect((await auth(request(token)))?.permissions).toEqual([deploy]);
+    });
+
+    it('rejects a mapper returning string permissions, naming the binding shape', async () => {
+        const token = await signToken(key.privateKey, claims());
+        const auth = make(() => ({
+            id: 'ci',
+            kind: 'oidc',
+            permissions: ['agent:deploy:run'] as never,
+        }));
+
+        await expect(auth(request(token))).rejects.toThrow('a permissions array of permission bindings');
     });
 
     it('rejects an expired token with token_expired', async () => {
@@ -163,7 +180,7 @@ describe('oidc', () => {
             kind: 'oidc',
             permissions: 'agent:deploy:run',
         }],
-        ['a non-string permission', {
+        ['a permission that is no binding', {
             id: 'ci',
             kind: 'oidc',
             permissions: [42],

@@ -34,10 +34,20 @@ export type ToolFactoryContext<S extends StateSchema = StateSchema> = ToolContex
  * - a call pending on an approval (the policy changed before the resume)
  *   reaches the engine's per-call re-check, which answers the model with
  *   ToolNotAllowedError.
- * Should depend only on the run snapshot (e.g. `run.trigger.invoker`), so
- * the tool set is stable across executions.
+ * May return a promise: the engine awaits every verdict when it builds the
+ * offered tools of an execution and again in the per-call re-check; a
+ * rejecting policy fails the run. `now` is the engine clock's time at that
+ * check (date and time policies). Should depend only on the run snapshot
+ * (e.g. `run.trigger.invoker`) and `now`.
  */
-export type ToolPolicy = (toolName: string, ctx: { run: RunContext }) => boolean;
+export type ToolPolicy = (toolName: string, ctx: ToolPolicyContext) => boolean | Promise<boolean>;
+
+/** What a ToolPolicy decides on. */
+export type ToolPolicyContext = {
+    run: RunContext;
+    /** The engine clock's time at this check. */
+    now: Date;
+};
 
 /** A tool call as the agent hooks see it. */
 export type ToolCallInfo = {
@@ -104,7 +114,7 @@ export type ModelAgentDefinition<S extends StateSchema = StateSchema> = {
     /** Shared-store execution cap across all channels; omitted or false adds no cap. */
     concurrencyMaxRuns?: number | false;
 
-    /** Only principals granted `agent:<name>:read` read the agent's runs (and state). */
+    /** Only principals granted `chamvi_agent_read` for this agent read its runs (and state). */
     private?: boolean;
 
     /**
@@ -188,7 +198,7 @@ export type SimpleAgentDefinition<S extends StateSchema = StateSchema, T extends
 
     concurrencyMaxRuns?: number | false;
 
-    /** Only principals granted `agent:<name>:read` read the agent's runs (and state). */
+    /** Only principals granted `chamvi_agent_read` for this agent read its runs (and state). */
     private?: boolean;
 
     /** A plain set only: a factory is refused. */
