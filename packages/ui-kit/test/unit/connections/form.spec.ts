@@ -425,6 +425,42 @@ describe('ConnectionForm', () => {
         expect(form.message('host')).toBeUndefined();
     });
 
+    it.each([
+        ['1e400', '1e400'],
+        ['Infinity', 'Infinity'],
+        ['-Infinity', '-Infinity'],
+        ['0x10', '0x10'],
+        ['1e3', '1e3'],
+        ['400 nines', '9'.repeat(400)],
+    ])('refuses %s in a number field before sending', async (_label, draft) => {
+        const put = vi.fn(() => view());
+        const form = await mount({ routes: { 'PUT /connections/mail-work/config': put } });
+
+        form.type(form.input('port')!, draft);
+        await form.submit();
+
+        expect(put).not.toHaveBeenCalled();
+        expect(form.message('port')).toBe('The value must be numeric');
+    });
+
+    it('sends a plain decimal number', async () => {
+        const bodies: unknown[] = [];
+        const form = await mount({
+            routes: {
+                'PUT /connections/mail-work/config': (body) => {
+                    bodies.push(body);
+
+                    return view();
+                },
+            },
+        });
+
+        form.type(form.input('port')!, ' -1.5 ');
+        await form.submit();
+
+        expect(bodies).toEqual([{ settings: expect.objectContaining({ port: -1.5 }) }]);
+    });
+
     it('needs an account id and a required secret while adding', async () => {
         const post = vi.fn(() => ({ name: 'mail-work', ...view() }));
         const form = await mount({ name: undefined, routes: { 'POST /connection-types/mail/connections': post } });
@@ -649,6 +685,39 @@ describe('ConnectionForm', () => {
             }]);
         });
 
+        it('never sends a secret typed into an input that closed again', async () => {
+            const bodies: unknown[] = [];
+            const form = await mount({
+                type: BOUND,
+                routes: {
+                    'PUT /connections/mail-work/config': (body) => {
+                        bodies.push(body);
+
+                        return view();
+                    },
+                },
+            });
+
+            form.type(form.input('host')!, 'other.example.com');
+            await flush();
+            form.type(form.input('password')!, 'not-for-the-old-host');
+            form.type(form.input('host')!, 'imap.example.com');
+            await flush();
+
+            expect(form.input('password')).toBeNull();
+            expect(form.field('password').querySelector('[data-testid="secret-set"]')).not.toBeNull();
+
+            await form.submit();
+
+            expect(bodies).toEqual([{ settings: expect.objectContaining({ host: 'imap.example.com' }) }]);
+
+            // the input opens empty again, the dropped text is gone
+            form.type(form.input('host')!, 'other.example.com');
+            await flush();
+
+            expect(form.input('password')?.value).toBe('');
+        });
+
         it('says the change cannot be made for a secret from the environment', async () => {
             const form = await mount({
                 type: BOUND,
@@ -704,6 +773,28 @@ describe('ConnectionForm', () => {
         await flush();
 
         expect(refused.root.querySelector('[data-testid="connection-test-result"]')?.textContent).toContain('Save Password first.');
+    });
+
+    it('drops a test result once a secret was cleared, since it tested other values', async () => {
+        const form = await mount({
+            current: view({ deletable: true }),
+            routes: {
+                'POST /connections/mail-work/test': () => ({ ok: true }),
+                'PUT /connections/mail-work/config': () => withField(view({ deletable: true }), 'password', { source: { kind: 'unset' }, set: false }),
+            },
+        });
+
+        form.button('Test')!.click();
+        await flush();
+
+        expect(form.root.querySelector('[data-testid="connection-test-result"]')).not.toBeNull();
+
+        form.button('Clear')!.click();
+        await flush();
+        form.button('Clear secret')!.click();
+        await flush();
+
+        expect(form.root.querySelector('[data-testid="connection-test-result"]')).toBeNull();
     });
 
     it('offers no Test for a type without one', async () => {

@@ -26,7 +26,8 @@ import type { CalendarEnvEntry, ToolCalendarModuleOptions } from './types.ts';
  * variables) and the zone (`CHAMVI_CALENDAR_TIMEZONE`, else `timezone`) are
  * read and checked when the factory is called (InvalidAgentDefinitionError,
  * never echoing a value). `setup` adds the accounts stored in the connection
- * store, the env winning per field, and fails naming the variable for a
+ * store, the env winning per field of a declared account only (a stored-only
+ * one reads no variable), and fails naming the variable for a
  * declared account whose user or password is in neither; the `accounts`
  * option pins the set, and a check that finds the store behind its migrations
  * warns and goes on with the env. The accounts are listed as connections of

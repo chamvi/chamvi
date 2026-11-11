@@ -143,9 +143,10 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
 
             if (Object.keys(write).length > 0) {
                 try {
-                    await connections.writeConfig(name, write, wrapped.wrapped);
+                    // the row is bare until this write: a writer that filled it meanwhile keeps it, and this create is refused
+                    await connections.writeConfig(name, write, wrapped.wrapped, 0);
                 } catch (error) {
-                    // a recreate meanwhile owns the row; any other failure must not leave an empty row a retry cannot fill
+                    // a recreate or another writer meanwhile owns the row; any other failure must not leave an empty row a retry cannot fill
                     if (!(error instanceof ConnectionChangedError)) {
                         await connections.delete(name).catch(() => undefined);
                     }

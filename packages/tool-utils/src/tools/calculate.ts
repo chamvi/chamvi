@@ -23,7 +23,8 @@ export function calculateTool(): Tool<CalculateInput, CalculateResult> {
         description: 'Decimal arithmetic rounded to 40 significant digits (0.1 + 0.2 is 0.3): call it for any sum, product, percentage, average or rounding ' +
             'instead of calculating yourself. Supports + - * / ^, parentheses, a % suffix (50% is 0.5), and ' +
             'sum, min, max, avg, round(x, digits), abs, floor, ceil. Numbers are plain decimals (no 1e5, no ' +
-            'thousands separators). "100 + 10%" is refused: write 100 * 1.1. Returns { result } as a decimal string.',
+            'thousands separators). A percentage directly under + or - ("100 + 10%", also "100 + (10%)") is refused: ' +
+            'write 100 * 1.1. Returns { result } as a decimal string.',
         inputSchema: objectSchema<CalculateInput>({
             expression: {
                 type: 'string',

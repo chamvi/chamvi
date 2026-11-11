@@ -13,6 +13,22 @@ import type { ConnectionFormField, ConnectionFormValues } from './types.ts';
 /** The state key (and the server's issue path) of the account id while adding. */
 export const ACCOUNT_KEY = 'account';
 
+/** A plain decimal: no exponent, no hex, no `Infinity` (JSON would turn a non-finite number into `null`, which unsets). */
+const DECIMAL_PATTERN = /^[+-]?(?:\d+(?:\.\d*)?|\.\d+)$/;
+
+/** The number a number field's draft stands for, or undefined when it is no finite plain decimal. */
+export function parseNumberDraft(draft: string): number | undefined {
+    const text = draft.trim();
+
+    if (!DECIMAL_PATTERN.test(text)) {
+        return undefined;
+    }
+
+    const value = Number(text);
+
+    return Number.isFinite(value) ? value : undefined;
+}
+
 /** Whether the form must hold a value for the field: a secret with a stored value keeps it when left empty. */
 export function isRequiredField(field: ConnectionFormField): boolean {
     return field.required === true && !field.lock && !(field.kind === 'secret' && field.secretSet);
@@ -53,7 +69,7 @@ export function isFieldDraft(field: ConnectionFormField, required: boolean): Val
 
             const text = String(value).trim();
 
-            if (field.kind === 'number' && Number.isNaN(Number(text))) {
+            if (field.kind === 'number' && parseNumberDraft(text) === undefined) {
                 throw createValidupError(undefined, IssueCode.NUMERIC, 'must be a number');
             }
 

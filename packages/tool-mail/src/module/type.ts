@@ -143,6 +143,18 @@ function toAccount(id: string, values: ConnectionValues, declared?: MailEnvAccou
     };
 }
 
+/**
+ * The variables of a connection's fields that are set, also as `_FILE`, by
+ * name: nothing is read, so a file that cannot be read stays untouched.
+ */
+function variablesSetFor(env: Env, definition: ConnectionTypeDefinition, connection: string): string[] {
+    return definition.fields.flatMap((field) => {
+        const variable = field.env?.(connection);
+
+        return variable === undefined ? [] : [variable, `${variable}_FILE`].filter((name) => (env[name] ?? '').length > 0);
+    });
+}
+
 /** Only the stored secrets: what stays of a row whose settings the client refuses. */
 function storedSecretsOf(definition: ConnectionTypeDefinition, values: ConnectionValues): ConnectionValues {
     return Object.fromEntries(Object.entries(values).filter(([key]) => definition.fields.some((field) => field.key === key && field.kind === 'secret')));
@@ -151,8 +163,10 @@ function storedSecretsOf(definition: ConnectionTypeDefinition, values: Connectio
 /**
  * The accounts the client reads and the connections the dashboard lists:
  * the declared ones (env winning per field over a stored row of the same
- * id), then the stored ones. A stored account that is incomplete or invalid
- * is listed for repair and not used; a declared one drops a stored setting
+ * id), then the stored ones, which take every value from the store: a
+ * variable named after such an account is ignored with a warning, since
+ * whoever added the row chose where its secrets go (#197). A stored account
+ * that is incomplete or invalid is listed for repair and not used; a declared one drops a stored setting
  * the client refuses, is listed incomplete and stays in use, and fails the
  * start only for what env and store both lack (never echoing a value).
  */
@@ -232,10 +246,17 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             continue;
         }
 
+        const name = storedConnectionName(MAIL_CONNECTION_TYPE, id);
+
+        for (const variable of variablesSetFor(env, definition, name)) {
+            // the name only: the variable may hold the secret of an account that left the list
+            logger.warn(`The variable ${variable} is ignored: the mail account "${id}" is not listed in ${MAIL_ACCOUNTS_VARIABLE} and takes its values from the store.`);
+        }
+
         const resolved = resolveConnection({
             definition,
-            name: storedConnectionName(MAIL_CONNECTION_TYPE, id),
-            readVariable,
+            name,
+            readVariable: () => undefined,
             stored: row.values,
         });
 

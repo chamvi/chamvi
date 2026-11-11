@@ -48,6 +48,14 @@ describe('date_add', () => {
         await expect(add({ days: 1 }, clock)).resolves.toMatchObject({ date: '2026-01-16', time: '12:30' });
     });
 
+    it('reads a space-separated offset as an instant', async () => {
+        await expect(add({ date: '2026-01-01 10:00+05:00', minutes: 1 })).resolves.toMatchObject({
+            date: '2026-01-01',
+            time: '06:01',
+            timezone: 'Europe/Berlin',
+        });
+    });
+
     it('reads the date in the given timezone', async () => {
         await expect(add({
             date: '2026-01-01T10:00',

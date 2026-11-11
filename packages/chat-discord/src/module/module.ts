@@ -51,7 +51,12 @@ import {
     policyOf,
     presetOf,
 } from './helpers.ts';
-import { declaredConnection, discordConnectionDefinition } from './type.ts';
+import {
+    declaredConnection,
+    discordConnectionDefinition,
+    isStoreMade,
+    refusedField,
+} from './type.ts';
 import type { DiscordInstances, DiscordModuleOptions } from './types.ts';
 
 /** One list of the Discord modules' connections per app, behind one provider. */
@@ -68,7 +73,8 @@ function invalid(message: string): InvalidAgentDefinitionError {
  * `module.on()`. A not configured module contributes an idle channel, so
  * subscribed agents can start: it never logs in and its `out` throws
  * ConnectionNotConfiguredError. A stored value the channel refuses leaves it
- * idle too (`incomplete`), for the dashboard to repair. Only the engine's
+ * idle too (`incomplete`), for the dashboard to repair; a refused code or env
+ * value fails the start (see `isRepairable`). Only the engine's
  * start logs in, so a check connects to nothing. Migrate mode does nothing.
  */
 export class DiscordModule implements IModule {
@@ -187,22 +193,25 @@ export class DiscordModule implements IModule {
         let resolved = this.resolve(row);
 
         if (resolved.state === 'configured') {
-            try {
-                this.chat = this.build(container, resolved, logger);
-            } catch (error) {
-                const fromStore = Object.values(resolved.sources).some((source) => source.kind === 'store');
+            const approvalUrl = this.options.approvalUrl ?? approvalUrlOf(container.resolve(AppToken.CONFIG));
 
-                // only a stored value can be repaired in the dashboard
-                if (!fromStore || !(error instanceof InvalidAgentDefinitionError)) {
+            try {
+                if (!approvalUrl) {
+                    throw invalid('approvalUrl is required, or CHAMVI_PUBLIC_URL for the dashboard\'s approvals page.');
+                }
+
+                this.chat = this.build(resolved, approvalUrl, logger);
+            } catch (error) {
+                if (!(error instanceof InvalidAgentDefinitionError) || !this.isRepairable(resolved, error, !approvalUrl)) {
                     throw error;
                 }
 
                 // these messages name the option, never a value
                 logger.warn(`The Discord connection "${this.connection}" cannot be used (${error.message}); it stays idle until it is repaired.`);
                 resolved = {
-                    ...resolved, 
-                    state: 'incomplete', 
-                    reason: error.message, 
+                    ...resolved,
+                    state: 'incomplete',
+                    reason: error.message,
                 };
             }
         } else {
@@ -259,13 +268,24 @@ export class DiscordModule implements IModule {
         return resolved.state === 'incomplete' && onlyCode ? { ...resolved, state: 'not_configured' } : resolved;
     }
 
-    protected build(container: IContainer, resolved: ResolvedConnection, logger: ILogger): DiscordChatSetup {
-        const approvalUrl = this.options.approvalUrl ?? approvalUrlOf(container.resolve(AppToken.CONFIG));
-
-        if (!approvalUrl) {
-            throw invalid('approvalUrl is required, or CHAMVI_PUBLIC_URL for the dashboard\'s approvals page.');
+    /**
+     * Whether a refusal leaves the connection idle for the dashboard to
+     * repair: one naming a stored field, or a missing approval URL of a
+     * connection made in the dashboard (a store row never stops the start).
+     * Anything else (a code option, an env value, a missing approval URL of
+     * an env or code deployment) fails the start.
+     */
+    protected isRepairable(resolved: ResolvedConnection, error: InvalidAgentDefinitionError, noApprovalUrl: boolean): boolean {
+        if (noApprovalUrl) {
+            return isStoreMade(discordConnectionDefinition(), resolved);
         }
 
+        const field = refusedField(error.message);
+
+        return field !== undefined && resolved.sources[field]?.kind === 'store';
+    }
+
+    protected build(resolved: ResolvedConnection, approvalUrl: NonNullable<DiscordChatOptions['approvalUrl']>, logger: ILogger): DiscordChatSetup {
         const chatOptions: Partial<DiscordModuleOptions> = { ...this.options };
 
         for (const key of ['env', 'token', 'applicationId', 'policy', 'approvalUrl'] as const) {

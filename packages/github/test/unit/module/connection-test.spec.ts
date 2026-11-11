@@ -146,6 +146,27 @@ describe('the GitHub connection test', () => {
         expect(lines.join('\n')).not.toContain('whsec-value');
     });
 
+    it('reports a 404 from GET /app as a wrong API URL without a value', async () => {
+        const fake = createFakeGithub({ appId: '1', clock });
+        const { call } = await serve([githubModule({
+            env: {},
+            clock,
+            fetch: async (input, init) => (String(input).endsWith('/app') ?
+                Response.json({ message: 'Not Found' }, { status: 404 }) :
+                fake.fetch(input, init)),
+        })]);
+
+        await save(call, '1', fake.privateKey, { baseUrl: 'https://ghe.test' });
+
+        const text = await (await call('POST', '/connections/github/test')).text();
+
+        expect(JSON.parse(text)).toEqual({
+            ok: false,
+            message: 'GitHub answered 404 at the configured API URL; a GitHub Enterprise Server URL ends in /api/v3.',
+        });
+        expect(text).not.toContain('ghe.test');
+    });
+
     it('reports a stored value the App refuses without quoting it', async () => {
         const fake = createFakeGithub({ appId: '1', clock });
         const { call } = await serve([githubModule({

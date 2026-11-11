@@ -189,7 +189,9 @@ export type ConnectionConfigUpdateOptions = {
 export interface IConnectionConfigStore {
     /**
      * Creates the row with a fresh wrapped data key, then saves `update`.
-     * Resolves false, changing nothing, when the name is taken.
+     * Resolves false, changing nothing, when the name is taken; rejects with
+     * ConnectionChangedError, keeping the row, when another writer saved its
+     * config between the row and this save.
      */
     create(name: string, type: string, update: ConnectionConfigUpdate): Promise<boolean>;
     /** Never resolves the keyring. */

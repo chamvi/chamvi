@@ -5,4 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export const UI_MODULE_NAME = 'chamvi:ui';
+import { ModuleName } from '@chamvi/app';
+
+/** `ModuleName.UI`: the `*-ui` pages set up after a module of this name. */
+export const UI_MODULE_NAME = ModuleName.UI;

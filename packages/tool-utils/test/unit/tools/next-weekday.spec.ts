@@ -46,6 +46,15 @@ describe('next_weekday', () => {
         await expect(next({ weekday: 'Sunday' }, clock)).resolves.toMatchObject({ daysAway: 6 });
     });
 
+    it('reads a space-separated offset as an instant', async () => {
+        // Sunday 20:00 in New York is Monday 02:00 in Berlin
+        await expect(next({
+            weekday: 'monday',
+            date: '2026-11-08 20:00-05:00',
+            includeToday: true,
+        })).resolves.toMatchObject({ date: '2026-11-09', daysAway: 0 });
+    });
+
     it('refuses an unknown weekday naming weekday', async () => {
         await expect(next({ weekday: 'funday', date })).rejects.toThrow(/weekday/);
     });

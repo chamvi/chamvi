@@ -175,6 +175,28 @@ describe('createConnectionConfigStore', () => {
             await expect(config.create('Not Valid', 'mail', {})).rejects.toBeInstanceOf(ValidationError);
         });
 
+        it('refuses its config write when another writer filled the row after the insert, keeping that writer\'s config', async () => {
+            const { config, connections } = setup();
+            const { insert } = connections;
+
+            connections.insert = async (...args) => {
+                const inserted = await insert.apply(connections, args);
+
+                // what a repair of the bare row does while this create is in flight
+                await config.update('mail-work', { settings: { host: 'other' }, secrets: { set: { token: 'other-token' } } });
+
+                return inserted;
+            };
+
+            await expect(config.create('mail-work', 'mail', { settings: { host: 'mine' }, secrets: { set: { password: PLAINTEXT } } }))
+                .rejects.toBeInstanceOf(ConnectionChangedError);
+            await expect(config.describe('mail-work')).resolves.toEqual({
+                settings: { host: 'other' },
+                secretsSet: ['token'],
+                revision: 1,
+            });
+        });
+
         it('removes the row when the initial config write fails, so a retry creates it', async () => {
             const { config, connections } = setup();
             const failure = new Error('store down');

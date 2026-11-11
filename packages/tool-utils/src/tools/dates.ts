@@ -11,11 +11,13 @@ import type { ParsedDate } from './types.ts';
 import { resolveZone } from './zone.ts';
 
 const DATE_ONLY = /^\d{4}-\d{2}-\d{2}$/;
-const OFFSET = /T.*(?:Z|[+-]\d{2}(?::?\d{2}(?::?\d{2}(?:[.,]\d{1,9})?)?)?)(?:\[[^\]]*\])?$/i;
+// an offset needs a time, and Temporal accepts `T`, `t` or a space before the time
+const OFFSET = /[T ].*(?:Z|[+-]\d{2}(?::?\d{2}(?::?\d{2}(?:[.,]\d{1,9})?)?)?)(?:\[[^\]]*\])?$/i;
 
 /**
  * `YYYY-MM-DD` (start of that day), `YYYY-MM-DDTHH:MM[:SS]` or an instant
- * with an offset or `Z`, read in `zone` (already resolved). A gap or overlap
+ * with an offset or `Z` (time separator `T`, `t` or a space alike), read in
+ * `zone` (already resolved). A gap or overlap
  * resolves `compatible`. Anything else is a ValidationError naming `field`.
  */
 export function parseDateInput(value: string, field: string, zone: string): ParsedDate {

@@ -28,6 +28,7 @@ import {
 import { createModuleHarness } from '@chamvi/app/testing';
 import type { ModuleHarness } from '@chamvi/app/testing';
 import { uiModule } from '@chamvi/ui/module';
+import type { UiModuleOptions } from '@chamvi/ui/module';
 import { textModel } from '../../utils/model.ts';
 import {
     TOKENS,
@@ -148,7 +149,12 @@ describe('uiModule with a registered page', () => {
         await Promise.all(pageRoots.splice(0).map((root) => rm(root, { recursive: true, force: true })));
     });
 
-    async function servedWithPage(order: 'dashboard' | 'page', basePath = '', uiBase?: string) {
+    async function servedWithPage(
+        order: 'dashboard' | 'page',
+        basePath = '',
+        uiBase?: string,
+        auth?: UiModuleOptions['auth'],
+    ) {
         const pageRoot = await mkdtemp(join(tmpdir(), 'chamvi-page-'));
 
         pageRoots.push(pageRoot);
@@ -156,9 +162,10 @@ describe('uiModule with a registered page', () => {
 
         const port = await freePort();
         const dashboard = uiModule({
-            env: {}, 
-            root: ROOT, 
-            ...(uiBase && { basePath: uiBase }), 
+            env: {},
+            root: ROOT,
+            ...(uiBase && { basePath: uiBase }),
+            ...(auth && { auth }),
         });
         const page = uiPageModule({
             name: 'chamvi:tool-mail-ui',
@@ -212,5 +219,19 @@ describe('uiModule with a registered page', () => {
 
         expect(dashboard.status).toBe(200);
         expect(await dashboard.text()).not.toContain(MARK);
+    });
+
+    it.each(['dashboard', 'page'] as const)('a page signs in like a dashboard whose authup login is set in code (%s module first)', async (order) => {
+        const authup = { url: 'https://auth.example.com/api', clientId: 'chamvi-ui' };
+        const origin = await servedWithPage(order, '', undefined, { authup });
+        const response = await fetch(`${origin}/ext/tool-mail/`);
+        const html = await response.text();
+        const match = /<script type="application\/json" id="chamvi-config">(.*?)<\/script>/s.exec(html);
+        const csp = response.headers.get('content-security-policy') ?? '';
+
+        expect(response.status).toBe(200);
+        expect(JSON.parse(match![1]!).auth).toEqual({ tokens: true, authup });
+        expect(csp).toContain("connect-src 'self' https://auth.example.com;");
+        expect(csp).toContain("form-action 'self' https://auth.example.com;");
     });
 });

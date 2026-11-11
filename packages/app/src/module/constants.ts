@@ -41,11 +41,13 @@ export const AppToken = {
     CONNECTION_TYPES: token('CONNECTION_TYPES'),
     CONNECTION_CONFIGS: token('CONNECTION_CONFIGS'),
     UI_PAGES: token('UI_PAGES'),
+    UI_AUTH: token('UI_AUTH'),
 } as const;
 
 /**
  * The built-in modules' names; list a module of the same name to replace one.
- * `CONSOLE` names the optional `consoleChannelModule()`.
+ * `CONSOLE` names the optional `consoleChannelModule()`, `UI` the dashboard's
+ * `uiModule()` of `@chamvi/ui/module`.
  */
 export const ModuleName = {
     CONFIG: 'chamvi:config',
@@ -56,6 +58,7 @@ export const ModuleName = {
     SCHEDULER: 'chamvi:scheduler',
     HTTP: 'chamvi:http',
     CONSOLE: 'chamvi:console',
+    UI: 'chamvi:ui',
 } as const;
 
 /** The order of the authenticator chain (lowest first). */

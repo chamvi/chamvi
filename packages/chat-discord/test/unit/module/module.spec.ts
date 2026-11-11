@@ -450,6 +450,41 @@ describe('discordModule', () => {
         await expect(w.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
     });
 
+    it('a complete env deployment fails without CHAMVI_PUBLIC_URL although a row stores an optional field', async () => {
+        const store = await storedWorld('discord', { settings: { roles: [ROLE] } });
+        const w = world({ store, patch: { approvalUrl: undefined } });
+
+        await expect(w.harness.setup()).rejects.toThrow(/CHAMVI_PUBLIC_URL/);
+    });
+
+    it.each([
+        [{ apiUrl: 'ftp://nope' }, /apiUrl/],
+        [{ userName: '' }, /userName/],
+    ])('a refused code option %j fails the start although the connection is stored', async (patch, message) => {
+        const store = await storedWorld('discord', {
+            settings: { applicationId: APP_ID, guilds: [GUILD] },
+            secrets: { set: { token: 'stored-token' } },
+        });
+        const w = world({
+            moduleEnv: {},
+            store,
+            patch,
+        });
+
+        await expect(w.harness.setup()).rejects.toThrow(message);
+    });
+
+    it('a refused stored field next to a complete env leaves it idle and repairable', async () => {
+        const store = await storedWorld('discord', { settings: { roles: ['not-an-id'] } });
+        const w = world({ store });
+
+        await w.harness.setup();
+
+        expect(w.clients.clients).toEqual([]);
+        expect(w.connection().resolved.state).toBe('incomplete');
+        expect(w.connection().resolved.reason).toContain('policy.roles');
+    });
+
     it('a store without connections is env-only and read-only', async () => {
         const store: IStore = createMemoryStore();
 

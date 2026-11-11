@@ -103,7 +103,9 @@ function plain(value: Decimal): Operand {
  * Parses and evaluates the tokens in one precedence-climbing pass, tightest
  * first: primary and calls, postfix `%`, `^` (right-associative), unary
  * minus, `* /`, `+ -`. Every limit applies as it goes, so a hostile input
- * stops early.
+ * stops early. A `%` operand of `+` or `-` is refused, also through
+ * parentheses or unary minus; a product, a power or a function argument
+ * turns it into a plain number.
  */
 export function parseTokens(tokens: Token[]): Decimal {
     let position = 0;
@@ -250,7 +252,8 @@ export function parseTokens(tokens: Token[]): Decimal {
 
             expect(')');
 
-            return { value: inner.value, percent: false };
+            // parentheses keep a bare percentage one: "100 + (10%)" has the two readings of "100 + 10%"
+            return inner;
         }
 
         if (token.kind === 'name') {

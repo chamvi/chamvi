@@ -32,6 +32,7 @@ describe('public api', () => {
         'approvalUrlOf',
         'createLogger',
         'readStoredConnections',
+        'readUiAuth',
         'runHooks',
         'throwIfStopped',
         'envString',
@@ -136,6 +137,7 @@ describe('public api', () => {
             'SERVER',
             'SHUTDOWN',
             'STORE',
+            'UI_AUTH',
             'UI_PAGES',
         ]);
     });
@@ -150,6 +152,7 @@ describe('public api', () => {
             SCHEDULER: 'chamvi:scheduler',
             HTTP: 'chamvi:http',
             CONSOLE: 'chamvi:console',
+            UI: 'chamvi:ui',
         });
         expect(app.APP_ERROR_CODE).toEqual({
             STOPPED: 'app_stopped',

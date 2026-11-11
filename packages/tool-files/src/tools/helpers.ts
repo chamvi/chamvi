@@ -54,8 +54,7 @@ function selections(value: unknown): Array<Record<string, unknown> & { path: str
     }
 
     const seen = new Set<string>();
-
-    return Array.from(value, (item) => {
+    const selected = Array.from(value, (item) => {
         const body = inputObject(item);
         const path = relativePath(body.path);
 
@@ -67,6 +66,17 @@ function selections(value: unknown): Array<Record<string, unknown> & { path: str
 
         return { ...body, path };
     });
+
+    // a file path cannot also be a directory of another selected path
+    for (const { path } of selected) {
+        const nested = selected.find((other) => other.path.startsWith(`${path}/`));
+
+        if (nested) {
+            throw new ValidationError(`Selected path "${path}" is a file and a directory of "${nested.path}".`);
+        }
+    }
+
+    return selected;
 }
 
 export function processInput(input: unknown): Required<ProcessFilesInput> {

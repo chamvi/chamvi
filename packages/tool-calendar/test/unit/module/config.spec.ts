@@ -327,15 +327,39 @@ describe('toolCalendarModule() configuration', () => {
         expect(step?.error).toMatchObject({ code: 'connection_not_configured' });
     });
 
-    it('a stored account partly set from the env without its password fails naming the variable', async () => {
+    it('a stored account ignores the variables named after it, with a warning', async () => {
+        const server = fake();
+        const store = createMemoryStore();
+
+        await seed(store, 'home');
+
+        const harness = await harnessOf({
+            store,
+            agents: [listAgent()],
+            options: { fetch: server.fetch, env: { CHAMVI_CALENDAR_HOME_USER: 'env-user', CHAMVI_CALENDAR_HOME_PASSWORD: PASSWORD } },
+        });
+
+        await runList(harness);
+
+        expect(authorizationsOf(server)).toEqual(new Set([basic('home@icloud.com', STORED_PASSWORD)]));
+        expect(connectionOf(harness, 'calendar-home').resolved.sources).toMatchObject({ user: { kind: 'unset' }, password: { kind: 'store' } });
+        expect(logLines.join('\n')).toContain('CHAMVI_CALENDAR_HOME_USER');
+        expect(logLines.join('\n')).toContain('CHAMVI_CALENDAR_HOME_PASSWORD');
+        expect(logLines.join('\n')).not.toContain('env-user');
+        expect(logLines.join('\n')).not.toContain(PASSWORD);
+    });
+
+    it('a stored account without its password stays incomplete whatever its variables hold: the app starts', async () => {
         const store = createMemoryStore();
 
         await configsOf(store).create('calendar-home', CALENDAR_CONNECTION_TYPE, { settings: { url: FAKE_CALDAV_URL } });
 
-        await expect(harnessOf({
+        const harness = await harnessOf({
             store,
-            options: { env: { CHAMVI_CALENDAR_HOME_USER: 'env-user' } },
-        })).rejects.toThrow(/CHAMVI_CALENDAR_HOME_PASSWORD/);
+            options: { env: { CHAMVI_CALENDAR_HOME_USER: 'env-user', CHAMVI_CALENDAR_HOME_PASSWORD: PASSWORD } },
+        });
+
+        expect(connectionOf(harness, 'calendar-home').resolved).toMatchObject({ state: 'incomplete', missing: ['password'] });
     });
 
     it('an account whose stored name would exceed 64 characters is used but not listed', async () => {

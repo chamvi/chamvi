@@ -12,6 +12,7 @@ import {
     reactive,
     ref,
     shallowRef,
+    watch,
 } from 'vue';
 import type { ApiError } from '../api/error.ts';
 import { asApiError } from '../api/helpers.ts';
@@ -25,7 +26,7 @@ import type {
     IConnectionConfigApi,
     UseConnectionFormOptions,
 } from './types.ts';
-import { ACCOUNT_KEY, buildConnectionContainer } from './validators.ts';
+import { ACCOUNT_KEY, buildConnectionContainer, parseNumberDraft } from './validators.ts';
 
 /** The code of a server issue shown at its field: untranslated, so its own message shows. */
 const SERVER_ISSUE_CODE = 'connection_config';
@@ -38,15 +39,11 @@ function toDraft(value: unknown): string {
     return value === undefined || value === null ? '' : String(value);
 }
 
-/** The API's typed value of a text input; empty is unset (the server's rule) and a non-number goes to its check. */
+/** The API's typed value of a text input; empty is unset (the server's rule); the container refused any other non-number. */
 function toSetting(field: ConnectionFormField, draft: string): unknown {
     switch (field.kind) {
-        case 'number': {
-            const text = draft.trim();
-            const value = Number(text);
-
-            return text === '' || Number.isNaN(value) ? text : value;
-        }
+        case 'number':
+            return parseNumberDraft(draft) ?? draft.trim();
         case 'boolean':
             return draft === '' ? '' : draft === 'true';
         case 'list': {
@@ -112,6 +109,23 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
         return movedFields.value.length > 0 && field.kind === 'secret' && field.secretSet && !field.lock;
     }
 
+    /**
+     * Whether a secret's input is open: never set, Replace, or asked for again.
+     * The template shows it by this rule and a save sends only these drafts.
+     */
+    function showsSecretInput(field: ConnectionFormField): boolean {
+        return field.kind === 'secret' && !field.lock && (!field.secretSet || replacing.value[field.key] === true || mustReenter(field));
+    }
+
+    // a closed input drops its text, so it neither leaves with a save nor shows up when the input opens again
+    watch(() => fields.value.filter((field) => field.kind === 'secret' && !showsSecretInput(field)).map((field) => field.key), (closed) => {
+        for (const key of closed) {
+            if ((values[key] ?? '') !== '') {
+                values[key] = '';
+            }
+        }
+    });
+
     /** What a save of the edited destination needs; only names, never a value. */
     const rebindNotice = computed(() => {
         const moved = movedFields.value.map((field) => field.label).join(', ');
@@ -156,7 +170,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
 
     function typedSecrets(): Record<string, string> {
         return Object.fromEntries(fields.value
-            .filter((field) => field.kind === 'secret' && !field.lock && (values[field.key] ?? '') !== '')
+            .filter((field) => showsSecretInput(field) && (values[field.key] ?? '') !== '')
             .map((field) => [field.key, values[field.key]!]));
     }
 
@@ -345,6 +359,8 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
 
                 // only the secret: edits still in the form stay unsaved and in the form
                 view.value = await api.save(name, { secrets: { clear: [open.key] } });
+                // the result was of the values before
+                testResult.value = undefined;
                 dropSecret(open.key);
                 confirmation.value = undefined;
             } catch (e) {
@@ -370,7 +386,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
         confirmation,
         confirmError,
         rebindNotice,
-        mustReenter,
+        showsSecretInput,
         save,
         test,
         toggleReplace,

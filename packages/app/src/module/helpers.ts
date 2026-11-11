@@ -10,6 +10,8 @@ import type { AgentIssue } from '@chamvi/http';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { isObject } from 'smob';
+import { envString, envUrl } from '../env/module.ts';
+import type { Env } from '../env/types.ts';
 import { APP_ERROR_CODE, AppToken, SCHEMA_BEHIND_SQLSTATES } from './constants.ts';
 import type {
     AppContext,
@@ -17,6 +19,7 @@ import type {
     LifecyclePhase,
     ReadStoredConnectionsOptions,
     StoredConnection,
+    UiAuth,
 } from './types.ts';
 
 /** The reason the context signal aborts with once stop() is called (internal). */
@@ -187,4 +190,28 @@ export async function readStoredConnections(
     }
 
     return stored;
+}
+
+/**
+ * The dashboard's sign-in from the env: the token login, plus the authup login
+ * with `CHAMVI_UI_AUTHUP_CLIENT_ID` (then `AUTHUP_URL` is required) and the
+ * optional `CHAMVI_UI_AUTHUP_REALM_ID`.
+ */
+export function readUiAuth(env: Env): UiAuth {
+    const clientId = envString(env, 'CHAMVI_UI_AUTHUP_CLIENT_ID');
+
+    if (typeof clientId === 'undefined') {
+        return { tokens: true };
+    }
+
+    const realmId = envString(env, 'CHAMVI_UI_AUTHUP_REALM_ID');
+
+    return {
+        tokens: true,
+        authup: {
+            url: envUrl(env, 'AUTHUP_URL', { required: true, protocols: ['http:', 'https:'] }),
+            clientId,
+            ...(typeof realmId === 'string' && { realmId }),
+        },
+    };
 }

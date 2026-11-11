@@ -50,6 +50,25 @@ describe('time_convert', () => {
         await expect(convert({ dateTime: '2026-01-01T12:00:00Z', to: 'Asia/Tokyo' })).resolves.toMatchObject({ to: { time: '21:00' } });
     });
 
+    it.each([
+        ['2026-01-01 10:00+05:00', '05:00'],
+        ['2026-01-01 10:00Z', '10:00'],
+        ['2026-01-01 10:00z', '10:00'],
+        ['2026-01-01t10:00z', '10:00'],
+        ['2026-01-01t10:00-01:30', '11:30'],
+        ['20260101 1000+0500', '05:00'],
+    ])('reads %j with a space or lowercase separator as an instant', async (dateTime, time) => {
+        await expect(convert({ dateTime, to: 'UTC' })).resolves.toMatchObject({ to: { time } });
+    });
+
+    it('refuses a space-separated offset together with from', async () => {
+        await expect(convert({
+            dateTime: '2026-01-01 10:00+05:00',
+            from: 'Europe/Berlin',
+            to: 'UTC',
+        })).rejects.toThrow(/from/);
+    });
+
     it('refuses an offset together with from', async () => {
         await expect(convert({
             dateTime: '2026-01-01T12:00:00Z',
