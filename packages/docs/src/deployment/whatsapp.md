@@ -25,7 +25,7 @@ Before a live cutover:
 
 ## Pairing
 
-The first start of an unpaired session emits a QR reference (it rotates periodically until scanned: Baileys shows the first for 60 s, each later one for 20 s). With `whatsappModule()` it shows on the WhatsApp page of the dashboard, live, to a principal holding `connection:<name>:write`. That page ships in `@chamvi/chat-whatsapp-ui`: add [`chatWhatsappUiModule()`](/guide/ui#connection-pages) to the app's modules, open `/ui/ext/chat-whatsapp?connection=<name>` and scan it with the phone (WhatsApp, Linked devices, Link a device). With `createWhatsAppChat()` it goes to `onPairing`; render it there. Either way it is never logged. There is no phone-number pairing code yet. Once paired, the session is stored and later starts connect without a QR.
+The first start of an unpaired session emits a QR reference (it rotates periodically until scanned: Baileys shows the first for 60 s, each later one for 20 s). With `whatsappModule()` it shows on the WhatsApp page of the dashboard, live, to a principal holding `connection:<name>:write`. That page ships in `@chamvi/chat-whatsapp-ui`: add [`chatWhatsappUiModule()`](/guide/ui#connection-pages) to the app's modules, open `<uiBase>/ext/chat-whatsapp?connection=<name>` (`<uiBase>` is `/ui` unless the dashboard's `basePath` moved it, see [Connection pages](/guide/ui#connection-pages)) and scan it with the phone (WhatsApp, Linked devices, Link a device). With `createWhatsAppChat()` it goes to `onPairing`; render it there. Either way it is never logged. There is no phone-number pairing code yet. Once paired, the session is stored and later starts connect without a QR.
 
 ## Session store
 

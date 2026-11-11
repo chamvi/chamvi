@@ -64,6 +64,10 @@ The accounts column and the Connections overview show `not configured`, `incompl
 
 Editing and deleting need `connection:<name>:write`, adding an account of a multi-account type (mail, calendar) `connections:create`. Deleting is offered for stored accounts only; an account declared in env or a module cannot be deleted.
 
+::: warning Grant `connections:create` like a credential
+Env wins over a stored value field by field, also for an account added here. A leftover variable such as `CHAMVI_MAIL_WORK_PASSWORD` therefore becomes the password of an account `work` that someone with `connections:create` adds, with a host of their choosing, from the next start on; a test or a tool call then sends it there. Remove the variables of accounts you no longer declare, give `connections:create` only to principals you would trust with those secrets, and keep the app's outbound network limited (the chart's egress policy).
+:::
+
 ## Sign-in
 
 - **Token** (default): a static bearer token of `staticTokens()`. `GET /me` checks it before it is kept, in the tab's `sessionStorage` only; sign-out removes every `chamvi.` key but a pending approval link. Only a 401 drops a stored token: a reload while the API restarts or rate limits keeps it, and the next navigation tries again.

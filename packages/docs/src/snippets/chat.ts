@@ -20,6 +20,7 @@ import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
 import type { IWhatsAppAuthProvider } from '@chamvi/chat-whatsapp';
 import { whatsappModule } from '@chamvi/chat-whatsapp/module';
 import { chatWhatsappUiModule } from '@chamvi/chat-whatsapp-ui/module';
+import { uiModule } from '@chamvi/ui/module';
 
 declare const model: LanguageModel;
 // an exclusive session store of your own (or whatsappModule's, below)
@@ -79,16 +80,18 @@ export const platform: IChatPlatform = {
 // #endregion platform
 
 // #region agent
-const reply = defineTool({
+/** A reply on the channel `name`; on the run's source channel it answers the source chat. */
+const replyOn = (name: string) => defineTool({
     description: 'Reply in the chat the message came from.',
     inputSchema: z.object({ text: z.string() }),
     execute: async ({ text }, { context }) => {
         // the source chat: no address, and no outbound gate in a tainted run
-        await context.channels.findOneOrFail('chat').emit({ body: text });
+        await context.channels.findOneOrFail(name).emit({ body: text });
 
         return 'sent';
     },
 });
+const reply = replyOn('chat');
 
 export const assistant = defineModelAgent({
     name: 'assistant',
@@ -176,14 +179,16 @@ export const phoneAssistant = defineModelAgent({
     instructions: 'Answer with the reply tool.',
     conversation: true,
     channels: [phone.on()],
-    tools: { reply },
+    // whatsappModule's channel is named after its connection
+    tools: { reply: replyOn('whatsapp') },
 });
 
 export const phoneApp = createApp({
     agents: [phoneAssistant],
     // no chatModule: whatsappModule contributes the channel and the connection itself;
     // chatWhatsappUiModule serves the page that shows the pairing QR
-    modules: [phone, chatWhatsappUiModule()],
+    // uiModule serves the sign-in a signed-out visitor of the page is sent to
+    modules: [phone, uiModule(), chatWhatsappUiModule()],
     conversations: { authorize: ({ agent }) => agent === 'assistant' },
 });
 // #endregion whatsapp-store
@@ -249,13 +254,14 @@ export const discordBotAssistant = defineModelAgent({
     instructions: 'Answer with the reply tool.',
     conversation: true,
     channels: [discordBot.on()],
-    tools: { reply },
+    // discordModule's channel is named after the module (default `discord`)
+    tools: { reply: replyOn('discord') },
 });
 
 export const discordBotApp = createApp({
     agents: [discordBotAssistant],
     // no chatModule: discordModule contributes the channel itself
-    modules: [discordBot, chatDiscordUiModule()],
+    modules: [discordBot, uiModule(), chatDiscordUiModule()],
     conversations: { authorize: ({ agent }) => agent === 'assistant' },
 });
 // #endregion discord-app-module
