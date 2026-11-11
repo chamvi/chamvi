@@ -24,7 +24,7 @@ const DETAIL = {
 };
 
 describe('the connection view', () => {
-    it('renders no widget for a qr connection, keeps status and reset', async () => {
+    it('renders no QR for a pairing connection but points to its page, keeps status and reset', async () => {
         const send = async (url: string) => (url.endsWith('/events') ?
             new Promise<Response>(() => {}) :
             new Response(JSON.stringify(DETAIL)));
@@ -72,6 +72,7 @@ describe('the connection view', () => {
         expect(root.querySelector('.connection-widget')).toBeNull();
         expect(root.querySelector('img')).toBeNull();
         expect(root.innerHTML).not.toContain('secret-pairing-material');
+        expect(root.querySelector('[data-testid="connection-pairing"]')?.textContent).toContain('its page in the sidebar');
         app.unmount();
     });
 });
