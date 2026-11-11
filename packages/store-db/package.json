@@ -58,7 +58,7 @@
         "@chamvi/test-kit": "^0.8.0",
         "@swc/core": "^1.16.22",
         "@testcontainers/postgresql": "^12.2.1",
-        "ai": "^7.0.163",
+        "ai": "^7.0.165",
         "pg": "^8.23.1",
         "typeorm": "^1.1.2",
         "unplugin-swc": "^2.0.0",

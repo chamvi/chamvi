@@ -62,7 +62,7 @@
         "@chamvi/core": "^0.8.0",
         "@chamvi/test-kit": "^0.8.0",
         "@chat-adapter/discord": "4.44.0",
-        "ai": "^7.0.163",
+        "ai": "^7.0.165",
         "chat": "^4.44.0",
         "discord.js": "^14.28.1",
         "zod": "^4.6.7"
