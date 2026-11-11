@@ -59,7 +59,8 @@ function invalid(message: string): InvalidAgentDefinitionError {
  * starts it), migrate nothing. The lease is taken only when the engine
  * starts the channel, so a check, a job and a migration acquire and write
  * nothing. The handle shows the latest QR while pairing, to the
- * dashboard's `connection:<name>:write` holders only; nothing logs it.
+ * dashboard's `chamvi_connection_write` holders for this connection only;
+ * nothing logs it.
  */
 export class WhatsAppModule implements IModule {
     readonly name: string;

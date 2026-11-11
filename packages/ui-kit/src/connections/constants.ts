@@ -21,6 +21,3 @@ export const STATUS_BADGES: Record<ConnectionStatus, ConnectionBadge> = {
     held_elsewhere: { label: 'held elsewhere', tone: 'waiting' },
     failed: { label: 'failed', tone: 'failed' },
 };
-
-/** Reveals a package's sidebar item and "+ Add account"; the server's rule, kept here since the kit imports no http runtime. */
-export const CONNECTIONS_CREATE_PERMISSION = 'connections:create';

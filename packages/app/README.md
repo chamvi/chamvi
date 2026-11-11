@@ -37,7 +37,7 @@ npm install @chamvi/app @chamvi/cli ai @ai-sdk/anthropic typeorm pg
 
 ESM only, Node.js `>=26.0.0`. `ai`, `typeorm` and `pg` are peer dependencies; the provider packages (`@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/openai-compatible`, `@ai-sdk/google`, `@ai-sdk/mistral`, `@ai-sdk/xai`) are optional peers: install the ones you use. The optional modules ship with the package they configure (`npm install @chamvi/github` for `@chamvi/github/module`, ...), which peers on `@chamvi/app`.
 
-The main entry re-exports `@chamvi/core` and the common part of `@chamvi/http` (`agentPermission`, `Permission`, the `Authenticator`, `Principal`, `HttpRoute*` and `StaticToken` types), so an agent repository imports one package.
+The main entry re-exports `@chamvi/core`, `@chamvi/access` (`Permission`, `can`, `canSome` and the binding types) and the common part of `@chamvi/http` (the `Authenticator`, `Principal`, `HttpRoute*` and `StaticToken` types), so an agent repository imports one package.
 
 ## Usage
 
@@ -143,7 +143,7 @@ Every variable is read once per lifecycle. An empty string counts as unset, inte
 | `CHAMVI_READINESS_DELAY_MS` | http shutdown | int | `0` |
 | `CHAMVI_DRAIN_TIMEOUT_MS` | http shutdown | int | `30000` (`--dev` 5000) |
 | `CHAMVI_CLOSE_TIMEOUT_MS` | http shutdown | int | `5000` |
-| `CHAMVI_TOKENS` | static tokens | JSON `[{ "value", "id", "permissions": [] }]`, `value` at least 16 characters and unique | unset (`--dev`: one random `*` token, warned); required when no other authenticator is configured |
+| `CHAMVI_TOKENS` | static tokens | JSON `[{ "value", "id", "permissions" }]`, `value` at least 16 characters and unique; `permissions` is `"*"` (every chamvi permission) or an array of permission bindings (`{ "permission": { "name": "chamvi_agent_run" }, "policies": [...] }`) | unset (`--dev`: one random `*` token, warned); required when no other authenticator is configured |
 | `CHAMVI_MODEL` | engine | `'<provider>/<model id>'` | the config file's `model`, else `createApp({ model })`; required when an agent has no model of its own |
 | `CHAMVI_CONFIG_FILE` | engine | path of a JSON file | unset: `./chamvi.json` when it exists |
 | `CHAMVI_PROVIDER_<NAME>_TYPE`, `_API_KEY`, `_BASE_URL`, `_HEADER_<HEADER>` | engine | type, secret, http(s) URL, secret | unset; each wins over the config file and code for provider `<name>` (see [Models](#models)) |
@@ -152,7 +152,7 @@ Every variable is read once per lifecycle. An empty string counts as unset, inte
 | `GITHUB_INSTALLATION_ID`, `GITHUB_APP_SLUG`, `GITHUB_API_URL` | `githubModule` | int, slug, https URL | unset |
 | `OPENCLAW_BASE_URL`, `OPENCLAW_HOOKS_TOKEN`, `OPENCLAW_CHANNEL`, `OPENCLAW_TO` | `openclawModule` | URL, string, string, string | required without options |
 | `OPENCLAW_HOOKS_PATH`, `OPENCLAW_AGENT_ID`, `OPENCLAW_ACCOUNT_ID` | `openclawModule` | string | `/hooks`, unset, unset |
-| `AUTHUP_URL`, `AUTHUP_CLIENT_ID`, `AUTHUP_CLIENT_SECRET` | `authupModule` | URL, string, string | required without a `verifier` |
+| `AUTHUP_URL`, `AUTHUP_CLIENT_ID`, `AUTHUP_CLIENT_SECRET` | `authupModule` | URL, string, string | required unless `verifier`, `catalog` and `realm` are all given; the client reads the permission catalog (`permission_read`) and introspects tokens (`token_introspect`), both granted with a realm scope of `ownOrNull` or wider (the default `own` does not reach the global definitions), and its realm is chamvi's realm |
 | `CHAMVI_UI_AUTHUP_CLIENT_ID`, `CHAMVI_UI_AUTHUP_REALM_ID` | `uiModule` | string | unset (token login only); the authup login then needs `AUTHUP_URL` |
 | `CHAMVI_SANDBOX_PROVIDER` | `sandboxModule` | `local`, `docker`, `kubernetes` | the `provider` option, else `local` |
 | `CHAMVI_SANDBOX_NAMESPACE` | `sandboxModule` | string | required for `kubernetes` |

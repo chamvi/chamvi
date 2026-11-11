@@ -97,7 +97,7 @@ async function serve(store: IStore, env: Record<string, string>): Promise<Served
             CHAMVI_TOKENS: JSON.stringify([{
                 value: TOKEN,
                 id: 'ops',
-                permissions: ['*'],
+                permissions: '*',
             }]),
             HOST: '127.0.0.1',
             PORT: String(port),

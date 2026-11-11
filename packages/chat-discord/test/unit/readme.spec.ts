@@ -39,7 +39,7 @@ const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf
 const TOKENS = JSON.stringify([{
     value: 'a-static-token-of-length',
     id: 'ops',
-    permissions: ['*'],
+    permissions: '*',
 }]);
 
 const apps: IApp[] = [];

@@ -113,7 +113,7 @@ describe('test-only filesystem auth provider', () => {
 const TOKENS = JSON.stringify([{
     value: 'a-static-token-of-length',
     id: 'ops',
-    permissions: ['*'],
+    permissions: '*',
 }]);
 
 const apps: IApp[] = [];

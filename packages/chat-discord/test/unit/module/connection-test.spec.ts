@@ -103,7 +103,7 @@ async function serve(input: ServeInput = {}) {
             CHAMVI_TOKENS: JSON.stringify([{
                 value: TOKEN,
                 id: 'ops',
-                permissions: ['*'],
+                permissions: '*',
             }]),
             HOST: '127.0.0.1',
             PORT: String(port),

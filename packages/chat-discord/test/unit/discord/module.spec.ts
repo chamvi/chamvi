@@ -160,7 +160,7 @@ describe('@chamvi/chat-discord', () => {
 const TOKENS = JSON.stringify([{
     value: 'a-static-token-of-length',
     id: 'ops',
-    permissions: ['*'],
+    permissions: '*',
 }]);
 
 const apps: IApp[] = [];

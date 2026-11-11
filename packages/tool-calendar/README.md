@@ -48,7 +48,7 @@ import { calendarTools } from '@chamvi/tool-calendar';
 export function createPlannerAgent(model: LanguageModel, password: string, fetch?: typeof globalThis.fetch) {
     return defineModelAgent({
         name: 'day-planner',
-        // only agent:day-planner:read holders read its runs
+        // only chamvi_agent_read holders for day-planner read its runs
         private: true,
         model,
         // POST /agents/day-planner/runs and MCP run_day-planner start a run
@@ -106,7 +106,7 @@ export default createApp({
     model: 'openai/gpt-5-mini',
     agents: [defineModelAgent({
         name: 'day-planner',
-        // only agent:day-planner:read holders read its runs
+        // only chamvi_agent_read holders for day-planner read its runs
         private: true,
         instructions: 'Plan the day from the calendar.',
         tools: calendarTools(),
@@ -128,7 +128,7 @@ The module reads the variables when it is called; a malformed value fails the bo
 
 ## Privacy
 
-Tool results stay in the run store: the steps and checkpoints of a run hold the events the model read, and the model's answer is calendar-derived too. Everyone who can read the agent's runs (the dashboard, `GET /runs`, the run stream) can read them. Define agents with these tools with `private: true`: only holders of `agent:<name>:read` then read their runs and state (`run:read` does not), so keep that grant narrow. Credentials stay in the client: never in a tool input, a result, an error or a log.
+Tool results stay in the run store: the steps and checkpoints of a run hold the events the model read, and the model's answer is calendar-derived too. Everyone who can read the agent's runs (the dashboard, `GET /runs`, the run stream) can read them. Define agents with these tools with `private: true`: only holders of `chamvi_agent_read` for that agent then read their runs and state (`chamvi_run_read` does not), so keep that grant narrow. Credentials stay in the client: never in a tool input, a result, an error or a log.
 
 ## Untrusted content
 

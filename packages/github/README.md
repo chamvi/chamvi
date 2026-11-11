@@ -132,7 +132,7 @@ export async function createTriageServer(
             tokens: [{
                 value: CHAMVI_TOKEN,
                 id: 'ci',
-                permissions: ['*'],
+                permissions: '*',
             }],
         }),
         // POST /channels/github: point the App's webhook URL here
@@ -282,7 +282,7 @@ Gate destructive tools (`github_close_issue`, `github_merge_pull_request` for an
 
 - Installation tokens are cached per installation and replaced five minutes before they expire, so a run resumed hours later after an approval gets a fresh one. Tokens, the private key and JWTs are never logged and never stored in a run, step or effect.
 - The tools reach every repository the installation can reach. An issue body is untrusted input: a model steered by it can act on any of those repositories, so install the App only where the agent may act, and gate destructive tools with approvals.
-- The approval comment is public to everyone who can read the issue. With `approvalUrl` it links to the approval in the chamvi UI (run and approval id only), where the owner signs in (`agent:<agent>:approve` to answer, `run:read` or `agent:<agent>:run` to see the run); without it, the line says to answer in the UI or through `POST /runs/:id/approve`.
+- The approval comment is public to everyone who can read the issue. With `approvalUrl` it links to the approval in the chamvi UI (run and approval id only), where the owner signs in (`chamvi_agent_approve` for the agent to answer, `chamvi_run_read` or `chamvi_agent_run` for it to see the run); without it, the line says to answer in the UI or through `POST /runs/:id/approve`.
 - The message body sits in a fence one backtick longer than any backtick run in it, so a `@login`, `@org/team` or `#123` inside notifies nobody and cross-links nothing, and no input closes the fence. Backtick runs over 31 are broken with U+200B zero-width spaces first, so the fence stays short; the body is cut to 60 000 characters (GitHub refuses comments over 65 536), never inside a surrogate pair. The title's whitespace runs are collapsed to one space. Only the configured `mention` logins are notified, and a comment by anyone but the App bot that copies a marker does not count as sent.
 - `requireToolPermission()` from `@chamvi/core` denies every tool to runs without an invoker, and delivery runs have none. GitHub agents use `requireToolPermission({ withoutInvoker: 'allow' })` or wrap it.
 - Webhook secrets can be rotated: pass `webhookSecret: [old, new]` while GitHub switches over.

@@ -22,6 +22,7 @@ import type {
     IApp,
 } from '@chamvi/app';
 import type { AgentIssue } from '@chamvi/http';
+import type { PermissionBinding } from '@chamvi/access';
 
 describe('public api', () => {
     it.each([
@@ -70,7 +71,12 @@ describe('public api', () => {
         'defineContextKey',
         'inject',
         'tryInject',
-        'agentPermission',
+        // @chamvi/access
+        'can',
+        'canSome',
+        'isPermissionBinding',
+        'allPermissions',
+        'permissionNames',
         'resolveModel',
         'checkAgentModel',
         'agentChannel',
@@ -194,8 +200,14 @@ describe('public api', () => {
         expect(app.APP_BRAND).toBe(Symbol.for('chamvi.app'));
     });
 
-    it('exports the http permissions', () => {
-        expect(app.Permission).toBeTypeOf('object');
+    it('exports the permission names of @chamvi/access', () => {
+        expect(app.Permission.AGENT_READ).toBe('chamvi_agent_read');
+        expect(app.PERMISSION_NAMES).toHaveLength(11);
+        expectTypeOf<app.PermissionBinding>().toEqualTypeOf<PermissionBinding>();
+    });
+
+    it.each(['agentPermission', 'hasPermission', 'matchesPermission', 'toolPermission', 'PERMISSION_ALL'])('drops the string permission helper %s', (name) => {
+        expect(app).not.toHaveProperty(name);
     });
 
     it.each([

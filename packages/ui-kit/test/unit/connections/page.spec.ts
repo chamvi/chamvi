@@ -21,6 +21,8 @@ import {
     shallowRef,
 } from 'vue';
 import type { App } from 'vue';
+import { Permission } from '@chamvi/access';
+import type { PermissionBinding } from '@chamvi/access';
 import type { MeWire } from '../../../src/api/types.ts';
 import type { UiConfig } from '../../../src/config/types.ts';
 import ConnectionsPage from '../../../src/connections/ConnectionsPage.vue';
@@ -29,6 +31,7 @@ import { install } from '../../../src/module.ts';
 import { fakeClient } from '../../utils/client.ts';
 import { installFormKit } from '../../utils/forms.ts';
 import { json } from '../../utils/fetch.ts';
+import { ALL, grant } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
 
 const CONFIG: UiConfig = {
@@ -70,7 +73,7 @@ afterEach(() => {
     globalThis.history.replaceState({}, '', '/');
 });
 
-async function mountPage(permissions: string[], world: { list?: unknown[]; search?: string } = {}) {
+async function mountPage(permissions: PermissionBinding[], world: { list?: unknown[]; search?: string } = {}) {
     const requests: string[] = [];
     const principal: MeWire = {
         id: 'peter',
@@ -152,7 +155,7 @@ async function mountPage(permissions: string[], world: { list?: unknown[]; searc
 
 describe('ConnectionsPage', () => {
     it('confirms an account a creator cannot read instead of opening its form', async () => {
-        const page = await mountPage(['connections:create']);
+        const page = await mountPage([grant(Permission.CONNECTION_CREATE)]);
 
         await page.add();
 
@@ -164,7 +167,7 @@ describe('ConnectionsPage', () => {
     });
 
     it('opens the form of an account its creator may read', async () => {
-        const page = await mountPage(['connections:create', 'connection:*:write']);
+        const page = await mountPage([grant(Permission.CONNECTION_CREATE), grant(Permission.CONNECTION_WRITE)]);
 
         await page.add();
 
@@ -179,7 +182,7 @@ describe('ConnectionsPage', () => {
             type: 'mail',
             status: 'disconnected',
         }));
-        const page = await mountPage(['*'], { list, search: '' });
+        const page = await mountPage(ALL, { list, search: '' });
         const button = (text: string) => Array.from(page.root.querySelectorAll('button')).find((entry) => entry.textContent?.trim() === text)!;
 
         expect(page.requests).toContain('GET /connections/mail-work/config');

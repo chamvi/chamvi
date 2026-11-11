@@ -188,7 +188,11 @@ describe('readConfig', () => {
         const valid = {
             value: 'a'.repeat(16),
             id: 'ops',
-            permissions: ['*'],
+            permissions: '*',
+        };
+        const restricted = {
+            permission: { name: 'chamvi_agent_run' },
+            policies: [{ type: 'attributes', query: { name: 'triage' } }],
         };
 
         it('parses a valid JSON array', () => {
@@ -223,13 +227,32 @@ describe('readConfig', () => {
             ['a duplicate value', [valid, { ...valid, id: 'other' }]],
             ['an empty id', [{ ...valid, id: '' }]],
             ['a missing id', [{ value: valid.value, permissions: [] }]],
-            ['non-string permissions', [{ ...valid, permissions: [1] }]],
+            ['non-binding permissions', [{ ...valid, permissions: [1] }]],
             ['missing permissions', [{ value: valid.value, id: 'x' }]],
         ])('rejects %s', (_, value) => {
             const error = errorOf(() => start({ CHAMVI_TOKENS: JSON.stringify(value) }));
 
             expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
             expect(error.message).toContain('CHAMVI_TOKENS');
+        });
+
+        it('parses a binding with an attributes policy as a copy', () => {
+            const config = start({ CHAMVI_TOKENS: JSON.stringify([{ ...valid, permissions: [restricted] }]) });
+
+            expect(config.tokens).toEqual([{ ...valid, permissions: [restricted] }]);
+        });
+
+        it.each([
+            ['an old permission string', ['agent:triage:run']],
+            ['"*" inside the list', ['*']],
+            ['a string beside a binding', [restricted, 'agent:triage:run']],
+            ['another string', 'all'],
+            ['a binding without a name', [{ permission: {} }]],
+        ])('rejects %s with the binding shape', (_, permissions) => {
+            const error = errorOf(() => start({ CHAMVI_TOKENS: JSON.stringify([{ ...valid, permissions }]) }));
+
+            expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+            expect(error.message).toBe('CHAMVI_TOKENS[0].permissions must be "*" or an array of permission bindings.');
         });
 
         it('rejects malformed JSON', () => {

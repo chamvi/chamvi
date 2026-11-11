@@ -60,7 +60,7 @@ export class StaticTokensModule implements IModule {
         this.contribute(container, [{
             value,
             id: DEV_TOKEN_ID,
-            permissions: ['*'],
+            permissions: '*',
         }]);
     }
 

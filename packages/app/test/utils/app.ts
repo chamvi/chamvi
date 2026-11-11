@@ -13,7 +13,7 @@ export const TOKEN = 'a-static-token-of-length';
 export const TOKENS = JSON.stringify([{
     value: TOKEN,
     id: 'ops',
-    permissions: ['*'],
+    permissions: '*',
 }]);
 
 export type Deferred<T = void> = {

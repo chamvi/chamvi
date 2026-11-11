@@ -74,7 +74,7 @@ export async function createTriageServer(
             tokens: [{
                 value: CHAMVI_TOKEN,
                 id: 'ci',
-                permissions: ['*'],
+                permissions: '*',
             }],
         }),
         // POST /channels/github: point the App's webhook URL here

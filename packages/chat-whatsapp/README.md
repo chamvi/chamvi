@@ -167,7 +167,7 @@ export default createApp({
 });
 ```
 
-`whatsappModule()` (`@chamvi/app` is an optional peer) takes `createWhatsAppChat()`'s options without `auth`, `onPairing` and `onStatus`, plus `connection`, `leaseTtlMs` and an optional `approvalUrl` (default: the dashboard under `CHAMVI_PUBLIC_URL`). In setup it needs `CHAMVI_ENCRYPTION_KEYS` (`<id>:<base64 of 32 bytes>`, comma separated, the first active; setup fails naming it when unset or malformed), contributes the channel to `AppToken.CHANNELS` and the connection handle to `AppToken.CONNECTIONS`: the dashboard's Connections page shows the status and, to `connection:<name>:write` holders only, the live QR and Reset session. The lease is taken only when the engine starts the channel, so `chamvi start --check` and `chamvi run-job` acquire and write nothing.
+`whatsappModule()` (`@chamvi/app` is an optional peer) takes `createWhatsAppChat()`'s options without `auth`, `onPairing` and `onStatus`, plus `connection`, `leaseTtlMs` and an optional `approvalUrl` (default: the dashboard under `CHAMVI_PUBLIC_URL`). In setup it needs `CHAMVI_ENCRYPTION_KEYS` (`<id>:<base64 of 32 bytes>`, comma separated, the first active; setup fails naming it when unset or malformed), contributes the channel to `AppToken.CHANNELS` and the connection handle to `AppToken.CONNECTIONS`: the dashboard's Connections page shows the status and, to holders of `chamvi_connection_write` for the connection only, the live QR and Reset session. The lease is taken only when the engine starts the channel, so `chamvi start --check` and `chamvi run-job` acquire and write nothing.
 
 With a provider of your own, `chatModule({ channel: setup.channel })` of `@chamvi/chat/module` contributes a `createWhatsAppChat()` channel instead.
 

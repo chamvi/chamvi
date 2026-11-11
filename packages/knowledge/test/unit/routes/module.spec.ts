@@ -73,12 +73,12 @@ function createFixture(extra: Partial<KnowledgeOptions> = {}): Fixture {
                 {
                     value: WRITER,
                     id: 'writer',
-                    permissions: [KNOWLEDGE_READ_PERMISSION, KNOWLEDGE_WRITE_PERMISSION],
+                    permissions: [{ permission: { name: KNOWLEDGE_READ_PERMISSION } }, { permission: { name: KNOWLEDGE_WRITE_PERMISSION } }],
                 },
                 {
                     value: READER,
                     id: 'reader',
-                    permissions: [KNOWLEDGE_READ_PERMISSION],
+                    permissions: [{ permission: { name: KNOWLEDGE_READ_PERMISSION } }],
                 },
                 {
                     value: NOBODY,

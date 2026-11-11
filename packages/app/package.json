@@ -66,6 +66,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
+        "@chamvi/access": "^0.8.0",
         "@chamvi/channel-cron": "^0.8.0",
         "@chamvi/core": "^0.8.0",
         "@chamvi/http": "^0.8.0",

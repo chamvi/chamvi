@@ -7,6 +7,8 @@
 
 export * from './app/index.ts';
 export * from './config/index.ts';
+// eslint-disable-next-line @tada5hi/no-reexport-shims -- The permission check belongs in the public facade beside core.
+export * from '@chamvi/access';
 // The public facade intentionally aggregates published package APIs for agent repositories.
 // eslint-disable-next-line @tada5hi/no-reexport-shims
 export * from '@chamvi/core';
@@ -16,8 +18,6 @@ export { cron } from '@chamvi/channel-cron';
 export type { CronSubscriptionOptions, OverlapPolicy } from '@chamvi/channel-cron';
 
 export {
-    Permission,
-    agentPermission,
     http,
     webhook,
 // eslint-disable-next-line @tada5hi/no-reexport-shims -- Published HTTP API belongs in the public facade.

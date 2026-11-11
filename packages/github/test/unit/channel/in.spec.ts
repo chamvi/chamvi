@@ -417,7 +417,7 @@ describe('github channel in', () => {
                 tokens: [{
                     value: 'admin-token-0123456789',
                     id: 'admin',
-                    permissions: ['*'],
+                    permissions: '*',
                 }],
             }),
             metrics: false,

@@ -65,7 +65,7 @@ async function serve(dav: FakeCalDav): Promise<(method: string, path: string, bo
             CHAMVI_TOKENS: JSON.stringify([{
                 value: TOKEN,
                 id: 'ops',
-                permissions: ['*'],
+                permissions: '*',
             }]),
             HOST: '127.0.0.1',
             PORT: String(port),
