@@ -96,6 +96,12 @@ export type GitCredentialSource = {
     } | undefined>;
 };
 
+/** The options of `readStoredConnections()`. */
+export type ReadStoredConnectionsOptions = {
+    /** Read only the row of this name; other rows are skipped before decryption. */
+    name?: string;
+};
+
 /** A stored connection as `readStoredConnections()` returns it. */
 export type StoredConnection = {
     name: string;

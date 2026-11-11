@@ -28,6 +28,7 @@ import type { ConnectionSettingsWire, ConnectionTypeWire } from '../../../src/co
 import { APP_CONTEXT } from '../../../src/context/constants.ts';
 import type { AppContext } from '../../../src/context/types.ts';
 import { ME, fakeClient } from '../../utils/client.ts';
+import { installFormKit } from '../../utils/forms.ts';
 import { flush } from '../../utils/timers.ts';
 
 const TYPE: ConnectionTypeWire = {
@@ -141,7 +142,7 @@ async function mount(options: {
 
         return new Response(JSON.stringify(await responder(init.body)));
     };
-    const emitted: { created: string[]; deleted: unknown[] } = { created: [], deleted: [] };
+    const emitted: { created: unknown[]; deleted: unknown[] } = { created: [], deleted: [] };
     const root = document.createElement('div');
 
     document.body.append(root);
@@ -153,7 +154,7 @@ async function mount(options: {
     const app = createApp(defineComponent(() => () => h(ConnectionForm, {
         type: 'mail',
         ...(name === undefined ? {} : { name }),
-        onCreated: (created: string) => {
+        onCreated: (created: unknown) => {
             emitted.created.push(created);
         },
         onDeleted: (deleted: unknown) => {
@@ -161,6 +162,7 @@ async function mount(options: {
         },
     })));
 
+    installFormKit(app);
     app.provide(APP_CONTEXT, context);
     app.mount(root);
     mounted = app;
@@ -171,15 +173,19 @@ async function mount(options: {
         calls,
         emitted,
         field: (key: string) => root.querySelector<HTMLElement>(`[data-field="${CSS.escape(key)}"]`)!,
-        input: (key: string) => root.querySelector<HTMLInputElement>(`[data-field="${CSS.escape(key)}"] input, [data-field="${CSS.escape(key)}"] select`),
+        input: (key: string) => root.querySelector<HTMLInputElement>(`[data-field="${CSS.escape(key)}"] input`),
+        /** A select's trigger (vuecs/Reka: a button showing the chosen label). */
+        select: (key: string) => root.querySelector<HTMLButtonElement>(`[data-field="${CSS.escape(key)}"] [role="combobox"]`),
+        /** The validation message under a field. */
+        message: (key: string) => root.querySelector(`[data-field="${CSS.escape(key)}"] .field-msg`)?.textContent?.trim(),
         button: (text: string) => Array.from(root.querySelectorAll('button')).find((entry) => entry.textContent?.trim() === text),
         submit: async () => {
             root.querySelector('form')!.dispatchEvent(new Event('submit', { cancelable: true }));
             await flush();
         },
-        type: (input: HTMLInputElement | HTMLSelectElement, value: string) => {
+        type: (input: HTMLInputElement, value: string) => {
             input.value = value;
-            input.dispatchEvent(new Event(input instanceof HTMLSelectElement ? 'change' : 'input'));
+            input.dispatchEvent(new Event('input'));
         },
     };
 }
@@ -243,6 +249,28 @@ describe('ConnectionForm', () => {
         await flush();
 
         expect(form.input('password')?.value).toBe('');
+    });
+
+    it('locks every edit while a save is pending, so no change is lost to its answer', async () => {
+        const { promise, resolve: answer } = Promise.withResolvers<ConnectionSettingsWire>();
+        const put = vi.fn(() => promise);
+        const form = await mount({ routes: { 'PUT /connections/mail-work/config': put } });
+
+        form.type(form.input('host')!, 'imap.other');
+        await form.submit();
+
+        expect(put).toHaveBeenCalledTimes(1);
+        expect(form.input('host')!.disabled).toBe(true);
+        expect(form.select('security')!.disabled).toBe(true);
+        expect(form.button('Replace')!.disabled).toBe(true);
+        expect(form.button('Clear')!.disabled).toBe(true);
+
+        answer(view({ settings: { host: 'imap.other', port: 993 } }));
+        await flush();
+
+        expect(form.input('host')!.disabled).toBe(false);
+        expect(form.input('host')!.value).toBe('imap.other');
+        expect(form.button('Replace')!.disabled).toBe(false);
     });
 
     it('sends the complete settings with an empty value unset and a number typed', async () => {
@@ -312,8 +340,8 @@ describe('ConnectionForm', () => {
         });
 
         expect(form.input('guilds')?.value).toBe('a, b');
-        expect(form.input('dms')?.value).toBe('false');
-        expect(form.input('other')?.value).toBe('');
+        expect(form.select('dms')?.textContent).toContain('No');
+        expect(form.select('other')?.textContent).toContain('Not set');
 
         form.type(form.input('guilds')!, 'a, , c');
         await form.submit();
@@ -364,8 +392,83 @@ describe('ConnectionForm', () => {
         form.type(form.input('password')!, 'hunter2');
         await form.submit();
 
-        expect(form.field('host').textContent).toContain('is required');
+        // the server's own wording, not the catalog's generic text for its value_invalid code
+        expect(form.message('host')).toBe('is required');
+        expect(form.root.querySelector('[data-testid="connection-form-failure"]')).toBeNull();
         expect(form.input('password')?.value).toBe('hunter2');
+
+        // editing the field drops the server's issue there
+        form.type(form.input('host')!, 'imap.fixed');
+        await flush();
+
+        expect(form.message('host')).toBeUndefined();
+    });
+
+    it('checks the fields before sending: a required one empty and a number that is none', async () => {
+        const put = vi.fn(() => view());
+        const form = await mount({ routes: { 'PUT /connections/mail-work/config': put } });
+
+        form.type(form.input('host')!, '  ');
+        form.type(form.input('port')!, 'many');
+        await form.submit();
+
+        expect(put).not.toHaveBeenCalled();
+        expect(form.message('host')).toBe('The value is required');
+        expect(form.message('port')).toBe('The value must be numeric');
+        expect(form.field('port').querySelector('input')!.classList).toContain('is-invalid');
+
+        form.type(form.input('host')!, 'imap.example.com');
+        form.type(form.input('port')!, '993');
+        await form.submit();
+
+        expect(put).toHaveBeenCalledOnce();
+        expect(form.message('host')).toBeUndefined();
+    });
+
+    it('needs an account id and a required secret while adding', async () => {
+        const post = vi.fn(() => ({ name: 'mail-work', ...view() }));
+        const form = await mount({ name: undefined, routes: { 'POST /connection-types/mail/connections': post } });
+
+        form.type(form.input('host')!, 'imap.example.com');
+        await form.submit();
+
+        expect(post).not.toHaveBeenCalled();
+        expect(form.message('account')).toBe('The value is required');
+        expect(form.message('password')).toBe('The value is required');
+        expect(form.emitted.created).toEqual([]);
+    });
+
+    it('labels every control by its field', async () => {
+        const form = await mount({ name: undefined });
+
+        const labelled = (key: string) => document.getElementById(form.field(key).querySelector('label')!.getAttribute('for')!);
+
+        for (const key of ['account', 'host', 'port', 'password']) {
+            expect(labelled(key)).toBe(form.input(key));
+        }
+
+        expect(labelled('security')).toBe(form.select('security'));
+    });
+
+    it('chooses an option of a select and sends it', async () => {
+        const put = vi.fn(() => view());
+        const form = await mount({ routes: { 'PUT /connections/mail-work/config': put } });
+        const trigger = form.select('security')!;
+
+        trigger.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await flush();
+
+        const option = Array.from(document.querySelectorAll<HTMLElement>('[role="option"]')).find((entry) => entry.textContent?.includes('tls'));
+
+        expect(option).toBeDefined();
+        option!.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true }));
+        await flush();
+
+        expect(trigger.textContent).toContain('tls');
+
+        await form.submit();
+
+        expect(put.mock.calls[0]![0 as never]).toMatchObject({ settings: { security: 'tls' } });
     });
 
     it('reports a refused save at the form', async () => {
@@ -551,7 +654,7 @@ describe('ConnectionForm', () => {
             },
             secrets: { password: 'hunter2' },
         });
-        expect(form.emitted.created).toEqual(['mail-work']);
+        expect(form.emitted.created).toEqual([{ name: 'mail-work', restartRequired: false }]);
         expect(form.root.innerHTML).not.toContain('hunter2');
     });
 

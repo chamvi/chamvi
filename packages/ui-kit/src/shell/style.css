@@ -246,10 +246,15 @@ button, input, select, textarea { font: inherit; color: inherit; }
 .notice b { color: var(--ch-ink); font-weight: 500; }
 .load-issues { margin-bottom: 14px; overflow-wrap: anywhere; }
 .load-issues code { color: var(--ch-ink); }
-.form-err {
+.form-err, .field-msg-error {
     font: 400 12.5px/1.5 var(--ch-font-mono); color: var(--ch-ink); background: var(--ch-fail-tint);
     border-left: 3px solid var(--ch-fail); border-radius: var(--ch-radius-sm); padding: 7px 10px; overflow-wrap: anywhere;
 }
+/* a VCFormGroup's messages (FORM_THEME): an error as .form-err, a pristine required field as a quiet line */
+.field-msg { font: 400 12.5px/1.5 var(--ch-font-mono); color: var(--ch-muted); overflow-wrap: anywhere; }
+.field-msg-warning { color: var(--ch-wait); }
+.field-label label { cursor: pointer; }
+.input.is-invalid, .textarea.is-invalid, .vc-form-input.is-invalid, .vc-form-select-trigger.is-invalid { border-color: var(--ch-fail); }
 .err-line {
     font: 400 12.5px/1.5 var(--ch-font-mono); color: var(--ch-ink); background: var(--ch-fail-tint);
     border: 1px solid color-mix(in srgb, var(--ch-fail) 30%, transparent); border-left: 3px solid var(--ch-fail);
@@ -554,8 +559,10 @@ table.t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 
 .callout-options { display: grid; gap: 8px; margin: 6px 0 0; padding: 0; border: 0; min-width: 0; }
 .callout-options legend { padding: 0; margin-bottom: 6px; }
 .callout-option { display: grid; gap: 6px; min-width: 0; padding: 8px 10px; border: 1px solid var(--ch-line); border-radius: var(--ch-radius-sm); background: var(--ch-surface); }
-.callout-option label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; font-size: 14px; cursor: pointer; overflow-wrap: anywhere; }
-.callout-option label input { accent-color: var(--ch-accent); margin: 0; }
+.callout-option-list { display: grid; gap: 8px; }
+.callout-option-head { display: flex; align-items: flex-start; gap: 8px; min-width: 0; }
+.callout-option-head > button { margin-top: 3px; }
+.callout-option label { display: flex; flex-wrap: wrap; align-items: baseline; gap: 4px 8px; min-width: 0; font-size: 14px; cursor: pointer; overflow-wrap: anywhere; }
 .callout-option label .mono { font-size: 11.5px; }
 .callout-option summary { font-size: 12.5px; color: var(--ch-muted); cursor: pointer; }
 .option-detail {

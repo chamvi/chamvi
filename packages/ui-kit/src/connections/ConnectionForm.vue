@@ -6,17 +6,25 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { 
-    computed, 
-    nextTick, 
-    ref, 
-    watch, 
+import { IFieldValidation } from '@ilingo/validup-vue';
+import {
+    VCFormGroup,
+    VCFormInput,
+    VCFormSelect,
+} from '@vuecs/forms';
+import type { FormOption } from '@vuecs/forms';
+import {
+    computed,
+    nextTick,
+    ref,
+    watch,
 } from 'vue';
 import { useAppContext } from '../context/module.ts';
 import { createConnectionConfigApi } from './api.ts';
 import { useConnectionForm } from './form.ts';
 import { canWriteConnection } from './helpers.ts';
-import type { ConnectionDeleted } from './types.ts';
+import type { ConnectionCreated, ConnectionDeleted, ConnectionFormField } from './types.ts';
+import { ACCOUNT_KEY, isRequiredField } from './validators.ts';
 
 // mounted once per connection name (the caller keys it by the name)
 const props = defineProps<{
@@ -25,13 +33,13 @@ const props = defineProps<{
     type: string;
 }>();
 
-const emit = defineEmits<{ created: [name: string]; deleted: [result: ConnectionDeleted] }>();
+const emit = defineEmits<{ created: [result: ConnectionCreated]; deleted: [result: ConnectionDeleted] }>();
 
 const { client, session } = useAppContext();
 const form = useConnectionForm(createConnectionConfigApi(client), {
     ...(props.name === undefined ? {} : { name: props.name }),
     type: props.type,
-    onCreated: (name) => emit('created', name),
+    onCreated: (result) => emit('created', result),
     onDeleted: (result) => emit('deleted', result),
 });
 const {
@@ -40,13 +48,10 @@ const {
     loaded,
     loadError,
     fields,
-    account,
-    drafts,
-    secrets,
+    v,
     replacing,
     busy,
     formError,
-    fieldErrors,
     testResult,
     confirmation,
     confirmError,
@@ -72,6 +77,28 @@ const heading = computed(() => {
 
     return definition.value?.multiple ? `${label} account: ${accountId.value}` : `${label}: ${props.name}`;
 });
+
+/** A field's validation state; its `$model` writes mark it dirty and drop the server's issue there. */
+const fieldOf = (key: string) => v.fields.at<string | undefined>(key);
+
+/** A select's choices; the select has no empty value, so unset is `null` (an empty draft). */
+function choicesOf(field: ConnectionFormField): FormOption[] {
+    const choices = field.kind === 'boolean' ?
+        [{ value: 'true', label: 'Yes' }, { value: 'false', label: 'No' }] :
+        (field.options ?? []).map((option) => ({ value: option, label: option }));
+
+    return [{ value: null, label: 'Not set' }, ...choices];
+}
+
+function choiceOf(key: string): string | null {
+    const draft = fieldOf(key).$model.value;
+
+    return draft === undefined || draft === '' ? null : draft;
+}
+
+function choose(key: string, next: unknown): void {
+    fieldOf(key).$model.value = next === null || next === undefined ? '' : String(next);
+}
 
 // the button that had the focus leaves the DOM: the focus follows into the confirmation and back
 const root = ref<globalThis.HTMLElement>();
@@ -147,202 +174,183 @@ watch(confirmation, async (open, previous) => {
             novalidate
             @submit.prevent="form.save()"
         >
-            <div
+            <IFieldValidation
                 v-if="adding"
-                class="field"
-                data-field="account"
+                v-slot="{ value: validation }"
+                :field="fieldOf(ACCOUNT_KEY)"
             >
-                <label
-                    class="field-label"
-                    for="connection-account"
-                >Account id</label>
-                <input
-                    id="connection-account"
-                    v-model="account"
-                    class="input mono"
-                    autocomplete="off"
-                    aria-required="true"
+                <VCFormGroup
+                    data-field="account"
+                    label-tag="span"
+                    :validation="validation"
                 >
-                <p class="hint">
-                    Lower-case letters, digits and dashes, for example work.
-                </p>
-                <p
-                    v-if="fieldErrors.account"
-                    class="form-err"
-                >
-                    {{ fieldErrors.account }}
-                </p>
-            </div>
+                    <template #label>
+                        <label for="connection-account">Account id</label>
+                    </template>
+                    <VCFormInput
+                        id="connection-account"
+                        v-model="fieldOf(ACCOUNT_KEY).$model.value"
+                        class="mono"
+                        autocomplete="off"
+                        aria-required="true"
+                        :disabled="busy"
+                    />
+                    <p class="hint">
+                        Lower-case letters, digits and dashes, for example work.
+                    </p>
+                </VCFormGroup>
+            </IFieldValidation>
 
-            <div
+            <IFieldValidation
                 v-for="field in fields"
                 :key="field.key"
-                class="field"
-                :data-field="field.key"
+                v-slot="{ value: validation }"
+                :field="fieldOf(field.key)"
             >
-                <label
-                    class="field-label"
-                    :for="`connection-${field.key}`"
-                >{{ field.label }}<span
-                    v-if="field.required"
-                    aria-hidden="true"
-                > *</span></label>
+                <VCFormGroup
+                    :data-field="field.key"
+                    label-tag="span"
+                    :validation="validation"
+                >
+                    <template #label>
+                        <label :for="`connection-${field.key}`">{{ field.label }}<span
+                            v-if="field.required"
+                            aria-hidden="true"
+                        > *</span></label>
+                    </template>
 
-                <template v-if="field.lock">
-                    <div class="field-value field-value-locked">
-                        Locked
-                    </div>
-                    <p class="hint">
-                        <template v-if="field.lock.kind === 'env'">
-                            Set from <code class="mono">{{ field.lock.variable }}</code>
-                        </template>
-                        <template v-else>
-                            Set in code
-                        </template>
-                    </p>
-                </template>
-
-                <template v-else-if="field.kind === 'secret'">
-                    <input
-                        v-if="canEdit && (!field.secretSet || replacing[field.key])"
-                        :id="`connection-${field.key}`"
-                        v-model="secrets[field.key]"
-                        class="input"
-                        type="password"
-                        autocomplete="new-password"
-                        :aria-required="field.required === true"
-                    >
-                    <div
-                        v-if="field.secretSet"
-                        class="field-value"
-                    >
-                        <span data-testid="secret-set">Set</span>
-                        <span
-                            v-if="canEdit"
-                            class="field-value-actions"
-                        >
-                            <button
-                                type="button"
-                                class="btn btn-sm btn-ghost"
-                                @click="replacing[field.key] = !replacing[field.key]; secrets[field.key] = ''"
-                            >
-                                {{ replacing[field.key] ? 'Keep current' : 'Replace' }}
-                            </button>
-                            <button
-                                type="button"
-                                class="btn btn-sm btn-ghost btn-danger"
-                                :data-clear="field.key"
-                                @click="form.askClear(field)"
-                            >
-                                Clear
-                            </button>
-                        </span>
-                    </div>
-                    <div
-                        v-else-if="!canEdit"
-                        class="field-value field-value-locked"
-                    >
-                        Not set
-                    </div>
-                    <div
-                        v-if="confirmation?.kind === 'clear' && confirmation.key === field.key"
-                        class="connection-confirm"
-                        role="alertdialog"
-                        aria-label="Clear this secret?"
-                    >
-                        <p>
-                            Clear <b>{{ confirmation.label }}</b>? The stored value is removed.
-                            <template v-if="confirmation.stopsNextStart">
-                                This account is declared in the environment, so clearing it stops the next start until it is set again.
+                    <template v-if="field.lock">
+                        <div class="field-value field-value-locked">
+                            Locked
+                        </div>
+                        <p class="hint">
+                            <template v-if="field.lock.kind === 'env'">
+                                Set from <code class="mono">{{ field.lock.variable }}</code>
+                            </template>
+                            <template v-else>
+                                Set in code
                             </template>
                         </p>
-                        <div class="connection-action-buttons">
-                            <button
-                                type="button"
-                                class="btn"
-                                data-confirm-keep
-                                :disabled="busy"
-                                @click="form.cancelConfirmation()"
+                    </template>
+
+                    <template v-else-if="field.kind === 'secret'">
+                        <VCFormInput
+                            v-if="canEdit && (!field.secretSet || replacing[field.key])"
+                            :id="`connection-${field.key}`"
+                            v-model="fieldOf(field.key).$model.value"
+                            type="password"
+                            autocomplete="new-password"
+                            :disabled="busy"
+                            :aria-required="isRequiredField(field)"
+                        />
+                        <div
+                            v-if="field.secretSet"
+                            class="field-value"
+                        >
+                            <span data-testid="secret-set">Set</span>
+                            <span
+                                v-if="canEdit"
+                                class="field-value-actions"
                             >
-                                Keep secret
-                            </button>
-                            <button
-                                type="button"
-                                class="btn btn-primary"
-                                :disabled="busy"
-                                @click="form.confirm()"
-                            >
-                                Clear secret
-                            </button>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-ghost"
+                                    :disabled="busy"
+                                    @click="form.toggleReplace(field.key)"
+                                >
+                                    {{ replacing[field.key] ? 'Keep current' : 'Replace' }}
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn btn-sm btn-ghost btn-danger"
+                                    :data-clear="field.key"
+                                    :disabled="busy"
+                                    @click="form.askClear(field)"
+                                >
+                                    Clear
+                                </button>
+                            </span>
                         </div>
-                        <p
-                            v-if="confirmError"
-                            class="form-err"
+                        <div
+                            v-else-if="!canEdit"
+                            class="field-value field-value-locked"
                         >
-                            {{ confirmError }}
-                        </p>
-                    </div>
-                </template>
-
-                <select
-                    v-else-if="field.kind === 'select' || field.kind === 'boolean'"
-                    :id="`connection-${field.key}`"
-                    v-model="drafts[field.key]"
-                    class="input"
-                    :disabled="!canEdit"
-                >
-                    <option value="">
-                        Not set
-                    </option>
-                    <template v-if="field.kind === 'boolean'">
-                        <option value="true">
-                            Yes
-                        </option>
-                        <option value="false">
-                            No
-                        </option>
-                    </template>
-                    <template v-else>
-                        <option
-                            v-for="option in field.options"
-                            :key="option"
-                            :value="option"
+                            Not set
+                        </div>
+                        <div
+                            v-if="confirmation?.kind === 'clear' && confirmation.key === field.key"
+                            class="connection-confirm"
+                            role="alertdialog"
+                            aria-label="Clear this secret?"
                         >
-                            {{ option }}
-                        </option>
+                            <p>
+                                Clear <b>{{ confirmation.label }}</b>? The stored value is removed.
+                                <template v-if="confirmation.stopsNextStart">
+                                    This account is declared in the environment, so clearing it stops the next start until it is set again.
+                                </template>
+                            </p>
+                            <div class="connection-action-buttons">
+                                <button
+                                    type="button"
+                                    class="btn"
+                                    data-confirm-keep
+                                    :disabled="busy"
+                                    @click="form.cancelConfirmation()"
+                                >
+                                    Keep secret
+                                </button>
+                                <button
+                                    type="button"
+                                    class="btn btn-primary"
+                                    :disabled="busy"
+                                    @click="form.confirm()"
+                                >
+                                    Clear secret
+                                </button>
+                            </div>
+                            <p
+                                v-if="confirmError"
+                                class="form-err"
+                            >
+                                {{ confirmError }}
+                            </p>
+                        </div>
                     </template>
-                </select>
 
-                <input
-                    v-else
-                    :id="`connection-${field.key}`"
-                    v-model="drafts[field.key]"
-                    class="input"
-                    :inputmode="field.kind === 'number' ? 'numeric' : undefined"
-                    autocomplete="off"
-                    :disabled="!canEdit"
-                    :aria-required="field.required === true"
-                >
+                    <VCFormSelect
+                        v-else-if="field.kind === 'select' || field.kind === 'boolean'"
+                        :id="`connection-${field.key}`"
+                        :model-value="choiceOf(field.key)"
+                        :options="choicesOf(field)"
+                        placeholder="Not set"
+                        :disabled="!canEdit || busy"
+                        @update:model-value="(next: unknown) => choose(field.key, next)"
+                    />
 
-                <p
-                    v-if="field.description"
-                    class="hint"
-                >
-                    {{ field.description }}
-                </p>
-                <p
-                    v-if="field.kind === 'list' && !field.lock"
-                    class="hint"
-                >
-                    Comma separated.
-                </p>
-                <p
-                    v-if="fieldErrors[field.key]"
-                    class="form-err"
-                >
-                    {{ fieldErrors[field.key] }}
-                </p>
-            </div>
+                    <VCFormInput
+                        v-else
+                        :id="`connection-${field.key}`"
+                        v-model="fieldOf(field.key).$model.value"
+                        :inputmode="field.kind === 'number' ? 'numeric' : undefined"
+                        autocomplete="off"
+                        :disabled="!canEdit || busy"
+                        :aria-required="isRequiredField(field)"
+                    />
+
+                    <p
+                        v-if="field.description"
+                        class="hint"
+                    >
+                        {{ field.description }}
+                    </p>
+                    <p
+                        v-if="field.kind === 'list' && !field.lock"
+                        class="hint"
+                    >
+                        Comma separated.
+                    </p>
+                </VCFormGroup>
+            </IFieldValidation>
 
             <p
                 v-if="formError"

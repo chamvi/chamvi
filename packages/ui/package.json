@@ -75,6 +75,7 @@
         "@chamvi/ui-kit": "^0.8.0",
         "@ebec/core": "^1.3.2",
         "@iconify/vue": "^5.0.5",
+        "@ilingo/validup": "^1.2.1",
         "@ilingo/validup-vue": "^1.2.2",
         "@ilingo/vue": "^6.1.2",
         "@playwright/test": "^1.64.1",

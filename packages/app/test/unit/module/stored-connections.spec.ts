@@ -103,6 +103,22 @@ describe('readStoredConnections()', () => {
         }]);
     });
 
+    it('with a name, reads only that row and skips an unreadable row of another name', async () => {
+        const store = createMemoryStore();
+
+        await seed(store, 'mail-old', 'mail', createKeyring([{ id: 'k1', key: randomBytes(32) }]));
+        await seed(store, 'mail-home', 'mail');
+
+        const harness = await harnessOf(store, { keyring });
+
+        await expect(readStoredConnections(harness.container, 'mail')).rejects.toThrow('mail-old');
+        expect(await readStoredConnections(harness.container, 'mail', { name: 'mail-home' })).toEqual([expect.objectContaining({
+            name: 'mail-home',
+            values: { host: 'h', password: SECRET },
+        })]);
+        expect(await readStoredConnections(harness.container, 'mail', { name: 'mail-none' })).toEqual([]);
+    });
+
     it('returns nothing for a store without connections', async () => {
         const store: IStore = createMemoryStore();
 
