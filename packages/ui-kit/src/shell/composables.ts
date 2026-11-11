@@ -40,38 +40,30 @@ export function useUiPages() {
         return isObject(body) && Array.isArray(body.data) ? body.data as T[] : [];
     };
 
-    let pagesLoaded = false;
+    // one poller per list: a failing or stalled page list never holds back the types an add form waits for
+    const readOnce = <T>(url: string, apply: (items: T[]) => void) => {
+        const poller = createPoller(async () => {
+            try {
+                apply(await read<T>(url));
+                poller.stop();
 
-    // each list settles on its own: a failing page list never holds back the types an add form waits for
-    const poller = createPoller(async () => {
-        const [pages, connectionTypes] = await Promise.allSettled([
-            pagesLoaded ? undefined : read<UiPageWire>('/ui-pages'),
-            typesLoaded.value ? undefined : read<ConnectionTypeWire>('/connection-types'),
-        ]);
+                return undefined;
+            } catch (error) {
+                return retryDelayOf(asApiError(error));
+            }
+        }, CONNECTIONS_POLL_MS);
 
-        if (pages.status === 'fulfilled' && pages.value) {
-            registered.value = pages.value;
-            pagesLoaded = true;
-        }
+        poller.start();
+        onScopeDispose(() => poller.stop());
+    };
 
-        if (connectionTypes.status === 'fulfilled' && connectionTypes.value) {
-            types.value = connectionTypes.value;
-            typesLoaded.value = true;
-        }
-
-        const failed = [pages, connectionTypes].find((result) => result.status === 'rejected');
-
-        if (!failed) {
-            poller.stop();
-
-            return undefined;
-        }
-
-        return retryDelayOf(asApiError(failed.reason));
-    }, CONNECTIONS_POLL_MS);
-
-    poller.start();
-    onScopeDispose(() => poller.stop());
+    readOnce<UiPageWire>('/ui-pages', (items) => {
+        registered.value = items;
+    });
+    readOnce<ConnectionTypeWire>('/connection-types', (items) => {
+        types.value = items;
+        typesLoaded.value = true;
+    });
 
     return {
         pages: computed(() => visibleUiPages(registered.value, connections.value, session.principal.value?.permissions ?? [])),

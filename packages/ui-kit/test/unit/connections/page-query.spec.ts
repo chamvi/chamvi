@@ -74,7 +74,7 @@ afterEach(() => {
 async function mountPage(search: string, options: {
     permissions?: string[]; 
     type?: ConnectionTypeWire; 
-    pagesFail?: boolean 
+    pages?: 'fail' | 'hang';
 } = {}) {
     globalThis.history.replaceState(null, '', `/${search}`);
 
@@ -91,9 +91,14 @@ async function mountPage(search: string, options: {
             }
 
             if (url === '/ui-pages') {
-                if (options.pagesFail) {
+                if (options.pages === 'fail') {
                     // the API client throws on a non-2xx answer
                     throw new Error('ui-pages down');
+                }
+
+                if (options.pages === 'hang') {
+                    // a request that never answers: the client has no timeout of its own
+                    return new Promise<never>(() => {});
                 }
 
                 return json({ data: [] });
@@ -154,7 +159,13 @@ describe('ConnectionsPage query', () => {
     });
 
     it('honours ?add while the page list keeps failing: the types alone decide', async () => {
-        const page = await mountPage('?add=1', { pagesFail: true });
+        const page = await mountPage('?add=1', { pages: 'fail' });
+
+        expect(page.adding()).toBe(true);
+    });
+
+    it('honours ?add while the page list never answers', async () => {
+        const page = await mountPage('?add=1', { pages: 'hang' });
 
         expect(page.adding()).toBe(true);
     });
