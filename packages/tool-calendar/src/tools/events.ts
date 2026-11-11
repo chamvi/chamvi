@@ -17,13 +17,14 @@ import {
     optionalString,
     requireString,
     signalOf,
+    taintOf,
 } from './asserts.ts';
 import { UNTRUSTED_NOTE } from './constants.ts';
 import type { CalendarEventsToolInput, CalendarEventsToolResult } from './types.ts';
 
 export function calendarEventsTool(client: ICalendarClient | undefined): Tool<CalendarEventsToolInput, CalendarEventsToolResult> {
     return defineTool<CalendarEventsToolInput, CalendarEventsToolResult>({
-        trust: { taint: true },
+        trust: { taint: taintOf(client) },
         description: `Read the events between from and to (at most ${CALENDAR_RANGE_MAX_DAYS} days), recurring ones ` +
             'expanded, sorted by start: title, start, end (exclusive), allDay, location, description ' +
             `(at most ${CALENDAR_DESCRIPTION_MAX_CHARS} characters), status (CANCELLED ones are kept), organizer and ` +

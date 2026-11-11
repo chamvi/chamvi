@@ -144,7 +144,9 @@ export function createFakeOpenclaw(input: {
 
     fake.fetch = async (resource, init) => {
         const request = new Request(resource as RequestInfo, init);
-        const { signal } = request;
+        // the caller's signal: undici's Request follows it through a WeakRef to
+        // its own controller, so once the Request is collected its signal never aborts
+        const signal = init?.signal ?? request.signal;
 
         if (signal.aborted) {
             throw signal.reason;

@@ -48,6 +48,12 @@ export type CalendarEventsResult = {
 
 /** Read-only access to the calendars of some CalDAV accounts. */
 export interface ICalendarClient {
+    /**
+     * `false` only on a client without accounts: each of its calls refuses
+     * before anything is read, so the tools do not taint the run. Absent or
+     * `true`, every call taints it.
+     */
+    readonly configured?: boolean;
     calendars(options?: { signal?: AbortSignal }): Promise<CalendarView[]>;
     events(input: CalendarEventsInput): Promise<CalendarEventsResult>;
     /** Forgets every session; the next call logs in again. */

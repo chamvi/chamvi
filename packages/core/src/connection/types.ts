@@ -191,7 +191,9 @@ export interface IConnectionConfigStore {
      * Creates the row with a fresh wrapped data key, then saves `update`.
      * Resolves false, changing nothing, when the name is taken; rejects with
      * ConnectionChangedError, keeping the row, when another writer saved its
-     * config between the row and this save.
+     * config between the row and this save. A save that fails otherwise
+     * leaves the row without config (revision 0): an `update` expecting
+     * revision 0 fills it.
      */
     create(name: string, type: string, update: ConnectionConfigUpdate): Promise<boolean>;
     /** Never resolves the keyring. */

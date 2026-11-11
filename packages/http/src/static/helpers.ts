@@ -67,7 +67,8 @@ export function resolveBuildPath(subpath: string): string | undefined {
 
 /**
  * Every file below `root`, keyed by its `/`-joined relative path, read
- * once. Symbolic links are followed (a mounted `assets/` or a linked
+ * once; an entry whose name starts with `.` is skipped, a directory with
+ * everything below it. Symbolic links are followed (a mounted `assets/` or a linked
  * `index.html` is served); a dangling link is skipped and a directory
  * reached twice (a link cycle) is read once.
  */
@@ -84,6 +85,11 @@ export async function loadBuild(root: string): Promise<Map<string, BuildFile>> {
         visited.add(real);
 
         for (const entry of await readdir(dir, { withFileTypes: true })) {
+            // a dotfile or dot directory (`.env`, `.git`) is no part of a build: never loaded, so never served
+            if (entry.name.startsWith('.')) {
+                continue;
+            }
+
             const path = join(dir, entry.name);
             const key = prefix ? `${prefix}/${entry.name}` : entry.name;
             let kind: { isFile(): boolean; isDirectory(): boolean } = entry;

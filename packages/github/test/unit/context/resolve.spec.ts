@@ -167,6 +167,11 @@ describe('injectGithubContext across modules', () => {
         await engine.idle();
 
         expect((await engine.getRun(runId))?.status).toBe('completed');
-        expect(JSON.stringify(model.doStreamCalls[1]?.prompt)).toContain('The connection \\"github\\" is not configured.');
+
+        const prompt = JSON.stringify(model.doStreamCalls[1]?.prompt);
+
+        // no connection named github exists: the error names none
+        expect(prompt).toContain('No GitHub connection is available to the agent \\"stranger\\"');
+        expect(prompt).not.toContain('\\"github\\"');
     });
 });

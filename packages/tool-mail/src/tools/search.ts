@@ -18,6 +18,7 @@ import {
     optionalString,
     requireString,
     signalOf,
+    taintOf,
 } from './asserts.ts';
 import { UNTRUSTED_NOTE } from './constants.ts';
 import type { MailClientSource } from './types.ts';
@@ -37,7 +38,7 @@ type MailSearchToolInput = {
 
 export function mailSearchTool(source: MailClientSource): Tool<MailSearchToolInput, MailSearchResult> {
     return defineTool<MailSearchToolInput, MailSearchResult>({
-        trust: { taint: true },
+        trust: { taint: taintOf(source) },
         description: 'Search one mail account, newest first: headers and a short snippet per mail, ' +
             'with an id for mail_get, mail_attachment and mail_thread. Without folder it searches every folder but ' +
             'trash and spam (Gmail: All Mail). truncated says more mails matched than limit. ' +

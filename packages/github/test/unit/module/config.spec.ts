@@ -43,7 +43,7 @@ import type { IContainer, IModule } from '@chamvi/app';
 import { createModuleHarness } from '@chamvi/app/testing';
 import type { ModuleHarness } from '@chamvi/app/testing';
 import { GITHUB_CONNECTION_TYPE, githubModule } from '@chamvi/github/module';
-import { githubConnectionDefinition } from '../../../src/module/type.ts';
+import { githubConnectionDefinition, loadGithubConnection } from '../../../src/module/type.ts';
 import { mockModel, textModel } from '../../utils/model.ts';
 import {
     TOKENS,
@@ -439,6 +439,30 @@ describe('githubModule configuration', () => {
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
         expect((error as Error).message).toMatch(/^baseUrl must /);
+    });
+
+    it('a refusal that names no field fails the start, though another field is stored', () => {
+        const load = (values: Record<string, string>) => loadGithubConnection({
+            name: GITHUB_CONNECTION_TYPE,
+            definition: githubConnectionDefinition(),
+            env: { GITHUB_APP_ID: '1' },
+            logger: createRecordingLogger(),
+            row: {
+                name: GITHUB_CONNECTION_TYPE,
+                values,
+                revision: 1,
+                createdAt: clock.now(),
+            },
+            // a code option createGithubApp refuses without naming a connection field
+            options: { proposals: { repos: [] } as never },
+        });
+
+        expect(() => load({ privateKey: fake.privateKey, webhookSecret: 'stored' })).toThrow(/^proposals\.repos /);
+        expect(() => load({
+            privateKey: fake.privateKey,
+            webhookSecret: 'stored',
+            slug: 'acme',
+        })).toThrow(/^proposals\.repos /);
     });
 
     it('an unreadable stored row of another name does not fail the module', async () => {

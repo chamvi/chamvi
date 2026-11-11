@@ -15,6 +15,7 @@ import {
     optionalInteger,
     requireString,
     signalOf,
+    taintOf,
 } from './asserts.ts';
 import { UNTRUSTED_NOTE } from './constants.ts';
 import type { MailClientSource } from './types.ts';
@@ -27,7 +28,7 @@ type MailAttachmentToolInput = {
 
 export function mailAttachmentTool(source: MailClientSource): Tool<MailAttachmentToolInput, MailAttachmentText> {
     return defineTool<MailAttachmentToolInput, MailAttachmentText>({
-        trust: { taint: true },
+        trust: { taint: taintOf(source) },
         description: 'Read the text of one attachment of a mail: PDF (first pages), docx, xlsx, pptx and text files. ' +
             `Other types give no text. Returns at most ${MAIL_ATTACHMENT_MAX_CHARS} characters from offset; nextOffset ` +
             `names the next page. Read only: the mail stays unread. ${UNTRUSTED_NOTE}`,
