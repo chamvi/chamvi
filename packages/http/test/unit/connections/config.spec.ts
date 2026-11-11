@@ -1015,6 +1015,53 @@ describe('connection configuration', () => {
             return context;
         };
 
+        it('refuses a save whose rebinding check read a snapshot another save replaced', async () => {
+            let raced = false;
+            const context = world({
+                definition: boundDefinition(),
+                declared: (definition) => [declare(definition, 'mail-work', {}, {
+                    resolved: resolveConnection({
+                        definition,
+                        name: 'mail-work',
+                        readVariable: () => undefined,
+                        stored: { host: 'old.test' },
+                    }),
+                })],
+                configs: (store) => ({
+                    ...store,
+                    describe: async (name) => {
+                        const view = await store.describe(name);
+
+                        if (!raced) {
+                            raced = true;
+                            // another save lands after this one read: it moves the host with a new password
+                            await store.update(name, {
+                                settings: { host: 'new.test' },
+                                secrets: { set: { password: 'new-password', token: 'new-token' } },
+                            });
+                        }
+
+                        return view;
+                    },
+                }),
+            });
+
+            await context.real.create('mail-work', 'mail', {
+                settings: { host: 'old.test' },
+                secrets: { set: { password: PASSWORD, token: 'second-secret' } },
+            });
+
+            // checked against host old.test it moves nothing, so it brings no secret: it must not write
+            const response = await call(context.app, 'PUT', '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'old.test', port: 993 } },
+            });
+
+            expect(response.status).toBe(409);
+            expect((await json(response)).code).toBe('connection_changed');
+            expect((await context.real.describe('mail-work'))!.settings.host).toBe('new.test');
+        });
+
         it('carries bindsSecrets in GET /connection-types', async () => {
             const { app } = world({ definition: boundDefinition() });
             const body = await json(await call(app, 'GET', '/connection-types', { token: ADMIN_TOKEN }));

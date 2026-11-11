@@ -57,8 +57,9 @@ export async function verifyMailLogin(account: MailAccountNormalized, signal: Ab
                 'The IMAP server cannot be reached.');
         }
 
-        // the login is the answer: a server that drops the logout changes nothing
-        await Promise.race([connection.logout(), aborted]).catch(() => undefined);
+        // the login is the answer: the logout is sent, never awaited (a server that never answers
+        // it would hold a working login until the deadline); the socket closes below either way
+        connection.logout().catch(() => undefined);
     } finally {
         if (onAbort) {
             signal.removeEventListener('abort', onAbort);

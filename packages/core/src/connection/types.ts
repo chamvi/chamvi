@@ -175,6 +175,11 @@ export type ConnectionConfigUpdate = {
     };
 };
 
+export type ConnectionConfigUpdateOptions = {
+    /** The revision the caller's checks read; another save since then refuses the write. */
+    revision?: number;
+};
+
 /**
  * Settings and sealed secrets of a connection, written from any replica
  * without the provider's lease: a running session's entries and data key
@@ -194,10 +199,11 @@ export interface IConnectionConfigStore {
     /**
      * Saves `update` and returns the new revision; resolves the keyring only
      * to set a secret. RepositoryNotFoundError when absent,
-     * ConnectionChangedError when a recreate replaced the data key meanwhile
-     * (nothing is written).
+     * ConnectionChangedError when a recreate replaced the data key meanwhile,
+     * or when `options.revision` is no longer the stored one (nothing is
+     * written).
      */
-    update(name: string, update: ConnectionConfigUpdate): Promise<number>;
+    update(name: string, update: ConnectionConfigUpdate, options?: ConnectionConfigUpdateOptions): Promise<number>;
     /** Removes the connection under a one-shot lease; ConnectionHeldError while the lease is held. */
     delete(name: string, owner: string): Promise<void>;
 }

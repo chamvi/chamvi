@@ -387,7 +387,7 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
         });
     }
 
-    async writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array): Promise<number> {
+    async writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array, expectedRevision?: number): Promise<number> {
         assertConnectionName(name);
         assertConnectionConfigWrite(write, expectedWrappedKey);
 
@@ -408,7 +408,9 @@ export class DatabaseConnectionRepository implements IConnectionRepository {
                 throw new RepositoryNotFoundError('connections');
             }
 
-            if (Buffer.compare(stored.wrappedKey, expectedWrappedKey) !== 0) {
+            // the same lock holds the revision: a save that read an older one lost the race
+            if (Buffer.compare(stored.wrappedKey, expectedWrappedKey) !== 0 ||
+                (expectedRevision !== undefined && stored.configRevision !== expectedRevision)) {
                 throw new ConnectionChangedError(name);
             }
 

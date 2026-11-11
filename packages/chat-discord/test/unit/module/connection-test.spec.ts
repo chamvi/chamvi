@@ -282,6 +282,31 @@ describe('the Discord connection handle', () => {
         unsubscribe();
     });
 
+    it('tells the handle\'s subscribers even when the app\'s status callback throws', async () => {
+        const { clients, harness } = await serve({
+            moduleEnv: ENV,
+            appEnv: PUBLIC,
+            patch: {
+                onStatusChange: () => {
+                    throw new Error('app callback');
+                },
+            },
+        });
+        const [handle] = harness.container.resolveAll(AppToken.CONNECTIONS) as IConnectionHandle[];
+        let changes = 0;
+        const unsubscribe = handle!.subscribe(() => {
+            changes++;
+        });
+
+        await settle();
+        clients.last().emit(Events.ClientReady);
+        await settle();
+
+        expect(handle!.status()).toBe('connected');
+        expect(changes).toBeGreaterThan(0);
+        unsubscribe();
+    });
+
     it('lists a module with a policy in code alone as not configured, not incomplete', async () => {
         const { call } = await serve({ appEnv: PUBLIC, patch: { policy: { guilds: [GUILD] } } });
         const listed = await (await call('GET', '/connections')).json() as { data: Record<string, unknown>[] };

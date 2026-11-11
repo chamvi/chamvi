@@ -7,6 +7,7 @@
 
 import {
     ChamviError,
+    ConnectionChangedError,
     ErrorCode,
     InvalidAgentDefinitionError,
     assertConnectionName,
@@ -840,9 +841,14 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
         }
 
         await refuseWithoutKeyring(async () => {
-            // a declared connection has no row until its first save; create leaves an existing one alone
-            if (stored || !await configs.create(target.name, target.definition.type, update)) {
-                await configs.update(target.name, update);
+            // a declared connection has no row until its first save; create leaves an existing one alone.
+            // The checks above read `stored`: a save that landed since then refuses this one (409),
+            // so a rebinding check never passes on a snapshot another save replaced
+            if (stored) {
+                await configs.update(target.name, update, { revision: stored.revision });
+            } else if (!await configs.create(target.name, target.definition.type, update)) {
+                // another save created the row meanwhile: these checks never saw its values
+                throw new ConnectionChangedError(target.name);
             }
         });
 

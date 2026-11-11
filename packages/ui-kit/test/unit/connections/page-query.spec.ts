@@ -71,7 +71,11 @@ afterEach(() => {
     globalThis.history.replaceState(null, '', '/');
 });
 
-async function mountPage(search: string, options: { permissions?: string[]; type?: ConnectionTypeWire } = {}) {
+async function mountPage(search: string, options: {
+    permissions?: string[]; 
+    type?: ConnectionTypeWire; 
+    pagesFail?: boolean 
+} = {}) {
     globalThis.history.replaceState(null, '', `/${search}`);
 
     const principal: MeWire = {
@@ -87,6 +91,11 @@ async function mountPage(search: string, options: { permissions?: string[]; type
             }
 
             if (url === '/ui-pages') {
+                if (options.pagesFail) {
+                    // the API client throws on a non-2xx answer
+                    throw new Error('ui-pages down');
+                }
+
                 return json({ data: [] });
             }
 
@@ -142,6 +151,12 @@ describe('ConnectionsPage query', () => {
 
         expect(page.adding()).toBe(true);
         expect(page.opened).toEqual([]);
+    });
+
+    it('honours ?add while the page list keeps failing: the types alone decide', async () => {
+        const page = await mountPage('?add=1', { pagesFail: true });
+
+        expect(page.adding()).toBe(true);
     });
 
     it('settles ?add once the types answered without its type', async () => {

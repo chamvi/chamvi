@@ -40,22 +40,34 @@ export function useUiPages() {
         return isObject(body) && Array.isArray(body.data) ? body.data as T[] : [];
     };
 
-    const poller = createPoller(async () => {
-        try {
-            const [pages, connectionTypes] = await Promise.all([
-                read<UiPageWire>('/ui-pages'),
-                read<ConnectionTypeWire>('/connection-types'),
-            ]);
+    let pagesLoaded = false;
 
-            registered.value = pages;
-            types.value = connectionTypes;
+    // each list settles on its own: a failing page list never holds back the types an add form waits for
+    const poller = createPoller(async () => {
+        const [pages, connectionTypes] = await Promise.allSettled([
+            pagesLoaded ? undefined : read<UiPageWire>('/ui-pages'),
+            typesLoaded.value ? undefined : read<ConnectionTypeWire>('/connection-types'),
+        ]);
+
+        if (pages.status === 'fulfilled' && pages.value) {
+            registered.value = pages.value;
+            pagesLoaded = true;
+        }
+
+        if (connectionTypes.status === 'fulfilled' && connectionTypes.value) {
+            types.value = connectionTypes.value;
             typesLoaded.value = true;
+        }
+
+        const failed = [pages, connectionTypes].find((result) => result.status === 'rejected');
+
+        if (!failed) {
             poller.stop();
 
             return undefined;
-        } catch (e) {
-            return retryDelayOf(asApiError(e));
         }
+
+        return retryDelayOf(asApiError(failed.reason));
     }, CONNECTIONS_POLL_MS);
 
     poller.start();

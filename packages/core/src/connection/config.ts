@@ -21,6 +21,7 @@ import type {
     Connection,
     ConnectionConfigStoreOptions,
     ConnectionConfigUpdate,
+    ConnectionConfigUpdateOptions,
     ConnectionConfigView,
     ConnectionConfigWrite,
     ConnectionValues,
@@ -194,14 +195,15 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             return { values, revision: config.revision };
         },
 
-        async update(name: string, update: ConnectionConfigUpdate): Promise<number> {
+        async update(name: string, update: ConnectionConfigUpdate, options: ConnectionConfigUpdateOptions = {}): Promise<number> {
             const connection = await connections.findOneOrFail(name);
             const write = hasSecretsToSet(update) ?
                 withDataKey(name, connection, (dataKey) => toConfigWrite(name, update, dataKey)) :
                 toConfigWrite(name, update);
 
-            // the guard on the wrapped key refuses a secret sealed under a key a recreate replaced meanwhile
-            return connections.writeConfig(name, write, connection.wrappedKey);
+            // the guard on the wrapped key refuses a secret sealed under a key a recreate replaced meanwhile,
+            // the one on the revision a save checked against a snapshot another save replaced
+            return connections.writeConfig(name, write, connection.wrappedKey, options.revision);
         },
 
         async delete(name: string, owner: string): Promise<void> {

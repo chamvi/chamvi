@@ -282,8 +282,12 @@ export class DiscordModule implements IModule {
             policy: this.options.policy ?? policyOf(values),
             approvalUrl,
             onStatusChange: () => {
-                this.options.onStatusChange?.();
-                this.handle?.notify();
+                try {
+                    this.options.onStatusChange?.();
+                } finally {
+                    // the dashboard's stream follows the status even when the app's callback throws
+                    this.handle?.notify();
+                }
             },
             onError: this.options.onError ?? ((error) => logger.error('discord error', error, { connection: this.connection })),
         };

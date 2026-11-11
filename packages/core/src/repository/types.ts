@@ -262,11 +262,13 @@ export interface IConnectionRepository {
     /**
      * Atomic; bumps `revision` and `updatedAt` and returns the new revision.
      * RepositoryNotFoundError when absent; ConnectionChangedError when the
-     * stored wrappedKey differs from `expectedWrappedKey` (nothing is
-     * written). Takes no fence: any replica may write while a session holds
-     * the lease, and entries and the data key stay untouched.
+     * stored wrappedKey differs from `expectedWrappedKey`, or the stored
+     * revision from a given `expectedRevision` (another save landed since it
+     * was read; nothing is written). Takes no fence: any replica may write
+     * while a session holds the lease, and entries and the data key stay
+     * untouched.
      */
-    writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array): Promise<number>;
+    writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array, expectedRevision?: number): Promise<number>;
 }
 
 /** A store of repositories that may use independent storage implementations. */

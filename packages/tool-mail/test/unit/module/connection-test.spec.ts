@@ -205,6 +205,19 @@ describe('the mail connection test', () => {
         await expect.poll(() => imap.closed()).toBeGreaterThan(0);
     });
 
+    it('answers from the login: a logout the server never answers does not hold the result', async () => {
+        const imap = await fake({ hold: /LOGOUT/ });
+        const controller = new AbortController();
+        const settled = verifyMailLogin(account(imap.port), controller.signal).then(() => 'ok', () => 'failed');
+        const late = new Promise((resolve) => {
+            setTimeout(() => resolve('held'), 2000);
+        });
+
+        expect(await Promise.race([settled, late])).toBe('ok');
+        controller.abort();
+        await expect.poll(() => imap.closed()).toBeGreaterThan(0);
+    });
+
     it('does not start on an aborted signal', async () => {
         const imap = await fake();
 
