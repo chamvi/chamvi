@@ -131,6 +131,31 @@ A message starts runs only when the policy allows it and `resolveInvoker` names 
 
 Subscriptions, replies, approvals, memory and trust follow [`@chamvi/chat`](https://www.npmjs.com/package/@chamvi/chat): the conversation of a message is `{ account, thread id, audience }` with the audience `direct:<user>` for a DM, `channel:<parent channel>` for a guild channel and its public threads, `thread:<thread>` for a private thread or one whose type is unknown. A thread is one memory, a channel's top-level messages another (no threads are created).
 
+### `discordModule()`
+
+`discordModule()` from `@chamvi/chat-discord/module` builds the same channel from env and the connection store instead of code (`@chamvi/app` is an optional peer there). It takes `state`, `resolveInvoker` and the other `createDiscordChat()` options except `account`, which is its `name`; `token`, `applicationId`, `policy` and `approvalUrl` are optional and win over env and the store (a given `policy` fixes all its fields). `token` is a string here, not the function `createDiscordChat()` also takes:
+
+```typescript
+import { discordModule } from '@chamvi/chat-discord/module';
+
+const discord = discordModule({
+    state,
+    resolveInvoker: (identity) => ({ id: identity.author, kind: 'discord', permissions: [] }),
+});
+
+// subscribe with discord.on(); reply with ctx.channels.findOneOrFail('discord')
+createApp({ agents, modules: [discord] });
+```
+
+| Variable | Field |
+|---|---|
+| `CHAMVI_DISCORD_TOKEN` (`_FILE`) | Bot token, required |
+| `CHAMVI_DISCORD_APPLICATION_ID` | Application id, required |
+| `CHAMVI_DISCORD_GUILDS`, `_CHANNELS`, `_USERS`, `_ROLES`, `_DM_USERS` | The policy, comma-separated ids |
+| `CHAMVI_DISCORD_REQUIRE_MENTION` | Default `true` |
+
+`name` (default `discord`) names the connection, the channel, the account and the env prefix: a named module reads `CHAMVI_DISCORD_<NAME>_*` (upper-cased, `-` as `_`). A malformed variable throws at the factory; `setup` resolves env, then the store, and lists the connection (type `discord`, named after the module) for [`@chamvi/chat-discord-ui`](https://www.npmjs.com/package/@chamvi/chat-discord-ui) to edit. A required field that env and the store both lack fails the start naming its variable when another field is set from env. With nothing set, or with a stored value the channel refuses (listed `incomplete`), the channel stays idle: it never logs in and its `out` throws `ConnectionNotConfiguredError`. A refused env or code value fails the start. The approval link is `approvalUrl`, else the dashboard's from `CHAMVI_PUBLIC_URL`; with neither, a connection made in the dashboard stays idle and any other fails the start. Saved values apply after a restart. See the [Discord guide](https://chamvi.dev/deployment/discord).
+
 ## Limits
 
 - Text only: messages with attachments or no text are refused (reported, no run); replies are text up to 2000 characters (`DISCORD_TEXT_MAX_CHARS`), never split. No buttons, embeds, reactions, edits or slash commands; approvals are a link into the UI.

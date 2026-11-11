@@ -138,9 +138,13 @@ export interface IDeferredGithubApp extends IGithubApp {
     bind(app: IGithubApp): void;
 }
 
-export type DeferredGithubAppOptions = {
+export type DeferredGithubAppOptions = ({
     /** The connection named by the not-configured errors. */
     connection: string;
+} | {
+    /** An agent no GitHub connection serves: the errors name it, never a connection. */
+    agent: string;
+}) & {
     /** Validated now, so the write tools can carry the proposal tool before the App exists. */
     proposals?: GithubProposalsOptions;
 };

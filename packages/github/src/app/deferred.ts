@@ -6,7 +6,7 @@
  */
 
 import type { ToolSet } from 'ai';
-import { ConnectionNotConfiguredError } from '@chamvi/core';
+import { ChamviError, ConnectionNotConfiguredError, ErrorCode } from '@chamvi/core';
 import { normalizeProposals } from '../tools/proposals.ts';
 import { buildReadTools, buildWriteTools } from './tools.ts';
 import type {
@@ -20,9 +20,11 @@ import type {
 
 /**
  * An `IGithubApp` whose real App arrives later (`bind`), possibly never:
- * until then every use throws ConnectionNotConfiguredError, which tools turn
- * into a tool error; reaching the object is fine. The tool sets are built on
- * the facade, so they work when built before the App is bound.
+ * until then every use throws ConnectionNotConfiguredError (for an `agent`
+ * no connection serves, a ChamviError of the same code naming the agent),
+ * which tools turn into a tool error; reaching the object is fine. The tool
+ * sets are built on the facade, so they work when built before the App is
+ * bound.
  */
 export function createDeferredGithubApp(options: DeferredGithubAppOptions): IDeferredGithubApp {
     const proposals = normalizeProposals(options.proposals);
@@ -30,7 +32,12 @@ export function createDeferredGithubApp(options: DeferredGithubAppOptions): IDef
 
     function resolved(): IGithubApp {
         if (!target) {
-            throw new ConnectionNotConfiguredError(options.connection);
+            throw 'connection' in options ?
+                new ConnectionNotConfiguredError(options.connection) :
+                new ChamviError({
+                    message: `No GitHub connection is available to the agent "${options.agent}": no GitHub module lists it in agents and none serves every agent.`,
+                    code: ErrorCode.CONNECTION_NOT_CONFIGURED,
+                });
         }
 
         return target;

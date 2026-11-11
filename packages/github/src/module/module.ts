@@ -97,7 +97,7 @@ function assertSubscriber(list: readonly GithubInstance[], instance: GithubInsta
 function createResolver(list: readonly GithubInstance[]): IGithubAppResolver {
     const targeted = new Map(list.flatMap((instance) => (instance.agents ?? []).map((agent) => [agent, instance.app] as const)));
     const fallback = list.find((instance) => instance.agents === undefined)?.app;
-    let unconfigured: IGithubApp | undefined;
+    const unserved = new Map<string, IGithubApp>();
 
     return {
         appFor(agent) {
@@ -107,9 +107,15 @@ function createResolver(list: readonly GithubInstance[]): IGithubAppResolver {
                 return app;
             }
 
-            unconfigured ??= createDeferredGithubApp({ connection: GITHUB_CONNECTION_TYPE });
+            // no connection serves the agent: its errors name the agent, not a connection that may not exist
+            let facade = unserved.get(agent);
 
-            return unconfigured;
+            if (!facade) {
+                facade = createDeferredGithubApp({ agent });
+                unserved.set(agent, facade);
+            }
+
+            return facade;
         },
     };
 }

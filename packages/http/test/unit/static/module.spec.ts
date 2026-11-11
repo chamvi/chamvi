@@ -98,6 +98,26 @@ describe('staticRoutes()', () => {
         expect((await call(app, 'GET', '/ui/ext/mail/%252e%252e/secret')).status).toBe(404);
     });
 
+    it('never serves a dotfile or a file below a dot directory', async () => {
+        await mkdir(join(root, '.git'));
+        await mkdir(join(root, 'assets', '.cache'));
+        await writeFile(join(root, '.secret.env'), 'TOKEN=hunter2');
+        await writeFile(join(root, '.git', 'config.txt'), 'TOKEN=hunter2');
+        await writeFile(join(root, 'assets', '.cache', 'app.js'), 'TOKEN=hunter2');
+        await writeFile(join(root, 'assets', 'app-1a2b.js.map'), '{}');
+
+        const { app } = createTestApp({ routes: staticRoutes(options()) });
+
+        for (const path of ['/.secret.env', '/.git/config.txt', '/assets/.cache/app.js']) {
+            const response = await call(app, 'GET', `/ui/ext/mail${path}`);
+
+            expect(response.status).toBe(404);
+            expect(await response.text()).not.toContain('hunter2');
+        }
+
+        expect((await call(app, 'GET', '/ui/ext/mail/assets/app-1a2b.js.map')).status).toBe(200);
+    });
+
     it('answers 500 for a missing build and retries only after a while', async () => {
         const errors: unknown[] = [];
         const { app, clock } = createTestApp({

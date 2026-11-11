@@ -61,3 +61,13 @@ export function objectSchema<T>(properties: Record<string, JSONSchema7>, require
 export function clientOf(client: ICalendarClient | undefined, context: ToolContext): ICalendarClient {
     return client ?? inject(context, CALENDAR_CONTEXT);
 }
+
+/**
+ * The `taint` classification of both calendar tools, decided before the call
+ * runs: a read taints the run, also when it fails. Only the client of an app
+ * without accounts (`configured: false`) does not, since its refusal carries
+ * nothing from outside.
+ */
+export function taintOf(client: ICalendarClient | undefined): (input: unknown, context: ToolContext) => boolean {
+    return (_input, context) => clientOf(client, context).configured !== false;
+}

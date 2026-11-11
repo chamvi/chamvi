@@ -1267,6 +1267,26 @@ describe('connection configuration', () => {
             expect(await response.text()).toContain('cannot be tested here');
         });
 
+        it('never tests a connection set in code with the row an earlier deployment left', async () => {
+            const tested: unknown[] = [];
+            const { app, real } = world({
+                definition: mailDefinition({
+                    test: async (values) => {
+                        tested.push(values);
+                    },
+                }),
+                declared: (types) => [declare(types, 'mail-work', {}, { editable: false })],
+            });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'leftover' }, secrets: { set: { password: PASSWORD } } });
+
+            const response = await call(app, 'POST', '/connections/mail-work/test', { token: ADMIN_TOKEN });
+
+            expect(response.status).toBe(409);
+            expect(await response.text()).toContain('cannot be tested here');
+            expect(tested).toEqual([]);
+        });
+
         it('needs write, a test and complete values', async () => {
             const definition = mailDefinition({ test: async () => undefined });
             const { app } = world({

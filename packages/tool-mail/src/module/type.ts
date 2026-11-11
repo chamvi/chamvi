@@ -227,9 +227,9 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             // a stored setting the client refuses must not stop the app whose dashboard repairs it
             logger.warn(`${error.message} The stored settings are dropped.`);
             resolved = {
-                ...resolve(storedSecretsOf(definition, row.values)), 
-                state: 'incomplete', 
-                reason: error.message, 
+                ...resolve(storedSecretsOf(definition, row.values)),
+                state: 'incomplete',
+                reason: error.message,
             };
             merged = toAccount(account.id, resolved.values, account);
             normalizeAccount(merged, label);
@@ -281,9 +281,9 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             // the messages name the field, never a value
             logger.warn(`${error.message} The account is not used.`);
             list(id, {
-                ...resolved, 
-                state: 'incomplete', 
-                reason: error.message, 
+                ...resolved,
+                state: 'incomplete',
+                reason: error.message,
             }, true, row);
         }
     }

@@ -139,6 +139,40 @@ describe('the calendar connection test', () => {
         expect(logLines.join('\n')).not.toContain(PASSWORD);
     });
 
+    it('blames the credentials only for the response that ended the login, not for a refused discovery probe', async () => {
+        const account = {
+            id: 'test',
+            url: FAKE_CALDAV_URL,
+            user: 'bob',
+            password: PASSWORD,
+        };
+        const unreachable = 'The CalDAV server cannot be reached, or the URL is no CalDAV server.';
+        const isProbe = (input: Parameters<typeof fetch>[0]) => new URL(input instanceof Request ? input.url : input).pathname.startsWith('/.well-known/');
+
+        // a web server that denies dot paths, in front of a URL that is no CalDAV server
+        await expect(verifyCalendarLogin(account, {
+            signal: new AbortController().signal,
+            fetch: async (input) => new Response('', { status: isProbe(input) ? 403 : 404 }),
+        })).rejects.toThrow(unreachable);
+
+        // the same probe, then a connection that drops
+        await expect(verifyCalendarLogin(account, {
+            signal: new AbortController().signal,
+            fetch: async (input) => {
+                if (isProbe(input)) {
+                    return new Response('', { status: 403 });
+                }
+
+                throw new TypeError('fetch failed');
+            },
+        })).rejects.toThrow(unreachable);
+
+        await expect(verifyCalendarLogin(account, {
+            signal: new AbortController().signal,
+            fetch: async (input) => new Response('', { status: isProbe(input) ? 404 : 403 }),
+        })).rejects.toThrow('The CalDAV server refused the user or password.');
+    });
+
     it('is bounded by its signal', async () => {
         const dav = createFakeCalDav();
         const controller = new AbortController();

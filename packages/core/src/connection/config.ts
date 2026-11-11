@@ -9,7 +9,6 @@ import { randomUUID } from 'node:crypto';
 import { isObject } from 'smob';
 import { systemClock } from '../clock/module.ts';
 import {
-    ConnectionChangedError,
     ConnectionHeldError,
     InvalidAgentDefinitionError,
     ValidationError,
@@ -142,17 +141,10 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             }
 
             if (Object.keys(write).length > 0) {
-                try {
-                    // the row is bare until this write: a writer that filled it meanwhile keeps it, and this create is refused
-                    await connections.writeConfig(name, write, wrapped.wrapped, 0);
-                } catch (error) {
-                    // a recreate or another writer meanwhile owns the row; any other failure must not leave an empty row a retry cannot fill
-                    if (!(error instanceof ConnectionChangedError)) {
-                        await connections.delete(name).catch(() => undefined);
-                    }
-
-                    throw error;
-                }
+                // the row is bare until this write: a writer that filled it meanwhile keeps it, and this create is refused.
+                // A failure leaves the bare row for a retry to fill (an update expecting revision 0), never a delete:
+                // a session may hold the lease and its entries by then
+                await connections.writeConfig(name, write, wrapped.wrapped, 0);
             }
 
             return true;

@@ -152,7 +152,9 @@ export function createFakeGithub(input: FakeGithubOptions): FakeGithub {
 
     const answer = async (resource: Parameters<typeof globalThis.fetch>[0], init: Parameters<typeof globalThis.fetch>[1]): Promise<Response> => {
         const request = new Request(resource as RequestInfo, init);
-        const { signal } = request;
+        // the caller's signal: undici's Request follows it through a WeakRef to
+        // its own controller, so once the Request is collected its signal never aborts
+        const signal = init?.signal ?? (init?.signal === undefined && resource instanceof Request ? resource.signal : request.signal);
 
         if (signal.aborted) {
             throw signal.reason;

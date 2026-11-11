@@ -10,6 +10,7 @@ import type { JSONSchema7 } from 'ai';
 import { ValidationError } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
+import type { MailClientSource } from './types.ts';
 
 /** The tool input as an object, else a ValidationError (a tool error the model can correct). */
 export function inputObject(input: unknown): Record<string, unknown> {
@@ -64,6 +65,16 @@ export function signalOf(abortSignal: AbortSignal | undefined, context: ToolCont
     }
 
     return AbortSignal.any([abortSignal, signal]);
+}
+
+/**
+ * The `taint` classification of every mail tool, decided before the call
+ * runs: a read taints the run, also when it fails. Only the client of an app
+ * without accounts (`configured: false`) does not, since its refusal carries
+ * nothing from outside.
+ */
+export function taintOf(source: MailClientSource): (input: unknown, context: ToolContext) => boolean {
+    return (_input, context) => source(context).configured !== false;
 }
 
 /** An object schema of `properties`, the `required` ones required. */

@@ -39,9 +39,13 @@ export async function verifyCalendarLogin(
                 authMethod: 'Basic',
                 defaultAccountType: 'caldav',
                 fetch: guardedFetch(async (input, init) => {
+                    // the request that ended the login decides: tsdav ignores what its `/.well-known` probe
+                    // answers (a web server denying dot paths says 403), and a dropped connection is no refusal
+                    refused = false;
+
                     const response = await inner(input, init);
 
-                    refused ||= response.status === 401 || response.status === 403;
+                    refused = response.status === 401 || response.status === 403;
 
                     return response;
                 }),

@@ -15,6 +15,8 @@ export function createUnconfiguredMailClient(connection: string): IMailClient {
     };
 
     return {
+        // nothing is ever read: the tools leave the run untainted
+        configured: false,
         accounts: refuse,
         search: refuse,
         get: refuse,

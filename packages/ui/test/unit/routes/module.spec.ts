@@ -6,7 +6,12 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { mkdtemp, rm, writeFile } from 'node:fs/promises';
+import {
+    mkdir,
+    mkdtemp,
+    rm,
+    writeFile,
+} from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { describe, expect, it } from 'vitest';
@@ -243,6 +248,31 @@ describe('uiRoutes', () => {
 
             clock.advance(5000);
             expect((await get(app, '/ui/')).status).toBe(200);
+        } finally {
+            await rm(root, { recursive: true, force: true });
+        }
+    });
+
+    it('never serves a dotfile or a file below a dot directory', async () => {
+        const root = await mkdtemp(join(tmpdir(), 'chamvi-ui-'));
+
+        try {
+            await mkdir(join(root, '.git'));
+            await writeFile(join(root, 'index.html'), '<head><!--chamvi-config--></head>');
+            await writeFile(join(root, 'app.js.map'), '{}');
+            await writeFile(join(root, '.secret.env'), 'TOKEN=hunter2');
+            await writeFile(join(root, '.git', 'config.txt'), 'TOKEN=hunter2');
+
+            const { app } = createUiTestApp({ routes: uiRoutes({ root }) });
+
+            for (const path of ['/ui/.secret.env', '/ui/.git/config.txt']) {
+                const response = await get(app, path);
+
+                expect(response.status).toBe(404);
+                expect(await response.text()).not.toContain('hunter2');
+            }
+
+            expect((await get(app, '/ui/app.js.map')).status).toBe(200);
         } finally {
             await rm(root, { recursive: true, force: true });
         }

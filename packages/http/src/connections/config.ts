@@ -922,15 +922,19 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
             throw new NotFoundError({ message: `The connection type "${definition.type}" offers no test.` });
         }
 
-        // only what is saved: the request body is never read
-        const stored = await refuseWithoutKeyring(async () => ctx.connectionConfigs?.read(target.name));
+        const editable = isEditable(ctx, target);
+        // only what is saved: the request body is never read. A connection set in code never loads the store,
+        // so a row an earlier deployment left says nothing about it and is not read
+        const stored = editable ?
+            await refuseWithoutKeyring(async () => ctx.connectionConfigs?.read(target.name)) :
+            undefined;
         const values: ConnectionValues = { ...stored?.values, ...lockedValues(target) };
         const missing = definition.fields.filter((field) => field.required && !Object.hasOwn(values, field.key));
 
         if (missing.length > 0) {
             // a built App passed in code holds no values this process could test with
             throw new ConflictError({
-                message: isEditable(ctx, target) ?
+                message: editable ?
                     `Save ${missing.map((field) => field.label).join(', ')} first.` :
                     `The connection "${target.name}" is set in code and cannot be tested here.`,
             });

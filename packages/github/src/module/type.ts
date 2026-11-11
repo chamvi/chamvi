@@ -132,16 +132,18 @@ function withoutFields(definition: ConnectionTypeDefinition, resolved: ResolvedC
     };
 }
 
-/** Rethrows a refusal that is no stored problem: env and code errors still fail the start, env ones naming the variable, never the value. */
-function assertStoredRefusal(definition: ConnectionTypeDefinition, resolved: ResolvedConnection, error: InvalidAgentDefinitionError): void {
+/**
+ * The stored field a refusal names; rethrows any other refusal, so only a
+ * value the dashboard can repair leaves the connection idle: an env or code
+ * value, or a refusal naming no field, fails the start (env ones naming the
+ * variable, never the value).
+ */
+function assertStoredRefusal(definition: ConnectionTypeDefinition, resolved: ResolvedConnection, error: InvalidAgentDefinitionError): string {
     const key = refusedKey(definition, error.message);
     const source = key === undefined ? undefined : resolved.sources[key];
-    const stored = key === undefined ?
-        Object.values(resolved.sources).some((candidate) => candidate.kind === 'store') :
-        source?.kind === 'store';
 
-    if (stored) {
-        return;
+    if (key !== undefined && source?.kind === 'store') {
+        return key;
     }
 
     if (key !== undefined && source?.kind === 'env') {
@@ -167,7 +169,8 @@ type LoadInput = {
  * required field. A refused stored value is dropped and the connection listed
  * `incomplete`, so the dashboard can repair it. A required field missing from
  * env and store while another comes from env throws naming the variable
- * (`resolveConnection`), as does a refused value that is not stored.
+ * (`resolveConnection`), as does a refused value that is not stored or a
+ * refusal that names no field.
  */
 export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConnection; app?: IGithubApp } {
     const {
@@ -196,32 +199,14 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
     }
 
     /**
-     * Drops the refused stored field (the optional stored ones when the
-     * message names none) and tries again. Each pass drops at least one
-     * field. A stored refusal never throws (the dashboard repairs what is
-     * left); a retry refused by an env or code value fails the start.
+     * Drops the refused stored field and tries again. A stored refusal never
+     * throws (the dashboard repairs what is left); a retry refused by
+     * anything else fails the start.
      */
-    const recover = (current: ResolvedConnection, refusal: Error): { resolved: ResolvedConnection; app?: IGithubApp } => {
-        const key = refusedKey(definition, refusal.message);
-        const drop = key !== undefined && current.sources[key]?.kind === 'store' ?
-            [key] :
-            definition.fields.filter((field) => !field.required && current.sources[field.key]?.kind === 'store').map((field) => field.key);
-
-        if (drop.length === 0) {
-            logger.warn(`The GitHub connection "${name}" cannot be used (${withoutValue(refusal.message)}); it stays idle until it is repaired.`);
-
-            return {
-                resolved: {
-                    ...current, 
-                    state: 'incomplete', 
-                    reason: withoutValue(refusal.message), 
-                }, 
-            };
-        }
-
+    const recover = (current: ResolvedConnection, key: string, refusal: Error): { resolved: ResolvedConnection; app?: IGithubApp } => {
         logger.warn(`The GitHub connection "${name}" holds a stored value the App refuses (${withoutValue(refusal.message)}); it is ignored.`);
 
-        const next = { ...withoutFields(definition, current, drop), reason: withoutValue(refusal.message) };
+        const next = { ...withoutFields(definition, current, [key]), reason: withoutValue(refusal.message) };
 
         if (next.missing.length > 0) {
             logger.warn(`The GitHub connection "${name}" is incomplete; it stays idle until it is repaired.`);
@@ -236,9 +221,7 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
                 throw error;
             }
 
-            assertStoredRefusal(definition, next, error);
-
-            return recover(next, error);
+            return recover(next, assertStoredRefusal(definition, next, error), error);
         }
     };
 
@@ -249,9 +232,7 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
             throw error;
         }
 
-        assertStoredRefusal(definition, resolved, error);
-
-        return recover(resolved, error);
+        return recover(resolved, assertStoredRefusal(definition, resolved, error), error);
     }
 }
 

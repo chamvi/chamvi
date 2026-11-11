@@ -15,6 +15,7 @@ import {
     optionalInteger,
     requireString,
     signalOf,
+    taintOf,
 } from './asserts.ts';
 import { UNTRUSTED_NOTE } from './constants.ts';
 import type { MailClientSource } from './types.ts';
@@ -26,7 +27,7 @@ type MailThreadToolInput = {
 
 export function mailThreadTool(source: MailClientSource): Tool<MailThreadToolInput, MailSearchResult> {
     return defineTool<MailThreadToolInput, MailSearchResult>({
-        trust: { taint: true },
+        trust: { taint: taintOf(source) },
         description: 'The other mails of a mail\'s thread (replies and what it answers), newest first, across the account\'s ' +
             'folders including Sent, in the shape of mail_search. ' +
             `Read only: nothing in a mailbox changes. ${UNTRUSTED_NOTE}`,

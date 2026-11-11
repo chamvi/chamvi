@@ -197,7 +197,7 @@ describe('createConnectionConfigStore', () => {
             });
         });
 
-        it('removes the row when the initial config write fails, so a retry creates it', async () => {
+        it('leaves the bare row when the initial config write fails, so a retry fills it', async () => {
             const { config, connections } = setup();
             const failure = new Error('store down');
             const { writeConfig } = connections;
@@ -209,10 +209,50 @@ describe('createConnectionConfigStore', () => {
             };
 
             await expect(config.create('mail-work', 'mail', { settings: { host: 'a' } })).rejects.toBe(failure);
-            await expect(connections.findOne('mail-work')).resolves.toBeUndefined();
+            await expect(config.describe('mail-work')).resolves.toEqual({
+                settings: {},
+                secretsSet: [],
+                revision: 0,
+            });
 
-            await expect(config.create('mail-work', 'mail', { settings: { host: 'a' } })).resolves.toBe(true);
-            await expect(config.describe('mail-work')).resolves.toMatchObject({ settings: { host: 'a' }, revision: 1 });
+            // what the http repair of a bare row does
+            await expect(config.create('mail-work', 'mail', { settings: { host: 'a' } })).resolves.toBe(false);
+            await expect(config.update('mail-work', { settings: { host: 'a' }, secrets: { set: { password: PLAINTEXT } } }, { revision: 0 }))
+                .resolves.toBe(1);
+            await expect(config.read('mail-work')).resolves.toEqual({
+                values: { host: 'a', password: PLAINTEXT },
+                revision: 1,
+            });
+        });
+
+        it('keeps the entries of a session that opened the row before the initial config write failed', async () => {
+            const {
+                config,
+                connections,
+                vault,
+            } = setup();
+            const failure = new Error('store down');
+            const { writeConfig } = connections;
+            let session: Awaited<ReturnType<typeof vault.open>> | undefined;
+
+            connections.writeConfig = async () => {
+                connections.writeConfig = writeConfig;
+
+                // another replica finds the row, takes the lease and writes its entries
+                session = await vault.open('whatsapp', { type: 'whatsapp', owner: 'other-replica' });
+                await session.write({ set: { creds: text('session-creds') } });
+
+                throw failure;
+            };
+
+            await expect(config.create('whatsapp', 'whatsapp', { settings: { label: 'main' } })).rejects.toBe(failure);
+
+            await expect(connections.findOne('whatsapp')).resolves.toBeDefined();
+            expect(decode(await session!.readOne('creds'))).toBe('session-creds');
+            await session!.write({ set: { creds: text('rotated') } });
+            expect(decode(await session!.readOne('creds'))).toBe('rotated');
+
+            await session!.close();
         });
     });
 

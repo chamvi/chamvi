@@ -15,6 +15,8 @@ export function createUnconfiguredCalendarClient(connection: string): ICalendarC
     };
 
     return {
+        // nothing is ever read: the tools leave the run untainted
+        configured: false,
         calendars: refuse,
         events: refuse,
         close: async () => undefined,

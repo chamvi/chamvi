@@ -134,6 +134,12 @@ export type MailAttachmentText = {
 
 /** A read-only IMAP client over a set of accounts; the mail tools are thin wrappers around it. */
 export interface IMailClient {
+    /**
+     * `false` only on a client without accounts: each of its calls refuses
+     * before anything is read, so the tools do not taint the run. Absent or
+     * `true`, every call taints it.
+     */
+    readonly configured?: boolean;
     accounts(signal?: AbortSignal): Promise<MailAccountView[]>;
     search(input: MailSearchInput, signal?: AbortSignal): Promise<MailSearchResult>;
     get(id: string, offset?: number, signal?: AbortSignal): Promise<MailMessage>;

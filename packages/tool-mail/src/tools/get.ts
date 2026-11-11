@@ -15,6 +15,7 @@ import {
     optionalInteger,
     requireString,
     signalOf,
+    taintOf,
 } from './asserts.ts';
 import { UNTRUSTED_NOTE } from './constants.ts';
 import type { MailClientSource } from './types.ts';
@@ -26,7 +27,7 @@ type MailGetToolInput = {
 
 export function mailGetTool(source: MailClientSource): Tool<MailGetToolInput, MailMessage> {
     return defineTool<MailGetToolInput, MailMessage>({
-        trust: { taint: true },
+        trust: { taint: taintOf(source) },
         description: 'Read one mail by id: headers, the text body, summaries of calendar invites and the attachment list ' +
             `(metadata only; mail_attachment reads one). Returns at most ${MAIL_BODY_MAX_CHARS} body characters from offset; ` +
             `nextOffset names the next page. A mail above ${MAIL_FETCH_MAX_BYTES / 1024 / 1024} MiB gives headers and attachments only ` +
