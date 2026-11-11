@@ -160,6 +160,17 @@ describe('can', () => {
         await expect(can(holder(broken, { permission: { name: Permission.AGENT_RUN } }), Permission.AGENT_RUN)).resolves.toBe(true);
     });
 
+    it('denies a realmMatch policy node, with and without attributes', async () => {
+        const subject = holder({
+            permission: { name: Permission.AGENT_RUN },
+            policies: [{ type: 'realmMatch' } as never],
+        });
+
+        await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(false);
+        await expect(can(subject, Permission.AGENT_RUN, { attributes: { name: 'triage' } })).resolves.toBe(false);
+        await expect(canSome(subject, Permission.AGENT_RUN)).resolves.toBe(false);
+    });
+
     it('denies a permissionBinding policy node', async () => {
         const plain: PermissionBinding = {
             permission: { name: Permission.AGENT_RUN },
@@ -210,6 +221,7 @@ describe('policies that cannot be evaluated', () => {
 
     const broken: Record<string, unknown> = {
         'a permissionBinding node': { type: 'permissionBinding' },
+        'a realmMatch node': { type: 'realmMatch' },
         'an unknown type': { type: 'nope' },
         'a node without a type': { query: { name: 'triage' } },
         'an attributes policy without a query': { type: 'attributes' },

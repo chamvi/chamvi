@@ -56,7 +56,9 @@ function withSeen<T>(value: unknown, seen: unknown[], copy: () => T): T {
 
 /**
  * True when every node of the tree has a type the evaluators answer. A
- * `permissionBinding` node never is: a binding carries its own grant.
+ * `permissionBinding` node never is: a binding carries its own grant. A
+ * `realmMatch` node never is either: a resource carries no realm here (reach
+ * is settled before a binding is built), and the engine passes it then.
  * An empty composite is refused here, since the engine fails it without
  * an evaluator error an inverted parent would then turn into a pass.
  */
@@ -65,6 +67,7 @@ export function isEvaluable(policy: unknown, evaluators: PolicyEvaluators): bool
         !isObject(policy) ||
         typeof policy.type !== 'string' ||
         policy.type === BuiltInPolicyType.PERMISSION_BINDING ||
+        policy.type === BuiltInPolicyType.REALM_MATCH ||
         !Object.prototype.hasOwnProperty.call(evaluators, policy.type)
     ) {
         return false;
