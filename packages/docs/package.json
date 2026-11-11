@@ -27,6 +27,7 @@
     },
     "devDependencies": {
         "@authup/server-adapter-kit": "^1.0.0-beta.74",
+        "@chamvi/access": "*",
         "@chamvi/app": "*",
         "@chamvi/channel-cron": "*",
         "@chamvi/channel-openclaw": "*",

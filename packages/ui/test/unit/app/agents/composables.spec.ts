@@ -411,7 +411,7 @@ describe('useAgentDetail', () => {
 
         await flush();
         expect(detail.agent.value?.name).toBe('alfred');
-        expect(detail.forbidden.value).toBe('Reading this agent\'s runs needs agent:alfred:read');
+        expect(detail.forbidden.value).toBe('Reading this agent\'s runs needs chamvi_agent_read for alfred');
         expect(detail.error.value).toBeUndefined();
         expect(detail.runs.value).toEqual([]);
         expect(detail.totalRuns.value).toBe(0);

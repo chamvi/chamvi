@@ -97,7 +97,7 @@ const filtered = computed(() => !!filter.value.agent || !!filter.value.status?.l
         v-if="error?.status === 403"
         class="card notice"
     >
-        Listing runs needs <b class="mono">run:read</b>. Ask for it, or open a run or an approval by its link.
+        Listing runs needs <b class="mono">chamvi_run_read</b>. Ask for it, or open a run or an approval by its link.
     </div>
     <template v-else>
         <div class="stats">

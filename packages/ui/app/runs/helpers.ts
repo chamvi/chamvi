@@ -6,7 +6,8 @@
  */
 
 import type { RunWire, StepWire } from '@chamvi/ui-kit';
-import { hasPermission } from '@chamvi/ui-kit';
+import { Permission, can } from '@chamvi/access';
+import type { PermissionHolder } from '@chamvi/access';
 import type { RunStreamEvent } from '../sse/types.ts';
 import { CANCELABLE_STATUSES, PARENT_LABELS, SETTLED_STATUSES } from './constants.ts';
 
@@ -94,8 +95,13 @@ export function lastStepIndex(steps: readonly StepWire[]): number | undefined {
     return Math.max(...steps.map((step) => step.index));
 }
 
-export function canCancel(run: RunWire, permissions: readonly string[]): boolean {
-    return CANCELABLE_STATUSES.includes(run.status) && hasPermission(permissions, 'run:cancel');
+/** Cancel shows for a run that can still stop, to a holder of `chamvi_run_cancel` for its agent. */
+export async function canCancel(run: RunWire, holder: PermissionHolder | undefined): Promise<boolean> {
+    if (!holder || !CANCELABLE_STATUSES.includes(run.status)) {
+        return false;
+    }
+
+    return can(holder, Permission.RUN_CANCEL, { attributes: { agent: run.agent }, now: new Date() });
 }
 
 /** The run this one was dispatched from, with the run page's label; undefined for none or an unknown kind. */

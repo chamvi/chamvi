@@ -132,7 +132,7 @@ Checked against this file's contract map only (no fresh downstream checkout). `c
 
 ## Private agents, mail and calendar tools (#157, #158, #159; 0.7.2)
 
-Checked `main` at `3664d9e7` (after agent-template#24): `src/modules.ts`, `.env.example`, `deploy/flux/secret.example.yaml`. No template change. Both example tokens hold `*`, which grants `agent:<name>:read`, so a `private: true` agent stays readable with the starter setup; the example agent reads no mail. `src/modules.ts` lists only github, sandbox, openclaw and console as commented examples (knowledge and tool-web are not listed either), so `toolMailModule()`/`toolCalendarModule()` stay out; `env-example.spec.ts` checks only the variables `.env.example` lists.
+Checked `main` at `3664d9e7` (after agent-template#24): `src/modules.ts`, `.env.example`, `deploy/flux/secret.example.yaml`. No template change. Both example tokens hold every permission, so a `private: true` agent stays readable with the starter setup; the example agent reads no mail. `src/modules.ts` lists only github, sandbox, openclaw and console as commented examples (knowledge and tool-web are not listed either), so `toolMailModule()`/`toolCalendarModule()` stay out; `env-example.spec.ts` checks only the variables `.env.example` lists.
 
 ## UUID v7 primary keys and the store baseline (0.8.0)
 
@@ -145,3 +145,7 @@ Checked `main` at `3664d9e`: `src/modules.ts` does not list `whatsappModule()`, 
 ## Connection configuration and provider pages (unreleased)
 
 Checked `main` at `d993dd98`: `src/modules.ts`. No template change, and no existing env name or public `@chamvi/app` API changed. The starter lists `uiModule()` and only commented examples (github, sandbox, openclaw, console), none of which needs a `*-ui` module; `whatsappModule()` is not listed, so the pairing upgrade step does not reach it. The commented `githubModule()` stays valid: the comment's "reads `GITHUB_*` when called" still holds for format errors, while an unset env now starts idle instead of throwing, which a documentation follow-up may mention.
+
+## Static permissions (#184, unreleased)
+
+Checked `main` at `8aa1bba6` (2026-11-11): `.env.example` line 4, `deploy/flux/secret.example.yaml` line 10 and the `README.md` `kubectl create secret` example (line 236) hold `"permissions":["*"]`, which `CHAMVI_TOKENS` now refuses at start (`InvalidAgentDefinitionError`, `CHAMVI_TOKENS[0].permissions must be "*" or an array of permission bindings.`). Template PR after this one merges: `"permissions":"*"` in all three, and in `env-example.spec.ts` if it parses the value. No new env variable. An `authupModule()` example would need the client permissions `permission_read` and `token_introspect` with a realm scope of `ownOrNull` or wider (`own` does not reach the global definitions).

@@ -36,7 +36,7 @@ export function createUiTestApp(options: Partial<Omit<HttpAppOptions, 'engine' |
             tokens: [{
                 value: ADMIN_TOKEN,
                 id: 'admin',
-                permissions: ['*'],
+                permissions: '*',
             }],
         })],
         metrics: false,

@@ -64,7 +64,7 @@ A tool calls `dispatch(ctx, { role, payload })` (the `audit` tool in [Waiting fo
 
 `dispatchTo()` reaches a role of another agent only when that role lists the caller in `from`: the receiving agent decides who may start its runs, the caller declares nothing. Otherwise it is a `ValidationError` tool error: `Agent "<target>" role "<r>" accepts no dispatches from agent "<caller>".` An agent the engine does not hold is a `ValidationError` too.
 
-A parent run with an invoker (a REST or MCP caller) dispatches to another agent only when that invoker holds `agent:<target>:run` (the permission `POST /agents/:name/runs` checks); the child carries the invoker unchanged, so a dispatch never widens grants. A run without an invoker (a cron run) passes.
+A parent run with an invoker (a REST or MCP caller) dispatches to another agent only when that invoker holds `chamvi_agent_run` for the target (`{ name, private }`, the check `POST /agents/:name/runs` makes, at the engine clock's time); the child carries the invoker unchanged, so a dispatch never widens grants. A run without an invoker (a cron run) passes.
 
 ## Waiting for the outcomes
 

@@ -88,7 +88,7 @@ export function createTriage(model: LanguageModel, store: IStore) {
             tokens: [{
                 value: process.env.CHAMVI_TOKEN ?? '',
                 id: 'ci',
-                permissions: ['*'],
+                permissions: '*',
             }],
         }),
         // POST /channels/github: the App's webhook URL

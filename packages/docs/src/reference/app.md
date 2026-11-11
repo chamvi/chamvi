@@ -6,7 +6,7 @@ Boots chamvi agents as an app. The public API of `packages/app/src/index.ts` and
 npm install @chamvi/app ai typeorm pg
 ```
 
-`ai`, `typeorm` and `pg` are peer dependencies. The provider packages (`@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/openai-compatible`, `@ai-sdk/google`, `@ai-sdk/mistral`, `@ai-sdk/xai`) and the `@authup/*` packages behind `@chamvi/app/authup` are optional peers. The other optional modules ship with their feature packages (`@chamvi/github/module`, ...), so `@chamvi/app` depends on none of them. The main entry re-exports `@chamvi/core` and `agentPermission`, `Permission` and the `Authenticator`, `Principal`, `HttpRoute`, `HttpRouteContext`, `HttpRouteRequest`, `HttpRouteResult` and `StaticToken` types of `@chamvi/http`.
+`ai`, `typeorm` and `pg` are peer dependencies. The provider packages (`@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/openai-compatible`, `@ai-sdk/google`, `@ai-sdk/mistral`, `@ai-sdk/xai`) and the `@authup/*` packages behind `@chamvi/app/authup` are optional peers. The other optional modules ship with their feature packages (`@chamvi/github/module`, ...), so `@chamvi/app` depends on none of them. The main entry re-exports `@chamvi/core`, `@chamvi/access` (`Permission`, `can`, `canSome` and the binding types) and the `Authenticator`, `Principal`, `HttpRoute`, `HttpRouteContext`, `HttpRouteRequest`, `HttpRouteResult` and `StaticToken` types of `@chamvi/http`.
 
 | Entry | Exports | Needs |
 |---|---|---|
@@ -72,8 +72,8 @@ Read by `readConfig(env, { mode, dev })` once per lifecycle; the optional module
 | `CHAMVI_DRAIN_TIMEOUT_MS` | http shutdown | int | `30000` (dev 5000) | never |
 | `CHAMVI_CLOSE_TIMEOUT_MS` | http shutdown | int | `5000` | never |
 | `CHAMVI_FORCE_EXIT_MS` | cli | int | `90000` (dev 15000) | never |
-| `CHAMVI_TOKENS` | static tokens | JSON `[{ "value", "id", "permissions": [] }]`, `value` at least 16 characters and unique | unset (dev: one random `*` token, warned) | no other authenticator is configured, outside dev |
-| `AUTHUP_URL`, `AUTHUP_CLIENT_ID`, `AUTHUP_CLIENT_SECRET` | `authupModule` | URL, string, string | unset | `authupModule()` without options |
+| `CHAMVI_TOKENS` | static tokens | JSON `[{ "value", "id", "permissions" }]`, `value` at least 16 characters and unique; `permissions` is `"*"` (every `chamvi_*` permission) or an array of [permission bindings](/guide/permissions) | unset (dev: one random `"*"` token, warned) | no other authenticator is configured, outside dev |
+| `AUTHUP_URL`, `AUTHUP_CLIENT_ID`, `AUTHUP_CLIENT_SECRET` | `authupModule` | URL, string, string | unset | `authupModule()` without all of `verifier`, `catalog` and `realm`; the client needs `permission_read` (the catalog) and `token_introspect`, with a realm scope of `ownOrNull` or wider, and its realm is chamvi's realm |
 | `CHAMVI_UI_AUTHUP_CLIENT_ID`, `CHAMVI_UI_AUTHUP_REALM_ID` | `uiModule` | string | unset (token login only) | the dashboard signs in through authup (URL from `AUTHUP_URL`) |
 | `CHAMVI_MODEL` | engine | `'<provider>/<model id>'` | the config file's `model`, else `createApp({ model })` | an agent has no model of its own |
 | `CHAMVI_CONFIG_FILE` | engine | path of a JSON file, relative to the working directory | unset: `./chamvi.json` when it exists | never |

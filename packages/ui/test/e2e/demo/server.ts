@@ -173,7 +173,7 @@ const app = createHttpApp({
         tokens: [{
             value: E2E_TOKEN,
             id: 'e2e',
-            permissions: ['*'],
+            permissions: '*',
         }],
     })],
     metrics: false,

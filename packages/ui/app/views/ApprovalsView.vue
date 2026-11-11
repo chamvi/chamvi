@@ -9,10 +9,12 @@
 import { useToast } from '@vuecs/overlays';
 import { computed, inject, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import type { RunWire } from '@chamvi/ui-kit';
+import type { AgentWire, MeWire, RunWire } from '@chamvi/ui-kit';
+import { useAgents } from '../agents/composables.ts';
 import { useApprovals, useLinkedApproval } from '../approvals/composables.ts';
 import { INBOX, INBOX_POLL_MS  } from '../approvals/constants.ts';
 import {
+    approvableAgents,
     approvalWaitOf,
     linkNotice,
     linkedApprovalState,
@@ -23,8 +25,8 @@ import type { AnswerResult, DecidedApproval } from '../approvals/types.ts';
 import {
     NavIcon,
     StatusChip,
-    hasPermission,
     useAppContext,
+    useResolved,
 } from '@chamvi/ui-kit';
 import ApprovalCallout from '../components/approval-callout/ApprovalCallout.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
@@ -38,9 +40,6 @@ const inbox = inject(INBOX, undefined) ?? useApprovals(client);
 
 const principalName = computed(() => session.principal.value?.name ?? session.principal.value?.id);
 
-const permissions = computed(() => session.principal.value?.permissions ?? []);
-const canAnswer = (agent: string) => hasPermission(permissions.value, `agent:${agent}:approve`);
-
 const decided = ref<DecidedApproval[]>([]);
 const busy = ref<string>();
 
@@ -48,13 +47,39 @@ const busy = ref<string>();
 const route = useRoute();
 const approvalLink = computed(() => readApprovalLink(route.query));
 const linked = useLinkedApproval(client, approvalLink, inbox.runs);
+
+// the agents with a run on this page, as one sorted key: polls that list the same agents ask nothing again
+const agentKey = computed(() => {
+    const names = new Set(inbox.runs.value.map((run) => run.agent));
+
+    if (linked.run.value) {
+        names.add(linked.run.value.agent);
+    }
+
+    return Array.from(names).sort().join('\n');
+});
+// the agents' private flags for the approve check; an agent the list lacks (or a refused list) counts as private
+const agentList = useAgents(client);
+const agentsLoaded = ref(false);
+
+void agentList.loaded.then(() => {
+    agentsLoaded.value = true;
+});
+
+// `undefined` until the agent list and the first verdicts arrived: the linked approval stays loading meanwhile
+const approvable = useResolved<readonly [string, MeWire | undefined, boolean, readonly AgentWire[]], ReadonlySet<string> | undefined>(
+    () => [agentKey.value, session.principal.value, agentsLoaded.value, agentList.agents.value] as const,
+    async ([key, principal, ready, agents]) => (ready ? approvableAgents(principal, key ? key.split('\n') : [], agents) : undefined),
+    undefined,
+);
+const canAnswer = (agent: string) => approvable.value?.has(agent) ?? false;
 const linkedState = computed(() => (linked.link.value ?
     linkedApprovalState({
         link: linked.link.value,
         run: linked.run.value,
         error: linked.error.value,
         decided: decided.value,
-        permissions: permissions.value,
+        approvable: approvable.value,
         now: Date.now(),
     }) :
     undefined));
@@ -151,8 +176,8 @@ async function answer(run: RunWire, approved: boolean, reason: string, selected:
             v-if="inbox.error.value?.status === 403"
             class="card notice"
         >
-            Listing waiting runs needs <b class="mono">run:read</b>.
-            An approval link still opens a run of an agent you may run (<b class="mono">agent:&lt;name&gt;:run</b>).
+            Listing waiting runs needs <b class="mono">chamvi_run_read</b>.
+            An approval link still opens a run of an agent you may run (<b class="mono">chamvi_agent_run</b>).
         </div>
 
         <div

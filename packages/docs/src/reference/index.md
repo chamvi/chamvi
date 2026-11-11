@@ -33,13 +33,10 @@ Core exports the unchanged native SDK types `SystemModelMessage`, `UserModelMess
 ## Permissions
 
 ```ts
-function matchesPermission(granted: string, wanted: string): boolean;
-function hasPermission(permissions: readonly string[], wanted: string): boolean;
-function toolPermission(agent: string, tool: string): string; // tool:<agent>:<tool>
 function requireToolPermission(opts?: RequireToolPermissionOptions): ToolPolicy;
 ```
 
-`*` alone grants everything, a `*` segment matches exactly one segment, and segment counts must match. `requireToolPermission()` offers a tool when the run's invoker holds `toolPermission(agent, tool)`; runs without an invoker follow `withoutInvoker` (default `'deny'`). See [Restricting tools per invoker](/guide/tools#restricting-tools-per-invoker).
+`requireToolPermission()` offers a tool when the run's invoker holds `chamvi_tool_use` for `{ agent, name }` (the agent and the tool), checked with `can()` of `@chamvi/access` at the engine clock's time; runs without an invoker follow `withoutInvoker` (default `'deny'`). An invoker's `permissions` are permission bindings ([Permissions and authup](/guide/permissions)); an entry that is not one grants nothing. See [Restricting tools per invoker](/guide/tools#restricting-tools-per-invoker).
 
 <<< ../../../core/src/permission/types.ts{ts}
 
@@ -280,7 +277,7 @@ const DEFAULT_DISPATCH_WAIT_TIMEOUT_MS: 86_400_000; // 24 hours
 
 <<< ../../../core/src/dispatch/types.ts{ts}
 
-`dispatch()`, `dispatchTo()` and `waitForDispatch()` run inside a tool call (or a simple agent's `run()`) only (`InvalidRunStateError` elsewhere; `waitForDispatch()` also in a streaming tool's body). A missing role, a caller not in `from`, a too deep child, the per-run limit, an invoker without `agent:<target>:run`, a held concurrency key and a run this run did not dispatch are `ValidationError` tool errors (a simple agent's run fails instead); a reached `budget.maxSubtreeTokens` is a `BudgetExceededError` tool error. `dispatchTools()` throws `InvalidAgentDefinitionError` for no role, a bad name, a name over 64 characters, a role listed twice or a bad `wait`. See [Dispatch](/guide/dispatch) and [Generated dispatch tools](/guide/dispatch#generated-dispatch-tools).
+`dispatch()`, `dispatchTo()` and `waitForDispatch()` run inside a tool call (or a simple agent's `run()`) only (`InvalidRunStateError` elsewhere; `waitForDispatch()` also in a streaming tool's body). A missing role, a caller not in `from`, a too deep child, the per-run limit, an invoker without `chamvi_agent_run` for the target, a held concurrency key and a run this run did not dispatch are `ValidationError` tool errors (a simple agent's run fails instead); a reached `budget.maxSubtreeTokens` is a `BudgetExceededError` tool error. `dispatchTools()` throws `InvalidAgentDefinitionError` for no role, a bad name, a name over 64 characters, a role listed twice or a bad `wait`. See [Dispatch](/guide/dispatch) and [Generated dispatch tools](/guide/dispatch#generated-dispatch-tools).
 
 ## State
 

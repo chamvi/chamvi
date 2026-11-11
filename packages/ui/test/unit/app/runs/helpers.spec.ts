@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission } from '@chamvi/access';
 import { describe, expect, it } from 'vitest';
-import { hasPermission } from '@chamvi/ui-kit';
 import {
     canCancel,
     childRole,
@@ -20,6 +20,7 @@ import {
     subtreeTotal,
 } from '../../../../app/runs/helpers.ts';
 import type { RunDetailState } from '../../../../app/runs/helpers.ts';
+import { ALL, grant } from '../../../utils/permissions.ts';
 import { wireRun, wireStep } from '../../../utils/runs.ts';
 
 function state(steps = [wireStep(0), wireStep(1, 'tool')]): RunDetailState {
@@ -107,31 +108,25 @@ describe('lastStepIndex', () => {
 });
 
 describe('canCancel', () => {
-    it('follows status and run:cancel', () => {
+    it('follows status and chamvi_run_cancel', async () => {
         for (const status of ['queued', 'running', 'waiting', 'interrupted'] as const) {
-            expect(canCancel(wireRun({ status }), ['run:cancel']), status).toBe(true);
-            expect(canCancel(wireRun({ status }), ['run:read']), status).toBe(false);
+            expect(await canCancel(wireRun({ status }), { permissions: [grant(Permission.RUN_CANCEL)] }), status).toBe(true);
+            expect(await canCancel(wireRun({ status }), { permissions: [grant(Permission.RUN_READ)] }), status).toBe(false);
         }
 
         for (const status of ['completed', 'failed', 'cancelled'] as const) {
-            expect(canCancel(wireRun({ status }), ['*']), status).toBe(false);
+            expect(await canCancel(wireRun({ status }), { permissions: ALL }), status).toBe(false);
         }
     });
-});
 
-describe('hasPermission', () => {
-    it.each([
-        [['*'], 'run:read', true],
-        [['agent:*:run'], 'agent:a:run', true],
-        [['agent:*:run'], 'agent:a:b:run', false],
-        [['agent:a:*'], 'agent:a:approve', true],
-        [['agent:a:run'], 'agent:b:run', false],
-        [['run:*'], 'run:read', true],
-        [['*:*'], 'run:read', true],
-        [['*:*'], 'agent:a:run', false],
-        [[], 'run:read', false],
-    ] as const)('%j grants %s: %s', (granted, wanted, expected) => {
-        expect(hasPermission(granted, wanted)).toBe(expected);
+    it('checks the run\'s agent against a restricted grant', async () => {
+        const run = wireRun({ status: 'running' });
+        const own = { permissions: [grant(Permission.RUN_CANCEL, { agent: run.agent })] };
+        const other = { permissions: [grant(Permission.RUN_CANCEL, { agent: `${run.agent}-other` })] };
+
+        expect(await canCancel(run, own)).toBe(true);
+        expect(await canCancel(run, other)).toBe(false);
+        expect(await canCancel(run, undefined)).toBe(false);
     });
 });
 

@@ -7,9 +7,9 @@ import {
     approve,
     defineModelAgent,
     defineTool,
-    hasPermission,
     requireToolPermission,
 } from '@chamvi/core';
+import { can } from '@chamvi/access';
 import type { ToolPolicy } from '@chamvi/core';
 
 declare const model: LanguageModel;
@@ -72,7 +72,7 @@ export const ops = defineModelAgent({
     name: 'ops',
     model,
     instructions: 'Operate the service.',
-    // offers deploy only to invokers holding tool:ops:deploy (or tool:ops:*, or *)
+    // offers deploy only to invokers holding chamvi_tool_use for { agent: 'ops', name: 'deploy' }
     toolPolicy,
     tools: { status, deploy },
     hooks: {
@@ -80,7 +80,7 @@ export const ops = defineModelAgent({
         async beforeToolExecution({ toolName, input }, ctx) {
             const { invoker } = ctx.run.trigger;
 
-            if (toolName !== 'deploy' || (invoker && hasPermission(invoker.permissions, 'release:manage'))) {
+            if (toolName !== 'deploy' || (invoker && await can(invoker, 'release_manage'))) {
                 return input;
             }
 

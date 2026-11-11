@@ -38,7 +38,7 @@ export const app = createApp({
 });
 ```
 
-Discord appears in the dashboard's sidebar and is served at `<uiBase>/ext/chat-discord`. Viewing needs `connection:<name>:read`, saving `connection:<name>:write` on the connection `discord` (the module's `name`). Saved values take effect at the next start.
+Discord appears in the dashboard's sidebar and is served at `<uiBase>/ext/chat-discord`. Viewing needs `chamvi_connection_read`, saving `chamvi_connection_write` for the connection `discord` (the module's `name`). Saved values take effect at the next start.
 
 ## Options
 

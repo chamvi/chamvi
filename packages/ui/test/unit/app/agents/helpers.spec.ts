@@ -5,11 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission } from '@chamvi/access';
 import { describe, expect, it } from 'vitest';
 import { ACTIVITY_WINDOW_MS } from '../../../../app/agents/constants.ts';
 import {
     activityLabel,
-    agentReadPermission,
+    canStartAgent,
     channelChips,
     createStartKeys,
     failedSummary,
@@ -27,6 +28,7 @@ import {
 } from '../../../../app/agents/helpers.ts';
 import type { AgentWire, ScheduleWire } from '@chamvi/ui-kit';
 import { withoutIteratorHelpers } from '../../../utils/iterator.ts';
+import { ALL, grant } from '../../../utils/permissions.ts';
 import { wireRun } from '../../../utils/runs.ts';
 
 const NOW = Date.parse('2026-10-21T12:00:00.000Z');
@@ -216,16 +218,26 @@ describe('activityLabel', () => {
 });
 
 describe('agent helpers', () => {
-    it('agentReadPermission names the grant a private agent\'s content needs', () => {
-        expect(agentReadPermission('alfred')).toBe('agent:alfred:read');
+    it('hiddenRunsNotice names the read grant only for a private agent the principal may not read', async () => {
+        const holder = (...permissions: ReturnType<typeof grant>[]) => ({ permissions });
+        const alfred = agent({ name: 'alfred', private: true });
+
+        expect(await hiddenRunsNotice(alfred, holder(grant(Permission.RUN_READ)))).toBe('Runs hidden: reading them needs chamvi_agent_read for alfred');
+        expect(await hiddenRunsNotice(alfred, holder(grant(Permission.RUN_READ), grant(Permission.AGENT_READ, { name: 'alfred' })))).toBeUndefined();
+        expect(await hiddenRunsNotice(alfred, holder(...ALL))).toBeUndefined();
+        expect(await hiddenRunsNotice(alfred, holder(grant(Permission.AGENT_READ, { name: 'other' })))).toBe('Runs hidden: reading them needs chamvi_agent_read for alfred');
+        expect(await hiddenRunsNotice(alfred, undefined)).toBe('Runs hidden: reading them needs chamvi_agent_read for alfred');
+        expect(await hiddenRunsNotice(agent({ name: 'bob', private: false }), holder(grant(Permission.RUN_READ)))).toBeUndefined();
     });
 
-    it('hiddenRunsNotice names the read grant only for a private agent the principal may not read', () => {
-        expect(hiddenRunsNotice(agent({ name: 'alfred', private: true }), ['run:read'])).toBe('Runs hidden: reading them needs agent:alfred:read');
-        expect(hiddenRunsNotice(agent({ name: 'alfred', private: true }), ['run:read', 'agent:alfred:read'])).toBeUndefined();
-        expect(hiddenRunsNotice(agent({ name: 'alfred', private: true }), ['*'])).toBeUndefined();
-        expect(hiddenRunsNotice(agent({ name: 'alfred', private: true }), ['agent:*:read'])).toBeUndefined();
-        expect(hiddenRunsNotice(agent({ name: 'bob', private: false }), ['run:read'])).toBeUndefined();
+    it('canStartAgent needs chamvi_agent_run for the agent and an http subscription', async () => {
+        const triage = agent({ channels: [{ channel: 'http', id: 'http' }] });
+
+        expect(await canStartAgent(triage, { permissions: [grant(Permission.AGENT_RUN, { name: 'triage' })] })).toBe(true);
+        expect(await canStartAgent(triage, { permissions: [grant(Permission.AGENT_RUN, { name: 'other' })] })).toBe(false);
+        expect(await canStartAgent(triage, { permissions: [grant(Permission.AGENT_RUN, { private: false })] })).toBe(true);
+        expect(await canStartAgent(agent(), { permissions: ALL })).toBe(false);
+        expect(await canStartAgent(triage, undefined)).toBe(false);
     });
 
     it('hasHttpSubscription', () => {

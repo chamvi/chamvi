@@ -14,8 +14,10 @@ import {
     canWriteConnection,
     createConnectionsApi,
     useAppContext,
+    useResolved,
     useUiPages,
 } from '@chamvi/ui-kit';
+import type { MeWire } from '@chamvi/ui-kit';
 import { WHATSAPP_TYPE } from './constants.ts';
 import QrWidget from './QrWidget.vue';
 
@@ -31,8 +33,15 @@ const current = computed(() => {
 
     return listed ? chosen.value : sessions.value[0]?.name;
 });
-const write = computed(() => current.value !== undefined &&
-    canWriteConnection(session.principal.value?.permissions ?? [], current.value));
+const verdict = useResolved<readonly [string | undefined, MeWire | undefined], { name: string; write: boolean } | undefined>(
+    () => [current.value, session.principal.value] as const,
+    async ([name, principal]) => (name === undefined ?
+        undefined :
+        { name, write: await canWriteConnection(principal, { name, type: WHATSAPP_TYPE.type }) }),
+    undefined,
+);
+// the panel waits for the verdict of the open session: it decides once whether to follow the stream (and the QR)
+const write = computed(() => (verdict.value && verdict.value.name === current.value ? verdict.value.write : undefined));
 
 /** The open session lives in the query, so a reload comes back to it. */
 function open(name: string): void {
@@ -61,7 +70,7 @@ function open(name: string): void {
         </template>
 
         <ConnectionPanel
-            v-if="current"
+            v-if="current && write !== undefined"
             :key="`${current}:${write}`"
             :api="api"
             :name="current"
@@ -81,7 +90,7 @@ function open(name: string): void {
             </template>
         </ConnectionPanel>
         <div
-            v-else-if="loaded"
+            v-else-if="loaded && !current"
             class="card notice"
             data-testid="connections-empty"
         >

@@ -38,7 +38,7 @@ export const app = createApp({
 });
 ```
 
-WhatsApp appears in the dashboard's sidebar and is served at `<uiBase>/ext/chat-whatsapp`. Viewing needs `connection:<name>:read`, saving `connection:<name>:write` on the connection named by `connection`. Pairing and re-pairing need this page: `@chamvi/ui` shows no QR. Saved values take effect at the next start.
+WhatsApp appears in the dashboard's sidebar and is served at `<uiBase>/ext/chat-whatsapp`. Viewing needs `chamvi_connection_read`, saving `chamvi_connection_write` for the connection named by `connection`. Pairing and re-pairing need this page: `@chamvi/ui` shows no QR. Saved values take effect at the next start.
 
 ## Options
 

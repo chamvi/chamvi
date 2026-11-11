@@ -17,7 +17,7 @@ const env = {
     CHAMVI_TOKENS: JSON.stringify([{
         value: E2E_TOKEN,
         id: 'e2e',
-        permissions: ['*'],
+        permissions: '*',
     }]),
     CHAMVI_ENCRYPTION_KEYS: `e2e:${Buffer.alloc(32, 7).toString('base64')}`,
 };

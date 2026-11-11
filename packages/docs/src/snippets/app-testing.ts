@@ -19,7 +19,7 @@ export async function smokeTest(agents: Agent[], model: MockLanguageModelV4) {
             CHAMVI_TOKENS: JSON.stringify([{
                 value: 'test-token-0123456789',
                 id: 'test',
-                permissions: ['*'],
+                permissions: '*',
             }]),
             CHAMVI_LOG_LEVEL: 'error',
         },

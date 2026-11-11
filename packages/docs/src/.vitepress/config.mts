@@ -148,6 +148,7 @@ export default defineConfig({
                         { text: 'Cancel, Drain & Recovery', link: '/guide/recovery' },
                         { text: 'Cron Scheduling', link: '/guide/scheduler' },
                         { text: 'HTTP API & MCP', link: '/guide/http' },
+                        { text: 'Permissions & authup', link: '/guide/permissions' },
                         { text: 'Dashboard', link: '/guide/ui' },
                         { text: 'Errors', link: '/guide/errors' },
                         { text: 'Upgrading', link: '/guide/upgrading' },
@@ -185,6 +186,7 @@ export default defineConfig({
                     text: 'Reference',
                     items: [
                         { text: '@chamvi/core', link: '/reference/' },
+                        { text: '@chamvi/access', link: '/reference/access' },
                         { text: '@chamvi/app', link: '/reference/app' },
                         { text: '@chamvi/channel-cron', link: '/reference/channel-cron' },
                         { text: '@chamvi/channel-openclaw', link: '/reference/channel-openclaw' },

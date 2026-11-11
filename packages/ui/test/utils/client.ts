@@ -7,6 +7,7 @@
 
 import { ApiError } from '@chamvi/ui-kit';
 import type { IApiClient, MeWire } from '@chamvi/ui-kit';
+import { ALL } from './permissions.ts';
 
 /** A client whose every method throws unless the test overrides it. */
 export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {
@@ -36,7 +37,7 @@ export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {
 export const ME: MeWire = {
     id: 'admin',
     kind: 'token',
-    permissions: ['*'],
+    permissions: ALL,
 };
 
 export function apiError(status: number, code = `http_${status}`): ApiError {

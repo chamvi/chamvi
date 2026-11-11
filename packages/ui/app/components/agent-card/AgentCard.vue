@@ -7,7 +7,7 @@
  */
 
 import { ACTIVITY_LIMIT } from '../../agents/constants.ts';
-import { agentReadPermission, formatBudgetTime } from '../../agents/helpers.ts';
+import { formatBudgetTime } from '../../agents/helpers.ts';
 import type { AgentRollup, ChannelChip as Chip } from '../../agents/types.ts';
 import type { AgentWire } from '@chamvi/ui-kit';
 import { RouteName } from '../../router/constants.ts';
@@ -47,7 +47,7 @@ defineProps<{
                 v-if="agent.private"
                 class="tag"
                 data-testid="agent-private"
-                :title="`Private: reading its runs and state needs ${agentReadPermission(agent.name)}`"
+                :title="`Private: reading its runs and state needs chamvi_agent_read for ${agent.name}`"
             ><NavIcon name="lock" />private</span>
             <NavIcon name="go" />
         </div>

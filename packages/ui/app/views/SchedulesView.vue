@@ -34,7 +34,7 @@ const list = computed(() => groupByAgent(schedules.value).flatMap((group) => gro
         v-if="error?.status === 403"
         class="card notice"
     >
-        Listing schedules needs <b class="mono">run:read</b>.
+        Listing schedules needs <b class="mono">chamvi_run_read</b>.
     </div>
     <div
         v-else-if="list.length === 0"

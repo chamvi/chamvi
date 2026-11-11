@@ -100,6 +100,7 @@ npm install --save-dev tsdown   # only for chamvi build
 | Package | Status |
 |---|---|
 | `@chamvi/core` | Shipped (0.x) |
+| `@chamvi/access` | Unreleased, the permission check over authup bindings (core, http, app and the dashboard use it) |
 | `@chamvi/test-kit` | Shipped (0.x), test helpers |
 | `@chamvi/channel-cron` | Shipped (0.x), the cron channel, one tick across replicas |
 | `@chamvi/store-db` | Shipped (0.x), TypeORM store (PostgreSQL) |
