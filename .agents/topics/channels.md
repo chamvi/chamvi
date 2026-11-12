@@ -45,7 +45,7 @@ type TriggerEnvelope = {
     concurrencyKey?: string;
     address?: string;        // where the run came from on that channel (an issue, a thread, a caller); also Run.address
     attachments?: Artifact[];
-    invoker?: Invoker;       // { id, kind, name?, bindings, identity? }, from an authenticator only
+    invoker?: Invoker;       // { id, kind, name?, permissions, identity? }, from an authenticator only
     parent?: TriggerParent;  // { kind: 'dispatch', runId, agent, role, depth }: set only by dispatch()/dispatchTo(), dropped from any engine.dispatch()
     receivedAt: Date;        // defaults to now
 };
@@ -53,7 +53,7 @@ type TriggerEnvelope = {
 
 Envelopes stored by older releases have `source` and `thread`; `normalizeEnvelope()` (`trigger/helpers.ts`, public, used by both store mappers) fills `channel` from `source` and `address` from `thread` when absent and drops both legacy keys (`Run.address` reads the existing `thread` column; no migration).
 
-`dispatch` validates a given invoker (non-empty `id` and `kind`, `bindings` an array of permission bindings, `identity` of type `user`/`client` with an `id`, `ValidationError` before any write) and stores a deep copy (`structuredClone`) of only those fields; a stored invoker is never re-validated on read, so old string entries grant nothing. It is a snapshot (identity and grants, never a token): a run paused on an approval keeps it, and revoking a grant does not reach a run that holds it. The idempotency scope includes the invoker (see Intake), so a deduplicated dispatch always comes from the invoker of the run it returns. Tool code reads it as `context.run.trigger.invoker` (tools and the factory's `run`) and `ctx.run.trigger.invoker` (effect hooks, agent hooks).
+`dispatch` validates a given invoker (non-empty `id` and `kind`, `bindings` an array of permission bindings, an optional `authorization` passing `isPermissionAuthorization` (shallow), `identity` of type `user`/`client` with an `id`, `ValidationError` before any write) and stores a deep copy (`structuredClone`) of only those fields; a stored invoker is never re-validated on read, so old string entries, and an invoker stored with `permissions` and no `bindings`, grant nothing. It is a snapshot (identity and grants, never a token): a run paused on an approval keeps it, and revoking a grant does not reach a run that holds it. The idempotency scope includes the invoker (see Intake), so a deduplicated dispatch always comes from the invoker of the run it returns. Tool code reads it as `context.run.trigger.invoker` (tools and the factory's `run`) and `ctx.run.trigger.invoker` (effect hooks, agent hooks).
 
 The envelope (channel, trigger, payload) is rendered as a JSON block and becomes the run's first user message: string content, or with attachments `[{ type: 'text', text }, ...one file part per attachment]` whose `data` is the marker `chamvi-artifact:<id>` (`ARTIFACT_URI_PREFIX`, internal). `TriggerEnvelope.attachments?: Artifact[]` holds their metadata; `DispatchEnvelope.attachments?: ArtifactInput[]` takes the bytes.
 

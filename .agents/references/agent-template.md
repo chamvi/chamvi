@@ -149,3 +149,7 @@ Checked `main` at `d993dd98`: `src/modules.ts`. No template change, and no exist
 ## Static permissions (#184, unreleased)
 
 Checked `main` at `8aa1bba6` (2026-11-11): `.env.example` line 4, `deploy/flux/secret.example.yaml` line 10 and the `README.md` `kubectl create secret` example (line 236) hold `"permissions":["*"]`, which `CHAMVI_TOKENS` now refuses at start (`InvalidAgentDefinitionError`, `CHAMVI_TOKENS[0].permissions must be "*" or an array of permission bindings.`). Template PR after this one merges: `"permissions":"*"` in all three, and in `env-example.spec.ts` if it parses the value. No new env variable. An `authupModule()` example would need the client permissions `permission_read` and `token_introspect` with a realm scope of `ownOrNull` or wider (`own` does not reach the global definitions).
+
+## authup snapshot and deadline (#206, #208, unreleased)
+
+Checked `00ec8afc` (2026-11-12): the template names no `AUTHUP_*` variable and no `PermissionHolder` field, so neither the `permissions` to `bindings` rename of the holder (the `CHAMVI_TOKENS` key stays `permissions`) nor the optional `AUTHUP_TIMEOUT_MS` (`authupModule()`, default 10 000 ms) needs a template change. An app reading `invoker.permissions` itself must read `bindings` or call `can()`.
