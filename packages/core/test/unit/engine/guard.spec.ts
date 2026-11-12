@@ -28,6 +28,10 @@ class HookedEngine extends Engine {
         this.revisions.delete(name);
     }
 
+    adopt(name: string, revision: string): void {
+        this.revisions.set(name, revision);
+    }
+
     protected override async execute(run: Run, signal: AbortSignal): Promise<void> {
         await this.beforeExecute?.(this, run);
 
@@ -300,5 +304,178 @@ describe('execution guard', () => {
         expect(await statusOf(store, runId)).toBe('queued');
         expect(errors).toEqual([]);
         expect(model.doStreamCalls).toHaveLength(0);
+    });
+
+    it('a checked run of a lagging replica is cancelled by the replica at the marker\'s revision', async () => {
+        const { clock, store } = setup();
+        const modelA = answer();
+        const modelB = answer();
+        const triageA = defineModelAgent({
+            name: 'triage',
+            model: modelA,
+            instructions: 'x',
+        });
+        const triageB = defineModelAgent({
+            name: 'triage',
+            model: modelB,
+            instructions: 'x',
+        });
+        const { engine: b, errors: errorsB } = make({
+            store,
+            clock,
+            agents: [],
+            owner: 'B',
+        });
+        const { engine: a, errors: errorsA } = make({
+            store,
+            clock,
+            agents: [],
+            owner: 'A',
+        });
+
+        await b.putAgent(triageB, { revision: 'h1' });
+        await a.putAgent(triageA, { revision: 'h2' });
+        await b.start();
+
+        const { runId } = await b.dispatch({ ...env(), checked: triageB });
+
+        expect((await store.runs.findOne(runId))?.agentRevision).toBe('h1');
+
+        await b.idle();
+        await poll(b, clock);
+        expect(await statusOf(store, runId)).toBe('queued');
+
+        // a stale cancel emits run.updated (cancelled) only: no agents.cancelled, no running
+        const updates: Run['status'][] = [];
+        const sweeps: string[] = [];
+
+        a.on('run.updated', (e) => {
+            updates.push(e.run.status);
+        });
+        a.on('agents.cancelled', (e) => {
+            sweeps.push(e.name);
+        });
+
+        await a.start();
+        await a.idle();
+        await poll(a, clock);
+
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('cancelled');
+        expect(run?.error?.code).toBe('agent_replaced');
+        expect(updates).toEqual(['cancelled']);
+        expect(sweeps).toEqual([]);
+        expect(modelA.doStreamCalls).toHaveLength(0);
+        expect(modelB.doStreamCalls).toHaveLength(0);
+        expect(errorsA).toEqual([]);
+        expect(errorsB).toEqual([]);
+    });
+
+    it('a checked run stamped with the former revision starts', async () => {
+        const { clock, store } = setup();
+        const model = answer();
+        const triage = defineModelAgent({
+            name: 'triage',
+            model,
+            instructions: 'x',
+        });
+
+        await store.agentRevisions.save({
+            agent: 'triage',
+            hash: 'h1',
+            changedAt: clock.now(),
+        });
+        await store.runs.insert(makeRun('r1', {
+            agent: 'triage',
+            agentRevision: 'h1',
+            trigger: { ...makeRun('r1').trigger, agent: 'triage' },
+        }));
+
+        const { engine, errors } = make({
+            store,
+            clock,
+            agents: [],
+        });
+
+        await engine.putAgent(triage, { revision: 'h2', formerRevision: 'h1' });
+        expect((await store.agentRevisions.findOne('triage'))?.hash).toBe('h2');
+
+        await engine.start();
+        await engine.idle();
+
+        expect(await statusOf(store, 'r1')).toBe('completed');
+        expect(model.doStreamCalls).toHaveLength(1);
+        expect(errors).toEqual([]);
+    });
+
+    it('a checked run stamped at the current revision starts', async () => {
+        const { clock, store } = setup();
+        const model = answer();
+        const triage = defineModelAgent({
+            name: 'triage',
+            model,
+            instructions: 'x',
+        });
+        const { engine, errors } = make({
+            store,
+            clock,
+            agents: [],
+        });
+
+        await engine.putAgent(triage, { revision: 'h1' });
+        await engine.start();
+
+        const { runId } = await engine.dispatch({ ...env(), checked: triage });
+
+        await engine.idle();
+
+        expect(await statusOf(store, runId)).toBe('completed');
+        expect(errors).toEqual([]);
+    });
+
+    it('a checked run found stale after the claim settles cancelled', async () => {
+        const { clock, store } = setup();
+        const model = answer();
+        const triage = defineModelAgent({
+            name: 'triage',
+            model,
+            instructions: 'x',
+        });
+        const { engine, errors } = make({
+            store,
+            clock,
+            agents: [],
+        });
+
+        await engine.putAgent(triage, { revision: 'h1' });
+        engine.beforeExecute = async (e) => {
+            await store.agentRevisions.save({
+                agent: 'triage',
+                hash: 'h2',
+                changedAt: clock.now(),
+            });
+            e.adopt('triage', 'h2');
+        };
+
+        const updates: Run['status'][] = [];
+
+        engine.on('run.updated', (e) => {
+            updates.push(e.run.status);
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch({ ...env(), checked: triage });
+
+        await engine.idle();
+
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('cancelled');
+        expect(run?.error?.code).toBe('agent_replaced');
+        expect(updates).toEqual(['queued', 'running', 'cancelled']);
+        expect(model.doStreamCalls).toHaveLength(0);
+        expect(errors).toEqual([]);
     });
 });

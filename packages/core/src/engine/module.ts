@@ -121,6 +121,12 @@ export class Engine implements IEngine {
     /** The revision each registered agent was loaded at; undefined for an agent without a revision. */
     protected readonly revisions = new Map<string, string | undefined>();
 
+    /** The `formerRevision` each agent was registered with: a run stamped with it counts as current. */
+    protected readonly formerRevisions = new Map<string, string>();
+
+    /** Cancels of queued runs stamped with a replaced revision, by run id; idle() waits for them. */
+    protected readonly staleCancels = new Map<string, Promise<void>>();
+
     /** Agents whose revision marker this engine is moving: none of their runs starts here meanwhile. */
     protected readonly syncing = new Set<string>();
 
@@ -759,6 +765,13 @@ export class Engine implements IEngine {
 
         this.agents.set(name, agent);
         this.revisions.set(name, revision);
+
+        if (formerRevision !== undefined) {
+            this.formerRevisions.set(name, formerRevision);
+        } else {
+            this.formerRevisions.delete(name);
+        }
+
         this.emit({
             type: 'agents.changed',
             name,
@@ -784,6 +797,7 @@ export class Engine implements IEngine {
             this.removals.set(name, this.revisions.get(name));
             this.agents.delete(name);
             this.revisions.delete(name);
+            this.formerRevisions.delete(name);
             this.emit({
                 type: 'agents.changed',
                 name,
@@ -1136,8 +1150,8 @@ export class Engine implements IEngine {
         await this.queue.idle();
         await this.conversations?.idle();
 
-        while (this.deliveries.size > 0) {
-            await Promise.all(this.deliveries);
+        while (this.deliveries.size > 0 || this.staleCancels.size > 0) {
+            await Promise.all([...this.deliveries, ...this.staleCancels.values()]);
             await this.queue.idle();
         }
     }
@@ -1686,6 +1700,18 @@ export class Engine implements IEngine {
             return;
         }
 
+        // current at the marker's revision, but the run's checked dispatch saw another one
+        const revision = this.revisions.get(run.agent);
+
+        if (revision !== undefined && this.isStale(run, revision)) {
+            await this.finish(run.id, {
+                status: RunStatus.CANCELLED,
+                error: agentCancelReason(run.agent, 'replaced', revision),
+            });
+
+            return;
+        }
+
         if (agent.kind === 'simple') {
             // a simple agent takes no conversation, so it skips admission
             await executeSimpleRun(this.executeContext(run, agent, skills, signal));
@@ -1809,8 +1835,53 @@ export class Engine implements IEngine {
 
             const revision = this.revisions.get(run.agent);
 
-            return revision === undefined || revision === markers.get(run.agent);
+            if (revision === undefined) {
+                return true;
+            }
+
+            if (revision !== markers.get(run.agent)) {
+                return false;
+            }
+
+            if (this.isStale(run, revision)) {
+                this.cancelStale(run, revision);
+
+                return false;
+            }
+
+            return true;
         };
+    }
+
+    /**
+     * Whether a run's stamp (a checked dispatch's revision) is neither the
+     * revision this engine holds at the marker's hash nor the agent's former
+     * revision. An unstamped run is never stale.
+     */
+    protected isStale(run: Run, revision: string): boolean {
+        return run.agentRevision !== undefined &&
+            run.agentRevision !== revision &&
+            run.agentRevision !== this.formerRevisions.get(run.agent);
+    }
+
+    /** Cancels a queued stale run once per engine; a run settled or started meanwhile is left to the cancel's rules. */
+    protected cancelStale(run: Run, revision: string): void {
+        if (this.staleCancels.has(run.id)) {
+            return;
+        }
+
+        const pending = this.cancelRun(run.id, agentCancelReason(run.agent, 'replaced', revision))
+            .catch((error: unknown) => {
+                // settled meanwhile (another replica cancelled it first)
+                if (!(error instanceof InvalidRunStateError)) {
+                    this.onError(error, run);
+                }
+            })
+            .finally(() => {
+                this.staleCancels.delete(run.id);
+            });
+
+        this.staleCancels.set(run.id, pending);
     }
 
     /** Whether the registered agent has no revision or is loaded at the stored marker's hash. */
