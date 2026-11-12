@@ -44,7 +44,7 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 | `GET /connections/:name` | `chamvi_connection_read` or `chamvi_connection_write` | `{ name, type, status, widgets?, canReset? }`; `widgets` (the pairing QR) and `canReset` (the connection offers a reset) only with write |
 | `GET /connections/:name/events` | `chamvi_connection_write` | SSE: `status` (`{ status }`) and `widgets` (`{ widgets }`) at open and on every change, `ping` to keep proxies open; the run stream's limits |
 | `POST /connections/:name/reset` | `chamvi_connection_write` | `202 { name, type, status }` once the reset started (the live stream carries its outcome, a failure goes to `onError`); clears the connection's session and reconnects (404 when it has no reset, 409 while it is `held_elsewhere`) |
-| `GET /me` | authenticated | `200 { id, kind, name?, permissions, identity? }`: the caller itself, with its own permission bindings, for a client to evaluate with `@chamvi/access` |
+| `GET /me` | authenticated | `200 { id, kind, name?, bindings, identity? }`: the caller itself, with its own permission bindings, for a client to evaluate with `@chamvi/access` |
 | `/mcp` | authenticated | MCP endpoint |
 | `GET /healthz`, `/readyz`, `/metrics` | none | Liveness, readiness, Prometheus |
 
@@ -72,13 +72,13 @@ An app holds at most `stream.maxOpen` (1000) open streams plus waiting MCP `run_
 
 ## Authentication and permissions
 
-`auth` takes one authenticator or a chain; the first principal wins. A resolved principal needs a non-empty `id` and `kind`, a `permissions` array of [permission bindings](/guide/permissions) and, when given, an `identity` of type `user` or `client` with a non-empty `id`; anything else is a server misconfiguration (500, reported to `onError`) and ends the chain.
+`auth` takes one authenticator or a chain; the first principal wins. A resolved principal needs a non-empty `id` and `kind`, a `bindings` array of [permission bindings](/guide/permissions) and, when given, an `identity` of type `user` or `client` with a non-empty `id`; anything else is a server misconfiguration (500, reported to `onError`) and ends the chain.
 
 <<< @/snippets/http.ts#auth
 
 - `staticTokens({ tokens: [{ value, id, permissions }] })`: bearer tokens (`value`, at least 16 characters, each given once), each with a non-empty `id` (the principal and run invoker id; several tokens may share one, e.g. while rotating). `permissions` is `'*'` (every `chamvi_*` permission, unrestricted) or an array of bindings; anything else, an old string such as `agent:triage:run` included, throws `InvalidAgentDefinitionError`. Put it before `authup()` and `oidc()`: `authup()` in remote mode introspects every bearer that is not a JWT, so a static token placed after it is sent to the authup server.
 - `authup({ verifier, catalog, realm })`: authup tokens through `@authup/server-adapter-web`. Only tokens with the `global` scope and a user or client subject grant their permissions; others authenticate and get 403. Grants need remote verification (introspection); a cached result lives until the token's `exp`. Each grant keeps its authup policies, resolved against the catalog `catalog()` reads (`GET /authorization`), and counts only when its realm reach covers `realm()`, the realm of chamvi's own authup client. A catalog that cannot be read grants nothing and goes to `onError`. See [Permissions and authup](/guide/permissions).
-- `oidc()`: any OIDC issuer through [vouchly](https://github.com/tada5hi/vouchly). Every issuer needs an `audience`, and `principal` is required: a public issuer such as GitHub Actions lets anyone mint a token for your audience, so the mapper decides which claims get which grants. A mapper result without a non-empty `id` and `kind` and a `permissions` array of permission bindings is a server error (500, reported to `onError`), not a client one.
+- `oidc()`: any OIDC issuer through [vouchly](https://github.com/tada5hi/vouchly). Every issuer needs an `audience`, and `principal` is required: a public issuer such as GitHub Actions lets anyone mint a token for your audience, so the mapper decides which claims get which grants. A mapper result without a non-empty `id` and `kind` and a `bindings` array of permission bindings is a server error (500, reported to `onError`), not a client one.
 
 Permission names are static (`chamvi_agent_run`, `chamvi_run_read`, ...); a policy on a grant narrows it to some resources, e.g. one agent. The names, their resource attributes and the authup setup are in [Permissions and authup](/guide/permissions).
 
@@ -94,7 +94,7 @@ An agent defined with `private: true` keeps its runs and state from everyone wit
 
 ## Invoker
 
-`POST /agents/:name/runs` and MCP `run_<agent>` record the authenticated principal as the run's invoker (`run.trigger.invoker`): its `id`, `kind`, `permissions`, `identity` (when the authenticator set one) and a `name` from the `name` or `preferred_username` claim (never `email`, since every reader of the run sees the name; static tokens have no name). An agent's [`toolPolicy`](/guide/tools#restricting-tools-per-invoker) and tool code read it. `POST /runs/:id/approve` and MCP `approve_run` record the principal that answered as the `wait` step's `output.approver`. Webhook and GitHub runs have no invoker, and neither ever comes from a request body.
+`POST /agents/:name/runs` and MCP `run_<agent>` record the authenticated principal as the run's invoker (`run.trigger.invoker`): its `id`, `kind`, `bindings`, `identity` (when the authenticator set one) and a `name` from the `name` or `preferred_username` claim (never `email`, since every reader of the run sees the name; static tokens have no name). An agent's [`toolPolicy`](/guide/tools#restricting-tools-per-invoker) and tool code read it. `POST /runs/:id/approve` and MCP `approve_run` record the principal that answered as the `wait` step's `output.approver`. Webhook and GitHub runs have no invoker, and neither ever comes from a request body.
 
 The invoker is a snapshot: a run keeps the grants it was started with, even when a grant is revoked while it waits on an approval; their policies are evaluated again at each check, so a `time` policy uses the engine clock of that moment. Responses (REST, SSE, MCP) carry the invoker and the approver without their `permissions`, so a `chamvi_run_read` holder never learns another principal's grants.
 

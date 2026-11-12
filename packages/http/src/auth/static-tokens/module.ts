@@ -79,7 +79,7 @@ export function staticTokens(options: StaticTokensOptions): Authenticator {
         principals.set(digest, {
             id,
             kind: 'token',
-            permissions: readPermissions(id, permissions),
+            bindings: readPermissions(id, permissions),
         });
     }
 
@@ -92,6 +92,6 @@ export function staticTokens(options: StaticTokensOptions): Authenticator {
 
         const principal = principals.get(hashToken(token));
 
-        return principal ? { ...principal, permissions: structuredClone(principal.permissions) } : undefined;
+        return principal ? { ...principal, bindings: structuredClone(principal.bindings) } : undefined;
     };
 }

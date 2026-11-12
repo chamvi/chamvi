@@ -75,7 +75,7 @@ export function createDiscordApp(
         resolveInvoker: (identity) => ({
             id: identity.author,
             kind: 'discord',
-            permissions: [],
+            bindings: [],
         }),
         // a link to the approval in the chamvi UI: ids only, answered there
         approvalUrl: ({ runId, approvalId }) => `${APP_URL}/ui/approvals?run=${encodeURIComponent(runId)}&approval=${encodeURIComponent(approvalId)}`,
@@ -140,7 +140,7 @@ import { discordModule } from '@chamvi/chat-discord/module';
 
 const discord = discordModule({
     state,
-    resolveInvoker: (identity) => ({ id: identity.author, kind: 'discord', permissions: [] }),
+    resolveInvoker: (identity) => ({ id: identity.author, kind: 'discord', bindings: [] }),
 });
 
 // subscribe with discord.on(); reply with ctx.channels.findOneOrFail('discord')

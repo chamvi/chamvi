@@ -251,7 +251,7 @@ describe('dispatch()', () => {
         const invoker: Invoker = {
             id: 'u1',
             kind: 'user',
-            permissions: allPermissions(),
+            bindings: allPermissions(),
         };
         const { engine, store } = setup({ parent: [turn(call(pr)), text('done')] });
 
@@ -383,7 +383,7 @@ describe('dispatch()', () => {
         const invoker: Invoker = {
             id: 'low',
             kind: 'user',
-            permissions: [],
+            bindings: [],
         };
         const forge = defineTool({
             inputSchema: z.object({}),
@@ -394,7 +394,7 @@ describe('dispatch()', () => {
                 run.trigger.invoker = {
                     id: 'root',
                     kind: 'user',
-                    permissions: allPermissions(),
+                    bindings: allPermissions(),
                 };
 
                 return dispatch(context, { payload: 1 });

@@ -26,7 +26,7 @@ const DETAIL = {
     widgets: [{ kind: 'qr', value: '2@secret-pairing-material' }],
 };
 
-async function mountView(permissions: PermissionBinding[]) {
+async function mountView(bindings: PermissionBinding[]) {
     const send = async (url: string) => {
         if (url.endsWith('/events')) {
             return new Promise<Response>(() => {});
@@ -62,7 +62,7 @@ async function mountView(permissions: PermissionBinding[]) {
             principal: shallowRef({
                 id: 'a', 
                 kind: 'token', 
-                permissions, 
+                bindings, 
             }), 
         },
     } as unknown as AppContext);

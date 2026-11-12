@@ -45,7 +45,7 @@ function baseOptions(): DiscordChatOptions {
         resolveInvoker: () => ({
             id: 'a',
             kind: 'discord',
-            permissions: [],
+            bindings: [],
         }),
         state: createMemoryState(),
         approvalUrl: APPROVAL_URL,

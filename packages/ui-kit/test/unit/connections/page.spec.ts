@@ -73,12 +73,12 @@ afterEach(() => {
     globalThis.history.replaceState({}, '', '/');
 });
 
-async function mountPage(permissions: PermissionBinding[], world: { list?: unknown[]; search?: string } = {}) {
+async function mountPage(bindings: PermissionBinding[], world: { list?: unknown[]; search?: string } = {}) {
     const requests: string[] = [];
     const principal: MeWire = {
         id: 'peter',
         kind: 'token',
-        permissions,
+        bindings,
     };
     const client = fakeClient({
         send: async (url: string, init: { method?: string } = {}) => {

@@ -21,8 +21,8 @@ const triageOnly: PermissionBinding = {
     policies: [{ type: 'attributes', query: { name: 'triage' } } as never],
 };
 
-function holder(...permissions: PermissionBinding[]): PermissionHolder {
-    return { permissions };
+function holder(...bindings: PermissionBinding[]): PermissionHolder {
+    return { bindings };
 }
 
 describe('can', () => {
@@ -121,9 +121,9 @@ describe('can', () => {
             policies: [{ type: 'identity', types: ['user'] } as never],
         };
 
-        await expect(can({ permissions: [binding], identity: { type: 'user', id: USER_ID } }, Permission.AGENT_READ)).resolves.toBe(true);
-        await expect(can({ permissions: [binding], identity: { type: 'client', id: USER_ID } }, Permission.AGENT_READ)).resolves.toBe(false);
-        await expect(can({ permissions: [binding] }, Permission.AGENT_READ)).resolves.toBe(false);
+        await expect(can({ bindings: [binding], identity: { type: 'user', id: USER_ID } }, Permission.AGENT_READ)).resolves.toBe(true);
+        await expect(can({ bindings: [binding], identity: { type: 'client', id: USER_ID } }, Permission.AGENT_READ)).resolves.toBe(false);
+        await expect(can({ bindings: [binding] }, Permission.AGENT_READ)).resolves.toBe(false);
     });
 
     it('evaluates a time policy at options.now', async () => {
@@ -141,7 +141,7 @@ describe('can', () => {
     });
 
     it('grants nothing for old string permissions and never rejects', async () => {
-        const subject = { permissions: ['agent:x:run', '*'] as never };
+        const subject = { bindings: ['agent:x:run', '*'] as never };
 
         for (const name of [...PERMISSION_NAMES, 'agent:x:run', '*']) {
             await expect(can(subject, name)).resolves.toBe(false);
@@ -188,7 +188,7 @@ describe('can', () => {
 
     it('skips entries that are not bindings', async () => {
         const subject = {
-            permissions: [
+            bindings: [
                 null,
                 { permission: { name: '' } },
                 { permission: { name: Permission.AGENT_RUN }, policies: 'x' },
@@ -199,7 +199,14 @@ describe('can', () => {
         await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(false);
     });
 
-    it('never rejects for a holder without a permissions array', async () => {
+    it('grants nothing to a holder of the former shape (a permissions array, no bindings)', async () => {
+        const subject = { permissions: [{ permission: { name: 'x' } }] } as never;
+
+        await expect(can(subject, 'x')).resolves.toBe(false);
+        await expect(canSome(subject, 'x')).resolves.toBe(false);
+    });
+
+    it('never rejects for a holder without a bindings array', async () => {
         await expect(can({} as never, Permission.AGENT_RUN)).resolves.toBe(false);
         await expect(canSome(null as never, Permission.AGENT_RUN)).resolves.toBe(false);
     });
@@ -264,9 +271,9 @@ describe('policies that cannot be evaluated', () => {
 
     it('fails an inverted identity policy when the identity does not validate', async () => {
         const binding = inverted({ type: 'identity', types: ['user'] });
-        const invalid: PermissionHolder = { permissions: [binding], identity: { type: 'user', id: 'alice' } };
-        const valid: PermissionHolder = { permissions: [binding], identity: { type: 'user', id: USER_ID } };
-        const client: PermissionHolder = { permissions: [binding], identity: { type: 'client', id: USER_ID } };
+        const invalid: PermissionHolder = { bindings: [binding], identity: { type: 'user', id: 'alice' } };
+        const valid: PermissionHolder = { bindings: [binding], identity: { type: 'user', id: USER_ID } };
+        const client: PermissionHolder = { bindings: [binding], identity: { type: 'client', id: USER_ID } };
 
         await expect(can(invalid, name)).resolves.toBe(false);
         await expect(canSome(invalid, name)).resolves.toBe(false);

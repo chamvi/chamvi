@@ -217,7 +217,7 @@ async function start(
         const invoker = run.invoker ? structuredClone(run.invoker) : undefined;
 
         if (invoker) {
-            invoker.permissions = Array.isArray(invoker.permissions) ? invoker.permissions.filter((entry) => isPermissionBinding(entry)) : [];
+            invoker.bindings = Array.isArray(invoker.bindings) ? invoker.bindings.filter((entry) => isPermissionBinding(entry)) : [];
         }
 
         const result = await host.createRun({

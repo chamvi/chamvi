@@ -496,7 +496,7 @@ export function createDiscordFixture(input: DiscordFixtureInput = {}): DiscordFi
         resolveInvoker: (identity) => ({
             id: identity.author,
             kind: 'discord',
-            permissions: [],
+            bindings: [],
         }),
         state: createMemoryState(),
         approvalUrl: APPROVAL_URL,

@@ -96,7 +96,7 @@ The coding tools, the GitHub tools and any third-party tool have an `execute` yo
 
 An answer is single use: a second answer of the same wait point throws `InvalidRunStateError`.
 
-- `decision.approver` (an invoker: `{ id, kind, name?, permissions, identity? }`) is recorded on the `wait` step as `output.approver`. `@chamvi/http` sets it from the principal that answered. The model never sees the decision's details: it sees the tool's result, so a denial is the tool's (or hook's) to word.
+- `decision.approver` (an invoker: `{ id, kind, name?, bindings, identity? }`) is recorded on the `wait` step as `output.approver`. `@chamvi/http` sets it from the principal that answered. The model never sees the decision's details: it sees the tool's result, so a denial is the tool's (or hook's) to word.
 - If writing the answer fails, the run goes back to `waiting` and the answer can be sent again.
 
 ## Timeouts

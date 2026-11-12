@@ -48,7 +48,7 @@ const alice: Invoker = {
     id: 'u-alice',
     kind: 'user',
     name: 'Alice',
-    permissions: [{
+    bindings: [{
         permission: { name: Permission.TOOL_USE },
         policies: [{ type: 'attributes', query: { agent: 'release', name: { $in: ['deploy', 'state_notes_list'] } } } as never],
     }],
@@ -124,11 +124,11 @@ const toolNames = (model: ReturnType<typeof mockModel>, i: number) => (model.doS
 describe('invoker', () => {
     it('stores a copy of the invoker on the run', async () => {
         const { engine, store } = setup({ model: mockModel([]) });
-        const invoker = structuredClone(alice) as Invoker & { permissions: PermissionBinding[] };
+        const invoker = structuredClone(alice) as Invoker & { bindings: PermissionBinding[] };
         const { runId } = await engine.dispatch(env(invoker));
 
-        invoker.permissions.push({ permission: { name: Permission.AGENT_RUN } });
-        invoker.permissions[0]!.policies!.length = 0;
+        invoker.bindings.push({ permission: { name: Permission.AGENT_RUN } });
+        invoker.bindings[0]!.policies!.length = 0;
         invoker.name = 'Mallory';
 
         const run = await store.runs.findOne(runId);
@@ -159,13 +159,13 @@ describe('invoker', () => {
         ['not an object', 'alice'],
         ['an array', []],
         ['an empty id', { ...alice, id: '' }],
-        ['a missing kind', { id: 'x', permissions: [] }],
+        ['a missing kind', { id: 'x', bindings: [] }],
         ['an empty kind', { ...alice, kind: '' }],
-        ['permissions not an array', { ...alice, permissions: 'tool:release:deploy' }],
-        ['an old string permission', { ...alice, permissions: ['tool:release:deploy'] }],
-        ['the old all grant', { ...alice, permissions: ['*'] }],
-        ['a binding without a name', { ...alice, permissions: [{ permission: {} }] }],
-        ['a policy without a type', { ...alice, permissions: [{ permission: { name: 'x' }, policies: [{}] }] }],
+        ['bindings not an array', { ...alice, bindings: 'tool:release:deploy' }],
+        ['an old string permission', { ...alice, bindings: ['tool:release:deploy'] }],
+        ['the old all grant', { ...alice, bindings: ['*'] }],
+        ['a binding without a name', { ...alice, bindings: [{ permission: {} }] }],
+        ['a policy without a type', { ...alice, bindings: [{ permission: { name: 'x' }, policies: [{}] }] }],
         ['an identity of an unknown type', { ...alice, identity: { type: 'robot', id: 'x' } }],
         ['an identity without an id', { ...alice, identity: { type: 'user', id: '' } }],
         ['a non-string name', { ...alice, name: 42 }],
@@ -185,7 +185,7 @@ describe('invoker', () => {
     it('dedupes a key per invoker: the same invoker gets the first run', async () => {
         const { engine, store } = setup({ model: mockModel([]) });
         const first = await engine.dispatch(env(alice, 'same'));
-        const second = await engine.dispatch(env({ ...alice, permissions: [] }, 'same'));
+        const second = await engine.dispatch(env({ ...alice, bindings: [] }, 'same'));
 
         expect(second).toEqual({ runId: first.runId, deduplicated: true });
         expect((await store.runs.findOne(first.runId))?.trigger.invoker).toEqual(alice);
@@ -197,7 +197,7 @@ describe('invoker', () => {
         const bob: Invoker = {
             id: 'u-bob',
             kind: 'user',
-            permissions: allPermissions(),
+            bindings: allPermissions(),
         };
         const second = await engine.dispatch(env(bob, 'same'));
 
@@ -213,17 +213,17 @@ describe('invoker', () => {
             await engine.dispatch(env({
                 id: 'a:b',
                 kind: 'user',
-                permissions: [],
+                bindings: [],
             }, 'same')),
             await engine.dispatch(env({
                 id: 'b',
                 kind: 'user:a',
-                permissions: [],
+                bindings: [],
             }, 'same')),
             await engine.dispatch(env({
                 id: 'a:b',
                 kind: 'client',
-                permissions: [],
+                bindings: [],
             }, 'same')),
             await engine.dispatch(env(undefined, 'same')),
         ];
@@ -247,7 +247,7 @@ describe('invoker', () => {
         await engine.dispatch(env({
             id: 'a:b c',
             kind: 'user',
-            permissions: [],
+            bindings: [],
         }, 'k'));
         await engine.dispatch(env(undefined, 'k'));
         expect(scopes).toEqual(['release:http:user:a%3Ab%20c', 'release:http']);
@@ -356,7 +356,7 @@ describe('tool policy', () => {
         await store.runs.update(runId, {
             trigger: {
                 ...stored!.trigger,
-                invoker: { ...alice, permissions: ['tool:release:deploy', '*', 'agent:release:run'] as never },
+                invoker: { ...alice, bindings: ['tool:release:deploy', '*', 'agent:release:run'] as never },
             },
         });
 
@@ -499,7 +499,7 @@ describe('tool policy', () => {
         const office: Invoker = {
             id: 'u-carol',
             kind: 'user',
-            permissions: [{
+            bindings: [{
                 permission: { name: Permission.TOOL_USE },
                 policies: [{
                     type: 'time', 
@@ -697,7 +697,7 @@ describe('tool policy', () => {
         const approver: Invoker = {
             id: 'u-bob',
             kind: 'user',
-            permissions: [{ permission: { name: Permission.AGENT_APPROVE } }],
+            bindings: [{ permission: { name: Permission.AGENT_APPROVE } }],
         };
 
         await engine.approve(notifier.calls[0]!.runId, {
@@ -818,7 +818,7 @@ describe('tool policy', () => {
             approver: {
                 id: '',
                 kind: 'user',
-                permissions: [],
+                bindings: [],
             },
         })).rejects.toBeInstanceOf(ValidationError);
         expect((await store.runs.findOne(runId))?.status).toBe('waiting');

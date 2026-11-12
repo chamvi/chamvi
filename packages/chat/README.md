@@ -99,7 +99,7 @@ export function createChatEngine(
         resolveInvoker: ({ message }) => ({
             id: message.author.userId,
             kind: 'chat',
-            permissions: [],
+            bindings: [],
         }),
         // a link to the approval in the chamvi UI: ids only, answered there
         approvalUrl: ({ runId, approvalId }) => `${APP_URL}/ui/approvals?run=${encodeURIComponent(runId)}&approval=${encodeURIComponent(approvalId)}`,

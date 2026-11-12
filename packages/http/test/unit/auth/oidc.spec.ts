@@ -28,7 +28,7 @@ const request = (token?: string) => new Request('http://test', { headers: token 
 const mapper = (r: VerifyResult): Principal => ({
     id: `ci:${String(r.claims.sub)}`,
     kind: 'oidc',
-    permissions: [],
+    bindings: [],
 });
 
 describe('oidc', () => {
@@ -81,7 +81,7 @@ describe('oidc', () => {
         expect(await make()(request(token))).toEqual({
             id: 'ci:repo:acme/x',
             kind: 'oidc',
-            permissions: [],
+            bindings: [],
         });
     });
 
@@ -93,22 +93,22 @@ describe('oidc', () => {
         const auth = make((r) => ({
             id: String(r.claims.sub),
             kind: 'oidc',
-            permissions: r.claims.repository === 'acme/x' ? [deploy] : [],
+            bindings: r.claims.repository === 'acme/x' ? [deploy] : [],
         }));
         const token = await signToken(key.privateKey, claims({ repository: 'acme/x' }));
 
-        expect((await auth(request(token)))?.permissions).toEqual([deploy]);
+        expect((await auth(request(token)))?.bindings).toEqual([deploy]);
     });
 
-    it('rejects a mapper returning string permissions, naming the binding shape', async () => {
+    it('rejects a mapper returning string bindings, naming the binding shape', async () => {
         const token = await signToken(key.privateKey, claims());
         const auth = make(() => ({
             id: 'ci',
             kind: 'oidc',
-            permissions: ['agent:deploy:run'] as never,
+            bindings: ['agent:deploy:run'] as never,
         }));
 
-        await expect(auth(request(token))).rejects.toThrow('a permissions array of permission bindings');
+        await expect(auth(request(token))).rejects.toThrow('a bindings array of permission bindings');
     });
 
     it('rejects an expired token with token_expired', async () => {
@@ -168,31 +168,31 @@ describe('oidc', () => {
         ['an empty id', {
             id: '',
             kind: 'oidc',
-            permissions: [],
+            bindings: [],
         }],
         ['a non-string id', {
             id: 42,
             kind: 'oidc',
-            permissions: [],
+            bindings: [],
         }],
-        ['permissions that are no array', {
+        ['bindings that are no array', {
             id: 'ci',
             kind: 'oidc',
-            permissions: 'agent:deploy:run',
+            bindings: 'agent:deploy:run',
         }],
         ['a permission that is no binding', {
             id: 'ci',
             kind: 'oidc',
-            permissions: [42],
+            bindings: [42],
         }],
         ['no kind', {
             id: 'ci',
-            permissions: [],
+            bindings: [],
         }],
         ['an empty kind', {
             id: 'ci',
             kind: '',
-            permissions: [],
+            bindings: [],
         }],
     ])('treats a mapper result with %s as a server misconfiguration', async (_name, principal) => {
         const token = await signToken(key.privateKey, claims());

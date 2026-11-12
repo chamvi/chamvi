@@ -1,6 +1,6 @@
 # Permissions and authup
 
-A principal (a static token, an authup login, an `oidc()` mapping) and a run's invoker carry `permissions`: a list of **permission bindings**, authup's `PermissionPolicyBinding` with its policy trees resolved. A binding names one permission and the policies that must pass for it:
+A principal (a static token, an authup login, an `oidc()` mapping) and a run's invoker carry `bindings`: a list of **permission bindings**, authup's `PermissionPolicyBinding` with its policy trees resolved. A binding names one permission and the policies that must pass for it:
 
 ```json
 { "permission": { "name": "chamvi_agent_run" }, "policies": [{ "type": "attributes", "query": { "name": "triage" } }] }

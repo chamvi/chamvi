@@ -63,7 +63,7 @@ const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] 
 const approver: Invoker = {
     id: 'owner',
     kind: 'user',
-    permissions: [{ permission: { name: Permission.AGENT_APPROVE } }],
+    bindings: [{ permission: { name: Permission.AGENT_APPROVE } }],
 };
 
 type Recorder = {

@@ -280,7 +280,7 @@ export function createWhatsAppFixture(input: WhatsAppFixtureInput = {}): WhatsAp
         resolveInvoker: (identity) => ({
             id: identity.sender,
             kind: 'whatsapp',
-            permissions: [],
+            bindings: [],
         }),
         state: createMemoryState(),
         approvalUrl: (ref) => `https://chamvi.example/ui/approvals?run=${ref.runId}&approval=${ref.approvalId}`,

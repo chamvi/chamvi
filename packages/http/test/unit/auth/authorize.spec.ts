@@ -147,33 +147,33 @@ describe('authorize', () => {
         ['an empty id', {
             id: '',
             kind: 'custom',
-            permissions: [],
+            bindings: [],
         }],
-        ['no kind', { id: 'x', permissions: [] }],
+        ['no kind', { id: 'x', bindings: [] }],
         ['an empty kind', {
             id: 'x',
             kind: '',
-            permissions: [],
+            bindings: [],
         }],
-        ['permissions that are no array', {
+        ['bindings that are no array', {
             id: 'x',
             kind: 'custom',
-            permissions: 'chamvi_run_read',
+            bindings: 'chamvi_run_read',
         }],
         ['a permission that is no binding', {
             id: 'x',
             kind: 'custom',
-            permissions: [42],
+            bindings: [42],
         }],
         ['an old string permission', {
             id: 'x',
             kind: 'custom',
-            permissions: ['run:read'],
+            bindings: ['run:read'],
         }],
         ['an identity of another type', {
             id: 'x',
             kind: 'custom',
-            permissions: [],
+            bindings: [],
             identity: { type: 'robot', id: 'x' },
         }],
     ])('answers 500 for an authenticator resolving a principal with %s, without trying the next one', async (_name, principal) => {

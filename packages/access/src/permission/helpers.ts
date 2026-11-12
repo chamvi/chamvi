@@ -56,9 +56,9 @@ export function permissionNames(holder: PermissionHolder): string[] {
 
 /** The holder's entries that are bindings; anything else grants nothing. */
 export function readBindings(holder: unknown): PermissionBinding[] {
-    if (!isObject(holder) || !Array.isArray(holder.permissions)) {
+    if (!isObject(holder) || !Array.isArray(holder.bindings)) {
         return [];
     }
 
-    return (holder.permissions as unknown[]).filter(isPermissionBinding);
+    return (holder.bindings as unknown[]).filter(isPermissionBinding);
 }

@@ -166,7 +166,7 @@ export function authup(options: AuthupOptions): Authenticator {
         return {
             id: data.sub,
             kind: 'authup',
-            permissions: await resolve(data, identity),
+            bindings: await resolve(data, identity),
             ...(identity ? { identity } : {}),
             claims: { ...data },
         };

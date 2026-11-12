@@ -71,7 +71,7 @@ export function createWhatsAppEngine(
         resolveInvoker: (identity) => ({
             id: identity.sender,
             kind: 'whatsapp',
-            permissions: [],
+            bindings: [],
         }),
         // a link to the approval in the chamvi UI: ids only, answered there
         approvalUrl: ({ runId, approvalId }) => `${APP_URL}/ui/approvals?run=${encodeURIComponent(runId)}&approval=${encodeURIComponent(approvalId)}`,
@@ -156,7 +156,7 @@ const whatsapp = whatsappModule({
     account: 'assistant',
     state,
     policy: { senders: ['491701111111@s.whatsapp.net'] },
-    resolveInvoker: (identity) => ({ id: identity.sender, kind: 'whatsapp', permissions: [] }),
+    resolveInvoker: (identity) => ({ id: identity.sender, kind: 'whatsapp', bindings: [] }),
 });
 
 export default createApp({

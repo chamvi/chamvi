@@ -167,7 +167,7 @@ describe('trusted conversation intake', () => {
             invoker: {
                 id: 'u',
                 kind: 'test',
-                permissions: [],
+                bindings: [],
             },
         }, target);
 

@@ -65,7 +65,7 @@ export function authenticators(verifier: ITokenVerifier): Authenticator[] {
                 {
                     id: `gha:${String(claims.sub)}`,
                     kind: 'oidc',
-                    permissions: [{ permission: { name: Permission.AGENT_RUN }, policies: [onlyDeploy] }],
+                    bindings: [{ permission: { name: Permission.AGENT_RUN }, policies: [onlyDeploy] }],
                 } :
                 undefined),
         }),

@@ -61,7 +61,7 @@ describe('public api', () => {
     });
 
     it('types principals with permission bindings', () => {
-        expectTypeOf<http.Principal['permissions']>().toEqualTypeOf<readonly PermissionBinding[]>();
+        expectTypeOf<http.Principal['bindings']>().toEqualTypeOf<readonly PermissionBinding[]>();
         expectTypeOf<http.Principal['identity']>().toEqualTypeOf<PermissionIdentity | undefined>();
         expectTypeOf<http.StaticToken['permissions']>().toEqualTypeOf<readonly PermissionBinding[] | '*'>();
     });
@@ -76,7 +76,7 @@ describe('public api', () => {
             id: string;
             kind: string;
             name?: string;
-            permissions: PermissionBinding[];
+            bindings: PermissionBinding[];
             identity?: PermissionIdentity;
         }>();
         expectTypeOf<http.ApproveBody>().toEqualTypeOf<{

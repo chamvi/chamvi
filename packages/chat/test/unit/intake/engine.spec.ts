@@ -130,7 +130,7 @@ describe('chat intake on an engine', () => {
                 resolveInvoker: () => ({
                     id: 'owner',
                     kind: 'chat',
-                    permissions: [{ permission: { name: 'chamvi_agent_run' } }],
+                    bindings: [{ permission: { name: 'chamvi_agent_run' } }],
                 }),
             },
         });
@@ -156,7 +156,7 @@ describe('chat intake on an engine', () => {
             expect(run.trigger.invoker).toEqual({
                 id: 'owner',
                 kind: 'chat',
-                permissions: [{ permission: { name: 'chamvi_agent_run' } }],
+                bindings: [{ permission: { name: 'chamvi_agent_run' } }],
             });
             expect(JSON.stringify(run)).not.toMatch(/"raw"|"formatted"/);
         }

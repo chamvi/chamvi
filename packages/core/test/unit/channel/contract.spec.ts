@@ -345,7 +345,7 @@ describe('channels on the engine', () => {
         const invoker = {
             id: 'u1',
             kind: 'token',
-            permissions: [],
+            bindings: [],
         };
         const scoped = await engine.dispatch({
             ...base,

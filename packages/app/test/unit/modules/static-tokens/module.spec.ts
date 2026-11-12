@@ -72,7 +72,7 @@ describe('staticTokensModule', () => {
         await expect(entries[0]!.authenticator(bearer(ENV_TOKEN))).resolves.toEqual({
             id: 'ci',
             kind: 'token',
-            permissions: [{ permission: { name: Permission.RUN_READ } }],
+            bindings: [{ permission: { name: Permission.RUN_READ } }],
         });
     });
 
@@ -122,7 +122,7 @@ describe('staticTokensModule', () => {
         await expect(entries[0]!.authenticator(bearer(token))).resolves.toEqual({
             id: 'dev',
             kind: 'token',
-            permissions: allPermissions(),
+            bindings: allPermissions(),
         });
     });
 
