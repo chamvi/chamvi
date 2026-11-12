@@ -48,7 +48,7 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 | `/mcp` | authenticated | MCP endpoint |
 | `GET /healthz`, `/readyz`, `/metrics` | none | Liveness, readiness, Prometheus |
 
-`GET /runs` takes rapiq's URL syntax: `filter[agent]=triage`, `filter[status]=queued,running`, `filter[parent]=<run id>` (the runs that run [dispatched](/guide/dispatch#lineage), one id; an agent-scoped reader adds `filter[agent]`), `filter[waiting]=approval` or `filter[waiting]=dispatch` (the runs whose wait point is of that kind, so an inbox pages approvals only), `page[limit]` (default 50, at most 100), `page[offset]`, `sort=createdAt` (oldest first, the default) or `sort=-createdAt` (newest first). Bodies are JSON of at most `bodyLimit` bytes (default 1 MiB). A protected route checks the bearer token before it reads the body. Runs leave the API without their internal `claim`, and the run's invoker and a `wait` step's approver without their `permissions` (see [Invoker](#invoker)).
+`GET /runs` takes rapiq's URL syntax: `filter[agent]=triage`, `filter[status]=queued,running`, `filter[parent]=<run id>` (the runs that run [dispatched](/guide/dispatch#lineage), one id; an agent-scoped reader adds `filter[agent]`), `filter[waiting]=approval` or `filter[waiting]=dispatch` (the runs whose wait point is of that kind, so an inbox pages approvals only), `page[limit]` (default 50, at most 100), `page[offset]`, `sort=createdAt` (oldest first, the default) or `sort=-createdAt` (newest first). Bodies are JSON of at most `bodyLimit` bytes (default 1 MiB). A protected route checks the bearer token before it reads the body. Runs leave the API without their internal `claim`, and the run's invoker and a `wait` step's approver without their `bindings` (see [Invoker](#invoker)).
 
 ## Files
 
@@ -96,7 +96,7 @@ An agent defined with `private: true` keeps its runs and state from everyone wit
 
 `POST /agents/:name/runs` and MCP `run_<agent>` record the authenticated principal as the run's invoker (`run.trigger.invoker`): its `id`, `kind`, `bindings`, `identity` (when the authenticator set one) and a `name` from the `name` or `preferred_username` claim (never `email`, since every reader of the run sees the name; static tokens have no name). An agent's [`toolPolicy`](/guide/tools#restricting-tools-per-invoker) and tool code read it. `POST /runs/:id/approve` and MCP `approve_run` record the principal that answered as the `wait` step's `output.approver`. Webhook and GitHub runs have no invoker, and neither ever comes from a request body.
 
-The invoker is a snapshot: a run keeps the grants it was started with, even when a grant is revoked while it waits on an approval; their policies are evaluated again at each check, so a `time` policy uses the engine clock of that moment. Responses (REST, SSE, MCP) carry the invoker and the approver without their `permissions`, so a `chamvi_run_read` holder never learns another principal's grants.
+The invoker is a snapshot: a run keeps the grants it was started with, even when a grant is revoked while it waits on an approval; their policies are evaluated again at each check, so a `time` policy uses the engine clock of that moment. Responses (REST, SSE, MCP) carry the invoker and the approver without their `bindings`, so a `chamvi_run_read` holder never learns another principal's grants.
 
 ## MCP
 
