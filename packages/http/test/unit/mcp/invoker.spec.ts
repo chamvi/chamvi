@@ -16,7 +16,7 @@ import {
 import { callTool, connectMcp } from '../../utils/mcp.ts';
 
 describe('mcp invoker', () => {
-    it('run_<agent> records the principal as the invoker; get_run drops its permissions', async () => {
+    it('run_<agent> records the principal as the invoker; get_run drops its bindings', async () => {
         const setup = createRunTestApp();
         const token = tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' }));
         const client = await connectMcp(setup.app, token);
@@ -29,7 +29,7 @@ describe('mcp invoker', () => {
         expect((await setup.store.runs.findOne(runId))?.trigger.invoker).toEqual({
             id: 'p:chamvi_agent_run',
             kind: 'token',
-            permissions: [restricted(Permission.AGENT_RUN, { name: 'echo' })],
+            bindings: [restricted(Permission.AGENT_RUN, { name: 'echo' })],
         });
 
         const read = await callTool(client, 'get_run', { runId });
@@ -66,7 +66,7 @@ describe('mcp invoker', () => {
         expect((wait?.output as { approver?: unknown }).approver).toEqual({
             id: 'p:chamvi_agent_approve',
             kind: 'token',
-            permissions: [restricted(Permission.AGENT_APPROVE, { name: 'gate' })],
+            bindings: [restricted(Permission.AGENT_APPROVE, { name: 'gate' })],
         });
         await client.close();
         await setup.engine.drain();

@@ -36,7 +36,7 @@ describe('staticTokens', () => {
         expect(await auth(request(`Bearer ${TOKEN}`))).toEqual({
             id: 'ci',
             kind: 'token',
-            permissions: [READ],
+            bindings: [READ],
         });
     });
 
@@ -52,7 +52,7 @@ describe('staticTokens', () => {
         expect(await admin(request(`Bearer ${ADMIN}`))).toEqual({
             id: 'admin',
             kind: 'token',
-            permissions: allPermissions(),
+            bindings: allPermissions(),
         });
     });
 
@@ -66,7 +66,7 @@ describe('staticTokens', () => {
         });
         const principal = await restricted(request(`Bearer ${ADMIN}`));
 
-        expect(principal?.permissions).toEqual([TRIAGE_ONLY]);
+        expect(principal?.bindings).toEqual([TRIAGE_ONLY]);
         await expect(can(principal!, Permission.AGENT_RUN, { attributes: { name: 'triage', private: false } })).resolves.toBe(true);
         await expect(can(principal!, Permission.AGENT_RUN, { attributes: { name: 'other', private: false } })).resolves.toBe(false);
     });
@@ -81,9 +81,9 @@ describe('staticTokens', () => {
         });
         const first = await restricted(request(`Bearer ${ADMIN}`));
 
-        (first!.permissions[0] as { permission: { name: string } }).permission.name = 'changed';
+        (first!.bindings[0] as { permission: { name: string } }).permission.name = 'changed';
 
-        expect((await restricted(request(`Bearer ${ADMIN}`)))?.permissions).toEqual([TRIAGE_ONLY]);
+        expect((await restricted(request(`Bearer ${ADMIN}`)))?.bindings).toEqual([TRIAGE_ONLY]);
     });
 
     it.each([

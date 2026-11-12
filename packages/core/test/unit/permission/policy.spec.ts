@@ -31,10 +31,10 @@ const context = (invoker?: Invoker): { run: RunContext; now: Date } => ({
     now: NOW,
 });
 
-const invoker = (...permissions: PermissionBinding[]): Invoker => ({
+const invoker = (...bindings: PermissionBinding[]): Invoker => ({
     id: 'u1',
     kind: 'user',
-    permissions,
+    bindings,
 });
 
 const deployOnly: PermissionBinding = {
@@ -89,7 +89,7 @@ describe('requireToolPermission', () => {
         const stored = {
             id: 'u1', 
             kind: 'user', 
-            permissions: ['tool:release:deploy', '*'], 
+            bindings: ['tool:release:deploy', '*'], 
         } as unknown as Invoker;
 
         await expect(requireToolPermission()('deploy', context(stored))).resolves.toBe(false);

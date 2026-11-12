@@ -66,7 +66,7 @@
         "tailwindcss": "^4.3.4"
     },
     "devDependencies": {
-        "@authup/client-web-kit": "1.0.0-beta.74",
+        "@authup/client-web-kit": "1.0.0-beta.75",
         "@chamvi/access": "^0.8.0",
         "@chamvi/core": "^0.8.0",
         "@chamvi/http": "^0.8.0",
@@ -102,7 +102,7 @@
         "vue-tsc": "^3.3.14"
     },
     "peerDependencies": {
-        "@authup/client-web-kit": "1.0.0-beta.74",
+        "@authup/client-web-kit": "1.0.0-beta.75",
         "@chamvi/access": "^0.8.0",
         "@chamvi/core": "^0.8.0",
         "@chamvi/http": "^0.8.0",

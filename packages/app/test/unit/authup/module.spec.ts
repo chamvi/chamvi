@@ -201,7 +201,7 @@ describe('authupModule', () => {
 
         expect(response.status).toBe(200);
 
-        const me = await response.json() as { permissions: { permission: { name: string } }[] };
+        const me = await response.json() as { bindings: { permission: { name: string } }[] };
 
         expect(me).toMatchObject({
             id: AUTHUP_USER,
@@ -212,7 +212,7 @@ describe('authupModule', () => {
                 realmId: AUTHUP_REALM, 
             },
         });
-        expect(me.permissions.map((binding) => binding.permission.name)).toEqual([Permission.CONNECTION_WRITE]);
+        expect(me.bindings.map((binding) => binding.permission.name)).toEqual([Permission.CONNECTION_WRITE]);
         expect(verifier.verify).toHaveBeenCalledTimes(1);
     });
 
@@ -253,7 +253,7 @@ describe('authupModule', () => {
         const me = await request('/me', 'authup-token');
 
         expect(me.status).toBe(200);
-        expect(await me.json()).toMatchObject({ id: AUTHUP_USER, permissions: [] });
+        expect(await me.json()).toMatchObject({ id: AUTHUP_USER, bindings: [] });
         expect((await request('/connections/bot', 'authup-token')).status).toBe(403);
         expect(authupErrors(logger).length).toBeGreaterThanOrEqual(1);
         expect((await request('/connections/bot', TOKEN)).status).toBe(200);

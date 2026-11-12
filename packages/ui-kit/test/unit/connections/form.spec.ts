@@ -840,7 +840,7 @@ describe('ConnectionForm', () => {
         const reader: MeWire = {
             id: 'reader',
             kind: 'token',
-            permissions: [grant(Permission.CONNECTION_READ, { name: 'mail-work' })],
+            bindings: [grant(Permission.CONNECTION_READ, { name: 'mail-work' })],
         };
         const form = await mount({ principal: reader });
 
@@ -856,7 +856,7 @@ describe('ConnectionForm', () => {
         const writer: MeWire = {
             id: 'writer',
             kind: 'token',
-            permissions: [grant(Permission.CONNECTION_WRITE, { name: 'mail-work', type: 'mail' })],
+            bindings: [grant(Permission.CONNECTION_WRITE, { name: 'mail-work', type: 'mail' })],
         };
         const form = await mount({ principal: writer });
 
@@ -870,7 +870,7 @@ describe('ConnectionForm', () => {
         const writer: MeWire = {
             id: 'writer',
             kind: 'token',
-            permissions: [grant(Permission.CONNECTION_READ), grant(Permission.CONNECTION_WRITE, { name: 'mail-home' })],
+            bindings: [grant(Permission.CONNECTION_READ), grant(Permission.CONNECTION_WRITE, { name: 'mail-home' })],
         };
         const form = await mount({ principal: writer });
 

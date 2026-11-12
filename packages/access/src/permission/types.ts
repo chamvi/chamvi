@@ -24,7 +24,7 @@ export type PermissionIdentity = {
 
 /** Anything that holds bindings: a principal, a run's invoker. */
 export type PermissionHolder = {
-    permissions: readonly PermissionBinding[];
+    bindings: readonly PermissionBinding[];
     identity?: PermissionIdentity;
 };
 

@@ -101,7 +101,7 @@ const DEFAULT_SHUTDOWN_CLOSE_TIMEOUT_MS: 5_000;
 ## Wire types
 
 ```ts
-type InvokerView = Omit<Invoker, 'permissions'>;
+type InvokerView = Omit<Invoker, 'bindings'>;
 type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
     trigger: Omit<TriggerEnvelope, 'invoker'> & { invoker?: InvokerView };
     agentPrivate: boolean; // the agent's `private` as the server checks it (an agent the app does not hold: true)

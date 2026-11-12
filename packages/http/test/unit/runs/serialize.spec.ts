@@ -87,7 +87,7 @@ describe('serializeRun', () => {
         expect(view.waiting?.id).toBe('a1');
     });
 
-    it('drops the invoker permissions and keeps id, kind and name', () => {
+    it('drops the invoker bindings and keeps id, kind and name', () => {
         const now = new Date(0);
         const run: Run = {
             id: 'r1',
@@ -103,7 +103,7 @@ describe('serializeRun', () => {
                     id: 'u1',
                     kind: 'authup',
                     name: 'alice',
-                    permissions: allPermissions(),
+                    bindings: allPermissions(),
                 },
                 receivedAt: now,
             },
@@ -118,7 +118,7 @@ describe('serializeRun', () => {
             kind: 'authup',
             name: 'alice',
         });
-        expect(run.trigger.invoker?.permissions).toEqual(allPermissions());
+        expect(run.trigger.invoker?.bindings).toEqual(allPermissions());
     });
 });
 
@@ -133,7 +133,7 @@ describe('serializeStep', () => {
         finishedAt: now,
     };
 
-    it('drops the approver permissions of a wait step', () => {
+    it('drops the approver bindings of a wait step', () => {
         const step: Step = {
             ...base,
             output: {
@@ -142,7 +142,7 @@ describe('serializeStep', () => {
                 approver: {
                     id: 'u1',
                     kind: 'token',
-                    permissions: [{ permission: { name: Permission.AGENT_APPROVE } }],
+                    bindings: [{ permission: { name: Permission.AGENT_APPROVE } }],
                 },
             },
         };
@@ -153,9 +153,9 @@ describe('serializeStep', () => {
             approver: { id: 'u1', kind: 'token' },
         });
 
-        const { approver } = step.output as { approver: { permissions: unknown[] } };
+        const { approver } = step.output as { approver: { bindings: unknown[] } };
 
-        expect(approver.permissions).toEqual([{ permission: { name: Permission.AGENT_APPROVE } }]);
+        expect(approver.bindings).toEqual([{ permission: { name: Permission.AGENT_APPROVE } }]);
     });
 
     it('leaves other steps and a wait step without approver as they are', () => {
@@ -166,7 +166,7 @@ describe('serializeStep', () => {
         const toolStep: Step = {
             ...base,
             kind: 'tool',
-            output: { approver: { permissions: [{ permission: { name: 'x' } }] } },
+            output: { approver: { bindings: [{ permission: { name: 'x' } }] } },
         };
 
         expect(serializeStep(toolStep)).toBe(toolStep);

@@ -11,11 +11,11 @@ import type { HttpContext } from '../app/types.ts';
 import { authenticate, toInvoker } from '../auth/helpers.ts';
 import type { MeView } from './types.ts';
 
-/** `GET /me`: any authenticated principal, its own identity and permissions only. */
+/** `GET /me`: any authenticated principal, its own identity and bindings only. */
 export function registerMeRoutes(app: App, ctx: HttpContext): void {
     app.get('/me', defineCoreHandler(async (event): Promise<MeView> => {
         const invoker = toInvoker(await authenticate(event, ctx));
 
-        return { ...invoker, permissions: [...invoker.permissions] };
+        return { ...invoker, bindings: [...invoker.bindings] };
     }));
 }

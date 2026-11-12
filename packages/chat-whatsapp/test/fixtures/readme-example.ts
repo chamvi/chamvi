@@ -29,7 +29,7 @@ export function createWhatsAppEngine(
         resolveInvoker: (identity) => ({
             id: identity.sender,
             kind: 'whatsapp',
-            permissions: [],
+            bindings: [],
         }),
         // a link to the approval in the chamvi UI: ids only, answered there
         approvalUrl: ({ runId, approvalId }) => `${APP_URL}/ui/approvals?run=${encodeURIComponent(runId)}&approval=${encodeURIComponent(approvalId)}`,

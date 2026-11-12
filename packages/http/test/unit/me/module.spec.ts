@@ -20,7 +20,7 @@ import {
 const USER_ID = '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d';
 
 describe('GET /me', () => {
-    it('answers the principal\'s own id, kind and permissions', async () => {
+    it('answers the principal\'s own id, kind and bindings', async () => {
         const { app } = createTestApp();
         const response = await call(app, 'GET', '/me', { token: READER_TOKEN });
 
@@ -28,7 +28,7 @@ describe('GET /me', () => {
         expect(await response.json()).toEqual({
             id: 'reader',
             kind: 'token',
-            permissions: [{ permission: { name: Permission.RUN_READ } }],
+            bindings: [{ permission: { name: Permission.RUN_READ } }],
         });
     });
 
@@ -40,7 +40,7 @@ describe('GET /me', () => {
         expect(await response.json()).toEqual({
             id: 'p:chamvi_agent_run',
             kind: 'token',
-            permissions: [binding],
+            bindings: [binding],
         });
     });
 
@@ -49,7 +49,7 @@ describe('GET /me', () => {
         const principal: Principal = {
             id: USER_ID,
             kind: 'authup',
-            permissions: [],
+            bindings: [],
             identity,
         };
         const { app } = createTestApp({ auth: [async () => principal] });
@@ -58,7 +58,7 @@ describe('GET /me', () => {
         expect(await response.json()).toEqual({
             id: USER_ID,
             kind: 'authup',
-            permissions: [],
+            bindings: [],
             identity,
         });
     });
@@ -71,7 +71,7 @@ describe('GET /me', () => {
         expect(await response.json()).toEqual({
             id: 'p:',
             kind: 'token',
-            permissions: [],
+            bindings: [],
         });
     });
 

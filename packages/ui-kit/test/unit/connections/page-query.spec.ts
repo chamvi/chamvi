@@ -75,7 +75,7 @@ afterEach(() => {
 });
 
 async function mountPage(search: string, options: {
-    permissions?: PermissionBinding[]; 
+    bindings?: PermissionBinding[]; 
     type?: ConnectionTypeWire; 
     pages?: 'fail' | 'hang';
 } = {}) {
@@ -84,7 +84,7 @@ async function mountPage(search: string, options: {
     const principal: MeWire = {
         id: 'peter',
         kind: 'token',
-        permissions: options.permissions ?? ALL,
+        bindings: options.bindings ?? ALL,
     };
     const opened: string[] = [];
     const client: IApiClient = fakeClient({
@@ -181,7 +181,7 @@ describe('ConnectionsPage query', () => {
     });
 
     it('ignores ?add without chamvi_connection_create', async () => {
-        const page = await mountPage('?add=1', { permissions: [grant(Permission.CONNECTION_READ)] });
+        const page = await mountPage('?add=1', { bindings: [grant(Permission.CONNECTION_READ)] });
 
         expect(page.adding()).toBe(false);
         expect(page.opened).toEqual(['/connections/mail-work/config']);

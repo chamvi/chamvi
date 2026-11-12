@@ -36,7 +36,7 @@ vi.mock('@iconify/vue', async (original) => ({
 const ME = {
     id: 'admin',
     kind: 'token',
-    permissions: ALL,
+    bindings: ALL,
 };
 
 const Page = defineComponent(() => {

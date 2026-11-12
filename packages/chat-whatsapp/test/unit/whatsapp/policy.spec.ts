@@ -62,7 +62,7 @@ function baseOptions(): WhatsAppChatOptions {
         resolveInvoker: () => ({
             id: 'a',
             kind: 'whatsapp',
-            permissions: [],
+            bindings: [],
         }),
         state: createMemoryState(),
         approvalUrl: () => 'https://chamvi.example/ui/approvals',
@@ -128,7 +128,7 @@ describe('WhatsApp sender and group policy', () => {
         expect(run?.trigger.invoker).toEqual({
             id: ALICE,
             kind: 'whatsapp',
-            permissions: [],
+            bindings: [],
         });
     });
 
@@ -270,7 +270,7 @@ describe('WhatsApp sender and group policy', () => {
                     return {
                         id: identity.sender,
                         kind: 'whatsapp',
-                        permissions: [],
+                        bindings: [],
                     };
                 },
             },
@@ -317,7 +317,7 @@ describe('WhatsApp sender and group policy', () => {
                         {
                             id: identity.sender,
                             kind: 'whatsapp-guest',
-                            permissions: [],
+                            bindings: [],
                         } :
                         undefined;
                 },
@@ -353,7 +353,7 @@ describe('WhatsApp sender and group policy', () => {
                     return {
                         id: identity.sender,
                         kind: 'whatsapp-guest',
-                        permissions: [],
+                        bindings: [],
                     };
                 },
             },
@@ -384,7 +384,7 @@ describe('WhatsApp sender and group policy', () => {
                     return {
                         id: identity.sender,
                         kind: 'whatsapp',
-                        permissions: [],
+                        bindings: [],
                     };
                 },
             },

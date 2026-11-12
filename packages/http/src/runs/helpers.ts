@@ -66,7 +66,7 @@ import type {
     StartRunBody,
 } from './types.ts';
 
-/** An invoker without its `permissions`: a reader must not learn another principal's grants. */
+/** An invoker without its `bindings`: a reader must not learn another principal's grants. */
 function viewInvoker(invoker: Invoker): InvokerView {
     return {
         id: invoker.id,
@@ -76,7 +76,7 @@ function viewInvoker(invoker: Invoker): InvokerView {
 }
 
 /**
- * Drops the internal claim, conversation binding and invoker permissions,
+ * Drops the internal claim, conversation binding and invoker bindings,
  * and adds `agentPrivate`: the `private` the server checks the run's agent
  * with (`agentResource()`; an agent the app does not hold counts as private).
  */
@@ -93,7 +93,7 @@ export function serializeRun(run: Run, agents: HttpAgents): RunView {
     };
 }
 
-/** A step as it leaves the package: a `wait` step's approver without its `permissions`. */
+/** A step as it leaves the package: a `wait` step's approver without its `bindings`. */
 export function serializeStep(step: Step): Step {
     if (step.kind !== 'wait' || !isObject(step.output)) {
         return step;
