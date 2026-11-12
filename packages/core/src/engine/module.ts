@@ -124,6 +124,14 @@ export class Engine implements IEngine {
     /** The `formerRevision` each agent was registered with: a run stamped with it counts as current. */
     protected readonly formerRevisions = new Map<string, string>();
 
+    /**
+     * The agent object each checked dispatch of this engine saw, by run id
+     * (memory only, never stored): a queued run whose agent was replaced
+     * since is cancelled at admission, whatever the clock read. Removed when
+     * the run starts or is cancelled here; a failed cancel keeps it.
+     */
+    protected readonly checkedRuns = new Map<string, Agent>();
+
     /** Cancels of queued runs stamped with a replaced revision, by run id; idle() waits for them. */
     protected readonly staleCancels = new Map<string, Promise<void>>();
 
@@ -455,6 +463,10 @@ export class Engine implements IEngine {
 
         this.emit({ type: 'run.updated', run });
 
+        if (checked !== undefined) {
+            this.checkedRuns.set(run.id, checked);
+        }
+
         // replaced while the run was created: no startable run of the old check is left
         if (checked !== undefined && (this.agents.get(run.agent) !== checked || this.replacing.has(run.agent))) {
             await this.cancelReplaced(run.id, run.agent);
@@ -477,9 +489,14 @@ export class Engine implements IEngine {
             await this.cancelRun(runId, agentCancelReason(name, 'replaced', this.revisions.get(name)));
         } catch (error) {
             if (!(error instanceof InvalidRunStateError)) {
+                // the fence stays: admission cancels the run instead of starting it
                 this.onError(error);
+
+                return;
             }
         }
+
+        this.checkedRuns.delete(runId);
     }
 
     protected conversationCapability(): IConversations {
@@ -1291,6 +1308,7 @@ export class Engine implements IEngine {
             { expectStatus },
         );
 
+        this.checkedRuns.delete(runId);
         this.emit({ type: 'run.updated', run: updated });
         await this.reconcileConversation(updated);
         await onRunSettled(this.dispatchContext(), updated);
@@ -1724,7 +1742,10 @@ export class Engine implements IEngine {
         const agent = this.agents.get(run.agent);
         const skills = agent ? this.skills.get(agent) : undefined;
 
-        if (!agent || !skills || !await this.isCurrent(run.agent)) {
+        // a stamped run starts only where the agent has a revision (isStale below compares it)
+        const unrevised = run.agentRevision !== undefined && this.revisions.get(run.agent) === undefined;
+
+        if (!agent || !skills || unrevised || !await this.isCurrent(run.agent)) {
             // removed or replaced since the claim: left for a replica that runs the agent's current revision
             // guarded by status and owner (`expectStatus: [RUNNING]`, `expectOwner`): a taken-over run is left alone
             const released = await this.ownedUpdate(run.id, {
@@ -1740,17 +1761,21 @@ export class Engine implements IEngine {
             return;
         }
 
-        // current at the marker's revision, but the run's checked dispatch saw another one
+        // current at the marker's revision, but the run's checked dispatch saw another agent or revision
         const revision = this.revisions.get(run.agent);
 
-        if (revision !== undefined && this.isStale(run, revision)) {
+        if (this.replacedSince(run) || (revision !== undefined && this.isStale(run, revision))) {
             await this.finish(run.id, {
                 status: RunStatus.CANCELLED,
                 error: agentCancelReason(run.agent, 'replaced', revision),
             });
+            this.checkedRuns.delete(run.id);
 
             return;
         }
+
+        // started on the agent its check saw
+        this.checkedRuns.delete(run.id);
 
         if (agent.kind === 'simple') {
             // a simple agent takes no conversation, so it skips admission
@@ -1875,8 +1900,15 @@ export class Engine implements IEngine {
 
             const revision = this.revisions.get(run.agent);
 
+            if (this.replacedSince(run)) {
+                this.cancelStale(run, revision);
+
+                return false;
+            }
+
+            // a stamped run is left for a replica that holds the agent at a revision
             if (revision === undefined) {
-                return true;
+                return run.agentRevision === undefined;
             }
 
             if (revision !== markers.get(run.agent)) {
@@ -1893,6 +1925,13 @@ export class Engine implements IEngine {
         };
     }
 
+    /** Whether a checked dispatch of this engine saw another agent object than the one registered now. */
+    protected replacedSince(run: Run): boolean {
+        const checked = this.checkedRuns.get(run.id);
+
+        return checked !== undefined && checked !== this.agents.get(run.agent);
+    }
+
     /**
      * Whether a run's stamp (a checked dispatch's revision) is neither the
      * revision this engine holds at the marker's hash nor the agent's former
@@ -1905,17 +1944,25 @@ export class Engine implements IEngine {
     }
 
     /** Cancels a queued stale run once per engine; a run settled or started meanwhile is left to the cancel's rules. */
-    protected cancelStale(run: Run, revision: string): void {
+    protected cancelStale(run: Run, revision: string | undefined): void {
         if (this.staleCancels.has(run.id)) {
             return;
         }
 
         const pending = this.cancelRun(run.id, agentCancelReason(run.agent, 'replaced', revision))
+            .then(() => {
+                this.checkedRuns.delete(run.id);
+            })
             .catch((error: unknown) => {
                 // settled meanwhile (another replica cancelled it first)
-                if (!(error instanceof InvalidRunStateError)) {
-                    this.onError(error, run);
+                if (error instanceof InvalidRunStateError) {
+                    this.checkedRuns.delete(run.id);
+
+                    return;
                 }
+
+                // the fence stays: the next pass tries again
+                this.onError(error, run);
             })
             .finally(() => {
                 this.staleCancels.delete(run.id);

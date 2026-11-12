@@ -11,7 +11,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { Engine, defineModelAgent } from '@chamvi/core';
+import { Engine, defineModelAgent, defineSimpleAgent } from '@chamvi/core';
 import type { EngineOptions, IEngine, Run } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
@@ -28,7 +28,7 @@ class HookedEngine extends Engine {
         this.revisions.delete(name);
     }
 
-    adopt(name: string, revision: string): void {
+    adopt(name: string, revision: string | undefined): void {
         this.revisions.set(name, revision);
     }
 
@@ -539,6 +539,144 @@ describe('execution guard', () => {
         await draining;
 
         expect(await statusOf(store, runId)).toBe('cancelled');
+        expect(errors).toEqual([]);
+    });
+});
+
+describe('checked runs of a replaced agent', () => {
+    const recorder = (ran: string[], label: string) => defineSimpleAgent({
+        name: 'triage',
+        run: () => {
+            ran.push(label);
+
+            return label;
+        },
+    });
+
+    it('a checked run created in the millisecond of a code agent\'s replacement is cancelled, not run on the replacement', async () => {
+        const { clock, store } = setup();
+        const ran: string[] = [];
+        const a = recorder(ran, 'A');
+        const { engine, errors } = make({
+            store, 
+            clock, 
+            agents: [a], 
+        });
+
+        const { runId: checked } = await engine.dispatch({ ...env(), checked: a });
+        const { runId: unchecked } = await engine.dispatch(env());
+
+        // same clock reading: the sweep's strict createdAt < cutoff misses both runs
+        await engine.putAgent(recorder(ran, 'B'));
+        await engine.start();
+        await engine.idle();
+
+        const run = await store.runs.findOne(checked);
+
+        expect(run?.status).toBe('cancelled');
+        expect(run?.error?.code).toBe('agent_replaced');
+        // an unchecked run of that millisecond runs on the replacement
+        expect((await store.runs.findOne(unchecked))?.output).toBe('B');
+        expect(ran).toEqual(['B']);
+        expect(errors).toEqual([]);
+    });
+
+    it('a checked run whose post-insert cancel failed is cancelled at admission', async () => {
+        const { clock, store } = setup();
+        const ran: string[] = [];
+        const a = recorder(ran, 'A');
+        const { engine, errors } = make({
+            store, 
+            clock, 
+            agents: [a], 
+        });
+        const insert = store.runs.insert.bind(store.runs);
+        const update = store.runs.update.bind(store.runs);
+        let failCancel = true;
+
+        // the replacement lands while the run is inserted
+        store.runs.insert = async (...args) => {
+            await engine.putAgent(recorder(ran, 'B'));
+
+            return insert(...args);
+        };
+        // the post-insert cancel fails once (a transient store error)
+        store.runs.update = async (...args) => {
+            if (failCancel && args[1].status === 'cancelled') {
+                failCancel = false;
+
+                throw new Error('store down');
+            }
+
+            return update(...args);
+        };
+
+        const { runId } = await engine.dispatch({ ...env(), checked: a });
+
+        store.runs.insert = insert;
+        expect(await statusOf(store, runId)).toBe('queued');
+        expect(errors).toHaveLength(1);
+
+        await engine.start();
+        await engine.idle();
+
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('cancelled');
+        expect(run?.error?.code).toBe('agent_replaced');
+        expect(ran).toEqual([]);
+    });
+
+    it('a stamped run stays queued on a replica that holds the agent without a revision', async () => {
+        const { clock, store } = setup();
+        const ran: string[] = [];
+        const folder = recorder(ran, 'folder');
+        const { engine: a } = make({
+            store,
+            clock,
+            agents: [],
+            owner: 'A',
+        });
+        const { engine: c, errors } = make({
+            store,
+            clock,
+            agents: [recorder(ran, 'code')],
+            owner: 'C',
+        });
+
+        await a.putAgent(folder, { revision: 'h1' });
+
+        const { runId } = await a.dispatch({ ...env(), checked: folder });
+
+        await c.start();
+        await c.idle();
+        await poll(c, clock);
+
+        expect(await statusOf(store, runId)).toBe('queued');
+        expect(ran).toEqual([]);
+        expect(errors).toEqual([]);
+    });
+
+    it('a stamped run goes back to queued when its agent loses the revision after the claim', async () => {
+        const { clock, store } = setup();
+        const ran: string[] = [];
+        const folder = recorder(ran, 'folder');
+        const { engine, errors } = make({
+            store, 
+            clock, 
+            agents: [], 
+        });
+
+        await engine.putAgent(folder, { revision: 'h1' });
+        engine.beforeExecute = (e) => e.adopt('triage', undefined);
+        await engine.start();
+
+        const { runId } = await engine.dispatch({ ...env(), checked: folder });
+
+        await engine.idle();
+
+        expect(await statusOf(store, runId)).toBe('queued');
+        expect(ran).toEqual([]);
         expect(errors).toEqual([]);
     });
 });
