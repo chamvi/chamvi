@@ -35,6 +35,7 @@ describe('public api', () => {
             'StatusBadge',
             'StatusChip',
             'TOKEN_STORAGE_KEY',
+            'VERDICT_REFRESH_MS',
             'asApiError',
             'canAddAccount',
             'canReadConnection',
