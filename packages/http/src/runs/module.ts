@@ -62,9 +62,17 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
 
     app.post('/agents/:name/runs', defineCoreHandler(async (event) => {
         const name = param(event, 'name');
-        // checked before the lookup: an agent the app does not hold counts as private
-        const principal = await authorize(event, ctx, Permission.AGENT_RUN, agentResource(name, ctx.agents.get(name)));
-        const subscription = requireHttpSubscription(requireAgent(ctx.agents, name));
+        const principal = await authenticate(event, ctx);
+        // read after authentication, so the check sees the agent as registered now;
+        // checked before the 404: an agent the app does not hold counts as private
+        const agent = ctx.agents.get(name);
+
+        if (!await isGranted(principal, Permission.AGENT_RUN, ctx.clock, agentResource(name, agent))) {
+            throw forbidden(Permission.AGENT_RUN);
+        }
+
+        // the agent the check saw, not a later registration under the same name
+        const subscription = requireHttpSubscription(agent ?? requireAgent(ctx.agents, name));
 
         const body = await validateBody(startContainer, await readJsonBody(event, ctx.bodyLimit));
         const idempotencyKey = body.idempotencyKey ?? readIdempotencyHeader(event.request);

@@ -273,6 +273,29 @@ describe('authup', () => {
         expect(loads()).toBe(2);
     });
 
+    it('flattens against the updated content when the loader returns the same object again', async () => {
+        const clock = new ControllableClock(new Date('2026-11-11T10:00:00Z'));
+        const shared = {
+            policies: { ...POLICIES } as Record<string, unknown>,
+            permissions: CATALOG.permissions,
+        };
+        const { authenticate, loads } = setup({
+            catalogs: [shared],
+            clock,
+            catalogMaxAgeMs: 30_000,
+        });
+        const now = clock.now();
+        const attributes = { name: 'triage', private: false };
+
+        expect(await can((await authenticate(request('Bearer good')))!, Permission.AGENT_RUN, { attributes, now })).toBe(true);
+
+        shared.policies.triage = { type: 'attributes', query: { name: 'nothing' } };
+        clock.advance(30_000);
+
+        expect(await can((await authenticate(request('Bearer good')))!, Permission.AGENT_RUN, { attributes, now })).toBe(false);
+        expect(loads()).toBe(2);
+    });
+
     it('reads the catalog again after a minute by default', async () => {
         const clock = new ControllableClock(new Date('2026-11-11T10:00:00Z'));
         const { authenticate, loads } = setup({ clock });

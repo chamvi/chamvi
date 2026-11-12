@@ -76,7 +76,9 @@ export function authup(options: AuthupOptions): Authenticator {
                 ));
             }
 
-            return document;
+            // a fresh snapshot per load: a loader that updates and returns one object
+            // must not meet the projection cached for that object's earlier content
+            return parsed;
         } catch (error) {
             // once per failed fetch: concurrent callers share the rejected load
             report(error);
