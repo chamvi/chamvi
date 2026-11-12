@@ -75,7 +75,7 @@
         "jiti": "^2.7.0",
         "locter": "^4.1.2",
         "orkos": "^1.1.1",
-        "routup": "^6.1.0",
+        "routup": "^6.1.1",
         "smob": "^1.6.2"
     },
     "devDependencies": {
