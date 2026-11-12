@@ -12,6 +12,7 @@ import {
     vi,
 } from 'vitest';
 import { Permission } from '@chamvi/access';
+import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { z } from 'zod';
 import { defineModelAgent } from '@chamvi/core';
 import { http, staticTokens } from '@chamvi/http';
@@ -21,6 +22,7 @@ import {
     call,
     createRunAgents,
     createRunTestApp,
+    createTestApp,
     restricted,
     tokenFor,
 } from '../../utils/app.ts';
@@ -387,5 +389,83 @@ describe('POST /agents/:name/runs', () => {
         expect(response.status).toBe(404);
         expect(await response.json()).toMatchObject({ code: 'agent_not_found' });
         expect(errors).toEqual([]);
+    });
+});
+
+describe('POST /agents/:name/runs with an agent replaced during the request', () => {
+    const PUBLIC_RUNNER = tokenFor(restricted(Permission.AGENT_RUN, { private: false }));
+
+    /** A public `swap` whose schema replaces it, while the body is validated, with `next()`. */
+    function setup(next: () => ReturnType<typeof defineModelAgent>) {
+        let replace: (() => Promise<void>) | undefined;
+        const schema: StandardSchemaV1 = {
+            '~standard': {
+                version: 1,
+                vendor: 'test',
+                validate: async (value) => {
+                    await replace?.();
+                    replace = undefined;
+
+                    return { value };
+                },
+            },
+        };
+        const ctx = createTestApp({
+            agents: [defineModelAgent({
+                name: 'swap',
+                model: textModel(),
+                instructions: 'Swap.',
+                channels: [http.on({ schema })],
+            })],
+        });
+
+        replace = async () => {
+            await ctx.engine.putAgent(next());
+        };
+
+        return ctx;
+    }
+
+    it('checks the replacement again: public to private is 403 and starts nothing', async () => {
+        const { app, store } = setup(() => defineModelAgent({
+            name: 'swap',
+            model: textModel(),
+            instructions: 'Now private.',
+            channels: [http.on()],
+            private: true,
+        }));
+
+        const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
+
+        expect(response.status).toBe(403);
+        expect((await store.runs.find({})).data).toEqual([]);
+    });
+
+    it('validates the payload against the replacement\'s schema', async () => {
+        const { app, store } = setup(() => defineModelAgent({
+            name: 'swap',
+            model: textModel(),
+            instructions: 'Stricter.',
+            channels: [http.on({ schema: z.object({ n: z.string() }) })],
+        }));
+
+        const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
+
+        expect(response.status).toBe(400);
+        expect((await store.runs.find({})).data).toEqual([]);
+    });
+
+    it('starts the replacement when it is still allowed', async () => {
+        const { app, store } = setup(() => defineModelAgent({
+            name: 'swap',
+            model: textModel(),
+            instructions: 'Still public.',
+            channels: [http.on()],
+        }));
+
+        const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
+
+        expect(response.status).toBe(202);
+        expect((await store.runs.find({})).data).toHaveLength(1);
     });
 });
