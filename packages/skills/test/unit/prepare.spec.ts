@@ -138,11 +138,11 @@ describe('prepareSkills', () => {
         expect(await fs.readdir(root)).toEqual([]);
     });
 
-    it('refuses a checkout without a commit', async () => {
+    it('reports a checkout whose commit the SDK could not read as retryable', async () => {
         const { root, options } = await setup();
         const dispose = patchHandle((handle) => ({ source: { ...handle.source, commit: undefined } }));
 
-        await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        await expect(skills.prepareSkills(options)).rejects.toMatchObject({ code: skills.SKILL_PREPARATION_FAILED_ERROR_CODE });
         expect(dispose).toHaveBeenCalled();
         expect(await fs.readdir(root)).toEqual([]);
     });
@@ -215,15 +215,33 @@ describe('prepareSkills', () => {
         ]);
     });
 
-    it('hands an scp-style git source to the SDK unchanged', async () => {
+    it.each([
+        'git@github.com:owner/repo.git',
+        'git@host:o/r.git',
+        'user@host:path/r.git',
+        'git@github.com:o/r@skill',
+        'ssh://git@host:2222/o/r.git',
+        'https://user:p@host/o/r.git',
+        'https://gitlab.com/g/sub/sub2/r',
+        'https://gitlab.com/group/tree/repo.git',
+        'owner/repo',
+        'owner/repo/sub/dir',
+    ])('hands the source %s to the SDK unchanged', async (source) => {
         const { options } = await setup();
 
-        vi.mocked(sdk.resolveSource).mockRejectedValueOnce(sdk.diagnostics.SKILLS_GIT_AUTH_FAILED({ url: 'git@github.com:owner/repo.git', host: 'github.com' }));
-        await expect(skills.prepareSkills({ ...options, source: 'git@github.com:owner/repo.git' })).rejects.toThrow(InvalidAgentDefinitionError);
+        vi.mocked(sdk.resolveSource).mockRejectedValueOnce(sdk.diagnostics.SKILLS_GIT_AUTH_FAILED({ url: source, host: 'host' }));
+        await expect(skills.prepareSkills({ ...options, source })).rejects.toThrow(InvalidAgentDefinitionError);
         expect(vi.mocked(sdk.resolveSource).mock.calls[0]).toEqual([
-            'git@github.com:owner/repo.git',
+            source,
             expect.objectContaining({ ref: options.revision }),
         ]);
+    });
+
+    it('refuses a subpath that leaves the repository as configuration, before any fetch', async () => {
+        const { root, options } = await setup();
+
+        await expect(skills.prepareSkills({ ...options, source: 'owner/repo/../x' })).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(await fs.readdir(root)).toEqual([]);
     });
 
     it.each([
@@ -232,6 +250,13 @@ describe('prepareSkills', () => {
         'owner/repo@audit',
         'github:owner/repo@audit',
         'owner/repo@v1.2.3',
+        'github:github:o/r@skill',
+        'a@b/repo@skill',
+        '-x',
+        '--upload-pack=touch pwned;',
+        'https://dev.azure.com/org/proj/_git/repo?version=GBmain&path=/sub',
+        'https://host/o/r.git?x=1',
+        'git@github.com:owner/repo/tree/main',
         'ext::sh -c x',
         'fd::3',
         'https://github.com/owner/repo/tree/main',
@@ -337,15 +362,6 @@ describe('prepareSkills', () => {
     });
 
     it.each([
-        ['a failed entry', (result: sdk.InstallResult) => ({
-            ...result,
-            failed: [{
-                skill: 'audit',
-                agent: 'universal',
-                code: 'SKILLS_INSTALL_FAILED' as const,
-                message: 'failed',
-            }],
-        })],
         ['a skipped entry', (result: sdk.InstallResult) => ({
             ...result,
             skipped: [{
@@ -363,6 +379,23 @@ describe('prepareSkills', () => {
         await skills.prepareSkills(options);
         vi.mocked(sdk.installSkills).mockImplementationOnce(async (...args) => patch(await actual.installSkills(...args)));
         await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(await fs.readdir(root)).toEqual(['corpus']);
+    });
+
+    it('reports an install result with a failed entry (a filesystem error) as retryable and removes the stage', async () => {
+        const { root, options } = await setup();
+
+        await skills.prepareSkills(options);
+        vi.mocked(sdk.installSkills).mockImplementationOnce(async (...args) => ({
+            ...await actual.installSkills(...args),
+            failed: [{
+                skill: 'audit',
+                agent: 'universal',
+                code: 'SKILLS_INSTALL_FAILED' as const,
+                message: 'ENOSPC: no space left on device',
+            }],
+        }));
+        await expect(skills.prepareSkills(options)).rejects.toMatchObject({ code: skills.SKILL_PREPARATION_FAILED_ERROR_CODE });
         expect(await fs.readdir(root)).toEqual(['corpus']);
     });
 
@@ -549,7 +582,15 @@ describe('prepareSkills', () => {
         expect(warnings).toHaveBeenLastCalledWith('OTHER WARNING');
     });
 
-    it('drops only YAML warnings during SDK calls and restores emitWarning after success, failure and overlap', async () => {
+    it('does not emit the plain YAML warning quoting a collection key of an unselected skill', async () => {
+        const { options } = await setup({ 'skills/other/SKILL.md': '---\nname: other\ndescription: d\n? [TOPSECRET-KEY, b]\n: v\n---\nbody\n' });
+        const warnings = vi.spyOn(process, 'emitWarning').mockImplementation(() => {});
+
+        await skills.prepareSkills(options);
+        expect(warnings.mock.calls.map((call) => call.map(String).join(' ')).join('\n')).not.toContain('TOPSECRET-KEY');
+    });
+
+    it('drops only YAML and untyped string warnings during SDK calls and restores emitWarning after success, failure and overlap', async () => {
         const { root, options } = await setup();
         const warnings = vi.spyOn(process, 'emitWarning').mockImplementation(() => {});
         const yaml = Object.assign(new Error('PRIVATE-YAML-EXCERPT'), { name: 'YAMLWarning' });
@@ -557,7 +598,9 @@ describe('prepareSkills', () => {
         const second = Promise.withResolvers<void>();
         const emitting = (gate?: Promise<void>, entered?: () => void) => async (...args: Parameters<typeof sdk.resolveSource>) => {
             process.emitWarning(yaml);
-            process.emitWarning('OTHER WARNING');
+            process.emitWarning('PRIVATE-YAML-STRING');
+            process.emitWarning('OTHER WARNING', 'DeprecationWarning');
+            process.emitWarning(Object.assign(new Error('NAMED WARNING'), { name: 'OtherWarning' }));
             entered?.();
             await gate;
 
@@ -568,7 +611,9 @@ describe('prepareSkills', () => {
         vi.mocked(sdk.resolveSource).mockImplementationOnce(emitting());
         await skills.prepareSkills(options);
         expect(emitted()).toContain('OTHER WARNING');
+        expect(emitted()).toContain('NAMED WARNING');
         expect(emitted()).not.toContain('PRIVATE-YAML-EXCERPT');
+        expect(emitted()).not.toContain('PRIVATE-YAML-STRING');
         expect(process.emitWarning).toBe(warnings);
 
         vi.mocked(sdk.resolveSource).mockImplementationOnce(async () => {

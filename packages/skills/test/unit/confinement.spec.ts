@@ -7,7 +7,7 @@
 
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { prepareSkills } from '@chamvi/skills';
 import { createGitFixture } from '@chamvi/test-kit';
@@ -98,7 +98,7 @@ it.each(['nested alias', 'external file'] as const)('refuses a selected skill co
     expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
 });
 
-it.each(['skill folder', 'conventional container'] as const)('does not select a skill reached through a committed symlinked %s', async (route) => {
+it.each(['skills container', 'agent container', 'relative escaping container'] as const)('refuses a committed %s link before anything is copied', async (route) => {
     const {
         fixture,
         root,
@@ -108,14 +108,44 @@ it.each(['skill folder', 'conventional container'] as const)('does not select a 
         commit,
     } = await setup();
 
+    // a real skill on the host, reachable only through the committed link
+    const host = join(outside, route === 'agent container' ? 'skills/foo' : 'foo');
+
+    await fs.mkdir(host, { recursive: true });
+    await fs.writeFile(join(host, 'SKILL.md'), document('foo', 'HOST BODY'));
+    await fs.writeFile(join(host, 'secret.txt'), 'HOST SECRET\n');
+
+    if (route === 'agent container') {
+        await fs.symlink(outside, join(fixture.path, '.claude'));
+    } else {
+        await fs.rm(join(fixture.path, 'skills'), { recursive: true });
+        await fs.symlink(route === 'skills container' ? outside : relative(fixture.path, outside), join(fixture.path, 'skills'));
+    }
+
+    const revision = await commit();
+
+    await expect(prepareSkills({
+        ...options, 
+        revision, 
+        names: ['foo'], 
+    })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect(await fs.readdir(options.directory)).toEqual(['.chamvi-skills', 'audit']);
+    expect(await fs.readdir(previous.path)).toEqual(['SKILL.md']);
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
+});
+
+it('refuses a committed symlinked skill folder', async () => {
+    const {
+        fixture,
+        root,
+        options,
+        outside,
+        commit,
+    } = await setup();
+
     await fs.mkdir(join(outside, 'linked'));
     await fs.writeFile(join(outside, 'linked/SKILL.md'), document('linked', 'DUMMY OUTSIDE BODY'));
-
-    if (route === 'skill folder') {
-        await fs.symlink(join(outside, 'linked'), join(fixture.path, 'skills/linked'));
-    } else {
-        await fs.symlink(outside, join(fixture.path, 'container'));
-    }
+    await fs.symlink(join(outside, 'linked'), join(fixture.path, 'skills/linked'));
 
     const revision = await commit();
 
@@ -124,24 +154,52 @@ it.each(['skill folder', 'conventional container'] as const)('does not select a 
         revision, 
         names: ['linked'], 
     })).rejects.toThrow(InvalidAgentDefinitionError);
-    expect(await fs.readdir(previous.path)).toEqual(['SKILL.md']);
     expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
 });
 
-it('tolerates a tracked symlink outside the selected skills and copies only the selected folder', async () => {
+it('refuses a tracked symlink anywhere in the source, including unselected paths', async () => {
     const {
         fixture,
+        root,
         options,
+        previous,
         commit,
     } = await setup();
 
     await fs.symlink('README.md', join(fixture.path, 'unselected-link'));
-    await fs.symlink('../README.md', join(fixture.path, 'skills/readme-link'));
 
     const revision = await commit();
-    const [skill] = await prepareSkills({ ...options, revision });
 
-    expect((await fs.readdir(options.directory)).sort()).toEqual(['.chamvi-skills', 'audit']);
-    expect(await fs.readdir(skill!.path)).toEqual(['SKILL.md']);
-    expect(await fs.readFile(join(skill!.path, 'SKILL.md'), 'utf8')).toBe(document('audit', 'ORIGINAL BODY'));
+    await expect(prepareSkills({ ...options, revision })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect(await fs.readFile(join(previous.path, 'SKILL.md'), 'utf8')).toBe(document('audit', 'ORIGINAL BODY'));
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
+});
+
+it.each([
+    ['mounted as the selected skill folder', 'skills/foo', 'foo'],
+    ['inside the selected skill folder', 'skills/audit/vendor', 'audit'],
+])('refuses a submodule %s', async (_, mount, name) => {
+    const sub = await createGitFixture({ 'SKILL.md': document('foo', 'SUBMODULE BODY'), 'data.txt': 'SUBMODULE BYTES\n' });
+
+    fixtures.push(sub);
+
+    const {
+        fixture,
+        root,
+        options,
+        previous,
+        commit,
+    } = await setup();
+
+    await fixture.git('-c', 'protocol.file.allow=always', 'submodule', 'add', sub.url, mount);
+
+    const revision = await commit();
+
+    await expect(prepareSkills({
+        ...options, 
+        revision, 
+        names: [name], 
+    })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect(await fs.readdir(previous.path)).toEqual(['SKILL.md']);
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
 });

@@ -19,11 +19,13 @@ import {
     copyPreparationOptions,
     invalid,
     isCancellation,
+    orAbortReason,
     toPreparationError,
     unavailable,
     withoutYamlWarnings,
 } from './helpers.ts';
 import { acquireGuard, releaseGuard } from './lock.ts';
+import { verifyPinnedTree } from './tree.ts';
 
 const marker = '.chamvi-skills';
 const ownership = 'chamvi-skills-v1\n';
@@ -104,36 +106,59 @@ export async function prepareSkills(options: PrepareSkillsOptions): Promise<read
         signal?.throwIfAborted();
         stage = await fs.mkdtemp(join(parent, '.chamvi-skills-'));
         signal?.throwIfAborted();
-        // No `onWarning`: the SDK then drops source diagnostics, which can hold private YAML excerpts.
+        // No `onWarning`: the SDK then drops its warning diagnostics. Discovery reads the SDK's standard
+        // locations (root, `skills/`, agent and plugin folders) and the whole tree only when those hold nothing.
         // The SDK does not interrupt a running clone; it is joined, then disposed, before a cancellation rejects.
-        // Discovery reads the SDK's standard locations (root, `skills/`, agent and plugin folders) and the
-        // whole tree only when those hold nothing, so skills inside vendored copies or submodules stay out.
-        handle = await withoutYamlWarnings(() => resolveSource(source, {
+        handle = await orAbortReason(() => withoutYamlWarnings(() => resolveSource(source, {
             ref: revision,
             includeInternal: true,
             signal,
-        }));
+        })), signal);
         signal?.throwIfAborted();
 
-        if (!gitSourceTypes.includes(handle.source.type) || handle.source.commit !== revision) {
+        if (!gitSourceTypes.includes(handle.source.type)) {
             invalid();
         }
 
-        const staged: PreparedSkill[] = [];
+        // the SDK could not read the checked-out commit (a failed or timed-out git call): retryable
+        if (handle.source.commit === undefined) {
+            unavailable();
+        }
 
-        for (const name of names) {
-            signal?.throwIfAborted();
+        if (handle.source.commit !== revision) {
+            invalid();
+        }
 
+        const selected = names.map((name) => {
             // exactly one folder declares the name: a duplicate or only a fuzzy match is ambiguous
-            const matches = handle.skills.filter((skill) => skill.name === name);
+            const matches = handle!.skills.filter((skill) => skill.name === name);
 
-            if (matches.length !== 1 || matches[0]!.duplicates?.length) {
+            if (matches.length !== 1 || matches[0]!.duplicates?.length || matches[0]!.path === undefined) {
                 invalid();
             }
 
-            const skill = matches[0]!;
+            return matches[0]!;
+        });
+
+        // The SDK reads discovery containers through committed links and copies submodule checkouts, so the
+        // pinned tree is inspected with plain git before anything is installed.
+        await orAbortReason(() => verifyPinnedTree({
+            directory: join(stage!, 'tree'),
+            url: handle!.source.url,
+            revision,
+            paths: selected.map((skill) => skill.path!),
+            signal,
+        }), signal);
+        signal?.throwIfAborted();
+
+        const staged: PreparedSkill[] = [];
+
+        for (const [index, name] of names.entries()) {
+            signal?.throwIfAborted();
+
+            const skill = selected[index]!;
             const checkout = handle;
-            const installed = await withoutYamlWarnings(() => installSkills(checkout, {
+            const installed = await orAbortReason(() => withoutYamlWarnings(() => installSkills(checkout, {
                 cwd: stage,
                 skills: [name],
                 agents: ['universal'],
@@ -143,13 +168,18 @@ export async function prepareSkills(options: PrepareSkillsOptions): Promise<read
                 duplicates: 'error',
                 symlinks: 'reject',
                 signal,
-            }));
+            })), signal);
 
             signal?.throwIfAborted();
 
             const path = join(stage, '.agents', 'skills', name);
 
-            if (installed.failed.length || installed.skipped.length || installed.installed.length !== 1 ||
+            // a failed entry is the SDK's wrapper for a filesystem error while copying (ENOSPC, EIO, EACCES)
+            if (installed.failed.length) {
+                unavailable();
+            }
+
+            if (installed.skipped.length || installed.installed.length !== 1 ||
                 resolve(installed.installed[0]!.path) !== path) {
                 invalid();
             }

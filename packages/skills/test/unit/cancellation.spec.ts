@@ -6,6 +6,8 @@
  */
 
 import fs from 'node:fs/promises';
+import { createServer } from 'node:net';
+import type { AddressInfo, Socket } from 'node:net';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { SKILL_PREPARATION_FAILED_ERROR_CODE, prepareSkills } from '@chamvi/skills';
@@ -199,5 +201,85 @@ it('forwards the abort reason the SDK rejects with as the cancellation', async (
         throw reason;
     });
     await expect(prepareSkills({ ...options, signal: controller.signal })).rejects.toBe(reason);
+    expect(await fs.readdir(root)).toEqual(['corpus']);
+});
+
+it.each(['a mocked diagnostic', 'the real SDK on a missing repository'] as const)('rejects with the abort reason when the SDK fails after an abort: %s', async (kind) => {
+    const { root, options } = await setup();
+    const controller = new AbortController();
+    const reason = new Error('cancel during a failing clone');
+
+    vi.mocked(sdk.resolveSource).mockImplementationOnce(async (source, resolveOptions) => {
+        if (kind === 'a mocked diagnostic') {
+            await new Promise((done) => {
+                setTimeout(done, 5);
+            });
+            controller.abort(reason);
+
+            throw sdk.diagnostics.SKILLS_GIT_AUTH_FAILED({ url: String(source), host: 'example.com' });
+        }
+
+        const pending = actual.resolveSource('file:///missing/cancelled.git', resolveOptions);
+
+        controller.abort(reason);
+
+        return pending;
+    });
+    await expect(prepareSkills({ ...options, signal: controller.signal })).rejects.toBe(reason);
+    expect(await fs.readdir(root)).toEqual(['corpus']);
+});
+
+it('aborts the fetch of the pinned tree, rejects with the abort reason and removes the fetched repository', async () => {
+    const { root, options } = await setup();
+    const sockets = new Set<Socket>();
+    const accepted = Promise.withResolvers<void>();
+    // a host that accepts the fetch and never answers
+    const server = createServer((socket) => {
+        sockets.add(socket);
+        accepted.resolve();
+    });
+
+    await new Promise<void>((done) => {
+        server.listen(0, '127.0.0.1', done);
+    });
+
+    const { port } = server.address() as AddressInfo;
+    const dispose = vi.fn<() => Promise<void>>();
+
+    vi.mocked(sdk.installSkills).mockClear();
+    vi.mocked(sdk.resolveSource).mockImplementationOnce(async (...args) => {
+        const handle = await actual.resolveSource(...args);
+
+        dispose.mockImplementation(() => handle.dispose());
+
+        return {
+            source: { ...handle.source, url: `http://127.0.0.1:${port}/repo.git` },
+            skills: handle.skills,
+            dispose,
+        };
+    });
+
+    const controller = new AbortController();
+    const reason = new Error('cancel during the tree fetch');
+
+    try {
+        const pending = prepareSkills({ ...options, signal: controller.signal });
+        const rejected = expect(pending).rejects.toBe(reason);
+
+        await accepted.promise;
+        controller.abort(reason);
+        await rejected;
+    } finally {
+        for (const socket of sockets) {
+            socket.destroy();
+        }
+
+        await new Promise((done) => {
+            server.close(done);
+        });
+    }
+
+    expect(dispose).toHaveBeenCalled();
+    expect(sdk.installSkills).not.toHaveBeenCalled();
     expect(await fs.readdir(root)).toEqual(['corpus']);
 });

@@ -397,6 +397,8 @@ describe('prepareSkills failures', () => {
         ['SKILLS_AMBIGUOUS_SKILL_SELECTOR', () => sdk.diagnostics.SKILLS_AMBIGUOUS_SKILL_SELECTOR({ selector: url })],
         ['SKILLS_DUPLICATE_SKILL_NAME', () => sdk.diagnostics.SKILLS_DUPLICATE_SKILL_NAME({ skills: [url] })],
         ['SKILLS_SKILL_CONTAINS_SYMLINKS', () => sdk.diagnostics.SKILLS_SKILL_CONTAINS_SYMLINKS({ links: [url] })],
+        ['SKILLS_UNSAFE_SUBPATH', () => sdk.diagnostics.SKILLS_UNSAFE_SUBPATH({ subpath: url })],
+        ['SKILLS_SUBPATH_OUTSIDE_REPO', () => sdk.diagnostics.SKILLS_SUBPATH_OUTSIDE_REPO({ subpath: url })],
         ['SKILLS_GIT_CLONE_FAILED for a repository git does not find', () => sdk.diagnostics.SKILLS_GIT_CLONE_FAILED({
             url,
             detail: 'not found',
@@ -458,12 +460,30 @@ describe('prepareSkills failures', () => {
 
         vi.mocked(sdk.installSkills).mockRejectedValueOnce(sdk.diagnostics.SKILLS_SKILL_CONTAINS_SYMLINKS({ links: [url] }));
         await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
-        vi.mocked(sdk.installSkills).mockRejectedValueOnce(sdk.diagnostics.SKILLS_INSTALL_FAILED({
-            skill: 'audit', 
-            agent: 'universal', 
-            detail, 
-        }));
-        expect((await failureOf(skills.prepareSkills(options))).code).toBe(SKILL_PREPARATION_FAILED_ERROR_CODE);
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('reports a failed fetch of the pinned tree as retryable without forwarding the URL', async () => {
+        const { root, options } = await setup();
+
+        vi.mocked(sdk.resolveSource).mockImplementationOnce(async (...args) => {
+            const handle = await actual.resolveSource(...args);
+            const wrapped = {
+                source: { ...handle.source, url: 'file:///missing/token-secret.git' },
+                skills: handle.skills,
+                dispose: () => handle.dispose(),
+            };
+
+            originals.set(wrapped, handle);
+
+            return wrapped;
+        });
+
+        const error = await failureOf(skills.prepareSkills(options));
+
+        expect(error.code).toBe(SKILL_PREPARATION_FAILED_ERROR_CODE);
+        expect(error.message).not.toContain('token-secret');
+        expect(sdk.installSkills).not.toHaveBeenCalled();
         expect(await fs.readdir(root)).toEqual([]);
     });
 });
