@@ -84,11 +84,11 @@ A managed collection has no sources in code: it is created and filled over REST 
 
 Managed collections embed with one default model, the app's: `CHAMVI_KNOWLEDGE_MODEL` (a model string such as `openai/text-embedding-3-small`, resolved through the app's [model providers](/guide/models)), else `knowledgeModule({ embeddingModel })`. Without either, creating one answers 409. An agent searches a managed collection like a declared one, by naming it in `knowledgeTools({ collections })`.
 
-Every route needs a bearer token: `knowledge:read` for `GET`, `knowledge:write` for the rest. A static token for a feeding script:
+Every route needs a bearer token: `knowledge:read` for `GET`, `knowledge:write` for the rest. They are the package's own permission names, which a token's `"*"` (every `chamvi_*` name) does not cover. A static token for a feeding script:
 
 ```bash
 export CHAMVI_KNOWLEDGE_MODEL=openai/text-embedding-3-small
-export CHAMVI_TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"feeder\", \"permissions\": [\"knowledge:read\", \"knowledge:write\"] }]"
+export CHAMVI_TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"feeder\", \"permissions\": [{ \"permission\": { \"name\": \"knowledge:read\" } }, { \"permission\": { \"name\": \"knowledge:write\" } }] }]"
 ```
 
 Create a collection, put a document, check it and sync:

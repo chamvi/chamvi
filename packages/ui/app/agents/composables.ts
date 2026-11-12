@@ -29,10 +29,10 @@ import {
     AGENT_WAITING_LIMIT,
     RECENT_RUNS,
 } from './constants.ts';
-import { agentReadPermission, buildRollups, summarizeActivity } from './helpers.ts';
+import { buildRollups, summarizeActivity } from './helpers.ts';
 import type { Activity, AgentRollup } from './types.ts';
 
-/** The registered agents (`GET /agents`, needs `run:read`), loaded once per call site. */
+/** The registered agents (`GET /agents`, needs `chamvi_run_read`), loaded once per call site. */
 export function useAgents(client: IApiClient) {
     const agents = shallowRef<AgentWire[]>([]);
     const error = shallowRef<ApiError>();
@@ -136,7 +136,7 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
     const waitingTotal = shallowRef(0);
     const activity = shallowRef<Activity>(summarizeActivity([], Date.now(), ACTIVITY_LIMIT));
     const error = shallowRef<ApiError>();
-    /** Set when the agent is private and the principal lacks `agent:<name>:read`: its runs stay hidden. */
+    /** Set when the agent is private and the principal lacks `chamvi_agent_read` for it: its runs stay hidden. */
     const forbidden = shallowRef<string>();
     const loaded = shallowRef(false);
     let generation = 0;
@@ -149,7 +149,7 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
             const [list, crons, listed] = await Promise.all([
                 client.listAgents(),
                 client.listSchedules(),
-                // a private agent's runs answer 403 without agent:<name>:read
+                // a private agent's runs answer 403 without chamvi_agent_read for it
                 Promise.all([
                     client.listRuns({
                         agent: agentName,
@@ -207,7 +207,7 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
                 waitingRuns.value = [];
                 waitingTotal.value = 0;
                 activity.value = summarizeActivity([], Date.now(), ACTIVITY_LIMIT);
-                forbidden.value = found ? `Reading this agent's runs needs ${agentReadPermission(agentName)}` : undefined;
+                forbidden.value = found ? `Reading this agent's runs needs chamvi_agent_read for ${agentName}` : undefined;
             }
 
             error.value = undefined;

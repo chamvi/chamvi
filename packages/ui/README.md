@@ -53,7 +53,7 @@ const engine = new Engine({
 const admin = {
     value: process.env.ADMIN_TOKEN ?? 'admin-token-0123456789',
     id: 'admin',
-    permissions: ['*'],
+    permissions: '*' as const,
 };
 
 export const app = createHttpApp({
@@ -68,18 +68,20 @@ Open `http://<host>/ui/` and sign in with a bearer token of the app.
 
 ## Views
 
+Each view checks the signed-in principal's permission bindings (`GET /me`) with `can` from `@chamvi/access`, with the resource's attributes (an agent's `name` and `private`, a run's `agent`, a connection's `name` and `type`), so a grant restricted by a policy shows only what the server allows.
+
 | View | Shows | Needs |
 |---|---|---|
-| Agents | A card per agent: channel chips (its subscriptions), running and waiting runs, next cron fire, 24 h activity, last run, budget, state collections; the landing page | `run:read` |
-| Agent | Budget, state collections, channel chips, Start run (with an `http.on()` subscription), and the tabs Overview, Runs, State, Schedules | `run:read`; `agent:<name>:run` to start; `state:read` for State |
-| Runs | Every run, newest first, filtered by agent and status, with status and tokens; refreshes every 5 s | `run:read` |
-| Run | Header with budgets, the envelope (channel, subscription, address, payload) and the step timeline (llm, tool, wait), live over SSE with streamed text; cancel | `run:read` or `agent:<name>:run`; `run:cancel` to cancel |
-| Approvals | Waiting runs with the request's title and body, the tool and the channel it went out through; Approve or Deny with a reason | `run:read` to list, `agent:<name>:approve` to answer |
-| Schedules | Cron subscriptions per agent with the next fire time | `run:read` |
+| Agents | A card per agent: channel chips (its subscriptions), running and waiting runs, next cron fire, 24 h activity, last run, budget, state collections; the landing page | `chamvi_run_read` |
+| Agent | Budget, state collections, channel chips, Start run (with an `http.on()` subscription), and the tabs Overview, Runs, State, Schedules | `chamvi_run_read`; `chamvi_agent_run` to start; `chamvi_state_read` for State |
+| Runs | Every run, newest first, filtered by agent and status, with status and tokens; refreshes every 5 s | `chamvi_run_read` |
+| Run | Header with budgets, the envelope (channel, subscription, address, payload) and the step timeline (llm, tool, wait), live over SSE with streamed text; cancel | `chamvi_run_read` or `chamvi_agent_run`; `chamvi_run_cancel` to cancel |
+| Approvals | Waiting runs with the request's title and body, the tool and the channel it went out through; Approve or Deny with a reason | `chamvi_run_read` to list, `chamvi_agent_approve` to answer |
+| Schedules | Cron subscriptions per agent with the next fire time | `chamvi_run_read` |
 
 The 24 h figures are counted from the newest 100 runs (the API has no time filter) and read `100+` beyond.
 
-A channel's approval message links an approval by run: `/ui/approvals?run=<runId>&approval=<approvalId>` (`approval` optional, then the run's current one). The link carries no token. Signed out, it goes through sign-in (token form or authup) and comes back to the same URL; signed in, the dashboard scrolls to that run's approval card, highlights and focuses it, and the answer goes through `POST /runs/:id/approve` as the signed-in principal. A run that no longer waits on that approval (answered, expired, moved on to another one) shows a notice linking the run; the link needs read access to the run (`run:read` or `agent:<name>:run`) besides `agent:<name>:approve`: without the approve grant the card shows read-only under a 403 notice, without read access only a 403 notice shows. The run page and the agent page link waiting runs the same way.
+A channel's approval message links an approval by run: `/ui/approvals?run=<runId>&approval=<approvalId>` (`approval` optional, then the run's current one). The link carries no token. Signed out, it goes through sign-in (token form or authup) and comes back to the same URL; signed in, the dashboard scrolls to that run's approval card, highlights and focuses it, and the answer goes through `POST /runs/:id/approve` as the signed-in principal. A run that no longer waits on that approval (answered, expired, moved on to another one) shows a notice linking the run; the link needs read access to the run (`chamvi_run_read` or `chamvi_agent_run` for its agent) besides `chamvi_agent_approve`: without the approve grant the card shows read-only under a 403 notice, without read access only a 403 notice shows. The run page and the agent page link waiting runs the same way.
 
 ## Sign-in
 

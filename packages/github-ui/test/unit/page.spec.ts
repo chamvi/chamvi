@@ -86,7 +86,7 @@ async function mount(names: string[]): Promise<HTMLElement> {
             principal: shallowRef({
                 id: 'a', 
                 kind: 'token', 
-                permissions: ['*'], 
+                permissions: [],
             }), 
         },
     } as unknown as AppContext);

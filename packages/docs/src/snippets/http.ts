@@ -1,4 +1,5 @@
 import type { ITokenVerifier } from '@authup/server-adapter-kit';
+import { Permission } from '@chamvi/access';
 import type { Agent, IStore } from '@chamvi/core';
 import { cronChannel } from '@chamvi/channel-cron';
 import { Engine } from '@chamvi/core';
@@ -15,10 +16,18 @@ import {
 import type { Authenticator } from '@chamvi/http';
 import { serve } from 'routup';
 
+/** The `authorization` header of chamvi's authup client (client credentials). */
+declare function clientAuthorization(): Promise<Record<string, string>>;
+/** The realm id of chamvi's authup client. */
+declare function clientRealm(): Promise<string>;
+
 /** `verifier`: an authup `TokenVerifier` in remote mode (with a `creator`), so tokens carry their grants. */
 export function authenticators(verifier: ITokenVerifier): Authenticator[] {
     // #region auth
     const ciToken = process.env.CI_TOKEN;
+    // an authup attributes policy over the resource: only the agent "deploy"
+    const onlyDeploy = { type: 'attributes', query: { name: 'deploy' } };
+    const authupUrl = 'https://auth.example.com/api';
 
     return [
         // CI and service accounts: tokens of at least 16 characters.
@@ -28,12 +37,23 @@ export function authenticators(verifier: ITokenVerifier): Authenticator[] {
                 tokens: [{
                     value: ciToken,
                     id: 'ci',
-                    permissions: ['agent:deploy:run', 'run:read'],
+                    // authup permission bindings; '*' grants every chamvi_* permission
+                    permissions: [
+                        { permission: { name: Permission.AGENT_RUN }, policies: [onlyDeploy] },
+                        { permission: { name: Permission.RUN_READ } },
+                    ],
                 }],
             })] :
             []),
-        // authup: grants come from global tokens, verified remotely
-        authup({ verifier }),
+        // authup: grants come from global tokens, verified remotely, their policies
+        // resolved against the catalog (needs permission_read) and kept when they
+        // reach the realm of chamvi's own client
+        authup({
+            verifier,
+            catalog: async () => (await fetch(`${authupUrl}/authorization`, { headers: await clientAuthorization() })).json(),
+            // the realm id of chamvi's authup client, e.g. from introspecting its own token
+            realm: clientRealm,
+        }),
         // GitHub Actions OIDC: the mapper decides which repository gets which grants
         oidc({
             issuers: [{
@@ -45,7 +65,7 @@ export function authenticators(verifier: ITokenVerifier): Authenticator[] {
                 {
                     id: `gha:${String(claims.sub)}`,
                     kind: 'oidc',
-                    permissions: ['agent:deploy:run'],
+                    permissions: [{ permission: { name: Permission.AGENT_RUN }, policies: [onlyDeploy] }],
                 } :
                 undefined),
         }),

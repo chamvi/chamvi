@@ -51,7 +51,7 @@ const {
         <EmptyState
             icon="connections"
             title="No connections"
-            text="No module of this app exposes a connection you may read (connection:<name>:read or :write)."
+            text="No module of this app exposes a connection you may read (chamvi_connection_read or chamvi_connection_write)."
         />
     </div>
     <div

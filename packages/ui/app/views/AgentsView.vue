@@ -12,10 +12,9 @@ import { channelChips, hiddenRunsNotice, matchesName } from '../agents/helpers.t
 import AgentCard from '../components/agent-card/AgentCard.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';
-import { useAppContext } from '@chamvi/ui-kit';
+import { useAppContext, useResolved } from '@chamvi/ui-kit';
 
 const { client, session } = useAppContext();
-const permissions = computed(() => session.principal.value?.permissions ?? []);
 const {
     agents,
     issues,
@@ -27,6 +26,20 @@ const {
 
 const query = ref('');
 const shown = computed(() => agents.value.filter((agent) => matchesName(agent, query.value)));
+// a private agent's card says why its runs are missing
+const hidden = useResolved(
+    () => [agents.value, session.principal.value] as const,
+    async ([list, principal]) => {
+        const notices: Record<string, string | undefined> = {};
+
+        await Promise.all(list.map(async (agent) => {
+            notices[agent.name] = await hiddenRunsNotice(agent, principal);
+        }));
+
+        return notices;
+    },
+    {} as Record<string, string | undefined>,
+);
 </script>
 
 <template>
@@ -44,7 +57,7 @@ const shown = computed(() => agents.value.filter((agent) => matchesName(agent, q
         v-if="error?.status === 403"
         class="card notice"
     >
-        Listing agents needs <b class="mono">run:read</b>. An approval link from a notification still works.
+        Listing agents needs <b class="mono">chamvi_run_read</b>. An approval link from a notification still works.
     </div>
     <template v-else>
         <p
@@ -97,7 +110,7 @@ const shown = computed(() => agents.value.filter((agent) => matchesName(agent, q
                 :agent="agent"
                 :chips="channelChips(agent, schedules)"
                 :rollup="rollups[agent.name]"
-                :hidden="hiddenRunsNotice(agent, permissions)"
+                :hidden="hidden[agent.name]"
             />
         </div>
         <div

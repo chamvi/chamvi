@@ -34,7 +34,8 @@ export function useResolved<T, R>(
 ): Readonly<Ref<R>> {
     const value = shallowRef<R>(initial) as Ref<R>;
     const refreshMs = options.refreshMs ?? VERDICT_REFRESH_MS;
-    const timers = options.timers ?? { set: setInterval, clear: clearInterval };
+    // called unbound: a browser's timer functions throw when `this` is not the window
+    const { set, clear } = options.timers ?? { set: setInterval, clear: clearInterval };
     let generation = 0;
     let active = true;
     let latest: { input: T } | undefined;
@@ -57,7 +58,7 @@ export function useResolved<T, R>(
     // outside a scope nothing would ever stop the timer
     if (getCurrentScope()) {
         const timer = refreshMs > 0 ?
-            timers.set(() => {
+            set(() => {
                 if (latest) {
                     void run(latest.input);
                 }
@@ -68,7 +69,7 @@ export function useResolved<T, R>(
             active = false;
 
             if (timer !== undefined) {
-                timers.clear(timer);
+                clear(timer);
             }
         });
     }

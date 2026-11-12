@@ -5,12 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission } from '@chamvi/access';
 import { describe, expect, it } from 'vitest';
 import { effectScope, ref, shallowRef } from 'vue';
 import { createMemoryHistory } from 'vue-router';
 import type { IAuthupAdapter, RunWire  } from '@chamvi/ui-kit';
 import { useLinkedApproval } from '../../../../app/approvals/composables.ts';
 import {
+    approvableAgents,
     approvalLinkQuery,
     linkNotice,
     linkedApprovalState,
@@ -32,6 +34,7 @@ import {
     fakeClient,
     meFor,
 } from '../../../utils/client.ts';
+import { grant } from '../../../utils/permissions.ts';
 import { wireRun } from '../../../utils/runs.ts';
 import { MemoryStorage } from '../../../utils/storage.ts';
 import { flush } from '../../../utils/timers.ts';
@@ -59,14 +62,14 @@ function state(input: {
     run?: RunWire;
     error?: ReturnType<typeof apiError>;
     decided?: DecidedApproval[];
-    permissions?: string[];
+    approvable?: string[] | null;
 }) {
     return linkedApprovalState({
         link: input.link ?? { runId: 'r1', approvalId: 'a1' },
         run: input.run,
         error: input.error,
         decided: input.decided ?? [],
-        permissions: input.permissions ?? ['agent:deploy:approve'],
+        approvable: input.approvable === null ? undefined : new Set(input.approvable ?? ['deploy']),
         now: NOW,
     });
 }
@@ -113,9 +116,13 @@ describe('linkedApprovalState', () => {
         expect(state({})).toEqual({ kind: 'loading' });
     });
 
-    it('is forbidden without agent:<agent>:approve', () => {
-        expect(state({ run: waitingRun(), permissions: ['run:read', 'agent:other:approve'] })).toEqual({ kind: 'forbidden', run: waitingRun() });
-        expect(state({ run: waitingRun(), permissions: ['agent:*:approve'] }).kind).toBe('pending');
+    it('is forbidden when the principal may not approve for the run\'s agent', () => {
+        expect(state({ run: waitingRun(), approvable: ['other'] })).toEqual({ kind: 'forbidden', run: waitingRun() });
+        expect(state({ run: waitingRun(), approvable: ['deploy'] }).kind).toBe('pending');
+    });
+
+    it('is loading while the approve verdicts are out', () => {
+        expect(state({ run: waitingRun(), approvable: null })).toEqual({ kind: 'loading' });
     });
 
     it('is moved-on once the run no longer waits', () => {
@@ -169,6 +176,26 @@ describe('linkedApprovalState', () => {
     });
 });
 
+describe('approvableAgents', () => {
+    it('keeps the agents the principal holds chamvi_agent_approve for', async () => {
+        const holder = { permissions: [grant(Permission.AGENT_APPROVE, { name: { $in: ['deploy', 'triage'] } })] };
+
+        expect(await approvableAgents(holder, ['deploy', 'other', 'triage', 'deploy'])).toEqual(new Set(['deploy', 'triage']));
+        expect(await approvableAgents({ permissions: [grant(Permission.AGENT_APPROVE)] }, ['deploy'])).toEqual(new Set(['deploy']));
+        expect(await approvableAgents({ permissions: [grant(Permission.AGENT_READ)] }, ['deploy'])).toEqual(new Set());
+        expect(await approvableAgents(undefined, ['deploy'])).toEqual(new Set());
+    });
+
+    it('checks the agent\'s private flag the way the server does, unknown agents as private', async () => {
+        const holder = { permissions: [grant(Permission.AGENT_APPROVE, { private: false })] };
+        const known = [{ name: 'deploy', private: false }, { name: 'vault', private: true }];
+
+        expect(await approvableAgents(holder, ['deploy', 'vault', 'ghost'], known)).toEqual(new Set(['deploy']));
+        // without the agent list every agent counts as private
+        expect(await approvableAgents(holder, ['deploy'])).toEqual(new Set());
+    });
+});
+
 describe('linkNotice', () => {
     const link = { runId: 'r1', approvalId: 'a1' };
 
@@ -182,7 +209,7 @@ describe('linkNotice', () => {
         const notice = linkNotice({ kind: 'forbidden', run: waitingRun() }, link);
 
         expect(notice).toMatchObject({ status: 403, runId: 'r1' });
-        expect(notice?.text).toContain('agent:deploy:approve');
+        expect(notice?.text).toContain('chamvi_agent_approve for deploy');
     });
 
     it('is a 403 when the run is not readable', () => {
@@ -190,7 +217,7 @@ describe('linkNotice', () => {
 
         expect(notice).toMatchObject({ status: 403 });
         expect(notice?.runId).toBeUndefined();
-        expect(notice?.text).toContain('run:read');
+        expect(notice?.text).toContain('chamvi_run_read');
     });
 
     it('links the run when it moved on', () => {

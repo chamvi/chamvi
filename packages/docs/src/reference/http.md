@@ -75,24 +75,17 @@ An authenticator resolves `undefined` for a request it does not recognize and th
 
 <<< ../../../http/src/auth/types.ts{ts}
 
+<<< ../../../http/src/auth/authup/types.ts{ts}
+
 ## Permissions
 
 ```ts
-const Permission: {
-    ALL: '*';
-    RUN_READ: 'run:read';
-    RUN_CANCEL: 'run:cancel';
-    STATE_READ: 'state:read';
-    STATE_WRITE: 'state:write';
-};
-
-function agentPermission(agent: string, action: 'run' | 'approve'): string; // agent:<agent>:<action>
 function assertMcpRunTool(agent: Agent): void; // throws InvalidAgentDefinitionError like createHttpApp
 ```
 
 `assertMcpRunTool` builds the agent's `run_<agent>` MCP tool definition and throws what `createHttpApp` would throw for it (a tool name above 64 characters, a payload schema MCP cannot compile); the app runs it on every folder agent before registering it. `createHttpApp` reports a folder agent's failure (one the engine holds at a revision) to `onError` and skips its tool instead of throwing.
 
-Matching uses core's [`hasPermission(principal.permissions, permission)`](/reference/#permissions): true for a granted `*`, or for a grant with the same number of `:` segments whose every segment is equal or `*`.
+The routes check `Permission` names of `@chamvi/access` with `can(principal, name, { attributes, now })` (one resource) and `canSome(principal, name, { now })` (a collection), `now` from the engine clock. The names and their attributes are in [Permissions and authup](/guide/permissions#names).
 
 ## createShutdown
 

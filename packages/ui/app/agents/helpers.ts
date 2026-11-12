@@ -5,13 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission, can } from '@chamvi/access';
+import type { PermissionHolder } from '@chamvi/access';
 import type {
     AgentWire,
     RunPage,
     RunWire,
     ScheduleWire,
 } from '@chamvi/ui-kit';
-import { hasPermission } from '@chamvi/ui-kit';
 import { shortId } from '../runs/helpers.ts';
 import { ACTIVITY_WINDOW_MS } from './constants.ts';
 import type {
@@ -166,22 +167,35 @@ export function tokenShares(runs: readonly RunWire[]): string {
         .join(' · ');
 }
 
-/** The grant reading a private agent's runs and state needs (`agent:<name>:read`). */
-export function agentReadPermission(name: string): string {
-    return `agent:${name}:read`;
+/** The resource attributes of an agent, as the server checks the agent permissions. */
+export function agentAttributes(agent: Pick<AgentWire, 'name' | 'private'>): Record<string, unknown> {
+    return { name: agent.name, private: agent.private };
 }
 
 /**
  * Why the agent's runs are hidden from the principal: a private agent
- * without `agent:<name>:read`, whose runs the server leaves out of every
- * listing (its rollup would read as zero); else `undefined`.
+ * without `chamvi_agent_read` for it, whose runs the server leaves out of
+ * every listing (its rollup would read as zero); else `undefined`.
  */
-export function hiddenRunsNotice(agent: AgentWire, permissions: readonly string[]): string | undefined {
-    if (!agent.private || hasPermission(permissions, agentReadPermission(agent.name))) {
+export async function hiddenRunsNotice(agent: AgentWire, holder: PermissionHolder | undefined): Promise<string | undefined> {
+    if (!agent.private) {
         return undefined;
     }
 
-    return `Runs hidden: reading them needs ${agentReadPermission(agent.name)}`;
+    if (holder && await can(holder, Permission.AGENT_READ, { attributes: agentAttributes(agent), now: new Date() })) {
+        return undefined;
+    }
+
+    return `Runs hidden: reading them needs ${Permission.AGENT_READ} for ${agent.name}`;
+}
+
+/** Start run shows for an agent with an `http` subscription the principal holds `chamvi_agent_run` for. */
+export async function canStartAgent(agent: AgentWire, holder: PermissionHolder | undefined): Promise<boolean> {
+    if (!holder || !hasHttpSubscription(agent)) {
+        return false;
+    }
+
+    return can(holder, Permission.AGENT_RUN, { attributes: agentAttributes(agent), now: new Date() });
 }
 
 /** The agent subscribes to the `http` channel, so REST (and the UI) can start it. */

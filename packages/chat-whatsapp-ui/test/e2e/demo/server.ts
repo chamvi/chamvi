@@ -32,7 +32,7 @@ const env = {
     CHAMVI_TOKENS: JSON.stringify([{
         value: E2E_TOKEN,
         id: 'e2e',
-        permissions: ['*'],
+        permissions: '*',
     }]),
 };
 

@@ -6,8 +6,10 @@
  */
 
 import { isObject } from 'smob';
-import type { ApiError, RunWire  } from '@chamvi/ui-kit';
-import { hasPermission } from '@chamvi/ui-kit';
+import type { AgentWire, ApiError, RunWire } from '@chamvi/ui-kit';
+import { Permission, can } from '@chamvi/access';
+import type { PermissionHolder } from '@chamvi/access';
+import { agentAttributes } from '../agents/helpers.ts';
 import { shortId } from '../runs/helpers.ts';
 import { JSON_BODY_MAX_LENGTH } from './constants.ts';
 import type {
@@ -94,21 +96,53 @@ export function approvalLinkQuery(run: RunWire): Record<string, string> {
 }
 
 /**
+ * The agents among `agents` the principal holds `chamvi_agent_approve` for,
+ * checked with `{ name, private }` as the server checks it. The flag comes
+ * from `known` (the agent list); an agent missing there counts as private,
+ * as the server treats an agent it does not hold.
+ */
+export async function approvableAgents(
+    holder: PermissionHolder | undefined,
+    agents: Iterable<string>,
+    known: readonly Pick<AgentWire, 'name' | 'private'>[] = [],
+): Promise<Set<string>> {
+    const granted = new Set<string>();
+
+    if (!holder) {
+        return granted;
+    }
+
+    const now = new Date();
+
+    await Promise.all(Array.from(new Set(agents), async (name) => {
+        const agent = known.find((item) => item.name === name);
+
+        if (await can(holder, Permission.AGENT_APPROVE, { attributes: agentAttributes({ name, private: agent?.private ?? true }), now })) {
+            granted.add(name);
+        }
+    }));
+
+    return granted;
+}
+
+/**
  * Where a linked approval stands: answered from this page (an `answered`
  * result for that run and approval), pending (the run waits on it, not
- * expired, the principal holds `agent:<agent>:approve`), forbidden (the
- * same without the grant) or moved on (not waiting, another approval, or
- * expired). Without a run yet: 404 is `not-found`, 403 `unreadable`, any
- * other error `failed`, else `loading`; a run loaded earlier wins over a
- * later failed reload. Without `link.approvalId` the run's current
- * approval is the linked one.
+ * expired, the run's agent is in `approvable`), forbidden (the same
+ * without it) or moved on (not waiting, another approval, or expired).
+ * Without a run yet: 404 is `not-found`, 403 `unreadable`, any other error
+ * `failed`, else `loading`; a run loaded earlier wins over a later failed
+ * reload. A pending or forbidden run stays `loading` while `approvable` is
+ * `undefined` (the verdicts are out). Without `link.approvalId` the run's
+ * current approval is the linked one.
  */
 export function linkedApprovalState(input: {
     link: ApprovalLink;
     run: RunWire | undefined;
     error: ApiError | undefined;
     decided: readonly DecidedApproval[];
-    permissions: readonly string[];
+    /** The agents the principal may approve for (`approvableAgents`); `undefined` while that is out. */
+    approvable: ReadonlySet<string> | undefined;
     now: number;
 }): LinkedApprovalState {
     const {
@@ -167,7 +201,11 @@ export function linkedApprovalState(input: {
         };
     }
 
-    if (!hasPermission(input.permissions, `agent:${run.agent}:approve`)) {
+    if (!input.approvable) {
+        return { kind: 'loading' };
+    }
+
+    if (!input.approvable.has(run.agent)) {
         return { kind: 'forbidden', run };
     }
 
@@ -180,11 +218,11 @@ export function linkNotice(state: LinkedApprovalState, link: ApprovalLink): Link
         case 'forbidden':
             return {
                 status: 403,
-                text: `Answering this approval needs agent:${state.run.agent}:approve, which you do not hold.`,
+                text: `Answering this approval needs ${Permission.AGENT_APPROVE} for ${state.run.agent}, which you do not hold.`,
                 runId: state.run.id,
             };
         case 'unreadable':
-            return { status: 403, text: `Run ${shortId(link.runId)} is not readable with your grants (run:read or agent:<agent>:run).` };
+            return { status: 403, text: `Run ${shortId(link.runId)} is not readable with your grants (${Permission.RUN_READ} or ${Permission.AGENT_RUN} for its agent).` };
         case 'not-found':
             return { text: `Run ${shortId(link.runId)} was not found.` };
         case 'failed':

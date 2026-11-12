@@ -129,18 +129,18 @@ Every tool declares `trust: { taint: true }`: mails and invites are written by o
 
 In an app, `toolMailModule()` and `toolCalendarModule()` read the accounts from `CHAMVI_MAIL_ACCOUNTS` and `CHAMVI_CALENDAR_ACCOUNTS` with one `..._<ID>_PASSWORD` (or `..._PASSWORD_FILE`) per account and provide one client on the engine, so agents use `mailTools()` and `calendarTools()` without accounts (see [Apps & Modules](/guide/app#modules)).
 
-The tool results stay in the run store: the steps and checkpoints hold the mails and events the model read, and its answer is derived from them. Whoever reads the agent's runs (the dashboard, `GET /runs`, the run stream) reads them, so define such agents with `private: true`: only `agent:<name>:read` then reads their runs and state (see [private agents](/guide/http#private-agents)).
+The tool results stay in the run store: the steps and checkpoints hold the mails and events the model read, and its answer is derived from them. Whoever reads the agent's runs (the dashboard, `GET /runs`, the run stream) reads them, so define such agents with `private: true`: only `chamvi_agent_read` for the agent then reads their runs and state (see [private agents](/guide/http#private-agents)).
 
 ## Restricting tools per invoker
 
-A run started through `@chamvi/http` (REST or MCP) carries its **invoker**, `run.trigger.invoker`: `{ id, kind, name?, permissions }` of the authenticated principal (`kind` is the authenticator's label: `staticTokens()` sets `token` and `authup()` sets `authup`; `oidc()` keeps the kind its `principal` mapper returns, `oidc` in these docs). Cron and webhook runs have none. An agent's `toolPolicy(toolName, { run })` decides per tool whether the run may use it, and a refused tool is not offered to the model at all.
+A run started through `@chamvi/http` (REST or MCP) carries its **invoker**, `run.trigger.invoker`: `{ id, kind, name?, permissions, identity? }` of the authenticated principal, its `permissions` being [permission bindings](/guide/permissions) (`kind` is the authenticator's label: `staticTokens()` sets `token` and `authup()` sets `authup`; `oidc()` keeps the kind its `principal` mapper returns, `oidc` in these docs). Cron and webhook runs have none. An agent's `toolPolicy(toolName, { run, now })` decides per tool whether the run may use it (it may return a promise; `now` is the engine clock's time), and a refused tool is not offered to the model at all.
 
-`requireToolPermission()` is the built-in policy: it offers a tool when the invoker holds `tool:<agent>:<tool>` (with the usual matching: `*` alone grants everything, a `*` segment matches one segment). Runs without an invoker get no tools unless you pass `{ withoutInvoker: 'allow' }`. Wrap it for exceptions:
+`requireToolPermission()` is the built-in policy: it offers a tool when the invoker holds `chamvi_tool_use` for `{ agent, name }` (the agent and the tool), so a grant restricted by an `attributes` policy such as `{ "agent": "ops", "name": { "$in": ["status", "deploy"] } }` offers just those tools. Any other name can be checked with `can()` of `@chamvi/access`, as `release_manage` below. Runs without an invoker get no tools unless you pass `{ withoutInvoker: 'allow' }`. Wrap it for exceptions:
 
 <<< @/snippets/tools.ts#policy
 
 - The policy covers the whole tool set, the generated [state tools](/guide/state) included.
-- The invoker is a snapshot taken at dispatch. A run keeps it across approvals and restarts, so its tool set stays the same; revoking a grant later does not reach a run that already holds it.
+- The invoker is a snapshot taken at dispatch. A run keeps it across approvals and restarts; revoking a grant later does not reach a run that already holds it. Its policies are evaluated at every check with the engine clock, so a `time` or `date` policy that closes while a run waits on an approval refuses the call after the resume.
 - A model that calls a refused tool anyway gets the AI SDK's unavailable-tool error as the tool result; the tool step records it with code `tool_not_allowed`. The run goes on.
 - The engine re-checks every call when it executes. A pending call that runs after an approval (e.g. a policy tightened before the approval was answered) gets a `ToolNotAllowedError` tool error and the run goes on.
 - The invoker only ever comes from an authenticator, never from a request body or payload.

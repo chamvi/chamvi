@@ -19,7 +19,7 @@ import TabList from '../tab-list/TabList.vue';
 
 const props = defineProps<{
     agent: string;
-    /** A private agent's state also needs `agent:<name>:read`. */
+    /** A private agent's state also needs `chamvi_agent_read` for it. */
     isPrivate?: boolean;
     state: ReturnType<typeof useAgentState>;
 }>();
@@ -69,8 +69,8 @@ function toggle(which: 'kv' | 'doc', key: string): void {
         v-if="state.error.value?.status === 403"
         class="card notice"
     >
-        Reading agent state needs <b class="mono">state:read</b><template v-if="isPrivate">
-            and, for this private agent, <b class="mono">agent:{{ agent }}:read</b>
+        Reading agent state needs <b class="mono">chamvi_state_read</b><template v-if="isPrivate">
+            and, for this private agent, <b class="mono">chamvi_agent_read</b>
         </template>.
     </div>
     <template v-else>

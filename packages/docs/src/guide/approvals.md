@@ -96,7 +96,7 @@ The coding tools, the GitHub tools and any third-party tool have an `execute` yo
 
 An answer is single use: a second answer of the same wait point throws `InvalidRunStateError`.
 
-- `decision.approver` (an invoker: `{ id, kind, name?, permissions }`) is recorded on the `wait` step as `output.approver`. `@chamvi/http` sets it from the principal that answered. The model never sees the decision's details: it sees the tool's result, so a denial is the tool's (or hook's) to word.
+- `decision.approver` (an invoker: `{ id, kind, name?, permissions, identity? }`) is recorded on the `wait` step as `output.approver`. `@chamvi/http` sets it from the principal that answered. The model never sees the decision's details: it sees the tool's result, so a denial is the tool's (or hook's) to word.
 - If writing the answer fails, the run goes back to `waiting` and the answer can be sent again.
 
 ## Timeouts
@@ -104,5 +104,5 @@ An answer is single use: a second answer of the same wait point throws `InvalidR
 An approval not answered within its `timeoutMs` is denied with the reason `approval timed out`. The engine checks on every poll (`tick()`); `approve()` then returns `{ approved: false, reason: 'approval timed out' }`.
 
 ::: tip Where approvals are answered
-In core you call `engine.approve()` (by approval id) yourself. [`@chamvi/http`](/guide/http) adds `POST /runs/:id/approve` and the MCP tool `approve_run` (both need `agent:<name>:approve`; the [`@chamvi/ui`](/guide/ui) inbox and its approval links answer through the endpoint).
+In core you call `engine.approve()` (by approval id) yourself. [`@chamvi/http`](/guide/http) adds `POST /runs/:id/approve` and the MCP tool `approve_run` (both need `chamvi_agent_approve` for the agent; the [`@chamvi/ui`](/guide/ui) inbox and its approval links answer through the endpoint).
 :::

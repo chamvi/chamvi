@@ -16,7 +16,7 @@ npm install --save-dev tsdown   # only for chamvi build
 - The entry is `src/index.ts`. `dev`, `build` and `start --dev` take `--entry`, else the `package.json` field `"chamvi": { "entry": "<path>" }`, else `src/index.ts`. The built commands (`start`, `run-job`, `migrate`) default to `dist/index.mjs` and never read that field. Without any entry file the commands run the default app, `createApp({})`, whose agents come from `./agents`: a folder of [agent folders](/guide/agent-folders) is a complete app.
 - `createApp()` is synchronous and side-effect free: no env read, no I/O, no provider import. Everything happens in `start()`, `runJob()` and `migrate()`, which the CLI calls.
 - An entry whose default export is not an app (checked with `isApp()`, which also recognizes an app of another installed copy) makes the CLI exit 2.
-- `@chamvi/app` re-exports `@chamvi/core` and the common part of `@chamvi/http` (`agentPermission`, `Permission` and the `Authenticator`, `Principal`, `HttpRoute*`, `StaticToken` types), so an agent repository imports one package.
+- `@chamvi/app` re-exports `@chamvi/core`, `@chamvi/access` (`Permission`, `can`, `canSome` and the binding types, see [Permissions and authup](/guide/permissions)) and the common part of `@chamvi/http` (the `Authenticator`, `Principal`, `HttpRoute*` and `StaticToken` types), so an agent repository imports one package.
 
 `dev` runs the source through Node's type stripping and `build` bundles it with tsdown, so the code has to suit both: relative imports carry `.ts` and there is no `enum`. The template `tsconfig.json`:
 
@@ -68,7 +68,7 @@ The optional modules ship with the package they configure, on its `/module` subp
 | `knowledgeModule({ collections?, repository?, owner?, embeddingModel?, routes? })` | `@chamvi/knowledge/module` | `.knowledge` (`IKnowledge`): the declared and [managed](/guide/knowledge#managed-collections) knowledge collections, indexed in the background once the app started; the REST routes under `<basePath>/knowledge` | `injectKnowledgeContext(ctx)` |
 | `toolMailModule({ accounts?, env? })` | `@chamvi/tool-mail/module` | one read-only IMAP client from `CHAMVI_MAIL_ACCOUNTS` and `CHAMVI_MAIL_<ID>_PASSWORD`, logged out after the engine drained | `injectMailContext(ctx)` |
 | `toolCalendarModule({ accounts?, timezone?, fetch?, env? })` | `@chamvi/tool-calendar/module` | one read-only CalDAV client from `CHAMVI_CALENDAR_ACCOUNTS`, `CHAMVI_CALENDAR_<ID>_PASSWORD` and `CHAMVI_CALENDAR_TIMEZONE` | `injectCalendarContext(ctx)` |
-| `authupModule()`, `oidcModule(options)` | `@chamvi/app/authup` | the `authup()` and `oidc()` authenticators, after the static tokens | |
+| `authupModule()`, `oidcModule(options)` | `@chamvi/app/authup` | the `authup()` and `oidc()` authenticators, after the static tokens; `authupModule()` reads the permission catalog and chamvi's realm with its own client (see [Permissions and authup](/guide/permissions#authup)) | |
 | `consoleChannelModule({ name?, write? })` | `@chamvi/app` | the `consoleChannel()` named `console` (out only) | `ctx.channels.findOne('console')` |
 
 Channel names are unique per app, so `openclawModule()` beside `openclawModule({ name: 'ops' })` contributes two channels (`ctx.channels.findOne('ops')`); two channels of one name fail the setup with `InvalidAgentDefinitionError`. `@chamvi/app/authup` stays in the app package, since `@chamvi/http` cannot depend on `@chamvi/app`.

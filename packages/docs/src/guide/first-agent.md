@@ -20,7 +20,7 @@ No entry file is needed: without `src/index.ts`, `chamvi` runs the default app, 
 
 An agent without a channel subscription never runs: nothing dispatches it. `channels` decides what starts one:
 
-- `http.on()`: `POST /agents/greeter/runs` with `{ "payload": ... }` and a bearer token holding `agent:greeter:run` (and the MCP tool `run_greeter`). See [HTTP](/guide/http).
+- `http.on()`: `POST /agents/greeter/runs` with `{ "payload": ... }` and a bearer token holding `chamvi_agent_run` (and the MCP tool `run_greeter`). See [HTTP](/guide/http).
 - `cron.on('0 9 * * *')`: every day at 09:00 in the process's local zone (or `cron.on(expression, { timezone })`). See [Scheduler](/guide/scheduler).
 
 A subscription to a channel no module contributes (a `github.on()` without `githubModule()`) is a load issue for a folder agent, so the agent is not registered.
@@ -46,10 +46,10 @@ npx chamvi dev     # .env loaded, restarts on code changes
 npx chamvi start   # production: needs CHAMVI_TOKENS
 ```
 
-`chamvi dev` without `CHAMVI_TOKENS` generates a random token with every permission and logs it once (a warning), so you can call the API right away. `chamvi start` refuses to start without an authenticator: set `CHAMVI_TOKENS` to a JSON list, each `value` at least 16 characters. Generate the value, never copy one from a page:
+`chamvi dev` without `CHAMVI_TOKENS` generates a random token with every chamvi permission (`"*"`) and logs it once (a warning), so you can call the API right away. `chamvi start` refuses to start without an authenticator: set `CHAMVI_TOKENS` to a JSON list, each `value` at least 16 characters. Generate the value, never copy one from a page:
 
 ```bash
-export CHAMVI_TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"ops\", \"permissions\": [\"*\"] }]"
+export CHAMVI_TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"ops\", \"permissions\": \"*\" }]"
 ```
 
 Both listen on port 3000 (`PORT`). Without `DATABASE_URL` runs live in memory: a restart loses them (see [database store](/repositories/database) for Postgres).

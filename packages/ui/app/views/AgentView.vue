@@ -11,11 +11,10 @@ import { computed, ref } from 'vue';
 import { RouterLink, useRoute, useRouter } from 'vue-router';
 import { useAgentDetail } from '../agents/composables.ts';
 import {
-    agentReadPermission,
+    canStartAgent,
     channelChips,
     failedSummary,
     formatBudgetTime,
-    hasHttpSubscription,
     lastRunOf,
     oldestWaiting,
 } from '../agents/helpers.ts';
@@ -25,8 +24,8 @@ import { approvalLinkQuery } from '../approvals/helpers.ts';
 import {
     NavIcon,
     StatusChip,
-    hasPermission,
     useAppContext,
+    useResolved,
 } from '@chamvi/ui-kit';
 import AgentRuns from '../components/agent-runs/AgentRuns.vue';
 import AgentStatePanel from '../components/agent-state/AgentStatePanel.vue';
@@ -73,9 +72,11 @@ const tab = computed<Tab>({
 });
 
 const chips = computed(() => (agent.value ? channelChips(agent.value, schedules.value) : []));
-const permissions = computed(() => session.principal.value?.permissions ?? []);
-const canStart = computed(() => !!agent.value && hasHttpSubscription(agent.value) &&
-    hasPermission(permissions.value, `agent:${agent.value.name}:run`));
+const canStart = useResolved(
+    () => [agent.value, session.principal.value] as const,
+    ([shown, principal]) => (shown ? canStartAgent(shown, principal) : Promise.resolve(false)),
+    false,
+);
 const invoker = computed(() => session.principal.value?.name ?? session.principal.value?.id);
 const stateCount = computed(() => (state.error.value ? undefined :
     `${state.kv.value.length + state.collections.value.length}${state.moreKv.value ? '+' : ''}`));
@@ -120,7 +121,7 @@ function scheduleOf(chip: Chip) {
         v-if="error?.status === 403"
         class="card notice"
     >
-        Reading an agent needs <b class="mono">run:read</b>.
+        Reading an agent needs <b class="mono">chamvi_run_read</b>.
     </div>
     <div
         v-else-if="detail.notFound.value"
@@ -153,7 +154,7 @@ function scheduleOf(chip: Chip) {
                         v-if="agent.private"
                         class="tag"
                         data-testid="agent-private"
-                        :title="`Private: reading its runs and state needs ${agentReadPermission(agent.name)}`"
+                        :title="`Private: reading its runs and state needs chamvi_agent_read for ${agent.name}`"
                     ><NavIcon name="lock" />private</span>
                     <div class="head-actions">
                         <VCButton
@@ -253,7 +254,7 @@ function scheduleOf(chip: Chip) {
                 class="card notice"
                 data-testid="agent-forbidden"
             >
-                Reading this agent's runs needs <b class="mono">{{ agentReadPermission(agent.name) }}</b>.
+                Reading this agent's runs needs <b class="mono">chamvi_agent_read</b> for {{ agent.name }}.
             </div>
             <template v-if="tab === 'runs'">
                 <AgentRuns

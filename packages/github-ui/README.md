@@ -38,7 +38,7 @@ export const app = createApp({
 });
 ```
 
-GitHub appears in the dashboard's sidebar and is served at `<uiBase>/ext/github`. Viewing needs `connection:<name>:read`, saving `connection:<name>:write` on the connection `github` (the module's `name`). Saved values take effect at the next start.
+GitHub appears in the dashboard's sidebar and is served at `<uiBase>/ext/github`. Viewing needs `chamvi_connection_read`, saving `chamvi_connection_write` for the connection `github` (the module's `name`). Saved values take effect at the next start.
 
 ## Options
 

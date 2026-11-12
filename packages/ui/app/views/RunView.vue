@@ -15,6 +15,7 @@ import {
     NavIcon,
     StatusChip,
     useAppContext,
+    useResolved,
 } from '@chamvi/ui-kit';
 import { approvalLinkQuery, approvalWaitOf } from '../approvals/helpers.ts';
 import JsonBlock from '../components/json-block/JsonBlock.vue';
@@ -72,9 +73,14 @@ const childRow = (value: unknown) => value as RunWire;
 const subtree = computed(() => (run.value ? subtreeTotal(run.value) : undefined));
 const dispatchLine = computed(() => (run.value ? dispatchCallout(run.value) : undefined));
 const budget = computed(() => agents.value.find((agent) => agent.name === run.value?.agent)?.budget);
-const permissions = computed(() => session.principal.value?.permissions ?? []);
 const parent = computed(() => (run.value ? parentOf(run.value) : undefined));
-const cancellable = computed(() => !!run.value && canCancel(run.value, permissions.value));
+// the live stream replaces the run on every step: the verdict follows only its status and agent
+const cancelKey = computed(() => (run.value ? `${run.value.status}:${run.value.agent}` : undefined));
+const cancellable = useResolved(
+    () => [cancelKey.value, session.principal.value] as const,
+    ([key, principal]) => (key && run.value ? canCancel(run.value, principal) : Promise.resolve(false)),
+    false,
+);
 
 const liveSteps = computed(() => {
     const { value } = state;
@@ -158,8 +164,8 @@ async function onCancel(): Promise<void> {
             Run <b class="mono">{{ runId }}</b> does not exist.
         </template>
         <template v-else-if="error.status === 403">
-            Reading this run needs <b class="mono">run:read</b> or <b class="mono">agent:&lt;agent&gt;:run</b>;
-            a private agent's run needs <b class="mono">agent:&lt;agent&gt;:read</b>.
+            Reading this run needs <b class="mono">chamvi_run_read</b> or <b class="mono">chamvi_agent_run</b> for its agent;
+            a private agent's run needs <b class="mono">chamvi_agent_read</b> for its agent.
         </template>
         <template v-else>
             {{ error.code }} · {{ error.message }}
@@ -322,7 +328,7 @@ async function onCancel(): Promise<void> {
                 style="margin-bottom: 26px"
                 data-testid="children-forbidden"
             >
-                Listing dispatched runs needs <b class="mono">run:read</b>.
+                Listing dispatched runs needs <b class="mono">chamvi_run_read</b>.
             </div>
             <div
                 v-else

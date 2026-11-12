@@ -10,7 +10,7 @@ const engine = new Engine({
 const admin = {
     value: process.env.ADMIN_TOKEN ?? 'admin-token-0123456789',
     id: 'admin',
-    permissions: ['*'],
+    permissions: '*' as const,
 };
 
 export const app = createHttpApp({

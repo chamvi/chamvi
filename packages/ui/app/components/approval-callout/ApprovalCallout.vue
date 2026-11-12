@@ -41,7 +41,7 @@ import JsonBlock from '../json-block/JsonBlock.vue';
 
 const props = defineProps<{
     run: RunWire;
-    /** The principal holds `agent:<agent>:approve`. */
+    /** The principal holds `chamvi_agent_approve` for the run's agent. */
     canAnswer: boolean;
     busy?: boolean;
     /** The approval a link opened: highlighted, scrolled into view and focused. */

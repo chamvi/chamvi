@@ -1,6 +1,6 @@
-import type { ITokenVerifier } from '@authup/server-adapter-kit';
 import type { IEngine } from '@chamvi/core';
 import { authup, createHttpApp, staticTokens } from '@chamvi/http';
+import type { AuthupOptions } from '@chamvi/http';
 import { uiRoutes } from '@chamvi/ui';
 
 export function tokenDashboard(engine: IEngine) {
@@ -11,7 +11,7 @@ export function tokenDashboard(engine: IEngine) {
             tokens: [{
                 value: process.env.ADMIN_TOKEN!,
                 id: 'admin',
-                permissions: ['*'],
+                permissions: '*',
             }],
         })],
         // the dashboard at /ui, signed in with a pasted bearer token
@@ -20,13 +20,13 @@ export function tokenDashboard(engine: IEngine) {
     // #endregion tokens
 }
 
-/** `verifier`: an authup `TokenVerifier` in remote mode, see the HTTP guide. */
-export function authupDashboard(engine: IEngine, verifier: ITokenVerifier) {
+/** `verifier`, `catalog` and `realm`: see the HTTP guide (`@chamvi/app/authup` wires all three from env). */
+export function authupDashboard(engine: IEngine, options: AuthupOptions) {
     // #region authup
     return createHttpApp({
         engine,
         basePath: '/api',
-        auth: [authup({ verifier })],
+        auth: [authup(options)],
         routes: uiRoutes({
             // served at /api/console/, the API under /api
             basePath: '/console',

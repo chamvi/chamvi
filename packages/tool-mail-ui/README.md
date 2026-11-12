@@ -38,7 +38,7 @@ export const app = createApp({
 });
 ```
 
-Mail appears in the dashboard's sidebar and is served at `<uiBase>/ext/tool-mail`. Viewing needs `connection:<name>:read`, saving `connection:<name>:write` on the connection `mail-<account>`; adding an account needs `connections:create`. Saved values take effect at the next start.
+Mail appears in the dashboard's sidebar and is served at `<uiBase>/ext/tool-mail`. Viewing needs `chamvi_connection_read`, saving `chamvi_connection_write` for the connection `mail-<account>`; adding an account needs `chamvi_connection_create` for its type. A grant can be restricted to one connection or type by an `attributes` policy over `name` and `type`. Saved values take effect at the next start.
 
 ## Options
 

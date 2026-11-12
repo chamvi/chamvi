@@ -38,7 +38,7 @@ export const app = createApp({
 });
 ```
 
-Calendar appears in the dashboard's sidebar and is served at `<uiBase>/ext/tool-calendar`. Viewing needs `connection:<name>:read`, saving `connection:<name>:write` on the connection `calendar-<account>`; adding an account needs `connections:create`. Saved values take effect at the next start.
+Calendar appears in the dashboard's sidebar and is served at `<uiBase>/ext/tool-calendar`. Viewing needs `chamvi_connection_read`, saving `chamvi_connection_write` for the connection `calendar-<account>`; adding an account needs `chamvi_connection_create` for its type. A grant can be restricted to one connection or type by an `attributes` policy over `name` and `type`. Saved values take effect at the next start.
 
 ## Options
 

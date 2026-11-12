@@ -20,7 +20,7 @@ import { DOC_PAGE_SIZE, KV_PAGE_SIZE } from './constants.ts';
  * An agent's state, read-only: the KV entries (paged by `KV_PAGE_SIZE`),
  * the declared collections (from the agent summary) and their first
  * documents, loaded when a collection opens. Everything resets on another
- * agent; a 403 (no `state:read`) lands in `error`.
+ * agent; a 403 (no `chamvi_state_read`) lands in `error`.
  */
 export function useAgentState(client: IApiClient, agent: Ref<string | undefined>) {
     const kv = shallowRef<KvEntry[]>([]);

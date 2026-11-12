@@ -13,6 +13,11 @@ Connections can be configured in the dashboard, on a page per provider ([Connect
 | WhatsApp pairing | `@chamvi/ui` showed the QR on its Connections page | Add `chatWhatsappUiModule()` (`@chamvi/chat-whatsapp-ui/module`) to keep pairing; the QR is at `<uiBase>/ext/chat-whatsapp`. The generic Connections page keeps the status and Reset session |
 | `githubModule()` with a missing required variable | The factory threw | The factory throws for a malformed value only. A partial env fails the start in `setup` naming the variable; nothing set starts idle (tools report not configured, webhooks answer 503) |
 | `GITHUB_MODULE_NAME` (`@chamvi/github/module`) | The module's id | The prefix only: the id is `chamvi:github:<name>`, by default `chamvi:github:github`. Change a `dependencies` entry that named the old id |
+| Permissions | Dynamic strings (`agent:<name>:run`, `run:read`, `connection:<name>:write`, `tool:<agent>:<tool>`, `*`) | Static names (`chamvi_agent_run`, ...) granted as authup permission bindings, a policy narrowing a grant to an agent or a connection. `CHAMVI_TOKENS` takes `"*"` or a list of bindings. See [Permissions and authup](/guide/permissions#upgrading) |
+| `authup()` options (`@chamvi/http`) | `{ verifier }` | `{ verifier, catalog, realm }`; `authupModule()`'s client also needs `permission_read` (realm scope `ownOrNull` or wider) |
+| `hasPermission`, `matchesPermission`, `toolPermission` (`@chamvi/core`), `agentPermission` (`@chamvi/http`, `@chamvi/app`) | String matching | `can()` and `canSome()` of `@chamvi/access` (re-exported by `@chamvi/app`) |
+| `/knowledge` routes (`@chamvi/knowledge`) | A `*` token reached them | `"*"` covers only the eleven `chamvi_*` names: grant `knowledge:read` and `knowledge:write` as bindings (in the token's list, or as permissions in authup), the `chamvi dev` token included |
+| `toolPolicy` | `(toolName, { run }) => boolean` | `(toolName, { run, now }) => boolean \| Promise<boolean>` (a synchronous policy keeps working) |
 
 ### New variables
 
@@ -29,6 +34,7 @@ Each is optional and names a field of a named instance; the default instance kee
 2. Set `CHAMVI_ENCRYPTION_KEYS` if the dashboard will save connections.
 3. A dashboard not at `/ui`: pass the same value as `uiBase` to every `*-ui` module.
 4. Replace any reference to the old GitHub module id.
+5. Drain the app before the upgrade, so no stored run carries an invoker with old permission strings; rewrite `CHAMVI_TOKENS` and the authup roles ([Permissions and authup](/guide/permissions#upgrading)).
 
 ## Upgrading to 0.8
 

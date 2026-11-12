@@ -32,12 +32,12 @@ The engine checks the rest when you construct it: agent names must be unique wit
 | `description` | `string` | the leading system instruction | The text of the agent's MCP run tool (its first line; without one and without a system instruction: `Starts a run of agent "<name>".`) |
 | `run` | `(payload, ctx) => unknown` | none | `defineSimpleAgent()` only, in place of `model` and `instructions`: a [simple agent](#simple-agents) |
 | `concurrencyMaxRuns` | `number \| false` | none | Shared-store ceiling for this agent's running runs; positive safe integer, or `false` for no additional ceiling |
-| `private` | `boolean` | `false` | Reading the agent's runs and state through [`@chamvi/http`](/guide/http#private-agents) needs `agent:<name>:read`; `run:read`, `agent:<name>:run` and `state:read` do not cover it |
+| `private` | `boolean` | `false` | Reading the agent's runs and state through [`@chamvi/http`](/guide/http#private-agents) needs `chamvi_agent_read` for the agent; `chamvi_run_read`, `chamvi_agent_run` and `chamvi_state_read` do not cover it |
 | `channels` | `ChannelSubscription[]` | none | From `http.on()`, `webhook.on()`, `cron.on()`, `github.on()`. See [Channels](/guide/channels) |
 | `tools` | `ToolSet \| (ctx) => ToolSet` | none | A plain tool set, or a factory called for each execution. See [Tools and their context](#tools-and-their-context) |
 | `trust` | `AgentTrust` | `{ onTainted: 'approve' }` | Untrusted-run outbound policy and boolean tool-name classifications. See [Untrusted content](/guide/tools#untrusted-content-and-outbound-tools) |
 | `toolsContext` | `Record<string, unknown>` | none | Per tool name, the context of a third-party tool. See [Tools](/guide/tools#third-party-tools-with-their-own-context) |
-| `toolPolicy` | `(toolName, { run }) => boolean` | none | Tools the run may use, e.g. `requireToolPermission()`. See [Restricting tools per invoker](/guide/tools#restricting-tools-per-invoker) |
+| `toolPolicy` | `(toolName, { run, now }) => boolean \| Promise<boolean>` | none | Tools the run may use, e.g. `requireToolPermission()`. See [Restricting tools per invoker](/guide/tools#restricting-tools-per-invoker) |
 | `state` | `Record<string, StandardSchemaV1>` | none | Typed state collections. See [Agent State](/guide/state) |
 | `budget` | `Partial<Budget>` | `{ maxSteps: 20, timeoutMs: 900_000 }` | See [Budgets & Timeouts](/guide/budgets) |
 | `hooks` | `{ beforeToolExecution?, afterToolExecution? }` | none | Run around every tool call: rewrite input or output, gate a tool with `approve()`. See [Approvals & Hooks](/guide/approvals#gating-tools-you-did-not-write) |
