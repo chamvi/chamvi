@@ -85,7 +85,7 @@ Any name is checkable (an app may check its own, such as `release_manage`). Thes
 | `chamvi_knowledge_read` | `name` (the collection) |
 | `chamvi_knowledge_write` | `name` (the collection) |
 
-`allPermissions()` returns one unrestricted binding per name, `permissionNames(holder)` the distinct names of the holder's bindings and of its snapshot's grants (for display; a grant may still be restricted) and `isPermissionAuthorization(value)` checks the shape of an `authorization` (shallow: the evaluator validates the trees). Tell a binding from anything else with `isPermissionPolicyBinding` of `@authup/access`.
+`allPermissions()` returns one unrestricted binding per name, `permissionNames(holder)` the distinct names of the holder's bindings and of its snapshot's grants (for display; a grant may still be restricted) and `isPermissionBinding(value)` tells a binding from anything else (upstream's `isPermissionPolicyBinding`) and `isPermissionAuthorization(value)` checks the shape of an `authorization` (shallow: the evaluator validates the trees).
 
 ## can and canSome
 
@@ -93,7 +93,7 @@ Any name is checkable (an app may check its own, such as `release_manage`). Thes
 - `canSome(holder, name, options)` treats a policy whose data is missing (no `attributes`, no `identity`) as passed: may the holder do this to some resource? A list route uses it, then checks each row with `can`.
 - `now` feeds the `date` and `time` policies (default the real clock); the holder's `identity` feeds `identity` policies.
 - `authorization` is `{ snapshot, realm }`, set by the authup authenticator of `@chamvi/http`: `snapshot` comes from `buildAuthorizationSnapshot` (plain JSON, so a run's invoker stores it), `realm` is the realm chamvi's resources belong to. Every check feeds `realm` as the resource realm and asks for the global definition and the one owned by `realm`; a definition owned by another realm or by a client is never reached. Without an `identity` the snapshot grants nothing.
-- A binding's `realmScope` is not evaluated: a token has no realm.
+- A token has no realm and a binding of `bindings` no resource realm: its `realmScope` is not evaluated, and a binding with a `realmMatch` node anywhere in its tree grants nothing (its siblings still decide). In `authorization` a `realmMatch` node is evaluated against `realm`.
 - Both fail closed and never reject: an entry that is not a binding, a binding that cannot be copied as JSON, an unknown policy type, a `permissionBinding` policy node and a malformed `authorization` grant nothing.
 - Built evaluators are cached per holder object while it keeps the same `bindings`, `authorization` and `identity` objects; treat a holder as immutable data.
 

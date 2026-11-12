@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isPermissionPolicyBinding } from '@authup/access';
+import { isPermissionBinding } from '@chamvi/access';
 import type { PermissionIdentity } from '@chamvi/access';
 import { isObject } from 'smob';
 import { ValidationError } from '../errors/index.ts';
@@ -42,7 +42,7 @@ export function toInvoker(value: unknown, label = 'invoker'): Invoker {
         throw new ValidationError(`The ${label} name must be a string.`);
     }
 
-    const validBindings = Array.isArray(bindings) && bindings.every((p) => isPermissionPolicyBinding(p));
+    const validBindings = Array.isArray(bindings) && bindings.every((p) => isPermissionBinding(p));
 
     if (!validBindings) {
         throw new ValidationError(`The ${label} bindings must be an array of permission bindings.`);

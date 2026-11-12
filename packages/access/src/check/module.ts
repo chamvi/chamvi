@@ -147,14 +147,20 @@ async function build(holder: PermissionHolder): Promise<Evaluators> {
 
 /**
  * The bindings as the flat case of a snapshot: no grants, every binding of a
- * name a disjunct. A binding's `realmScope` is not evaluated (a definition
- * carries none): a token has no realm.
+ * name a disjunct. A token has no realm and a flat binding no resource realm:
+ * a binding's `realmScope` is not evaluated (a definition carries none), and
+ * a binding with a `realmMatch` node anywhere in its tree is dropped (upstream
+ * passes such a node neutrally without a resource realm).
  */
 async function buildFlat(holder: PermissionHolder): Promise<IPermissionEvaluator | undefined> {
     try {
         const definitions = readBindings(holder).flatMap((binding) => {
             try {
                 const definition = toPlainData(binding);
+
+                if (hasRealmMatch(definition.policies)) {
+                    return [];
+                }
 
                 delete definition.realmScope;
 
@@ -224,4 +230,14 @@ function toPlainData<T>(value: T): T {
 
         return raw instanceof Date ? raw.getTime() : item;
     })) as T;
+}
+
+/** True when a policy list holds a `realmMatch` node at any depth. */
+function hasRealmMatch(policies: unknown): boolean {
+    if (!Array.isArray(policies)) {
+        return false;
+    }
+
+    return policies.some((policy) => isObject(policy) &&
+        (policy.type === BuiltInPolicyType.REALM_MATCH || hasRealmMatch(policy.children)));
 }

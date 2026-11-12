@@ -12,8 +12,29 @@ import {
     allPermissions,
     can,
     isPermissionAuthorization,
+    isPermissionBinding,
     permissionNames,
 } from '@chamvi/access';
+
+describe('isPermissionBinding', () => {
+    it.each([
+        [{ permission: { name: 'x' } }, true],
+        [{ permission: { name: 'x' }, policies: [] }, true],
+        [{ permission: { name: 'x' }, policies: [{ type: 'attributes', query: {} }] }, true],
+        [{ permission: { name: '' } }, false],
+        [{ permission: 'x' }, false],
+        [{ permission: { name: 1 } }, false],
+        [{ permission: { name: 'x' }, policies: {} }, false],
+        [{ permission: { name: 'x' }, policies: [{}] }, false],
+        [{ permission: { name: 'x' }, policies: [null] }, false],
+        ['agent:x:run', false],
+        ['*', false],
+        [null, false],
+        [[], false],
+    ])('%j is %s', (value, expected) => {
+        expect(isPermissionBinding(value)).toBe(expected);
+    });
+});
 
 const BINDING = { permission: { name: 'x' } };
 

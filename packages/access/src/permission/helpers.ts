@@ -10,6 +10,11 @@ import { isObject } from 'smob';
 import { PERMISSION_NAMES } from './constants.ts';
 import type { PermissionAuthorization, PermissionBinding, PermissionHolder } from './types.ts';
 
+/** True for authup's binding shape (`isPermissionPolicyBinding` of `@authup/access`). */
+export function isPermissionBinding(value: unknown): value is PermissionBinding {
+    return isPermissionPolicyBinding(value);
+}
+
 /**
  * True for an object with a non-empty string `realm` and a `snapshot` whose
  * `definitions` are bindings and whose `grants` are absent or bindings. A
@@ -57,7 +62,7 @@ export function readBindings(holder: unknown): PermissionBinding[] {
         return [];
     }
 
-    return (holder.bindings as unknown[]).filter((entry) => isPermissionPolicyBinding(entry));
+    return (holder.bindings as unknown[]).filter((entry) => isPermissionBinding(entry));
 }
 
 /** The grants of the holder's snapshot, none when its authorization is malformed. */
@@ -70,5 +75,5 @@ function readGrants(holder: unknown): PermissionBinding[] {
 }
 
 function isBindingList(value: unknown): value is PermissionBinding[] {
-    return Array.isArray(value) && value.every((entry) => isPermissionPolicyBinding(entry));
+    return Array.isArray(value) && value.every((entry) => isPermissionBinding(entry));
 }

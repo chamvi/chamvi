@@ -74,6 +74,7 @@ describe('public api', () => {
         // @chamvi/access
         'can',
         'canSome',
+        'isPermissionBinding',
         'isPermissionAuthorization',
         'allPermissions',
         'permissionNames',

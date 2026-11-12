@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isPermissionPolicyBinding } from '@authup/access';
-import { Permission, can } from '@chamvi/access';
+import { Permission, can, isPermissionBinding } from '@chamvi/access';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { isObject } from 'smob';
 import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
@@ -218,7 +217,7 @@ async function start(
         const invoker = run.invoker ? structuredClone(run.invoker) : undefined;
 
         if (invoker) {
-            invoker.bindings = Array.isArray(invoker.bindings) ? invoker.bindings.filter((entry) => isPermissionPolicyBinding(entry)) : [];
+            invoker.bindings = Array.isArray(invoker.bindings) ? invoker.bindings.filter((entry) => isPermissionBinding(entry)) : [];
         }
 
         const result = await host.createRun({

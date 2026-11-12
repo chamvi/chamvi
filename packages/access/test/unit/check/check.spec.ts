@@ -162,7 +162,7 @@ describe('can', () => {
         await expect(can(holder(broken, { permission: { name: Permission.AGENT_RUN } }), Permission.AGENT_RUN)).resolves.toBe(true);
     });
 
-    it('denies a realmMatch policy node under can, with and without attributes', async () => {
+    it('denies a realmMatch policy node, with and without attributes', async () => {
         const subject = holder({
             permission: { name: Permission.AGENT_RUN },
             policies: [{ type: 'realmMatch' } as never],
@@ -170,8 +170,39 @@ describe('can', () => {
 
         await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(false);
         await expect(can(subject, Permission.AGENT_RUN, { attributes: { name: 'triage' } })).resolves.toBe(false);
-        // upstream's pre-gate counts the node, whose identity data is missing, as pending
-        await expect(canSome(subject, Permission.AGENT_RUN)).resolves.toBe(true);
+        await expect(canSome(subject, Permission.AGENT_RUN)).resolves.toBe(false);
+    });
+
+    it.each([
+        ['scope own', { type: 'realmMatch', scope: 'own' }],
+        ['scope any', { type: 'realmMatch', scope: 'any' }],
+        ['attribute mode', { type: 'realmMatch', attributeName: 'realm_id' }],
+    ])('denies a realmMatch node (%s) for a holder with an identity, plain and inverted, while a sibling still decides', async (_label, node) => {
+        const identity: PermissionIdentity = {
+            type: 'user', 
+            id: USER_ID, 
+            realmId: '0195f2a0-7c3e-7a4b-9c1d-000000000001', 
+        };
+        const plain: PermissionBinding = { permission: { name: Permission.AGENT_RUN }, policies: [node as never] };
+        const inverted: PermissionBinding = {
+            permission: { name: Permission.AGENT_RUN },
+            policies: [{
+                type: 'composite', 
+                invert: true, 
+                children: [node], 
+            } as never],
+        };
+
+        for (const binding of [plain, inverted]) {
+            const subject: PermissionHolder = { bindings: [binding], identity };
+
+            for (const attributes of [undefined, { name: 'triage' }]) {
+                await expect(can(subject, Permission.AGENT_RUN, attributes ? { attributes } : {})).resolves.toBe(false);
+                await expect(canSome(subject, Permission.AGENT_RUN, attributes ? { attributes } : {})).resolves.toBe(false);
+            }
+
+            await expect(can({ bindings: [binding, triageOnly], identity }, Permission.AGENT_RUN, { attributes: { name: 'triage' } })).resolves.toBe(true);
+        }
     });
 
     it('denies a permissionBinding policy node', async () => {
@@ -187,6 +218,7 @@ describe('can', () => {
         await expect(can(holder(plain), Permission.AGENT_RUN)).resolves.toBe(false);
         await expect(canSome(holder(plain), Permission.AGENT_RUN)).resolves.toBe(false);
         await expect(can(holder(inverted), Permission.AGENT_RUN)).resolves.toBe(false);
+        await expect(canSome(holder(inverted), Permission.AGENT_RUN)).resolves.toBe(false);
     });
 
     it('skips entries that are not bindings', async () => {
@@ -259,13 +291,11 @@ describe('policies that cannot be evaluated', () => {
         it(`fails ${label} below an inverted composite`, async () => {
             const subject = holder(inverted(child));
             const attributes = { name: 'other', private: false };
-            // upstream's pre-gate counts a realmMatch node without identity data as pending
-            const some = label === 'a realmMatch node';
 
             await expect(can(subject, name, { attributes })).resolves.toBe(false);
             await expect(can(subject, name)).resolves.toBe(false);
-            await expect(canSome(subject, name, { attributes })).resolves.toBe(some);
-            await expect(canSome(subject, name)).resolves.toBe(some);
+            await expect(canSome(subject, name, { attributes })).resolves.toBe(false);
+            await expect(canSome(subject, name)).resolves.toBe(false);
         });
     }
 
