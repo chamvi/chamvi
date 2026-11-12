@@ -23,14 +23,13 @@ import {
 } from 'vue';
 import type { App } from 'vue';
 import { ApiError } from '../../../src/api/error.ts';
-import type { MeWire } from '../../../src/api/types.ts';
 import ConnectionForm from '../../../src/connections/ConnectionForm.vue';
 import type { ConnectionSettingsWire, ConnectionTypeWire } from '../../../src/connections/types.ts';
 import { APP_CONTEXT } from '../../../src/context/constants.ts';
 import type { AppContext } from '../../../src/context/types.ts';
 import { ME, fakeClient } from '../../utils/client.ts';
 import { installFormKit } from '../../utils/forms.ts';
-import { grant } from '../../utils/permissions.ts';
+import { ALL, verdicts } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
 
 const TYPE: ConnectionTypeWire = {
@@ -117,7 +116,8 @@ async function mount(options: {
     name?: string;
     current?: ConnectionSettingsWire;
     routes?: Record<string, Responder>;
-    principal?: MeWire;
+    /** The names the session's check allowed. */
+    allowed?: readonly string[];
     type?: ConnectionTypeWire;
 }) {
     const name = 'name' in options ? options.name : 'mail-work';
@@ -151,7 +151,7 @@ async function mount(options: {
 
     const context = {
         client: fakeClient({ send: send as never }),
-        session: { principal: shallowRef(options.principal ?? ME) },
+        session: { principal: shallowRef(ME), ...verdicts(options.allowed ?? ALL) },
     } as unknown as AppContext;
     const app = createApp(defineComponent(() => () => h(ConnectionForm, {
         type: 'mail',
@@ -836,13 +836,8 @@ describe('ConnectionForm', () => {
         expect(form.root.textContent).not.toContain('Restart the app');
     });
 
-    it('is read-only without the write grant', async () => {
-        const reader: MeWire = {
-            id: 'reader',
-            kind: 'token',
-            bindings: [grant(Permission.CONNECTION_READ, { name: 'mail-work' })],
-        };
-        const form = await mount({ principal: reader });
+    it('is read-only for a session not allowed chamvi_connection_write', async () => {
+        const form = await mount({ allowed: [Permission.CONNECTION_READ] });
 
         expect(form.input('host')?.disabled).toBe(true);
         expect(form.button('Save')).toBeUndefined();
@@ -852,30 +847,13 @@ describe('ConnectionForm', () => {
         expect(form.root.querySelector('[data-testid="connection-form-readonly"]')?.textContent).toContain('chamvi_connection_write');
     });
 
-    it('shows the write controls to a write grant restricted to this connection', async () => {
-        const writer: MeWire = {
-            id: 'writer',
-            kind: 'token',
-            bindings: [grant(Permission.CONNECTION_WRITE, { name: 'mail-work', type: 'mail' })],
-        };
-        const form = await mount({ principal: writer });
+    it('shows the write controls to a session allowed chamvi_connection_write', async () => {
+        const form = await mount({ allowed: [Permission.CONNECTION_WRITE] });
 
         expect(form.input('host')?.disabled).toBe(false);
         expect(form.button('Save')).toBeDefined();
         expect(form.button('Test')).toBeDefined();
         expect(form.root.querySelector('[data-testid="connection-form-readonly"]')).toBeNull();
-    });
-
-    it('is read-only for a write grant restricted to another connection', async () => {
-        const writer: MeWire = {
-            id: 'writer',
-            kind: 'token',
-            bindings: [grant(Permission.CONNECTION_READ), grant(Permission.CONNECTION_WRITE, { name: 'mail-home' })],
-        };
-        const form = await mount({ principal: writer });
-
-        expect(form.input('host')?.disabled).toBe(true);
-        expect(form.button('Save')).toBeUndefined();
     });
 
     it('offers no Save for a connection set in code, Test stays', async () => {

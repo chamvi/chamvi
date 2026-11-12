@@ -7,15 +7,14 @@
  */
 
 import { computed } from 'vue';
-import type { MeWire } from '../api/types.ts';
-import { useResolved } from '../auth/composables.ts';
-import { canAddAccount, connectionBadge, connectionProblem } from '../connections/helpers.ts';
+import { connectionBadge, connectionProblem } from '../connections/helpers.ts';
 import type { ConnectionTypeWire, ConnectionWire } from '../connections/types.ts';
 
 const props = defineProps<{
     type: ConnectionTypeWire;
     connections: readonly ConnectionWire[];
-    principal?: MeWire;
+    /** The session is allowed `chamvi_connection_create` (`session.allowed(...)`). */
+    canCreate?: boolean;
     /** The name of the open connection. */
     current?: string;
 }>();
@@ -31,7 +30,8 @@ const accounts = computed(() => props.connections
         problem: connectionProblem(connection),
     })));
 
-const canAdd = useResolved(() => [props.type, props.principal] as const, ([type, principal]) => canAddAccount(type, principal), false);
+// the type takes several accounts, the app can store them (`creatable`), and the session may create
+const canAdd = computed(() => props.type.multiple && props.type.creatable && props.canCreate === true);
 </script>
 
 <template>

@@ -37,9 +37,6 @@ describe('public api', () => {
             'TOKEN_STORAGE_KEY',
             'VERDICT_REFRESH_MS',
             'asApiError',
-            'canAddAccount',
-            'canReadConnection',
-            'canWriteConnection',
             'clearStorage',
             'connectionBadge',
             'connectionProblem',
@@ -71,7 +68,6 @@ describe('public api', () => {
             'useAppContext',
             'useConnection',
             'useConnections',
-            'useResolved',
             'useUiPages',
             'withQuery',
         ]);

@@ -6,6 +6,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission } from '@chamvi/access';
 import { IFieldValidation } from '@ilingo/validup-vue';
 import {
     VCFormGroup,
@@ -20,11 +21,10 @@ import {
     ref,
     watch,
 } from 'vue';
-import { useResolved } from '../auth/composables.ts';
 import { useAppContext } from '../context/module.ts';
 import { createConnectionConfigApi } from './api.ts';
 import { useConnectionForm } from './form.ts';
-import { canWriteConnection, connectionProblem } from './helpers.ts';
+import { connectionProblem } from './helpers.ts';
 import type { ConnectionCreated, ConnectionDeleted, ConnectionFormField } from './types.ts';
 import { ACCOUNT_KEY, isRequiredField } from './validators.ts';
 
@@ -62,15 +62,8 @@ const {
 
 const adding = computed(() => props.name === undefined);
 const problem = computed(() => (view.value ? connectionProblem(view.value) : undefined));
-const writable = useResolved(
-    () => [session.principal.value, props.name, props.type] as const,
-    ([principal, name, type]) => (name === undefined ? Promise.resolve(false) : canWriteConnection(principal, { name, type })),
-    false,
-    // a write verdict never outlives the principal or connection it was given for
-    { reset: true },
-);
-// adding: the create grant was checked before the form opened
-const canWrite = computed(() => props.name === undefined || writable.value);
+// adding: the create verdict was checked before the form opened; editing: an upper bound, a 403 shows inline
+const canWrite = computed(() => props.name === undefined || session.allowed(Permission.CONNECTION_WRITE));
 const canEdit = computed(() => canWrite.value && (view.value?.editable ?? true));
 const canTest = computed(() => !adding.value && canWrite.value && definition.value?.testable === true);
 const canDelete = computed(() => canWrite.value && view.value?.deletable === true);

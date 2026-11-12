@@ -9,7 +9,7 @@ import { shallowRef } from 'vue';
 import { ApiError } from '../api/error.ts';
 import type { MeWire } from '../api/types.ts';
 import type { UiConfig } from '../config/types.ts';
-import { RETURN_STORAGE_KEY, TOKEN_STORAGE_KEY } from './constants.ts';
+import { RETURN_STORAGE_KEY, TOKEN_STORAGE_KEY, VERDICT_REFRESH_MS } from './constants.ts';
 import { clearStorage, safeReturnPath } from './helpers.ts';
 import type {
     IAuthupAdapter,
@@ -23,11 +23,26 @@ import type {
  * in `sessionStorage` once `GET /me` accepted it) or an authup session.
  * Every credential check passes the token to `me()` explicitly, so a
  * refused one never triggers the client's sign-out.
+ *
+ * The session also holds the permission names `POST /authorization/check`
+ * allowed the principal: asked once a principal is in place (the sign-in
+ * waits for the answer, a failed one allows nothing) and again every
+ * `VERDICT_REFRESH_MS` (a failed refresh keeps the last answer). A new
+ * principal and sign-out empty the names at once; an answer given for an
+ * earlier principal is dropped.
  */
 export function createSession(config: UiConfig, deps: SessionDeps): ISession {
     const principal = shallowRef<MeWire | undefined>();
+    const permissions = shallowRef<ReadonlySet<string>>(new Set());
     let method: SessionMethod | undefined;
     let adapter: Promise<IAuthupAdapter> | undefined;
+    // called unbound: a browser's timer functions throw when `this` is not the window
+    const { set, clear } = deps.timers ?? { set: setInterval, clear: clearInterval };
+    let timer: ReturnType<typeof setInterval> | undefined;
+    // bumped per principal: an answer of an earlier one is dropped
+    let generation = 0;
+    let requested = 0;
+    let applied = 0;
 
     const authup = (): Promise<IAuthupAdapter> => {
         if (!config.auth.authup || !deps.authup) {
@@ -39,10 +54,56 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
         return adapter;
     };
 
+    /** Forgets the verdicts at once: no principal, or a new one. */
+    const forget = () => {
+        generation++;
+        permissions.value = new Set();
+
+        if (!(timer !== undefined)) {
+            return;
+        }
+
+        clear(timer);
+        timer = undefined;
+    };
+
+    const check = async (current: number, token?: string): Promise<void> => {
+        const request = ++requested;
+
+        try {
+            const view = await client().checkAuthorization(undefined, token);
+
+            // an older request that answers late never overwrites a newer answer
+            if (current === generation && request > applied) {
+                applied = request;
+                permissions.value = new Set(view.permissions);
+            }
+        } catch {
+            // the first answer failed: nothing allowed; a refresh failed: the last answer stays
+        }
+    };
+
+    /** A principal is in place: ask now (with its token) and every `VERDICT_REFRESH_MS`. */
+    const verify = (token: string): Promise<void> => {
+        forget();
+
+        const current = generation;
+
+        timer = set(() => {
+            void check(current);
+        }, VERDICT_REFRESH_MS);
+
+        return check(current, token);
+    };
+
     const session: ISession = {
         principal,
+        permissions,
         get method() {
             return method;
+        },
+        allowed(name) {
+            return permissions.value.has(name);
         },
         async token() {
             if (method === 'authup') {
@@ -65,6 +126,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
                 try {
                     principal.value = await client().me(stored);
                     method = 'token';
+                    await verify(stored);
 
                     return true;
                 } catch (e) {
@@ -74,6 +136,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
                     if (e instanceof ApiError && e.status === 401) {
                         deps.storage.removeItem(TOKEN_STORAGE_KEY);
                     } else {
+                        forget();
                         principal.value = undefined;
                         method = undefined;
 
@@ -89,6 +152,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
                     if (token) {
                         principal.value = await client().me(token);
                         method = 'authup';
+                        await verify(token);
 
                         return true;
                     }
@@ -97,6 +161,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
                 }
             }
 
+            forget();
             principal.value = undefined;
             method = undefined;
 
@@ -108,6 +173,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
             deps.storage.setItem(TOKEN_STORAGE_KEY, token);
             principal.value = me;
             method = 'token';
+            await verify(token);
         },
         async startAuthup(returnTo) {
             const flow = await authup();
@@ -139,6 +205,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
 
             principal.value = await client().me(token);
             method = 'authup';
+            await verify(token);
 
             const returnTo = safeReturnPath(deps.storage.getItem(RETURN_STORAGE_KEY), '/', config.uiBase);
 
@@ -149,6 +216,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
         async signOut() {
             const wasAuthup = method === 'authup' || adapter !== undefined;
 
+            forget();
             clearStorage(deps.storage);
             principal.value = undefined;
             method = undefined;

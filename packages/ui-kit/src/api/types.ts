@@ -9,6 +9,7 @@ import type { Artifact, RunStatusLiteral, Step } from '@chamvi/core';
 import type {
     AgentIssue,
     AgentSummary,
+    AuthorizationCheckView,
     MeView,
     RunView,
     ScheduleSummary,
@@ -107,6 +108,12 @@ export type ApiSendInit = {
 
 export interface IApiClient {
     me(token?: string): Promise<MeWire>;
+    /**
+     * `POST /authorization/check`: which of `names` (every `chamvi_*` name
+     * without) the principal may attempt, an upper bound the routes decide
+     * per resource. `token` fixes the credential like `me()`'s.
+     */
+    checkAuthorization(names?: readonly string[], token?: string): Promise<AuthorizationCheckView>;
     listAgents(): Promise<AgentList>;
     listSchedules(): Promise<ScheduleWire[]>;
     listRuns(filter: RunListFilter): Promise<RunPage>;

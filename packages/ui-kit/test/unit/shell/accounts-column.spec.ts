@@ -7,8 +7,6 @@
 
 // @vitest-environment happy-dom
 
-import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import { 
     afterEach, 
     describe, 
@@ -17,10 +15,8 @@ import {
 } from 'vitest';
 import { createApp, h, nextTick } from 'vue';
 import type { App } from 'vue';
-import type { MeWire } from '../../../src/api/types.ts';
 import type { ConnectionTypeWire, ConnectionWire } from '../../../src/connections/types.ts';
 import AccountsColumn from '../../../src/shell/AccountsColumn.vue';
-import { grant } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
 
 const TYPE: ConnectionTypeWire = {
@@ -85,24 +81,16 @@ afterEach(() => {
     document.body.innerHTML = '';
 });
 
-function me(bindings: PermissionBinding[]): MeWire {
-    return {
-        id: 'peter',
-        kind: 'token',
-        bindings,
-    };
-}
-
 async function render(props: {
     type?: ConnectionTypeWire; 
-    principal?: MeWire; 
+    canCreate?: boolean; 
     current?: string 
 }): Promise<string> {
     const app = createApp({
         render: () => h(AccountsColumn, {
             type: props.type ?? TYPE,
             connections: CONNECTIONS,
-            principal: props.principal ?? me([grant(Permission.CONNECTION_CREATE)]),
+            canCreate: props.canCreate ?? true,
             current: props.current,
         }),
     });
@@ -149,16 +137,8 @@ describe('AccountsColumn', () => {
         expect(html).toMatch(/data-account="mail-support"[^>]*aria-current="page"/u);
     });
 
-    it('shows Add for a multi-instance type to a holder of chamvi_connection_create', async () => {
+    it('shows Add for a multi-instance type to a session that may create connections', async () => {
         expect(await render({})).toContain('+ Add account');
-    });
-
-    it('shows Add to a creator restricted to the type', async () => {
-        expect(await render({ principal: me([grant(Permission.CONNECTION_CREATE, { type: 'mail' })]) })).toContain('+ Add account');
-    });
-
-    it('hides Add from a creator restricted to another type', async () => {
-        expect(await render({ principal: me([grant(Permission.CONNECTION_CREATE, { type: 'calendar' })]) })).not.toContain('+ Add account');
     });
 
     it('hides Add for a single-instance type', async () => {
@@ -171,8 +151,8 @@ describe('AccountsColumn', () => {
         })).not.toContain('+ Add account');
     });
 
-    it('hides Add without chamvi_connection_create', async () => {
-        expect(await render({ principal: me([grant(Permission.CONNECTION_WRITE)]) })).not.toContain('+ Add account');
+    it('hides Add from a session that may not create connections', async () => {
+        expect(await render({ canCreate: false })).not.toContain('+ Add account');
     });
 
     it('hides Add when the app cannot create accounts of the type', async () => {

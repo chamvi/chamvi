@@ -21,7 +21,6 @@ import {
 } from 'vue';
 import type { App } from 'vue';
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import type { IApiClient, MeWire } from '../../../src/api/types.ts';
 import ConnectionsPage from '../../../src/connections/ConnectionsPage.vue';
 import type { ConnectionTypeWire, ConnectionWire } from '../../../src/connections/types.ts';
@@ -29,7 +28,7 @@ import { install } from '../../../src/module.ts';
 import { fakeClient } from '../../utils/client.ts';
 import { installFormKit } from '../../utils/forms.ts';
 import { json } from '../../utils/fetch.ts';
-import { ALL, grant } from '../../utils/permissions.ts';
+import { ALL, verdicts } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
 
 const MAIL: ConnectionTypeWire = {
@@ -75,7 +74,7 @@ afterEach(() => {
 });
 
 async function mountPage(search: string, options: {
-    bindings?: PermissionBinding[]; 
+    allowed?: readonly string[]; 
     type?: ConnectionTypeWire; 
     pages?: 'fail' | 'hang';
 } = {}) {
@@ -84,7 +83,6 @@ async function mountPage(search: string, options: {
     const principal: MeWire = {
         id: 'peter',
         kind: 'token',
-        bindings: options.bindings ?? ALL,
     };
     const opened: string[] = [];
     const client: IApiClient = fakeClient({
@@ -127,7 +125,7 @@ async function mountPage(search: string, options: {
                 auth: { tokens: true },
             },
             client,
-            session: { principal: shallowRef(principal) } as never,
+            session: { principal: shallowRef(principal), ...verdicts(options.allowed ?? ALL) } as never,
             storage: window.sessionStorage,
         },
     });
@@ -181,7 +179,7 @@ describe('ConnectionsPage query', () => {
     });
 
     it('ignores ?add without chamvi_connection_create', async () => {
-        const page = await mountPage('?add=1', { bindings: [grant(Permission.CONNECTION_READ)] });
+        const page = await mountPage('?add=1', { allowed: [Permission.CONNECTION_READ] });
 
         expect(page.adding()).toBe(false);
         expect(page.opened).toEqual(['/connections/mail-work/config']);

@@ -6,7 +6,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { permissionNames } from '@chamvi/access';
 import { useColorMode } from '@vuecs/design';
 import { computed } from 'vue';
 import type { MeWire } from '../api/types.ts';
@@ -95,10 +94,11 @@ async function signOut(): Promise<void> {
 
 const displayName = computed(() => props.principal?.name ?? props.principal?.id ?? '');
 const initials = computed(() => displayName.value.replace(/[^a-z0-9]/gi, '').slice(0, 2).toUpperCase() || '?');
+// the names the permission check allowed, not the grants behind them (the server keeps those)
 const grants = computed(() => {
-    const count = props.principal ? permissionNames(props.principal).length : 0;
+    const count = session.permissions.value.size;
 
-    return `${props.principal?.kind ?? ''} · ${count} ${count === 1 ? 'grant' : 'grants'}`;
+    return `${props.principal?.kind ?? ''} · ${count} ${count === 1 ? 'permission' : 'permissions'}`;
 });
 </script>
 

@@ -22,7 +22,6 @@ import {
 } from 'vue';
 import type { App } from 'vue';
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import type { MeWire } from '../../../src/api/types.ts';
 import type { UiConfig } from '../../../src/config/types.ts';
 import ConnectionsPage from '../../../src/connections/ConnectionsPage.vue';
@@ -31,7 +30,7 @@ import { install } from '../../../src/module.ts';
 import { fakeClient } from '../../utils/client.ts';
 import { installFormKit } from '../../utils/forms.ts';
 import { json } from '../../utils/fetch.ts';
-import { ALL, grant } from '../../utils/permissions.ts';
+import { ALL, verdicts } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
 
 const CONFIG: UiConfig = {
@@ -73,12 +72,11 @@ afterEach(() => {
     globalThis.history.replaceState({}, '', '/');
 });
 
-async function mountPage(bindings: PermissionBinding[], world: { list?: unknown[]; search?: string } = {}) {
+async function mountPage(allowed: readonly string[], world: { list?: unknown[]; search?: string } = {}) {
     const requests: string[] = [];
     const principal: MeWire = {
         id: 'peter',
         kind: 'token',
-        bindings,
     };
     const client = fakeClient({
         send: async (url: string, init: { method?: string } = {}) => {
@@ -122,7 +120,11 @@ async function mountPage(bindings: PermissionBinding[], world: { list?: unknown[
         context: {
             config: CONFIG,
             client,
-            session: { principal: shallowRef(principal), signOut: async () => undefined } as never,
+            session: {
+                principal: shallowRef(principal),
+                ...verdicts(allowed),
+                signOut: async () => undefined,
+            } as never,
             storage: window.sessionStorage,
         },
     });
@@ -154,8 +156,19 @@ async function mountPage(bindings: PermissionBinding[], world: { list?: unknown[
 }
 
 describe('ConnectionsPage', () => {
+    it('offers to add an account only to a session that may create connections', async () => {
+        const reader = await mountPage([Permission.CONNECTION_READ], { search: '' });
+
+        expect(reader.root.textContent).not.toContain('+ Add account');
+        mounted?.unmount();
+
+        const creator = await mountPage([Permission.CONNECTION_CREATE], { search: '' });
+
+        expect(creator.root.textContent).toContain('+ Add account');
+    });
+
     it('confirms an account a creator cannot read instead of opening its form', async () => {
-        const page = await mountPage([grant(Permission.CONNECTION_CREATE)]);
+        const page = await mountPage([Permission.CONNECTION_CREATE]);
 
         await page.add();
 
@@ -167,7 +180,7 @@ describe('ConnectionsPage', () => {
     });
 
     it('opens the form of an account its creator may read', async () => {
-        const page = await mountPage([grant(Permission.CONNECTION_CREATE), grant(Permission.CONNECTION_WRITE)]);
+        const page = await mountPage([Permission.CONNECTION_CREATE, Permission.CONNECTION_WRITE]);
 
         await page.add();
 

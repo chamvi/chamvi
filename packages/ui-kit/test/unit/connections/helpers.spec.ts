@@ -5,22 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import type { ConnectionStatus } from '@chamvi/core';
-import { reactive } from 'vue';
 import { describe, expect, it } from 'vitest';
 import { STATUS_BADGES } from '../../../src/connections/constants.ts';
 import {
-    canAddAccount,
-    canReadConnection,
-    canWriteConnection,
     connectionBadge,
     connectionProblem,
     statusBadge,
 } from '../../../src/connections/helpers.ts';
-import type { ConnectionTypeWire } from '../../../src/connections/types.ts';
-import { ALL, authorized, grant } from '../../utils/permissions.ts';
 
 describe('connectionBadge', () => {
     it('reads the configuration first', () => {
@@ -90,98 +82,5 @@ describe('statusBadge', () => {
 
     it('shows a status it does not know as is, muted', () => {
         expect(statusBadge('suspended' as ConnectionStatus)).toEqual({ label: 'suspended', tone: 'queued' });
-    });
-});
-
-const holder = (...bindings: PermissionBinding[]) => ({ bindings });
-
-const WHATSAPP = { name: 'whatsapp', type: 'whatsapp' };
-const MAIL_WORK = { name: 'mail-work', type: 'mail' };
-
-const MAIL_TYPE: ConnectionTypeWire = {
-    type: 'mail',
-    label: 'Mail',
-    multiple: true,
-    creatable: true,
-    testable: false,
-    fields: [],
-};
-
-describe('permissions through an authorization snapshot', () => {
-    it('gates writing, reading and adding with the grants of the snapshot alone', async () => {
-        const subject = authorized(grant(Permission.CONNECTION_WRITE, { name: 'whatsapp' }), grant(Permission.CONNECTION_CREATE, { type: 'mail' }));
-
-        expect(await canWriteConnection(subject, WHATSAPP)).toBe(true);
-        expect(await canReadConnection(subject, WHATSAPP)).toBe(true);
-        expect(await canWriteConnection(subject, MAIL_WORK)).toBe(false);
-        expect(await canAddAccount(MAIL_TYPE, subject)).toBe(true);
-        expect(await canAddAccount({ ...MAIL_TYPE, type: 'calendar' }, subject)).toBe(false);
-    });
-
-    it('evaluates a reactive holder', async () => {
-        const subject = reactive(authorized(grant(Permission.CONNECTION_WRITE, { name: 'whatsapp' })));
-
-        expect(await canWriteConnection(subject, WHATSAPP)).toBe(true);
-        expect(await canWriteConnection(subject, MAIL_WORK)).toBe(false);
-    });
-
-    it('evaluates the holder of a refetched /me afresh', async () => {
-        const before = reactive(authorized(grant(Permission.CONNECTION_WRITE)));
-
-        expect(await canWriteConnection(before, WHATSAPP)).toBe(true);
-
-        const after = reactive(authorized(grant(Permission.CONNECTION_READ)));
-
-        expect(await canWriteConnection(after, WHATSAPP)).toBe(false);
-        expect(await canWriteConnection(before, WHATSAPP)).toBe(true);
-    });
-});
-
-describe('permissions', () => {
-    it('widgets, the live stream and reset need the write grant', async () => {
-        expect(await canWriteConnection(holder(grant(Permission.CONNECTION_WRITE)), WHATSAPP)).toBe(true);
-        expect(await canWriteConnection(holder(...ALL), WHATSAPP)).toBe(true);
-        expect(await canWriteConnection(holder(grant(Permission.CONNECTION_READ)), WHATSAPP)).toBe(false);
-        expect(await canWriteConnection(holder(), WHATSAPP)).toBe(false);
-        expect(await canWriteConnection(undefined, WHATSAPP)).toBe(false);
-    });
-
-    it('a write grant restricted to one connection writes only that one', async () => {
-        const restricted = holder(grant(Permission.CONNECTION_WRITE, { name: 'whatsapp' }));
-
-        expect(await canWriteConnection(restricted, WHATSAPP)).toBe(true);
-        expect(await canWriteConnection(restricted, MAIL_WORK)).toBe(false);
-    });
-
-    it('a write grant restricted by type checks the connection\'s type', async () => {
-        const restricted = holder(grant(Permission.CONNECTION_WRITE, { type: 'mail' }));
-
-        expect(await canWriteConnection(restricted, MAIL_WORK)).toBe(true);
-        expect(await canWriteConnection(restricted, WHATSAPP)).toBe(false);
-        // a connection of unknown type is checked by name alone, as the server does
-        expect(await canWriteConnection(restricted, { name: 'mail-work' })).toBe(false);
-        expect(await canWriteConnection(holder(grant(Permission.CONNECTION_WRITE, { name: 'mail-work' })), { name: 'mail-work' })).toBe(true);
-    });
-
-    it('reading takes the read or the write grant for the connection', async () => {
-        expect(await canReadConnection(holder(grant(Permission.CONNECTION_READ, { name: 'mail-work' })), MAIL_WORK)).toBe(true);
-        expect(await canReadConnection(holder(grant(Permission.CONNECTION_WRITE, { name: 'mail-work' })), MAIL_WORK)).toBe(true);
-        expect(await canReadConnection(holder(grant(Permission.CONNECTION_READ, { name: 'mail-work' })), WHATSAPP)).toBe(false);
-        expect(await canReadConnection(holder(grant(Permission.CONNECTION_CREATE)), MAIL_WORK)).toBe(false);
-    });
-
-    it('adding an account needs the create grant for the type', async () => {
-        expect(await canAddAccount(MAIL_TYPE, holder(grant(Permission.CONNECTION_CREATE)))).toBe(true);
-        expect(await canAddAccount(MAIL_TYPE, holder(grant(Permission.CONNECTION_CREATE, { type: 'mail' })))).toBe(true);
-        expect(await canAddAccount(MAIL_TYPE, holder(grant(Permission.CONNECTION_CREATE, { type: 'calendar' })))).toBe(false);
-        expect(await canAddAccount(MAIL_TYPE, holder(grant(Permission.CONNECTION_WRITE)))).toBe(false);
-        expect(await canAddAccount(MAIL_TYPE, undefined)).toBe(false);
-    });
-
-    it('adding an account needs a type that takes several, created here', async () => {
-        const creator = holder(grant(Permission.CONNECTION_CREATE));
-
-        expect(await canAddAccount({ ...MAIL_TYPE, multiple: false }, creator)).toBe(false);
-        expect(await canAddAccount({ ...MAIL_TYPE, creatable: false }, creator)).toBe(false);
     });
 });

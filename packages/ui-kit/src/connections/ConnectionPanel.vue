@@ -16,7 +16,7 @@ import type { IConnectionsApi } from './types.ts';
 const props = defineProps<{
     api: IConnectionsApi;
     name: string;
-    /** The principal holds chamvi_connection_write for the connection: widgets, the live stream and reset. */
+    /** The session is allowed chamvi_connection_write: widgets, the live stream and reset. */
     write: boolean;
 }>();
 
