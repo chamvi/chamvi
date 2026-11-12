@@ -39,6 +39,8 @@ const verdict = useResolved<readonly [string | undefined, MeWire | undefined], {
         undefined :
         { name, write: await canWriteConnection(principal, { name, type: WHATSAPP_TYPE.type }) }),
     undefined,
+    // a writer's verdict (the QR stream) never outlives its principal
+    { reset: true },
 );
 // the panel waits for the verdict of the open session: it decides once whether to follow the stream (and the QR)
 const write = computed(() => (verdict.value && verdict.value.name === current.value ? verdict.value.write : undefined));

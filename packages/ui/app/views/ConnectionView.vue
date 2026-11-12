@@ -38,6 +38,8 @@ const verdict = useResolved<readonly [string, MeWire | undefined], { name: strin
         return { name: current, write: await canWriteConnection(principal, { name: current, type }) };
     },
     undefined,
+    // a writer's verdict (the stream) never outlives its principal
+    { reset: true },
 );
 // the panel waits for the verdict of this name: it decides once whether to follow the stream
 const write = computed(() => (verdict.value?.name === name.value ? verdict.value.write : undefined));

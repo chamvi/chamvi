@@ -31,7 +31,7 @@ Any other name works too: a principal may do X when it holds a binding for X who
 ## How a check reads a binding
 
 - Bindings of one name are alternatives: one that passes is enough. The policies of one binding must all pass (or follow the binding's `permission.decisionStrategy`).
-- A route on one resource checks with that resource's attributes, before it answers 404. An agent the app does not hold counts as `private: true`.
+- A route on one resource checks with that resource's attributes. An agent route checks before it answers 404, and an agent the app does not hold counts as `private: true`. A run route answers 404 for an unknown run and for a private agent's run the principal may not read, 403 for any other run it may not read.
 - A collection (a list route, a sidebar item) asks whether the principal may do it to some resource: a policy whose data is missing counts as passed. Each row is then checked with its own attributes.
 - `date` and `time` policies are evaluated at each check with the engine's clock, also later in a run: the invoker is a snapshot, its policies are not.
 - An `identity` policy sees the authup identity (`type`, `id`, `realmId`, ...); static tokens and `oidc()` principals have none, so it fails for them.

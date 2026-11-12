@@ -70,7 +70,7 @@ function toggle(which: 'kv' | 'doc', key: string): void {
         class="card notice"
     >
         Reading agent state needs <b class="mono">chamvi_state_read</b><template v-if="isPrivate">
-            and, for this private agent, <b class="mono">agent:{{ agent }}:read</b>
+            and, for this private agent, <b class="mono">chamvi_agent_read</b>
         </template>.
     </div>
     <template v-else>
