@@ -15,11 +15,11 @@ import type {
 } from '@chamvi/core';
 
 /** An invoker or approver as it leaves the package: identity only, never the grants. */
-export type InvokerView = Omit<Invoker, 'permissions'>;
+export type InvokerView = Omit<Invoker, 'bindings'>;
 
 /**
  * A run as it leaves the package (REST, SSE, MCP): without the internal
- * claim and conversation binding, and the invoker without its permissions.
+ * claim and conversation binding, and the invoker without its bindings.
  */
 export type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
     trigger: Omit<TriggerEnvelope, 'invoker'> & { invoker?: InvokerView };

@@ -85,11 +85,11 @@ afterEach(() => {
     document.body.innerHTML = '';
 });
 
-function me(permissions: PermissionBinding[]): MeWire {
+function me(bindings: PermissionBinding[]): MeWire {
     return {
         id: 'peter',
         kind: 'token',
-        permissions,
+        bindings,
     };
 }
 

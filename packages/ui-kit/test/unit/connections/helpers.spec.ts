@@ -92,7 +92,7 @@ describe('statusBadge', () => {
     });
 });
 
-const holder = (...permissions: PermissionBinding[]) => ({ permissions });
+const holder = (...bindings: PermissionBinding[]) => ({ bindings });
 
 const WHATSAPP = { name: 'whatsapp', type: 'whatsapp' };
 const MAIL_WORK = { name: 'mail-work', type: 'mail' };

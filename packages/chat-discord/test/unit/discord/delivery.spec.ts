@@ -236,7 +236,7 @@ describe('Discord inbound', () => {
         expect(runs[0]?.trigger.invoker).toEqual({
             id: ALICE,
             kind: 'discord',
-            permissions: [],
+            bindings: [],
         });
         expect(JSON.stringify(runs)).not.toContain(SENTINEL_TOKEN);
         expect(value.errors).toEqual([]);
@@ -322,7 +322,7 @@ describe('Discord inbound', () => {
                     return {
                         id: identity.author,
                         kind: 'discord',
-                        permissions: [],
+                        bindings: [],
                     };
                 },
             },
@@ -385,7 +385,7 @@ describe('Discord inbound', () => {
                     return {
                         id: identity.author,
                         kind: 'discord',
-                        permissions: [],
+                        bindings: [],
                     };
                 },
             },

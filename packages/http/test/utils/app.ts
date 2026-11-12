@@ -341,12 +341,12 @@ export async function permissionsAuth(request: Request): Promise<Principal | und
         return undefined;
     }
 
-    const permissions = match[1] ? JSON.parse(Buffer.from(match[1], 'base64url').toString('utf8')) as PermissionBinding[] : [];
+    const bindings = match[1] ? JSON.parse(Buffer.from(match[1], 'base64url').toString('utf8')) as PermissionBinding[] : [];
 
     return {
-        id: `p:${permissions.map((binding) => binding.permission.name).join(',')}`,
+        id: `p:${bindings.map((binding) => binding.permission.name).join(',')}`,
         kind: 'token',
-        permissions,
+        bindings,
     };
 }
 

@@ -132,7 +132,7 @@ const whatsapp = createWhatsAppChat({
     resolveInvoker: (identity) => ({
         id: identity.sender,
         kind: 'whatsapp',
-        permissions: [],
+        bindings: [],
     }),
     approvalUrl,
     // render the QR for the phone; never log it
@@ -168,7 +168,7 @@ const phone = whatsappModule({
     resolveInvoker: (identity) => ({
         id: identity.sender,
         kind: 'whatsapp',
-        permissions: [],
+        bindings: [],
     }),
     // approvalUrl defaults to the dashboard under CHAMVI_PUBLIC_URL
 });
@@ -213,7 +213,7 @@ const discord = createDiscordChat({
     resolveInvoker: (identity) => ({
         id: identity.author,
         kind: 'discord',
-        permissions: [],
+        bindings: [],
     }),
     approvalUrl,
 });
@@ -244,7 +244,7 @@ const discordBot = discordModule({
     resolveInvoker: (identity) => ({
         id: identity.author,
         kind: 'discord',
-        permissions: [],
+        bindings: [],
     }),
 });
 

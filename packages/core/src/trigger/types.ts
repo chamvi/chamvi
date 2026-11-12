@@ -28,7 +28,7 @@ export type Invoker = {
      * checked with `can()` of `@chamvi/access`. An entry that is not a
      * binding (a run stored with the older string grants) grants nothing.
      */
-    permissions: readonly PermissionBinding[];
+    bindings: readonly PermissionBinding[];
     /** What an `identity` policy evaluates; set for authup logins. */
     identity?: PermissionIdentity;
 };

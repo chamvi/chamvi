@@ -607,7 +607,7 @@ describe('Engine.approve', () => {
     const approver = {
         id: 'u1',
         kind: 'authup',
-        permissions: [],
+        bindings: [],
     };
 
     it('approve answers the current wait point without a token', async () => {
@@ -712,7 +712,7 @@ describe('Engine.approve', () => {
             approver: {
                 id: '',
                 kind: 'x',
-                permissions: [],
+                bindings: [],
             },
         })).rejects.toThrow(ValidationError);
         expect(getRun).not.toHaveBeenCalled();

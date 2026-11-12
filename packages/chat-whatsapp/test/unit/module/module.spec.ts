@@ -64,7 +64,7 @@ function world(input: {
         resolveInvoker: (identity) => ({
             id: identity.sender, 
             kind: 'whatsapp', 
-            permissions: [], 
+            bindings: [], 
         }),
         state: createMemoryState(),
         approvalUrl: (ref) => `https://chamvi.example/ui/approvals?run=${ref.runId}`,

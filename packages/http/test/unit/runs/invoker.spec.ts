@@ -35,7 +35,7 @@ async function aliceAuth(request: Request): Promise<Principal | undefined> {
     return {
         id: 'user-1',
         kind: 'authup',
-        permissions: ALICE_PERMISSIONS,
+        bindings: ALICE_PERMISSIONS,
         claims: { preferred_username: 'alice', email: 'alice@example.com' },
     };
 }
@@ -61,7 +61,7 @@ describe('run invoker over REST', () => {
             id: 'user-1',
             kind: 'authup',
             name: 'alice',
-            permissions: ALICE_PERMISSIONS,
+            bindings: ALICE_PERMISSIONS,
         });
     });
 
@@ -72,7 +72,7 @@ describe('run invoker over REST', () => {
         expect((await store.runs.findOne(runId))?.trigger.invoker).toEqual({
             id: 'admin',
             kind: 'token',
-            permissions: allPermissions(),
+            bindings: allPermissions(),
         });
     });
 
@@ -85,7 +85,7 @@ describe('run invoker over REST', () => {
             return {
                 id: 'user-2',
                 kind: 'oidc',
-                permissions: [restricted(Permission.AGENT_RUN, { name: 'gate' })],
+                bindings: [restricted(Permission.AGENT_RUN, { name: 'gate' })],
                 claims: { email: 'bob@example.com' },
             };
         };
@@ -108,7 +108,7 @@ describe('run invoker over REST', () => {
                 invoker: {
                     id: 'forged',
                     kind: 'user',
-                    permissions: allPermissions(),
+                    bindings: allPermissions(),
                 },
             },
         });
@@ -137,7 +137,7 @@ describe('run invoker over REST', () => {
         expect((await store.runs.findOne(runId))?.trigger).not.toHaveProperty('invoker');
     });
 
-    it('drops the invoker permissions from GET /runs and GET /runs/:id', async () => {
+    it('drops the invoker bindings from GET /runs and GET /runs/:id', async () => {
         const { app } = setup();
         const runId = await startRun(app, ALICE_TOKEN);
 
@@ -158,7 +158,7 @@ describe('run invoker over REST', () => {
         });
     });
 
-    it('records the approver on the wait step and drops its permissions from responses', async () => {
+    it('records the approver on the wait step and drops its bindings from responses', async () => {
         const {
             app,
             engine,
@@ -185,7 +185,7 @@ describe('run invoker over REST', () => {
             id: 'user-1',
             kind: 'authup',
             name: 'alice',
-            permissions: ALICE_PERMISSIONS,
+            bindings: ALICE_PERMISSIONS,
         });
 
         const view = await (await call(app, 'GET', `/runs/${runId}`, { token: READER_TOKEN })).json();

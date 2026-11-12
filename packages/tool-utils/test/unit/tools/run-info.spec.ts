@@ -59,7 +59,7 @@ describe('run_info', () => {
                     kind: 'user',
                     id: 'u1',
                     name: 'Ada',
-                    permissions: [],
+                    bindings: [],
                 },
             },
         });
@@ -101,7 +101,7 @@ describe('run_info', () => {
                 invoker: {
                     kind: 'user',
                     id: 'u1',
-                    permissions: [{ permission: { name: 'secret:perm' } }],
+                    bindings: [{ permission: { name: 'secret:perm' } }],
                 },
             },
             parent: {

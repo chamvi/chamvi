@@ -26,7 +26,7 @@ export function toInvoker(value: unknown, label = 'invoker'): Invoker {
         id,
         kind,
         name,
-        permissions,
+        bindings,
         identity,
     } = value as Record<string, unknown>;
 
@@ -42,10 +42,10 @@ export function toInvoker(value: unknown, label = 'invoker'): Invoker {
         throw new ValidationError(`The ${label} name must be a string.`);
     }
 
-    const validPermissions = Array.isArray(permissions) && permissions.every((p) => isPermissionBinding(p));
+    const validBindings = Array.isArray(bindings) && bindings.every((p) => isPermissionBinding(p));
 
-    if (!validPermissions) {
-        throw new ValidationError(`The ${label} permissions must be an array of permission bindings.`);
+    if (!validBindings) {
+        throw new ValidationError(`The ${label} bindings must be an array of permission bindings.`);
     }
 
     if (identity !== undefined) {
@@ -56,7 +56,7 @@ export function toInvoker(value: unknown, label = 'invoker'): Invoker {
         id,
         kind,
         ...(name !== undefined ? { name } : {}),
-        permissions,
+        bindings,
         ...(identity !== undefined ? { identity } : {}),
     });
 }

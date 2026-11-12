@@ -270,7 +270,7 @@ describe('dispatchTo()', () => {
         const invoker: Invoker = {
             id: 'u1',
             kind: 'user',
-            permissions: [{
+            bindings: [{
                 permission: { name: Permission.AGENT_RUN },
                 policies: [{ type: 'attributes', query: { name: 'auditor' } } as never],
             }],
@@ -291,7 +291,7 @@ describe('dispatchTo()', () => {
         const invoker: Invoker = {
             id: 'u1',
             kind: 'user',
-            permissions: [{
+            bindings: [{
                 permission: { name: Permission.AGENT_RUN },
                 policies: [{ type: 'attributes', query: { name: 'reporter', private: false } } as never],
             }],
@@ -389,7 +389,7 @@ describe('dispatchTo()', () => {
             invoker: {
                 id: 'u1', 
                 kind: 'user', 
-                permissions: [], 
+                bindings: [], 
             },
         });
         const stored = await store.runs.findOne(parentId);
@@ -400,7 +400,7 @@ describe('dispatchTo()', () => {
                 invoker: {
                     id: 'u1', 
                     kind: 'user', 
-                    permissions: ['agent:reporter:run', '*'] as never, 
+                    bindings: ['agent:reporter:run', '*'] as never, 
                 },
             },
         });
@@ -438,7 +438,7 @@ describe('dispatchTo()', () => {
             invoker: {
                 id: 'u1',
                 kind: 'user',
-                permissions: [],
+                bindings: [],
             },
         });
         const stored = await store.runs.findOne(parentId);
@@ -449,7 +449,7 @@ describe('dispatchTo()', () => {
                 invoker: {
                     id: 'u1',
                     kind: 'user',
-                    permissions: ['agent:auditor:run', { permission: { name: Permission.RUN_READ } }] as never,
+                    bindings: ['agent:auditor:run', { permission: { name: Permission.RUN_READ } }] as never,
                 },
             },
         });
@@ -465,7 +465,7 @@ describe('dispatchTo()', () => {
         expect(child?.trigger.invoker).toEqual({
             id: 'u1',
             kind: 'user',
-            permissions: [{ permission: { name: Permission.RUN_READ } }],
+            bindings: [{ permission: { name: Permission.RUN_READ } }],
         });
         expect(errors).toEqual([]);
     });
@@ -474,7 +474,7 @@ describe('dispatchTo()', () => {
         const invoker: Invoker = {
             id: 'u1',
             kind: 'user',
-            permissions: [],
+            bindings: [],
         };
         const { engine, store } = setup({
             auditor: [turn(call({ agent: 'auditor', payload: 'self' }, 'c1')), text('done')],

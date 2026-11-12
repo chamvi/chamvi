@@ -96,7 +96,7 @@ describe('README example', () => {
         expect(runs[0]?.trigger.invoker).toEqual({
             id: 'user-1',
             kind: 'chat',
-            permissions: [],
+            bindings: [],
         });
         expect(runs[0]?.taint?.source).toBe('channel:chat');
         expect(runs[0]?.conversation?.scope.identity).toEqual(expect.objectContaining({

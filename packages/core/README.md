@@ -263,7 +263,7 @@ After exposure, outbound tools require durable approval (or are denied). The gat
 
 ### Invokers and tool access
 
-A run can carry its invoker: who started it, as an authenticator resolved it (`@chamvi/http` sets it from the request's principal). Its `permissions` are authup permission bindings (`{ permission: { name }, policies? }`), checked with `can()` of `@chamvi/access`. `toolPolicy` decides per tool whether the run may use it; a refused tool is not offered to the model. A policy that returns a promise is awaited again before each call: a streaming `defineTool()` tool then has to be an `async function*` to keep streaming (an effect tool always returns its final value), as a plain function that returns an `AsyncIterable` is reduced to its final value (a synchronous policy changes nothing).
+A run can carry its invoker: who started it, as an authenticator resolved it (`@chamvi/http` sets it from the request's principal). Its `bindings` are authup permission bindings (`{ permission: { name }, policies? }`), checked with `can()` of `@chamvi/access`. `toolPolicy` decides per tool whether the run may use it; a refused tool is not offered to the model. A policy that returns a promise is awaited again before each call: a streaming `defineTool()` tool then has to be an `async function*` to keep streaming (an effect tool always returns its final value), as a plain function that returns an `AsyncIterable` is reduced to its final value (a synchronous policy changes nothing).
 
 ```typescript
 const ops = defineModelAgent({
@@ -293,7 +293,7 @@ const { runId } = await engine.dispatch({
     invoker: {
         id: 'u-42',
         kind: 'user',
-        permissions: [{
+        bindings: [{
             permission: { name: Permission.TOOL_USE },
             policies: [{ type: 'attributes', query: { agent: 'ops', name: 'deploy' } }],
         }],
@@ -302,10 +302,10 @@ const { runId } = await engine.dispatch({
 
 // later, once the run waits: the approver is recorded on the run's wait step
 const { approvalId } = (await engine.getRun(runId))!.waiting!;
-await engine.approve(runId, { approvalId, approved: true, approver: { id: 'u-7', kind: 'user', permissions: [] } });
+await engine.approve(runId, { approvalId, approved: true, approver: { id: 'u-7', kind: 'user', bindings: [] } });
 ```
 
-- The invoker (`{ id, kind, name?, permissions, identity? }`) is a snapshot taken at dispatch. A run keeps it across approvals and restarts; revoking a grant later does not reach a run that already holds it.
+- The invoker (`{ id, kind, name?, bindings, identity? }`) is a snapshot taken at dispatch. A run keeps it across approvals and restarts; revoking a grant later does not reach a run that already holds it.
 - With an invoker, the `idempotencyKey` is scoped to it (`<agent>:<channel>:<kind>:<id>`): only the same invoker's retry is deduplicated, another invoker with the same key gets its own run.
 - Tool code sees it as `context.run.trigger.invoker` in tools and the factory and `ctx.run.trigger.invoker` in effect hooks and the agent hooks.
 - The policy covers state tools too. A call to a refused tool that still arrives fails as a tool error and the run goes on: the step records it as `tool_not_allowed` (`ToolNotAllowedError`), whether the model called it anyway (the model sees the AI SDK's unavailable-tool error) or an approved call from an older history reached the engine's re-check.

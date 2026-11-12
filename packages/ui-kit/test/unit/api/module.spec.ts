@@ -172,7 +172,7 @@ describe('createApiClient', () => {
         const { fetch, requests } = createFakeFetch([unauth(), json({
             id: 'u',
             kind: 'k',
-            permissions: [],
+            bindings: [],
         }), unauth(), unauth()]);
         const client = createApiClient({
             apiBase: '',
@@ -197,7 +197,7 @@ describe('createApiClient', () => {
         expect(await client.me()).toEqual({
             id: 'u',
             kind: 'k',
-            permissions: [],
+            bindings: [],
         });
         expect(requests.map((r) => r.headers.get('authorization'))).toEqual(['Bearer old', 'Bearer new']);
         expect(unauthorized).toBe(0);

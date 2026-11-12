@@ -87,7 +87,7 @@ const openclaw = (claims: Record<string, unknown>): Principal | undefined => (cl
     {
         id: 'openclaw',
         kind: 'oidc',
-        permissions: [restricted(Permission.AGENT_RUN, { name: 'echo' })],
+        bindings: [restricted(Permission.AGENT_RUN, { name: 'echo' })],
     } :
     undefined);
 

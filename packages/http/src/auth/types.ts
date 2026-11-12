@@ -11,7 +11,7 @@ export type Principal = {
     id: string;
     kind: 'token' | 'authup' | 'oidc' | (string & {});
     /** Granted permissions: authup bindings with resolved policy trees (plain data). */
-    permissions: readonly PermissionBinding[];
+    bindings: readonly PermissionBinding[];
     /** What an `identity` policy evaluates; set by `authup()`. */
     identity?: PermissionIdentity;
     claims?: Record<string, unknown>;

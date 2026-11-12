@@ -81,7 +81,7 @@ async function serve(input: ServeInput = {}) {
         resolveInvoker: (identity) => ({
             id: identity.author,
             kind: 'discord',
-            permissions: [],
+            bindings: [],
         }),
         state: createMemoryState(),
         clientFactory: clients.factory,
@@ -92,7 +92,7 @@ async function serve(input: ServeInput = {}) {
         resolveInvoker: (identity) => ({
             id: identity.author,
             kind: 'discord',
-            permissions: [],
+            bindings: [],
         }),
         state: createMemoryState(),
         clientFactory: clients.factory,

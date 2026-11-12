@@ -53,7 +53,7 @@ const envelope = {
     invoker: {
         id: 'reader',
         kind: 'test',
-        permissions: [],
+        bindings: [],
     },
 };
 class InspectableConversationRepository extends MemoryConversationRepository {
@@ -201,7 +201,7 @@ describe('scoped memory tools', () => {
                 ctx.run.trigger.invoker = {
                     id: 'administrator',
                     kind: 'test',
-                    permissions: allPermissions(),
+                    bindings: allPermissions(),
                 };
                 Object.assign(ctx.run, { conversation: { scope: { identity: { ...identity, chat: 'other' } } } });
 

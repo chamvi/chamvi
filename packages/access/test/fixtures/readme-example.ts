@@ -6,7 +6,7 @@ const onlyTriage = { type: 'attributes', query: { name: 'triage' } };
 
 // may run every agent, and read only the agent "triage"
 const principal: PermissionHolder = {
-    permissions: [
+    bindings: [
         { permission: { name: Permission.AGENT_RUN } },
         { permission: { name: Permission.AGENT_READ }, policies: [onlyTriage] },
     ],

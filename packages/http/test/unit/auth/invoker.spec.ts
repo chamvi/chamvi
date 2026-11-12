@@ -14,21 +14,21 @@ const READ: PermissionBinding = { permission: { name: Permission.RUN_READ } };
 const USER_ID = '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d';
 
 describe('toInvoker', () => {
-    it('keeps id, kind and a copy of the permissions, never the claims', () => {
-        const permissions = [READ];
+    it('keeps id, kind and a copy of the bindings, never the claims', () => {
+        const bindings = [READ];
         const invoker = toInvoker({
             id: 'u1',
             kind: 'oidc',
-            permissions,
+            bindings,
             claims: { sub: 'u1', secret: 'x' },
         });
 
         expect(invoker).toEqual({
             id: 'u1',
             kind: 'oidc',
-            permissions: [READ],
+            bindings: [READ],
         });
-        expect(invoker.permissions).not.toBe(permissions);
+        expect(invoker.bindings).not.toBe(bindings);
     });
 
     it('keeps a copy of the identity', () => {
@@ -40,7 +40,7 @@ describe('toInvoker', () => {
         const invoker = toInvoker({
             id: USER_ID,
             kind: 'authup',
-            permissions: [READ],
+            bindings: [READ],
             identity,
         });
 
@@ -52,7 +52,7 @@ describe('toInvoker', () => {
         const base = {
             id: 'u1',
             kind: 'authup',
-            permissions: [],
+            bindings: [],
         };
 
         expect(toInvoker({
@@ -80,11 +80,11 @@ describe('toInvoker', () => {
         expect(toInvoker({
             id: 'ci',
             kind: 'token',
-            permissions: [READ],
+            bindings: [READ],
         })).toEqual({
             id: 'ci',
             kind: 'token',
-            permissions: [READ],
+            bindings: [READ],
         });
     });
 });

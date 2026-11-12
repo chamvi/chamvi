@@ -219,7 +219,7 @@ describe('activityLabel', () => {
 
 describe('agent helpers', () => {
     it('hiddenRunsNotice names the read grant only for a private agent the principal may not read', async () => {
-        const holder = (...permissions: ReturnType<typeof grant>[]) => ({ permissions });
+        const holder = (...bindings: ReturnType<typeof grant>[]) => ({ bindings });
         const alfred = agent({ name: 'alfred', private: true });
 
         expect(await hiddenRunsNotice(alfred, holder(grant(Permission.RUN_READ)))).toBe('Runs hidden: reading them needs chamvi_agent_read for alfred');
@@ -233,10 +233,10 @@ describe('agent helpers', () => {
     it('canStartAgent needs chamvi_agent_run for the agent and an http subscription', async () => {
         const triage = agent({ channels: [{ channel: 'http', id: 'http' }] });
 
-        expect(await canStartAgent(triage, { permissions: [grant(Permission.AGENT_RUN, { name: 'triage' })] })).toBe(true);
-        expect(await canStartAgent(triage, { permissions: [grant(Permission.AGENT_RUN, { name: 'other' })] })).toBe(false);
-        expect(await canStartAgent(triage, { permissions: [grant(Permission.AGENT_RUN, { private: false })] })).toBe(true);
-        expect(await canStartAgent(agent(), { permissions: ALL })).toBe(false);
+        expect(await canStartAgent(triage, { bindings: [grant(Permission.AGENT_RUN, { name: 'triage' })] })).toBe(true);
+        expect(await canStartAgent(triage, { bindings: [grant(Permission.AGENT_RUN, { name: 'other' })] })).toBe(false);
+        expect(await canStartAgent(triage, { bindings: [grant(Permission.AGENT_RUN, { private: false })] })).toBe(true);
+        expect(await canStartAgent(agent(), { bindings: ALL })).toBe(false);
         expect(await canStartAgent(triage, undefined)).toBe(false);
     });
 

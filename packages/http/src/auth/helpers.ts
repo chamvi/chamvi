@@ -23,7 +23,7 @@ const NAME_CLAIMS = ['name', 'preferred_username'] as const;
 
 /**
  * The run invoker (or approver) for a principal: a snapshot of `id`,
- * `kind`, `permissions` and `identity`, plus a display `name` from the claims
+ * `kind`, `bindings` and `identity`, plus a display `name` from the claims
  * (`name`, then `preferred_username`; never `email`). Never carries the
  * claims themselves.
  */
@@ -36,7 +36,7 @@ export function toInvoker(principal: Principal): Invoker {
         id: principal.id,
         kind: principal.kind,
         ...(name !== undefined ? { name } : {}),
-        permissions: [...principal.permissions],
+        bindings: [...principal.bindings],
         ...(principal.identity !== undefined ? { identity: { ...principal.identity } } : {}),
     };
 }
@@ -63,7 +63,7 @@ export function readBearerToken(request: Request): string | undefined {
 
 /**
  * True for a principal every route can rely on: a non-empty `id` and `kind`,
- * `permissions` an array of permission bindings and, when given, an
+ * `bindings` an array of permission bindings and, when given, an
  * `identity` of type `user` or `client` with a non-empty `id`.
  */
 export function isPrincipal(value: Principal): boolean {
@@ -71,8 +71,8 @@ export function isPrincipal(value: Principal): boolean {
         value.id.length > 0 &&
         typeof value.kind === 'string' &&
         value.kind.length > 0 &&
-        Array.isArray(value.permissions) &&
-        value.permissions.every((permission) => isPermissionBinding(permission)) &&
+        Array.isArray(value.bindings) &&
+        value.bindings.every((binding) => isPermissionBinding(binding)) &&
         (value.identity === undefined || isIdentity(value.identity));
 }
 
@@ -130,7 +130,7 @@ export async function resolvePrincipal(request: Request, authenticators: readonl
 
         // a server misconfiguration (500 and onError), never a client error nor a reason to try the next authenticator
         if (!isPrincipal(principal)) {
-            throw new InvalidAgentDefinitionError('An authenticator resolved a principal without a non-empty id and kind and a permissions array of permission bindings.');
+            throw new InvalidAgentDefinitionError('An authenticator resolved a principal without a non-empty id and kind and a bindings array of permission bindings.');
         }
 
         return principal;

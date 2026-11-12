@@ -132,7 +132,7 @@ describe('authup', () => {
                 realmName: 'master',
             },
         });
-        expect(principal?.permissions.map((binding) => binding.permission.name)).toEqual([
+        expect(principal?.bindings.map((binding) => binding.permission.name)).toEqual([
             Permission.AGENT_RUN,
             Permission.RUN_READ,
         ]);
@@ -159,7 +159,7 @@ describe('authup', () => {
 
         expect(loads()).toBe(2);
         expect(errors).toEqual([]);
-        expect(principal?.permissions).toHaveLength(2);
+        expect(principal?.bindings).toHaveLength(2);
     });
 
     it('grants nothing and reports once when the refreshed catalog is still stale', async () => {
@@ -171,7 +171,7 @@ describe('authup', () => {
         } = setup({ catalogs: [stale] });
         const principal = await authenticate(request('Bearer good'));
 
-        expect(principal).toMatchObject({ id: USER, permissions: [] });
+        expect(principal).toMatchObject({ id: USER, bindings: [] });
         expect(loads()).toBe(2);
         expect(errors).toHaveLength(1);
     });
@@ -180,11 +180,11 @@ describe('authup', () => {
         const failure = new Error('403 permission_read');
         const { authenticate, errors } = setup({ catalogs: [failure, CATALOG] });
 
-        expect(await authenticate(request('Bearer good'))).toMatchObject({ id: USER, permissions: [] });
+        expect(await authenticate(request('Bearer good'))).toMatchObject({ id: USER, bindings: [] });
         expect(errors).toEqual([failure]);
 
         // the next request fetches again
-        expect((await authenticate(request('Bearer good')))?.permissions).toHaveLength(2);
+        expect((await authenticate(request('Bearer good')))?.bindings).toHaveLength(2);
         expect(errors).toEqual([failure]);
     });
 
@@ -221,7 +221,7 @@ describe('authup', () => {
 
         await Promise.all([1, 2].map(() => authenticate(request('Bearer good'))));
 
-        expect((await authenticate(request('Bearer good')))?.permissions).toEqual([]);
+        expect((await authenticate(request('Bearer good')))?.bindings).toEqual([]);
         expect(errors).toHaveLength(1);
 
         const { message } = errors[0] as Error;
@@ -243,7 +243,7 @@ describe('authup', () => {
         expect(loads()).toBe(1);
         expect(errors).toHaveLength(1);
 
-        expect((await authenticate(request('Bearer good')))?.permissions).toHaveLength(2);
+        expect((await authenticate(request('Bearer good')))?.bindings).toHaveLength(2);
         expect(loads()).toBe(2);
         expect(errors).toHaveLength(1);
     });
@@ -322,7 +322,7 @@ describe('authup', () => {
             },
         });
 
-        expect(await authenticate(request('Bearer good'))).toMatchObject({ permissions: [] });
+        expect(await authenticate(request('Bearer good'))).toMatchObject({ bindings: [] });
         expect(errors).toEqual([failure]);
     });
 
@@ -349,7 +349,7 @@ describe('authup', () => {
         expect(await authenticate(request('Bearer good'))).toMatchObject({
             id: USER, 
             identity: { id: USER }, 
-            permissions: [], 
+            bindings: [], 
         });
         expect(loads()).toBe(0);
     });
@@ -358,7 +358,7 @@ describe('authup', () => {
         const { authenticate, loads } = setup({ data: tokenData({ sub_kind: 'robot' as never }) });
         const principal = await authenticate(request('Bearer good'));
 
-        expect(principal).toMatchObject({ id: USER, permissions: [] });
+        expect(principal).toMatchObject({ id: USER, bindings: [] });
         expect(principal?.identity).toBeUndefined();
         expect(loads()).toBe(0);
     });

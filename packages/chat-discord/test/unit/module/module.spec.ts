@@ -93,7 +93,7 @@ function world(input: WorldInput = {}) {
         resolveInvoker: (identity) => ({
             id: identity.author,
             kind: 'discord',
-            permissions: [],
+            bindings: [],
         }),
         state: createMemoryState(),
         approvalUrl: (ref) => `https://chamvi.example/ui/approvals?run=${ref.runId}`,

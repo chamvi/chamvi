@@ -55,7 +55,7 @@ const CONFIG: UiConfig = {
 };
 
 type World = {
-    permissions: PermissionBinding[];
+    bindings: PermissionBinding[];
     connections?: ConnectionWire[];
     pages?: unknown[];
     current?: string;
@@ -98,7 +98,7 @@ async function mountShell(world: World): Promise<HTMLElement> {
     const principal: MeWire = {
         id: 'peter',
         kind: 'token',
-        permissions: world.permissions,
+        bindings: world.bindings,
     };
     const session = { principal: shallowRef(principal), signOut: world.signOut ?? (async () => undefined) };
     const app = createApp(defineComponent(() => () => h(AppShell, {
@@ -134,7 +134,7 @@ const pageLink = (root: HTMLElement) => root.querySelector<HTMLAnchorElement>('a
 describe('AppShell', () => {
     it('shows a page item for a reader of its type', async () => {
         const root = await mountShell({
-            permissions: [grant(Permission.CONNECTION_READ, { name: 'mail-work' })],
+            bindings: [grant(Permission.CONNECTION_READ, { name: 'mail-work' })],
             connections: [{
                 name: 'mail-work', 
                 type: 'mail', 
@@ -146,14 +146,14 @@ describe('AppShell', () => {
     });
 
     it('shows it for a holder of chamvi_connection_create with zero connections', async () => {
-        const root = await mountShell({ permissions: [grant(Permission.CONNECTION_CREATE)] });
+        const root = await mountShell({ bindings: [grant(Permission.CONNECTION_CREATE)] });
 
         expect(pageLink(root)).not.toBeNull();
     });
 
     it('shows a creator restricted by type only the page of that type', async () => {
         const root = await mountShell({
-            permissions: [grant(Permission.CONNECTION_CREATE, { type: 'calendar' })],
+            bindings: [grant(Permission.CONNECTION_CREATE, { type: 'calendar' })],
             pages: [MAIL_PAGE, CALENDAR_PAGE],
         });
 
@@ -163,7 +163,7 @@ describe('AppShell', () => {
 
     it('hides it otherwise', async () => {
         const root = await mountShell({
-            permissions: [grant(Permission.CONNECTION_READ, { name: 'other' })],
+            bindings: [grant(Permission.CONNECTION_READ, { name: 'other' })],
             connections: [{
                 name: 'other', 
                 type: 'whatsapp', 
@@ -175,12 +175,12 @@ describe('AppShell', () => {
     });
 
     it('does not take a connection read grant for chamvi_connection_create', async () => {
-        expect(pageLink(await mountShell({ permissions: [grant(Permission.CONNECTION_READ)] }))).toBeNull();
+        expect(pageLink(await mountShell({ bindings: [grant(Permission.CONNECTION_READ)] }))).toBeNull();
     });
 
     it('counts the distinct permission names the principal holds', async () => {
         const root = await mountShell({
-            permissions: [
+            bindings: [
                 grant(Permission.CONNECTION_READ, { name: 'a' }),
                 grant(Permission.CONNECTION_READ, { name: 'b' }),
                 grant(Permission.RUN_READ),
@@ -192,7 +192,7 @@ describe('AppShell', () => {
 
     it('links a page by its full path and leaves it to the browser', async () => {
         const navigate = vi.fn();
-        const root = await mountShell({ permissions: ALL, navigate });
+        const root = await mountShell({ bindings: ALL, navigate });
         const link = pageLink(root)!;
         const event = new MouseEvent('click', { bubbles: true, cancelable: true });
 
@@ -204,7 +204,7 @@ describe('AppShell', () => {
 
     it('draws the fixed items as links under the ui base', async () => {
         const root = await mountShell({
-            permissions: ALL,
+            bindings: ALL,
             connections: [{
                 name: 'mail-work', 
                 type: 'mail', 
@@ -219,7 +219,7 @@ describe('AppShell', () => {
 
     it('routes a fixed item through navigate when the host has a router', async () => {
         const navigate = vi.fn();
-        const root = await mountShell({ permissions: ALL, navigate });
+        const root = await mountShell({ bindings: ALL, navigate });
         const event = new MouseEvent('click', { bubbles: true, cancelable: true });
 
         root.querySelector('a[data-nav="runs"]')!.dispatchEvent(event);
@@ -230,7 +230,7 @@ describe('AppShell', () => {
 
     it('leaves a modified click on a fixed item to the browser', async () => {
         const navigate = vi.fn();
-        const root = await mountShell({ permissions: ALL, navigate });
+        const root = await mountShell({ bindings: ALL, navigate });
         const event = new MouseEvent('click', {
             bubbles: true,
             cancelable: true,
@@ -249,7 +249,7 @@ describe('AppShell', () => {
 
         vi.spyOn(window.location, 'replace').mockImplementation(replace as never);
 
-        const root = await mountShell({ permissions: ALL, signOut });
+        const root = await mountShell({ bindings: ALL, signOut });
 
         root.querySelector<HTMLButtonElement>('button[aria-label="Sign out"]')!.click();
         await flush();
@@ -266,7 +266,7 @@ describe('AppShell', () => {
         vi.spyOn(window.location, 'replace').mockImplementation(replace as never);
 
         const root = await mountShell({
-            permissions: ALL,
+            bindings: ALL,
             signOut,
             onSignOut,
         });
@@ -280,7 +280,7 @@ describe('AppShell', () => {
     });
 
     it('marks the current item and renders no accounts column without the slot', async () => {
-        const root = await mountShell({ permissions: ALL, current: 'tool-mail' });
+        const root = await mountShell({ bindings: ALL, current: 'tool-mail' });
 
         expect(pageLink(root)?.getAttribute('aria-current')).toBe('page');
         expect(root.querySelector('a[data-nav="agents"]')?.getAttribute('aria-current')).toBeNull();
@@ -289,7 +289,7 @@ describe('AppShell', () => {
 
     it('renders the accounts slot as a second column', async () => {
         const root = await mountShell({
-            permissions: ALL,
+            bindings: ALL,
             accounts: () => h('p', { id: 'accounts' }, 'work'),
         });
 

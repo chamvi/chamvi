@@ -16,6 +16,6 @@ export type MeView = {
     id: string;
     kind: string;
     name?: string;
-    permissions: PermissionBinding[];
+    bindings: PermissionBinding[];
     identity?: PermissionIdentity;
 };

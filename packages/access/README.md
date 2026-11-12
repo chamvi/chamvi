@@ -34,7 +34,7 @@ ESM only, Node.js `>=26.0.0` or a browser. It depends on no other `@chamvi/*` pa
 
 ## Usage
 
-A holder (a principal, a run's invoker) carries `permissions`: authup's `PermissionPolicyBinding`s, each a permission name with the policies that must pass for it. A binding without policies is unrestricted; a policy restricts it to some resources.
+A holder (a principal, a run's invoker) carries `bindings`: authup's `PermissionPolicyBinding`s, each a permission name with the policies that must pass for it. A binding without policies is unrestricted; a policy restricts it to some resources.
 
 ```typescript
 import type { PermissionHolder } from '@chamvi/access';
@@ -45,7 +45,7 @@ const onlyTriage = { type: 'attributes', query: { name: 'triage' } };
 
 // may run every agent, and read only the agent "triage"
 const principal: PermissionHolder = {
-    permissions: [
+    bindings: [
         { permission: { name: Permission.AGENT_RUN } },
         { permission: { name: Permission.AGENT_READ }, policies: [onlyTriage] },
     ],
