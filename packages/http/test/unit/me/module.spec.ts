@@ -21,7 +21,7 @@ import {
 const USER_ID = '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d';
 
 describe('GET /me', () => {
-    it('answers the principal\'s own id, kind and bindings', async () => {
+    it('answers the principal\'s own id and kind, never its bindings', async () => {
         const { app } = createTestApp();
         const response = await call(app, 'GET', '/me', { token: READER_TOKEN });
 
@@ -29,11 +29,10 @@ describe('GET /me', () => {
         expect(await response.json()).toEqual({
             id: 'reader',
             kind: 'token',
-            bindings: [{ permission: { name: Permission.RUN_READ } }],
         });
     });
 
-    it('round-trips a binding with a policy', async () => {
+    it('leaves out a binding with a policy', async () => {
         const binding = restricted(Permission.AGENT_RUN, { name: 'triage' });
         const { app } = createTestApp();
         const response = await call(app, 'GET', '/me', { token: tokenFor(binding) });
@@ -41,7 +40,6 @@ describe('GET /me', () => {
         expect(await response.json()).toEqual({
             id: 'p:chamvi_agent_run',
             kind: 'token',
-            bindings: [binding],
         });
     });
 
@@ -59,12 +57,11 @@ describe('GET /me', () => {
         expect(await response.json()).toEqual({
             id: USER_ID,
             kind: 'authup',
-            bindings: [],
             identity,
         });
     });
 
-    it('answers the authorization of an authup principal', async () => {
+    it('leaves out the authorization of an authup principal', async () => {
         const identity = { type: 'user' as const, id: USER_ID };
         const authorization: PermissionAuthorization = {
             realm: '0195f2a0-7c3e-7a4b-9c1d-000000000001',
@@ -97,13 +94,15 @@ describe('GET /me', () => {
         });
         const response = await call(app, 'GET', '/me', { token: 'anything' });
 
-        expect(await response.json()).toEqual({
+        const body = await response.json() as Record<string, unknown>;
+
+        expect(body).toEqual({
             id: USER_ID,
             kind: 'authup',
-            bindings: [],
-            authorization,
             identity,
         });
+        expect(Object.keys(body).every((key) => ['id', 'kind', 'name', 'identity'].includes(key))).toBe(true);
+        expect(JSON.stringify(body)).not.toContain('snapshot');
     });
 
     it('needs no permission', async () => {
@@ -114,7 +113,6 @@ describe('GET /me', () => {
         expect(await response.json()).toEqual({
             id: 'p:',
             kind: 'token',
-            bindings: [],
         });
     });
 

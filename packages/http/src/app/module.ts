@@ -8,6 +8,7 @@
 import { NotFoundError } from '@ebec/http';
 import { App, defineCoreHandler } from 'routup';
 import { registerAgentRoutes } from '../agents/module.ts';
+import { registerAuthorizationRoutes } from '../authorization/module.ts';
 import { registerChannelRoutes } from '../channels/module.ts';
 import { registerConnectionRoutes } from '../connections/module.ts';
 import { registerHealthRoutes } from '../health/module.ts';
@@ -39,6 +40,7 @@ export function createHttpApp(options: HttpAppOptions): App {
     }));
     registerHealthRoutes(app, ctx);
     registerMeRoutes(app, ctx);
+    registerAuthorizationRoutes(app, ctx);
     registerAgentRoutes(app, ctx);
     registerRunRoutes(app, ctx);
     registerChannelRoutes(app, ctx);
