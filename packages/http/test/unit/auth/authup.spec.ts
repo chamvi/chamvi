@@ -10,7 +10,7 @@ import { Permission, can } from '@chamvi/access';
 import { ControllableClock } from '@chamvi/test-kit';
 import { describe, expect, it } from 'vitest';
 import { authup } from '@chamvi/http';
-import type { AuthupOptions } from '@chamvi/http';
+import type { AuthupOptions, Principal } from '@chamvi/http';
 
 const REALM = 'c641912c-21e5-4cb4-84b6-169e2b2bb023';
 const USER = '245e3c5d-5747-4fbd-8554-c33d34780c58';
@@ -115,10 +115,15 @@ function setup(input: Setup = {}) {
     };
 }
 
+/** Whether a principal may read runs (an unrestricted grant of the fixture). */
+async function granted(principal: Principal | undefined): Promise<boolean> {
+    return principal ? can(principal, Permission.RUN_READ, { attributes: { agent: 'triage' } }) : false;
+}
+
 const request = (authorization?: string) => new Request('http://test', { headers: authorization ? { authorization } : {} });
 
 describe('authup', () => {
-    it('grants the flattened bindings of a global token, with the identity', async () => {
+    it('carries the snapshot of a global token, with the identity and no bindings', async () => {
         const { authenticate } = setup();
         const principal = await authenticate(request('Bearer good'));
 
@@ -132,10 +137,13 @@ describe('authup', () => {
                 realmName: 'master',
             },
         });
-        expect(principal?.bindings.map((binding) => binding.permission.name)).toEqual([
+        expect(principal?.bindings).toEqual([]);
+        expect(principal?.authorization?.realm).toBe(REALM);
+        expect(principal?.authorization?.snapshot.grants?.map((binding) => binding.permission.name)).toEqual([
             Permission.AGENT_RUN,
             Permission.RUN_READ,
         ]);
+        expect(JSON.parse(JSON.stringify(principal?.authorization))).toEqual(principal?.authorization);
         expect(principal?.claims?.sub).toBe(USER);
     });
 
@@ -148,7 +156,7 @@ describe('authup', () => {
         expect(await can(principal, Permission.RUN_READ, { attributes: { agent: 'other' }, now })).toBe(true);
     });
 
-    it('refreshes a stale catalog once and flattens against the fresh one', async () => {
+    it('refreshes a stale catalog once and builds against the fresh one', async () => {
         const stale = { policies: POLICIES, permissions: [definition(Permission.RUN_READ)] };
         const {
             authenticate, 
@@ -159,7 +167,7 @@ describe('authup', () => {
 
         expect(loads()).toBe(2);
         expect(errors).toEqual([]);
-        expect(principal?.bindings).toHaveLength(2);
+        expect(await can(principal!, Permission.AGENT_RUN, { attributes: { name: 'triage' } })).toBe(true);
     });
 
     it('grants nothing and reports once when the refreshed catalog is still stale', async () => {
@@ -172,6 +180,7 @@ describe('authup', () => {
         const principal = await authenticate(request('Bearer good'));
 
         expect(principal).toMatchObject({ id: USER, bindings: [] });
+        expect(principal?.authorization).toBeUndefined();
         expect(loads()).toBe(2);
         expect(errors).toHaveLength(1);
     });
@@ -184,7 +193,7 @@ describe('authup', () => {
         expect(errors).toEqual([failure]);
 
         // the next request fetches again
-        expect((await authenticate(request('Bearer good')))?.bindings).toHaveLength(2);
+        expect(await granted(await authenticate(request('Bearer good')))).toBe(true);
         expect(errors).toEqual([failure]);
     });
 
@@ -221,7 +230,7 @@ describe('authup', () => {
 
         await Promise.all([1, 2].map(() => authenticate(request('Bearer good'))));
 
-        expect((await authenticate(request('Bearer good')))?.bindings).toEqual([]);
+        expect(await granted(await authenticate(request('Bearer good')))).toBe(false);
         expect(errors).toHaveLength(1);
 
         const { message } = errors[0] as Error;
@@ -243,7 +252,7 @@ describe('authup', () => {
         expect(loads()).toBe(1);
         expect(errors).toHaveLength(1);
 
-        expect((await authenticate(request('Bearer good')))?.bindings).toHaveLength(2);
+        expect(await granted(await authenticate(request('Bearer good')))).toBe(true);
         expect(loads()).toBe(2);
         expect(errors).toHaveLength(1);
     });
@@ -273,7 +282,7 @@ describe('authup', () => {
         expect(loads()).toBe(2);
     });
 
-    it('flattens against the updated content when the loader returns the same object again', async () => {
+    it('builds against the updated content when the loader returns the same object again', async () => {
         const clock = new ControllableClock(new Date('2026-11-11T10:00:00Z'));
         const shared = {
             policies: { ...POLICIES } as Record<string, unknown>,
@@ -322,7 +331,10 @@ describe('authup', () => {
             },
         });
 
-        expect(await authenticate(request('Bearer good'))).toMatchObject({ bindings: [] });
+        const principal = await authenticate(request('Bearer good'));
+
+        expect(principal).toMatchObject({ bindings: [] });
+        expect(principal?.authorization).toBeUndefined();
         expect(errors).toEqual([failure]);
     });
 
@@ -410,5 +422,154 @@ describe('authup', () => {
 
     it('rejects a malformed header with 401', async () => {
         await expect(setup().authenticate(request('Bearer'))).rejects.toMatchObject({ status: 401 });
+    });
+    describe('the snapshot', () => {
+        const OTHER_REALM = 'c641912c-21e5-4cb4-84b6-169e2b2bb024';
+        const CLIENT = 'c641912c-21e5-4cb4-84b6-169e2b2bb025';
+        const extended = (...definitions: Record<string, unknown>[]) => ({
+            policies: {
+                ...POLICIES,
+                users: { type: 'identity', types: ['user'] },
+                invertedBinding: {
+                    type: 'composite',
+                    decisionStrategy: 'unanimous',
+                    children: [{ type: 'identity' }, { type: 'permissionBinding', invert: true }],
+                },
+            },
+            permissions: [...CATALOG.permissions, ...definitions],
+        });
+        const principalFor = async (catalog: unknown, grants: unknown[], data: Partial<TokenVerificationData> = {}) => {
+            const { authenticate, errors } = setup({ catalogs: [catalog], data: tokenData({ permissions: grants as never, ...data }) });
+
+            return { principal: (await authenticate(request('Bearer good')))!, errors };
+        };
+
+        it('denies an own grant for an identity of another realm and passes an any grant', async () => {
+            const foreign = { realm_id: OTHER_REALM, realm_name: 'other' };
+            const own = await principalFor(CATALOG, [{ name: Permission.RUN_READ, realm_scope: 'own' }], foreign);
+            const any = await principalFor(CATALOG, [{ name: Permission.RUN_READ, realm_scope: 'any' }], foreign);
+
+            expect(await granted(own.principal)).toBe(false);
+            expect(await granted(any.principal)).toBe(true);
+        });
+
+        it('denies reach none, passes ownOrNull and reads a missing reach as own', async () => {
+            const none = await principalFor(CATALOG, [{ name: Permission.RUN_READ, realm_scope: 'none' }]);
+            const ownOrNull = await principalFor(CATALOG, [{ name: Permission.RUN_READ, realm_scope: 'ownOrNull' }]);
+            const missing = await principalFor(CATALOG, [{ name: Permission.RUN_READ }]);
+            const missingForeign = await principalFor(CATALOG, [{ name: Permission.RUN_READ }], { realm_id: OTHER_REALM });
+
+            expect(await granted(none.principal)).toBe(false);
+            expect(await granted(ownOrNull.principal)).toBe(true);
+            expect(await granted(missing.principal)).toBe(true);
+            expect(await granted(missingForeign.principal)).toBe(false);
+        });
+
+        it('keeps an app-defined name with a grant, and it passes with its junction policy', async () => {
+            const { principal } = await principalFor(
+                extended(definition('release_manage')),
+                [...GRANTS, {
+                    name: 'release_manage', 
+                    realm_scope: 'own', 
+                    policies: ['triage'], 
+                }],
+            );
+
+            expect(principal.authorization?.snapshot.definitions.map((entry) => entry.permission.name)).toContain('release_manage');
+            expect(await can(principal, 'release_manage', { attributes: { name: 'triage' } })).toBe(true);
+            expect(await can(principal, 'release_manage', { attributes: { name: 'other' } })).toBe(false);
+        });
+
+        it('keeps every chamvi definition but no other definition without a grant', async () => {
+            const { principal } = await principalFor(
+                extended(definition(Permission.AGENT_READ), definition('user_read')),
+                GRANTS,
+            );
+            const names = principal.authorization?.snapshot.definitions.map((entry) => entry.permission.name);
+
+            expect(names).toEqual([Permission.AGENT_RUN, Permission.RUN_READ, Permission.AGENT_READ]);
+            expect(await can(principal, Permission.AGENT_READ)).toBe(false);
+            expect(await can(principal, 'user_read')).toBe(false);
+        });
+
+        it('denies a grant of a definition owned by another realm or by a client', async () => {
+            const { principal } = await principalFor(
+                extended(
+                    { ...definition('release_manage'), realmId: OTHER_REALM },
+                    { ...definition('release_read'), clientId: CLIENT },
+                ),
+                [
+                    {
+                        name: 'release_manage', 
+                        realm_id: OTHER_REALM, 
+                        realm_scope: 'any', 
+                    },
+                    {
+                        name: 'release_read', 
+                        client_id: CLIENT, 
+                        realm_scope: 'any', 
+                    },
+                ],
+            );
+
+            expect(await can(principal, 'release_manage')).toBe(false);
+            expect(await can(principal, 'release_read')).toBe(false);
+        });
+
+        it('passes a grant of a definition owned by chamvi\'s realm through the bare name', async () => {
+            const { principal } = await principalFor(
+                extended({ ...definition('release_manage'), realmId: REALM }),
+                [{
+                    name: 'release_manage', 
+                    realm_id: REALM, 
+                    realm_scope: 'own', 
+                }],
+            );
+
+            expect(await can(principal, 'release_manage')).toBe(true);
+        });
+
+        it('denies the grant of a definition whose policies the catalog withholds and keeps the others', async () => {
+            const { principal } = await principalFor(
+                extended({ ...definition(Permission.AGENT_READ), policies: null }),
+                [{ name: Permission.AGENT_READ, realm_scope: 'own' }, { name: Permission.RUN_READ, realm_scope: 'own' }],
+            );
+
+            expect(await can(principal, Permission.AGENT_READ)).toBe(false);
+            expect(await granted(principal)).toBe(true);
+        });
+
+        it('decides a definition with an inverted binding check as upstream does: the holder of a grant is denied', async () => {
+            const { principal } = await principalFor(
+                extended({ ...definition('release_manage'), policies: ['invertedBinding'] }),
+                [{ name: 'release_manage', realm_scope: 'own' }],
+            );
+
+            expect(await can(principal, 'release_manage')).toBe(false);
+        });
+
+        it('passes a chamvi definition whose inverted binding check no grant satisfies, as the authup server does', async () => {
+            const { principal } = await principalFor(
+                extended({ ...definition(Permission.AGENT_READ), policies: ['invertedBinding'] }),
+                GRANTS,
+            );
+
+            // grants more than before: the former flattening dropped the definition
+            expect(await can(principal, Permission.AGENT_READ)).toBe(true);
+        });
+
+        it('ignores a malformed grant and keeps the well-formed ones', async () => {
+            const { principal } = await principalFor(CATALOG, [{ name: '' }, { name: Permission.RUN_READ, realm_scope: 'own' }]);
+
+            expect(await granted(principal)).toBe(true);
+        });
+
+        it('shares no objects with the catalog', async () => {
+            const { principal } = await principalFor(CATALOG, GRANTS);
+
+            (principal.authorization!.snapshot.grants![0]!.policies![0] as { query: { name: string } }).query.name = 'other';
+
+            expect(POLICIES.triage).toEqual({ type: 'attributes', query: { name: 'triage' } });
+        });
     });
 });

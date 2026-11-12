@@ -26,6 +26,6 @@ export type AuthupOptions = {
     clock?: IClock;
     /** The realm chamvi's resources belong to (the realm id of chamvi's authup client). Called per request with grants; cache it. */
     realm: () => Promise<string>;
-    /** Receives catalog, realm and flattening failures; the login then grants nothing. Default: `console.error`. */
+    /** Receives catalog, realm and snapshot failures; the login then grants nothing. Default: `console.error`. */
     onError?: (error: unknown) => void;
 };

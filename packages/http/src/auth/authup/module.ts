@@ -8,12 +8,12 @@
 import { authorizationCatalogSchema, isAuthorizationCatalogStaleError } from '@authup/access';
 import type { TokenVerificationData } from '@authup/server-adapter-kit';
 import { verifyRequest } from '@authup/server-adapter-web';
-import type { PermissionBinding, PermissionIdentity } from '@chamvi/access';
+import type { PermissionAuthorization, PermissionIdentity } from '@chamvi/access';
 import { InvalidAgentDefinitionError, systemClock } from '@chamvi/core';
 import { UnauthorizedError } from '@ebec/http';
 import type { Authenticator } from '../types.ts';
 import { createCatalogCache } from './catalog.ts';
-import { flattenGrants } from './flatten.ts';
+import { buildPrincipalSnapshot } from './snapshot.ts';
 import type { AuthupOptions } from './types.ts';
 
 const CATALOG_MAX_AGE_MS = 60_000;
@@ -42,12 +42,12 @@ function readIdentity(data: TokenVerificationData, sub: string): PermissionIdent
 /**
  * Verifies authup access tokens. Grants are read only from tokens with the
  * `global` scope and a user or client subject; any other token keeps its
- * identity and grants nothing. Each grant becomes a binding with its policy
- * trees resolved from authup's catalog (`GET /authorization`) and its realm
- * reach settled against `realm()`. A grant that cannot be expressed is
- * dropped; a catalog or realm that cannot be read grants nothing and goes to
- * `onError`. In local mode authup yields no permissions: grants need remote
- * mode.
+ * identity and grants nothing. The principal carries upstream's two-layer
+ * snapshot of authup's catalog (`GET /authorization`) and the grants as its
+ * `authorization`, with `realm()` as the realm every check reaches into; its
+ * `bindings` stay empty. A catalog or realm that cannot be read grants
+ * nothing and goes to `onError`. In local mode authup yields no permissions:
+ * grants need remote mode.
  */
 export function authup(options: AuthupOptions): Authenticator {
     const maxAgeMs = options.catalogMaxAgeMs ?? CATALOG_MAX_AGE_MS;
@@ -87,9 +87,9 @@ export function authup(options: AuthupOptions): Authenticator {
         }
     }, { clock: options.clock ?? systemClock, maxAgeMs });
 
-    const resolve = async (data: TokenVerificationData, identity: PermissionIdentity | undefined): Promise<PermissionBinding[]> => {
+    const resolve = async (data: TokenVerificationData, identity: PermissionIdentity | undefined): Promise<PermissionAuthorization | undefined> => {
         if (!identity || !grantsGlobal(data.scope) || !Array.isArray(data.permissions) || data.permissions.length === 0) {
-            return [];
+            return undefined;
         }
 
         let realm: string;
@@ -97,47 +97,49 @@ export function authup(options: AuthupOptions): Authenticator {
 
         try {
             realm = await options.realm();
+
+            if (typeof realm !== 'string' || realm.length === 0) {
+                throw new InvalidAgentDefinitionError('authup: realm() must resolve a non-empty realm id.');
+            }
         } catch (error) {
             report(error);
 
-            return [];
+            return undefined;
         }
 
-        const flatten = () => flattenGrants({
-            catalog: document,
-            grants: data.permissions,
-            identity,
+        const build = async (): Promise<PermissionAuthorization> => ({
+            snapshot: await buildPrincipalSnapshot({ catalog: document, grants: data.permissions }),
             realm,
         });
 
         try {
             document = await catalog.get();
         } catch {
-            return [];
+            return undefined;
         }
 
         try {
-            return await flatten();
+            return await build();
         } catch (error) {
             if (!isAuthorizationCatalogStaleError(error)) {
                 report(error);
 
-                return [];
+                return undefined;
             }
         }
 
         try {
             document = await catalog.refresh(document);
         } catch {
-            return [];
+            return undefined;
         }
 
         try {
-            return await flatten();
+            return await build();
         } catch (error) {
             report(error);
 
-            return [];
+            return undefined;
         }
     };
 
@@ -162,11 +164,13 @@ export function authup(options: AuthupOptions): Authenticator {
         }
 
         const identity = readIdentity(data, data.sub);
+        const authorization = await resolve(data, identity);
 
         return {
             id: data.sub,
             kind: 'authup',
-            bindings: await resolve(data, identity),
+            bindings: [],
+            ...(authorization ? { authorization } : {}),
             ...(identity ? { identity } : {}),
             claims: { ...data },
         };

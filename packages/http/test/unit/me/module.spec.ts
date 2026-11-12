@@ -7,6 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
+import type { PermissionAuthorization } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { Principal } from '@chamvi/http';
 import {
@@ -59,6 +60,48 @@ describe('GET /me', () => {
             id: USER_ID,
             kind: 'authup',
             bindings: [],
+            identity,
+        });
+    });
+
+    it('answers the authorization of an authup principal', async () => {
+        const identity = { type: 'user' as const, id: USER_ID };
+        const authorization: PermissionAuthorization = {
+            realm: '0195f2a0-7c3e-7a4b-9c1d-000000000001',
+            snapshot: {
+                definitions: [{
+                    permission: {
+                        name: 'chamvi_run_read', 
+                        realmId: null, 
+                        clientId: null, 
+                    }, 
+                }],
+                grants: [{
+                    permission: {
+                        name: 'chamvi_run_read', 
+                        realmId: null, 
+                        clientId: null, 
+                    },
+                    realmScope: 'any', 
+                }],
+            },
+        };
+        const { app } = createTestApp({
+            auth: [async () => ({
+                id: USER_ID,
+                kind: 'authup',
+                bindings: [],
+                authorization,
+                identity,
+            })],
+        });
+        const response = await call(app, 'GET', '/me', { token: 'anything' });
+
+        expect(await response.json()).toEqual({
+            id: USER_ID,
+            kind: 'authup',
+            bindings: [],
+            authorization,
             identity,
         });
     });

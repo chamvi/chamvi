@@ -5,13 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { PermissionBinding, PermissionIdentity } from '@chamvi/access';
+import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } from '@chamvi/access';
 
 export type Principal = {
     id: string;
     kind: 'token' | 'authup' | 'oidc' | (string & {});
     /** Granted permissions: authup bindings with resolved policy trees (plain data). */
     bindings: readonly PermissionBinding[];
+    /** authup's snapshot of the identity's grants; set by `authup()`, which leaves `bindings` empty. */
+    authorization?: PermissionAuthorization;
     /** What an `identity` policy evaluates; set by `authup()`. */
     identity?: PermissionIdentity;
     claims?: Record<string, unknown>;

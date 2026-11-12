@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isPermissionBinding } from '@chamvi/access';
+import { isPermissionAuthorization, isPermissionBinding } from '@chamvi/access';
 import type { PermissionIdentity } from '@chamvi/access';
 import { isObject } from 'smob';
 import { ValidationError } from '../errors/index.ts';
@@ -27,6 +27,7 @@ export function toInvoker(value: unknown, label = 'invoker'): Invoker {
         kind,
         name,
         bindings,
+        authorization,
         identity,
     } = value as Record<string, unknown>;
 
@@ -48,6 +49,10 @@ export function toInvoker(value: unknown, label = 'invoker'): Invoker {
         throw new ValidationError(`The ${label} bindings must be an array of permission bindings.`);
     }
 
+    if (authorization !== undefined && !isPermissionAuthorization(authorization)) {
+        throw new ValidationError(`The ${label} authorization needs a non-empty realm and a snapshot of permission bindings.`);
+    }
+
     if (identity !== undefined) {
         assertIdentity(identity, label);
     }
@@ -57,6 +62,7 @@ export function toInvoker(value: unknown, label = 'invoker'): Invoker {
         kind,
         ...(name !== undefined ? { name } : {}),
         bindings,
+        ...(authorization !== undefined ? { authorization } : {}),
         ...(identity !== undefined ? { identity } : {}),
     });
 }

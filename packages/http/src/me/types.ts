@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { PermissionBinding, PermissionIdentity } from '@chamvi/access';
+import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } from '@chamvi/access';
 
 /**
  * `GET /me`: the authenticated principal as the app records it as an invoker
@@ -17,5 +17,6 @@ export type MeView = {
     kind: string;
     name?: string;
     bindings: PermissionBinding[];
+    authorization?: PermissionAuthorization;
     identity?: PermissionIdentity;
 };

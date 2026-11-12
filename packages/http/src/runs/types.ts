@@ -15,7 +15,7 @@ import type {
 } from '@chamvi/core';
 
 /** An invoker or approver as it leaves the package: identity only, never the grants. */
-export type InvokerView = Omit<Invoker, 'bindings'>;
+export type InvokerView = Omit<Invoker, 'bindings' | 'authorization'>;
 
 /**
  * A run as it leaves the package (REST, SSE, MCP): without the internal

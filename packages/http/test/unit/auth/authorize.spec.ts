@@ -170,6 +170,18 @@ describe('authorize', () => {
             kind: 'custom',
             bindings: ['run:read'],
         }],
+        ['an authorization without a realm', {
+            id: 'x',
+            kind: 'custom',
+            bindings: [],
+            authorization: { realm: '', snapshot: { definitions: [] } },
+        }],
+        ['an authorization whose snapshot holds no binding list', {
+            id: 'x',
+            kind: 'custom',
+            bindings: [],
+            authorization: { realm: 'r', snapshot: { definitions: 'x' } },
+        }],
         ['an identity of another type', {
             id: 'x',
             kind: 'custom',
