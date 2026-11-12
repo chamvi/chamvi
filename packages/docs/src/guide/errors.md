@@ -6,6 +6,7 @@ Every error chamvi throws extends `ChamviError`, which extends ebec's `BaseError
 |---|---|---|---|
 | `InvalidAgentDefinitionError` | `INVALID_AGENT_DEFINITION` | `invalid_agent_definition` | An agent or channel name, subscription id or cron expression is invalid; duplicate agent or channel names; a subscription to an unknown channel; a tool with `needsApproval` |
 | `AgentNotFoundError` | `AGENT_NOT_FOUND` | `agent_not_found` | `dispatch()` for an agent the engine does not hold; `@chamvi/http` answers 404 |
+| `AgentReplacedError` | `AGENT_REPLACED` | `agent_replaced` | `dispatch({ checked })` while the engine holds another agent object under the name (it was replaced after the caller's permission check); thrown before anything is stored, so a retry with the same idempotency key is safe; `@chamvi/http` answers 409 |
 | `InvalidRunStateError` | `INVALID_RUN_STATE` | `invalid_run_state` | A run is not in the status an operation needs: resuming a run that is not waiting, cancelling a settled run, a store guard (`expectStatus`, `expectOwner`) that does not match; `approve()` outside a tool call or in a streaming tool's body; `emit()` outside a tool call |
 | `RunNotFoundError` | `RUN_NOT_FOUND` | `run_not_found` | `resume()`, `cancel()`, `store.runs.update()` or `store.runs.findOneOrFail()` for an unknown run |
 | `ArtifactNotFoundError` | `ARTIFACT_NOT_FOUND` | `artifact_not_found` | An execution cannot read an artifact its messages refer to (the run fails); `@chamvi/http` answers 404 with it for an unknown artifact |
@@ -27,11 +28,11 @@ Every error chamvi throws extends `ChamviError`, which extends ebec's `BaseError
 
 A failed run stores `{ code, message }` in `run.error`. For budget, timeout and fatal tool failures the code is the error's code. Any other thrown value gets its own `code` if it has a string one, else `Error`.
 
-A run the registry cancelled stores why in `run.error` too, with a code that has no error class (nothing throws it):
+A run the registry cancelled stores why in `run.error` too (`AgentReplacedError` shares the `agent_replaced` code, but no run stores the error itself):
 
 | `ErrorCode` | Code | Stored when |
 |---|---|---|
-| `AGENT_REPLACED` | `agent_replaced` | A folder change (a new revision) or a replaced agent without a revision cancelled the run while it was unsettled |
+| `AGENT_REPLACED` | `agent_replaced` | A folder change (a new revision) or a replaced agent without a revision cancelled the run while it was unsettled; or the run was dispatched with `checked` and its agent was replaced since (see [Many agents per engine](/guide/agents#many-agents-per-engine)) |
 | `AGENT_REMOVED` | `agent_removed` | The agent was removed (its folder deleted) while the run was unsettled |
 
 A run cancelled on another replica keeps the reason once its owner settles it; a run that completes anyway ends without one. A user's cancel stores no error.
