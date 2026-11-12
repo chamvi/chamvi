@@ -468,4 +468,102 @@ describe('POST /agents/:name/runs with an agent replaced during the request', ()
         expect(response.status).toBe(202);
         expect((await store.runs.find({})).data).toHaveLength(1);
     });
+
+    it('re-checks a replacement at the dispatch: public to private is 403 and starts no run of it', async () => {
+        const {
+            app, 
+            engine, 
+            store, 
+        } = setup(() => defineModelAgent({
+            name: 'swap',
+            model: textModel(),
+            instructions: 'Still public.',
+            channels: [http.on()],
+        }));
+        const dispatch = engine.dispatch.bind(engine);
+
+        vi.spyOn(engine, 'dispatch').mockImplementationOnce(async (envelope) => {
+            await engine.putAgent(defineModelAgent({
+                name: 'swap',
+                model: textModel(),
+                instructions: 'Now private.',
+                channels: [http.on()],
+                private: true,
+            }));
+
+            return dispatch(envelope);
+        });
+
+        const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
+
+        expect(response.status).toBe(403);
+        expect((await store.runs.find({})).data).toEqual([]);
+    });
+
+    it('starts a replacement made at the dispatch when it is still allowed', async () => {
+        const {
+            app, 
+            engine, 
+            store, 
+        } = setup(() => defineModelAgent({
+            name: 'swap',
+            model: textModel(),
+            instructions: 'Still public.',
+            channels: [http.on()],
+        }));
+        const dispatch = engine.dispatch.bind(engine);
+        const last = defineModelAgent({
+            name: 'swap',
+            model: textModel(),
+            instructions: 'Public again.',
+            channels: [http.on()],
+        });
+
+        vi.spyOn(engine, 'dispatch').mockImplementationOnce(async (envelope) => {
+            await engine.putAgent(last);
+
+            return dispatch(envelope);
+        });
+
+        const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
+
+        expect(response.status).toBe(202);
+
+        const { data } = await store.runs.find({});
+
+        expect(data).toHaveLength(1);
+        expect(data[0]?.status).toBe('queued');
+        expect(engine.getAgent('swap')).toBe(last);
+    });
+
+    it('answers 409 agent_replaced after three replacements in a row', async () => {
+        const {
+            app, 
+            engine, 
+            store, 
+        } = setup(() => defineModelAgent({
+            name: 'swap',
+            model: textModel(),
+            instructions: 'Still public.',
+            channels: [http.on()],
+        }));
+        const dispatch = engine.dispatch.bind(engine);
+        const spy = vi.spyOn(engine, 'dispatch').mockImplementation(async (envelope) => {
+            await engine.putAgent(defineModelAgent({
+                name: 'swap',
+                model: textModel(),
+                instructions: 'Again.',
+                channels: [http.on()],
+            }));
+
+            return dispatch(envelope);
+        });
+
+        const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
+
+        expect(response.status).toBe(409);
+        expect(await response.json()).toMatchObject({ code: 'agent_replaced' });
+        expect(spy).toHaveBeenCalledTimes(3);
+        expect((await store.runs.find({})).data).toEqual([]);
+    });
 });

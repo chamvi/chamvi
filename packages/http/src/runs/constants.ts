@@ -19,3 +19,6 @@ export const ATTACHMENT_FILENAME_MAX_LENGTH = 255;
 
 /** The longest option id a body may select (core's `APPROVAL_OPTION_ID_PATTERN` allows 128). */
 export const APPROVAL_OPTION_ID_MAX_LENGTH = 128;
+
+/** Dispatches `POST /agents/:name/runs` tries while the agent is replaced under it; then 409 `agent_replaced`. */
+export const START_RUN_MAX_ATTEMPTS = 3;

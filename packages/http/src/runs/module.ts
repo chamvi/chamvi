@@ -6,6 +6,7 @@
  */
 
 import { Permission } from '@chamvi/access';
+import { AgentReplacedError } from '@chamvi/core';
 import type { Agent, ChannelSubscription, Run } from '@chamvi/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { defineCoreHandler } from 'routup';
@@ -41,6 +42,7 @@ import {
     serializeStep,
     toBody,
 } from './helpers.ts';
+import { START_RUN_MAX_ATTEMPTS } from './constants.ts';
 import { streamRun } from './stream/module.ts';
 
 function param(event: IAppEvent, name: string): string {
@@ -84,23 +86,36 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
         const idempotencyKey = body.idempotencyKey ?? readIdempotencyHeader(event.request);
         let payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, body.payload);
 
-        // replaced or removed while the body was read and validated: check the
-        // replacement and validate against its schema, until the agent stays
-        while (ctx.agents.get(name) !== agent) {
-            ({ agent, subscription } = await resolve());
-            payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, body.payload);
-        }
+        let result: { runId: string; deduplicated: boolean } | undefined;
 
-        const result = await ctx.engine.dispatch({
-            agent: name,
-            trigger: subscription.id,
-            channel: HTTP_CHANNEL_NAME,
-            payload,
-            ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
-            ...(body.address !== undefined ? { address: body.address } : {}),
-            ...(body.attachments?.length ? { attachments: body.attachments } : {}),
-            invoker: toInvoker(principal),
-        });
+        for (let attempt = 1; result === undefined; attempt++) {
+            // replaced or removed while the body was read and validated: check the
+            // replacement and validate against its schema, until the agent stays
+            while (ctx.agents.get(name) !== agent) {
+                ({ agent, subscription } = await resolve());
+                payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, body.payload);
+            }
+
+            try {
+                result = await ctx.engine.dispatch({
+                    agent: name,
+                    trigger: subscription.id,
+                    channel: HTTP_CHANNEL_NAME,
+                    payload,
+                    ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
+                    ...(body.address !== undefined ? { address: body.address } : {}),
+                    ...(body.attachments?.length ? { attachments: body.attachments } : {}),
+                    invoker: toInvoker(principal),
+                    // the agent checked above: a replacement since is refused before any store write
+                    checked: agent,
+                });
+            } catch (error) {
+                // replaced at the dispatch: the loop checks the replacement, a bounded number of times (then 409)
+                if (!(error instanceof AgentReplacedError) || attempt >= START_RUN_MAX_ATTEMPTS) {
+                    throw error;
+                }
+            }
+        }
 
         event.response.status = 202;
 

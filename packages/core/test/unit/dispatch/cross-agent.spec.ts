@@ -306,6 +306,73 @@ describe('dispatchTo()', () => {
         expect(child?.trigger.invoker).toEqual(invoker);
     });
 
+    it('dispatchTo refuses a target replaced after the invoker check, and creates no run of the replacement', async () => {
+        const invoker: Invoker = {
+            id: 'u1',
+            kind: 'user',
+            permissions: [{
+                permission: { name: Permission.AGENT_RUN },
+                policies: [{ type: 'attributes', query: { name: 'reporter', private: false } } as never],
+            }],
+        };
+        let replace: (() => Promise<void>) | undefined;
+        const schema = {
+            '~standard': {
+                version: 1 as const,
+                vendor: 'test',
+                validate: async (value: unknown) => {
+                    await replace?.();
+                    replace = undefined;
+
+                    return { value };
+                },
+            },
+        };
+        const { engine, store } = setup({
+            auditor: [turn(call(draft, 'c1')), text('done')],
+            reporterChannels: [agent.on({
+                role: 'draft', 
+                from: ['auditor'], 
+                schema, 
+            })],
+        });
+
+        replace = async () => {
+            await engine.putAgent(defineModelAgent({
+                name: 'reporter',
+                instructions: 'Now private.',
+                model: mockModel(done()),
+                channels: [agent.on({ role: 'draft', from: ['auditor'] })],
+                private: true,
+            }));
+        };
+
+        const parentId = await runAuditor(engine, { invoker });
+        const [step] = await toolSteps(store, parentId);
+
+        expect(step?.error).toMatchObject({ code: 'agent_replaced' });
+        expect(await dispatched(store)).toHaveLength(0);
+    });
+
+    it('dispatchTo binds the child of a checked dispatch to the target\'s revision', async () => {
+        const invoker: Invoker = {
+            id: 'u1',
+            kind: 'user',
+            permissions: [{
+                permission: { name: Permission.AGENT_RUN },
+                policies: [{ type: 'attributes', query: { name: 'reporter', private: false } } as never],
+            }],
+        };
+        const { engine, store } = setup({ auditor: [turn(call(draft, 'c1')), text('done')] });
+
+        await engine.putAgent(engine.getAgent('reporter')!, { revision: 'h1' });
+        await runAuditor(engine, { invoker });
+
+        const [child] = await dispatched(store);
+
+        expect(child?.agentRevision).toBe('h1');
+    });
+
     it('dispatchTo refuses a run stored with old string permissions without throwing', async () => {
         const {
             engine, 
