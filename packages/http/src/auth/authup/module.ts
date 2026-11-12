@@ -89,6 +89,38 @@ export function authup(options: AuthupOptions): Authenticator {
         }
     }, { clock: options.clock ?? systemClock, maxAgeMs });
 
+    // concurrent logins share one lookup, so a failed one is reported once, not per login
+    let lookup: Promise<string> | undefined;
+    const realmOf = (): Promise<string> => {
+        if (!lookup) {
+            const current = (async () => {
+                try {
+                    const realm = await options.realm();
+
+                    if (typeof realm !== 'string' || realm.length === 0) {
+                        throw new InvalidAgentDefinitionError('authup: realm() must resolve a non-empty realm id.');
+                    }
+
+                    return realm;
+                } catch (error) {
+                    report(error);
+
+                    throw error;
+                }
+            })();
+            const clear = () => {
+                if (lookup === current) {
+                    lookup = undefined;
+                }
+            };
+
+            lookup = current;
+            current.then(clear, clear);
+        }
+
+        return lookup;
+    };
+
     const resolve = async (data: TokenVerificationData, identity: PermissionIdentity | undefined): Promise<PermissionAuthorization | undefined> => {
         if (!identity || !grantsGlobal(data.scope) || !Array.isArray(data.permissions) || data.permissions.length === 0) {
             return undefined;
@@ -98,14 +130,8 @@ export function authup(options: AuthupOptions): Authenticator {
         let document: unknown;
 
         try {
-            realm = await options.realm();
-
-            if (typeof realm !== 'string' || realm.length === 0) {
-                throw new InvalidAgentDefinitionError('authup: realm() must resolve a non-empty realm id.');
-            }
-        } catch (error) {
-            report(error);
-
+            realm = await realmOf();
+        } catch {
             return undefined;
         }
 

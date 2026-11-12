@@ -339,6 +339,28 @@ describe('authup', () => {
         expect(errors).toEqual([failure]);
     });
 
+    it('reports a failed realm lookup once for the logins that shared it', async () => {
+        let calls = 0;
+        const { authenticate, errors } = setup({
+            realm: async () => {
+                calls++;
+                await Promise.resolve();
+
+                throw new Error(`no realm ${calls}`);
+            },
+        });
+
+        const principals = await Promise.all([1, 2, 3].map(() => authenticate(request('Bearer good'))));
+
+        expect(principals.every((principal) => principal?.authorization === undefined)).toBe(true);
+        expect(errors).toEqual([new Error('no realm 1')]);
+
+        // a later login looks up again and its failure is its own
+        await authenticate(request('Bearer good'));
+
+        expect(errors).toEqual([new Error('no realm 1'), new Error('no realm 2')]);
+    });
+
     it('shares one catalog load between concurrent requests and later ones', async () => {
         const { authenticate, loads } = setup();
 
