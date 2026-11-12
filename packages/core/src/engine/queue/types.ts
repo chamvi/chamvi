@@ -31,6 +31,11 @@ export type RunQueueOptions = {
      * (it stays `queued`) before any claim.
      */
     prepareStart?: () => Promise<(run: Run) => boolean>;
+    /**
+     * Called right before a pass lists the queued runs; the returned function
+     * gets that listing (also an empty one) once it is read.
+     */
+    beforeList?: () => (queued: readonly Run[]) => void;
     /** A claim renewal was refused: another owner may hold the run now. */
     onLeaseLost?: (runId: string) => void;
 };

@@ -303,6 +303,7 @@ export class Engine implements IEngine {
             },
             onLeaseLost: (runId) => this.loseLease(runId),
             prepareStart: () => this.prepareStart(),
+            beforeList: () => this.pruneCheckedRuns(),
         });
     }
 
@@ -1922,6 +1923,27 @@ export class Engine implements IEngine {
             }
 
             return true;
+        };
+    }
+
+    /**
+     * Prunes the checked-run fence against a pass's listing of queued runs.
+     * Only entries present before the listing started are pruned: their runs
+     * were inserted before it, so a run missing from it is no longer queued
+     * (running elsewhere, waiting or settled). An entry added meanwhile (a
+     * dispatch the listing may not have seen) is kept for the next pass.
+     */
+    protected pruneCheckedRuns(): (queued: readonly Run[]) => void {
+        const before = Array.from(this.checkedRuns.keys());
+
+        return (queued) => {
+            const ids = new Set(queued.map((run) => run.id));
+
+            for (const id of before) {
+                if (!ids.has(id)) {
+                    this.checkedRuns.delete(id);
+                }
+            }
         };
     }
 

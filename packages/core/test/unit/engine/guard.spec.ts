@@ -32,6 +32,11 @@ class HookedEngine extends Engine {
         this.revisions.set(name, revision);
     }
 
+    /** The run ids the checked-run fence holds. */
+    fenced(): string[] {
+        return Array.from(this.checkedRuns.keys());
+    }
+
     protected override async execute(run: Run, signal: AbortSignal): Promise<void> {
         await this.beforeExecute?.(this, run);
 
@@ -678,5 +683,73 @@ describe('checked runs of a replaced agent', () => {
         expect(await statusOf(store, runId)).toBe('queued');
         expect(ran).toEqual([]);
         expect(errors).toEqual([]);
+    });
+
+    it('a checked run another engine started leaves no fence entry after the next pass', async () => {
+        const { clock, store } = setup();
+        const ran: string[] = [];
+        const a = recorder(ran, 'A');
+        const { engine: first } = make({
+            store,
+            clock,
+            agents: [a],
+            owner: 'first',
+        });
+        const { engine: second } = make({
+            store,
+            clock,
+            agents: [recorder(ran, 'second')],
+            owner: 'second',
+        });
+
+        const { runId } = await first.dispatch({ ...env(), checked: a });
+
+        expect(first.fenced()).toEqual([runId]);
+
+        await second.start();
+        await second.idle();
+        expect(await statusOf(store, runId)).toBe('completed');
+
+        await first.start();
+        await first.idle();
+
+        expect(first.fenced()).toEqual([]);
+    });
+
+    it('a pass keeps the fence entry of a run inserted while it lists', async () => {
+        const { clock, store } = setup();
+        const ran: string[] = [];
+        const a = recorder(ran, 'A');
+        const { engine } = make({
+            store, 
+            clock, 
+            agents: [a], 
+        });
+        const find = store.runs.find.bind(store.runs);
+        let runId: string | undefined;
+
+        // the dispatch lands while the pass's listing is in flight, after its read
+        store.runs.find = async (...args) => {
+            const page = await find(...args);
+
+            if (runId === undefined && args[0]?.status?.includes('queued')) {
+                ({ runId } = await engine.dispatch({ ...env(), checked: a }));
+                // replaced in the run's millisecond: the sweep misses it, only the fence guards it
+                await engine.putAgent(recorder(ran, 'B'));
+            }
+
+            return page;
+        };
+
+        await engine.start();
+        await engine.idle();
+        store.runs.find = find;
+
+        // a later pass sees the run and cancels it: the listing pass kept its entry
+        await poll(engine, clock);
+        expect(runId).toBeDefined();
+        expect(await statusOf(store, runId!)).toBe('cancelled');
+        expect(engine.fenced()).toEqual([]);
+        expect(ran).toEqual([]);
     });
 });
