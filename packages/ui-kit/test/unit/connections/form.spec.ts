@@ -7,6 +7,7 @@
 
 // @vitest-environment happy-dom
 
+import { Permission } from '@chamvi/access';
 import {
     afterEach,
     describe,
@@ -29,6 +30,7 @@ import { APP_CONTEXT } from '../../../src/context/constants.ts';
 import type { AppContext } from '../../../src/context/types.ts';
 import { ME, fakeClient } from '../../utils/client.ts';
 import { installFormKit } from '../../utils/forms.ts';
+import { grant } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
 
 const TYPE: ConnectionTypeWire = {
@@ -838,7 +840,7 @@ describe('ConnectionForm', () => {
         const reader: MeWire = {
             id: 'reader',
             kind: 'token',
-            permissions: ['connection:mail-work:read'],
+            permissions: [grant(Permission.CONNECTION_READ, { name: 'mail-work' })],
         };
         const form = await mount({ principal: reader });
 
@@ -847,6 +849,33 @@ describe('ConnectionForm', () => {
         expect(form.button('Test')).toBeUndefined();
         expect(form.button('Replace')).toBeUndefined();
         expect(form.button('Clear')).toBeUndefined();
+        expect(form.root.querySelector('[data-testid="connection-form-readonly"]')?.textContent).toContain('chamvi_connection_write');
+    });
+
+    it('shows the write controls to a write grant restricted to this connection', async () => {
+        const writer: MeWire = {
+            id: 'writer',
+            kind: 'token',
+            permissions: [grant(Permission.CONNECTION_WRITE, { name: 'mail-work', type: 'mail' })],
+        };
+        const form = await mount({ principal: writer });
+
+        expect(form.input('host')?.disabled).toBe(false);
+        expect(form.button('Save')).toBeDefined();
+        expect(form.button('Test')).toBeDefined();
+        expect(form.root.querySelector('[data-testid="connection-form-readonly"]')).toBeNull();
+    });
+
+    it('is read-only for a write grant restricted to another connection', async () => {
+        const writer: MeWire = {
+            id: 'writer',
+            kind: 'token',
+            permissions: [grant(Permission.CONNECTION_READ), grant(Permission.CONNECTION_WRITE, { name: 'mail-home' })],
+        };
+        const form = await mount({ principal: writer });
+
+        expect(form.input('host')?.disabled).toBe(true);
+        expect(form.button('Save')).toBeUndefined();
     });
 
     it('offers no Save for a connection set in code, Test stays', async () => {
@@ -947,6 +976,6 @@ describe('ConnectionForm', () => {
             },
         });
 
-        expect(form.root.textContent).toContain('connection:mail-work:read');
+        expect(form.root.textContent).toContain('chamvi_connection_read');
     });
 });

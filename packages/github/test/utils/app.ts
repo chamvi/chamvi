@@ -105,7 +105,7 @@ export function createGithubTestApp(input: GithubTestAppInput): GithubTestApp {
             tokens: [{
                 value: 'admin-token-0123456789',
                 id: 'admin',
-                permissions: ['*'],
+                permissions: '*',
             }],
         })],
         metrics: false,

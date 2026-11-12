@@ -79,7 +79,7 @@ async function serve(): Promise<(method: string, path: string, body?: unknown) =
             CHAMVI_TOKENS: JSON.stringify([{
                 value: TOKEN,
                 id: 'ops',
-                permissions: ['*'],
+                permissions: '*',
             }]),
             HOST: '127.0.0.1',
             PORT: String(port),

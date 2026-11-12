@@ -46,7 +46,7 @@ In the OpenClaw gateway configuration:
 1. Enable hooks (`hooks.enabled: true`; they are off by default) and set a **dedicated `hooks.token`**. It is not the gateway token; the channel sends it as `Authorization: Bearer <token>`.
 2. Keep `hooks.path` at `/hooks` or pass the same value as `hooksPath`.
 3. When you pass `agentId`, list it in `hooks.allowedAgentIds`.
-4. Add the chamvi app's MCP endpoint (`http://<service>/mcp`) to OpenClaw's `mcp.servers`, with a bearer token of a principal holding `agent:<name>:run` to start runs. Never give it `agent:<name>:approve`: the owner answers through the `approvalUrl` link, signed in to the chamvi UI as a principal of their own (see [Answering approvals](#answering-approvals)).
+4. Add the chamvi app's MCP endpoint (`http://<service>/mcp`) to OpenClaw's `mcp.servers`, with a bearer token of a principal holding `chamvi_agent_run` for the agent to start runs. Never give it `chamvi_agent_approve`: the owner answers through the `approvalUrl` link, signed in to the chamvi UI as a principal of their own (see [Answering approvals](#answering-approvals)).
 
 ## Usage
 
@@ -130,10 +130,10 @@ Any 2xx response counts as sent (OpenClaw answers `200 { ok: true, runId }` once
 
 The message carries no token and no MCP call, only the approval link:
 
-- **A link** (`approvalUrl({ runId, approvalId, agent })`), when configured, to the run's approval in the chamvi UI, e.g. `https://<app>/ui/approvals?run=<runId>&approval=<approvalId>`. The link holds ids only; the owner opens it, signs in and answers through the token-less `POST /runs/:id/approve`. The signed-in principal needs `agent:<agent>:approve` to answer and `run:read` or `agent:<agent>:run` for the UI to load the run and show its approval.
+- **A link** (`approvalUrl({ runId, approvalId, agent })`), when configured, to the run's approval in the chamvi UI, e.g. `https://<app>/ui/approvals?run=<runId>&approval=<approvalId>`. The link holds ids only; the owner opens it, signs in and answers through the token-less `POST /runs/:id/approve`. The signed-in principal needs `chamvi_agent_approve` for the agent to answer and, for the UI to load the run and show its approval, `chamvi_run_read` or `chamvi_agent_run` for a public agent and `chamvi_agent_read` for a private one.
 - Without `approvalUrl`, the message says to answer in the chamvi UI or through `POST /runs/:id/approve`.
 
-**The OpenClaw agent cannot approve.** The approval's title and body are what the tool wrote, which may repeat untrusted text (an issue body, a mail), so an injected instruction reaches the OpenClaw agent. The message carries no token, and a relay agent whose MCP principal holds only `agent:<name>:run` has neither a token nor the right to answer: whatever the body says, only the owner, signed in to the UI, approves.
+**The OpenClaw agent cannot approve.** The approval's title and body are what the tool wrote, which may repeat untrusted text (an issue body, a mail), so an injected instruction reaches the OpenClaw agent. The message carries no token, and a relay agent whose MCP principal holds only `chamvi_agent_run` has neither a token nor the right to answer: whatever the body says, only the owner, signed in to the UI, approves.
 
 ## Caveats
 

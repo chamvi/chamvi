@@ -32,7 +32,7 @@ describe('README example', () => {
                 CHAMVI_TOKENS: JSON.stringify([{
                     value: 'a-static-token-of-16+',
                     id: 'ops',
-                    permissions: ['*'],
+                    permissions: '*',
                 }]),
                 PORT: String(port),
                 HOST: '127.0.0.1',

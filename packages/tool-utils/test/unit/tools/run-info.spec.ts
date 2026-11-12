@@ -101,7 +101,7 @@ describe('run_info', () => {
                 invoker: {
                     kind: 'user',
                     id: 'u1',
-                    permissions: ['secret:perm'],
+                    permissions: [{ permission: { name: 'secret:perm' } }],
                 },
             },
             parent: {

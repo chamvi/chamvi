@@ -5,10 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission, can } from '@chamvi/access';
+import type { PermissionHolder } from '@chamvi/access';
 import type { ConnectionStatus } from '@chamvi/core';
-import { hasPermission } from '../auth/helpers.ts';
-import { CONNECTIONS_CREATE_PERMISSION, STATUS_BADGES } from './constants.ts';
-import type { ConnectionBadge, ConnectionTypeWire, ConnectionWire } from './types.ts';
+import { STATUS_BADGES } from './constants.ts';
+import type {
+    ConnectionBadge,
+    ConnectionRef,
+    ConnectionTypeWire,
+    ConnectionWire,
+} from './types.ts';
 
 export function statusBadge(status: ConnectionStatus): ConnectionBadge {
     return Object.hasOwn(STATUS_BADGES, status) ? STATUS_BADGES[status] : { label: String(status), tone: 'queued' };
@@ -52,12 +58,42 @@ export function connectionProblem(connection: Pick<ConnectionWire, 'state' | 'mi
     return connection.missing?.length ? `Incomplete: ${connection.missing.join(', ')} missing.` : 'Incomplete.';
 }
 
-/** Accounts of the type can be added here, by this principal; `creatable` is false when the app cannot store them. */
-export function canAddAccount(type: ConnectionTypeWire, permissions: readonly string[]): boolean {
-    return type.multiple && type.creatable && hasPermission(permissions, CONNECTIONS_CREATE_PERMISSION);
+/**
+ * Accounts of the type can be added here, by this principal: the type takes
+ * several and the app can store them (`creatable`), and the principal holds
+ * `chamvi_connection_create` for the type.
+ */
+export async function canAddAccount(type: ConnectionTypeWire, holder: PermissionHolder | undefined): Promise<boolean> {
+    if (!type.multiple || !type.creatable || !holder) {
+        return false;
+    }
+
+    return can(holder, Permission.CONNECTION_CREATE, { attributes: { type: type.type }, now: new Date() });
 }
 
-/** Widgets, the live stream and reset need `connection:<name>:write`. */
-export function canWriteConnection(permissions: readonly string[], name: string): boolean {
-    return hasPermission(permissions, `connection:${name}:write`);
+/** The resource attributes of a connection; without a known type only its name, as the server checks an unknown one. */
+function connectionAttributes(connection: ConnectionRef): Record<string, unknown> {
+    return connection.type === undefined ? { name: connection.name } : { name: connection.name, type: connection.type };
+}
+
+/** Widgets, the live stream and reset need `chamvi_connection_write` for the connection. */
+export async function canWriteConnection(holder: PermissionHolder | undefined, connection: ConnectionRef): Promise<boolean> {
+    if (!holder) {
+        return false;
+    }
+
+    return can(holder, Permission.CONNECTION_WRITE, { attributes: connectionAttributes(connection), now: new Date() });
+}
+
+/** Reading a connection takes `chamvi_connection_read` or `chamvi_connection_write` for it. */
+export async function canReadConnection(holder: PermissionHolder | undefined, connection: ConnectionRef): Promise<boolean> {
+    if (!holder) {
+        return false;
+    }
+
+    const attributes = connectionAttributes(connection);
+    const now = new Date();
+
+    return await can(holder, Permission.CONNECTION_READ, { attributes, now }) ||
+        can(holder, Permission.CONNECTION_WRITE, { attributes, now });
 }

@@ -11,6 +11,8 @@ import {
     AUTHENTICATOR_ORDER,
     AppToken,
     ModuleName,
+    Permission,
+    allPermissions,
     configModule,
     staticTokensModule,
 } from '@chamvi/app';
@@ -59,7 +61,7 @@ describe('staticTokensModule', () => {
                 CHAMVI_TOKENS: JSON.stringify([{
                     value: ENV_TOKEN,
                     id: 'ci',
-                    permissions: ['run:read'],
+                    permissions: [{ permission: { name: Permission.RUN_READ } }],
                 }]),
             },
         });
@@ -70,7 +72,7 @@ describe('staticTokensModule', () => {
         await expect(entries[0]!.authenticator(bearer(ENV_TOKEN))).resolves.toEqual({
             id: 'ci',
             kind: 'token',
-            permissions: ['run:read'],
+            permissions: [{ permission: { name: Permission.RUN_READ } }],
         });
     });
 
@@ -80,14 +82,14 @@ describe('staticTokensModule', () => {
                 CHAMVI_TOKENS: JSON.stringify([{
                     value: ENV_TOKEN,
                     id: 'ci',
-                    permissions: ['*'],
+                    permissions: '*',
                 }]),
             },
             module: staticTokensModule({
                 tokens: [{
                     value: OPTION_TOKEN,
                     id: 'opt',
-                    permissions: ['*'],
+                    permissions: '*',
                 }],
             }),
         });
@@ -120,7 +122,7 @@ describe('staticTokensModule', () => {
         await expect(entries[0]!.authenticator(bearer(token))).resolves.toEqual({
             id: 'dev',
             kind: 'token',
-            permissions: ['*'],
+            permissions: allPermissions(),
         });
     });
 
@@ -131,7 +133,7 @@ describe('staticTokensModule', () => {
                 CHAMVI_TOKENS: JSON.stringify([{
                     value: ENV_TOKEN,
                     id: 'ci',
-                    permissions: ['*'],
+                    permissions: '*',
                 }]),
             },
         });

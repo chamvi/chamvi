@@ -147,7 +147,7 @@ A collection serves one **generation** of passages, embedded by one model with o
 
 ## Managed collections
 
-A managed collection has no sources in code: it is created and filled over REST while the app runs. `knowledgeModule()` serves `knowledgeRoutes()` under `/knowledge` (`routes: false` turns them off; `createHttpApp({ routes: knowledgeRoutes(knowledge) })` mounts them without the app), each request authorized with `knowledge:read` (`GET`) or `knowledge:write`:
+A managed collection has no sources in code: it is created and filled over REST while the app runs. `knowledgeModule()` serves `knowledgeRoutes()` under `/knowledge` (`routes: false` turns them off; `createHttpApp({ routes: knowledgeRoutes(knowledge) })` mounts them without the app), each request authorized with `knowledge:read` (`GET`) or `knowledge:write`. These are the package's own permission names, not `chamvi_*` ones, so a static token's `'*'` does not cover them: grant them as bindings (`{ permission: { name: 'knowledge:read' } }`), or as authup permissions of the same name:
 
 | Route | Does |
 |---|---|

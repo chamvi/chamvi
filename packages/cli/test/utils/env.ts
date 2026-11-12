@@ -15,7 +15,7 @@ export function startEnv(port: number, extra: Env = {}): Env {
         CHAMVI_TOKENS: JSON.stringify([{
             value: TOKEN,
             id: 'ops',
-            permissions: ['*'],
+            permissions: '*',
         }]),
         PORT: String(port),
         HOST: '127.0.0.1',

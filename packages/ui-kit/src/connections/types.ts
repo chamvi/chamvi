@@ -21,7 +21,7 @@ import type { IApiClient } from '../api/types.ts';
 
 export type ConnectionWire = ConnectionView;
 
-/** `GET /connections/:name`: `widgets` only for a holder of `connection:<name>:write`. */
+/** `GET /connections/:name`: `widgets` only for a holder of `chamvi_connection_write` for it. */
 export type ConnectionDetailWire = ConnectionDetailView;
 
 export type ConnectionWidgetWire = ConnectionWidget;
@@ -85,6 +85,9 @@ export type UseConnectionFormOptions = {
     onDeleted: (result: ConnectionDeleted) => void;
 };
 
+/** A connection a permission check names: its type when known (the server checks an unknown name by name alone). */
+export type ConnectionRef = { name: string; type?: string };
+
 export type ConnectionCreated = { name: string; restartRequired: boolean };
 
 export type ConnectionDeleted = { name: string; restartRequired: boolean };
@@ -110,7 +113,7 @@ export interface IConnectionStream {
 }
 
 export type UseConnectionOptions = {
-    /** The principal holds `connection:<name>:write`: widgets, the live stream and reset. */
+    /** The principal holds `chamvi_connection_write` for the connection: widgets, the live stream and reset. */
     write: boolean;
     sleep?: ConnectionStreamOptions['sleep'];
 };

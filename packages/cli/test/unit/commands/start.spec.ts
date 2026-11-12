@@ -169,7 +169,7 @@ describe('start', () => {
 
             await writeFile(path.join(cwd, '.env'), [
                 'CHAMVI_LOG_LEVEL=warn',
-                `CHAMVI_TOKENS='[{"value":"${devToken}","id":"dev","permissions":["*"]}]'`,
+                `CHAMVI_TOKENS='[{"value":"${devToken}","id":"dev","permissions":"*"}]'`,
                 'PORT=1',
                 '',
             ].join('\n'));

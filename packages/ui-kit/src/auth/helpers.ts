@@ -79,24 +79,6 @@ export function clearStorage(storage: Storage): void {
 }
 
 /**
- * Core's permission rule in the browser: `*` alone grants everything, a
- * `*` segment matches one segment, segment counts must match.
- */
-export function hasPermission(granted: readonly string[], wanted: string): boolean {
-    const want = wanted.split(':');
-
-    return granted.some((grant) => {
-        if (grant === '*') {
-            return true;
-        }
-
-        const have = grant.split(':');
-
-        return have.length === want.length && have.every((segment, i) => segment === '*' || segment === want[i]);
-    });
-}
-
-/**
  * Cookie functions for `@authup/client-web-kit` over the tab's storage
  * (`chamvi.authup.<name>`, JSON like the kit's cookie library): the tokens
  * never reach `document.cookie`, so no other tab, no browser restart and

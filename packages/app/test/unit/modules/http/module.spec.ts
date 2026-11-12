@@ -49,7 +49,7 @@ const TOKEN = 'a-static-token-of-length';
 const TOKENS = JSON.stringify([{
     value: TOKEN,
     id: 'ops',
-    permissions: ['*'],
+    permissions: '*',
 }]);
 
 function triage(model: Agent['definition']['model'] = textModel()): Agent {

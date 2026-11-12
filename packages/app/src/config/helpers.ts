@@ -5,6 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { isPermissionBinding } from '@chamvi/access';
+import type { PermissionBinding } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { StaticToken } from '@chamvi/http';
 import { isObject } from 'smob';
@@ -14,6 +16,29 @@ import { TOKEN_VALUE_MIN_LENGTH } from './constants.ts';
 import type { AppConfig, ApprovalRef } from './types.ts';
 
 const TOKENS = 'CHAMVI_TOKENS';
+
+/**
+ * A token's `permissions`: `"*"` (every chamvi permission, unrestricted) or
+ * an array of permission bindings, copied. Anything else, also a string
+ * entry in the array, is undefined.
+ */
+function readPermissions(input: unknown): readonly PermissionBinding[] | '*' | undefined {
+    if (input === '*') {
+        return input;
+    }
+
+    if (!Array.isArray(input)) {
+        return undefined;
+    }
+
+    const invalid = input.some((entry) => !isPermissionBinding(entry));
+
+    if (invalid) {
+        return undefined;
+    }
+
+    return structuredClone(input);
+}
 
 /**
  * CHAMVI_TOKENS as static tokens. Messages name the index, never a token value.
@@ -58,17 +83,16 @@ export function readTokens(env: Env): StaticToken[] | undefined {
             throw new InvalidAgentDefinitionError(`${at}.id must be a non-empty string.`);
         }
 
-        const hasInvalidPermission = Array.isArray(permissions) &&
-            permissions.some((permission) => !(typeof permission === 'string'));
+        const bindings = readPermissions(permissions);
 
-        if (!Array.isArray(permissions) || hasInvalidPermission) {
-            throw new InvalidAgentDefinitionError(`${at}.permissions must be an array of strings.`);
+        if (typeof bindings === 'undefined') {
+            throw new InvalidAgentDefinitionError(`${at}.permissions must be "*" or an array of permission bindings.`);
         }
 
         return {
             value,
             id,
-            permissions: [...permissions] as string[],
+            permissions: bindings,
         };
     });
 }

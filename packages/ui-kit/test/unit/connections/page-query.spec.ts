@@ -20,6 +20,8 @@ import {
     shallowRef,
 } from 'vue';
 import type { App } from 'vue';
+import { Permission } from '@chamvi/access';
+import type { PermissionBinding } from '@chamvi/access';
 import type { IApiClient, MeWire } from '../../../src/api/types.ts';
 import ConnectionsPage from '../../../src/connections/ConnectionsPage.vue';
 import type { ConnectionTypeWire, ConnectionWire } from '../../../src/connections/types.ts';
@@ -27,6 +29,7 @@ import { install } from '../../../src/module.ts';
 import { fakeClient } from '../../utils/client.ts';
 import { installFormKit } from '../../utils/forms.ts';
 import { json } from '../../utils/fetch.ts';
+import { ALL, grant } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
 
 const MAIL: ConnectionTypeWire = {
@@ -72,7 +75,7 @@ afterEach(() => {
 });
 
 async function mountPage(search: string, options: {
-    permissions?: string[]; 
+    permissions?: PermissionBinding[]; 
     type?: ConnectionTypeWire; 
     pages?: 'fail' | 'hang';
 } = {}) {
@@ -81,7 +84,7 @@ async function mountPage(search: string, options: {
     const principal: MeWire = {
         id: 'peter',
         kind: 'token',
-        permissions: options.permissions ?? ['*'],
+        permissions: options.permissions ?? ALL,
     };
     const opened: string[] = [];
     const client: IApiClient = fakeClient({
@@ -177,8 +180,8 @@ describe('ConnectionsPage query', () => {
         expect(document.body.textContent).toContain('is not available in this app');
     });
 
-    it('ignores ?add without connections:create', async () => {
-        const page = await mountPage('?add=1', { permissions: ['connection:*:read'] });
+    it('ignores ?add without chamvi_connection_create', async () => {
+        const page = await mountPage('?add=1', { permissions: [grant(Permission.CONNECTION_READ)] });
 
         expect(page.adding()).toBe(false);
         expect(page.opened).toEqual(['/connections/mail-work/config']);

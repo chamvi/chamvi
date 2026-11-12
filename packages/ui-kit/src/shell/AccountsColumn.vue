@@ -8,6 +8,7 @@
 
 import { computed } from 'vue';
 import type { MeWire } from '../api/types.ts';
+import { useResolved } from '../auth/composables.ts';
 import { canAddAccount, connectionBadge, connectionProblem } from '../connections/helpers.ts';
 import type { ConnectionTypeWire, ConnectionWire } from '../connections/types.ts';
 
@@ -30,7 +31,7 @@ const accounts = computed(() => props.connections
         problem: connectionProblem(connection),
     })));
 
-const canAdd = computed(() => canAddAccount(props.type, props.principal?.permissions ?? []));
+const canAdd = useResolved(() => [props.type, props.principal] as const, ([type, principal]) => canAddAccount(type, principal), false);
 </script>
 
 <template>

@@ -7,14 +7,15 @@
  */
 
 import { computed, shallowRef, watch } from 'vue';
-import { hasPermission } from '../auth/helpers.ts';
+import type { MeWire } from '../api/types.ts';
+import { useResolved } from '../auth/composables.ts';
 import { useAppContext } from '../context/module.ts';
 import AccountsColumn from '../shell/AccountsColumn.vue';
 import AppShell from '../shell/AppShell.vue';
 import { useUiPages } from '../shell/composables.ts';
 import ConnectionForm from './ConnectionForm.vue';
-import { canAddAccount } from './helpers.ts';
-import type { ConnectionCreated, ConnectionDeleted } from './types.ts';
+import { canAddAccount, canReadConnection } from './helpers.ts';
+import type { ConnectionCreated, ConnectionDeleted, ConnectionTypeWire } from './types.ts';
 
 /** A `*-ui` page's whole content: the shell, its accounts column and the form of the open account. */
 const props = defineProps<{
@@ -37,7 +38,7 @@ const query = new URLSearchParams(globalThis.location.search);
 const chosen = shallowRef(query.get('connection') ?? undefined);
 const addRequested = shallowRef(query.has('add'));
 const deletedNotice = shallowRef(false);
-// an account the principal added but may not read (connections:create alone): confirmed here, never opened
+// an account the principal added but may not read (chamvi_connection_create alone): confirmed here, never opened
 const createdNotice = shallowRef<ConnectionCreated>();
 // deleted here while the list may still hold them; a name leaves once a list arrives without it
 const removed = shallowRef<ReadonlySet<string>>(new Set());
@@ -68,10 +69,16 @@ function forget(name: string, gone: boolean): void {
 }
 
 // the query is only a request: honoured once the list and the type can say whether it may be
-const adding = computed(() => addRequested.value && definition.value !== undefined &&
-    canAddAccount(definition.value, session.principal.value?.permissions ?? []));
+// `undefined` while the verdict is out: the page then waits instead of opening the first account
+const creatable = useResolved<readonly [ConnectionTypeWire | undefined, MeWire | undefined], boolean | undefined>(
+    () => [definition.value, session.principal.value] as const,
+    ([type, principal]) => (type ? canAddAccount(type, principal) : Promise.resolve(undefined)),
+    undefined,
+);
+const adding = computed(() => addRequested.value && definition.value !== undefined && creatable.value === true);
 // a type the app never serves stays absent: only the answer ends the wait
-const pending = computed(() => !loaded.value || (addRequested.value && !typesLoaded.value));
+const pending = computed(() => !loaded.value ||
+    (addRequested.value && (!typesLoaded.value || (definition.value !== undefined && creatable.value === undefined))));
 const current = computed(() => {
     if (pending.value || adding.value) {
         return undefined;
@@ -107,14 +114,12 @@ function open(name: string | undefined, add = false): void {
     remember();
 }
 
-function onCreated(result: ConnectionCreated): void {
+async function onCreated(result: ConnectionCreated): Promise<void> {
     // the same name created again is a new account
     forget(result.name, false);
 
-    const permissions = session.principal.value?.permissions ?? [];
-
     // write implies read; the form of an unreadable account would only show its 403
-    if (hasPermission(permissions, `connection:${result.name}:read`) || hasPermission(permissions, `connection:${result.name}:write`)) {
+    if (await canReadConnection(session.principal.value, { name: result.name, type: props.type })) {
         open(result.name);
     } else {
         open(undefined);

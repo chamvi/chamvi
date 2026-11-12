@@ -100,7 +100,7 @@ describe('chat intake policy', () => {
     });
 
     it('unknown_identity_is_unprivileged', async () => {
-        const permissions = ['agent:assistant:run'];
+        const permissions = [{ permission: { name: 'chamvi_agent_run' } }];
         const owner: Invoker = {
             id: 'owner',
             kind: 'chat',
@@ -112,7 +112,7 @@ describe('chat intake policy', () => {
         await fixture.adapter.deliver(createTextMessage({ id: 'm-stranger', author: 'stranger' }));
 
         // a later change of the resolver's object never reaches the stored run
-        permissions.push('*');
+        permissions.push({ permission: { name: 'chamvi_agent_read' } });
 
         const runs = await fixture.runs();
         const byAuthor = new Map(runs.map((run) => [(run.trigger.payload as { message: { author: { id: string } } }).message.author.id, run]));
@@ -120,7 +120,7 @@ describe('chat intake policy', () => {
         expect(byAuthor.get('owner')?.trigger.invoker).toEqual({
             id: 'owner',
             kind: 'chat',
-            permissions: ['agent:assistant:run'],
+            permissions: [{ permission: { name: 'chamvi_agent_run' } }],
         });
         expect(byAuthor.get('stranger')?.trigger).not.toHaveProperty('invoker');
     });

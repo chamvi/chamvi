@@ -52,3 +52,11 @@ export type SessionCookies = {
     cookieSet: (key: string, value: unknown) => void;
     cookieUnset: (key: string, options?: SessionCookieOptions) => void;
 };
+
+export type ResolvedOptions = {
+    /** Fall back to the initial value while a changed source is resolved (default: keep the last answer). */
+    reset?: boolean;
+    /** Resolve the current source again this often, `0` never (default `VERDICT_REFRESH_MS`). */
+    refreshMs?: number;
+    timers?: { set: typeof setInterval; clear: typeof clearInterval };
+};

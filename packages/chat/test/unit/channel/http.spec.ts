@@ -71,7 +71,7 @@ async function serve(input: Partial<IntakeFixtureInput> & { start?: boolean } = 
             tokens: [{
                 value: 'admin-token-0123456789',
                 id: 'admin',
-                permissions: ['*'],
+                permissions: '*',
             }],
         })],
         metrics: false,
@@ -187,7 +187,7 @@ describe('chat channel webhooks', () => {
                 tokens: [{
                     value: 'admin-token-0123456789',
                     id: 'a',
-                    permissions: ['*'],
+                    permissions: '*',
                 }],
             })],
             metrics: false,

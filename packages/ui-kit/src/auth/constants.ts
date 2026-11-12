@@ -18,3 +18,6 @@ export const AUTHUP_STORAGE_PREFIX = 'chamvi.authup.';
 
 /** The route a visit without a principal goes to; a router using the guard must name it so. */
 export const LOGIN_ROUTE_NAME = 'login';
+
+/** How often a mounted permission verdict is evaluated again: a `date` or `time` policy changes it without any input changing. */
+export const VERDICT_REFRESH_MS = 60_000;

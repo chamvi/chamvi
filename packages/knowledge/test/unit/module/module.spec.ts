@@ -56,7 +56,8 @@ const TOKEN = 'a-static-token-of-length';
 const TOKENS = JSON.stringify([{
     value: TOKEN,
     id: 'ops',
-    permissions: ['*'],
+    // '*' covers the chamvi_* names only: the knowledge routes check their own
+    permissions: [{ permission: { name: 'knowledge:read' } }, { permission: { name: 'knowledge:write' } }],
 }]);
 
 type LogEntry = {

@@ -20,6 +20,7 @@ import {
     ref,
     watch,
 } from 'vue';
+import { useResolved } from '../auth/composables.ts';
 import { useAppContext } from '../context/module.ts';
 import { createConnectionConfigApi } from './api.ts';
 import { useConnectionForm } from './form.ts';
@@ -61,8 +62,15 @@ const {
 
 const adding = computed(() => props.name === undefined);
 const problem = computed(() => (view.value ? connectionProblem(view.value) : undefined));
-const canWrite = computed(() => props.name === undefined ||
-    canWriteConnection(session.principal.value?.permissions ?? [], props.name));
+const writable = useResolved(
+    () => [session.principal.value, props.name, props.type] as const,
+    ([principal, name, type]) => (name === undefined ? Promise.resolve(false) : canWriteConnection(principal, { name, type })),
+    false,
+    // a write verdict never outlives the principal or connection it was given for
+    { reset: true },
+);
+// adding: the create grant was checked before the form opened
+const canWrite = computed(() => props.name === undefined || writable.value);
 const canEdit = computed(() => canWrite.value && (view.value?.editable ?? true));
 const canTest = computed(() => !adding.value && canWrite.value && definition.value?.testable === true);
 const canDelete = computed(() => canWrite.value && view.value?.deletable === true);
@@ -132,7 +140,7 @@ watch(confirmation, async (open, previous) => {
             Connection <b class="mono">{{ name }}</b> has no configuration.
         </template>
         <template v-else-if="loadError.status === 403">
-            Reading this connection needs <b class="mono">connection:{{ name }}:read</b>.
+            Reading this connection needs <b class="mono">chamvi_connection_read</b> for {{ name }}.
         </template>
         <template v-else>
             {{ loadError.code }} · {{ loadError.message }}
@@ -178,7 +186,7 @@ watch(confirmation, async (open, previous) => {
             class="card notice"
             data-testid="connection-form-readonly"
         >
-            Changing this connection needs <b class="mono">connection:{{ name }}:write</b>.
+            Changing this connection needs <b class="mono">chamvi_connection_write</b> for {{ name }}.
         </div>
 
         <form

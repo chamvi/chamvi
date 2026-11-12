@@ -16,7 +16,7 @@ import type { IConnectionsApi } from './types.ts';
 const props = defineProps<{
     api: IConnectionsApi;
     name: string;
-    /** The principal holds connection:<name>:write: widgets, the live stream and reset. */
+    /** The principal holds chamvi_connection_write for the connection: widgets, the live stream and reset. */
     write: boolean;
 }>();
 
@@ -49,7 +49,7 @@ watch(confirming, async (open) => {
             Connection <b class="mono">{{ name }}</b> does not exist.
         </template>
         <template v-else-if="error.status === 403">
-            Reading this connection needs <b class="mono">connection:{{ name }}:read</b>.
+            Reading this connection needs <b class="mono">chamvi_connection_read</b> for {{ name }}.
         </template>
         <template v-else>
             {{ error.code }} · {{ error.message }}
@@ -99,7 +99,7 @@ watch(confirming, async (open) => {
             class="card notice"
             data-testid="connection-readonly"
         >
-            Pairing and reset need <b class="mono">connection:{{ name }}:write</b>.
+            Pairing and reset need <b class="mono">chamvi_connection_write</b> for {{ name }}.
         </div>
         <template v-else>
             <div

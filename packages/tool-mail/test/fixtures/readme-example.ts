@@ -9,7 +9,7 @@ type Server = Pick<MailAccount, 'host' | 'port' | 'security'>;
 export function createInboxAgent(model: LanguageModel, password: string, server: Server = { host: 'imap.gmail.com' }) {
     return defineModelAgent({
         name: 'inbox-digest',
-        // only agent:inbox-digest:read holders read its runs
+        // only chamvi_agent_read holders for inbox-digest read its runs
         private: true,
         model,
         // POST /agents/inbox-digest/runs and MCP run_inbox-digest start a run
