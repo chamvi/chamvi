@@ -50,7 +50,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "@authup/access": "^1.0.0-beta.74",
+        "@authup/access": "^1.0.0-beta.75",
         "smob": "^1.6.2"
     }
 }
