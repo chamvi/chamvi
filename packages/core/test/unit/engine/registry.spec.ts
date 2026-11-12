@@ -966,7 +966,7 @@ describe('putAgent formerRevision', () => {
 });
 
 describe('run revision stamp', () => {
-    it('stamps a folder agent\'s run with its revision, with and without checked', async () => {
+    it('stamps a folder agent\'s run with its revision only on a checked dispatch', async () => {
         const { engine, store } = make({ agents: [] });
 
         await engine.putAgent(triage, { revision: 'h1' });
@@ -974,7 +974,7 @@ describe('run revision stamp', () => {
         const plain = await engine.dispatch(env());
         const checked = await engine.dispatch({ ...env(), checked: triage });
 
-        expect((await store.runs.findOne(plain.runId))?.agentRevision).toBe('h1');
+        expect(await store.runs.findOne(plain.runId)).not.toHaveProperty('agentRevision');
         expect((await store.runs.findOne(checked.runId))?.agentRevision).toBe('h1');
     });
 

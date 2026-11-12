@@ -427,7 +427,8 @@ export class Engine implements IEngine {
             updatedAt: now,
         };
 
-        if (agentRevision !== undefined) {
+        // a checked dispatch binds the run to the revision its check saw; unchecked runs follow the registry
+        if (checked !== undefined && agentRevision !== undefined) {
             run.agentRevision = agentRevision;
         }
 
