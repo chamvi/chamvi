@@ -162,7 +162,7 @@ A user of the client's realm (`master` here) with `chamvi-triage` then starts, r
 The permission strings of earlier releases (`agent:<name>:run`, `run:read`, `connection:<name>:write`, `tool:<agent>:<tool>`, `*`) are not translated.
 
 1. Let running and waiting runs finish (drain the app) before the upgrade: a stored run's invoker that carries old strings is read as holding no permissions, so its `requireToolPermission()` tools and cross-agent dispatches are refused.
-2. Rewrite every `CHAMVI_TOKENS` entry: `["*"]` becomes `"*"`, any other list a list of bindings. The start fails until then.
+2. Rewrite every `CHAMVI_TOKENS` entry: `["*"]` becomes `"*"`, any other list a list of bindings. The start fails until then. `"*"` covers every `chamvi_*` name, the two knowledge permissions included (as `*` did): a token that must not read or write knowledge collections gets explicit bindings without them.
 3. In authup, create the thirteen permissions (the file above) and give roles the new names; remove the old ones. A restriction to one agent or connection is a policy on the grant.
 4. An `oidc()` mapper returns bindings; an app's own `hasPermission(invoker.permissions, ...)` becomes `await can(invoker, ...)`.
 

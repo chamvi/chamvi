@@ -143,7 +143,7 @@ A run started through `@chamvi/http` (REST or MCP) carries its **invoker**, `run
 - The invoker is a snapshot taken at dispatch. A run keeps it across approvals and restarts; revoking a grant later does not reach a run that already holds it. Its policies are evaluated at every check with the engine clock, so a `time` or `date` policy that closes while a run waits on an approval refuses the call after the resume.
 - A model that calls a refused tool anyway gets the AI SDK's unavailable-tool error as the tool result; the tool step records it with code `tool_not_allowed`. The run goes on.
 - The engine re-checks every call when it executes. A pending call that runs after an approval (e.g. a policy tightened before the approval was answered) gets a `ToolNotAllowedError` tool error and the run goes on.
-- A policy that returns a promise is awaited before each call. A streaming tool (one whose results arrive as an `AsyncIterable`) then keeps streaming only when its `execute` is an `async function*`; a plain function that returns an `AsyncIterable` is reduced to its final value. A synchronous policy changes nothing.
+- A policy that returns a promise is awaited before each call. A streaming `defineTool()` tool (one whose results arrive as an `AsyncIterable`; an effect tool always returns its final value) then keeps streaming only when its `execute` is an `async function*`; a plain function that returns an `AsyncIterable` is reduced to its final value. A synchronous policy changes nothing.
 - The invoker only ever comes from an authenticator, never from a request body or payload.
 - A tool reads the invoker as `context.run.trigger.invoker`.
 
