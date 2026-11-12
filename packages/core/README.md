@@ -263,7 +263,7 @@ After exposure, outbound tools require durable approval (or are denied). The gat
 
 ### Invokers and tool access
 
-A run can carry its invoker: who started it, as an authenticator resolved it (`@chamvi/http` sets it from the request's principal). Its `permissions` are authup permission bindings (`{ permission: { name }, policies? }`), checked with `can()` of `@chamvi/access`. `toolPolicy` decides per tool whether the run may use it; a refused tool is not offered to the model.
+A run can carry its invoker: who started it, as an authenticator resolved it (`@chamvi/http` sets it from the request's principal). Its `permissions` are authup permission bindings (`{ permission: { name }, policies? }`), checked with `can()` of `@chamvi/access`. `toolPolicy` decides per tool whether the run may use it; a refused tool is not offered to the model. A policy that returns a promise is awaited again before each call: a streaming tool then has to be an `async function*` to keep streaming, as a plain function that returns an `AsyncIterable` is reduced to its final value (a synchronous policy changes nothing).
 
 ```typescript
 const ops = defineModelAgent({
