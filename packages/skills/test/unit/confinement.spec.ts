@@ -7,92 +7,261 @@
 
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative } from 'node:path';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { prepareSkills } from '@chamvi/skills';
 import { createGitFixture } from '@chamvi/test-kit';
 import type { GitFixture } from '@chamvi/test-kit';
-import { discoverSkills } from 'skills';
-import type * as SkillsSDK from 'skills';
 import {
     afterEach,
     expect,
     it,
-    vi,
 } from 'vitest';
-
-vi.mock('skills', async (importOriginal) => {
-    const sdk = await importOriginal<typeof SkillsSDK>();
-
-    // Delegate to the real SDK while observing the boundary before it reads source files.
-    return { ...sdk, discoverSkills: vi.fn(sdk.discoverSkills) };
-});
 
 const fixtures: GitFixture[] = [];
 const roots: string[] = [];
-const document = (body: string) => `---\nname: audit\ndescription: Fixture\n---\n${body}\n`;
+const document = (name: string, body: string) => `---\nname: ${name}\ndescription: Fixture\n---\n${body}\n`;
 
 afterEach(async () => {
     await Promise.all(fixtures.map((fixture) => fixture.cleanup()));
     await Promise.all(roots.map((root) => fs.rm(root, { recursive: true, force: true })));
     fixtures.length = 0;
     roots.length = 0;
-    vi.clearAllMocks();
 });
 
-it.each(['nested alias', 'conventional container', 'unrelated link'] as const)(
-    'rejects a committed %s before discovery and retains the previous corpus without a verifier',
-    async (route) => {
-        const fixture = await createGitFixture({
-            'skills/audit/SKILL.md': document('ORIGINAL BODY'),
-            'README.md': 'DUMMY SOURCE README\n',
-            'notes\n120000 fake-link': 'DUMMY REGULAR FILE\n',
-        });
+async function setup() {
+    const fixture = await createGitFixture({
+        'skills/audit/SKILL.md': document('audit', 'ORIGINAL BODY'),
+        'README.md': 'DUMMY SOURCE README\n',
+        'notes\n120000 fake-link': 'DUMMY REGULAR FILE\n',
+    });
 
-        fixtures.push(fixture);
+    fixtures.push(fixture);
 
-        const root = await fs.mkdtemp(join(tmpdir(), 'chamvi-confinement-'));
+    const root = await fs.mkdtemp(join(tmpdir(), 'chamvi-confinement-'));
 
-        roots.push(root);
+    roots.push(root);
 
-        const options = {
-            source: fixture.path,
-            revision: fixture.commit,
-            names: ['audit'],
-            directory: join(root, 'corpus'),
-        };
-        const [previous] = await prepareSkills(options);
-        const outside = join(root, 'outside');
+    const options = {
+        source: fixture.path,
+        revision: fixture.commit,
+        names: ['audit'],
+        directory: join(root, 'corpus'),
+    };
+    const [previous] = await prepareSkills(options);
+    const outside = join(root, 'outside');
 
-        await fs.mkdir(outside);
-        await fs.writeFile(join(outside, 'outside.txt'), 'DUMMY OUTSIDE FILE\n');
+    await fs.mkdir(outside);
+    await fs.writeFile(join(outside, 'outside.txt'), 'DUMMY OUTSIDE FILE\n');
 
-        if (route === 'nested alias') {
-            const skill = join(fixture.path, 'skills/audit');
-
-            await fs.mkdir(join(skill, 'real'));
-            await fs.symlink(join(outside, 'outside.txt'), join(skill, 'real/external.txt'));
-            await fs.symlink('real', join(skill, 'alias'));
-        } else if (route === 'conventional container') {
-            await fs.mkdir(join(outside, 'audit'));
-            await fs.writeFile(join(outside, 'audit/SKILL.md'), document('DUMMY OUTSIDE BODY'));
-            await fs.rm(join(fixture.path, 'skills'), { recursive: true });
-            await fs.symlink(outside, join(fixture.path, 'skills'));
-        } else {
-            await fs.symlink('README.md', join(fixture.path, 'unselected-link'));
-        }
-
+    const commit = async () => {
         await fixture.git('add', '--all');
         await fixture.git('commit', '-m', 'source links');
 
-        const revision = (await fixture.git('rev-parse', 'HEAD')).trim();
+        return (await fixture.git('rev-parse', 'HEAD')).trim();
+    };
 
-        vi.mocked(discoverSkills).mockClear();
+    return {
+        fixture,
+        root,
+        options,
+        previous: previous!,
+        outside,
+        commit,
+    };
+}
 
-        await expect(prepareSkills({ ...options, revision })).rejects.toThrow(InvalidAgentDefinitionError);
-        expect(discoverSkills).not.toHaveBeenCalled();
-        expect(await fs.readFile(join(previous!.path, 'SKILL.md'), 'utf8')).toBe(document('ORIGINAL BODY'));
-        expect(await fs.readdir(previous!.path)).toEqual(['SKILL.md']);
-        expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
-    },
-);
+it.each(['nested alias', 'external file'] as const)('refuses a selected skill containing a committed %s and retains the previous corpus', async (route) => {
+    const {
+        fixture,
+        root,
+        options,
+        previous,
+        outside,
+        commit,
+    } = await setup();
+    const skill = join(fixture.path, 'skills/audit');
+
+    if (route === 'nested alias') {
+        await fs.mkdir(join(skill, 'real'));
+        await fs.writeFile(join(skill, 'real/inside.txt'), 'INSIDE\n');
+        await fs.symlink('real', join(skill, 'alias'));
+    } else {
+        await fs.symlink(join(outside, 'outside.txt'), join(skill, 'external.txt'));
+    }
+
+    const revision = await commit();
+
+    await expect(prepareSkills({ ...options, revision })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect(await fs.readFile(join(previous.path, 'SKILL.md'), 'utf8')).toBe(document('audit', 'ORIGINAL BODY'));
+    expect(await fs.readdir(previous.path)).toEqual(['SKILL.md']);
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
+});
+
+it.each(['skills container', 'agent container', 'relative escaping container'] as const)('refuses a committed %s link before anything is copied', async (route) => {
+    const {
+        fixture,
+        root,
+        options,
+        previous,
+        outside,
+        commit,
+    } = await setup();
+
+    // a real skill on the host, reachable only through the committed link
+    const host = join(outside, route === 'agent container' ? 'skills/foo' : 'foo');
+
+    await fs.mkdir(host, { recursive: true });
+    await fs.writeFile(join(host, 'SKILL.md'), document('foo', 'HOST BODY'));
+    await fs.writeFile(join(host, 'secret.txt'), 'HOST SECRET\n');
+
+    if (route === 'agent container') {
+        await fs.symlink(outside, join(fixture.path, '.claude'));
+    } else {
+        await fs.rm(join(fixture.path, 'skills'), { recursive: true });
+        await fs.symlink(route === 'skills container' ? outside : relative(fixture.path, outside), join(fixture.path, 'skills'));
+    }
+
+    const revision = await commit();
+
+    await expect(prepareSkills({
+        ...options, 
+        revision, 
+        names: ['foo'], 
+    })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect(await fs.readdir(options.directory)).toEqual(['.chamvi-skills', 'audit']);
+    expect(await fs.readdir(previous.path)).toEqual(['SKILL.md']);
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
+});
+
+it('refuses a committed symlinked skill folder', async () => {
+    const {
+        fixture,
+        root,
+        options,
+        outside,
+        commit,
+    } = await setup();
+
+    await fs.mkdir(join(outside, 'linked'));
+    await fs.writeFile(join(outside, 'linked/SKILL.md'), document('linked', 'DUMMY OUTSIDE BODY'));
+    await fs.symlink(join(outside, 'linked'), join(fixture.path, 'skills/linked'));
+
+    const revision = await commit();
+
+    await expect(prepareSkills({
+        ...options, 
+        revision, 
+        names: ['linked'], 
+    })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
+});
+
+it('refuses a tracked symlink anywhere in the source, including unselected paths', async () => {
+    const {
+        fixture,
+        root,
+        options,
+        previous,
+        commit,
+    } = await setup();
+
+    await fs.symlink('README.md', join(fixture.path, 'unselected-link'));
+
+    const revision = await commit();
+
+    await expect(prepareSkills({ ...options, revision })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect(await fs.readFile(join(previous.path, 'SKILL.md'), 'utf8')).toBe(document('audit', 'ORIGINAL BODY'));
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
+});
+
+it.each([
+    ['mounted as the selected skill folder', 'skills/foo', 'foo'],
+    ['inside the selected skill folder', 'skills/audit/vendor', 'audit'],
+])('refuses a submodule %s', async (_, mount, name) => {
+    const sub = await createGitFixture({ 'SKILL.md': document('foo', 'SUBMODULE BODY'), 'data.txt': 'SUBMODULE BYTES\n' });
+
+    fixtures.push(sub);
+
+    const {
+        fixture,
+        root,
+        options,
+        previous,
+        commit,
+    } = await setup();
+
+    await fixture.git('-c', 'protocol.file.allow=always', 'submodule', 'add', sub.url, mount);
+
+    const revision = await commit();
+
+    await expect(prepareSkills({
+        ...options, 
+        revision, 
+        names: [name], 
+    })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect(await fs.readdir(previous.path)).toEqual(['SKILL.md']);
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
+});
+
+it.each([
+    ['a submodule inside a skill of a case-differing container', 'Skills/foo/vendor', { 'Skills/foo/SKILL.md': document('foo', 'CASED BODY') }],
+    ['a submodule mounted in a case-differing agent container', '.Claude/skills/foo', {}],
+] as const)('refuses %s (or does not find the skill on a case-sensitive filesystem)', async (_, mount, files) => {
+    const sub = await createGitFixture({ 'SKILL.md': document('foo', 'SUBMODULE BODY'), 'data.txt': 'SUBMODULE BYTES\n' });
+
+    fixtures.push(sub);
+
+    const {
+        fixture,
+        root,
+        options,
+        previous,
+        commit,
+    } = await setup();
+
+    for (const [path, content] of Object.entries(files)) {
+        await fs.mkdir(join(fixture.path, path, '..'), { recursive: true });
+        await fs.writeFile(join(fixture.path, path), content);
+    }
+
+    await fixture.git('-c', 'protocol.file.allow=always', 'submodule', 'add', sub.url, mount);
+
+    const revision = await commit();
+
+    // case-insensitive host: the gitlink check refuses it; case-sensitive host: the SDK does not find `foo`
+    await expect(prepareSkills({
+        ...options, 
+        revision, 
+        names: ['foo'], 
+    })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect(await fs.readdir(previous.path)).toEqual(['SKILL.md']);
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
+});
+
+it('prepares a source whose tree listing exceeds 1 MiB', async () => {
+    const files: Record<string, string> = { 'skills/foo/SKILL.md': document('foo', 'BIG TREE BODY') };
+    const directory = `src/${'d'.repeat(100)}/${'e'.repeat(100)}`;
+
+    // about 250 bytes of ls-tree output per entry: 5,000 entries are about 1.2 MiB
+    for (let index = 0; index < 5_000; index++) {
+        files[`${directory}/file-${index}.txt`] = '';
+    }
+
+    const fixture = await createGitFixture(files);
+
+    fixtures.push(fixture);
+
+    const root = await fs.mkdtemp(join(tmpdir(), 'chamvi-confinement-'));
+
+    roots.push(root);
+
+    const [skill] = await prepareSkills({
+        source: fixture.path,
+        revision: fixture.commit,
+        names: ['foo'],
+        directory: join(root, 'corpus'),
+    });
+
+    expect(await fs.readFile(join(skill!.path, 'SKILL.md'), 'utf8')).toBe(document('foo', 'BIG TREE BODY'));
+}, 120_000);

@@ -22,6 +22,7 @@ import * as sdk from 'skills';
 import { guardStaleMs } from '../../src/prepare/lock.ts';
 import {
     afterEach,
+    beforeEach,
     describe,
     expect,
     it,
@@ -33,10 +34,13 @@ vi.mock('skills', async (original) => {
 
     return {
         ...actual,
-        cloneRepo: vi.fn(actual.cloneRepo),
-        cleanupTempDir: vi.fn(actual.cleanupTempDir),
+        resolveSource: vi.fn(actual.resolveSource),
+        installSkills: vi.fn(actual.installSkills),
     };
 });
+
+const actual = await vi.importActual<typeof sdk>('skills');
+const originals = new WeakMap<object, sdk.SkillSource>();
 
 const fixtures: GitFixture[] = [];
 const roots: string[] = [];
@@ -80,8 +84,16 @@ afterEach(async () => {
     await Promise.all(roots.map((root) => fs.rm(root, { recursive: true, force: true })));
     fixtures.length = 0;
     roots.length = 0;
-    vi.mocked(sdk.cloneRepo).mockClear();
-    vi.mocked(sdk.cleanupTempDir).mockClear();
+    vi.mocked(sdk.resolveSource).mockReset().mockImplementation(actual.resolveSource);
+    vi.mocked(sdk.installSkills).mockReset();
+});
+
+beforeEach(() => {
+    // a wrapped handle reaches the real install as the SDK's own handle
+    vi.mocked(sdk.installSkills).mockImplementation((source, options) => actual.installSkills(
+        typeof source === 'string' ? source : originals.get(source) ?? source,
+        options,
+    ));
 });
 
 describe('prepareSkills failures', () => {
@@ -259,7 +271,22 @@ describe('prepareSkills failures', () => {
     it('keeps a configuration error when the checkout cleanup also fails', async () => {
         const { options } = await setup();
 
-        vi.mocked(sdk.cleanupTempDir).mockRejectedValueOnce(new Error('busy'));
+        vi.mocked(sdk.resolveSource).mockImplementationOnce(async (...args) => {
+            const handle = await actual.resolveSource(...args);
+            const wrapped = {
+                source: handle.source,
+                skills: handle.skills,
+                dispose: async () => {
+                    await handle.dispose();
+
+                    throw new Error('busy');
+                },
+            };
+
+            originals.set(wrapped, handle);
+
+            return wrapped;
+        });
         await expect(skills.prepareSkills({
             ...options,
             verify: () => {
@@ -297,17 +324,26 @@ describe('prepareSkills failures', () => {
         await expect(skills.prepareSkills(options)).resolves.toHaveLength(1);
     });
 
-    it('reports a source that could not be fetched as a retryable failure, not a configuration error', async () => {
-        const { root, options } = await setup();
+    it('reports a failed checkout cleanup after a success as retryable', async () => {
+        const { options } = await setup();
 
-        vi.mocked(sdk.cloneRepo).mockRejectedValueOnce(new sdk.GitCloneError('Failed to clone https://token@example.com/x.git: Could not resolve host: example.com', 'https://token@example.com/x.git'));
+        vi.mocked(sdk.resolveSource).mockImplementationOnce(async (...args) => {
+            const handle = await actual.resolveSource(...args);
+            const wrapped = {
+                source: handle.source,
+                skills: handle.skills,
+                dispose: async () => {
+                    await handle.dispose();
 
-        const error = await failureOf(skills.prepareSkills(options));
+                    throw new Error('busy');
+                },
+            };
 
-        expect(error).not.toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(error.code).toBe(SKILL_PREPARATION_FAILED_ERROR_CODE);
-        expect(error.message).not.toContain('token');
-        expect(await fs.readdir(root)).toEqual([]);
+            originals.set(wrapped, handle);
+
+            return wrapped;
+        });
+        expect((await failureOf(skills.prepareSkills(options))).code).toBe(SKILL_PREPARATION_FAILED_ERROR_CODE);
     });
 
     it('reports a failed fetch of the pinned commit through the real SDK clone as retryable', async () => {
@@ -339,24 +375,120 @@ describe('prepareSkills failures', () => {
         expect(error.code).toBe(SKILL_PREPARATION_FAILED_ERROR_CODE);
     });
 
-    it.each([
-        new sdk.GitCloneError('Failed to clone x: fatal: Remote branch abc not found in upstream origin', 'x'),
-        new sdk.GitCloneError("Failed to clone x: fatal: couldn't find remote ref abc", 'x'),
-        new sdk.GitCloneError('Failed to clone x: fatal: remote error: upload-pack: not our ref abc', 'x'),
-    ])('reports a missing ref answer of the SDK as retryable: %s', async (failure) => {
-        const { options } = await setup();
+    it('reports a repository the real SDK clone does not find as configuration', async () => {
+        const { root, options } = await setup();
+        const error = await failureOf(skills.prepareSkills({ ...options, source: 'file:///missing/token-secret.git' }));
 
-        vi.mocked(sdk.cloneRepo).mockRejectedValueOnce(failure);
-        expect((await failureOf(skills.prepareSkills(options))).code).toBe(SKILL_PREPARATION_FAILED_ERROR_CODE);
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(error.message).not.toContain('token-secret');
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    const url = 'https://user:token-secret@example.com/x.git';
+    const detail = `fatal: unable to access '${url}/': token-secret`;
+
+    it.each([
+        ['SKILLS_GIT_AUTH_FAILED', () => sdk.diagnostics.SKILLS_GIT_AUTH_FAILED({ url, host: 'example.com' })],
+        ['SKILLS_GIT_SAML_SSO_BLOCKED', () => sdk.diagnostics.SKILLS_GIT_SAML_SSO_BLOCKED({
+            url, 
+            sshUrl: url, 
+            host: 'example.com', 
+        })],
+        ['SKILLS_UNSUPPORTED_GIT_TRANSPORT', () => sdk.diagnostics.SKILLS_UNSUPPORTED_GIT_TRANSPORT({ transport: url })],
+        ['SKILLS_INVALID_OPTION_VALUE', () => sdk.diagnostics.SKILLS_INVALID_OPTION_VALUE({ option: 'ref', expected: url })],
+        ['SKILLS_LOCAL_PATH_NOT_FOUND', () => sdk.diagnostics.SKILLS_LOCAL_PATH_NOT_FOUND({ path: url })],
+        ['SKILLS_NO_VALID_SKILLS', () => sdk.diagnostics.SKILLS_NO_VALID_SKILLS()],
+        ['SKILLS_NO_MATCHING_SKILLS', () => sdk.diagnostics.SKILLS_NO_MATCHING_SKILLS({ requested: [url], available: [url] })],
+        ['SKILLS_AMBIGUOUS_SKILL_SELECTOR', () => sdk.diagnostics.SKILLS_AMBIGUOUS_SKILL_SELECTOR({ selector: url })],
+        ['SKILLS_DUPLICATE_SKILL_NAME', () => sdk.diagnostics.SKILLS_DUPLICATE_SKILL_NAME({ skills: [url] })],
+        ['SKILLS_SKILL_CONTAINS_SYMLINKS', () => sdk.diagnostics.SKILLS_SKILL_CONTAINS_SYMLINKS({ links: [url] })],
+        ['SKILLS_UNSAFE_SUBPATH', () => sdk.diagnostics.SKILLS_UNSAFE_SUBPATH({ subpath: url })],
+        ['SKILLS_SUBPATH_OUTSIDE_REPO', () => sdk.diagnostics.SKILLS_SUBPATH_OUTSIDE_REPO({ subpath: url })],
+        ['SKILLS_GIT_CLONE_FAILED for a repository git does not find', () => sdk.diagnostics.SKILLS_GIT_CLONE_FAILED({
+            url,
+            detail: 'not found',
+            cause: new Error(`fatal: '${url}' does not appear to be a git repository`),
+        })],
+    ])('reports %s as configuration with the generic message', async (_, diagnostic) => {
+        const { root, options } = await setup();
+
+        vi.mocked(sdk.resolveSource).mockRejectedValueOnce(diagnostic());
+
+        const error = await failureOf(skills.prepareSkills(options));
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(error.message).not.toContain('token-secret');
+        expect(error.message).not.toContain('example.com');
+        expect(await fs.readdir(root)).toEqual([]);
     });
 
     it.each([
-        new sdk.GitCloneError('Authentication failed for https://example.com/x.git', 'https://example.com/x.git', false, true),
-        new sdk.GitCloneError("Failed to clone x: fatal: repository 'https://example.com/x.git/' not found", 'x'),
-    ])('reports an authentication or missing repository failure as configuration: %s', async (failure) => {
-        const { options } = await setup();
+        ['SKILLS_GIT_CLONE_TIMEOUT', () => sdk.diagnostics.SKILLS_GIT_CLONE_TIMEOUT({ seconds: 300 })],
+        ['SKILLS_GIT_CLONE_FAILED', () => sdk.diagnostics.SKILLS_GIT_CLONE_FAILED({
+            url, 
+            detail, 
+            cause: new Error(detail), 
+        })],
+        ['SKILLS_GIT_CLONE_FAILED for a missing ref', () => {
+            const answer = `fatal: Remote branch ${'a'.repeat(40)} not found in upstream origin`;
 
-        vi.mocked(sdk.cloneRepo).mockRejectedValueOnce(failure);
+            return sdk.diagnostics.SKILLS_GIT_CLONE_FAILED({
+                url, 
+                detail: answer, 
+                cause: new Error(answer), 
+            });
+        }],
+        ['SKILLS_GIT_CLONE_FAILED whose message alone names a missing repository', () => sdk.diagnostics.SKILLS_GIT_CLONE_FAILED({
+            url: 'https://example.com/does not appear to be a git repository',
+            detail,
+            cause: new Error(detail),
+        })],
+        ['SKILLS_SOURCE_FETCH_FAILED', () => sdk.diagnostics.SKILLS_SOURCE_FETCH_FAILED({ source: url, detail })],
+        ['an unknown code', () => sdk.diagnostics.SKILLS_LOCK_WRITE_FAILED({ detail })],
+        ['a non-diagnostic', () => new Error(detail)],
+    ])('reports %s as retryable with the generic message', async (_, failure) => {
+        const { root, options } = await setup();
+
+        vi.mocked(sdk.resolveSource).mockRejectedValueOnce(failure());
+
+        const error = await failureOf(skills.prepareSkills(options));
+
+        expect(error).not.toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(error.code).toBe(SKILL_PREPARATION_FAILED_ERROR_CODE);
+        expect(error.message).not.toContain('token-secret');
+        expect(error.message).not.toContain('example.com');
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('maps a diagnostic thrown by the install like one of the resolve', async () => {
+        const { root, options } = await setup();
+
+        vi.mocked(sdk.installSkills).mockRejectedValueOnce(sdk.diagnostics.SKILLS_SKILL_CONTAINS_SYMLINKS({ links: [url] }));
         await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('reports a failed fetch of the pinned tree as retryable without forwarding the URL', async () => {
+        const { root, options } = await setup();
+
+        vi.mocked(sdk.resolveSource).mockImplementationOnce(async (...args) => {
+            const handle = await actual.resolveSource(...args);
+            const wrapped = {
+                source: { ...handle.source, url: 'file:///missing/token-secret.git' },
+                skills: handle.skills,
+                dispose: () => handle.dispose(),
+            };
+
+            originals.set(wrapped, handle);
+
+            return wrapped;
+        });
+
+        const error = await failureOf(skills.prepareSkills(options));
+
+        expect(error.code).toBe(SKILL_PREPARATION_FAILED_ERROR_CODE);
+        expect(error.message).not.toContain('token-secret');
+        expect(sdk.installSkills).not.toHaveBeenCalled();
+        expect(await fs.readdir(root)).toEqual([]);
     });
 });

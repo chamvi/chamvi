@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { execFile } from 'node:child_process';
 import fs from 'node:fs/promises';
 import {
     basename,
@@ -13,57 +12,30 @@ import {
     join,
     resolve,
 } from 'node:path';
-import { promisify } from 'node:util';
-import {
-    cleanupTempDir,
-    cloneRepo,
-    discoverSkills,
-    filterSkills,
-    installSkillForAgent,
-} from 'skills';
+import { installSkills, resolveSource } from 'skills';
+import type { SkillSource } from 'skills';
 import type { PrepareSkillsOptions, PreparedSkill } from './types.ts';
 import {
     copyPreparationOptions,
     invalid,
     isCancellation,
+    orAbortReason,
     toPreparationError,
     unavailable,
+    withoutYamlWarnings,
 } from './helpers.ts';
 import { acquireGuard, releaseGuard } from './lock.ts';
+import { verifyPinnedTree } from './tree.ts';
 
-const run = promisify(execFile);
 const marker = '.chamvi-skills';
 const ownership = 'chamvi-skills-v1\n';
+const gitSourceTypes = ['git', 'github', 'gitlab'];
 
-async function gitMetadata(args: string[], signal?: AbortSignal) {
-    const pending = run('git', args, { timeout: 30_000, signal });
-    // Abort rejects before close; cleanup must wait for the actual process and streams.
-    const closed = new Promise<void>((done) => {
-        pending.child.once('close', () => done());
-    });
+/** Whether a staged skill folder holds an entry named `.git` (a submodule's file or directory) at any depth. */
+async function hasGitEntry(directory: string): Promise<boolean> {
+    const entries = await fs.readdir(directory, { recursive: true });
 
-    try {
-        return await pending;
-    } catch (error) {
-        if (signal?.aborted) {
-            throw error;
-        }
-
-        const { code, signal: terminatedBy } = error as { code?: unknown; signal?: unknown };
-
-        // a failing or flooding command on the pinned checkout is the source's; a timeout or an external signal is retryable
-        if (typeof code === 'number' || code === 'ERR_CHILD_PROCESS_STDIO_MAXBUFFER') {
-            invalid();
-        }
-
-        if (typeof terminatedBy === 'string') {
-            unavailable();
-        }
-
-        throw error;
-    } finally {
-        await closed;
-    }
+    return entries.some((entry) => basename(entry) === '.git');
 }
 
 async function inspectTarget(directory: string): Promise<boolean> {
@@ -111,12 +83,12 @@ export async function prepareSkills(options: PrepareSkillsOptions): Promise<read
         requestedDirectory,
         verify,
         signal,
-        parsed,
+        source,
     } = copyPreparationOptions(options);
 
     signal?.throwIfAborted();
 
-    let clone: string | undefined;
+    let handle: SkillSource | undefined;
     let stage: string | undefined;
     let lock: { guard: string; token: string } | undefined;
     let previous: string | undefined;
@@ -141,68 +113,94 @@ export async function prepareSkills(options: PrepareSkillsOptions): Promise<read
         signal?.throwIfAborted();
         stage = await fs.mkdtemp(join(parent, '.chamvi-skills-'));
         signal?.throwIfAborted();
-        clone = await cloneRepo(parsed.url, revision);
-        // The SDK clone has no signal; join it before cleanup and never copy canceled work.
-        signal?.throwIfAborted();
-
-        const { stdout } = await gitMetadata(['-C', clone, 'rev-parse', '--verify', 'HEAD'], signal);
-
-        if (stdout.trim().toLowerCase() !== revision) {
-            invalid();
-        }
-
-        signal?.throwIfAborted();
-
-        // Reject committed links before discovery or copying can follow them.
-        const tree = await gitMetadata(['-C', clone, 'ls-tree', '-r', '-z', 'HEAD'], signal);
-
-        const hasSymlink = tree.stdout.split('\0').some((entry) => entry.startsWith('120000 '));
-
-        if (hasSymlink) {
-            invalid();
-        }
-
-        signal?.throwIfAborted();
-
-        // discovery reads the pinned checkout only: a failure is the source's, never transient
-        const discovered = await discoverSkills(clone, parsed.subpath, {
-            includeDuplicateNames: true,
+        // No `onWarning`: the SDK then drops its warning diagnostics. Discovery reads the SDK's standard
+        // locations (root, `skills/`, agent and plugin folders) and the whole tree only when those hold nothing.
+        // The SDK does not interrupt a running clone; it is joined, then disposed, before a cancellation rejects.
+        handle = await orAbortReason(() => withoutYamlWarnings(() => resolveSource(source, {
+            ref: revision,
             includeInternal: true,
-            fullDepth: true,
-            // Source diagnostics can contain private YAML excerpts.
-            onWarning: () => {},
-        }).catch(() => invalid());
-
+            signal,
+        })), signal);
         signal?.throwIfAborted();
 
-        const selected = filterSkills(discovered, names);
+        if (!gitSourceTypes.includes(handle.source.type)) {
+            invalid();
+        }
+
+        // the SDK could not read the checked-out commit (a failed or timed-out git call): retryable
+        if (handle.source.commit === undefined) {
+            unavailable();
+        }
+
+        if (handle.source.commit !== revision) {
+            invalid();
+        }
+
+        const selected = names.map((name) => {
+            // exactly one folder declares the name: a duplicate or only a fuzzy match is ambiguous
+            const matches = handle!.skills.filter((skill) => skill.name === name);
+
+            if (matches.length !== 1 || matches[0]!.duplicates?.length || matches[0]!.path === undefined) {
+                invalid();
+            }
+
+            return matches[0]!;
+        });
+
+        // The SDK reads discovery containers through committed links and copies submodule checkouts, so the
+        // pinned tree is inspected with plain git before anything is installed.
+        await orAbortReason(() => verifyPinnedTree({
+            directory: join(stage!, 'tree'),
+            url: handle!.source.url,
+            revision,
+            paths: selected.map((skill) => skill.path!),
+            signal,
+        }), signal);
+        signal?.throwIfAborted();
+
         const staged: PreparedSkill[] = [];
 
-        for (const name of names) {
+        for (const [index, name] of names.entries()) {
             signal?.throwIfAborted();
 
-            const matches = selected.filter((skill) => skill.name === name);
-
-            if (matches.length !== 1) {
-                invalid();
-            }
-
-            const skill = matches[0]!;
-            const installed = await installSkillForAgent(skill, 'universal', {
+            const skill = selected[index]!;
+            const checkout = handle;
+            const installed = await orAbortReason(() => withoutYamlWarnings(() => installSkills(checkout, {
                 cwd: stage,
+                skills: [name],
+                agents: ['universal'],
                 mode: 'copy',
-                global: false,
-            });
+                lockfile: false,
+                telemetry: false,
+                duplicates: 'error',
+                symlinks: 'reject',
+                signal,
+            })), signal);
 
             signal?.throwIfAborted();
 
-            const path = resolve(installed.path);
+            const path = join(stage, '.agents', 'skills', name);
 
-            if (!installed.success || path !== join(stage, '.agents', 'skills', name)) {
+            // a failed entry is the SDK's wrapper for a filesystem error while copying (ENOSPC, EIO, EACCES)
+            if (installed.failed.length) {
+                unavailable();
+            }
+
+            if (installed.skipped.length || installed.installed.length !== 1 ||
+                resolve(installed.installed[0]!.path) !== path) {
                 invalid();
             }
 
-            if (!(await fs.lstat(path)).isDirectory()) {
+            const stat = await fs.lstat(path).catch(() => invalid());
+
+            if (!stat.isDirectory()) {
+                invalid();
+            }
+
+            // second layer behind the gitlink check: no submodule checkout reaches the corpus or the verifier
+            const hasSubmodule = await hasGitEntry(path);
+
+            if (hasSubmodule) {
                 invalid();
             }
 
@@ -269,7 +267,7 @@ export async function prepareSkills(options: PrepareSkillsOptions): Promise<read
     } finally {
         // Keep a backup if restoring the previous corpus itself failed.
         const cleanups = [
-            clone && cleanupTempDir(clone),
+            handle?.dispose(),
             stage && !previous && fs.rm(stage, { recursive: true, force: true }),
             lock && releaseGuard(lock.guard, lock.token),
         ];

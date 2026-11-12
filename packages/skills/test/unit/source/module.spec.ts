@@ -26,10 +26,12 @@ vi.mock('skills', async (original) => {
 
     return {
         ...actual,
-        cloneRepo: vi.fn(actual.cloneRepo),
-        installSkillForAgent: vi.fn(actual.installSkillForAgent),
+        resolveSource: vi.fn(actual.resolveSource),
+        installSkills: vi.fn(actual.installSkills),
     };
 });
+
+const actual = await vi.importActual<typeof sdk>('skills');
 
 const fixtures: GitFixture[] = [];
 const roots: string[] = [];
@@ -65,7 +67,8 @@ async function setup(files: Record<string, string> = {}) {
 }
 afterEach(async () => {
     vi.restoreAllMocks();
-    vi.clearAllMocks();
+    vi.mocked(sdk.resolveSource).mockReset().mockImplementation(actual.resolveSource);
+    vi.mocked(sdk.installSkills).mockReset().mockImplementation(actual.installSkills);
     await Promise.all(fixtures.map((fixture) => fixture.cleanup()));
     await Promise.all(roots.map((root) => fs.rm(root, { recursive: true, force: true })));
     fixtures.length = 0;
@@ -77,7 +80,7 @@ it('constructs without I/O and snapshots configuration and approved headers befo
     const source = skills.gitSkills(options);
 
     expect(mkdir).not.toHaveBeenCalled();
-    expect(sdk.cloneRepo).not.toHaveBeenCalled();
+    expect(sdk.resolveSource).not.toHaveBeenCalled();
 
     const expected = structuredClone(options.approved);
 
@@ -102,7 +105,7 @@ it('constructs without I/O and snapshots configuration and approved headers befo
         hash,
     }))).toEqual(expected);
     expect(result.map((skill) => skill.body)).toEqual(['AUDIT\n', 'DESIGN\n']);
-    expect(sdk.cloneRepo).toHaveBeenCalledTimes(1);
+    expect(sdk.resolveSource).toHaveBeenCalledTimes(1);
     expect(await fs.readdir(root)).toEqual(['corpus']);
 });
 it('prepares arbitrary UTF-8 source files as verified passive references', async () => {
@@ -144,7 +147,7 @@ it.each([
     const { options } = await setup();
 
     expect(() => skills.gitSkills({ ...options, ...invalid } as never)).toThrow(InvalidAgentDefinitionError);
-    expect(sdk.cloneRepo).not.toHaveBeenCalled();
+    expect(sdk.resolveSource).not.toHaveBeenCalled();
 });
 it('rejects duplicate approved names synchronously', async () => {
     const { options } = await setup();
@@ -202,22 +205,27 @@ it('cancels before clone without creating output', async () => {
 
     controller.abort();
     await expect(skills.gitSkills(options).load({ signal: controller.signal })).rejects.toBe(controller.signal.reason);
-    expect(sdk.cloneRepo).not.toHaveBeenCalled();
+    expect(sdk.resolveSource).not.toHaveBeenCalled();
     expect(await fs.readdir(root)).toEqual([]);
 });
 it('joins a noncancelable clone before cleanup and skips copying after cancellation', async () => {
     const { root, options } = await setup();
-    const clone = vi.mocked(sdk.cloneRepo).getMockImplementation()!;
     const entered = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
-    let checkout = '';
+    const dispose = vi.fn<() => Promise<void>>();
 
-    vi.mocked(sdk.cloneRepo).mockImplementationOnce(async (...args) => {
-        checkout = await clone(...args);
+    vi.mocked(sdk.resolveSource).mockImplementationOnce(async (...args) => {
+        const handle = await actual.resolveSource(...args);
+
+        dispose.mockImplementation(() => handle.dispose());
         entered.resolve();
         await release.promise;
 
-        return checkout;
+        return {
+            source: handle.source,
+            skills: handle.skills,
+            dispose,
+        };
     });
 
     const controller = new AbortController();
@@ -231,10 +239,9 @@ it('joins a noncancelable clone before cleanup and skips copying after cancellat
     await entered.promise;
     controller.abort(reason);
     expect(settled).toBe(false);
-    expect(await fs.stat(checkout)).toBeDefined();
     release.resolve();
     await rejected;
-    expect(sdk.installSkillForAgent).not.toHaveBeenCalled();
-    await expect(fs.stat(checkout)).rejects.toMatchObject({ code: 'ENOENT' });
+    expect(sdk.installSkills).not.toHaveBeenCalled();
+    expect(dispose).toHaveBeenCalled();
     expect(await fs.readdir(root)).toEqual([]);
 });

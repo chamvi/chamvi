@@ -5,9 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { ChamviError, InvalidAgentDefinitionError } from '@chamvi/core';
-import { GitCloneError, parseSource } from 'skills';
+import { isDiagnostic } from 'skills';
 import { SKILL_PREPARATION_FAILED_ERROR_CODE, SKILL_PREPARATION_LOCKED_ERROR_CODE } from './constants.ts';
 import type { PrepareSkillsOptions } from './types.ts';
 
@@ -18,12 +19,29 @@ export function invalid(): never {
     throw new InvalidAgentDefinitionError('Cannot prepare skills: invalid configuration, source, verification or managed directory.');
 }
 
-// git's answers for a repository that is not there (deterministic, unlike a network failure)
-const missingSource = /repository .* not found|does not appear to be a git repository|does not exist|returned error: 404|unsupported git transport/iu;
+// The SDK reports a repository a host denies or does not have as SKILLS_GIT_AUTH_FAILED only when git
+// says "Repository not found"; a missing file://, ssh path or plain https repository arrives as
+// SKILLS_GIT_CLONE_FAILED, so this narrow check of git's answer keeps those deterministic failures
+// configuration. A missing ref (also SKILLS_GIT_CLONE_FAILED) never matches it and stays retryable.
+const missingRepository = /does not appear to be a git repository|fatal: repository '[^']*' not found|returned error: 404/u;
 
-// The SDK clones `--branch <sha>`, which always fails with a missing-ref answer, then fetches the sha
-// and swallows that fetch's failure (a network failure as much as a missing commit): never configuration.
-const missingRef = /remote branch .* not found in upstream origin|couldn't find remote ref|upload-pack: not our ref/iu;
+// Inline refs (`#ref`, GitHub `/<owner>/<repo>/tree/<ref>`, GitLab `/-/tree/<ref>`), queries (Azure
+// `?version=`, `?path=`) and skill filters (`owner/repo@skill`) are refused: the pin is `revision` and the
+// selection is `names`. `<transport>::` remote helpers (`ext::`) and option-like sources (`-...`) are refused too.
+const inlineRef = /[#?]|\/-\/tree\/|github\.com[/:][^/]+\/[^/]+\/tree\//iu;
+const remoteHelper = /^[a-z][a-z0-9+.-]*::/iu;
+// `user@host:path`: an `@` there names the ssh user, never a skill filter
+const scpLike = /^[^/@\s]+@[^:/\s]+:/u;
+
+/** A non-URL source with an `@` that is not scp-style carries a skill filter or a version (`owner/repo@x`). */
+function hasSkillFilter(source: string): boolean {
+    return !source.includes('://') && !scpLike.test(source) && source.includes('@');
+}
+
+/** A local path, as the SDK reads one (absolute, `./`, `../`, `.`, `..`); `~` is not expanded. */
+function isLocalPath(source: string): boolean {
+    return isAbsolute(source) || source === '.' || source === '..' || source.startsWith('./') || source.startsWith('../');
+}
 
 /** A retryable failure: generic, since SDK and git messages can hold credentials or private content. */
 export function unavailable(): never {
@@ -43,9 +61,10 @@ export function locked(guard: string): never {
 
 /**
  * Maps a preparation failure to the configuration error (`invalid()`: a check
- * refused the input, an authentication failure, a missing repository), the
- * lock error, or else a retryable failure (`unavailable()`): a pinned commit
- * the SDK could not fetch is retryable, since its answer hides the cause.
+ * refused the input, an authentication failure, a missing repository, a source
+ * or selection the SDK refused), the lock error, or else a retryable failure
+ * (`unavailable()`): a pinned commit the SDK could not fetch is retryable,
+ * since its answer hides the cause, as is every unknown SDK code.
  */
 export function toPreparationError(error: unknown): never {
     if (error instanceof ChamviError && error.code === SKILL_PREPARATION_LOCKED_ERROR_CODE) {
@@ -56,12 +75,27 @@ export function toPreparationError(error: unknown): never {
         invalid();
     }
 
-    if (error instanceof GitCloneError) {
-        const isMissingSource = !error.isTimeout && !missingRef.test(error.message) && missingSource.test(error.message);
+    if (isDiagnostic(
+        error,
+        'SKILLS_GIT_AUTH_FAILED',
+        'SKILLS_GIT_SAML_SSO_BLOCKED',
+        'SKILLS_UNSUPPORTED_GIT_TRANSPORT',
+        'SKILLS_INVALID_OPTION_VALUE',
+        'SKILLS_LOCAL_PATH_NOT_FOUND',
+        'SKILLS_NO_VALID_SKILLS',
+        'SKILLS_NO_MATCHING_SKILLS',
+        'SKILLS_AMBIGUOUS_SKILL_SELECTOR',
+        'SKILLS_DUPLICATE_SKILL_NAME',
+        'SKILLS_SKILL_CONTAINS_SYMLINKS',
+        'SKILLS_UNSAFE_SUBPATH',
+        'SKILLS_SUBPATH_OUTSIDE_REPO',
+    )) {
+        invalid();
+    }
 
-        if (error.isAuthError || isMissingSource) {
-            invalid();
-        }
+    // git's own answer (the cause), not the message, which embeds the source URL
+    if (isDiagnostic(error, 'SKILLS_GIT_CLONE_FAILED') && Error.isError(error.cause) && missingRepository.test(error.cause.message)) {
+        invalid();
     }
 
     return unavailable();
@@ -116,28 +150,95 @@ export function copyPreparationOptions(options: PrepareSkillsOptions) {
         invalid();
     }
 
+    // The SDK accepts a ref only for git sources: a local path goes to it as a file URL, which it clones.
+    const local = isLocalPath(source);
+
+    if (source.startsWith('-')) {
+        invalid();
+    }
+
+    if (!local && (inlineRef.test(source) || hasSkillFilter(source) || remoteHelper.test(source))) {
+        invalid();
+    }
+
+    return {
+        source: local ? pathToFileURL(resolve(source)).href : source,
+        revision,
+        names,
+        requestedDirectory,
+        verify,
+        signal,
+    };
+}
+
+// The untyped string warnings of yaml 2.9.1 (`dist/nodes/addPairToJSMap.js`, through `dist/log.js`
+// `warn()`); every other yaml warning is a `YAMLWarning` object (`dist/public-api.js`).
+const yamlStringWarnings = ['Keys with collection values will be stringified due to JS Object restrictions: '];
+
+let quieting = 0;
+let emitWarning: typeof process.emitWarning | undefined;
+let quiet: typeof process.emitWarning | undefined;
+
+/**
+ * Runs an SDK call while the warnings of the `yaml` parser are dropped. The SDK parses each `SKILL.md`
+ * frontmatter with `yaml`'s default log level, so its warnings go through `process.emitWarning` and
+ * quote the source text: a `YAMLWarning` (an unresolved tag) or an untyped string with one of yaml's
+ * own texts (a collection key that is stringified); the SDK's `onWarning` sees neither. Every other
+ * warning, untyped strings of other texts included, passes through. Overlapping calls share one filter,
+ * which the last one to settle restores unless someone replaced `process.emitWarning` meanwhile.
+ */
+export async function withoutYamlWarnings<T>(task: () => Promise<T>): Promise<T> {
+    if (quieting === 0) {
+        const original = process.emitWarning;
+
+        emitWarning = original;
+        quiet = function (this: unknown, warning: string | Error, ...rest: unknown[]) {
+            const isYaml = Error.isError(warning) && warning.name === 'YAMLWarning';
+            const isYamlString = typeof warning === 'string' &&
+                rest.every((argument) => argument === undefined) &&
+                yamlStringWarnings.some((text) => warning.startsWith(text));
+
+            if (isYaml || isYamlString) {
+                return;
+            }
+
+            Reflect.apply(original, process, [warning, ...rest]);
+        } as typeof process.emitWarning;
+        process.emitWarning = quiet;
+    }
+
+    quieting++;
+
     try {
-        const parsed = parseSource(source);
+        return await task();
+    } finally {
+        quieting--;
 
-        if (!['local', 'git', 'github', 'gitlab'].includes(parsed.type)) {
-            invalid();
+        if (quieting === 0) {
+            if (process.emitWarning === quiet) {
+                process.emitWarning = emitWarning!;
+            }
+
+            emitWarning = undefined;
+            quiet = undefined;
+        }
+    }
+}
+
+/**
+ * Awaits `task` and turns its failure into the caller's abort reason once the caller cancelled:
+ * an SDK or git call that cannot be interrupted keeps running, and its failure after the abort is
+ * the cancellation, not a source problem.
+ */
+export async function orAbortReason<T>(task: () => Promise<T>, signal: AbortSignal | undefined): Promise<T> {
+    try {
+        return await task();
+    } catch (error) {
+        if (signal?.aborted) {
+            throw signal.reason;
         }
 
-        if (parsed.ref || parsed.skillFilter || /^ext::/iu.test(parsed.url)) {
-            invalid();
-        }
-
-        return {
-            source,
-            revision,
-            names,
-            requestedDirectory,
-            verify,
-            signal,
-            parsed,
-        };
-    } catch {
-        return invalid();
+        throw error;
     }
 }
 
