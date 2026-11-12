@@ -399,6 +399,25 @@ describe('prepareSkills', () => {
         expect(await fs.readdir(root)).toEqual(['corpus']);
     });
 
+    it('refuses a staged skill folder holding a .git entry before verification', async () => {
+        const { root, options } = await setup();
+        const verify = vi.fn();
+
+        await skills.prepareSkills(options);
+        vi.mocked(sdk.installSkills).mockImplementationOnce(async (...args) => {
+            const result = await actual.installSkills(...args);
+
+            await fs.mkdir(join(result.installed[0]!.path, 'assets/vendor'), { recursive: true });
+            await fs.writeFile(join(result.installed[0]!.path, 'assets/vendor/.git'), 'gitdir: ../../.git/modules/vendor\n');
+
+            return result;
+        });
+        await expect(skills.prepareSkills({ ...options, verify })).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(verify).not.toHaveBeenCalled();
+        await expect(fs.stat(join(options.directory, 'audit/assets/vendor'))).rejects.toMatchObject({ code: 'ENOENT' });
+        expect(await fs.readdir(root)).toEqual(['corpus']);
+    });
+
     it('rejects a SHA-shaped branch pointing at another commit', async () => {
         const { fixture, options } = await setup();
 
@@ -590,7 +609,7 @@ describe('prepareSkills', () => {
         expect(warnings.mock.calls.map((call) => call.map(String).join(' ')).join('\n')).not.toContain('TOPSECRET-KEY');
     });
 
-    it('drops only YAML and untyped string warnings during SDK calls and restores emitWarning after success, failure and overlap', async () => {
+    it('drops only the warnings of the yaml parser during SDK calls and restores emitWarning after success, failure and overlap', async () => {
         const { root, options } = await setup();
         const warnings = vi.spyOn(process, 'emitWarning').mockImplementation(() => {});
         const yaml = Object.assign(new Error('PRIVATE-YAML-EXCERPT'), { name: 'YAMLWarning' });
@@ -598,7 +617,8 @@ describe('prepareSkills', () => {
         const second = Promise.withResolvers<void>();
         const emitting = (gate?: Promise<void>, entered?: () => void) => async (...args: Parameters<typeof sdk.resolveSource>) => {
             process.emitWarning(yaml);
-            process.emitWarning('PRIVATE-YAML-STRING');
+            process.emitWarning('Keys with collection values will be stringified due to JS Object restrictions: "[ PRIVATE-YAML-STRING ]". Set mapAsMap: true to use object keys.');
+            process.emitWarning('UNRELATED UNTYPED WARNING');
             process.emitWarning('OTHER WARNING', 'DeprecationWarning');
             process.emitWarning(Object.assign(new Error('NAMED WARNING'), { name: 'OtherWarning' }));
             entered?.();
@@ -612,6 +632,7 @@ describe('prepareSkills', () => {
         await skills.prepareSkills(options);
         expect(emitted()).toContain('OTHER WARNING');
         expect(emitted()).toContain('NAMED WARNING');
+        expect(emitted()).toContain('UNRELATED UNTYPED WARNING');
         expect(emitted()).not.toContain('PRIVATE-YAML-EXCERPT');
         expect(emitted()).not.toContain('PRIVATE-YAML-STRING');
         expect(process.emitWarning).toBe(warnings);

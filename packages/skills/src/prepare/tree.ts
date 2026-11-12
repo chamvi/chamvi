@@ -14,6 +14,9 @@ const run = promisify(execFile);
 /** The deadline of a metadata command on the fetched repository. */
 const METADATA_TIMEOUT_MS = 30_000;
 
+/** The output bound of `ls-tree`: about 250,000 entries of long paths; a larger listing is refused. */
+const TREE_MAX_BUFFER = 64 * 1024 * 1024;
+
 /** The deadline of the blob-less fetch of the pinned commit (a slow host, a large tree). */
 const FETCH_TIMEOUT_MS = 300_000;
 
@@ -23,12 +26,14 @@ const GITLINK_MODE = '160000';
 type GitOptions = {
     timeout: number;
     signal?: AbortSignal;
+    maxBuffer?: number;
 };
 
 async function git(args: string[], options: GitOptions) {
     const pending = run('git', ['-c', 'protocol.ext.allow=never', ...args], {
         timeout: options.timeout,
         signal: options.signal,
+        ...(options.maxBuffer ? { maxBuffer: options.maxBuffer } : {}),
         env: { ...process.env, GIT_TERMINAL_PROMPT: '0' },
     });
     // Abort rejects before close; cleanup must wait for the actual process and streams.
@@ -44,9 +49,13 @@ async function git(args: string[], options: GitOptions) {
 }
 
 /** A command on the fetched commit: a failing or flooding one is the source's, a timeout or an external signal is retryable. */
-async function metadata(args: string[], signal?: AbortSignal): Promise<string> {
+async function metadata(args: string[], signal?: AbortSignal, maxBuffer?: number): Promise<string> {
     try {
-        return await git(args, { timeout: METADATA_TIMEOUT_MS, signal });
+        return await git(args, {
+            timeout: METADATA_TIMEOUT_MS, 
+            signal, 
+            maxBuffer, 
+        });
     } catch (error) {
         if (signal?.aborted) {
             throw error;
@@ -66,13 +75,25 @@ async function metadata(args: string[], signal?: AbortSignal): Promise<string> {
     }
 }
 
-/** Whether a gitlink at `link` equals, lies inside or contains the skill folder `skill` (`.` is the root). */
-function overlaps(link: string, skill: string): boolean {
+function fold(path: string): string {
+    return path.normalize('NFC').toLowerCase();
+}
+
+/**
+ * Whether a gitlink at `link` equals, lies inside or contains the skill folder `skill` (`.` is the root).
+ * Both sides are compared NFC-normalised and lower-cased: the SDK reports container paths lexically
+ * (`skills`, `.claude/skills`), while a case-insensitive filesystem lets `Skills/` or `.Claude/` hold them.
+ * A case-sensitive host may over-refuse; that is accepted.
+ */
+export function overlaps(link: string, skill: string): boolean {
     if (skill === '.') {
         return true;
     }
 
-    return link === skill || link.startsWith(`${skill}/`) || skill.startsWith(`${link}/`);
+    const folded = fold(link);
+    const selected = fold(skill);
+
+    return folded === selected || folded.startsWith(`${selected}/`) || selected.startsWith(`${folded}/`);
 }
 
 /**
@@ -127,7 +148,7 @@ export async function verifyPinnedTree(input: {
         invalid();
     }
 
-    const tree = await metadata(['-C', directory, 'ls-tree', '-r', '-z', 'FETCH_HEAD'], signal);
+    const tree = await metadata(['-C', directory, 'ls-tree', '-r', '-z', 'FETCH_HEAD'], signal, TREE_MAX_BUFFER);
 
     for (const entry of tree.split('\0')) {
         if (!entry) {

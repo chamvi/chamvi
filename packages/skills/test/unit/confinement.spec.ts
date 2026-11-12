@@ -203,3 +203,65 @@ it.each([
     expect(await fs.readdir(previous.path)).toEqual(['SKILL.md']);
     expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
 });
+
+it.each([
+    ['a submodule inside a skill of a case-differing container', 'Skills/foo/vendor', { 'Skills/foo/SKILL.md': document('foo', 'CASED BODY') }],
+    ['a submodule mounted in a case-differing agent container', '.Claude/skills/foo', {}],
+] as const)('refuses %s (or does not find the skill on a case-sensitive filesystem)', async (_, mount, files) => {
+    const sub = await createGitFixture({ 'SKILL.md': document('foo', 'SUBMODULE BODY'), 'data.txt': 'SUBMODULE BYTES\n' });
+
+    fixtures.push(sub);
+
+    const {
+        fixture,
+        root,
+        options,
+        previous,
+        commit,
+    } = await setup();
+
+    for (const [path, content] of Object.entries(files)) {
+        await fs.mkdir(join(fixture.path, path, '..'), { recursive: true });
+        await fs.writeFile(join(fixture.path, path), content);
+    }
+
+    await fixture.git('-c', 'protocol.file.allow=always', 'submodule', 'add', sub.url, mount);
+
+    const revision = await commit();
+
+    // case-insensitive host: the gitlink check refuses it; case-sensitive host: the SDK does not find `foo`
+    await expect(prepareSkills({
+        ...options, 
+        revision, 
+        names: ['foo'], 
+    })).rejects.toThrow(InvalidAgentDefinitionError);
+    expect(await fs.readdir(previous.path)).toEqual(['SKILL.md']);
+    expect((await fs.readdir(root)).sort()).toEqual(['corpus', 'outside']);
+});
+
+it('prepares a source whose tree listing exceeds 1 MiB', async () => {
+    const files: Record<string, string> = { 'skills/foo/SKILL.md': document('foo', 'BIG TREE BODY') };
+    const directory = `src/${'d'.repeat(100)}/${'e'.repeat(100)}`;
+
+    // about 250 bytes of ls-tree output per entry: 5,000 entries are about 1.2 MiB
+    for (let index = 0; index < 5_000; index++) {
+        files[`${directory}/file-${index}.txt`] = '';
+    }
+
+    const fixture = await createGitFixture(files);
+
+    fixtures.push(fixture);
+
+    const root = await fs.mkdtemp(join(tmpdir(), 'chamvi-confinement-'));
+
+    roots.push(root);
+
+    const [skill] = await prepareSkills({
+        source: fixture.path,
+        revision: fixture.commit,
+        names: ['foo'],
+        directory: join(root, 'corpus'),
+    });
+
+    expect(await fs.readFile(join(skill!.path, 'SKILL.md'), 'utf8')).toBe(document('foo', 'BIG TREE BODY'));
+}, 120_000);

@@ -171,6 +171,10 @@ export function copyPreparationOptions(options: PrepareSkillsOptions) {
     };
 }
 
+// The untyped string warnings of yaml 2.9.1 (`dist/nodes/addPairToJSMap.js`, through `dist/log.js`
+// `warn()`); every other yaml warning is a `YAMLWarning` object (`dist/public-api.js`).
+const yamlStringWarnings = ['Keys with collection values will be stringified due to JS Object restrictions: '];
+
 let quieting = 0;
 let emitWarning: typeof process.emitWarning | undefined;
 let quiet: typeof process.emitWarning | undefined;
@@ -178,9 +182,9 @@ let quiet: typeof process.emitWarning | undefined;
 /**
  * Runs an SDK call while the warnings of the `yaml` parser are dropped. The SDK parses each `SKILL.md`
  * frontmatter with `yaml`'s default log level, so its warnings go through `process.emitWarning` and
- * quote the source text: a `YAMLWarning` (an unresolved tag) or a plain string without a type (a
- * collection key that is stringified); the SDK's `onWarning` sees neither. Typed warnings (an explicit
- * type or code, a warning object of another name) pass through. Overlapping calls share one filter,
+ * quote the source text: a `YAMLWarning` (an unresolved tag) or an untyped string with one of yaml's
+ * own texts (a collection key that is stringified); the SDK's `onWarning` sees neither. Every other
+ * warning, untyped strings of other texts included, passes through. Overlapping calls share one filter,
  * which the last one to settle restores unless someone replaced `process.emitWarning` meanwhile.
  */
 export async function withoutYamlWarnings<T>(task: () => Promise<T>): Promise<T> {
@@ -190,9 +194,11 @@ export async function withoutYamlWarnings<T>(task: () => Promise<T>): Promise<T>
         emitWarning = original;
         quiet = function (this: unknown, warning: string | Error, ...rest: unknown[]) {
             const isYaml = Error.isError(warning) && warning.name === 'YAMLWarning';
-            const isUntyped = typeof warning === 'string' && rest.every((argument) => argument === undefined);
+            const isYamlString = typeof warning === 'string' &&
+                rest.every((argument) => argument === undefined) &&
+                yamlStringWarnings.some((text) => warning.startsWith(text));
 
-            if (isYaml || isUntyped) {
+            if (isYaml || isYamlString) {
                 return;
             }
 

@@ -31,6 +31,13 @@ const marker = '.chamvi-skills';
 const ownership = 'chamvi-skills-v1\n';
 const gitSourceTypes = ['git', 'github', 'gitlab'];
 
+/** Whether a staged skill folder holds an entry named `.git` (a submodule's file or directory) at any depth. */
+async function hasGitEntry(directory: string): Promise<boolean> {
+    const entries = await fs.readdir(directory, { recursive: true });
+
+    return entries.some((entry) => basename(entry) === '.git');
+}
+
 async function inspectTarget(directory: string): Promise<boolean> {
     const stat = await fs.lstat(directory).catch((error: NodeJS.ErrnoException) => {
         if (error.code === 'ENOENT') {
@@ -187,6 +194,13 @@ export async function prepareSkills(options: PrepareSkillsOptions): Promise<read
             const stat = await fs.lstat(path).catch(() => invalid());
 
             if (!stat.isDirectory()) {
+                invalid();
+            }
+
+            // second layer behind the gitlink check: no submodule checkout reaches the corpus or the verifier
+            const hasSubmodule = await hasGitEntry(path);
+
+            if (hasSubmodule) {
                 invalid();
             }
 
