@@ -5,8 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { buildAuthorizationSnapshot } from '@authup/access';
+import type { AuthorizationSnapshot } from '@authup/access';
 import { describe, expect, it } from 'vitest';
-import type { PermissionBinding, PermissionHolder } from '@chamvi/access';
+import type { PermissionBinding, PermissionHolder, PermissionIdentity } from '@chamvi/access';
 import {
     PERMISSION_NAMES,
     Permission,
@@ -171,6 +173,38 @@ describe('can', () => {
         await expect(canSome(subject, Permission.AGENT_RUN)).resolves.toBe(false);
     });
 
+    it.each([
+        ['scope own', { type: 'realmMatch', scope: 'own' }],
+        ['scope any', { type: 'realmMatch', scope: 'any' }],
+        ['attribute mode', { type: 'realmMatch', attributeName: 'realm_id' }],
+    ])('denies a realmMatch node (%s) for a holder with an identity, plain and inverted, while a sibling still decides', async (_label, node) => {
+        const identity: PermissionIdentity = {
+            type: 'user', 
+            id: USER_ID, 
+            realmId: '0195f2a0-7c3e-7a4b-9c1d-000000000001', 
+        };
+        const plain: PermissionBinding = { permission: { name: Permission.AGENT_RUN }, policies: [node as never] };
+        const inverted: PermissionBinding = {
+            permission: { name: Permission.AGENT_RUN },
+            policies: [{
+                type: 'composite', 
+                invert: true, 
+                children: [node], 
+            } as never],
+        };
+
+        for (const binding of [plain, inverted]) {
+            const subject: PermissionHolder = { bindings: [binding], identity };
+
+            for (const attributes of [undefined, { name: 'triage' }]) {
+                await expect(can(subject, Permission.AGENT_RUN, attributes ? { attributes } : {})).resolves.toBe(false);
+                await expect(canSome(subject, Permission.AGENT_RUN, attributes ? { attributes } : {})).resolves.toBe(false);
+            }
+
+            await expect(can({ bindings: [binding, triageOnly], identity }, Permission.AGENT_RUN, { attributes: { name: 'triage' } })).resolves.toBe(true);
+        }
+    });
+
     it('denies a permissionBinding policy node', async () => {
         const plain: PermissionBinding = {
             permission: { name: Permission.AGENT_RUN },
@@ -184,6 +218,7 @@ describe('can', () => {
         await expect(can(holder(plain), Permission.AGENT_RUN)).resolves.toBe(false);
         await expect(canSome(holder(plain), Permission.AGENT_RUN)).resolves.toBe(false);
         await expect(can(holder(inverted), Permission.AGENT_RUN)).resolves.toBe(false);
+        await expect(canSome(holder(inverted), Permission.AGENT_RUN)).resolves.toBe(false);
     });
 
     it('skips entries that are not bindings', async () => {
@@ -197,6 +232,17 @@ describe('can', () => {
         };
 
         await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(false);
+
+        const withValid = { bindings: [...subject.bindings, { permission: { name: Permission.AGENT_RUN } }] };
+
+        await expect(can(withValid, Permission.AGENT_RUN)).resolves.toBe(true);
+    });
+
+    it('ignores the realmScope of a binding', async () => {
+        const subject = holder({ permission: { name: Permission.AGENT_RUN }, realmScope: 'none' });
+
+        await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(true);
+        await expect(canSome(subject, Permission.AGENT_RUN)).resolves.toBe(true);
     });
 
     it('grants nothing to a holder of the former shape (a permissions array, no bindings)', async () => {
@@ -337,5 +383,222 @@ describe('bindings the check cannot copy', () => {
 
         await expect(can(holder(binding), name, { attributes: { name: 'triage' } })).resolves.toBe(true);
         expect(binding).toEqual(before);
+    });
+});
+
+const APP_REALM = '0195f2a0-7c3e-7a4b-9c1d-000000000001';
+const OTHER_REALM = '0195f2a0-7c3e-7a4b-9c1d-000000000002';
+const CLIENT_ID = '0195f2a0-7c3e-7a4b-9c1d-000000000003';
+
+/** A catalog as GET /authorization serves it: every definition binds its grants. */
+const CATALOG = {
+    policies: {
+        binding: {
+            type: 'composite',
+            decisionStrategy: 'unanimous',
+            children: [{ type: 'identity' }, { type: 'permissionBinding' }],
+        },
+        triage: { type: 'attributes', query: { name: 'triage' } },
+    },
+    permissions: [
+        Permission.AGENT_RUN,
+        Permission.AGENT_READ,
+        Permission.RUN_READ,
+    ].map((name) => definition(name)).concat([
+        definition('release_manage', { realmId: APP_REALM }),
+        definition('release_other', { realmId: OTHER_REALM }),
+        definition('release_client', { clientId: CLIENT_ID }),
+    ]),
+};
+
+const GRANTS = [
+    {
+        name: Permission.AGENT_RUN, 
+        realm_scope: 'any', 
+        policies: ['triage'], 
+    },
+    { name: Permission.RUN_READ, realm_scope: 'own' },
+    {
+        name: 'release_manage', 
+        realm_id: APP_REALM, 
+        realm_scope: 'any', 
+    },
+    {
+        name: 'release_other', 
+        realm_id: OTHER_REALM, 
+        realm_scope: 'any', 
+    },
+    {
+        name: 'release_client', 
+        client_id: CLIENT_ID, 
+        realm_scope: 'any', 
+    },
+];
+
+function definition(name: string, owner: { realmId?: string; clientId?: string } = {}) {
+    return {
+        name,
+        realmId: owner.realmId ?? null,
+        clientId: owner.clientId ?? null,
+        decisionStrategy: null,
+        policies: ['binding'],
+    };
+}
+
+/** The snapshot as a run's invoker stores it: plain JSON. */
+async function snapshot(grants: unknown[] = GRANTS): Promise<AuthorizationSnapshot> {
+    return JSON.parse(JSON.stringify(await buildAuthorizationSnapshot({ catalog: CATALOG, grants }))) as AuthorizationSnapshot;
+}
+
+function identityIn(realmId: string): PermissionIdentity {
+    return {
+        type: 'user', 
+        id: USER_ID, 
+        realmId, 
+    };
+}
+
+async function snapshotHolder(identity: PermissionIdentity | undefined = identityIn(APP_REALM)): Promise<PermissionHolder> {
+    return {
+        bindings: [],
+        authorization: { snapshot: await snapshot(), realm: APP_REALM },
+        ...(identity ? { identity } : {}),
+    };
+}
+
+describe('authorization snapshots', () => {
+    it('passes a grant that reaches the app realm', async () => {
+        const subject = await snapshotHolder();
+
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(true);
+        await expect(canSome(subject, Permission.RUN_READ)).resolves.toBe(true);
+    });
+
+    it('denies a grant of reach own for an identity of another realm', async () => {
+        const subject = await snapshotHolder(identityIn(OTHER_REALM));
+
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(false);
+        await expect(canSome(subject, Permission.RUN_READ)).resolves.toBe(false);
+    });
+
+    it('decides a junction attributes policy per resource', async () => {
+        const subject = await snapshotHolder();
+
+        await expect(can(subject, Permission.AGENT_RUN, { attributes: { name: 'triage' } })).resolves.toBe(true);
+        await expect(can(subject, Permission.AGENT_RUN, { attributes: { name: 'other' } })).resolves.toBe(false);
+        await expect(canSome(subject, Permission.AGENT_RUN, { attributes: { name: 'other' } })).resolves.toBe(false);
+    });
+
+    it('passes a junction attributes policy without attributes under canSome only', async () => {
+        const subject = await snapshotHolder();
+
+        await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(false);
+        await expect(canSome(subject, Permission.AGENT_RUN)).resolves.toBe(true);
+    });
+
+    it('denies a name the identity holds no grant of', async () => {
+        const subject = await snapshotHolder();
+
+        await expect(can(subject, Permission.AGENT_READ)).resolves.toBe(false);
+        await expect(canSome(subject, Permission.AGENT_READ)).resolves.toBe(false);
+        await expect(can(subject, 'unknown_name')).resolves.toBe(false);
+    });
+
+    it('reaches a definition owned by the app realm through the bare name', async () => {
+        await expect(can(await snapshotHolder(), 'release_manage')).resolves.toBe(true);
+    });
+
+    it('never reaches a definition owned by another realm or by a client', async () => {
+        const subject = await snapshotHolder();
+
+        for (const name of ['release_other', 'release_client']) {
+            await expect(can(subject, name)).resolves.toBe(false);
+            await expect(canSome(subject, name)).resolves.toBe(false);
+        }
+    });
+
+    it('grants nothing without an identity', async () => {
+        const subject = await snapshotHolder(null as never);
+
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(false);
+        await expect(canSome(subject, Permission.RUN_READ)).resolves.toBe(false);
+    });
+
+    it('grants nothing for a malformed snapshot and never rejects', async () => {
+        const identity = identityIn(APP_REALM);
+        const malformed: unknown[] = [
+            { definitions: 'nope' },
+            { definitions: [{ permission: { name: Permission.RUN_READ } }], grants: 'nope' },
+            { definitions: [{ permission: { name: Permission.RUN_READ }, realmScope: 'any' }] },
+            null,
+        ];
+
+        for (const value of malformed) {
+            const subject = {
+                bindings: [], 
+                authorization: { snapshot: value as never, realm: APP_REALM }, 
+                identity, 
+            };
+
+            await expect(can(subject, Permission.RUN_READ)).resolves.toBe(false);
+            await expect(canSome(subject, Permission.RUN_READ)).resolves.toBe(false);
+        }
+
+        await expect(can({
+            bindings: [], 
+            authorization: 'nope' as never, 
+            identity, 
+        }, Permission.RUN_READ)).resolves.toBe(false);
+        await expect(can({
+            bindings: [], 
+            authorization: { snapshot: await snapshot(), realm: '' }, 
+            identity, 
+        }, Permission.RUN_READ)).resolves.toBe(false);
+    });
+
+    it('passes when either source passes', async () => {
+        const subject: PermissionHolder = {
+            ...await snapshotHolder(),
+            bindings: [{ permission: { name: Permission.AGENT_READ } }],
+        };
+
+        await expect(can(subject, Permission.AGENT_READ)).resolves.toBe(true);
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(true);
+        await expect(can(subject, Permission.RUN_CANCEL)).resolves.toBe(false);
+    });
+
+    it('evaluates a holder again after an in-place change of its bindings', async () => {
+        const subject: PermissionHolder = { bindings: [{ permission: { name: Permission.AGENT_RUN } }] };
+
+        await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(true);
+
+        (subject.bindings as PermissionBinding[]).length = 0;
+        await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(false);
+
+        (subject.bindings as PermissionBinding[]).push({ permission: { name: Permission.AGENT_RUN }, policies: [{ type: 'attributes', query: { name: 'triage' } } as never] });
+        await expect(can(subject, Permission.AGENT_RUN, { attributes: { name: 'triage' } })).resolves.toBe(true);
+        await expect(can(subject, Permission.AGENT_RUN, { attributes: { name: 'other' } })).resolves.toBe(false);
+    });
+
+    it('evaluates a holder again after an in-place change of its snapshot', async () => {
+        const subject = await snapshotHolder();
+
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(true);
+
+        subject.authorization!.snapshot.grants!.length = 0;
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(false);
+    });
+
+    it('evaluates a holder again once its bindings or authorization are replaced', async () => {
+        const subject: PermissionHolder = { ...await snapshotHolder(), bindings: [] };
+
+        await expect(can(subject, Permission.AGENT_READ)).resolves.toBe(false);
+
+        subject.bindings = [{ permission: { name: Permission.AGENT_READ } }];
+        await expect(can(subject, Permission.AGENT_READ)).resolves.toBe(true);
+
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(true);
+        subject.authorization = { snapshot: await snapshot([]), realm: APP_REALM };
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(false);
     });
 });

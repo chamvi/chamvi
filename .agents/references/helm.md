@@ -153,3 +153,7 @@ Checked chart `master` at `ce1ffc81`: `values.yaml` and the Secret table. No cha
 ## Static permissions (#184, unreleased)
 
 Checked against this file's contract map (GitHub unavailable for a fresh checkout of the chart README): the chart passes `CHAMVI_TOKENS` only through an existing Secret (`secrets`, envFrom) and never renders its value, so the new `permissions` format (`"*"` or a list of permission bindings; `["*"]` fails the start with `InvalidAgentDefinitionError`) needs no template change. Any README or NOTES example showing `"permissions":["*"]` becomes `"permissions":"*"`. No new env variable, route, port or RBAC change; an authup client for `authupModule()` needs `permission_read` and `token_introspect` with a realm scope of `ownOrNull` or wider (`own` does not reach the global definitions).
+
+## authup snapshot and deadline (#206, #208, unreleased)
+
+Checked `ce1ffc81` (2026-11-12): the chart names authup only in the Secrets table of `charts/agent-app/README.md.gotmpl` (`AUTHUP_CLIENT_SECRET` with `AUTHUP_URL`, `AUTHUP_CLIENT_ID`) and renders nothing authup-specific. The new optional `AUTHUP_TIMEOUT_MS` (`authupModule()`, positive integer ms, default 10 000, at most `TIMER_MAX_MS`) is a plain value for `env`; no template, schema or test change is needed. Optional chart README follow-up: name it beside the authup row. Operators upgrade the authup server to 1.0.0-beta.75 before chamvi (a policy type newer than the consumer denies). Runs stored before the upgrade carry an invoker without `bindings` and grant nothing; drain before upgrading.

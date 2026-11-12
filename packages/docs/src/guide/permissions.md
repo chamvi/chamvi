@@ -1,6 +1,6 @@
 # Permissions and authup
 
-A principal (a static token, an authup login, an `oidc()` mapping) and a run's invoker carry `bindings`: a list of **permission bindings**, authup's `PermissionPolicyBinding` with its policy trees resolved. A binding names one permission and the policies that must pass for it:
+A principal and a run's invoker hold their grants in one of two forms. A static token, an `oidc()` mapping or a direct dispatch carries `bindings`: a list of **permission bindings**, authup's `PermissionPolicyBinding` with its policy trees resolved. An authup login carries `authorization` instead (see [authup](#authup)), with `bindings` empty. A check passes when either form passes. A binding names one permission and the policies that must pass for it:
 
 ```json
 { "permission": { "name": "chamvi_agent_run" }, "policies": [{ "type": "attributes", "query": { "name": "triage" } }] }
@@ -53,20 +53,20 @@ export CHAMVI_TOKENS='[
 ]'
 ```
 
-Anything else, an old string such as `"agent:deploy:run"` or `"*"` inside the list included, fails the start with `InvalidAgentDefinitionError` naming the entry. A token has no realm, so `realmScope` on its bindings is ignored. The `principal` mapper of `oidc()` returns the same shape (see [Authentication](/guide/http#authentication-and-permissions)).
+Anything else, an old string such as `"agent:deploy:run"` or `"*"` inside the list included, fails the start with `InvalidAgentDefinitionError` naming the entry. A token has no realm, so `realmScope` on its bindings is ignored, and a binding whose policies hold a `realmMatch` node grants nothing (its other bindings still apply). The `principal` mapper of `oidc()` returns the same shape (see [Authentication](/guide/http#authentication-and-permissions)).
 
 ## authup {#authup}
 
-`authup()` (and `authupModule()` of `@chamvi/app/authup`) turns each grant of a login into a binding:
+`authup()` (and `authupModule()` of `@chamvi/app/authup`) gives a login authup's own two-layer **authorization snapshot**, `authorization: { snapshot, realm }`, evaluated by `@authup/access` exactly as the authup server evaluates it:
 
 - Only tokens with the `global` scope and a user or client subject carry grants.
-- The binding's policies are the permission definition's own policy trees, without their `permissionBinding` check, followed by the policies on the grant (the role's or the user's assignment). They come from authup's catalog (`GET /authorization`), read with chamvi's own client, cached for a minute and read again when a grant names a definition or policy the copy lacks.
-- Realm reach is settled at login: chamvi's resources belong to the realm of its authup client. A grant with reach `own` works for identities of that realm; identities of other realms need reach `any`.
-- A grant this copy cannot express exactly (a definition with `policies: null`, a policy tree it cannot project, a `permissionBinding` check under `invert` or a non-unanimous composite, a definition owned by another realm or by a client) is dropped; the other grants still apply.
-- A grant whose policies hold a `realmMatch` policy grants nothing: a chamvi resource carries no realm, so the policy cannot be answered. Restrict by realm with the grant's realm scope instead.
-- A catalog that cannot be read (the client lacks `permission_read` with reach `ownOrNull` or wider, authup is down) gives the login no permissions and reports the error to `onError` (the app's logger); the start does not fail and static tokens keep working.
+- `snapshot` holds the permission definitions with their policy trees and the login's grants (realm reach and the policies on the grant, the role's or the user's assignment), built by `buildAuthorizationSnapshot` from authup's catalog (`GET /authorization`, read with chamvi's own client, cached for a minute and read again when a grant names a definition or policy the copy lacks). It keeps every `chamvi_*` definition and every other definition the login holds a grant of; an app's own permission without a grant therefore denies, even where its definition would pass on the server. It is plain JSON, so a run's invoker stores it.
+- `realm` is the realm of chamvi's authup client: chamvi's resources belong to it. Every check reaches into it: a grant with reach `own` works for identities of that realm; identities of other realms need reach `any`. A definition owned by that realm is checked by its plain name; one owned by another realm or by a client is never reached.
+- A definition the catalog withholds (`policies: null`) or whose policy tree cannot be read denies its grants; the other grants still apply.
+- A catalog or realm that cannot be read (the client lacks `permission_read` with reach `ownOrNull` or wider, authup is down) gives the login no `authorization` and reports the error to `onError` (the app's logger); the start does not fail and static tokens keep working.
+- Every call to authup has a deadline: `timeoutMs` of `authupModule()`, else `AUTHUP_TIMEOUT_MS`, default 10 000 ms. A token verification that does not answer in time is a 503 (not a 401); a catalog read or realm lookup that does not answer in time counts as a failed read, and the next login tries again.
 
-With `@chamvi/app`, `authupModule()` reads `AUTHUP_URL`, `AUTHUP_CLIENT_ID` and `AUTHUP_CLIENT_SECRET`. That client needs the `client_credentials` grant and the permissions `permission_read` (the catalog) and `token_introspect` (verifying logins, and finding its own realm), granted with a realm scope of `ownOrNull` or wider. authup's default reach `own` does not reach its global permission definitions: the catalog is then refused, or served with `policies: null` for the `chamvi_*` definitions, and every authup login gets no permissions (reported to `onError`). A client's direct permissions take no reach in a provisioning file, so the file below grants them through a role.
+With `@chamvi/app`, `authupModule()` reads `AUTHUP_URL`, `AUTHUP_CLIENT_ID`, `AUTHUP_CLIENT_SECRET` and the optional `AUTHUP_TIMEOUT_MS`. That client needs the `client_credentials` grant and the permissions `permission_read` (the catalog) and `token_introspect` (verifying logins, and finding its own realm), granted with a realm scope of `ownOrNull` or wider. authup's default reach `own` does not reach its global permission definitions: the catalog is then refused, or served with `policies: null` for the `chamvi_*` definitions, and every authup login gets no permissions (reported to `onError`). A client's direct permissions take no reach in a provisioning file, so the file below grants them through a role.
 
 ### Provisioning
 
@@ -164,7 +164,8 @@ The permission strings of earlier releases (`agent:<name>:run`, `run:read`, `con
 1. Let running and waiting runs finish (drain the app) before the upgrade: a stored run's invoker that carries old strings is read as holding no permissions, so its `requireToolPermission()` tools and cross-agent dispatches are refused.
 2. Rewrite every `CHAMVI_TOKENS` entry: `["*"]` becomes `"*"`, any other list a list of bindings. The start fails until then. `"*"` covers every `chamvi_*` name, the two knowledge permissions included (as `*` did): a token that must not read or write knowledge collections gets explicit bindings without them.
 3. In authup, create the thirteen permissions (the file above) and give roles the new names; remove the old ones. A restriction to one agent or connection is a policy on the grant.
-4. An `oidc()` mapper returns bindings; an app's own `hasPermission(invoker.permissions, ...)` becomes `await can(invoker, ...)`.
+4. An `oidc()` mapper returns `bindings`; an app's own `hasPermission(invoker.permissions, ...)` becomes `await can(invoker, ...)`.
+5. Upgrade the authup server to 1.0.0-beta.75 or later before chamvi: a policy type newer than the checking side denies. A run stored before this release carries its grants under `permissions` and no `bindings` or `authorization`: it grants nothing, so drain the app first (step 1).
 
 | Before | Now |
 |---|---|

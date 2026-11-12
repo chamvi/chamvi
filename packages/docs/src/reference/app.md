@@ -74,6 +74,7 @@ Read by `readConfig(env, { mode, dev })` once per lifecycle; the optional module
 | `CHAMVI_FORCE_EXIT_MS` | cli | int | `90000` (dev 15000) | never |
 | `CHAMVI_TOKENS` | static tokens | JSON `[{ "value", "id", "permissions" }]`, `value` at least 16 characters and unique; `permissions` is `"*"` (every `chamvi_*` permission) or an array of [permission bindings](/guide/permissions) | unset (dev: one random `"*"` token, warned) | no other authenticator is configured, outside dev |
 | `AUTHUP_URL`, `AUTHUP_CLIENT_ID`, `AUTHUP_CLIENT_SECRET` | `authupModule` | URL, string, string | unset | `authupModule()` without all of `verifier`, `catalog` and `realm`; the client needs `permission_read` (the catalog) and `token_introspect`, with a realm scope of `ownOrNull` or wider, and its realm is chamvi's realm |
+| `AUTHUP_TIMEOUT_MS` | `authupModule` | integer ms, at least 1 | `10000` | the deadline of every catalog read, realm lookup and token verification (unless `timeoutMs` is given); a verification past it answers 503 |
 | `CHAMVI_UI_AUTHUP_CLIENT_ID`, `CHAMVI_UI_AUTHUP_REALM_ID` | `uiModule` | string | unset (token login only) | the dashboard signs in through authup (URL from `AUTHUP_URL`) |
 | `CHAMVI_MODEL` | engine | `'<provider>/<model id>'` | the config file's `model`, else `createApp({ model })` | an agent has no model of its own |
 | `CHAMVI_CONFIG_FILE` | engine | path of a JSON file, relative to the working directory | unset: `./chamvi.json` when it exists | never |

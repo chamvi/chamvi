@@ -11,6 +11,7 @@ import {
     Permission,
     allPermissions,
     can,
+    isPermissionAuthorization,
     isPermissionBinding,
     permissionNames,
 } from '@chamvi/access';
@@ -32,6 +33,31 @@ describe('isPermissionBinding', () => {
         [[], false],
     ])('%j is %s', (value, expected) => {
         expect(isPermissionBinding(value)).toBe(expected);
+    });
+});
+
+const BINDING = { permission: { name: 'x' } };
+
+describe('isPermissionAuthorization', () => {
+    it.each([
+        [{ realm: 'r', snapshot: { definitions: [] } }, true],
+        [{ realm: 'r', snapshot: { definitions: [BINDING], grants: [BINDING] } }, true],
+        [{ realm: 'r', snapshot: { definitions: [BINDING], grants: [] } }, true],
+        [{ realm: '', snapshot: { definitions: [] } }, false],
+        [{ realm: 1, snapshot: { definitions: [] } }, false],
+        [{ snapshot: { definitions: [] } }, false],
+        [{ realm: 'r' }, false],
+        [{ realm: 'r', snapshot: null }, false],
+        [{ realm: 'r', snapshot: {} }, false],
+        [{ realm: 'r', snapshot: { definitions: [{ permission: { name: '' } }] } }, false],
+        [{ realm: 'r', snapshot: { definitions: ['x'] } }, false],
+        [{ realm: 'r', snapshot: { definitions: [], grants: 'x' } }, false],
+        [{ realm: 'r', snapshot: { definitions: [], grants: [{}] } }, false],
+        ['x', false],
+        [null, false],
+        [[], false],
+    ])('%j is %s', (value, expected) => {
+        expect(isPermissionAuthorization(value)).toBe(expected);
     });
 });
 
@@ -58,6 +84,33 @@ describe('permissionNames', () => {
         });
 
         expect(names).toEqual([Permission.AGENT_RUN, 'release_manage']);
+    });
+
+    it('adds the names of the snapshot\'s grants, never of its definitions', () => {
+        const names = permissionNames({
+            bindings: [{ permission: { name: Permission.AGENT_RUN } }],
+            authorization: {
+                realm: 'r',
+                snapshot: {
+                    definitions: [
+                        { permission: { name: Permission.AGENT_READ } },
+                        { permission: { name: Permission.RUN_READ } },
+                        { permission: { name: Permission.AGENT_RUN } },
+                    ],
+                    grants: [
+                        { permission: { name: Permission.RUN_READ } },
+                        { permission: { name: Permission.AGENT_RUN } },
+                        { permission: { name: Permission.RUN_READ }, realmScope: 'own' },
+                    ],
+                },
+            },
+        });
+
+        expect(names).toEqual([Permission.AGENT_RUN, Permission.RUN_READ]);
+    });
+
+    it('ignores a malformed authorization', () => {
+        expect(permissionNames({ bindings: [], authorization: { realm: 'r', snapshot: { grants: 'x' } } as never })).toEqual([]);
     });
 
     it('is empty for a holder without bindings', () => {

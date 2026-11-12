@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { PermissionPolicyBinding } from '@authup/access';
+import type { AuthorizationSnapshot, PermissionPolicyBinding } from '@authup/access';
 
 /**
  * One grant: a permission name and the policies that must pass for it,
@@ -22,9 +22,22 @@ export type PermissionIdentity = {
     clientId?: string | null;
 };
 
-/** Anything that holds bindings: a principal, a run's invoker. */
+/**
+ * authup's two-layer authorization of an identity: the definitions a check
+ * may ask for and the identity's grants (plain JSON, `buildAuthorizationSnapshot`).
+ */
+export type PermissionAuthorization = {
+    snapshot: AuthorizationSnapshot;
+    /** The realm chamvi's resources belong to; every check reaches into it. */
+    realm: string;
+};
+
+/** Anything that holds grants: a principal, a run's invoker. */
 export type PermissionHolder = {
+    /** Self-contained bindings (static tokens, oidc mappers, direct dispatch). */
     bindings: readonly PermissionBinding[];
+    /** Set by authup(): the identity's snapshot, evaluated together with `identity`. */
+    authorization?: PermissionAuthorization;
     identity?: PermissionIdentity;
 };
 

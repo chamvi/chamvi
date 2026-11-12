@@ -8,6 +8,7 @@
 import { Permission } from '@chamvi/access';
 import type { PermissionBinding } from '@chamvi/access';
 import type { ConnectionStatus } from '@chamvi/core';
+import { reactive } from 'vue';
 import { describe, expect, it } from 'vitest';
 import { STATUS_BADGES } from '../../../src/connections/constants.ts';
 import {
@@ -19,7 +20,7 @@ import {
     statusBadge,
 } from '../../../src/connections/helpers.ts';
 import type { ConnectionTypeWire } from '../../../src/connections/types.ts';
-import { ALL, grant } from '../../utils/permissions.ts';
+import { ALL, authorized, grant } from '../../utils/permissions.ts';
 
 describe('connectionBadge', () => {
     it('reads the configuration first', () => {
@@ -105,6 +106,36 @@ const MAIL_TYPE: ConnectionTypeWire = {
     testable: false,
     fields: [],
 };
+
+describe('permissions through an authorization snapshot', () => {
+    it('gates writing, reading and adding with the grants of the snapshot alone', async () => {
+        const subject = authorized(grant(Permission.CONNECTION_WRITE, { name: 'whatsapp' }), grant(Permission.CONNECTION_CREATE, { type: 'mail' }));
+
+        expect(await canWriteConnection(subject, WHATSAPP)).toBe(true);
+        expect(await canReadConnection(subject, WHATSAPP)).toBe(true);
+        expect(await canWriteConnection(subject, MAIL_WORK)).toBe(false);
+        expect(await canAddAccount(MAIL_TYPE, subject)).toBe(true);
+        expect(await canAddAccount({ ...MAIL_TYPE, type: 'calendar' }, subject)).toBe(false);
+    });
+
+    it('evaluates a reactive holder', async () => {
+        const subject = reactive(authorized(grant(Permission.CONNECTION_WRITE, { name: 'whatsapp' })));
+
+        expect(await canWriteConnection(subject, WHATSAPP)).toBe(true);
+        expect(await canWriteConnection(subject, MAIL_WORK)).toBe(false);
+    });
+
+    it('evaluates the holder of a refetched /me afresh', async () => {
+        const before = reactive(authorized(grant(Permission.CONNECTION_WRITE)));
+
+        expect(await canWriteConnection(before, WHATSAPP)).toBe(true);
+
+        const after = reactive(authorized(grant(Permission.CONNECTION_READ)));
+
+        expect(await canWriteConnection(after, WHATSAPP)).toBe(false);
+        expect(await canWriteConnection(before, WHATSAPP)).toBe(true);
+    });
+});
 
 describe('permissions', () => {
     it('widgets, the live stream and reset need the write grant', async () => {

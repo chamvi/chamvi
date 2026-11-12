@@ -16,6 +16,7 @@ describe('public api', () => {
             'allPermissions',
             'can',
             'canSome',
+            'isPermissionAuthorization',
             'isPermissionBinding',
             'permissionNames',
         ]);
@@ -25,6 +26,7 @@ describe('public api', () => {
         'allPermissions',
         'can',
         'canSome',
+        'isPermissionAuthorization',
         'isPermissionBinding',
         'permissionNames',
     ])('exports the function %s', (name) => {

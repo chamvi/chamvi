@@ -8,6 +8,7 @@
 export * from './constants.ts';
 export {
     allPermissions,
+    isPermissionAuthorization,
     isPermissionBinding,
     permissionNames,
 } from './helpers.ts';

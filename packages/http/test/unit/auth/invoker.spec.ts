@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
+import type { PermissionAuthorization, PermissionBinding } from '@chamvi/access';
 import { toInvoker } from '../../../src/auth/helpers.ts';
 
 const READ: PermissionBinding = { permission: { name: Permission.RUN_READ } };
@@ -46,6 +46,38 @@ describe('toInvoker', () => {
 
         expect(invoker.identity).toEqual(identity);
         expect(invoker.identity).not.toBe(identity);
+    });
+
+    it('keeps a copy of the authorization', () => {
+        const authorization: PermissionAuthorization = {
+            realm: '0195f2a0-7c3e-7a4b-9c1d-000000000001',
+            snapshot: {
+                definitions: [{
+                    permission: {
+                        name: 'chamvi_run_read', 
+                        realmId: null, 
+                        clientId: null, 
+                    }, 
+                }],
+                grants: [{
+                    permission: {
+                        name: 'chamvi_run_read', 
+                        realmId: null, 
+                        clientId: null, 
+                    },
+                    realmScope: 'any', 
+                }],
+            },
+        };
+        const invoker = toInvoker({
+            id: USER_ID,
+            kind: 'authup',
+            bindings: [],
+            authorization,
+        });
+
+        expect(invoker.authorization).toEqual(authorization);
+        expect(invoker.authorization).not.toBe(authorization);
     });
 
     it('takes the name from name, then preferred_username, never email', () => {

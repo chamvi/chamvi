@@ -83,6 +83,8 @@ function readBody(request: IncomingMessage): Promise<string> {
 export async function createFakeAuthup(options: {
     users: Record<string, Record<string, unknown>>;
     catalog?: unknown;
+    /** Leaves a request unanswered while it returns true (`<METHOD> <path>`). */
+    hold?: (route: string) => boolean;
 }): Promise<FakeAuthup> {
     const requests: string[] = [];
     const exp = Math.floor(Date.now() / 1000) + 3600;
@@ -98,6 +100,10 @@ export async function createFakeAuthup(options: {
         };
 
         readBody(request).then((body) => {
+            if (options.hold?.(`${request.method} ${path}`)) {
+                return;
+            }
+
             if (request.method === 'POST' && path === '/token') {
                 json(200, {
                     access_token: CLIENT_TOKEN,

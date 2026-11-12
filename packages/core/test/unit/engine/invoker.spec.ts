@@ -26,7 +26,7 @@ import type {
     Invoker,
     RunContext,
 } from '@chamvi/core';
-import { Permission, allPermissions } from '@chamvi/access';
+import { Permission, allPermissions, can } from '@chamvi/access';
 import type { PermissionBinding } from '@chamvi/access';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createMemoryStore } from '../../../src/repository/index.ts';
@@ -169,6 +169,8 @@ describe('invoker', () => {
         ['an identity of an unknown type', { ...alice, identity: { type: 'robot', id: 'x' } }],
         ['an identity without an id', { ...alice, identity: { type: 'user', id: '' } }],
         ['a non-string name', { ...alice, name: 42 }],
+        ['an authorization without a realm', { ...alice, authorization: { realm: '', snapshot: { definitions: [] } } }],
+        ['an authorization whose definitions are no bindings', { ...alice, authorization: { realm: 'r', snapshot: { definitions: ['x'] } } }],
     ])('rejects %s before any write', async (_label, invoker) => {
         const { engine, store } = setup({ model: mockModel([]) });
 
@@ -180,6 +182,39 @@ describe('invoker', () => {
 
         expect(deduplicated).toBe(false);
         expect((await store.runs.findOne(runId))?.trigger.invoker).toEqual(alice);
+    });
+
+    it('keeps the authorization through the store round trip, and a snapshot grant decides', async () => {
+        const { engine, store } = setup({ model: mockModel([]) });
+        const realm = '0195f2a0-7c3e-7a4b-9c1d-000000000001';
+        const name = {
+            name: Permission.RUN_READ, 
+            realmId: null, 
+            clientId: null, 
+        };
+        const invoker: Invoker = {
+            id: '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d',
+            kind: 'authup',
+            bindings: [],
+            authorization: {
+                realm,
+                snapshot: {
+                    definitions: [{ permission: name, policies: [{ type: 'permissionBinding' } as never] }],
+                    grants: [{ permission: name, realmScope: 'own' }],
+                },
+            },
+            identity: {
+                type: 'user', 
+                id: '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d', 
+                realmId: realm, 
+            },
+        };
+        const { runId } = await engine.dispatch(env(invoker));
+        const stored = (await store.runs.findOne(runId))?.trigger.invoker;
+
+        expect(stored).toEqual(invoker);
+        expect(await can(stored!, Permission.RUN_READ)).toBe(true);
+        expect(await can(stored!, Permission.RUN_CANCEL)).toBe(false);
     });
 
     it('dedupes a key per invoker: the same invoker gets the first run', async () => {

@@ -85,15 +85,17 @@ Any name is checkable (an app may check its own, such as `release_manage`). Thes
 | `chamvi_knowledge_read` | `name` (the collection) |
 | `chamvi_knowledge_write` | `name` (the collection) |
 
-`allPermissions()` returns one unrestricted binding per name, `permissionNames(holder)` the distinct granted names and `isPermissionBinding(value)` tells a binding from anything else.
+`allPermissions()` returns one unrestricted binding per name, `permissionNames(holder)` the distinct names of the holder's bindings and of its snapshot's grants (for display; a grant may still be restricted) and `isPermissionBinding(value)` tells a binding from anything else (upstream's `isPermissionPolicyBinding`) and `isPermissionAuthorization(value)` checks the shape of an `authorization` (shallow: the evaluator validates the trees).
 
 ## can and canSome
 
-- `can(holder, name, { attributes, now })` is true when one binding of that name passes for the resource in `attributes`. Bindings of one name are a disjunction, the policies of one binding a conjunction (or the binding's `permission.decisionStrategy`). Without `attributes` a policy over them fails: the check asks about every resource.
+- `can(holder, name, { attributes, now })` is true when the holder's bindings or its `authorization` pass for the resource in `attributes`. Both are evaluated by `createAuthorizationSnapshotEvaluator` of `@authup/access`: the bindings as a snapshot without grants (bindings of one name are a disjunction, the policies of one binding a conjunction or the binding's `permission.decisionStrategy`), the `authorization` as authup's two-layer snapshot with the holder's `identity`. Without `attributes` a policy over them fails: the check asks about every resource.
 - `canSome(holder, name, options)` treats a policy whose data is missing (no `attributes`, no `identity`) as passed: may the holder do this to some resource? A list route uses it, then checks each row with `can`.
 - `now` feeds the `date` and `time` policies (default the real clock); the holder's `identity` feeds `identity` policies.
-- A binding's `realmScope` is not evaluated: whoever builds the bindings settles realm reach first (the authup authenticator of `@chamvi/http` drops grants that do not reach the deployment's realm).
-- Both fail closed and never reject: an entry that is not a binding, an unknown policy type, a `permissionBinding` policy node and a `realmMatch` policy node grant nothing (a resource carries no realm here; realm reach is settled when the bindings are built).
+- `authorization` is `{ snapshot, realm }`, set by the authup authenticator of `@chamvi/http`: `snapshot` comes from `buildAuthorizationSnapshot` (plain JSON, so a run's invoker stores it), `realm` is the realm chamvi's resources belong to. Every check feeds `realm` as the resource realm and asks for the global definition and the one owned by `realm`; a definition owned by another realm or by a client is never reached. Without an `identity` the snapshot grants nothing.
+- A token has no realm and a binding of `bindings` no resource realm: its `realmScope` is not evaluated, and a binding with a `realmMatch` node anywhere in its tree grants nothing (its siblings still decide). In `authorization` a `realmMatch` node is evaluated against `realm`.
+- Both fail closed and never reject: an entry that is not a binding, a binding that cannot be copied as JSON, an unknown policy type, a `permissionBinding` policy node and a malformed `authorization` grant nothing.
+- Built evaluators are cached per holder object while it keeps the same `bindings`, `authorization` and `identity` objects; treat a holder as immutable data.
 
 ## License
 

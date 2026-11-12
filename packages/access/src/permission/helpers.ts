@@ -5,35 +5,33 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { isPermissionPolicyBinding } from '@authup/access';
 import { isObject } from 'smob';
 import { PERMISSION_NAMES } from './constants.ts';
-import type { PermissionBinding, PermissionHolder } from './types.ts';
+import type { PermissionAuthorization, PermissionBinding, PermissionHolder } from './types.ts';
+
+/** True for authup's binding shape (`isPermissionPolicyBinding` of `@authup/access`). */
+export function isPermissionBinding(value: unknown): value is PermissionBinding {
+    return isPermissionPolicyBinding(value);
+}
 
 /**
- * True for an object whose `permission.name` is a non-empty string and whose
- * `policies` are absent or an array of objects with a string `type`.
+ * True for an object with a non-empty string `realm` and a `snapshot` whose
+ * `definitions` are bindings and whose `grants` are absent or bindings. A
+ * shallow check: the evaluator validates the policy trees when a check runs.
  */
-export function isPermissionBinding(value: unknown): value is PermissionBinding {
-    if (!isObject(value)) {
+export function isPermissionAuthorization(value: unknown): value is PermissionAuthorization {
+    if (!isObject(value) || typeof value.realm !== 'string' || value.realm.length === 0) {
         return false;
     }
 
-    const { permission, policies } = value as Record<string, unknown>;
+    const { snapshot } = value;
 
-    if (
-        !isObject(permission) ||
-        typeof permission.name !== 'string' ||
-        permission.name.length === 0
-    ) {
+    if (!isObject(snapshot) || !isBindingList(snapshot.definitions)) {
         return false;
     }
 
-    if (typeof policies === 'undefined') {
-        return true;
-    }
-
-    return Array.isArray(policies) &&
-        policies.every((policy) => isObject(policy) && typeof policy.type === 'string');
+    return typeof snapshot.grants === 'undefined' || isBindingList(snapshot.grants);
 }
 
 /** One unrestricted binding per chamvi permission name, a new array. */
@@ -41,11 +39,15 @@ export function allPermissions(): PermissionBinding[] {
     return PERMISSION_NAMES.map((name) => ({ permission: { name } }));
 }
 
-/** The distinct names of the holder's valid bindings, in first-seen order. */
+/**
+ * The distinct names the holder holds, in first-seen order: those of its
+ * valid bindings, then those of its snapshot's grants (never of its
+ * definitions). For display only: a grant may still be restricted.
+ */
 export function permissionNames(holder: PermissionHolder): string[] {
     const names: string[] = [];
 
-    for (const binding of readBindings(holder)) {
+    for (const binding of [...readBindings(holder), ...readGrants(holder)]) {
         if (!names.includes(binding.permission.name)) {
             names.push(binding.permission.name);
         }
@@ -60,5 +62,18 @@ export function readBindings(holder: unknown): PermissionBinding[] {
         return [];
     }
 
-    return (holder.bindings as unknown[]).filter(isPermissionBinding);
+    return (holder.bindings as unknown[]).filter((entry) => isPermissionBinding(entry));
+}
+
+/** The grants of the holder's snapshot, none when its authorization is malformed. */
+function readGrants(holder: unknown): PermissionBinding[] {
+    if (!isObject(holder) || !isPermissionAuthorization(holder.authorization)) {
+        return [];
+    }
+
+    return [...holder.authorization.snapshot.grants ?? []];
+}
+
+function isBindingList(value: unknown): value is PermissionBinding[] {
+    return Array.isArray(value) && value.every((entry) => isPermissionBinding(entry));
 }

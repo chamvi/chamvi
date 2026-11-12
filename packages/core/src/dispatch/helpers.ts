@@ -265,6 +265,7 @@ function cloneInvoker(invoker: Invoker): Invoker {
         kind: invoker.kind,
         ...(invoker.name !== undefined ? { name: invoker.name } : {}),
         bindings: invoker.bindings,
+        ...(invoker.authorization !== undefined ? { authorization: invoker.authorization } : {}),
         ...(invoker.identity !== undefined ? { identity: invoker.identity } : {}),
     });
 }

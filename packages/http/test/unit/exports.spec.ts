@@ -11,7 +11,7 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
-import type { PermissionBinding, PermissionIdentity } from '@chamvi/access';
+import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } from '@chamvi/access';
 import * as http from '@chamvi/http';
 
 describe('public api', () => {
@@ -62,6 +62,7 @@ describe('public api', () => {
 
     it('types principals with permission bindings', () => {
         expectTypeOf<http.Principal['bindings']>().toEqualTypeOf<readonly PermissionBinding[]>();
+        expectTypeOf<http.Principal['authorization']>().toEqualTypeOf<PermissionAuthorization | undefined>();
         expectTypeOf<http.Principal['identity']>().toEqualTypeOf<PermissionIdentity | undefined>();
         expectTypeOf<http.StaticToken['permissions']>().toEqualTypeOf<readonly PermissionBinding[] | '*'>();
     });
@@ -77,6 +78,7 @@ describe('public api', () => {
             kind: string;
             name?: string;
             bindings: PermissionBinding[];
+            authorization?: PermissionAuthorization;
             identity?: PermissionIdentity;
         }>();
         expectTypeOf<http.ApproveBody>().toEqualTypeOf<{

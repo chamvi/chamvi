@@ -75,6 +75,7 @@ describe('public api', () => {
         'can',
         'canSome',
         'isPermissionBinding',
+        'isPermissionAuthorization',
         'allPermissions',
         'permissionNames',
         'resolveModel',

@@ -12,8 +12,8 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { envString, envUrl } from '../env/module.ts';
 import type { AuthupModuleOptions } from './types.ts';
 
-/** Shares one load until it settles; a rejected load is forgotten, so the next call retries. */
-function once<T>(load: () => Promise<T>): () => Promise<T> {
+/** The first call's promise, shared until it rejects; a rejection is forgotten, so the next call loads again. */
+export function once<T>(load: () => Promise<T>): () => Promise<T> {
     let pending: Promise<T> | undefined;
 
     return () => {
@@ -42,6 +42,7 @@ function once<T>(load: () => Promise<T>): () => Promise<T> {
 export function createAuthupRemote(options: AuthupModuleOptions): {
     verifier: () => ITokenVerifier;
     catalog: () => Promise<unknown>;
+    /** The realm of the configured client, from the introspection of its own token: one lookup per call. */
     realm: () => Promise<string>;
 } {
     const env = options.env ?? process.env;
@@ -56,7 +57,7 @@ export function createAuthupRemote(options: AuthupModuleOptions): {
     return {
         verifier: () => new TokenVerifier({ baseURL: url, creator }),
         catalog: async () => client.authorization.get({ authorizationHeader: await authorizationHeader() }),
-        realm: once(async () => {
+        realm: async () => {
             const header = await authorizationHeader();
             const data = await client.token.introspect(
                 { token: header.slice('Bearer '.length) },
@@ -68,6 +69,6 @@ export function createAuthupRemote(options: AuthupModuleOptions): {
             }
 
             return data.realm_id;
-        }),
+        },
     };
 }

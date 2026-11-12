@@ -66,7 +66,7 @@ import type {
     StartRunBody,
 } from './types.ts';
 
-/** An invoker without its `bindings`: a reader must not learn another principal's grants. */
+/** An invoker without its `bindings` and `authorization`: a reader must not learn another principal's grants. */
 function viewInvoker(invoker: Invoker): InvokerView {
     return {
         id: invoker.id,

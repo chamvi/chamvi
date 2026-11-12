@@ -153,6 +153,7 @@ Every variable is read once per lifecycle. An empty string counts as unset, inte
 | `OPENCLAW_BASE_URL`, `OPENCLAW_HOOKS_TOKEN`, `OPENCLAW_CHANNEL`, `OPENCLAW_TO` | `openclawModule` | URL, string, string, string | required without options |
 | `OPENCLAW_HOOKS_PATH`, `OPENCLAW_AGENT_ID`, `OPENCLAW_ACCOUNT_ID` | `openclawModule` | string | `/hooks`, unset, unset |
 | `AUTHUP_URL`, `AUTHUP_CLIENT_ID`, `AUTHUP_CLIENT_SECRET` | `authupModule` | URL, string, string | required unless `verifier`, `catalog` and `realm` are all given; the client reads the permission catalog (`permission_read`) and introspects tokens (`token_introspect`), both granted with a realm scope of `ownOrNull` or wider (the default `own` does not reach the global definitions), and its realm is chamvi's realm |
+| `AUTHUP_TIMEOUT_MS` | `authupModule` | integer ms, at least 1 | `10000`; the deadline of every catalog read, realm lookup and token verification unless `timeoutMs` is given (a verification past it answers 503) |
 | `CHAMVI_UI_AUTHUP_CLIENT_ID`, `CHAMVI_UI_AUTHUP_REALM_ID` | `uiModule` | string | unset (token login only); the authup login then needs `AUTHUP_URL` |
 | `CHAMVI_SANDBOX_PROVIDER` | `sandboxModule` | `local`, `docker`, `kubernetes` | the `provider` option, else `local` |
 | `CHAMVI_SANDBOX_NAMESPACE` | `sandboxModule` | string | required for `kubernetes` |

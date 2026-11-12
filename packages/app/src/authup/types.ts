@@ -22,6 +22,13 @@ export type AuthupModuleOptions = {
      * configured client, read once from the introspection of its own token.
      */
     realm?: string;
+    /**
+     * How long each call to authup may take, in ms: the catalog read, the
+     * realm lookup and each token verification (a positive finite number).
+     * A timed-out verification answers 503; a timed-out catalog or realm
+     * grants the login nothing. Default `AUTHUP_TIMEOUT_MS`, else 10 000.
+     */
+    timeoutMs?: number;
     /** Default `AUTHUP_URL`. */
     url?: string;
     /** Default `AUTHUP_CLIENT_ID`. */
@@ -31,7 +38,8 @@ export type AuthupModuleOptions = {
     /**
      * Default `process.env`, read when the factory is called; `AUTHUP_URL`,
      * `AUTHUP_CLIENT_ID` and `AUTHUP_CLIENT_SECRET` are read unless
-     * `verifier`, `catalog` and `realm` are all given.
+     * `verifier`, `catalog` and `realm` are all given, `AUTHUP_TIMEOUT_MS`
+     * unless `timeoutMs` is.
      */
     env?: Env;
 };
