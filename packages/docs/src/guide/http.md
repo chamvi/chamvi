@@ -27,7 +27,7 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 
 | Method and path | Permission | Answer |
 |---|---|---|
-| `POST /agents/:name/runs` | `chamvi_agent_run` | `202 { runId, deduplicated }`; body `{ payload?, idempotencyKey?, address?, attachments? }` (or an `Idempotency-Key` header); runs carry channel `http`; an agent replaced during the request is checked again, and 409 `agent_replaced` after three replacements in a row |
+| `POST /agents/:name/runs` | `chamvi_agent_run` | `202 { runId, deduplicated }`; body `{ payload?, idempotencyKey?, address?, attachments? }` (or an `Idempotency-Key` header); runs carry channel `http`; a start while the agent is being replaced answers 409 `agent_replaced` with nothing written, and the caller can retry |
 | `GET /runs` | the read rule of each listed run's agent ([below](#permissions)) | `200 { data, meta: { total, limit, offset } }` |
 | `GET /runs/:id` | `chamvi_agent_read` for the run's agent, or for a public agent also `chamvi_run_read` or `chamvi_agent_run` ([private agents](#private-agents)) | The run with its `steps` |
 | `GET /runs/:id/stream` | as `GET /runs/:id` | SSE |
