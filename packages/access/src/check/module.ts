@@ -5,38 +5,42 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    IPermissionProvider,
-    PermissionGrant,
-    PolicyEvaluators,
-    PolicyValidators,
-} from '@authup/access';
+import type { IPermissionEvaluator, PermissionEvaluationContext } from '@authup/access';
 import {
     BuiltInPolicyType,
-    PermissionEvaluator,
     PolicyData,
-    PolicyDefaultEvaluators,
-    PolicyDefaultValidators,
-    PolicyEngine,
-    projectAuthorizationPolicy,
+    createAuthorizationSnapshotEvaluator,
 } from '@authup/access';
-import { readBindings } from '../permission/helpers.ts';
-import type { PermissionBinding, PermissionCheckOptions, PermissionHolder } from '../permission/types.ts';
-import { copyPolicy, guardEvaluators, isEvaluable } from './helpers.ts';
+import { isObject } from 'smob';
+import { isPermissionAuthorization, readBindings } from '../permission/helpers.ts';
+import type { PermissionCheckOptions, PermissionHolder } from '../permission/types.ts';
+
+/** The evaluators of one holder: absent where a source grants nothing. */
+type Evaluators = {
+    flat?: IPermissionEvaluator;
+    snapshot?: { evaluator: IPermissionEvaluator; realm: string };
+};
+
+/** A built pair and the holder fields it was built from. */
+type CacheEntry = {
+    bindings: unknown;
+    authorization: unknown;
+    identity: unknown;
+    evaluators: Promise<Evaluators>;
+};
 
 /**
- * The default evaluators without `permissionBinding`: a binding carries its
- * own grant, so such a node is never answerable here (see `isEvaluable`).
+ * Built evaluators per holder object: the dashboard checks one holder many
+ * times. An entry is reused only while the holder still names the same
+ * `bindings`, `authorization` and `identity` objects.
  */
-const EVALUATORS: PolicyEvaluators = withoutBindingCheck(PolicyDefaultEvaluators);
-
-/** The configuration validators of the same types: a node that fails one is never evaluated. */
-const VALIDATORS: PolicyValidators = withoutBindingCheck(PolicyDefaultValidators);
+const cache = new WeakMap<object, CacheEntry>();
 
 /**
- * True when at least one of the holder's bindings named `name` passes for the
- * resource in `options.attributes`. Without attributes a policy over them
- * fails: the check asks about every resource. Never rejects.
+ * True when the holder may do `name` on the resource in `options.attributes`:
+ * one of its bindings passes, or its authorization snapshot does. Without
+ * attributes a policy over them fails: the check asks about every resource.
+ * Never rejects.
  */
 export async function can(holder: PermissionHolder, name: string, options: PermissionCheckOptions = {}): Promise<boolean> {
     return check(holder, name, options, false);
@@ -52,89 +56,153 @@ export async function canSome(holder: PermissionHolder, name: string, options: P
 }
 
 async function check(holder: PermissionHolder, name: string, options: PermissionCheckOptions, some: boolean): Promise<boolean> {
-    let bindings: PermissionBinding[];
-
     try {
-        bindings = readBindings(holder).filter((binding) => binding.permission.name === name);
+        const { flat, snapshot } = await prepare(holder);
+
+        if (flat && await passes(flat, { name, data: buildData(options) }, some)) {
+            return true;
+        }
+
+        if (!snapshot) {
+            return false;
+        }
+
+        // the global definition, then the one owned by chamvi's realm; a client-owned one is never asked for
+        for (const realmId of [undefined, snapshot.realm]) {
+            const data = buildData(options);
+
+            data.set(BuiltInPolicyType.REALM_MATCH, snapshot.realm);
+
+            if (await passes(snapshot.evaluator, {
+                name, 
+                data, 
+                ...(realmId ? { realmId } : {}), 
+            }, some)) {
+                return true;
+            }
+        }
+
+        return false;
     } catch {
         return false;
     }
-
-    for (const binding of bindings) {
-        if (await passes(holder, binding, options, some)) {
-            return true;
-        }
-    }
-
-    return false;
 }
 
-/**
- * One binding on its own engine, so that a binding which cannot be copied or
- * evaluated fails alone and its siblings still decide. A tree with a node the
- * engine cannot answer, or one whose evaluation malfunctioned anywhere (even
- * below an inverted composite), fails the binding.
- */
-async function passes(holder: PermissionHolder, binding: PermissionBinding, options: PermissionCheckOptions, some: boolean): Promise<boolean> {
+async function passes(evaluator: IPermissionEvaluator, ctx: PermissionEvaluationContext, some: boolean): Promise<boolean> {
     try {
-        const flag = { broken: false };
-        const grant = toGrant(binding);
-
-        if (grant.policy) {
-            if (!isEvaluable(grant.policy, EVALUATORS)) {
-                return false;
-            }
-
-            // Validates every node, composite children included; throws on the first bad one.
-            await projectAuthorizationPolicy(grant.policy, VALIDATORS);
-        }
-
-        const { name } = binding.permission;
-        const provider: IPermissionProvider = { findOne: async () => ({ permission: { name }, grants: [grant] }) };
-        const evaluator = new PermissionEvaluator({ provider, policyEngine: new PolicyEngine(guardEvaluators(EVALUATORS, flag)) });
-        const ctx = { name, data: buildData(holder, options) };
-
         if (some) {
             await evaluator.preEvaluate(ctx);
         } else {
             await evaluator.evaluate(ctx);
         }
 
-        return !flag.broken;
+        return true;
     } catch {
         return false;
     }
 }
 
-/** A binding as one grant: its policies (a copy) as one composite, none for an unrestricted binding. */
-function toGrant(binding: PermissionBinding): PermissionGrant {
-    if (!binding.policies || binding.policies.length === 0) {
-        return { realmScope: 'any' };
+async function prepare(holder: PermissionHolder): Promise<Evaluators> {
+    if (!isObject(holder)) {
+        return {};
     }
 
-    const policy = {
-        type: BuiltInPolicyType.COMPOSITE,
-        decisionStrategy: binding.permission.decisionStrategy ?? undefined,
-        children: copyPolicy(binding.policies),
+    const {
+        bindings, 
+        authorization, 
+        identity, 
+    } = holder;
+    const cached = cache.get(holder);
+
+    if (
+        cached &&
+        cached.bindings === bindings &&
+        cached.authorization === authorization &&
+        cached.identity === identity
+    ) {
+        return cached.evaluators;
+    }
+
+    const evaluators = build(holder);
+
+    cache.set(holder, {
+        bindings,
+        authorization,
+        identity,
+        evaluators,
+    });
+
+    return evaluators;
+}
+
+/** Each source on its own evaluator, so one that does not build grants nothing alone. */
+async function build(holder: PermissionHolder): Promise<Evaluators> {
+    const [flat, snapshot] = await Promise.all([buildFlat(holder), buildSnapshot(holder)]);
+
+    return {
+        ...(flat ? { flat } : {}),
+        ...(snapshot ? { snapshot } : {}),
     };
-
-    return { realmScope: 'any', policy };
 }
 
-function withoutBindingCheck<T>(registry: Readonly<Record<string, T>>): Record<string, T> {
-    return Object.fromEntries(Object.entries(registry)
-        .filter(([type]) => type !== BuiltInPolicyType.PERMISSION_BINDING));
+/**
+ * The bindings as the flat case of a snapshot: no grants, every binding of a
+ * name a disjunct. A binding's `realmScope` is not evaluated (a definition
+ * carries none): a token has no realm.
+ */
+async function buildFlat(holder: PermissionHolder): Promise<IPermissionEvaluator | undefined> {
+    try {
+        const definitions = readBindings(holder).flatMap((binding) => {
+            try {
+                const definition = toPlainData(binding);
+
+                delete definition.realmScope;
+
+                return [definition];
+            } catch {
+                // a binding that cannot be copied fails alone
+                return [];
+            }
+        });
+
+        if (definitions.length === 0) {
+            return undefined;
+        }
+
+        return await createAuthorizationSnapshotEvaluator({
+            snapshot: { definitions },
+            ...(holder.identity ? { identity: { ...holder.identity } } : {}),
+        });
+    } catch {
+        return undefined;
+    }
 }
 
-function buildData(holder: PermissionHolder, options: PermissionCheckOptions): PolicyData {
+/** The snapshot of an authup login; grants nothing without an identity it belongs to. */
+async function buildSnapshot(holder: PermissionHolder): Promise<Evaluators['snapshot']> {
+    try {
+        const { authorization, identity } = holder;
+
+        if (!isPermissionAuthorization(authorization) || !isObject(identity)) {
+            return undefined;
+        }
+
+        const evaluator = await createAuthorizationSnapshotEvaluator({
+            snapshot: toPlainData(authorization.snapshot),
+            identity: { ...identity } as NonNullable<PermissionHolder['identity']>,
+        });
+
+        return { evaluator, realm: authorization.realm };
+    } catch {
+        return undefined;
+    }
+}
+
+function buildData(options: PermissionCheckOptions): PolicyData {
     const data = new PolicyData();
 
     if (options.attributes) {
         data.set(BuiltInPolicyType.ATTRIBUTES, { ...options.attributes });
-    }
-
-    if (holder.identity) {
-        data.set(BuiltInPolicyType.IDENTITY, { ...holder.identity });
     }
 
     if (options.now) {
@@ -143,4 +211,17 @@ function buildData(holder: PermissionHolder, options: PermissionCheckOptions): P
     }
 
     return data;
+}
+
+/**
+ * A plain JSON copy, read through proxies (a reactive store hands those out,
+ * and the evaluator's validation refuses them); a `Date` becomes its epoch
+ * milliseconds, as in a snapshot. A cycle throws.
+ */
+function toPlainData<T>(value: T): T {
+    return JSON.parse(JSON.stringify(value, function replace(this: Record<string, unknown>, key: string, item: unknown) {
+        const raw = this[key];
+
+        return raw instanceof Date ? raw.getTime() : item;
+    })) as T;
 }

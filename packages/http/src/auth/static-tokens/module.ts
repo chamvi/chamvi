@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { allPermissions, isPermissionBinding } from '@chamvi/access';
+import { isPermissionPolicyBinding } from '@authup/access';
+import { allPermissions } from '@chamvi/access';
 import type { PermissionBinding } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { readBearerToken } from '../helpers.ts';
@@ -24,7 +25,7 @@ function readPermissions(id: string, permissions: unknown): PermissionBinding[] 
         return allPermissions();
     }
 
-    const isBindingList = Array.isArray(permissions) && permissions.every((permission) => isPermissionBinding(permission));
+    const isBindingList = Array.isArray(permissions) && permissions.every((permission) => isPermissionPolicyBinding(permission));
 
     if (isBindingList) {
         try {

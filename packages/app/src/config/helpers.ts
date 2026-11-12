@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isPermissionBinding } from '@chamvi/access';
+import { isPermissionPolicyBinding } from '@authup/access';
 import type { PermissionBinding } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { StaticToken } from '@chamvi/http';
@@ -31,7 +31,7 @@ function readPermissions(input: unknown): readonly PermissionBinding[] | '*' | u
         return undefined;
     }
 
-    const invalid = input.some((entry) => !isPermissionBinding(entry));
+    const invalid = input.some((entry) => !isPermissionPolicyBinding(entry));
 
     if (invalid) {
         return undefined;

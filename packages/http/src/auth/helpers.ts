@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { can, canSome, isPermissionBinding } from '@chamvi/access';
+import { isPermissionPolicyBinding } from '@authup/access';
+import { can, canSome } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { Agent, IClock, Invoker } from '@chamvi/core';
 import { ForbiddenError, UnauthorizedError } from '@ebec/http';
@@ -72,7 +73,7 @@ export function isPrincipal(value: Principal): boolean {
         typeof value.kind === 'string' &&
         value.kind.length > 0 &&
         Array.isArray(value.bindings) &&
-        value.bindings.every((binding) => isPermissionBinding(binding)) &&
+        value.bindings.every((binding) => isPermissionPolicyBinding(binding)) &&
         (value.identity === undefined || isIdentity(value.identity));
 }
 

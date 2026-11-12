@@ -16,7 +16,7 @@ describe('public api', () => {
             'allPermissions',
             'can',
             'canSome',
-            'isPermissionBinding',
+            'isPermissionAuthorization',
             'permissionNames',
         ]);
     });
@@ -25,7 +25,7 @@ describe('public api', () => {
         'allPermissions',
         'can',
         'canSome',
-        'isPermissionBinding',
+        'isPermissionAuthorization',
         'permissionNames',
     ])('exports the function %s', (name) => {
         expect(access[name as keyof typeof access]).toBeTypeOf('function');
