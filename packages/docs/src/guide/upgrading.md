@@ -20,6 +20,7 @@ Connections can be configured in the dashboard, on a page per provider ([Connect
 | `toolPolicy` | `(toolName, { run }) => boolean` | `(toolName, { run, now }) => boolean \| Promise<boolean>` (a synchronous policy keeps working) |
 | Skill discovery in a `prepareSkills()`/`gitSkills()` source (`@chamvi/skills`) | The whole repository tree was searched, so a vendored copy of a selected skill made it ambiguous | The standard locations are searched (root, `skills/`, agent skill folders, plugin manifests), the whole tree only when those hold no skill. Move a selected skill that lives elsewhere into `skills/`, or the name fails as missing |
 | Submodules in a `prepareSkills()`/`gitSkills()` source (`@chamvi/skills`) | Submodule gitlinks were not checked | The SDK initialises them; a submodule at, inside or around a selected skill folder refuses the source. Move the submodule or vendor its files. Tracked symlinks anywhere in the source still refuse it |
+| Private `prepareSkills()`/`gitSkills()` sources (`@chamvi/skills`) | One clone, which could fall back to the host's `gh` login or SSH keys | A second, file-less fetch of the pinned commit runs with plain Git and no fallback. Configure Git credentials for the source before upgrading; a source reachable only through `gh` fails with the retryable `skill_preparation_failed`. See the [skills reference](/reference/skills) |
 
 ### New variables
 

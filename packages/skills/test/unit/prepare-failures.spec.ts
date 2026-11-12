@@ -22,6 +22,7 @@ import * as sdk from 'skills';
 import { guardStaleMs } from '../../src/prepare/lock.ts';
 import {
     afterEach,
+    beforeEach,
     describe,
     expect,
     it,
@@ -84,8 +85,12 @@ afterEach(async () => {
     fixtures.length = 0;
     roots.length = 0;
     vi.mocked(sdk.resolveSource).mockReset().mockImplementation(actual.resolveSource);
+    vi.mocked(sdk.installSkills).mockReset();
+});
+
+beforeEach(() => {
     // a wrapped handle reaches the real install as the SDK's own handle
-    vi.mocked(sdk.installSkills).mockReset().mockImplementation((source, options) => actual.installSkills(
+    vi.mocked(sdk.installSkills).mockImplementation((source, options) => actual.installSkills(
         typeof source === 'string' ? source : originals.get(source) ?? source,
         options,
     ));

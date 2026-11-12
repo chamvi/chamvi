@@ -266,7 +266,13 @@ it('aborts the fetch of the pinned tree, rejects with the abort reason and remov
         const pending = prepareSkills({ ...options, signal: controller.signal });
         const rejected = expect(pending).rejects.toBe(reason);
 
-        await accepted.promise;
+        // a preparation that settles before the fetch connects fails here instead of hanging
+        const settledEarly = pending.then(() => {}, () => {}).then(() => {
+            throw new Error('the preparation settled before the tree fetch started');
+        });
+
+        settledEarly.catch(() => {});
+        await Promise.race([accepted.promise, settledEarly]);
         controller.abort(reason);
         await rejected;
     } finally {
