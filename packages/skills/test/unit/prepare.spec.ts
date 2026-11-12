@@ -7,11 +7,13 @@
 
 import fs from 'node:fs/promises';
 import { tmpdir } from 'node:os';
-import { join } from 'node:path';
+import { join, relative, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { createGitFixture } from '@chamvi/test-kit';
 import type { GitFixture } from '@chamvi/test-kit';
 import * as skills from '@chamvi/skills';
+import * as sdk from 'skills';
 import {
     afterEach,
     describe,
@@ -19,6 +21,18 @@ import {
     it,
     vi,
 } from 'vitest';
+
+vi.mock('skills', async (original) => {
+    const actual = await original<typeof sdk>();
+
+    return {
+        ...actual,
+        resolveSource: vi.fn(actual.resolveSource),
+        installSkills: vi.fn(actual.installSkills),
+    };
+});
+
+const actual = await vi.importActual<typeof sdk>('skills');
 
 const fixtures: GitFixture[] = [];
 const roots: string[] = [];
@@ -57,7 +71,29 @@ afterEach(async () => {
     fixtures.length = 0;
     roots.length = 0;
     vi.restoreAllMocks();
+    vi.mocked(sdk.resolveSource).mockReset().mockImplementation(actual.resolveSource);
+    vi.mocked(sdk.installSkills).mockReset().mockImplementation(actual.installSkills);
 });
+
+/** Resolves the real source, then replaces fields of its answer; the original handle is disposed through the copy. */
+function patchHandle(patch: (handle: sdk.SkillSource) => Partial<sdk.SkillSource>) {
+    const dispose = vi.fn<() => Promise<void>>();
+
+    vi.mocked(sdk.resolveSource).mockImplementationOnce(async (...args) => {
+        const handle = await actual.resolveSource(...args);
+
+        dispose.mockImplementation(() => handle.dispose());
+
+        return {
+            source: handle.source,
+            skills: handle.skills,
+            dispose,
+            ...patch(handle),
+        };
+    });
+
+    return dispose;
+}
 
 describe('prepareSkills', () => {
     it('copies the requested commit in requested order with references and assets, without changing cwd', async () => {
@@ -79,6 +115,197 @@ describe('prepareSkills', () => {
         expect(await fs.readFile(join(result[1]!.path, 'assets/example.json'), 'utf8')).toBe('{"ok":true}\n');
         expect(process.cwd()).toBe(cwd);
         expect((await fs.lstat(result[1]!.path)).isSymbolicLink()).toBe(false);
+    });
+
+    it('copies the pinned bytes when the source HEAD moved past the pin', async () => {
+        const { fixture, options } = await setup();
+
+        await fs.writeFile(join(fixture.path, 'skills/audit/SKILL.md'), document('audit', 'HEAD BODY'));
+        await fixture.git('commit', '-am', 'move head');
+
+        const [skill] = await skills.prepareSkills(options);
+
+        expect(await fs.readFile(join(skill!.path, 'SKILL.md'), 'utf8')).toContain('PRIVATE BODY');
+    });
+
+    it('refuses a checkout whose commit is not the pin, disposing it and promoting nothing', async () => {
+        const { root, options } = await setup();
+        const dispose = patchHandle((handle) => ({ source: { ...handle.source, commit: 'b'.repeat(40) } }));
+
+        await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(dispose).toHaveBeenCalled();
+        expect(sdk.installSkills).not.toHaveBeenCalled();
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('refuses a checkout without a commit', async () => {
+        const { root, options } = await setup();
+        const dispose = patchHandle((handle) => ({ source: { ...handle.source, commit: undefined } }));
+
+        await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(dispose).toHaveBeenCalled();
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('refuses a source the SDK does not resolve as git', async () => {
+        const { root, options } = await setup();
+
+        patchHandle((handle) => ({ source: { ...handle.source, type: 'local' } }));
+        await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('passes the pin, discovery options and the signal to the SDK, with no warning handler and no telemetry or lockfile', async () => {
+        const { fixture, options } = await setup();
+        const { signal } = new AbortController();
+
+        await skills.prepareSkills({
+            ...options, 
+            names: ['design', 'audit'], 
+            signal, 
+        });
+
+        expect(sdk.resolveSource).toHaveBeenCalledTimes(1);
+
+        const [source, resolveOptions] = vi.mocked(sdk.resolveSource).mock.calls[0]!;
+
+        expect(source).toBe(pathToFileURL(fixture.path).href);
+        expect(resolveOptions).toEqual({
+            ref: fixture.commit,
+            fullDepth: true,
+            includeInternal: true,
+            signal,
+        });
+        expect(vi.mocked(sdk.installSkills).mock.calls.map(([, install]) => install)).toEqual(['design', 'audit'].map((name) => ({
+            cwd: expect.any(String),
+            skills: [name],
+            agents: ['universal'],
+            mode: 'copy',
+            lockfile: false,
+            telemetry: false,
+            duplicates: 'error',
+            symlinks: 'reject',
+            signal,
+        })));
+    });
+
+    it('hands an absolute local path to the SDK as a file URL', async () => {
+        const { fixture, options } = await setup();
+
+        await expect(skills.prepareSkills(options)).resolves.toHaveLength(1);
+        expect(vi.mocked(sdk.resolveSource).mock.calls[0]![0]).toBe(pathToFileURL(fixture.path).href);
+    });
+
+    it('hands a ../ relative local path to the SDK as a file URL', async () => {
+        const { fixture, options } = await setup();
+        const source = relative(process.cwd(), fixture.path);
+
+        expect(source.startsWith('../')).toBe(true);
+        await expect(skills.prepareSkills({ ...options, source })).resolves.toHaveLength(1);
+        expect(vi.mocked(sdk.resolveSource).mock.calls[0]![0]).toBe(pathToFileURL(fixture.path).href);
+    });
+
+    it('hands a ./ relative local path to the SDK as a file URL', async () => {
+        const { options } = await setup();
+
+        await expect(skills.prepareSkills({ ...options, source: './missing-skills-source' })).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(vi.mocked(sdk.resolveSource).mock.calls[0]).toEqual([
+            pathToFileURL(resolve('missing-skills-source')).href,
+            expect.objectContaining({ ref: options.revision }),
+        ]);
+    });
+
+    it('hands an scp-style git source to the SDK unchanged', async () => {
+        const { options } = await setup();
+
+        vi.mocked(sdk.resolveSource).mockRejectedValueOnce(sdk.diagnostics.SKILLS_GIT_AUTH_FAILED({ url: 'git@github.com:owner/repo.git', host: 'github.com' }));
+        await expect(skills.prepareSkills({ ...options, source: 'git@github.com:owner/repo.git' })).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(vi.mocked(sdk.resolveSource).mock.calls[0]).toEqual([
+            'git@github.com:owner/repo.git',
+            expect.objectContaining({ ref: options.revision }),
+        ]);
+    });
+
+    it.each([
+        'owner/repo#main',
+        'https://github.com/owner/repo.git#main',
+        'owner/repo@audit',
+        'github:owner/repo@audit',
+        'owner/repo@v1.2.3',
+        'ext::sh -c x',
+        'fd::3',
+        'https://github.com/owner/repo/tree/main',
+        'https://gitlab.com/group/repo/-/tree/main/skills',
+    ])('refuses the source %s before any SDK call', async (source) => {
+        const { root, options } = await setup();
+
+        await expect(skills.prepareSkills({ ...options, source })).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(sdk.resolveSource).not.toHaveBeenCalled();
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('refuses a selected name declared by two folders and a name upstream would only match fuzzily', async () => {
+        const {
+            fixture, 
+            root, 
+            options, 
+        } = await setup({
+            'skills/other/SKILL.md': document('audit'),
+            'skills/fuzzy/SKILL.md': document('Foo Bar'),
+        });
+
+        await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        await expect(skills.prepareSkills({ ...options, names: ['foo-bar'] })).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(fixture.commit).toMatch(/^[a-f0-9]{40}$/u);
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('installs the exact name when another skill would match it only fuzzily', async () => {
+        const { options } = await setup({
+            'skills/foo-bar/SKILL.md': document('foo-bar', 'EXACT BODY'),
+            'skills/fuzzy/SKILL.md': document('Foo Bar', 'FUZZY BODY'),
+        });
+        const [skill] = await skills.prepareSkills({ ...options, names: ['foo-bar'] });
+
+        expect(await fs.readFile(join(skill!.path, 'SKILL.md'), 'utf8')).toContain('EXACT BODY');
+        expect(await fs.readdir(options.directory)).toEqual(['.chamvi-skills', 'foo-bar']);
+    });
+
+    it('refuses a name another skill declares in another case', async () => {
+        const { root, options } = await setup({ 'skills/upper/SKILL.md': document('Audit') });
+
+        await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it.each([
+        ['a failed entry', (result: sdk.InstallResult) => ({
+            ...result,
+            failed: [{
+                skill: 'audit',
+                agent: 'universal',
+                code: 'SKILLS_INSTALL_FAILED' as const,
+                message: 'failed',
+            }],
+        })],
+        ['a skipped entry', (result: sdk.InstallResult) => ({
+            ...result,
+            skipped: [{
+                skill: 'audit',
+                agent: 'universal',
+                reason: 'missing-agent-directory' as const,
+            }],
+        })],
+        ['no installed entry', (result: sdk.InstallResult) => ({ ...result, installed: [] })],
+        ['two installed entries', (result: sdk.InstallResult) => ({ ...result, installed: [...result.installed, ...result.installed] })],
+        ['an unexpected path', (result: sdk.InstallResult) => ({ ...result, installed: result.installed.map((entry) => ({ ...entry, path: join(entry.path, '..', 'design') })) })],
+    ])('refuses an install result with %s and removes the stage', async (_, patch) => {
+        const { root, options } = await setup();
+
+        await skills.prepareSkills(options);
+        vi.mocked(sdk.installSkills).mockImplementationOnce(async (...args) => patch(await actual.installSkills(...args)));
+        await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(await fs.readdir(root)).toEqual(['corpus']);
     });
 
     it('rejects a SHA-shaped branch pointing at another commit', async () => {
@@ -258,6 +485,10 @@ describe('prepareSkills', () => {
 
         await skills.prepareSkills(options);
         expect(warnings.mock.calls.map(([warning]) => String(warning)).join('\n')).not.toContain('PRIVATE-TAG-SECRET');
+        // the filter is gone after the preparation and other warnings pass through
+        expect(process.emitWarning).toBe(warnings);
+        process.emitWarning('OTHER WARNING');
+        expect(warnings).toHaveBeenLastCalledWith('OTHER WARNING');
     });
 
     it('redacts source credentials and verifier failures', async () => {

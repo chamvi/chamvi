@@ -41,10 +41,10 @@ it('exports the Chamvi source, preparation and verified bundle API from main', (
     expectTypeOf<Parameters<typeof skills.loadSkillBundles>[0]>().toEqualTypeOf<readonly ApprovedSkill[]>();
 });
 
-it('keeps the optional SDK pin and runtime graph app-free', () => {
+it('keeps the official SDK range and runtime graph app-free', () => {
     const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
-    expect(pkg.dependencies.skills).toBe('git+https://github.com/tada5hi/skills-cli.git#6c80a94543b91a27df7445f40dfea7a61e0a5e9f');
+    expect(pkg.dependencies.skills).toBe('^1.8.1');
     expect(pkg.dependencies).not.toHaveProperty('@chamvi/app');
     expect(pkg.peerDependencies).not.toHaveProperty('@chamvi/app');
     expect(Object.keys(pkg.exports).sort()).toEqual(['.', './package.json']);

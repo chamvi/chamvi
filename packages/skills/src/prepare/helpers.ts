@@ -5,9 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { dirname, resolve } from 'node:path';
+import { dirname, isAbsolute, resolve } from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { ChamviError, InvalidAgentDefinitionError } from '@chamvi/core';
-import { GitCloneError, parseSource } from 'skills';
+import { isDiagnostic } from 'skills';
 import { SKILL_PREPARATION_FAILED_ERROR_CODE, SKILL_PREPARATION_LOCKED_ERROR_CODE } from './constants.ts';
 import type { PrepareSkillsOptions } from './types.ts';
 
@@ -18,12 +19,22 @@ export function invalid(): never {
     throw new InvalidAgentDefinitionError('Cannot prepare skills: invalid configuration, source, verification or managed directory.');
 }
 
-// git's answers for a repository that is not there (deterministic, unlike a network failure)
-const missingSource = /repository .* not found|does not appear to be a git repository|does not exist|returned error: 404|unsupported git transport/iu;
+// The SDK reports a repository a host denies or does not have as SKILLS_GIT_AUTH_FAILED only when git
+// says "Repository not found"; a missing file://, ssh path or plain https repository arrives as
+// SKILLS_GIT_CLONE_FAILED, so this narrow check of git's answer keeps those deterministic failures
+// configuration. A missing ref (also SKILLS_GIT_CLONE_FAILED) never matches it and stays retryable.
+const missingRepository = /does not appear to be a git repository|fatal: repository '[^']*' not found|returned error: 404/u;
 
-// The SDK clones `--branch <sha>`, which always fails with a missing-ref answer, then fetches the sha
-// and swallows that fetch's failure (a network failure as much as a missing commit): never configuration.
-const missingRef = /remote branch .* not found in upstream origin|couldn't find remote ref|upload-pack: not our ref/iu;
+// Inline refs (`#ref`, `/tree/<ref>`, `/-/tree/<ref>`) and skill filters (`owner/repo@skill`) are refused:
+// the pin is `revision` and the selection is `names`. `<transport>::` remote helpers (`ext::`) are refused too.
+const inlineRef = /#|\/tree\//u;
+const skillFilter = /^(?:github:|gitlab:)?[^/:@]+\/[^/@]+@/u;
+const remoteHelper = /^[a-z][a-z0-9+.-]*::/iu;
+
+/** A local path, as the SDK reads one (absolute, `./`, `../`, `.`, `..`); `~` is not expanded. */
+function isLocalPath(source: string): boolean {
+    return isAbsolute(source) || source === '.' || source === '..' || source.startsWith('./') || source.startsWith('../');
+}
 
 /** A retryable failure: generic, since SDK and git messages can hold credentials or private content. */
 export function unavailable(): never {
@@ -43,9 +54,10 @@ export function locked(guard: string): never {
 
 /**
  * Maps a preparation failure to the configuration error (`invalid()`: a check
- * refused the input, an authentication failure, a missing repository), the
- * lock error, or else a retryable failure (`unavailable()`): a pinned commit
- * the SDK could not fetch is retryable, since its answer hides the cause.
+ * refused the input, an authentication failure, a missing repository, a source
+ * or selection the SDK refused), the lock error, or else a retryable failure
+ * (`unavailable()`): a pinned commit the SDK could not fetch is retryable,
+ * since its answer hides the cause, as is every unknown SDK code.
  */
 export function toPreparationError(error: unknown): never {
     if (error instanceof ChamviError && error.code === SKILL_PREPARATION_LOCKED_ERROR_CODE) {
@@ -56,12 +68,25 @@ export function toPreparationError(error: unknown): never {
         invalid();
     }
 
-    if (error instanceof GitCloneError) {
-        const isMissingSource = !error.isTimeout && !missingRef.test(error.message) && missingSource.test(error.message);
+    if (isDiagnostic(
+        error,
+        'SKILLS_GIT_AUTH_FAILED',
+        'SKILLS_GIT_SAML_SSO_BLOCKED',
+        'SKILLS_UNSUPPORTED_GIT_TRANSPORT',
+        'SKILLS_INVALID_OPTION_VALUE',
+        'SKILLS_LOCAL_PATH_NOT_FOUND',
+        'SKILLS_NO_VALID_SKILLS',
+        'SKILLS_NO_MATCHING_SKILLS',
+        'SKILLS_AMBIGUOUS_SKILL_SELECTOR',
+        'SKILLS_DUPLICATE_SKILL_NAME',
+        'SKILLS_SKILL_CONTAINS_SYMLINKS',
+    )) {
+        invalid();
+    }
 
-        if (error.isAuthError || isMissingSource) {
-            invalid();
-        }
+    // git's own answer (the cause), not the message, which embeds the source URL
+    if (isDiagnostic(error, 'SKILLS_GIT_CLONE_FAILED') && Error.isError(error.cause) && missingRepository.test(error.cause.message)) {
+        invalid();
     }
 
     return unavailable();
@@ -116,28 +141,63 @@ export function copyPreparationOptions(options: PrepareSkillsOptions) {
         invalid();
     }
 
+    // The SDK accepts a ref only for git sources: a local path goes to it as a file URL, which it clones.
+    const local = isLocalPath(source);
+
+    if (!local && (inlineRef.test(source) || skillFilter.test(source) || remoteHelper.test(source))) {
+        invalid();
+    }
+
+    return {
+        source: local ? pathToFileURL(resolve(source)).href : source,
+        revision,
+        names,
+        requestedDirectory,
+        verify,
+        signal,
+    };
+}
+
+let quieting = 0;
+let emitWarning: typeof process.emitWarning | undefined;
+let quiet: typeof process.emitWarning | undefined;
+
+/**
+ * Runs an SDK call while process warnings named `YAMLWarning` are dropped: the SDK parses source
+ * frontmatter with `yaml`'s default log level, whose warnings (an unresolved tag) quote the source text.
+ * Other warnings pass through; overlapping calls share one filter, restored by the last one unless
+ * someone replaced `process.emitWarning` meanwhile.
+ */
+export async function withoutYamlWarnings<T>(task: () => Promise<T>): Promise<T> {
+    if (quieting === 0) {
+        const original = process.emitWarning;
+
+        emitWarning = original;
+        quiet = function (this: unknown, warning: string | Error, ...rest: unknown[]) {
+            if (Error.isError(warning) && warning.name === 'YAMLWarning') {
+                return;
+            }
+
+            Reflect.apply(original, process, [warning, ...rest]);
+        } as typeof process.emitWarning;
+        process.emitWarning = quiet;
+    }
+
+    quieting++;
+
     try {
-        const parsed = parseSource(source);
+        return await task();
+    } finally {
+        quieting--;
 
-        if (!['local', 'git', 'github', 'gitlab'].includes(parsed.type)) {
-            invalid();
+        if (quieting === 0) {
+            if (process.emitWarning === quiet) {
+                process.emitWarning = emitWarning!;
+            }
+
+            emitWarning = undefined;
+            quiet = undefined;
         }
-
-        if (parsed.ref || parsed.skillFilter || /^ext::/iu.test(parsed.url)) {
-            invalid();
-        }
-
-        return {
-            source,
-            revision,
-            names,
-            requestedDirectory,
-            verify,
-            signal,
-            parsed,
-        };
-    } catch {
-        return invalid();
     }
 }
 
