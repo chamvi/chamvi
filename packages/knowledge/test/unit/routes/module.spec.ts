@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission } from '@chamvi/access';
 import { Engine, createMemoryStore } from '@chamvi/core';
 import { createHttpApp, staticTokens } from '@chamvi/http';
 import { mockEmbeddingModel } from '@chamvi/test-kit';
@@ -33,6 +34,8 @@ import { createIndexerSetup, mapSource } from '../../utils/indexer.ts';
 const WRITER = 'writer-token-0123456789';
 const READER = 'reader-token-0123456789';
 const NOBODY = 'nobody-token-0123456789';
+const NOTES_WRITER = 'notes-writer-token-0123456789';
+const ADMIN = 'admin-token-0123456789';
 
 const started: IKnowledge[] = [];
 
@@ -84,6 +87,19 @@ function createFixture(extra: Partial<KnowledgeOptions> = {}): Fixture {
                     value: NOBODY,
                     id: 'nobody',
                     permissions: [],
+                },
+                {
+                    value: NOTES_WRITER,
+                    id: 'notes-writer',
+                    permissions: [KNOWLEDGE_READ_PERMISSION, KNOWLEDGE_WRITE_PERMISSION].map((name) => ({
+                        permission: { name },
+                        policies: [{ type: 'attributes', query: { name: 'notes' } }],
+                    })),
+                },
+                {
+                    value: ADMIN,
+                    id: 'admin',
+                    permissions: '*',
                 },
             ],
         }),
@@ -140,11 +156,42 @@ const base = `${KNOWLEDGE_ROUTE_PATH}/collections`;
 describe('knowledgeRoutes', () => {
     it('serves under /knowledge with the two permissions', () => {
         expect(KNOWLEDGE_ROUTE_PATH).toBe('/knowledge');
-        expect(KNOWLEDGE_READ_PERMISSION).toBe('knowledge:read');
-        expect(KNOWLEDGE_WRITE_PERMISSION).toBe('knowledge:write');
+        expect(KNOWLEDGE_READ_PERMISSION).toBe(Permission.KNOWLEDGE_READ);
+        expect(KNOWLEDGE_WRITE_PERMISSION).toBe(Permission.KNOWLEDGE_WRITE);
+        expect(KNOWLEDGE_READ_PERMISSION).toBe('chamvi_knowledge_read');
+        expect(KNOWLEDGE_WRITE_PERMISSION).toBe('chamvi_knowledge_write');
     });
 
-    it('answers 401 without a token and 403 with knowledge:read on a write', async () => {
+    it('lets a "*" token through: the names are part of the chamvi catalog', async () => {
+        const { send } = createFixture();
+
+        expect((await send('POST', base, { token: ADMIN, body: { name: 'notes' } })).status).toBe(201);
+        expect((await send('GET', base, { token: ADMIN })).status).toBe(200);
+    });
+
+    it('checks one collection\'s routes with { name }, the listing and a create per row and body name', async () => {
+        const { send, setup } = createFixture();
+
+        await saveDeclared(setup, 'docs');
+        expect((await send('POST', base, { body: { name: 'notes' } })).status).toBe(201);
+        expect((await send('PUT', `${base}/notes/documents/a`, { token: NOTES_WRITER, body: { content: 'x' } })).status).toBe(202);
+        expect((await send('GET', `${base}/notes`, { token: NOTES_WRITER })).status).toBe(200);
+        expect((await send('GET', `${base}/docs`, { token: NOTES_WRITER })).status).toBe(403);
+        expect((await send('PUT', `${base}/docs/documents/a`, { token: NOTES_WRITER, body: { content: 'x' } })).status).toBe(403);
+
+        // the listing keeps the collections the principal may read
+        const listed = await send('GET', base, { token: NOTES_WRITER });
+
+        expect(listed.status).toBe(200);
+        expect((await listed.json() as { data: Array<{ name: string }> }).data.map((item) => item.name)).toEqual(['notes']);
+        // a create checks the body's name
+        expect((await send('POST', base, { token: NOTES_WRITER, body: { name: 'notes2' } })).status).toBe(403);
+        expect((await send('POST', base, { token: NOTES_WRITER, body: { name: 'notes' } })).status).toBe(409);
+        // a segment that does not decode: authorized without attributes first
+        expect((await send('GET', `${base}/%E0%A4%A`, { token: null })).status).toBe(401);
+    });
+
+    it('answers 401 without a token and 403 with read on a write', async () => {
         const { send } = createFixture();
 
         const anonymous = await send('GET', base, { token: null });

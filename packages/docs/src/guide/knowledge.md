@@ -84,11 +84,11 @@ A managed collection has no sources in code: it is created and filled over REST 
 
 Managed collections embed with one default model, the app's: `CHAMVI_KNOWLEDGE_MODEL` (a model string such as `openai/text-embedding-3-small`, resolved through the app's [model providers](/guide/models)), else `knowledgeModule({ embeddingModel })`. Without either, creating one answers 409. An agent searches a managed collection like a declared one, by naming it in `knowledgeTools({ collections })`.
 
-Every route needs a bearer token: `knowledge:read` for `GET`, `knowledge:write` for the rest. They are the package's own permission names, which a token's `"*"` (every `chamvi_*` name) does not cover. A static token for a feeding script:
+Every route needs a bearer token: `chamvi_knowledge_read` for `GET`, `chamvi_knowledge_write` for the rest, both covered by a token's `"*"`. A grant restricted with an `attributes` policy `{ "name": "<collection>" }` reaches that collection only (see [Permissions](/guide/permissions)). A static token for a feeding script:
 
 ```bash
 export CHAMVI_KNOWLEDGE_MODEL=openai/text-embedding-3-small
-export CHAMVI_TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"feeder\", \"permissions\": [{ \"permission\": { \"name\": \"knowledge:read\" } }, { \"permission\": { \"name\": \"knowledge:write\" } }] }]"
+export CHAMVI_TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"feeder\", \"permissions\": [{ \"permission\": { \"name\": \"chamvi_knowledge_read\" } }, { \"permission\": { \"name\": \"chamvi_knowledge_write\" } }] }]"
 ```
 
 Create a collection, put a document, check it and sync:
@@ -118,7 +118,7 @@ curl -X DELETE "$API/collections/tickets/documents/T-1042" -H "$AUTH"
 - **`PUT` is idempotent per id**: the same id with new content replaces the document, the same content again answers `200` and embeds nothing. An id with `/`, a space or other special characters goes into the path percent-encoded (`a%2Fb`); ids are 1 to 255 characters, content at most 1 048 576 characters. Over REST the whole JSON body must also fit the http app's `bodyLimit` (default 1 MiB, `413` above it), which binds first at the default: raise `bodyLimit` to send documents near the content limit.
 - **`202` means accepted, not embedded**: the document is `pending` until the background pass embedded it, and its previous content keeps answering searches until then. Read it back (`GET .../documents/<id>`) to see `ready`, or `failed` with the `error` when the provider refused it (status 400, 413 or 422, such as an input too long); a new `PUT`, even of the same content, tries again. Any other provider failure leaves documents `pending` and retries on the backoff above.
 - **`stale` and `sync`**: changing `CHAMVI_KNOWLEDGE_MODEL` does not re-embed anything by itself. Each managed collection reports `stale` (as after an upgrade that changes the chunker version) and keeps serving its stored model (whose provider must stay configured for searches and new documents); `POST .../sync` re-embeds it into a new generation with the new default and switches once complete.
-- **Always untrusted**: anyone holding `knowledge:write` decides what a managed collection says, so a search over one always [taints the run](#untrusted-content); no option makes it trusted.
+- **Always untrusted**: anyone holding `chamvi_knowledge_write` decides what a managed collection says, so a search over one always [taints the run](#untrusted-content); no option makes it trusted.
 - **Deleting**: `DELETE /knowledge/collections/<name>` removes a managed collection, or an orphaned declared one, with everything in it; a collection the code declares answers 409.
 
 A collection created on another replica is picked up here within a minute. With the default in-memory repository, managed collections live only in the process that created them and are gone after a restart; they need a persistent repository to be useful in production. The routes and their answers are in the [reference](/reference/knowledge#rest-api).

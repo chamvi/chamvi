@@ -114,13 +114,13 @@ The failure count and the time of the next attempt are stored on the collection,
 function knowledgeRoutes(knowledge: IKnowledge): HttpRoute[]; // for createHttpApp({ routes })
 
 const KNOWLEDGE_ROUTE_PATH: '/knowledge';
-const KNOWLEDGE_READ_PERMISSION: 'knowledge:read';
-const KNOWLEDGE_WRITE_PERMISSION: 'knowledge:write';
+const KNOWLEDGE_READ_PERMISSION: 'chamvi_knowledge_read';   // Permission.KNOWLEDGE_READ of @chamvi/access
+const KNOWLEDGE_WRITE_PERMISSION: 'chamvi_knowledge_write'; // Permission.KNOWLEDGE_WRITE
 const KNOWLEDGE_DOCUMENTS_DEFAULT_LIMIT: 50;
 const KNOWLEDGE_DOCUMENTS_MAX_LIMIT: 100;
 ```
 
-Served under the app's `basePath`. Every request is authorized first through [`request.authorize()`](/reference/http): `knowledge:read` for `GET`, `knowledge:write` for the others (401 without a token, 403 without the permission). Path segments are percent-decoded once, so a document id holding `/` is sent as `%2F`; a segment that does not decode, an id that is empty, over 255 characters or holds NUL, and a body that is no JSON object are 400; a body over the http app's `bodyLimit` (default 1 MiB, so it binds before `MANAGED_CONTENT_MAX_CHARS`) is 413. Any other path below `/knowledge` is 404. Errors render through the app's error handler.
+Served under the app's `basePath`. Every request is authorized first through [`request.authorize()`](/reference/http): `chamvi_knowledge_read` for `GET`, `chamvi_knowledge_write` for the others (401 without a token, 403 without the permission), with the attributes `{ name }` when the path names one collection. The listing and a create are gated for some collection; the listing then keeps the collections the principal may read, and a create checks the body's `name` after reading it. Path segments are percent-decoded once, so a document id holding `/` is sent as `%2F`; a segment that does not decode, an id that is empty, over 255 characters or holds NUL, and a body that is no JSON object are 400; a body over the http app's `bodyLimit` (default 1 MiB, so it binds before `MANAGED_CONTENT_MAX_CHARS`) is 413. Any other path below `/knowledge` is 404. Errors render through the app's error handler.
 
 | Route | Permission | Answer |
 |---|---|---|

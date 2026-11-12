@@ -18,6 +18,8 @@ export const Permission = {
     CONNECTION_WRITE: 'chamvi_connection_write',
     CONNECTION_CREATE: 'chamvi_connection_create',
     TOOL_USE: 'chamvi_tool_use',
+    KNOWLEDGE_READ: 'chamvi_knowledge_read',
+    KNOWLEDGE_WRITE: 'chamvi_knowledge_write',
 } as const;
 
 /** The values of `Permission`, in declaration order. */

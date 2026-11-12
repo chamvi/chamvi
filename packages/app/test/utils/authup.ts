@@ -22,7 +22,7 @@ const definition = (name: string) => ({
     policies: ['default'],
 });
 
-/** authup's `GET /authorization` body: the eleven names behind `system.default`, plus one attributes policy. */
+/** authup's `GET /authorization` body: the thirteen names behind `system.default`, plus one attributes policy. */
 export const CATALOG = {
     policies: {
         default: {

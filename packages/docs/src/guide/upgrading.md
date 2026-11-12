@@ -16,7 +16,7 @@ Connections can be configured in the dashboard, on a page per provider ([Connect
 | Permissions | Dynamic strings (`agent:<name>:run`, `run:read`, `connection:<name>:write`, `tool:<agent>:<tool>`, `*`) | Static names (`chamvi_agent_run`, ...) granted as authup permission bindings, a policy narrowing a grant to an agent or a connection. `CHAMVI_TOKENS` takes `"*"` or a list of bindings. See [Permissions and authup](/guide/permissions#upgrading) |
 | `authup()` options (`@chamvi/http`) | `{ verifier }` | `{ verifier, catalog, realm }`; `authupModule()`'s client also needs `permission_read` (realm scope `ownOrNull` or wider) |
 | `hasPermission`, `matchesPermission`, `toolPermission` (`@chamvi/core`), `agentPermission` (`@chamvi/http`, `@chamvi/app`) | String matching | `can()` and `canSome()` of `@chamvi/access` (re-exported by `@chamvi/app`) |
-| `/knowledge` routes (`@chamvi/knowledge`) | A `*` token reached them | `"*"` covers only the eleven `chamvi_*` names: grant `knowledge:read` and `knowledge:write` as bindings (in the token's list, or as permissions in authup), the `chamvi dev` token included |
+| `/knowledge` routes (`@chamvi/knowledge`) | `knowledge:read`, `knowledge:write` | `chamvi_knowledge_read`, `chamvi_knowledge_write` (covered by `"*"`), checked with `{ "name": "<collection>" }` when the path names one collection |
 | `toolPolicy` | `(toolName, { run }) => boolean` | `(toolName, { run, now }) => boolean \| Promise<boolean>` (a synchronous policy keeps working) |
 
 ### New variables

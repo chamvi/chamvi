@@ -82,6 +82,8 @@ Any name is checkable (an app may check its own, such as `release_manage`). Thes
 | `chamvi_connection_write` | `name`, `type` |
 | `chamvi_connection_create` | `type` |
 | `chamvi_tool_use` | `agent`, `name` (the tool) |
+| `chamvi_knowledge_read` | `name` (the collection) |
+| `chamvi_knowledge_write` | `name` (the collection) |
 
 `allPermissions()` returns one unrestricted binding per name, `permissionNames(holder)` the distinct granted names and `isPermissionBinding(value)` tells a binding from anything else.
 

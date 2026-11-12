@@ -5,12 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { can } from '@chamvi/access';
 import { RepositoryNotFoundError, ValidationError } from '@chamvi/core';
 import type {
     HttpRoute,
+    HttpRouteContext,
     HttpRouteMethod,
     HttpRouteRequest,
     HttpRouteResult,
+    Principal,
 } from '@chamvi/http';
 import type { IKnowledge } from '../knowledge/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
@@ -25,7 +28,14 @@ import {
 } from './helpers.ts';
 import type { KnowledgeDocumentListView } from './types.ts';
 
-type Handler = (request: HttpRouteRequest, segments: string[]) => Promise<HttpRouteResult | undefined>;
+type HandlerInput = {
+    request: HttpRouteRequest;
+    segments: string[];
+    principal: Principal;
+    ctx: HttpRouteContext;
+};
+
+type Handler = (input: HandlerInput) => Promise<HttpRouteResult | undefined>;
 
 function notFound(): RepositoryNotFoundError {
     return new RepositoryNotFoundError('knowledge collections');
@@ -34,7 +44,12 @@ function notFound(): RepositoryNotFoundError {
 function readHandler(knowledge: IKnowledge): Handler {
     const { repository } = knowledge;
 
-    return async (request, segments) => {
+    return async ({
+        request,
+        segments,
+        principal,
+        ctx,
+    }) => {
         const [root, name, sub, id, ...rest] = segments;
 
         if (root !== 'collections' || rest.length > 0) {
@@ -43,8 +58,16 @@ function readHandler(knowledge: IKnowledge): Handler {
 
         if (name === undefined) {
             const records = await repository.findCollections();
+            const now = ctx.clock.now();
+            const readable = await Promise.all(records.map((record) => can(principal, KNOWLEDGE_READ_PERMISSION, {
+                attributes: { name: record.name },
+                now,
+            })));
+            const data = records
+                .filter((_record, index) => readable[index])
+                .map((record) => toCollectionView(knowledge.view(record)));
 
-            return { status: 200, body: { data: records.map((record) => toCollectionView(knowledge.view(record))) } };
+            return { status: 200, body: { data } };
         }
 
         if (sub === undefined) {
@@ -82,7 +105,7 @@ function readHandler(knowledge: IKnowledge): Handler {
 }
 
 function postHandler(knowledge: IKnowledge): Handler {
-    return async (request, segments) => {
+    return async ({ request, segments }) => {
         const [root, name, sub, ...rest] = segments;
 
         if (root !== 'collections' || rest.length > 0) {
@@ -95,6 +118,9 @@ function postHandler(knowledge: IKnowledge): Handler {
             if (typeof body.name !== 'string') {
                 throw new ValidationError('A knowledge collection needs a name.');
             }
+
+            // the name is known only now: the gate before the body was for some collection
+            await request.authorize(KNOWLEDGE_WRITE_PERMISSION, { name: body.name });
 
             const record = await knowledge.createCollection(body.name);
 
@@ -121,7 +147,7 @@ function postHandler(knowledge: IKnowledge): Handler {
 }
 
 function putHandler(knowledge: IKnowledge): Handler {
-    return async (request, segments) => {
+    return async ({ request, segments }) => {
         const [root, name, sub, id, ...rest] = segments;
 
         if (root !== 'collections' || name === undefined || sub !== 'documents' || id === undefined || rest.length > 0) {
@@ -146,7 +172,7 @@ function putHandler(knowledge: IKnowledge): Handler {
 }
 
 function deleteHandler(knowledge: IKnowledge): Handler {
-    return async (_request, segments) => {
+    return async ({ segments }) => {
         const [root, name, sub, id, ...rest] = segments;
 
         if (root !== 'collections' || name === undefined || rest.length > 0) {
@@ -176,10 +202,13 @@ function deleteHandler(knowledge: IKnowledge): Handler {
 /**
  * The REST API of the knowledge collections, as extra routes of
  * `createHttpApp({ routes })`: one prefix route per method under
- * KNOWLEDGE_ROUTE_PATH. Every request is authorized first (`knowledge:read`
- * for `GET`, `knowledge:write` for the others), then dispatched by the
- * subpath's segments, each percent-decoded once (a document id may hold
- * `/` as `%2F`). Any other path answers 404; errors render through the
+ * KNOWLEDGE_ROUTE_PATH. Every request is authorized first
+ * (`chamvi_knowledge_read` for `GET`, `chamvi_knowledge_write` for the
+ * others): for `{ name }` when the path names one collection, else for
+ * some collection (the listing then keeps the readable ones, a create
+ * checks the body's name). Then it is dispatched by the subpath's
+ * segments, each percent-decoded once (a document id may hold `/` as
+ * `%2F`). Any other path answers 404; errors render through the
  * app's error handler (ValidationError 400, RepositoryNotFoundError 404,
  * InvalidRunStateError 409).
  */
@@ -195,10 +224,26 @@ export function knowledgeRoutes(knowledge: IKnowledge): HttpRoute[] {
         method,
         path: KNOWLEDGE_ROUTE_PATH,
         prefix: true,
-        handler: async (request) => {
-            await request.authorize(permission);
+        handler: async (request, ctx) => {
+            let segments: string[];
 
-            const result = await handler(request, parseSubpath(request.subpath));
+            try {
+                segments = parseSubpath(request.subpath);
+            } catch (error) {
+                // 401 and 403 before a 400
+                await request.authorize(permission);
+
+                throw error;
+            }
+
+            const name = segments[0] === 'collections' ? segments[1] : undefined;
+            const principal = await request.authorize(permission, name === undefined ? undefined : { name });
+            const result = await handler({
+                request,
+                segments,
+                principal,
+                ctx,
+            });
 
             if (!result) {
                 return {

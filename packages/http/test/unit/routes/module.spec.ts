@@ -612,11 +612,11 @@ describe('extra routes: authorize()', () => {
     });
 
     it('answers 403 for a token without the permission', async () => {
-        const { app } = createTestApp({ routes: [authorizing('knowledge:read')] });
+        const { app } = createTestApp({ routes: [authorizing('release_read')] });
         const response = await call(app, 'POST', '/extra', { token: READER_TOKEN });
 
         expect(response.status).toBe(403);
-        expect(await response.json()).toMatchObject({ message: 'Missing permission "knowledge:read".' });
+        expect(await response.json()).toMatchObject({ message: 'Missing permission "release_read".' });
     });
 
     it('resolves the principal, and a route reading it twice authenticates once', async () => {
@@ -632,16 +632,16 @@ describe('extra routes: authorize()', () => {
             routes: [route({
                 handler: async (request) => {
                     principals.push(await request.authorize());
-                    principals.push(await request.authorize('knowledge:write'));
+                    principals.push(await request.authorize('release_manage'));
 
                     return { status: 200, body: { id: principals[0]!.id } };
                 },
             })],
         });
-        const response = await call(app, 'POST', '/extra', { token: tokenFor('knowledge:write') });
+        const response = await call(app, 'POST', '/extra', { token: tokenFor('release_manage') });
 
         expect(response.status).toBe(200);
-        expect(await response.json()).toEqual({ id: 'p:knowledge:write' });
+        expect(await response.json()).toEqual({ id: 'p:release_manage' });
         expect(principals[1]).toBe(principals[0]);
         expect(calls).toBe(1);
     });
@@ -650,15 +650,15 @@ describe('extra routes: authorize()', () => {
         const { app } = createTestApp({
             routes: [route({
                 handler: async (request) => {
-                    const principal = await request.authorize('knowledge:read', { name: 'docs' });
+                    const principal = await request.authorize('release_read', { name: 'docs' });
 
                     return { status: 200, body: { id: principal.id } };
                 },
             })],
         });
 
-        expect((await call(app, 'POST', '/extra', { token: tokenFor(restricted('knowledge:read', { name: 'docs' })) })).status).toBe(200);
-        expect((await call(app, 'POST', '/extra', { token: tokenFor(restricted('knowledge:read', { name: 'wiki' })) })).status).toBe(403);
+        expect((await call(app, 'POST', '/extra', { token: tokenFor(restricted('release_read', { name: 'docs' })) })).status).toBe(200);
+        expect((await call(app, 'POST', '/extra', { token: tokenFor(restricted('release_read', { name: 'wiki' })) })).status).toBe(403);
         // "*" covers the chamvi permissions only
         expect((await call(app, 'POST', '/extra', { token: ADMIN_TOKEN })).status).toBe(403);
     });
