@@ -19,7 +19,7 @@ The baseline migration, `1794096000000-uuid-baseline.ts` (`UuidBaseline179409600
 | Path | Purpose |
 |------|---------|
 | `entities/` | One TypeORM entity per table, the repositories the store queries through; `TableName` and the jsonb transformers (`JSON_VALUE_TRANSFORMER`, `OPTIONAL_JSON_TRANSFORMER`) in `constants.ts`, `toJsonParameter()` (jsonb sanitizing) in `asserts.ts` |
-| `migrations/` | `1794096000000-uuid-baseline.ts` (`UuidBaseline1794096000000`), `1794230765000-connection-config.ts` (`ConnectionConfig1794230765000`), both generated |
+| `migrations/` | `1794096000000-uuid-baseline.ts` (`UuidBaseline1794096000000`), `1794230765000-connection-config.ts` (`ConnectionConfig1794230765000`), `1794484800000-run-agent-revision.ts` (`RunAgentRevision1794484800000`, nullable `chamvi_runs.agent_revision` varchar(128)), all generated |
 | `conversation/` | `DatabaseConversationRepository` on the run DataSource, transaction-bound repository getters, shared core persistence policy and local options; identity-row locking, generation fences, journal and note-operation transactions, bounded operation-prune pages |
 | `schema/` | `migrateStore()`, `pendingMigrations()` (`module.ts`), `assertStoreNotLegacy()` (`legacy.ts`, temporary), `STORE_ENTITIES`, `STORE_MIGRATIONS`, `MIGRATION_LOCK_NAME` |
 | `repository/` | `createDatabaseStore()` (`module.ts`), entity to domain mapping, value builders and `RETURNING` row hydration (`helpers.ts`), `DatabaseStoreOptions`, `DatabaseStore` |

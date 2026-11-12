@@ -7,6 +7,7 @@
 
 export * from './agent-definition.ts';
 export * from './agent-not-found.ts';
+export * from './agent-replaced.ts';
 export * from './artifact-not-found.ts';
 export * from './base.ts';
 export * from './budget-exceeded.ts';

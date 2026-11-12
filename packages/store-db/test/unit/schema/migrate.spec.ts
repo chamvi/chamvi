@@ -6,6 +6,7 @@
  */
 
 import type { DataSource } from 'typeorm';
+import { Engine, defineModelAgent } from '@chamvi/core';
 import { assertSchemaMatchesMetadata } from 'typeorm-extension';
 import {
     afterEach,
@@ -17,10 +18,12 @@ import { testUuid } from '@chamvi/test-kit';
 import { TableName } from '../../../src/entities/constants.ts';
 import { STORE_MIGRATIONS, migrateStore, pendingMigrations } from '../../../src/schema/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
+import { mockModel } from '../../utils/mock-model.ts';
 import type { TestDataSourceOptions } from '../../utils/database.ts';
 
 const BASELINE = 'UuidBaseline1794096000000';
 const CONNECTION_CONFIG = 'ConnectionConfig1794230765000';
+const RUN_AGENT_REVISION = 'RunAgentRevision1794484800000';
 
 /** The unique key that carries each table's natural identity, as Postgres lists the columns. */
 const NATURAL_KEYS: [string, string][] = [
@@ -88,12 +91,16 @@ describePostgres('schema', () => {
         const ds = await create();
 
         await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
+        expect(await pendingMigrations(ds)).toEqual([RUN_AGENT_REVISION]);
+
+        await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 1);
-        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG]);
+        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG, RUN_AGENT_REVISION]);
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(0);
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG, RUN_AGENT_REVISION]);
 
         await migrateStore(ds);
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
@@ -217,6 +224,7 @@ describePostgres('schema', () => {
         const connectionId = testUuid('connection');
 
         await ds.undoLastMigration({ transaction: 'each' });
+        await ds.undoLastMigration({ transaction: 'each' });
         await ds.query(
             `INSERT INTO "${TableName.CONNECTIONS}" (id, name, type, key_id, wrapped_key, created_at, updated_at)
              VALUES ($1, 'wa', 'whatsapp', 'k1', $2, now(), now())`,
@@ -241,6 +249,64 @@ describePostgres('schema', () => {
         expect(Array.from((await store.connections.findEntry('wa', 'creds'))!)).toEqual([2]);
     });
 
+    it('upgrades existing runs from the released baseline without a revision, and they still start', async () => {
+        const ds = await create();
+        const runId = testUuid('legacy-run');
+
+        await ds.undoLastMigration({ transaction: 'each' });
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG, RUN_AGENT_REVISION]);
+        await ds.query(
+            `INSERT INTO "${TableName.RUNS}" (id, agent, status, trigger, usage, created_at, updated_at)
+             VALUES ($1, 'triage', 'queued', $2, $3, now(), now())`,
+            [
+                runId,
+                JSON.stringify({
+                    id: 't1',
+                    agent: 'triage',
+                    trigger: 'http',
+                    channel: 'http',
+                    payload: {},
+                    receivedAt: new Date().toISOString(),
+                }),
+                JSON.stringify({ inputTokens: 0, outputTokens: 0 }),
+            ],
+        );
+
+        await migrateStore(ds);
+
+        const [row]: { agent_revision: string | null }[] = await ds.query(
+            `SELECT agent_revision FROM "${TableName.RUNS}" WHERE id = $1`,
+            [runId],
+        );
+
+        expect(row?.agent_revision).toBeNull();
+
+        const store = createDatabaseStore({ dataSource: ds });
+
+        expect(await store.runs.findOneOrFail(runId)).not.toHaveProperty('agentRevision');
+
+        const engine = new Engine({
+            store,
+            agents: [],
+            onError: () => {},
+        });
+
+        await engine.putAgent(defineModelAgent({
+            name: 'triage',
+            model: mockModel([{ parts: [{ type: 'text', text: 'done' }] }]),
+            instructions: 'x',
+        }), { revision: 'h1' });
+
+        try {
+            await engine.start({ channels: false });
+            await engine.idle();
+            expect((await store.runs.findOneOrFail(runId)).status).toBe('completed');
+        } finally {
+            engine.stop();
+        }
+    });
+
     it('concurrent starts apply once', async () => {
         const ds = await create({ migrate: false });
 
@@ -256,7 +322,7 @@ describePostgres('schema', () => {
     it('pendingMigrations lists every migration on an empty database and none after migrateStore', async () => {
         const ds = await create({ migrate: false });
 
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG, RUN_AGENT_REVISION]);
         await migrateStore(ds);
         expect(await pendingMigrations(ds)).toEqual([]);
     });
@@ -281,6 +347,8 @@ describePostgres('schema', () => {
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
         expect(await tablesIn(ds, 'public')).toBe(0);
 
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length - 1);
         await ds.undoLastMigration({ transaction: 'each' });

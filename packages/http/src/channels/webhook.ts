@@ -123,6 +123,8 @@ export function webhookChannel(options: WebhookChannelOptions): WebhookChannel {
             payload,
             ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
             ...(concurrencyKey !== undefined ? { concurrencyKey } : {}),
+            // the agent checked above: a replacement since is refused (409)
+            checked: agent,
         });
 
         return Response.json(result, { status: 202 });

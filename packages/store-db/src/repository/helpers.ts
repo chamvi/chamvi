@@ -52,6 +52,7 @@ const RUN_PROPERTIES: ReadonlySet<string> = new Set([
     'subtreeUsage',
     'waiting',
     'taint',
+    'agentRevision',
     'cancelRequested',
     'createdAt',
     'updatedAt',
@@ -259,6 +260,10 @@ export function toRun(entity: RunEntity): Run {
 
     if (entity.claimOwner !== null) {
         run.claim = { owner: entity.claimOwner, expiresAt: entity.claimExpiresAt as Date };
+    }
+
+    if (entity.agentRevision !== null) {
+        run.agentRevision = entity.agentRevision;
     }
 
     if (entity.cancelRequested !== null) {

@@ -7,3 +7,4 @@
 
 export * from './1794096000000-uuid-baseline.ts';
 export * from './1794230765000-connection-config.ts';
+export * from './1794484800000-run-agent-revision.ts';

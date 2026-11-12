@@ -14,7 +14,7 @@ import {
 import { Permission } from '@chamvi/access';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { z } from 'zod';
-import { defineModelAgent } from '@chamvi/core';
+import { createMemoryStore, defineModelAgent } from '@chamvi/core';
 import { http, staticTokens } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -467,5 +467,49 @@ describe('POST /agents/:name/runs with an agent replaced during the request', ()
 
         expect(response.status).toBe(202);
         expect((await store.runs.find({})).data).toHaveLength(1);
+    });
+
+    it('answers 409 agent_replaced while a replacement of the agent is still in flight', async () => {
+        const store = createMemoryStore();
+        const { app, engine } = createTestApp({
+            store,
+            agents: [defineModelAgent({
+                name: 'swap',
+                model: textModel(),
+                instructions: 'Public.',
+                channels: [http.on()],
+            })],
+        });
+        // the replacement's sweep reads the agent's unsettled runs first: held there, it stays in flight
+        const find = store.runs.find.bind(store.runs);
+        const held = Promise.withResolvers<void>();
+        const entered = Promise.withResolvers<void>();
+
+        store.runs.find = async (...args) => {
+            entered.resolve();
+            await held.promise;
+
+            return find(...args);
+        };
+
+        const replacing = engine.putAgent(defineModelAgent({
+            name: 'swap',
+            model: textModel(),
+            instructions: 'Replacement.',
+            channels: [http.on()],
+        }));
+
+        await entered.promise;
+
+        const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
+
+        expect(response.status).toBe(409);
+        expect(await response.json()).toMatchObject({ code: 'agent_replaced' });
+
+        store.runs.find = find;
+        held.resolve();
+        await replacing;
+
+        expect((await store.runs.find({})).data).toEqual([]);
     });
 });
