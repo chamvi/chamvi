@@ -34,7 +34,7 @@ import {
     fakeClient,
     meFor,
 } from '../../../utils/client.ts';
-import { grant } from '../../../utils/permissions.ts';
+import { allowedOf } from '../../../utils/permissions.ts';
 import { wireRun } from '../../../utils/runs.ts';
 import { MemoryStorage } from '../../../utils/storage.ts';
 import { flush } from '../../../utils/timers.ts';
@@ -179,25 +179,15 @@ describe('linkedApprovalState', () => {
 describe('approvableAgents', () => {
     const runOf = (agent: string, agentPrivate = false) => ({ agent, agentPrivate });
 
-    it('keeps the agents the principal holds chamvi_agent_approve for', async () => {
-        const holder = { bindings: [grant(Permission.AGENT_APPROVE, { name: { $in: ['deploy', 'triage'] } })] };
-        const runs = [runOf('deploy'), runOf('other'), runOf('triage'), runOf('deploy')];
+    it('keeps every agent of the runs when the session is allowed chamvi_agent_approve', () => {
+        const runs = [runOf('deploy'), runOf('other'), runOf('vault', true), { agent: 'triage' }, runOf('deploy')];
 
-        expect(await approvableAgents(holder, runs)).toEqual(new Set(['deploy', 'triage']));
-        expect(await approvableAgents({ bindings: [grant(Permission.AGENT_APPROVE)] }, [runOf('deploy')])).toEqual(new Set(['deploy']));
-        expect(await approvableAgents({ bindings: [grant(Permission.AGENT_READ)] }, [runOf('deploy')])).toEqual(new Set());
-        expect(await approvableAgents(undefined, [runOf('deploy')])).toEqual(new Set());
+        expect(approvableAgents(allowedOf(Permission.AGENT_APPROVE), runs)).toEqual(new Set(['deploy', 'other', 'vault', 'triage']));
     });
 
-    it('checks the run\'s agentPrivate the way the server does, without chamvi_run_read', async () => {
-        // an approver restricted to public agents, with no grant to list the agents
-        const holder = { bindings: [grant(Permission.AGENT_APPROVE, { private: false })] };
-
-        expect(await approvableAgents(holder, [runOf('deploy'), runOf('vault', true)])).toEqual(new Set(['deploy']));
-        // a run that says private wins: the flag fails closed
-        expect(await approvableAgents(holder, [runOf('deploy'), runOf('deploy', true)])).toEqual(new Set());
-        // a run without the flag counts as private
-        expect(await approvableAgents(holder, [{ agent: 'deploy' }])).toEqual(new Set());
+    it('keeps none without it', () => {
+        expect(approvableAgents(allowedOf(Permission.AGENT_READ, Permission.RUN_READ), [runOf('deploy')])).toEqual(new Set());
+        expect(approvableAgents(allowedOf(), [runOf('deploy')])).toEqual(new Set());
     });
 });
 

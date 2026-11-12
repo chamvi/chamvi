@@ -5,8 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { Permission, can } from '@chamvi/access';
-import type { PermissionHolder } from '@chamvi/access';
+import { Permission } from '@chamvi/access';
 import type {
     AgentWire,
     RunPage,
@@ -167,35 +166,22 @@ export function tokenShares(runs: readonly RunWire[]): string {
         .join(' · ');
 }
 
-/** The resource attributes of an agent, as the server checks the agent permissions. */
-export function agentAttributes(agent: Pick<AgentWire, 'name' | 'private'>): Record<string, unknown> {
-    return { name: agent.name, private: agent.private };
-}
-
 /**
- * Why the agent's runs are hidden from the principal: a private agent
- * without `chamvi_agent_read` for it, whose runs the server leaves out of
- * every listing (its rollup would read as zero); else `undefined`.
+ * Why the agent's runs are hidden: a private agent while the session is not
+ * allowed `chamvi_agent_read`, whose runs the server leaves out of every
+ * listing (its rollup would read as zero); else `undefined`.
  */
-export async function hiddenRunsNotice(agent: AgentWire, holder: PermissionHolder | undefined): Promise<string | undefined> {
-    if (!agent.private) {
-        return undefined;
-    }
-
-    if (holder && await can(holder, Permission.AGENT_READ, { attributes: agentAttributes(agent), now: new Date() })) {
+export function hiddenRunsNotice(agent: AgentWire, allowed: (name: string) => boolean): string | undefined {
+    if (!agent.private || allowed(Permission.AGENT_READ)) {
         return undefined;
     }
 
     return `Runs hidden: reading them needs ${Permission.AGENT_READ} for ${agent.name}`;
 }
 
-/** Start run shows for an agent with an `http` subscription the principal holds `chamvi_agent_run` for. */
-export async function canStartAgent(agent: AgentWire, holder: PermissionHolder | undefined): Promise<boolean> {
-    if (!holder || !hasHttpSubscription(agent)) {
-        return false;
-    }
-
-    return can(holder, Permission.AGENT_RUN, { attributes: agentAttributes(agent), now: new Date() });
+/** Start run shows for an agent with an `http` subscription while the session is allowed `chamvi_agent_run`. */
+export function canStartAgent(agent: AgentWire, allowed: (name: string) => boolean): boolean {
+    return hasHttpSubscription(agent) && allowed(Permission.AGENT_RUN);
 }
 
 /** The agent subscribes to the `http` channel, so REST (and the UI) can start it. */

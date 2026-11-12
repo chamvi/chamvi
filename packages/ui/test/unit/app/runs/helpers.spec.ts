@@ -20,7 +20,7 @@ import {
     subtreeTotal,
 } from '../../../../app/runs/helpers.ts';
 import type { RunDetailState } from '../../../../app/runs/helpers.ts';
-import { ALL, grant } from '../../../utils/permissions.ts';
+import { ALL, allowedOf } from '../../../utils/permissions.ts';
 import { wireRun, wireStep } from '../../../utils/runs.ts';
 
 function state(steps = [wireStep(0), wireStep(1, 'tool')]): RunDetailState {
@@ -108,25 +108,16 @@ describe('lastStepIndex', () => {
 });
 
 describe('canCancel', () => {
-    it('follows status and chamvi_run_cancel', async () => {
+    it('follows status and chamvi_run_cancel', () => {
         for (const status of ['queued', 'running', 'waiting', 'interrupted'] as const) {
-            expect(await canCancel(wireRun({ status }), { bindings: [grant(Permission.RUN_CANCEL)] }), status).toBe(true);
-            expect(await canCancel(wireRun({ status }), { bindings: [grant(Permission.RUN_READ)] }), status).toBe(false);
+            expect(canCancel(wireRun({ status }), allowedOf(Permission.RUN_CANCEL)), status).toBe(true);
+            expect(canCancel(wireRun({ status }), allowedOf(Permission.RUN_READ)), status).toBe(false);
+            expect(canCancel(wireRun({ status }), allowedOf()), status).toBe(false);
         }
 
         for (const status of ['completed', 'failed', 'cancelled'] as const) {
-            expect(await canCancel(wireRun({ status }), { bindings: ALL }), status).toBe(false);
+            expect(canCancel(wireRun({ status }), allowedOf(...ALL)), status).toBe(false);
         }
-    });
-
-    it('checks the run\'s agent against a restricted grant', async () => {
-        const run = wireRun({ status: 'running' });
-        const own = { bindings: [grant(Permission.RUN_CANCEL, { agent: run.agent })] };
-        const other = { bindings: [grant(Permission.RUN_CANCEL, { agent: `${run.agent}-other` })] };
-
-        expect(await canCancel(run, own)).toBe(true);
-        expect(await canCancel(run, other)).toBe(false);
-        expect(await canCancel(run, undefined)).toBe(false);
     });
 });
 

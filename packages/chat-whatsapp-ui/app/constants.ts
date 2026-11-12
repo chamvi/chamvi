@@ -20,3 +20,9 @@ export const WHATSAPP_TYPE: ConnectionTypeWire = {
     testable: false,
     fields: [],
 };
+
+/**
+ * The permission the QR stream and reset need (`Permission.CONNECTION_WRITE`
+ * of `@chamvi/access`, named here so the page bundles no access code).
+ */
+export const CONNECTION_WRITE = 'chamvi_connection_write';

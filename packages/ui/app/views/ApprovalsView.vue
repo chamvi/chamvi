@@ -9,7 +9,8 @@
 import { useToast } from '@vuecs/overlays';
 import { computed, inject, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import type { MeWire, RunWire } from '@chamvi/ui-kit';
+import { Permission } from '@chamvi/access';
+import type { RunWire } from '@chamvi/ui-kit';
 import { useApprovals, useLinkedApproval } from '../approvals/composables.ts';
 import { INBOX, INBOX_POLL_MS  } from '../approvals/constants.ts';
 import {
@@ -25,7 +26,6 @@ import {
     NavIcon,
     StatusChip,
     useAppContext,
-    useResolved,
 } from '@chamvi/ui-kit';
 import ApprovalCallout from '../components/approval-callout/ApprovalCallout.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
@@ -47,25 +47,12 @@ const route = useRoute();
 const approvalLink = computed(() => readApprovalLink(route.query));
 const linked = useLinkedApproval(client, approvalLink, inbox.runs);
 
-// the agents with a run on this page and their private flags (`agentPrivate` of the runs, as the server checks
-// the approval), as one sorted key: polls that list the same agents ask nothing again
-const agentKey = computed(() => {
-    const runs = linked.run.value ? [...inbox.runs.value, linked.run.value] : inbox.runs.value;
-
-    return Array.from(new Set(runs.map((run) => `${run.agent}\t${run.agentPrivate === false ? 'public' : 'private'}`))).sort().join('\n');
-});
-
-// `undefined` until the first verdicts arrived: the linked approval stays loading meanwhile
-const approvable = useResolved<readonly [string, MeWire | undefined], ReadonlySet<string> | undefined>(
-    () => [agentKey.value, session.principal.value] as const,
-    async ([key, principal]) => approvableAgents(principal, (key ? key.split('\n') : []).map((entry) => {
-        const [agent = '', flag] = entry.split('\t');
-
-        return { agent, agentPrivate: flag !== 'public' };
-    })),
-    undefined,
-);
-const canAnswer = (agent: string) => approvable.value?.has(agent) ?? false;
+// the agents with a run on this page the session may answer for (an upper bound: a refusal shows as 403)
+const approvable = computed<ReadonlySet<string>>(() => approvableAgents(
+    session.allowed,
+    linked.run.value ? [...inbox.runs.value, linked.run.value] : inbox.runs.value,
+));
+const canAnswer = (agent: string) => approvable.value.has(agent);
 const linkedState = computed(() => (linked.link.value ?
     linkedApprovalState({
         link: linked.link.value,
@@ -86,10 +73,11 @@ const notice = computed(() => (linkedState.value && linked.link.value ? linkNoti
 const linkRunId = computed(() => linkedRun.value?.id);
 const pending = computed(() => pendingApprovals(inbox.runs.value, decided.value, linkRunId.value));
 
-const MESSAGES: Record<AnswerResult, (approved: boolean) => string> = {
+const MESSAGES: Record<AnswerResult, (approved: boolean, agent: string) => string> = {
     answered: (approved) => (approved ? 'Approved' : 'Denied'),
     'already-answered': () => 'Already answered, expired or moved on',
-    forbidden: () => 'Not allowed to answer',
+    // the API refused (403): the session's verdict is an upper bound
+    forbidden: (_approved, agent) => `Answering this approval needs ${Permission.AGENT_APPROVE} for ${agent}`,
 };
 
 async function answer(run: RunWire, approved: boolean, reason: string, selected: string[] = []): Promise<void> {
@@ -106,7 +94,7 @@ async function answer(run: RunWire, approved: boolean, reason: string, selected:
             by: principalName.value,
             at: new Date().toISOString(),
         }, ...decided.value.filter((d) => d.run.id !== run.id)];
-        toast.add({ title: `${MESSAGES[result](approved)} · run ${shortId(run.id)}`, color: result === 'answered' ? 'success' : 'warning' });
+        toast.add({ title: `${MESSAGES[result](approved, run.agent)} · run ${shortId(run.id)}`, color: result === 'answered' ? 'success' : 'warning' });
 
         if (run.id === linked.link.value?.runId) {
             void linked.refresh();
@@ -205,7 +193,7 @@ async function answer(run: RunWire, approved: boolean, reason: string, selected:
                     </p>
                 </div>
                 <span class="decision">
-                    <b>{{ MESSAGES[entry.result](entry.approved) }}</b>
+                    <b>{{ MESSAGES[entry.result](entry.approved, entry.run.agent) }}</b>
                     <template v-if="entry.result === 'answered' && entry.by"> by {{ entry.by }}</template>
                     <template v-if="entry.reason">: “{{ entry.reason }}”</template>
                     <template v-if="entry.at">

@@ -6,60 +6,26 @@
  */
 
 import { allPermissions } from '@chamvi/access';
-import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } from '@chamvi/access';
+import { shallowRef } from 'vue';
+import type { MeWire } from '@chamvi/ui-kit';
 
-/** Every chamvi permission, unrestricted (a `'*'` token). */
-export const ALL: PermissionBinding[] = allPermissions();
+/** Every chamvi permission name, as `POST /authorization/check` answers a `'*'` token. */
+export const ALL: string[] = allPermissions().map((binding) => binding.permission.name);
 
-/** A binding of `name`: unrestricted, or restricted by one `attributes` policy over the resource. */
-export function grant(name: string, query?: Record<string, unknown>): PermissionBinding {
-    if (!query) {
-        return { permission: { name } };
-    }
+/** A verdict function as `session.allowed`: exactly these names. */
+export function allowedOf(...names: string[]): (name: string) => boolean {
+    const set = new Set(names);
 
-    return {
-        permission: { name },
-        policies: [{ type: 'attributes', query } as never],
-    };
+    return (name) => set.has(name);
 }
 
-export const AUTHUP_USER = '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d';
-export const AUTHUP_REALM = '0195f2a0-7c3e-7a4b-9c1d-000000000001';
-
-/**
- * A holder as `GET /me` answers an authup login: no bindings, a snapshot
- * whose definitions bind their grants and one grant per given binding
- * (its policies as the grant's junction policies).
- */
-export function authorized(...grants: PermissionBinding[]): {
-    bindings: PermissionBinding[]; 
-    authorization: PermissionAuthorization; 
-    identity: PermissionIdentity 
-} {
-    const names = [...new Set(grants.map((entry) => entry.permission.name))];
-    const permission = (name: string) => ({
-        name, 
-        realmId: null, 
-        clientId: null, 
-    });
+/** The session part of an `AppContext` whose permission check answered `names`. */
+export function sessionOf(names: readonly string[], principal: MeWire = { id: 'a', kind: 'token' }) {
+    const permissions = shallowRef<ReadonlySet<string>>(new Set(names));
 
     return {
-        bindings: [],
-        authorization: {
-            realm: AUTHUP_REALM,
-            snapshot: {
-                definitions: names.map((name) => ({ permission: permission(name), policies: [{ type: 'permissionBinding' } as never] })),
-                grants: grants.map((entry) => ({
-                    permission: permission(entry.permission.name),
-                    realmScope: 'any',
-                    ...(entry.policies ? { policies: entry.policies } : {}),
-                })),
-            },
-        },
-        identity: {
-            type: 'user', 
-            id: AUTHUP_USER, 
-            realmId: AUTHUP_REALM, 
-        },
+        principal: shallowRef<MeWire | undefined>(principal),
+        permissions,
+        allowed: (name: string) => permissions.value.has(name),
     };
 }

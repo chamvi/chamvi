@@ -7,9 +7,7 @@
 
 import { isObject } from 'smob';
 import type { ApiError, RunWire } from '@chamvi/ui-kit';
-import { Permission, can } from '@chamvi/access';
-import type { PermissionHolder } from '@chamvi/access';
-import { agentAttributes } from '../agents/helpers.ts';
+import { Permission } from '@chamvi/access';
 import { shortId } from '../runs/helpers.ts';
 import { JSON_BODY_MAX_LENGTH } from './constants.ts';
 import type {
@@ -96,36 +94,19 @@ export function approvalLinkQuery(run: RunWire): Record<string, string> {
 }
 
 /**
- * The agents of `runs` the principal holds `chamvi_agent_approve` for,
- * checked with `{ name, private }` as the server checks it. The flag is the
- * runs' `agentPrivate` (no agent list, so no `chamvi_run_read` needed); an
- * agent counts as private when one of its runs says so or lacks the flag.
+ * The agents of `runs` the session may answer approvals for: every one
+ * while it is allowed `chamvi_agent_approve`, else none. The verdict is an
+ * upper bound; the server decides per agent and a refusal shows as 403.
  */
-export async function approvableAgents(
-    holder: PermissionHolder | undefined,
-    runs: Iterable<Pick<RunWire, 'agent'> & { agentPrivate?: boolean }>,
-): Promise<Set<string>> {
-    const granted = new Set<string>();
-
-    if (!holder) {
-        return granted;
+export function approvableAgents(
+    allowed: (name: string) => boolean,
+    runs: Iterable<Pick<RunWire, 'agent'>>,
+): Set<string> {
+    if (!allowed(Permission.AGENT_APPROVE)) {
+        return new Set();
     }
 
-    const flags = new Map<string, boolean>();
-
-    for (const run of runs) {
-        flags.set(run.agent, (flags.get(run.agent) ?? false) || run.agentPrivate !== false);
-    }
-
-    const now = new Date();
-
-    await Promise.all(Array.from(flags, async ([name, isPrivate]) => {
-        if (await can(holder, Permission.AGENT_APPROVE, { attributes: agentAttributes({ name, private: isPrivate }), now })) {
-            granted.add(name);
-        }
-    }));
-
-    return granted;
+    return new Set(Array.from(runs, (run) => run.agent));
 }
 
 /**
@@ -144,7 +125,7 @@ export function linkedApprovalState(input: {
     run: RunWire | undefined;
     error: ApiError | undefined;
     decided: readonly DecidedApproval[];
-    /** The agents the principal may approve for (`approvableAgents`); `undefined` while that is out. */
+    /** The agents the session may approve for (`approvableAgents`); `undefined` while that is out. */
     approvable: ReadonlySet<string> | undefined;
     now: number;
 }): LinkedApprovalState {
@@ -225,7 +206,7 @@ export function linkNotice(state: LinkedApprovalState, link: ApprovalLink): Link
                 runId: state.run.id,
             };
         case 'unreadable':
-            return { status: 403, text: `Run ${shortId(link.runId)} is not readable with your grants (${Permission.RUN_READ} or ${Permission.AGENT_RUN} for its agent).` };
+            return { status: 403, text: `Run ${shortId(link.runId)} is not readable with your permissions (${Permission.RUN_READ} or ${Permission.AGENT_RUN} for its agent).` };
         case 'not-found':
             return { text: `Run ${shortId(link.runId)} was not found.` };
         case 'failed':

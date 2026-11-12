@@ -8,41 +8,21 @@
 
 import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
+import { Permission } from '@chamvi/access';
 import {
     ConnectionPanel,
     NavIcon,
-    canWriteConnection,
     createConnectionsApi,
     useAppContext,
-    useResolved,
 } from '@chamvi/ui-kit';
-import type { MeWire } from '@chamvi/ui-kit';
 import { RouteName } from '../router/constants.ts';
 
 const { client, session } = useAppContext();
 const api = createConnectionsApi(client);
 const route = useRoute();
 const name = computed(() => String(route.params.name));
-// the server checks a connection by name and type: the type comes from the list (absent for one it does not hold)
-const verdict = useResolved<readonly [string, MeWire | undefined], { name: string; write: boolean } | undefined>(
-    () => [name.value, session.principal.value] as const,
-    async ([current, principal]) => {
-        let type: string | undefined;
-
-        try {
-            type = (await api.list()).find((connection) => connection.name === current)?.type;
-        } catch {
-            type = undefined;
-        }
-
-        return { name: current, write: await canWriteConnection(principal, { name: current, type }) };
-    },
-    undefined,
-    // a writer's verdict (the stream) never outlives its principal
-    { reset: true },
-);
-// the panel waits for the verdict of this name: it decides once whether to follow the stream
-const write = computed(() => (verdict.value?.name === name.value ? verdict.value.write : undefined));
+// widgets, the live stream and reset: an upper bound, a refused reset shows its 403 inline
+const write = computed(() => session.allowed(Permission.CONNECTION_WRITE));
 </script>
 
 <template>
@@ -54,7 +34,6 @@ const write = computed(() => (verdict.value?.name === name.value ? verdict.value
     </RouterLink>
 
     <ConnectionPanel
-        v-if="write !== undefined"
         :key="`${name}:${write}`"
         :api="api"
         :name="name"

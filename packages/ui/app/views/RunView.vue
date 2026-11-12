@@ -7,20 +7,25 @@
  */
 
 import { useAlertDialog, useToast } from '@vuecs/overlays';
-import { computed, onScopeDispose, ref } from 'vue';
+import {
+    computed,
+    onScopeDispose,
+    ref,
+    watch,
+} from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { useAgents } from '../agents/composables.ts';
+import { Permission } from '@chamvi/access';
 import {
-    ApiError,
     NavIcon,
     StatusChip,
     useAppContext,
-    useResolved,
 } from '@chamvi/ui-kit';
 import { approvalLinkQuery, approvalWaitOf } from '../approvals/helpers.ts';
 import JsonBlock from '../components/json-block/JsonBlock.vue';
 import StepItem from '../components/step-item/StepItem.vue';
 import { errorText } from '../components/step-item/helpers.ts';
+import { refusalText } from '../errors/helpers.ts';
 import UntrustedChip from '../components/untrusted-chip/UntrustedChip.vue';
 import UsageMeter from '../components/usage-meter/UsageMeter.vue';
 import { RouteName } from '../router/constants.ts';
@@ -74,13 +79,13 @@ const subtree = computed(() => (run.value ? subtreeTotal(run.value) : undefined)
 const dispatchLine = computed(() => (run.value ? dispatchCallout(run.value) : undefined));
 const budget = computed(() => agents.value.find((agent) => agent.name === run.value?.agent)?.budget);
 const parent = computed(() => (run.value ? parentOf(run.value) : undefined));
-// the live stream replaces the run on every step: the verdict follows only its status and agent
-const cancelKey = computed(() => (run.value ? `${run.value.status}:${run.value.agent}` : undefined));
-const cancellable = useResolved(
-    () => [cancelKey.value, session.principal.value] as const,
-    ([key, principal]) => (key && run.value ? canCancel(run.value, principal) : Promise.resolve(false)),
-    false,
-);
+const cancellable = computed(() => (run.value ? canCancel(run.value, session.allowed) : false));
+/** A cancel the API refused (a 403 names the permission), shown under the head. */
+const cancelError = ref<string>();
+
+watch(runId, () => {
+    cancelError.value = undefined;
+});
 
 const liveSteps = computed(() => {
     const { value } = state;
@@ -135,15 +140,13 @@ async function onCancel(): Promise<void> {
         return;
     }
 
+    cancelError.value = undefined;
+
     try {
         await cancel();
         toast.add({ title: `Cancel requested · run ${shortId(runId.value)}` });
     } catch (e) {
-        toast.add({
-            title: 'Cancel failed',
-            description: e instanceof ApiError ? e.message : String(e),
-            color: 'error',
-        });
+        cancelError.value = refusalText(e, 'Cancelling this run', Permission.RUN_CANCEL, run.value?.agent ?? 'its agent');
     }
 }
 </script>
@@ -189,6 +192,14 @@ async function onCancel(): Promise<void> {
                         Cancel run
                     </VCButton>
                 </div>
+                <p
+                    v-if="cancelError"
+                    class="form-err"
+                    role="alert"
+                    data-testid="cancel-error"
+                >
+                    {{ cancelError }}
+                </p>
                 <dl class="facts">
                     <div>
                         <dt>agent</dt>

@@ -17,6 +17,8 @@ export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {
 
     return {
         me: missing('me'),
+        // the permission check of a `'*'` token
+        checkAuthorization: async () => ({ permissions: ALL }),
         listAgents: missing('listAgents'),
         listSchedules: missing('listSchedules'),
         listRuns: missing('listRuns'),
@@ -37,7 +39,6 @@ export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {
 export const ME: MeWire = {
     id: 'admin',
     kind: 'token',
-    bindings: ALL,
 };
 
 export function apiError(status: number, code = `http_${status}`): ApiError {
