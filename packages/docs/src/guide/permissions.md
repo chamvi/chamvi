@@ -6,7 +6,7 @@ A principal and a run's invoker hold their grants in one of two forms. A static 
 { "permission": { "name": "chamvi_agent_run" }, "policies": [{ "type": "attributes", "query": { "name": "triage" } }] }
 ```
 
-Permission names are static. A binding without `policies` is unrestricted; an authup policy narrows it to some resources, for example an `attributes` policy over the resource's attributes to one agent or one connection. The check is `can()` of `@chamvi/access` (re-exported by `@chamvi/app`), the same function the server, core and the dashboard use, so a button and the route behind it agree.
+Permission names are static. A binding without `policies` is unrestricted; an authup policy narrows it to some resources, for example an `attributes` policy over the resource's attributes to one agent or one connection. The check is `can()` of `@chamvi/access` (re-exported by `@chamvi/app`), the function the server and core use. The dashboard does not run it: it asks `POST /authorization/check` ([HTTP API](/guide/http)), which answers with `canSome`. A button is a pre-gate from that answer (a policy that needs an agent or connection passes), the route behind it decides per resource, and a refused action shows the permission it needs.
 
 ## Names
 
