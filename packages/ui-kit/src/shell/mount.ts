@@ -28,7 +28,7 @@ import { installVuecs } from './vuecs.ts';
  * `definePageConfig`, which provides the bundled icons this loads.
  */
 export async function mountPage(component: Component, options: MountPageOptions = {}): Promise<void> {
-    // before anything can check a permission
+    // before the authup client kit, whose permission checks (@authup/access) need toWellFormed
     installStringPolyfills();
 
     // icons from the bundle, never fetched (CSP connect-src 'self')

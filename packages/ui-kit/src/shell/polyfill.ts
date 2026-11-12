@@ -8,8 +8,10 @@
 /**
  * `String.prototype.toWellFormed` (ES2024) where the browser lacks it
  * (Firefox 114 to 118 of the dashboard's browser target):
- * `@authup/access` calls it in every permission check, which would then
- * fail closed. Replaces each lone surrogate with U+FFFD, as specified.
+ * `@authup/access`, which `@authup/client-web-kit` runs for its own
+ * permission checks on an authup sign-in, calls it in every check, which
+ * would then fail closed. Replaces each lone surrogate with U+FFFD, as
+ * specified.
  */
 export function installStringPolyfills(): void {
     if (typeof String.prototype.toWellFormed === 'function') {
