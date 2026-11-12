@@ -46,7 +46,7 @@ npx chamvi dev     # .env loaded, restarts on code changes
 npx chamvi start   # production: needs CHAMVI_TOKENS
 ```
 
-`chamvi dev` without `CHAMVI_TOKENS` generates a random token with every permission and logs it once (a warning), so you can call the API right away. `chamvi start` refuses to start without an authenticator: set `CHAMVI_TOKENS` to a JSON list, each `value` at least 16 characters. Generate the value, never copy one from a page:
+`chamvi dev` without `CHAMVI_TOKENS` generates a random token with every chamvi permission (`"*"`) and logs it once (a warning), so you can call the API right away. `chamvi start` refuses to start without an authenticator: set `CHAMVI_TOKENS` to a JSON list, each `value` at least 16 characters. Generate the value, never copy one from a page:
 
 ```bash
 export CHAMVI_TOKENS="[{ \"value\": \"$(openssl rand -hex 32)\", \"id\": \"ops\", \"permissions\": \"*\" }]"
