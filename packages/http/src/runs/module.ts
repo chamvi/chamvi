@@ -112,7 +112,7 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
         });
 
         return {
-            data: data.map(serializeRun),
+            data: data.map((run) => serializeRun(run, ctx.agents)),
             meta: {
                 total,
                 limit: query.limit,
@@ -124,7 +124,7 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
     app.get('/runs/:id', defineCoreHandler(async (event) => {
         const run = await readableRun(event, ctx, param(event, 'id'));
 
-        return { ...serializeRun(run), steps: (await ctx.store.steps.find(run.id)).map(serializeStep) };
+        return { ...serializeRun(run, ctx.agents), steps: (await ctx.store.steps.find(run.id)).map(serializeStep) };
     }));
 
     app.get('/runs/:id/stream', defineCoreHandler(async (event) => {

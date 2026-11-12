@@ -161,7 +161,7 @@ function registerReadTools(server: McpServer, ctx: HttpContext, principal: Princ
         description: 'Reads one run: status, output, error and what a waiting run waits on (waiting.kind approval: answer it with approve_run; dispatch: the runs it dispatched, waiting.runIds).',
         inputSchema: GET_RUN_INPUT,
         annotations: { readOnlyHint: true },
-    }, (args) => runTool(ctx, async () => toolResult(serializeRun(await loadReadableRun(ctx, principal, args.runId)))));
+    }, (args) => runTool(ctx, async () => toolResult(serializeRun(await loadReadableRun(ctx, principal, args.runId), ctx.agents))));
 
     server.registerTool('list_runs', {
         title: 'List runs',

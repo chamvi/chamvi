@@ -8,6 +8,13 @@
 import { expect, it } from 'vitest';
 import type { Run } from '@chamvi/core';
 import { serializeRun } from '../../../src/runs/helpers.ts';
+import type { HttpAgents } from '../../../src/app/types.ts';
+
+const NO_AGENTS: HttpAgents = {
+    get: () => undefined,
+    list: () => [],
+    names: () => [],
+};
 
 it('drops private conversation binding at runtime through the shared REST/SSE/MCP serializer', () => {
     const run = {
@@ -16,6 +23,6 @@ it('drops private conversation binding at runtime through the shared REST/SSE/MC
         conversation: { scope: { identity: { chat: 'private' } }, text: 'private' },
     } as Run;
 
-    expect(serializeRun(run)).not.toHaveProperty('conversation');
+    expect(serializeRun(run, NO_AGENTS)).not.toHaveProperty('conversation');
     expect(run).toHaveProperty('conversation');
 });

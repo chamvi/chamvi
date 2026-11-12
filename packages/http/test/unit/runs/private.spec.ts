@@ -18,7 +18,9 @@ import {
     restricted,
     tokenFor,
 } from '../../utils/app.ts';
+import { callTool, connectMcp } from '../../utils/mcp.ts';
 import { textModel } from '../../utils/model.ts';
+import { readEvents } from '../../utils/sse.ts';
 
 const OWNER_TOKEN = tokenFor(restricted(Permission.AGENT_READ, { name: 'alfred' }));
 const RUNNER_TOKEN = tokenFor(restricted(Permission.AGENT_RUN, { name: 'alfred' }));
@@ -263,6 +265,41 @@ describe('private agents: GET /runs', () => {
 
         expect(owned.status).toBe(200);
         expect(((await owned.json()) as ListBody).meta.total).toBe(1);
+        await ctx.engine.drain();
+    });
+});
+
+describe('agentPrivate on the run wire', () => {
+    it('is the agent\'s private flag, an agent the app does not hold counting as private', async () => {
+        const ctx = await setup();
+
+        await insertGhostRun(ctx.store);
+
+        const flagOf = async (id: string) => (await (await call(ctx.app, 'GET', `/runs/${id}`, { token: ADMIN_TOKEN })).json()).agentPrivate;
+
+        expect(await flagOf(ctx.bob)).toBe(false);
+        expect(await flagOf(ctx.alfred)).toBe(true);
+        expect(await flagOf('ghost-run')).toBe(true);
+
+        const list = await (await call(ctx.app, 'GET', '/runs', { token: ADMIN_TOKEN })).json() as { data: Array<{ id: string; agentPrivate: boolean }> };
+
+        expect(Object.fromEntries(list.data.map((run) => [run.id, run.agentPrivate]))).toEqual({
+            [ctx.alfred]: true,
+            [ctx.bob]: false,
+            'ghost-run': true,
+        });
+
+        const stream = await call(ctx.app, 'GET', `/runs/${ctx.bob}/stream`, { token: ADMIN_TOKEN });
+        const [updated] = await readEvents(stream, 1);
+
+        expect(updated?.event).toBe('run.updated');
+        expect(JSON.parse(updated!.data).agentPrivate).toBe(false);
+
+        const client = await connectMcp(ctx.app, ADMIN_TOKEN);
+        const read = await callTool(client, 'get_run', { runId: ctx.alfred });
+
+        expect((read.structuredContent as { agentPrivate: boolean }).agentPrivate).toBe(true);
+        await client.close();
         await ctx.engine.drain();
     });
 });

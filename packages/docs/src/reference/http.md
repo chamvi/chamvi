@@ -102,8 +102,9 @@ const DEFAULT_SHUTDOWN_CLOSE_TIMEOUT_MS: 5_000;
 
 ```ts
 type InvokerView = Omit<Invoker, 'permissions'>;
-type RunView = Omit<Run, 'claim' | 'trigger'> & {
+type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
     trigger: Omit<TriggerEnvelope, 'invoker'> & { invoker?: InvokerView };
+    agentPrivate: boolean; // the agent's `private` as the server checks it (an agent the app does not hold: true)
 };
 type RunSummary = Pick<Run, 'id' | 'agent' | 'status' | 'createdAt' | 'finishedAt' | 'error'>;
 type RunToolResult = {

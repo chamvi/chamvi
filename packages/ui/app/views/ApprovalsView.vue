@@ -9,8 +9,7 @@
 import { useToast } from '@vuecs/overlays';
 import { computed, inject, ref } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
-import type { AgentWire, MeWire, RunWire } from '@chamvi/ui-kit';
-import { useAgents } from '../agents/composables.ts';
+import type { MeWire, RunWire } from '@chamvi/ui-kit';
 import { useApprovals, useLinkedApproval } from '../approvals/composables.ts';
 import { INBOX, INBOX_POLL_MS  } from '../approvals/constants.ts';
 import {
@@ -48,28 +47,22 @@ const route = useRoute();
 const approvalLink = computed(() => readApprovalLink(route.query));
 const linked = useLinkedApproval(client, approvalLink, inbox.runs);
 
-// the agents with a run on this page, as one sorted key: polls that list the same agents ask nothing again
+// the agents with a run on this page and their private flags (`agentPrivate` of the runs, as the server checks
+// the approval), as one sorted key: polls that list the same agents ask nothing again
 const agentKey = computed(() => {
-    const names = new Set(inbox.runs.value.map((run) => run.agent));
+    const runs = linked.run.value ? [...inbox.runs.value, linked.run.value] : inbox.runs.value;
 
-    if (linked.run.value) {
-        names.add(linked.run.value.agent);
-    }
-
-    return Array.from(names).sort().join('\n');
-});
-// the agents' private flags for the approve check; an agent the list lacks (or a refused list) counts as private
-const agentList = useAgents(client);
-const agentsLoaded = ref(false);
-
-void agentList.loaded.then(() => {
-    agentsLoaded.value = true;
+    return Array.from(new Set(runs.map((run) => `${run.agent}\t${run.agentPrivate === false ? 'public' : 'private'}`))).sort().join('\n');
 });
 
-// `undefined` until the agent list and the first verdicts arrived: the linked approval stays loading meanwhile
-const approvable = useResolved<readonly [string, MeWire | undefined, boolean, readonly AgentWire[]], ReadonlySet<string> | undefined>(
-    () => [agentKey.value, session.principal.value, agentsLoaded.value, agentList.agents.value] as const,
-    async ([key, principal, ready, agents]) => (ready ? approvableAgents(principal, key ? key.split('\n') : [], agents) : undefined),
+// `undefined` until the first verdicts arrived: the linked approval stays loading meanwhile
+const approvable = useResolved<readonly [string, MeWire | undefined], ReadonlySet<string> | undefined>(
+    () => [agentKey.value, session.principal.value] as const,
+    async ([key, principal]) => approvableAgents(principal, (key ? key.split('\n') : []).map((entry) => {
+        const [agent = '', flag] = entry.split('\t');
+
+        return { agent, agentPrivate: flag !== 'public' };
+    })),
     undefined,
 );
 const canAnswer = (agent: string) => approvable.value?.has(agent) ?? false;
