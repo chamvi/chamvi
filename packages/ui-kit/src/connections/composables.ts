@@ -54,12 +54,16 @@ export function useConnections(api: IConnectionsApi) {
 /**
  * One connection: a writer loads it and then follows its event stream
  * (status and widgets live, the QR included); a reader, who gets no
- * widgets and may not open the stream, polls the status. The reset asks
- * for a confirmation in the page (`askReset`, then `confirmReset`).
+ * widgets and may not open the stream, polls the status. `write` is the
+ * name-level verdict, an upper bound: the caller writes this connection
+ * (`writable`) only when the server also sent the writer-only `widgets`.
+ * The reset asks for a confirmation in the page (`askReset`, then
+ * `confirmReset`).
  */
 export function useConnection(api: IConnectionsApi, name: string, options: UseConnectionOptions) {
     const connection = shallowRef<ConnectionDetailWire>();
     const widgets = shallowRef<ConnectionWidgetWire[]>([]);
+    const writable = shallowRef(false);
     const error = shallowRef<ApiError>();
     const confirming = shallowRef(false);
     const resetting = shallowRef(false);
@@ -99,11 +103,13 @@ export function useConnection(api: IConnectionsApi, name: string, options: UseCo
             const detail = await api.get(name);
 
             connection.value = detail;
-            widgets.value = options.write ? detail.widgets ?? [] : [];
+            // write may be held for another connection only: the server sends widgets to a writer of this one
+            writable.value = options.write && detail.widgets !== undefined;
+            widgets.value = writable.value ? detail.widgets ?? [] : [];
             error.value = undefined;
 
             // no handle in this process means no stream: keep polling until one runs
-            if (options.write && !disposed && detail.live !== false) {
+            if (writable.value && !disposed && detail.live !== false) {
                 // the stream carries every change from here on
                 poller.stop();
                 follow();
@@ -127,6 +133,7 @@ export function useConnection(api: IConnectionsApi, name: string, options: UseCo
     return {
         connection,
         widgets,
+        writable,
         error,
         confirming,
         resetting,

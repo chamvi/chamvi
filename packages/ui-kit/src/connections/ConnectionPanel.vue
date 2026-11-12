@@ -16,7 +16,7 @@ import type { IConnectionsApi } from './types.ts';
 const props = defineProps<{
     api: IConnectionsApi;
     name: string;
-    /** The session is allowed chamvi_connection_write: widgets, the live stream and reset. */
+    /** The session is allowed chamvi_connection_write by name (an upper bound): the loaded view decides. */
     write: boolean;
 }>();
 
@@ -24,6 +24,7 @@ const state = useConnection(props.api, props.name, { write: props.write });
 const {
     connection,
     widgets,
+    writable,
     error,
     confirming,
     resetting,
@@ -88,14 +89,14 @@ watch(confirming, async (open) => {
         </section>
 
         <div
-            v-if="error && !write"
+            v-if="error && !writable"
             class="card notice"
             data-testid="connection-stale"
         >
             The status may be out of date: {{ error.code }} · {{ error.message }}
         </div>
         <div
-            v-if="!write"
+            v-if="!writable"
             class="card notice"
             data-testid="connection-readonly"
         >

@@ -50,6 +50,8 @@ async function mount(options: {
     permissions: string[];
     /** `POST /connections/wa/reset` answers 403, as `@chamvi/http` does without the write permission. */
     refuseReset?: boolean;
+    /** `GET /connections/wa` answers the reader view: write is allowed by name, for another connection. */
+    readerView?: boolean;
     connections?: Array<{
         name: string; 
         type: string; 
@@ -92,7 +94,11 @@ async function mount(options: {
                     },
                 ],
             },
-            '/connections/wa': PAIRING,
+            '/connections/wa': options.readerView ? {
+                ...PAIRING, 
+                widgets: undefined, 
+                canReset: undefined, 
+            } : PAIRING,
             '/connections/wa/reset': { ...PAIRING, widgets: undefined },
         };
 
@@ -167,6 +173,19 @@ describe('the WhatsApp page', () => {
         expect(reader.testId('connection-readonly')).not.toBeNull();
         expect(reader.root.innerHTML).not.toContain('secret-pairing-material');
         expect(reader.calls.some((call) => call.url.endsWith('/events'))).toBe(false);
+    });
+
+    it('opens no QR stream for the reader view a name-level writer gets for this session', async () => {
+        const {
+            root, 
+            calls, 
+            testId, 
+        } = await mount({ permissions: ['chamvi_connection_write'], readerView: true });
+
+        expect(testId('connection-qr')).toBeNull();
+        expect(testId('connection-readonly')).not.toBeNull();
+        expect(root.innerHTML).not.toContain('secret-pairing-material');
+        expect(calls.some((call) => call.url.endsWith('/events'))).toBe(false);
     });
 
     it('reset confirms in the page', async () => {

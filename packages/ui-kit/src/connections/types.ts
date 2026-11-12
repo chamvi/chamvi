@@ -110,7 +110,7 @@ export interface IConnectionStream {
 }
 
 export type UseConnectionOptions = {
-    /** The session is allowed `chamvi_connection_write`: widgets, the live stream and reset. */
+    /** The session is allowed `chamvi_connection_write` by name; widgets, the stream and reset also need the writer view of this connection. */
     write: boolean;
     sleep?: ConnectionStreamOptions['sleep'];
 };

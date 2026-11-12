@@ -27,20 +27,23 @@ const DETAIL = {
     widgets: WIDGETS,
 } as ConnectionDetailWire;
 
-function fakeApi(): IConnectionsApi {
+function fakeApi(detail: ConnectionDetailWire = DETAIL): IConnectionsApi {
     return {
         list: async () => [],
-        get: async () => DETAIL,
+        get: async () => detail,
         reset: async () => DETAIL,
         // the live view is not observed here: the stream never answers
         stream: () => new Promise<Response>(() => {}),
     };
 }
 
-async function mount(slots: Record<string, (props: { widgets: ConnectionWidgetWire[] }) => unknown>) {
+async function mount(
+    slots: Record<string, (props: { widgets: ConnectionWidgetWire[] }) => unknown>,
+    detail: ConnectionDetailWire = DETAIL,
+) {
     const root = document.createElement('div');
     const app = createApp(defineComponent(() => () => h(ConnectionPanel, {
-        api: fakeApi(),
+        api: fakeApi(detail),
         name: 'whatsapp',
         write: true,
     }, slots)));
@@ -73,6 +76,20 @@ describe('ConnectionPanel', () => {
         expect(root.querySelector('[data-testid="connection-status"]')).not.toBeNull();
         expect(root.querySelector('.connection-widget')).toBeNull();
         expect(root.innerHTML).not.toContain('pairing-material');
+        unmount();
+    });
+
+    it('shows the read-only notice when the server sent the reader view despite the allowed name', async () => {
+        const reader = {
+            name: 'whatsapp',
+            type: 'whatsapp',
+            status: 'connecting',
+        } as ConnectionDetailWire;
+        const { root, unmount } = await mount({ widgets: () => h('p', { 'data-testid': 'custom' }) }, reader);
+
+        expect(root.querySelector('[data-testid="connection-readonly"]')).not.toBeNull();
+        expect(root.querySelector('[data-testid="custom"]')).toBeNull();
+        expect(root.querySelector('[data-testid="connection-reset"]')).toBeNull();
         unmount();
     });
 });
