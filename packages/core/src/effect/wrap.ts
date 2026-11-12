@@ -16,7 +16,7 @@ import { assertTrust, gateOutbound, markUntrusted } from '../trust/module.ts';
 import { SUSPENDED_RESULT } from '../approval/constants.ts';
 import { SuspendSignal } from '../approval/request.ts';
 import { EFFECT, EFFECT_HOOKS } from './constants.ts';
-import { currentToolCall, runToolCall } from './frame.ts';
+import { assertExecutionActive, currentToolCall, runToolCall } from './frame.ts';
 import { stableHash, validateToolInput } from './helpers.ts';
 import type { EffectHooks, ToolCallFrame, WrapToolsOptions } from './types.ts';
 
@@ -189,22 +189,44 @@ export function wrapToolsForRun(
 
             return result;
         };
-        const check = async () => {
-            if (!allow) {
-                return;
-            }
-
-            let allowed: boolean;
-
-            try {
-                allowed = await allow(name);
-            } catch (error) {
-                throw new FatalToolError(`The tool policy failed for "${name}": ${Error.isError(error) ? error.message : String(error)}`);
+        const failedPolicy = (error: unknown) => new FatalToolError(`The tool policy failed for "${name}": ${Error.isError(error) ? error.message : String(error)}`);
+        // The run can end while an asynchronous policy is awaited: nothing executes afterwards.
+        const verdict = (allowed: boolean, awaited: boolean) => {
+            if (awaited) {
+                assertExecutionActive(ended?.() === true || ctx.run.signal.aborted, ctx.run.runId, `The tool "${name}"`);
             }
 
             if (!allowed) {
                 throw new ToolNotAllowedError(name);
             }
+        };
+        // A synchronous policy is answered synchronously (undefined), so a
+        // tool without hooks keeps returning its result, streamed or not, as is.
+        const check = (): Promise<void> | undefined => {
+            if (!allow) {
+                return undefined;
+            }
+
+            let result: boolean | Promise<boolean>;
+
+            try {
+                result = allow(name);
+            } catch (error) {
+                throw failedPolicy(error);
+            }
+
+            if (isPromiseLike(result)) {
+                return Promise.resolve(result).then(
+                    (allowed) => verdict(allowed, true),
+                    (error: unknown) => {
+                        throw failedPolicy(error);
+                    },
+                );
+            }
+
+            verdict(result, false);
+
+            return undefined;
         };
         // Only a chamvi tool's own `trust` classifies it: a third-party tool stays trusted unless the
         // agent's `trust.tools` names it, whatever unrelated `trust` field it carries. A hand-built
@@ -285,18 +307,42 @@ export function wrapToolsForRun(
         };
 
         if (!(EFFECT in def)) {
-            // the synchronous pass-through (a streamed result stays streaming) has no policy to await
-            if (!allow && !classified && !hooks.beforeToolExecution && !hooks.afterToolExecution) {
+            if (!classified && !hooks.beforeToolExecution && !hooks.afterToolExecution) {
+                const passThrough = (input: unknown, callOptions: unknown) => {
+                    const result = execute.call(def, input, callOptions);
+
+                    if (isAsyncIterable(result)) {
+                        markStreaming();
+                    }
+
+                    return result;
+                };
+
                 wrapped[name] = {
                     ...def,
                     execute: (input: unknown, callOptions: unknown) => inFrame(callOptions, () => {
-                        const result = execute.call(def, input, callOptions);
+                        const pending = check();
 
-                        if (isAsyncIterable(result)) {
-                            markStreaming();
+                        if (!pending) {
+                            return passThrough(input, callOptions);
                         }
 
-                        return result;
+                        // an awaited policy: an async generator function keeps streaming
+                        if (isAsyncGeneratorFunction(execute)) {
+                            return (async function* streamed() {
+                                await pending;
+
+                                yield* passThrough(input, callOptions) as AsyncIterable<unknown>;
+                            })();
+                        }
+
+                        // a plain function is only known to stream once it ran, after
+                        // the await: its streamed result is reduced to the final value
+                        return pending.then(async () => {
+                            const result = await passThrough(input, callOptions);
+
+                            return isAsyncIterable(result) ? lastOf(result) : result;
+                        });
                     }),
                 } as ToolSet[string];
 
