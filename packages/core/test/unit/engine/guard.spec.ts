@@ -478,4 +478,67 @@ describe('execution guard', () => {
         expect(model.doStreamCalls).toHaveLength(0);
         expect(errors).toEqual([]);
     });
+
+    it('drain waits for the cancel of a stale checked run', async () => {
+        const { clock, store } = setup();
+        const triage = defineModelAgent({
+            name: 'triage',
+            model: answer(),
+            instructions: 'x',
+        });
+        const { engine: b } = make({
+            store,
+            clock,
+            agents: [],
+            owner: 'B',
+        });
+        const { engine: a, errors } = make({
+            store,
+            clock,
+            agents: [],
+            owner: 'A',
+        });
+
+        await b.putAgent(triage, { revision: 'h1' });
+        await a.putAgent(defineModelAgent({
+            name: 'triage',
+            model: answer(),
+            instructions: 'x',
+        }), { revision: 'h2' });
+
+        const { runId } = await b.dispatch({ ...env(), checked: triage });
+
+        // the stale cancel's write is held until drain() has started
+        const update = store.runs.update.bind(store.runs);
+        const held = Promise.withResolvers<void>();
+        const entered = Promise.withResolvers<void>();
+
+        store.runs.update = async (...args) => {
+            if (args[0] === runId && args[1].status === 'cancelled') {
+                entered.resolve();
+                await held.promise;
+            }
+
+            return update(...args);
+        };
+
+        await a.start();
+        await entered.promise;
+
+        let drained = false;
+        const draining = a.drain({ timeoutMs: 10_000 }).then(() => {
+            drained = true;
+        });
+
+        await new Promise<void>((resolve) => {
+            setImmediate(resolve);
+        });
+        expect(drained).toBe(false);
+
+        held.resolve();
+        await draining;
+
+        expect(await statusOf(store, runId)).toBe('cancelled');
+        expect(errors).toEqual([]);
+    });
 });

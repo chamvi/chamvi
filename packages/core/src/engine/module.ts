@@ -127,6 +127,13 @@ export class Engine implements IEngine {
     /** Cancels of queued runs stamped with a replaced revision, by run id; idle() waits for them. */
     protected readonly staleCancels = new Map<string, Promise<void>>();
 
+    /**
+     * Agents a putAgent()/removeAgent() is replacing or removing, by the number
+     * of operations in flight: a checked dispatch for them is refused (or its
+     * run cancelled) until the registry operation finished.
+     */
+    protected readonly replacing = new Map<string, number>();
+
     /** Agents whose revision marker this engine is moving: none of their runs starts here meanwhile. */
     protected readonly syncing = new Set<string>();
 
@@ -320,7 +327,7 @@ export class Engine implements IEngine {
         }
 
         // before the idempotency claim: a retry with the same key is safe
-        if (checked !== undefined && checked !== agent) {
+        if (checked !== undefined && (checked !== agent || this.replacing.has(envelope.agent))) {
             throw new AgentReplacedError(envelope.agent);
         }
 
@@ -449,7 +456,7 @@ export class Engine implements IEngine {
         this.emit({ type: 'run.updated', run });
 
         // replaced while the run was created: no startable run of the old check is left
-        if (checked !== undefined && this.agents.get(run.agent) !== checked) {
+        if (checked !== undefined && (this.agents.get(run.agent) !== checked || this.replacing.has(run.agent))) {
             await this.cancelReplaced(run.id, run.agent);
         }
 
@@ -732,53 +739,60 @@ export class Engine implements IEngine {
             return 'unchanged';
         }
 
-        let cancelled: string[] | undefined;
+        // a replacement of a registered agent: checked dispatches for it are refused until it is published
+        const release = registered ? this.markReplacing(name) : undefined;
 
-        if (revision !== undefined) {
-            this.syncing.add(name);
+        try {
+            let cancelled: string[] | undefined;
 
-            try {
-                if (reload) {
-                    cancelled = await syncRevision(this.registry(), name, revision, formerRevision);
-                } else {
-                    await claimRevision(this.registry(), name, revision, formerRevision);
+            if (revision !== undefined) {
+                this.syncing.add(name);
+
+                try {
+                    if (reload) {
+                        cancelled = await syncRevision(this.registry(), name, revision, formerRevision);
+                    } else {
+                        await claimRevision(this.registry(), name, revision, formerRevision);
+                    }
+                } finally {
+                    this.syncing.delete(name);
                 }
-            } finally {
-                this.syncing.delete(name);
+            } else if (registered && reload) {
+                cancelled = await cancelAgentRuns(this.registry(), name, agentCancelReason(name, 'replaced'), this.clock.now());
             }
-        } else if (registered && reload) {
-            cancelled = await cancelAgentRuns(this.registry(), name, agentCancelReason(name, 'replaced'), this.clock.now());
-        }
 
-        if (cancelled) {
+            if (cancelled) {
+                this.emit({
+                    type: 'agents.cancelled',
+                    name,
+                    reason: 'agent_replaced',
+                    ...(revision !== undefined && { revision }),
+                    runIds: cancelled,
+                });
+            }
+
+            // Finish a registry operation already started, keeping its marker and local publication consistent.
+            const kind = this.agents.has(name) ? 'replaced' : 'added';
+
+            this.agents.set(name, agent);
+            this.revisions.set(name, revision);
+
+            if (formerRevision !== undefined) {
+                this.formerRevisions.set(name, formerRevision);
+            } else {
+                this.formerRevisions.delete(name);
+            }
+
             this.emit({
-                type: 'agents.cancelled',
+                type: 'agents.changed',
                 name,
-                reason: 'agent_replaced',
-                ...(revision !== undefined && { revision }),
-                runIds: cancelled,
+                kind,
             });
+
+            return kind;
+        } finally {
+            release?.();
         }
-
-        // Finish a registry operation already started, keeping its marker and local publication consistent.
-        const kind = this.agents.has(name) ? 'replaced' : 'added';
-
-        this.agents.set(name, agent);
-        this.revisions.set(name, revision);
-
-        if (formerRevision !== undefined) {
-            this.formerRevisions.set(name, formerRevision);
-        } else {
-            this.formerRevisions.delete(name);
-        }
-
-        this.emit({
-            type: 'agents.changed',
-            name,
-            kind,
-        });
-
-        return kind;
     }
 
     /**
@@ -791,6 +805,17 @@ export class Engine implements IEngine {
      * registered here are cancelled. Resolves whether it was registered here.
      */
     async removeAgent(name: string): Promise<boolean> {
+        const release = this.markReplacing(name);
+
+        try {
+            return await this.dropAgent(name);
+        } finally {
+            release();
+        }
+    }
+
+    /** removeAgent()'s body, while the name is marked as being replaced. */
+    protected async dropAgent(name: string): Promise<boolean> {
         const registered = this.agents.has(name);
 
         if (registered) {
@@ -823,6 +848,21 @@ export class Engine implements IEngine {
         }
 
         return registered;
+    }
+
+    /** Marks `name` as being replaced or removed; the returned function clears this mark. */
+    protected markReplacing(name: string): () => void {
+        this.replacing.set(name, (this.replacing.get(name) ?? 0) + 1);
+
+        return () => {
+            const count = (this.replacing.get(name) ?? 1) - 1;
+
+            if (count > 0) {
+                this.replacing.set(name, count);
+            } else {
+                this.replacing.delete(name);
+            }
+        };
     }
 
     getRun(id: string): Promise<Run | undefined> {

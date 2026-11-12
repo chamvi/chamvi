@@ -570,12 +570,35 @@ class GatedInsertRepository extends MemoryRunRepository {
     }
 }
 
-/** Counts the registry cancels dispatch() asks for. */
+/** Counts the cancels it is asked for; an armed gate holds the next one (a registry sweep in flight). */
 class CountingEngine extends Engine {
     cancels: string[] = [];
 
-    protected override cancelRun(...args: Parameters<Engine['cancelRun']>): Promise<void> {
+    gate?: Promise<void>;
+
+    entered?: () => void;
+
+    /** Holds the next cancel until the returned release is called; resolves `entered` once it is held. */
+    holdCancel(): { entered: Promise<void>; release: () => void } {
+        const gate = Promise.withResolvers<void>();
+        const entered = Promise.withResolvers<void>();
+
+        this.gate = gate.promise;
+        this.entered = entered.resolve;
+
+        return { entered: entered.promise, release: gate.resolve };
+    }
+
+    protected override async cancelRun(...args: Parameters<Engine['cancelRun']>): Promise<void> {
         this.cancels.push(args[0]);
+
+        const { gate } = this;
+
+        if (gate) {
+            this.gate = undefined;
+            this.entered?.();
+            await gate;
+        }
 
         return super.cancelRun(...args);
     }
@@ -588,16 +611,21 @@ describe('dispatch with the checked agent', () => {
         instructions: 'other',
     });
 
-    function makeChecked(store: IStore = createMemoryStore()) {
+    function makeChecked(store: IStore = createMemoryStore(), clock = new ControllableClock(new Date(1_000_000))) {
         const engine = new CountingEngine({
             store,
+            clock,
             agents: [agent],
             onError: () => {},
         });
 
         engines.push(engine);
 
-        return { store, engine };
+        return {
+            store, 
+            engine, 
+            clock, 
+        };
     }
 
     it('dispatches when checked is the registered object', async () => {
@@ -674,6 +702,67 @@ describe('dispatch with the checked agent', () => {
 
         expect((await store.runs.findOne(runId))?.status).toBe('queued');
         expect(engine.cancels).toEqual([]);
+    });
+
+    it('refuses a checked dispatch while a replacement of a code agent sweeps its older runs', async () => {
+        const {
+            engine, 
+            store, 
+            clock, 
+        } = makeChecked();
+        const older = await engine.dispatch(env());
+
+        clock.advance(1);
+
+        const sweep = engine.holdCancel();
+        const replacing = engine.putAgent(other());
+
+        await sweep.entered;
+        expect(engine.getAgent('triage')).toBe(agent);
+
+        await expect(engine.dispatch(env({ checked: agent }))).rejects.toBeInstanceOf(AgentReplacedError);
+        expect((await store.runs.find({})).total).toBe(1);
+
+        // unchecked dispatches are unaffected
+        const { runId: unchecked } = await engine.dispatch(env());
+
+        sweep.release();
+        await replacing;
+
+        expect((await store.runs.findOne(older.runId))?.status).toBe('cancelled');
+        expect((await store.runs.findOne(unchecked))?.status).toBe('queued');
+    });
+
+    it('cancels a checked run inserted while a replacement sweep is in flight', async () => {
+        const runs = new GatedInsertRepository();
+        const {
+            engine, 
+            store, 
+            clock, 
+        } = makeChecked(createMemoryStoreWithRuns(runs));
+
+        await engine.dispatch(env());
+        clock.advance(1);
+
+        const inserting = runs.arm();
+        const pending = engine.dispatch(env({ checked: agent }));
+
+        await inserting;
+
+        const sweep = engine.holdCancel();
+        const replacing = engine.putAgent(other());
+
+        await sweep.entered;
+        runs.open();
+
+        const { runId } = await pending;
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('cancelled');
+        expect(run?.error?.code).toBe('agent_replaced');
+
+        sweep.release();
+        await replacing;
     });
 
     it('a deduplicated dispatch whose agent was replaced since returns the existing run and cancels nothing', async () => {
