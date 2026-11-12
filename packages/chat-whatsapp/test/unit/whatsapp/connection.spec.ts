@@ -42,6 +42,8 @@ import type { WhatsAppFixture } from '../../utils/whatsapp.ts';
 
 const QR = '2@SECRET-PAIRING-REFERENCE,abc,def';
 const TTL = 3000;
+// the console before any connection guarded it
+const originalInfo = console.info;
 const keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
 const engines: IEngine[] = [];
 const leases: WhatsAppAuthLease[] = [];
@@ -725,6 +727,31 @@ describe('WhatsApp connection: the retry budget of a reset, a reentrant close', 
 
         expect(auth.signals).toEqual([]);
         expect(sockets.sockets).toEqual([]);
+        // the failed connect gave its console guard back
+        expect(console.info).toBe(originalInfo);
+    });
+
+    it('guards the console from connect until close', async () => {
+        const auth = createRecordingAuth();
+        const sockets = createFakeSockets();
+        const connection = createWhatsAppConnection({
+            auth: auth.provider,
+            socketFactory: sockets.factory,
+            onPairing: () => undefined,
+            onError: () => undefined,
+            onMessages: () => undefined,
+        });
+
+        await connection.connect({
+            signal: new AbortController().signal,
+            clock: new ControllableClock(new Date('2026-11-01T09:00:00Z')),
+        });
+
+        expect(console.info).not.toBe(originalInfo);
+
+        await connection.close();
+
+        expect(console.info).toBe(originalInfo);
     });
 
     function storeAuth(keys: IKeyring, store: IStore, clock: ControllableClock): IWhatsAppAuthProvider {

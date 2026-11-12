@@ -60,7 +60,7 @@ A stop takes at most the socket's end (30 s) and the auth settling (30 s), plus 
 
 `setup.status()` reports the connection (`connected` only after Baileys' `open`), `onStatus(status)` gets every change; poll or listen for a readiness signal. Sends fail while it is not `connected`.
 
-Baileys' own logger is silent, because its lines carry pairing material and session details; this also hides its decrypt and LID warnings. Errors reach `onError` without message text.
+While a connection runs, two sources are suppressed, because their lines carry pairing material and session keys: Baileys' own logger (this also hides its decrypt and LID warnings) and the console output of its `libsignal` dependency, which logs whole session objects, private keys included. Every other console call of the process is untouched. Errors reach `onError` without message text. Treat the pod logs of 0.8.0 as sensitive: that release let `libsignal`'s session logs through.
 
 ## createWhatsAppChat
 

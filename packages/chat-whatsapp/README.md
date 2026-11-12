@@ -142,7 +142,7 @@ WhatsApp Web through Baileys is an **unofficial protocol**: WhatsApp may change 
 - **Pairing** is by QR only (`onPairing`, or the dashboard's Connections page with `whatsappModule()`); no phone-number code.
 - **Reconnect**: an unexpected close reconnects with backoff (`WHATSAPP_RECONNECT`: 2 s growing to 30 s, 12 attempts). A logout (401) or a replacing session (440) does not: reset (`setup.reset()`, or Reset session on the dashboard) and pair again.
 - **Stop** ends the socket, refuses later auth writes and flushes. Baileys may retry a decrypt whose key commit the stop refused (for about 30 s, to nothing); chamvi does not guarantee that such a message is processed after the restart.
-- **Logging**: Baileys' own logger is silent (it would carry pairing material), which also hides its decrypt and LID warnings.
+- **Logging**: while a connection runs, Baileys' own logger is silent (it would carry pairing material), which also hides its decrypt and LID warnings, and `libsignal`'s direct console calls (session objects with private keys) are dropped; every other console call passes through. Treat the logs of 0.8.0 deployments as sensitive: that release let `libsignal`'s session logs through.
 
 ## With @chamvi/app
 

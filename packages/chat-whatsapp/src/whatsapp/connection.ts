@@ -22,6 +22,7 @@ import {
     WHATSAPP_RECONNECT,
     WHATSAPP_SHUTDOWN_TIMEOUT_MS,
 } from './constants.ts';
+import { guardConsole } from './console.ts';
 import type {
     WhatsAppAuthLease,
     WhatsAppConnection,
@@ -77,6 +78,8 @@ type Run = {
     clearPending: boolean;
     resetting?: Promise<void>;
     closing?: Promise<void>;
+    /** gives back the console guard taken at connect (idempotent) */
+    releaseConsole: () => void;
 };
 
 /** Drops everything: Baileys' own log lines would otherwise carry pairing material and session details. */
@@ -725,6 +728,8 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             failedAcquires: 0,
             heldReported: false,
             clearPending: false,
+            // libsignal logs session keys to the console while a connection runs
+            releaseConsole: guardConsole(),
         };
 
         current = run;
@@ -739,6 +744,7 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
             await establish(run, true);
         } catch (error) {
             setRunStatus(run, 'stopped');
+            run.releaseConsole();
 
             throw error;
         }
@@ -820,11 +826,15 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
                 delete run.retry;
                 notify('stopped');
 
-                if (run.generation) {
-                    await closeGeneration(run.generation);
-                }
+                try {
+                    if (run.generation) {
+                        await closeGeneration(run.generation);
+                    }
 
-                await run.resetting;
+                    await run.resetting;
+                } finally {
+                    run.releaseConsole();
+                }
             })();
 
             return run.closing;

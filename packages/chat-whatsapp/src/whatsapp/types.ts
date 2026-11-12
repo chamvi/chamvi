@@ -176,7 +176,10 @@ export type WhatsAppChatOptions = {
     clock?: IClock;
     /** Failures nobody awaits; default console.error. Never gets pairing material. */
     onError?: (error: unknown) => void;
-    /** The Chat SDK logger; default level `warn`. Baileys itself logs nothing. */
+    /**
+     * The Chat SDK logger; default level `warn`. While a connection runs, Baileys' logger is
+     * silent and libsignal's console calls (session keys) are dropped; other console calls pass.
+     */
     logger?: Logger;
     /** The Chat's bot user name; default `chamvi`. */
     userName?: string;
