@@ -130,7 +130,7 @@ Any 2xx response counts as sent (OpenClaw answers `200 { ok: true, runId }` once
 
 The message carries no token and no MCP call, only the approval link:
 
-- **A link** (`approvalUrl({ runId, approvalId, agent })`), when configured, to the run's approval in the chamvi UI, e.g. `https://<app>/ui/approvals?run=<runId>&approval=<approvalId>`. The link holds ids only; the owner opens it, signs in and answers through the token-less `POST /runs/:id/approve`. The signed-in principal needs `chamvi_agent_approve` for the agent to answer and `chamvi_run_read` or `chamvi_agent_run` for it for the UI to load the run and show its approval.
+- **A link** (`approvalUrl({ runId, approvalId, agent })`), when configured, to the run's approval in the chamvi UI, e.g. `https://<app>/ui/approvals?run=<runId>&approval=<approvalId>`. The link holds ids only; the owner opens it, signs in and answers through the token-less `POST /runs/:id/approve`. The signed-in principal needs `chamvi_agent_approve` for the agent to answer and, for the UI to load the run and show its approval, `chamvi_run_read` or `chamvi_agent_run` for a public agent and `chamvi_agent_read` for a private one.
 - Without `approvalUrl`, the message says to answer in the chamvi UI or through `POST /runs/:id/approve`.
 
 **The OpenClaw agent cannot approve.** The approval's title and body are what the tool wrote, which may repeat untrusted text (an issue body, a mail), so an injected instruction reaches the OpenClaw agent. The message carries no token, and a relay agent whose MCP principal holds only `chamvi_agent_run` has neither a token nor the right to answer: whatever the body says, only the owner, signed in to the UI, approves.

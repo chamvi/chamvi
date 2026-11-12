@@ -66,6 +66,8 @@ const writable = useResolved(
     () => [session.principal.value, props.name, props.type] as const,
     ([principal, name, type]) => (name === undefined ? Promise.resolve(false) : canWriteConnection(principal, { name, type })),
     false,
+    // a write verdict never outlives the principal or connection it was given for
+    { reset: true },
 );
 // adding: the create grant was checked before the form opened
 const canWrite = computed(() => props.name === undefined || writable.value);

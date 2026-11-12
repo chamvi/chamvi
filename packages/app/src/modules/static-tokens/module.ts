@@ -22,7 +22,7 @@ import type { StaticTokensModuleOptions } from './types.ts';
  * Contributes the static-token authenticator (`options.tokens`, else
  * `CHAMVI_TOKENS`) in `setup`. Without tokens it contributes nothing, except
  * in dev without any other authenticator: then `onReady` (after every module
- * contributed) generates one token with every permission and logs it.
+ * contributed) generates one token with every chamvi permission (`"*"`) and logs it.
  */
 export class StaticTokensModule implements IModule {
     readonly name: string = ModuleName.STATIC_TOKENS;
@@ -54,7 +54,7 @@ export class StaticTokensModule implements IModule {
         const value = randomBytes(DEV_TOKEN_BYTES).toString('base64url');
 
         container.resolve(AppToken.LOGGER).warn(
-            'CHAMVI_TOKENS unset: generated a dev token with every permission for this process; set CHAMVI_TOKENS to choose your own.',
+            'CHAMVI_TOKENS unset: generated a dev token with every chamvi permission for this process; set CHAMVI_TOKENS to choose your own.',
             { token: value },
         );
         this.contribute(container, [{

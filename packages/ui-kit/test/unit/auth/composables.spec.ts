@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { effectScope, nextTick, shallowRef } from 'vue';
 import { useResolved } from '../../../src/auth/composables.ts';
-import { flush } from '../../utils/timers.ts';
+import { createFakeTimers, flush } from '../../utils/timers.ts';
 
 function deferred<T>() {
     return Promise.withResolvers<T>();
@@ -66,5 +66,66 @@ describe('useResolved', () => {
         await flush();
 
         expect(value.value).toBe(false);
+    });
+    it('keeps the last answer while a changed source is resolved', async () => {
+        const scope = effectScope();
+        const source = shallowRef('a');
+        const gate = deferred<boolean>();
+        const value = scope.run(() => useResolved(source, (name) => (name === 'a' ? Promise.resolve(true) : gate.promise), false))!;
+
+        await flush();
+        source.value = 'b';
+        await nextTick();
+
+        expect(value.value).toBe(true);
+        scope.stop();
+    });
+
+    it('falls back to the initial value while a changed source is resolved with reset', async () => {
+        const scope = effectScope();
+        const source = shallowRef('a');
+        const gate = deferred<boolean>();
+        const value = scope.run(() => useResolved(
+            source,
+            (name) => (name === 'a' ? Promise.resolve(true) : gate.promise),
+            false,
+            { reset: true },
+        ))!;
+
+        await flush();
+        expect(value.value).toBe(true);
+
+        source.value = 'b';
+        await nextTick();
+        expect(value.value).toBe(false);
+
+        gate.resolve(true);
+        await flush();
+        expect(value.value).toBe(true);
+        scope.stop();
+    });
+
+    it('resolves the unchanged source again on every refresh and stops with its scope', async () => {
+        const scope = effectScope();
+        const fake = createFakeTimers();
+        let open = false;
+        const value = scope.run(() => useResolved(
+            () => 'a',
+            async () => open,
+            false,
+            { refreshMs: 60_000, timers: fake.timers as never },
+        ))!;
+
+        await flush();
+        expect(value.value).toBe(false);
+        expect(fake.pending()).toEqual([60_000]);
+
+        open = true;
+        fake.fire();
+        await flush();
+        expect(value.value).toBe(true);
+
+        scope.stop();
+        expect(fake.pending()).toEqual([]);
     });
 });
