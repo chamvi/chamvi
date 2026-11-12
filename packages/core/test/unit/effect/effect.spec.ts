@@ -388,6 +388,105 @@ describe('effect tools', () => {
 });
 
 describe('tool allow check', () => {
+    async function collect(result: unknown): Promise<unknown[]> {
+        const chunks: unknown[] = await Array.fromAsync(result as AsyncIterable<unknown>);
+
+        return chunks;
+    }
+
+    const chunks = () => (async function* stream() {
+        yield 'a';
+        yield 'b';
+    })();
+    const run = (tools: ToolSet, name: string) => (tools[name]!.execute as (i: unknown, o: unknown) => unknown)(
+        { body: 'hi' },
+        { ...callOpts, context: ctx },
+    );
+
+    it('keeps the stream of a plain function that returns an iterable under a synchronous policy', async () => {
+        const plain = tool({ inputSchema: schema, execute: () => chunks() });
+        const tools = wrapToolsForRun({ plain }, ctx, createMemoryStore().effects, { allow: () => true });
+
+        expect(await collect(run(tools, 'plain'))).toEqual(['a', 'b']);
+    });
+
+    it('keeps the stream of an async generator tool under an asynchronous policy', async () => {
+        const plain = tool({
+            inputSchema: schema,
+            async* execute() {
+                yield 'a';
+                yield 'b';
+            },
+        });
+        const tools = wrapToolsForRun({ plain }, ctx, createMemoryStore().effects, { allow: async () => true });
+
+        expect(await collect(run(tools, 'plain'))).toEqual(['a', 'b']);
+    });
+
+    it('reduces the stream of a plain function to its final value under an asynchronous policy', async () => {
+        const plain = tool({ inputSchema: schema, execute: () => chunks() });
+        const tools = wrapToolsForRun({ plain }, ctx, createMemoryStore().effects, { allow: async () => true });
+
+        expect(await run(tools, 'plain')).toBe('b');
+    });
+
+    it('refuses an async generator tool an asynchronous policy rejects, without executing', async () => {
+        let runs = 0;
+        const plain = tool({
+            inputSchema: schema,
+            async* execute() {
+                runs++;
+                yield 'a';
+            },
+        });
+        const tools = wrapToolsForRun({ plain }, ctx, createMemoryStore().effects, { allow: async () => false });
+
+        await expect(collect(run(tools, 'plain'))).rejects.toBeInstanceOf(ToolNotAllowedError);
+        expect(runs).toBe(0);
+    });
+
+    it('executes nothing when the run ended while an asynchronous policy was awaited', async () => {
+        let runs = 0;
+        let ended = false;
+        const plain = tool({ inputSchema: schema, execute: async () => ++runs });
+        const post = defineEffectTool({ inputSchema: schema, execute: async () => ++runs });
+        const tools = wrapToolsForRun({ plain, post }, ctx, createMemoryStore().effects, {
+            ended: () => ended,
+            allow: async () => {
+                ended = true;
+
+                return true;
+            },
+        });
+
+        await expect(run(tools, 'plain')).rejects.toMatchObject({ code: 'invalid_run_state' });
+        await expect(run(tools, 'post')).rejects.toMatchObject({ code: 'invalid_run_state' });
+        expect(runs).toBe(0);
+    });
+
+    it('executes nothing when the run was aborted while an asynchronous policy was awaited', async () => {
+        let runs = 0;
+        const controller = new AbortController();
+        const aborted = toolContext('r-aborted');
+
+        aborted.run = { ...aborted.run, signal: controller.signal };
+
+        const plain = tool({ inputSchema: schema, execute: async () => ++runs });
+        const tools = wrapToolsForRun({ plain }, aborted, createMemoryStore().effects, {
+            allow: async () => {
+                controller.abort();
+
+                return true;
+            },
+        });
+
+        await expect((tools.plain!.execute as (i: unknown, o: unknown) => unknown)(
+            { body: 'hi' },
+            { ...callOpts, context: aborted },
+        )).rejects.toMatchObject({ code: 'invalid_run_state' });
+        expect(runs).toBe(0);
+    });
+
     it('refuses a call the check rejects with ToolNotAllowedError, without executing', async () => {
         let runs = 0;
         const plain = tool({ inputSchema: schema, execute: async () => ++runs });
