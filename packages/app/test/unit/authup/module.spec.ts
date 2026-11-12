@@ -43,6 +43,8 @@ import {
 import type { FakeAuthup } from '../../utils/authup.ts';
 import { createHarness } from '../../utils/harness.ts';
 import type { Harness } from '../../utils/harness.ts';
+import { createTrackingClock } from '../../utils/clock.ts';
+import type { TrackingClock } from '../../utils/clock.ts';
 import { createRecordingLogger } from '../../utils/logger.ts';
 import type { RecordingLogger } from '../../utils/logger.ts';
 import { textModel } from '@chamvi/test-kit';
@@ -350,5 +352,169 @@ describe('oidcModule', () => {
         const byName = new Map(entries.map((entry) => [entry.name, entry.authenticator]));
 
         expect(resolveAuthenticators(harness.container)).toEqual([byName.get('authup'), byName.get('oidc')]);
+    });
+});
+
+describe('authupModule deadline', () => {
+    const until = async (check: () => boolean) => {
+        for (let i = 0; i < 500 && !check(); i++) {
+            await new Promise((resolve) => {
+                setTimeout(resolve, 2);
+            });
+        }
+
+        expect(check()).toBe(true);
+    };
+
+    async function authenticatorOf(options: AuthupModuleOptions, clock: TrackingClock) {
+        const logger = createRecordingLogger();
+        const harness = await createHarness({
+            env: {},
+            modules: [configModule({ logger, clock }), authupModule({ env: {}, ...options })],
+        });
+
+        harnesses.push(harness);
+
+        const entry = harness.container.resolveAll(AppToken.AUTHENTICATORS).find((item) => item.name === 'authup')!;
+        const login = () => entry.authenticator(new Request('http://test', { headers: { authorization: 'Bearer authup-token' } }));
+
+        return { login, logger };
+    }
+
+    it('grants nothing for a stalled catalog, reports it once and loads again on the next login', async () => {
+        const clock = createTrackingClock();
+        let stall = true;
+        let loads = 0;
+        const { login, logger } = await authenticatorOf({
+            ...injected(),
+            timeoutMs: 1000,
+            catalog: () => {
+                loads++;
+
+                return stall ? new Promise<never>(() => {}) : Promise.resolve(CATALOG);
+            },
+        }, clock);
+
+        const first = login();
+
+        await until(() => loads === 1 && clock.active() === 1);
+        clock.advance(1000);
+
+        const principal = await first;
+
+        expect(principal).toMatchObject({ id: AUTHUP_USER, bindings: [] });
+        expect(principal).not.toHaveProperty('authorization');
+        expect(authupErrors(logger)).toHaveLength(1);
+
+        stall = false;
+
+        expect(await login()).toHaveProperty('authorization');
+        expect(loads).toBe(2);
+        expect(authupErrors(logger)).toHaveLength(1);
+        expect(clock.active()).toBe(0);
+    });
+
+    it('answers 503 for a stalled verifier and 401 for a rejecting one', async () => {
+        const clock = createTrackingClock();
+        const stalled = await authenticatorOf({
+            ...injected({ verify: () => new Promise<never>(() => {}) }),
+            timeoutMs: 500,
+        }, clock);
+        const outcome = stalled.login();
+
+        await until(() => clock.active() === 1);
+        clock.advance(500);
+        await expect(outcome).rejects.toMatchObject({ status: 503 });
+
+        const rejecting = await authenticatorOf({
+            ...injected({
+                verify: async () => {
+                    throw new Error('invalid_token');
+                },
+            }),
+            timeoutMs: 500,
+        }, clock);
+
+        await expect(rejecting.login()).rejects.toMatchObject({ status: 401 });
+        expect(clock.active()).toBe(0);
+    });
+
+    it('leaves no timer behind after a fast login', async () => {
+        const clock = createTrackingClock();
+        const { login } = await authenticatorOf(injected(), clock);
+
+        expect(await login()).toHaveProperty('authorization');
+        expect(clock.active()).toBe(0);
+    });
+
+    it('bounds the realm lookup and looks it up again on the next login', async () => {
+        const clock = createTrackingClock();
+        let hold = true;
+        const authup = await createFakeAuthup({ users: {}, hold: (route) => hold && route === 'POST /token/introspect' });
+
+        servers.push(authup);
+
+        const { login, logger } = await authenticatorOf({
+            verifier: fakeVerifier(),
+            catalog: async () => CATALOG,
+            timeoutMs: 1000,
+            env: {
+                AUTHUP_URL: authup.url,
+                AUTHUP_CLIENT_ID: 'chamvi',
+                AUTHUP_CLIENT_SECRET: 'client-secret-value',
+            },
+        }, clock);
+        const introspections = () => authup.requests.filter((route) => route === 'POST /token/introspect').length;
+
+        const first = login();
+
+        await until(() => introspections() === 1);
+        clock.advance(1000);
+
+        expect(await first).not.toHaveProperty('authorization');
+        expect(authupErrors(logger)).toHaveLength(1);
+
+        hold = false;
+
+        expect(await login()).toHaveProperty('authorization');
+        expect(introspections()).toBe(2);
+        expect(await login()).toHaveProperty('authorization');
+        expect(introspections()).toBe(2);
+    });
+
+    it.each([[0], [-1], [NaN], [Infinity]])('rejects timeoutMs %s', (timeoutMs) => {
+        expect(() => authupModule({
+            ...injected(), 
+            timeoutMs, 
+            env: {}, 
+        }))
+            .toThrow(new InvalidAgentDefinitionError('authup: timeoutMs must be a positive finite number.'));
+    });
+
+    it('rejects a timeoutMs above the timer limit', () => {
+        expect(() => authupModule({
+            ...injected(), 
+            timeoutMs: 2 ** 31, 
+            env: {}, 
+        })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it.each(['abc', '0', '-5', '1.5', String(2 ** 31)])('rejects AUTHUP_TIMEOUT_MS %j', (value) => {
+        expect(() => authupModule({ ...injected(), env: { AUTHUP_TIMEOUT_MS: value } })).toThrow(InvalidAgentDefinitionError);
+    });
+
+    it('reads AUTHUP_TIMEOUT_MS', async () => {
+        const clock = createTrackingClock();
+        const { login } = await authenticatorOf({
+            ...injected({ verify: () => new Promise<never>(() => {}) }),
+            env: { AUTHUP_TIMEOUT_MS: '250' },
+        }, clock);
+        const outcome = login();
+
+        await until(() => clock.active() === 1);
+        clock.advance(249);
+        expect(clock.active()).toBe(1);
+        clock.advance(1);
+        await expect(outcome).rejects.toMatchObject({ status: 503 });
     });
 });

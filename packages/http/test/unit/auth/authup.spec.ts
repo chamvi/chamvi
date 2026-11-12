@@ -7,6 +7,7 @@
 
 import type { ITokenVerifier, TokenVerificationData } from '@authup/server-adapter-kit';
 import { Permission, can } from '@chamvi/access';
+import { TimeoutError } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import { describe, expect, it } from 'vitest';
 import { authup } from '@chamvi/http';
@@ -418,6 +419,24 @@ describe('authup', () => {
             status: 401,
             message: 'The access token names no subject.',
         });
+    });
+
+    it('answers 503 for a verification that timed out and 401 for any other failure', async () => {
+        const timedOut: AuthupOptions = {
+            verifier: {
+                verify: async () => {
+                    throw new TimeoutError(10, 'authup: the token verification did not answer within 10ms.');
+                },
+            },
+            catalog: async () => CATALOG,
+            realm: async () => REALM,
+        };
+
+        await expect(authup(timedOut)(request('Bearer good'))).rejects.toMatchObject({
+            status: 503,
+            message: 'The access token could not be verified in time.',
+        });
+        await expect(setup().authenticate(request('Bearer bad'))).rejects.toMatchObject({ status: 401 });
     });
 
     it('rejects a malformed header with 401', async () => {

@@ -9,8 +9,9 @@ import { authorizationCatalogSchema, isAuthorizationCatalogStaleError } from '@a
 import type { TokenVerificationData } from '@authup/server-adapter-kit';
 import { verifyRequest } from '@authup/server-adapter-web';
 import type { PermissionAuthorization, PermissionIdentity } from '@chamvi/access';
-import { InvalidAgentDefinitionError, systemClock } from '@chamvi/core';
-import { UnauthorizedError } from '@ebec/http';
+import { ErrorCode, InvalidAgentDefinitionError, systemClock } from '@chamvi/core';
+import { ServiceUnavailableError, UnauthorizedError } from '@ebec/http';
+import { isObject } from 'smob';
 import type { Authenticator } from '../types.ts';
 import { createCatalogCache } from './catalog.ts';
 import { buildPrincipalSnapshot } from './snapshot.ts';
@@ -46,8 +47,9 @@ function readIdentity(data: TokenVerificationData, sub: string): PermissionIdent
  * snapshot of authup's catalog (`GET /authorization`) and the grants as its
  * `authorization`, with `realm()` as the realm every check reaches into; its
  * `bindings` stay empty. A catalog or realm that cannot be read grants
- * nothing and goes to `onError`. In local mode authup yields no permissions:
- * grants need remote mode.
+ * nothing and goes to `onError`. A verifier failing with a core
+ * `TimeoutError` answers 503, any other failure 401. In local mode authup
+ * yields no permissions: grants need remote mode.
  */
 export function authup(options: AuthupOptions): Authenticator {
     const maxAgeMs = options.catalogMaxAgeMs ?? CATALOG_MAX_AGE_MS;
@@ -152,6 +154,11 @@ export function authup(options: AuthupOptions): Authenticator {
                 certificateThumbprintByRequest: options.certificateThumbprintByRequest,
             });
         } catch (cause) {
+            // authup did not answer in time: the token is not known to be invalid
+            if (isObject(cause) && cause.code === ErrorCode.TIMEOUT) {
+                throw new ServiceUnavailableError({ message: 'The access token could not be verified in time.', cause });
+            }
+
             throw new UnauthorizedError({ message: 'The access token is invalid.', cause });
         }
 

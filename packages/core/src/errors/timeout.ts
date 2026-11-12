@@ -10,7 +10,8 @@ import { ErrorCode } from './constants.ts';
 
 /** The abort reason when a run exceeds its `timeoutMs` budget. */
 export class TimeoutError extends ChamviError {
-    constructor(ms: number) {
-        super({ message: `The run exceeded its ${ms}ms timeout.`, code: ErrorCode.TIMEOUT });
+    /** `message` names what timed out; default: the run's own timeout. */
+    constructor(ms: number, message = `The run exceeded its ${ms}ms timeout.`) {
+        super({ message, code: ErrorCode.TIMEOUT });
     }
 }
