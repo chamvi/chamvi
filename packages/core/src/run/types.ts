@@ -120,6 +120,11 @@ export type Run = {
      * aborts it on its next poll, and a later execution settles it cancelled.
      */
     cancelRequested?: boolean;
+    /**
+     * The revision the agent was registered at when the run was created
+     * (a folder agent's content hash); absent for an agent without one.
+     */
+    agentRevision?: string;
     /** The conversation the run belongs to; set by the trusted conversation intake only, never by dispatch(). */
     conversation?: ConversationBinding;
     createdAt: Date;

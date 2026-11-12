@@ -16,6 +16,7 @@ import {
 } from 'vitest';
 import {
     AgentNotFoundError,
+    AgentReplacedError,
     Engine,
     TRIGGER_KEY_MAX_LENGTH,
     ValidationError,
@@ -534,5 +535,170 @@ describe('dispatch keeps lineage private', () => {
 
         expect(run!.trigger.parent).toBeUndefined();
         expect(run!.trigger.channel).toBe('http');
+    });
+});
+
+/** Holds the next run insert at a gate until released. */
+class GatedInsertRepository extends MemoryRunRepository {
+    gate?: Promise<void>;
+
+    entered?: () => void;
+
+    open: () => void = () => {};
+
+    arm(): Promise<void> {
+        const gate = Promise.withResolvers<void>();
+        const entered = Promise.withResolvers<void>();
+
+        this.gate = gate.promise;
+        this.open = () => {
+            this.gate = undefined;
+            gate.resolve();
+        };
+        this.entered = entered.resolve;
+
+        return entered.promise;
+    }
+
+    override async insert(...args: Parameters<MemoryRunRepository['insert']>) {
+        if (this.gate) {
+            this.entered?.();
+            await this.gate;
+        }
+
+        return super.insert(...args);
+    }
+}
+
+/** Counts the registry cancels dispatch() asks for. */
+class CountingEngine extends Engine {
+    cancels: string[] = [];
+
+    protected override cancelRun(...args: Parameters<Engine['cancelRun']>): Promise<void> {
+        this.cancels.push(args[0]);
+
+        return super.cancelRun(...args);
+    }
+}
+
+describe('dispatch with the checked agent', () => {
+    const other = () => defineModelAgent({
+        name: 'triage',
+        model,
+        instructions: 'other',
+    });
+
+    function makeChecked(store: IStore = createMemoryStore()) {
+        const engine = new CountingEngine({
+            store,
+            agents: [agent],
+            onError: () => {},
+        });
+
+        engines.push(engine);
+
+        return { store, engine };
+    }
+
+    it('dispatches when checked is the registered object', async () => {
+        const { engine, store } = makeChecked();
+        const { runId, deduplicated } = await engine.dispatch(env({ checked: agent }));
+
+        expect(deduplicated).toBe(false);
+
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('queued');
+        expect(run?.trigger).not.toHaveProperty('checked');
+        expect(engine.cancels).toEqual([]);
+    });
+
+    it('refuses another object for the name before any store write, so a retry with the key creates the run', async () => {
+        const { engine, store } = makeChecked();
+        const claim = vi.spyOn(store.idempotency, 'claim');
+
+        const error = await engine.dispatch(env({ checked: other(), idempotencyKey: 'k' })).catch((e: unknown) => e);
+
+        expect(error).toBeInstanceOf(AgentReplacedError);
+        expect((error as AgentReplacedError).code).toBe('agent_replaced');
+        expect(claim).not.toHaveBeenCalled();
+        expect((await store.runs.find({})).total).toBe(0);
+
+        const retried = await engine.dispatch(env({ checked: agent, idempotencyKey: 'k' }));
+
+        expect(retried.deduplicated).toBe(false);
+        expect((await store.runs.findOne(retried.runId))?.status).toBe('queued');
+    });
+
+    it('checked for an unregistered name stays AgentNotFoundError', async () => {
+        const { engine } = makeChecked();
+        const ghost = defineModelAgent({
+            name: 'ghost',
+            model,
+            instructions: 'x',
+        });
+
+        await expect(engine.dispatch(env({ agent: 'ghost', checked: ghost }))).rejects.toBeInstanceOf(AgentNotFoundError);
+    });
+
+    it('cancels the run it created when the agent was replaced between entry and insert', async () => {
+        const runs = new GatedInsertRepository();
+        const { engine, store } = makeChecked(createMemoryStoreWithRuns(runs));
+        const entered = runs.arm();
+        const pending = engine.dispatch(env({ checked: agent }));
+
+        await entered;
+        await engine.putAgent(other());
+        runs.open();
+
+        const { runId, deduplicated } = await pending;
+        const run = await store.runs.findOne(runId);
+
+        expect(deduplicated).toBe(false);
+        expect(run?.status).toBe('cancelled');
+        expect(run?.error?.code).toBe('agent_replaced');
+        expect(engine.cancels).toEqual([runId]);
+    });
+
+    it('does not cancel a run dispatched without checked when the agent was replaced meanwhile', async () => {
+        const runs = new GatedInsertRepository();
+        const { engine, store } = makeChecked(createMemoryStoreWithRuns(runs));
+        const entered = runs.arm();
+        const pending = engine.dispatch(env());
+
+        await entered;
+        await engine.putAgent(other());
+        runs.open();
+
+        const { runId } = await pending;
+
+        expect((await store.runs.findOne(runId))?.status).toBe('queued');
+        expect(engine.cancels).toEqual([]);
+    });
+
+    it('a deduplicated dispatch whose agent was replaced since returns the existing run and cancels nothing', async () => {
+        const { engine, store } = makeChecked();
+        const first = await engine.dispatch(env({ checked: agent, idempotencyKey: 'k' }));
+
+        await store.runs.update(first.runId, { status: 'completed' });
+
+        const replacement = other();
+
+        await engine.putAgent(replacement);
+
+        const claim = store.idempotency.claim.bind(store.idempotency);
+        const later = other();
+
+        vi.spyOn(store.idempotency, 'claim').mockImplementationOnce(async (...args) => {
+            await engine.putAgent(later);
+
+            return claim(...args);
+        });
+
+        const again = await engine.dispatch(env({ checked: replacement, idempotencyKey: 'k' }));
+
+        expect(again).toEqual({ runId: first.runId, deduplicated: true });
+        expect((await store.runs.findOne(first.runId))?.status).toBe('completed');
+        expect(engine.cancels).toEqual([]);
     });
 });

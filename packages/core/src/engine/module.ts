@@ -45,6 +45,7 @@ import { contextKeyName, isContextKey } from '../context/helpers.ts';
 import type { ContextKey } from '../context/types.ts';
 import {
     AgentNotFoundError,
+    AgentReplacedError,
     ChamviError,
     ChannelNotFoundError,
     ErrorCode,
@@ -303,8 +304,18 @@ export class Engine implements IEngine {
         parent?: TriggerParent,
         conversation?: ConversationBinding,
     ): Promise<{ runId: string; deduplicated: boolean }> {
-        if (!this.agents.has(envelope.agent)) {
+        // resolved once, synchronously: the agent and revision this run is created for
+        const agent = this.agents.get(envelope.agent);
+        const agentRevision = this.revisions.get(envelope.agent);
+        const { checked } = envelope;
+
+        if (!agent) {
             throw new AgentNotFoundError(envelope.agent);
+        }
+
+        // before the idempotency claim: a retry with the same key is safe
+        if (checked !== undefined && checked !== agent) {
+            throw new AgentReplacedError(envelope.agent);
         }
 
         // Also strip forged fields from dispatch-host and internal envelope spreads.
@@ -312,6 +323,7 @@ export class Engine implements IEngine {
 
         delete safe.conversation;
         delete safe.parent;
+        delete safe.checked;
 
         const {
             attachments,
@@ -415,6 +427,10 @@ export class Engine implements IEngine {
             updatedAt: now,
         };
 
+        if (agentRevision !== undefined) {
+            run.agentRevision = agentRevision;
+        }
+
         if (conversation) {
             run.conversation = structuredClone(conversation);
         }
@@ -425,11 +441,31 @@ export class Engine implements IEngine {
 
         this.emit({ type: 'run.updated', run });
 
+        // replaced while the run was created: no startable run of the old check is left
+        if (checked !== undefined && this.agents.get(run.agent) !== checked) {
+            await this.cancelReplaced(run.id, run.agent);
+        }
+
         if (this.started) {
             void this.queue.pump();
         }
 
         return { runId, deduplicated: false };
+    }
+
+    /**
+     * Cancels a run dispatch() just created for an agent object the registry
+     * no longer holds. Never throws: the run is stored, so dispatch() returns
+     * its id; a run settled meanwhile (a registry sweep) is left alone.
+     */
+    protected async cancelReplaced(runId: string, name: string): Promise<void> {
+        try {
+            await this.cancelRun(runId, agentCancelReason(name, 'replaced', this.revisions.get(name)));
+        } catch (error) {
+            if (!(error instanceof InvalidRunStateError)) {
+                this.onError(error);
+            }
+        }
     }
 
     protected conversationCapability(): IConversations {

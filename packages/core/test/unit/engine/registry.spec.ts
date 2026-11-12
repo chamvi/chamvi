@@ -965,6 +965,29 @@ describe('putAgent formerRevision', () => {
     });
 });
 
+describe('run revision stamp', () => {
+    it('stamps a folder agent\'s run with its revision, with and without checked', async () => {
+        const { engine, store } = make({ agents: [] });
+
+        await engine.putAgent(triage, { revision: 'h1' });
+
+        const plain = await engine.dispatch(env());
+        const checked = await engine.dispatch({ ...env(), checked: triage });
+
+        expect((await store.runs.findOne(plain.runId))?.agentRevision).toBe('h1');
+        expect((await store.runs.findOne(checked.runId))?.agentRevision).toBe('h1');
+    });
+
+    it('a code agent\'s run carries no stamp', async () => {
+        const { engine, store } = make();
+        const { runId } = await engine.dispatch({ ...env(), checked: triage });
+        const run = await store.runs.findOne(runId);
+
+        expect(run).toBeDefined();
+        expect(run).not.toHaveProperty('agentRevision');
+    });
+});
+
 describe('formatRevision', () => {
     it('cuts a content hash to its prefix and names any other marker in full', () => {
         expect(formatRevision('a'.repeat(64))).toBe('a'.repeat(12));

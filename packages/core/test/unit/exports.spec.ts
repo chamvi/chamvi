@@ -133,6 +133,7 @@ describe('public api', () => {
         'tryInject',
         'ContextNotProvidedError',
         'AgentNotFoundError',
+        'AgentReplacedError',
         'checkAgentModel',
         'resolveModel',
         'extract',
