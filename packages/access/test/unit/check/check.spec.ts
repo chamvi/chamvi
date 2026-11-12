@@ -567,6 +567,28 @@ describe('authorization snapshots', () => {
         await expect(can(subject, Permission.RUN_CANCEL)).resolves.toBe(false);
     });
 
+    it('evaluates a holder again after an in-place change of its bindings', async () => {
+        const subject: PermissionHolder = { bindings: [{ permission: { name: Permission.AGENT_RUN } }] };
+
+        await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(true);
+
+        (subject.bindings as PermissionBinding[]).length = 0;
+        await expect(can(subject, Permission.AGENT_RUN)).resolves.toBe(false);
+
+        (subject.bindings as PermissionBinding[]).push({ permission: { name: Permission.AGENT_RUN }, policies: [{ type: 'attributes', query: { name: 'triage' } } as never] });
+        await expect(can(subject, Permission.AGENT_RUN, { attributes: { name: 'triage' } })).resolves.toBe(true);
+        await expect(can(subject, Permission.AGENT_RUN, { attributes: { name: 'other' } })).resolves.toBe(false);
+    });
+
+    it('evaluates a holder again after an in-place change of its snapshot', async () => {
+        const subject = await snapshotHolder();
+
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(true);
+
+        subject.authorization!.snapshot.grants!.length = 0;
+        await expect(can(subject, Permission.RUN_READ)).resolves.toBe(false);
+    });
+
     it('evaluates a holder again once its bindings or authorization are replaced', async () => {
         const subject: PermissionHolder = { ...await snapshotHolder(), bindings: [] };
 

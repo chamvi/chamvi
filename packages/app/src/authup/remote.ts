@@ -12,7 +12,6 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { envString, envUrl } from '../env/module.ts';
 import type { AuthupModuleOptions } from './types.ts';
 
-/** Shares one load until it settles; a rejected load is forgotten, so the next call retries. */
 /** The first call's promise, shared until it rejects; a rejection is forgotten, so the next call loads again. */
 export function once<T>(load: () => Promise<T>): () => Promise<T> {
     let pending: Promise<T> | undefined;

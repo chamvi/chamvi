@@ -110,7 +110,11 @@ export function authup(options: AuthupOptions): Authenticator {
         }
 
         const build = async (): Promise<PermissionAuthorization> => ({
-            snapshot: await buildPrincipalSnapshot({ catalog: document, grants: data.permissions }),
+            snapshot: await buildPrincipalSnapshot({
+                catalog: document, 
+                grants: data.permissions, 
+                realm, 
+            }),
             realm,
         });
 

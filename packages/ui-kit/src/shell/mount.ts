@@ -18,15 +18,19 @@ import type { IAuthupAdapter } from '../auth/types.ts';
 import { readConfig } from '../config/module.ts';
 import { install } from '../module.ts';
 import type { MountPageOptions } from './types.ts';
+import { installStringPolyfills } from './polyfill.ts';
 import { installVuecs } from './vuecs.ts';
 
 /**
- * Boots one page: icons, authup when configured, vuecs, the session, the
+ * Boots one page: string polyfills, icons, authup when configured, vuecs, the session, the
  * API client, the app context, then mounts `component` on `#app`. The page's
  * entry imports `@chamvi/ui-kit/style.css`; its Vite config comes from
  * `definePageConfig`, which provides the bundled icons this loads.
  */
 export async function mountPage(component: Component, options: MountPageOptions = {}): Promise<void> {
+    // before anything can check a permission
+    installStringPolyfills();
+
     // icons from the bundle, never fetched (CSP connect-src 'self')
     const { default: icons } = await import('virtual:chamvi-icons');
 

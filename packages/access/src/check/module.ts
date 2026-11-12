@@ -21,18 +21,17 @@ type Evaluators = {
     snapshot?: { evaluator: IPermissionEvaluator; realm: string };
 };
 
-/** A built pair and the holder fields it was built from. */
+/** A built pair and the serialized holder content it was built from. */
 type CacheEntry = {
-    bindings: unknown;
-    authorization: unknown;
-    identity: unknown;
+    content: string;
     evaluators: Promise<Evaluators>;
 };
 
 /**
  * Built evaluators per holder object: the dashboard checks one holder many
- * times. An entry is reused only while the holder still names the same
- * `bindings`, `authorization` and `identity` objects.
+ * times. An entry is reused only while the holder's `bindings`,
+ * `authorization` and `identity` serialize as they did when it was built, so
+ * an in-place change is evaluated afresh.
  */
 const cache = new WeakMap<object, CacheEntry>();
 
@@ -107,30 +106,16 @@ async function prepare(holder: PermissionHolder): Promise<Evaluators> {
         return {};
     }
 
-    const {
-        bindings, 
-        authorization, 
-        identity, 
-    } = holder;
+    const content = serialize(holder);
     const cached = cache.get(holder);
 
-    if (
-        cached &&
-        cached.bindings === bindings &&
-        cached.authorization === authorization &&
-        cached.identity === identity
-    ) {
+    if (cached && cached.content === content) {
         return cached.evaluators;
     }
 
     const evaluators = build(holder);
 
-    cache.set(holder, {
-        bindings,
-        authorization,
-        identity,
-        evaluators,
-    });
+    cache.set(holder, { content, evaluators });
 
     return evaluators;
 }
@@ -193,9 +178,14 @@ async function buildSnapshot(holder: PermissionHolder): Promise<Evaluators['snap
             return undefined;
         }
 
+        // chamvi's resource realm is always an id: a realm name equal to it must not read as the identity's own realm
+        const rest = { ...identity } as NonNullable<PermissionHolder['identity']>;
+
+        delete rest.realmName;
+
         const evaluator = await createAuthorizationSnapshotEvaluator({
             snapshot: toPlainData(authorization.snapshot),
-            identity: { ...identity } as NonNullable<PermissionHolder['identity']>,
+            identity: rest,
         });
 
         return { evaluator, realm: authorization.realm };
@@ -217,6 +207,30 @@ function buildData(options: PermissionCheckOptions): PolicyData {
     }
 
     return data;
+}
+
+/**
+ * The content the evaluators are built from, as text: each binding on its
+ * own (one that cannot be serialized stays marked, it fails alone), then
+ * `authorization` and `identity`.
+ */
+function serialize(holder: PermissionHolder): string {
+    const {
+        bindings, 
+        authorization, 
+        identity, 
+    } = holder;
+    const entries = Array.isArray(bindings) ? Array.from(bindings, (binding) => serializeOne(binding)) : null;
+
+    return JSON.stringify([entries, serializeOne(authorization), serializeOne(identity)]);
+}
+
+function serializeOne(value: unknown): string {
+    try {
+        return JSON.stringify(toPlainData(value)) ?? 'undefined';
+    } catch {
+        return '!';
+    }
 }
 
 /**

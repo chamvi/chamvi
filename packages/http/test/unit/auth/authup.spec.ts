@@ -6,7 +6,7 @@
  */
 
 import type { ITokenVerifier, TokenVerificationData } from '@authup/server-adapter-kit';
-import { Permission, can } from '@chamvi/access';
+import { Permission, can, canSome } from '@chamvi/access';
 import { TimeoutError } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import { describe, expect, it } from 'vitest';
@@ -577,10 +577,73 @@ describe('authup', () => {
             expect(await can(principal, Permission.AGENT_READ)).toBe(true);
         });
 
-        it('ignores a malformed grant and keeps the well-formed ones', async () => {
-            const { principal } = await principalFor(CATALOG, [{ name: '' }, { name: Permission.RUN_READ, realm_scope: 'own' }]);
+        it('fails the login\'s authorization on a malformed grant, reported once', async () => {
+            const { principal, errors } = await principalFor(CATALOG, [{ name: '' }, { name: Permission.RUN_READ, realm_scope: 'own' }]);
 
-            expect(await granted(principal)).toBe(true);
+            expect(principal.authorization).toBeUndefined();
+            expect(await granted(principal)).toBe(false);
+            expect(errors).toHaveLength(1);
+        });
+
+        it.each([
+            ['an unknown realm_scope', { realm_scope: 'children' }],
+            ['policies that are no array', { realm_scope: 'any', policies: 'p1' }],
+        ])('never drops a malformed grant (%s) of a definition whose binding check is inverted', async (_label, shape) => {
+            const { principal, errors } = await principalFor(
+                extended({ ...definition('release_manage'), policies: ['invertedBinding'] }),
+                [{ name: 'release_manage', ...shape }],
+            );
+
+            expect(principal.authorization).toBeUndefined();
+            expect(await can(principal, 'release_manage', { attributes: { name: 'x' } })).toBe(false);
+            expect(await canSome(principal, 'release_manage')).toBe(false);
+            expect(errors).toHaveLength(1);
+        });
+
+        it('never gives own reach to an identity of another realm whose realm name is the app realm id', async () => {
+            const { principal } = await principalFor(
+                CATALOG,
+                [{ name: Permission.RUN_READ, realm_scope: 'own' }],
+                { realm_id: OTHER_REALM, realm_name: REALM },
+            );
+
+            expect(await granted(principal)).toBe(false);
+        });
+
+        it('keeps only global and app-realm definitions, and drops the grants of the others', async () => {
+            const owned = (owner: Record<string, unknown>) => ({ ...definition(Permission.RUN_READ), ...owner });
+            const { principal } = await principalFor(
+                extended(
+                    owned({ realmId: OTHER_REALM }),
+                    owned({ clientId: CLIENT }),
+                    owned({ realmId: REALM }),
+                    { ...definition('release_read'), clientId: CLIENT },
+                ),
+                [
+                    {
+                        name: Permission.RUN_READ, 
+                        realm_id: OTHER_REALM, 
+                        realm_scope: 'any', 
+                    },
+                    {
+                        name: Permission.RUN_READ, 
+                        client_id: CLIENT, 
+                        realm_scope: 'any', 
+                    },
+                    {
+                        name: 'release_read', 
+                        client_id: CLIENT, 
+                        realm_scope: 'any', 
+                    },
+                ],
+            );
+            const owners = (list: { permission: { realmId?: string | null; clientId?: string | null } }[] = []) => list
+                .map((entry) => [entry.permission.realmId ?? null, entry.permission.clientId ?? null]);
+
+            expect(owners(principal.authorization?.snapshot.definitions).every(([realmId, clientId]) => clientId === null &&
+                (realmId === null || realmId === REALM))).toBe(true);
+            expect(principal.authorization?.snapshot.grants).toEqual([]);
+            expect(await granted(principal)).toBe(false);
         });
 
         it('shares no objects with the catalog', async () => {

@@ -6,18 +6,16 @@
  */
 
 import type { AuthorizationSnapshot, PermissionPolicyBinding } from '@authup/access';
-import {
-    authorizationGrantSchema,
-    buildAuthorizationSnapshot,
-    buildPermissionKey,
-} from '@authup/access';
+import { buildAuthorizationSnapshot, buildPermissionKey } from '@authup/access';
 import { PERMISSION_NAMES } from '@chamvi/access';
 
 type SnapshotInput = {
     /** authup's `GET /authorization` body. */
     catalog: unknown;
-    /** The introspected grants (`permissions` of the token). */
+    /** The introspected grants (`permissions` of the token), as received. */
     grants: unknown;
+    /** The realm chamvi's resources belong to. */
+    realm: string;
 };
 
 const keyOf = (binding: PermissionPolicyBinding): string => buildPermissionKey({
@@ -28,22 +26,28 @@ const keyOf = (binding: PermissionPolicyBinding): string => buildPermissionKey({
 
 /**
  * The snapshot a principal carries: upstream's `buildAuthorizationSnapshot`
- * over the well-formed grants (a malformed one is ignored), keeping every
- * grant and of the definitions those chamvi checks (`PERMISSION_NAMES`) and
- * those a grant names. Throws `AuthorizationCatalogStaleError` when a grant
- * names a definition or policy the catalog lacks.
+ * over the catalog and every grant as received (a malformed grant makes it
+ * throw: dropping one could turn an inverted binding check into a pass).
+ * Of the definitions owned by nobody or by `realm` (never by a client or
+ * another realm, which no check reaches) it keeps the `chamvi_*` ones and
+ * those a grant names; the grants of a definition it leaves out go with it
+ * (upstream checks a binding per definition namespace, so no kept
+ * definition reads them). Throws `AuthorizationCatalogStaleError` when a
+ * grant names a definition or policy the catalog lacks.
  */
 export async function buildPrincipalSnapshot(input: SnapshotInput): Promise<AuthorizationSnapshot> {
-    const grants = Array.isArray(input.grants) ?
-        (input.grants as unknown[]).filter((grant) => authorizationGrantSchema.safeParse(grant).success) :
-        [];
-    const snapshot = await buildAuthorizationSnapshot({ catalog: input.catalog, grants });
-    const granted = new Set((snapshot.grants ?? []).map(keyOf));
+    const snapshot = await buildAuthorizationSnapshot({ catalog: input.catalog, grants: input.grants });
+    const grants = snapshot.grants ?? [];
+    const granted = new Set(grants.map(keyOf));
     const names: readonly string[] = PERMISSION_NAMES;
+    const reachable = (binding: PermissionPolicyBinding) => (binding.permission.clientId ?? null) === null &&
+        ((binding.permission.realmId ?? null) === null || binding.permission.realmId === input.realm);
+    const definitions = snapshot.definitions.filter((definition) => reachable(definition) &&
+        (names.includes(definition.permission.name) || granted.has(keyOf(definition))));
+    const kept = new Set(definitions.map(keyOf));
 
     return {
-        definitions: snapshot.definitions.filter((definition) => names.includes(definition.permission.name) ||
-            granted.has(keyOf(definition))),
-        grants: snapshot.grants ?? [],
+        definitions,
+        grants: grants.filter((grant) => kept.has(keyOf(grant))),
     };
 }
