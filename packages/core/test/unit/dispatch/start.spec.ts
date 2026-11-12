@@ -15,6 +15,7 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
+import { allPermissions } from '@chamvi/access';
 import {
     ContextNotProvidedError,
     Engine,
@@ -250,7 +251,7 @@ describe('dispatch()', () => {
         const invoker: Invoker = {
             id: 'u1',
             kind: 'user',
-            permissions: ['*'],
+            permissions: allPermissions(),
         };
         const { engine, store } = setup({ parent: [turn(call(pr)), text('done')] });
 
@@ -393,7 +394,7 @@ describe('dispatch()', () => {
                 run.trigger.invoker = {
                     id: 'root',
                     kind: 'user',
-                    permissions: ['*'],
+                    permissions: allPermissions(),
                 };
 
                 return dispatch(context, { payload: 1 });

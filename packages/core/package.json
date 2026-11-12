@@ -53,6 +53,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
+        "@chamvi/access": "^0.8.0",
         "@ebec/core": "^1.3.2",
         "@standard-schema/spec": "^1.1.0",
         "@validup/standard-schema": "^2.0.2",

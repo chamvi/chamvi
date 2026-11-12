@@ -36,7 +36,7 @@ export type ConnectionView = {
     deletable?: boolean;
 };
 
-/** `GET /connections/:name`: `widgets`, `canReset` and `live: true` only for a holder of `connection:<name>:write`. */
+/** `GET /connections/:name`: `widgets`, `canReset` and `live: true` only for a holder of `chamvi_connection_write` for it. */
 export type ConnectionDetailView = ConnectionView & {
     widgets?: ConnectionWidget[];
     /** The connection offers a reset (`POST /connections/:name/reset` does not answer 404). */

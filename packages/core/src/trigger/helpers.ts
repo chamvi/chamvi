@@ -5,6 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { isPermissionBinding } from '@chamvi/access';
+import type { PermissionIdentity } from '@chamvi/access';
 import { isObject } from 'smob';
 import { ValidationError } from '../errors/index.ts';
 import type { Invoker, TriggerEnvelope } from './types.ts';
@@ -25,6 +27,7 @@ export function toInvoker(value: unknown, label = 'invoker'): Invoker {
         kind,
         name,
         permissions,
+        identity,
     } = value as Record<string, unknown>;
 
     if (!isNonEmptyString(id)) {
@@ -39,18 +42,33 @@ export function toInvoker(value: unknown, label = 'invoker'): Invoker {
         throw new ValidationError(`The ${label} name must be a string.`);
     }
 
-    const validPermissions = Array.isArray(permissions) && permissions.every((p) => typeof p === 'string');
+    const validPermissions = Array.isArray(permissions) && permissions.every((p) => isPermissionBinding(p));
 
     if (!validPermissions) {
-        throw new ValidationError(`The ${label} permissions must be an array of strings.`);
+        throw new ValidationError(`The ${label} permissions must be an array of permission bindings.`);
     }
 
-    return {
+    if (identity !== undefined) {
+        assertIdentity(identity, label);
+    }
+
+    return structuredClone({
         id,
         kind,
         ...(name !== undefined ? { name } : {}),
-        permissions: [...permissions],
-    };
+        permissions,
+        ...(identity !== undefined ? { identity } : {}),
+    });
+}
+
+function assertIdentity(value: unknown, label: string): asserts value is PermissionIdentity {
+    if (
+        !isObject(value) ||
+        (value.type !== 'user' && value.type !== 'client') ||
+        !isNonEmptyString(value.id)
+    ) {
+        throw new ValidationError(`The ${label} identity needs a type "user" or "client" and a non-empty id.`);
+    }
 }
 
 /**

@@ -78,7 +78,7 @@ describe('GET /schedules', () => {
         ]);
     });
 
-    it('needs run:read', async () => {
+    it('needs chamvi_run_read', async () => {
         const { app } = setup();
 
         expect((await call(app, 'GET', '/schedules', { token: tokenFor() })).status).toBe(403);

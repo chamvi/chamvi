@@ -6,11 +6,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { defineSimpleAgent } from '@chamvi/core';
 import {
     READER_TOKEN,
     call,
     createTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { inventoryAgents } from '../../utils/agents.ts';
@@ -90,11 +92,19 @@ describe('GET /agents', () => {
         expect(data[1].channels).toEqual([{ channel: 'webhook', id: 'webhook:/issues' }]);
     });
 
-    it('needs run:read', async () => {
+    it('lists only the agents a restricted read grant reaches', async () => {
+        const { app } = createTestApp({ agents: inventoryAgents() });
+        const token = tokenFor(restricted(Permission.RUN_READ, { agent: 'intake' }));
+        const { data } = await (await call(app, 'GET', '/agents', { token })).json();
+
+        expect(data.map((agent: { name: string }) => agent.name)).toEqual(['intake']);
+    });
+
+    it('needs chamvi_run_read', async () => {
         const { app } = createTestApp({ agents: inventoryAgents() });
 
         expect((await call(app, 'GET', '/agents', { token: tokenFor() })).status).toBe(403);
-        expect((await call(app, 'GET', '/agents', { token: tokenFor('agent:echo:run') })).status).toBe(403);
+        expect((await call(app, 'GET', '/agents', { token: tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' })) })).status).toBe(403);
         expect((await call(app, 'GET', '/agents')).status).toBe(401);
     });
 
@@ -123,5 +133,32 @@ describe('GET /agents', () => {
             at: at.toISOString(),
         }]);
         expect(body.data.map((agent: { name: string }) => agent.name)).toEqual(['echo', 'intake']);
+    });
+
+    it('lists only the issues of agents a restricted read grant reaches', async () => {
+        const at = new Date(1_000_000);
+        const { app } = createTestApp({
+            agents: inventoryAgents(),
+            agentIssues: () => [
+                {
+                    agent: 'secret-payroll',
+                    message: 'agent.yaml: model is missing',
+                    at,
+                },
+                {
+                    agent: 'intake',
+                    message: 'agent.yaml: tool is missing',
+                    at,
+                },
+            ],
+        });
+        const token = tokenFor(restricted(Permission.RUN_READ, { agent: 'intake' }));
+        const body = await (await call(app, 'GET', '/agents', { token })).json();
+
+        expect(body.issues).toEqual([{
+            agent: 'intake',
+            message: 'agent.yaml: tool is missing',
+            at: at.toISOString(),
+        }]);
     });
 });

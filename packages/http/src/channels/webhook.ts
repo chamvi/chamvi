@@ -5,18 +5,22 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError, hasPermission } from '@chamvi/core';
+import { Permission } from '@chamvi/access';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { ChannelContext, ChannelRequest } from '@chamvi/core';
 import {
     BadRequestError,
-    ForbiddenError,
     NotFoundError,
     UnsupportedMediaTypeError,
 } from '@ebec/http';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { DEFAULT_BODY_LIMIT } from '../app/constants.ts';
-import { resolvePrincipal } from '../auth/helpers.ts';
-import { agentPermission } from '../auth/module.ts';
+import {
+    agentResource,
+    forbidden,
+    isGranted,
+    resolvePrincipal,
+} from '../auth/helpers.ts';
 import {
     assertDerivedKey,
     isJsonMediaType,
@@ -51,7 +55,7 @@ function assertOptions(options: WebhookChannelOptions): void {
  * `POST /channels/<name>/<agent><path>` (`webhook.on('/issues')` on agent
  * `intake` is `/channels/webhook/intake/issues`, a path of `/` is
  * `/channels/webhook/intake`; the match is exact). A delivery needs a
- * principal of `auth` holding `agent:<agent>:run` (checked before the body
+ * principal of `auth` holding `chamvi_agent_run` for the agent (checked before the body
  * is read) and a JSON body of at most `bodyLimit` bytes, which is the whole
  * payload, validated by the subscription's schema. The idempotency key is
  * the `Idempotency-Key` header, else `idempotencyKey(payload)`. Runs carry
@@ -74,13 +78,13 @@ export function webhookChannel(options: WebhookChannelOptions): WebhookChannel {
             throw new NotFoundError({ message: 'The webhook URL names no agent.' });
         }
 
-        const permission = agentPermission(target.agent, 'run');
+        const agent = ctx.engine.getAgent(target.agent);
 
-        if (!hasPermission(principal.permissions, permission)) {
-            throw new ForbiddenError({ message: `Missing permission "${permission}".` });
+        if (!await isGranted(principal, Permission.AGENT_RUN, ctx.engine.clock, agentResource(target.agent, agent))) {
+            throw forbidden(Permission.AGENT_RUN);
         }
 
-        const subscription = ctx.engine.getAgent(target.agent)?.definition.channels
+        const subscription = agent?.definition.channels
             ?.find((s) => s.channel === name && s.options.path === target.path);
 
         if (!subscription) {

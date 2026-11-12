@@ -11,7 +11,6 @@ import {
     ErrorCode,
     InvalidAgentDefinitionError,
     assertConnectionName,
-    hasPermission,
     storedConnectionName,
 } from '@chamvi/core';
 import type {
@@ -29,20 +28,19 @@ import type {
 } from '@chamvi/core';
 import { IssueCode, defineIssueItem } from '@ebec/core';
 import type { Issue } from '@ebec/core';
-import { ConflictError, ForbiddenError, NotFoundError } from '@ebec/http';
+import { ConflictError, NotFoundError } from '@ebec/http';
 import { defineCoreHandler } from 'routup';
 import type { App } from 'routup';
 import { Container, ValidupError } from 'validup';
 import type { HttpContext } from '../app/types.ts';
-import { CONNECTIONS_CREATE_PERMISSION } from '../auth/constants.ts';
-import { authenticate } from '../auth/helpers.ts';
-import { connectionPermission } from '../auth/module.ts';
+import { Permission } from '@chamvi/access';
+import { authenticate, forbidden, isGranted } from '../auth/helpers.ts';
 import type { Principal } from '../auth/types.ts';
 import { readJsonBody, validateBody } from '../request/helpers.ts';
 import type { UiPage } from '../static/types.ts';
 import {
-    canRead,
-    canWrite,
+    assertConnectionAccess,
+    connectionResource,
     isAccountId,
     isRecord,
     isSecretsWrite,
@@ -146,15 +144,25 @@ async function findTarget(ctx: HttpContext, name: string): Promise<ConfigTarget 
 
 /**
  * The target `name` the principal may read, or may write with `write`: 403
- * before any lookup, so a principal without the grant cannot probe names;
- * then 404.
+ * before the 404 (an unknown name is checked without a type), so a
+ * principal without the grant cannot probe names; then 404.
  */
 async function requireTarget(ctx: HttpContext, principal: Principal, name: string, write = false): Promise<ConfigTarget> {
-    if (write ? !canWrite(principal, name) : !canRead(principal, name)) {
-        throw new ForbiddenError({ message: `Missing permission "${connectionPermission(name, write ? 'write' : 'read')}".` });
+    let target: ConfigTarget | undefined;
+    let failure: { error: unknown } | undefined;
+
+    try {
+        target = await findTarget(ctx, name);
+    } catch (error) {
+        // a lookup refusing the name (400) answers only a principal the check lets through
+        failure = { error };
     }
 
-    const target = await findTarget(ctx, name);
+    await assertConnectionAccess(ctx, principal, connectionResource(name, target?.definition.type), write);
+
+    if (failure) {
+        throw failure.error;
+    }
 
     if (!target) {
         throw new NotFoundError({ message: `The connection "${name}" has no configuration.` });
@@ -753,7 +761,8 @@ export async function listConnections(ctx: HttpContext): Promise<ConnectionView[
  * /connection-types/:type/connections`, `GET`/`PUT /connections/:name/config`,
  * `DELETE /connections/:name`, `POST /connections/:name/test` and
  * `GET /ui-pages`. Editing, deleting and testing need
- * `connection:<name>:write`; creating needs `connections:create`. A secret
+ * `chamvi_connection_write` for the connection's `{ name, type }`; creating
+ * needs `chamvi_connection_create` for `{ type }`. A secret
  * never leaves: responses carry its name and whether it is set, and every
  * issue or message of these routes is free of submitted values.
  */
@@ -788,12 +797,13 @@ export function registerConnectionConfigRoutes(app: App, ctx: HttpContext): void
 
     app.post('/connection-types/:type/connections', defineCoreHandler(async (event): Promise<ConnectionSettingsView & { name: string }> => {
         const principal = await authenticate(event, ctx);
+        const type = param(event, 'type');
 
-        if (!hasPermission(principal.permissions, CONNECTIONS_CREATE_PERMISSION)) {
-            throw new ForbiddenError({ message: `Missing permission "${CONNECTIONS_CREATE_PERMISSION}".` });
+        // before the 404, so an unknown type is refused like a foreign one
+        if (!await isGranted(principal, Permission.CONNECTION_CREATE, ctx.clock, { type })) {
+            throw forbidden(Permission.CONNECTION_CREATE);
         }
 
-        const type = param(event, 'type');
         const provider = ctx.connectionTypes().find((candidate) => candidate.definition.type === type);
 
         if (!provider) {

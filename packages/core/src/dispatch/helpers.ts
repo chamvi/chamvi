@@ -260,12 +260,13 @@ export function readDispatchSource(value: unknown, hasChannel: (name: string) =>
 const snapshots = new WeakMap<RunContext, DispatchRunSnapshot>();
 
 function cloneInvoker(invoker: Invoker): Invoker {
-    return {
+    return structuredClone({
         id: invoker.id,
         kind: invoker.kind,
         ...(invoker.name !== undefined ? { name: invoker.name } : {}),
-        permissions: [...invoker.permissions],
-    };
+        permissions: invoker.permissions,
+        ...(invoker.identity !== undefined ? { identity: invoker.identity } : {}),
+    });
 }
 
 function cloneParent(parent: TriggerParent): TriggerParent {

@@ -10,13 +10,13 @@ import {
     ArtifactNotFoundError,
     RunNotFoundError,
     RunStatus,
-    hasPermission,
 } from '@chamvi/core';
 import type {
     Agent,
     Artifact,
     ArtifactInput,
     ChannelSubscription,
+    IClock,
     Invoker,
     Run,
     RunStatusLiteral,
@@ -29,8 +29,13 @@ import type { IFilter } from '@rapiq/core';
 import { parseFilterScalar } from '@rapiq/parser-simple';
 import { isObject } from 'smob';
 import { Container } from 'validup';
-import { agentPermission } from '../auth/module.ts';
-import { Permission } from '../auth/constants.ts';
+import { Permission } from '@chamvi/access';
+import {
+    agentResource,
+    forbidden,
+    isGranted,
+    isGrantedSome,
+} from '../auth/helpers.ts';
 import type { Principal } from '../auth/types.ts';
 import { DEFAULT_PAGE_LIMIT } from '../app/constants.ts';
 import { HTTP_CHANNEL_NAME } from '../channels/constants.ts';
@@ -102,56 +107,39 @@ export function serializeStep(step: Step): Step {
 
 /**
  * Whether the principal may read the content (runs, state) of the agent
- * named `agentName`. A private agent, and one the app does not hold (fail
- * closed: a removed private agent's runs stay protected), needs
- * `agent:<name>:read`; any other also `run:read` or `agent:<name>:run`.
- * The read grant reads every agent, so a listing without a filter for
- * `agent:*:read` and the single-run reads agree.
+ * named `agentName`: `chamvi_agent_read` for `{ name, private }`; a
+ * registered agent that is not private also `chamvi_run_read` for
+ * `{ agent }` or `chamvi_agent_run` for it. An agent the app does not hold
+ * counts as private (fail closed: a removed private agent's runs stay
+ * protected).
  */
-export function canReadAgentContent(principal: Principal, agentName: string, agents: HttpAgents): boolean {
+export async function canReadAgentContent(principal: Principal, agentName: string, agents: HttpAgents, clock: IClock): Promise<boolean> {
     const agent = agents.get(agentName);
-    const read = hasPermission(principal.permissions, agentPermission(agentName, 'read'));
+    const resource = agentResource(agentName, agent);
 
-    if (!agent || agent.definition.private === true) {
-        return read;
+    if (await isGranted(principal, Permission.AGENT_READ, clock, resource)) {
+        return true;
     }
 
-    return read ||
-        hasPermission(principal.permissions, Permission.RUN_READ) ||
-        hasPermission(principal.permissions, agentPermission(agentName, 'run'));
+    if (resource.private) {
+        return false;
+    }
+
+    return await isGranted(principal, Permission.RUN_READ, clock, { agent: agentName }) ||
+        await isGranted(principal, Permission.AGENT_RUN, clock, resource);
 }
 
 /** Whether the principal may read the run (`canReadAgentContent()` of its agent). */
-export function canReadRun(principal: Principal, run: Run, agents: HttpAgents): boolean {
-    return canReadAgentContent(principal, run.agent, agents);
+export function canReadRun(principal: Principal, run: Run, agents: HttpAgents, clock: IClock): Promise<boolean> {
+    return canReadAgentContent(principal, run.agent, agents, clock);
 }
 
-/**
- * The agents whose runs the principal may read: the app's agents in
- * registration order, then the agents the app does not hold that a grant
- * names explicitly (`agent:<name>:read` or `agent:<name>:*`), so the listing
- * agrees with the single-run reads.
- */
-export function readableAgents(principal: Principal, agents: HttpAgents): string[] {
-    const names = agents.names().filter((name) => canReadAgentContent(principal, name, agents));
+/** The app's agents, in registration order, whose runs the principal may read. */
+export async function readableAgents(principal: Principal, agents: HttpAgents, clock: IClock): Promise<string[]> {
+    const names = agents.names();
+    const readable = await Promise.all(names.map((name) => canReadAgentContent(principal, name, agents, clock)));
 
-    for (const permission of principal.permissions) {
-        const [scope, name, action, ...rest] = permission.split(':');
-
-        if (
-            scope === 'agent' &&
-            name !== undefined &&
-            name !== '*' &&
-            rest.length === 0 &&
-            (action === 'read' || action === '*') &&
-            !agents.get(name) &&
-            !names.includes(name)
-        ) {
-            names.push(name);
-        }
-    }
-
-    return names;
+    return names.filter((_name, index) => readable[index]);
 }
 
 /**
@@ -162,7 +150,7 @@ export function readableAgents(principal: Principal, agents: HttpAgents): string
 export async function loadReadableRun(ctx: HttpContext, principal: Principal, id: string): Promise<Run> {
     const run = await ctx.store.runs.findOneOrFail(id);
 
-    if (canReadRun(principal, run, ctx.agents)) {
+    if (await canReadRun(principal, run, ctx.agents, ctx.clock)) {
         return run;
     }
 
@@ -170,45 +158,54 @@ export async function loadReadableRun(ctx: HttpContext, principal: Principal, id
         throw new RunNotFoundError(id);
     }
 
-    throw new ForbiddenError({ message: `Missing permission "${Permission.RUN_READ}".` });
+    throw forbidden(Permission.RUN_READ);
 }
 
-/** A private agent, or one the app does not hold: only `agent:<name>:read` reads it. */
+/** A private agent, or one the app does not hold: only `chamvi_agent_read` reads it. */
 function isContentProtected(agentName: string, agents: HttpAgents): boolean {
-    const agent = agents.get(agentName);
-
-    return !agent || agent.definition.private === true;
+    return agentResource(agentName, agents.get(agentName)).private;
 }
+
+/** The grants that read some agent's runs: any one of them opens the listing. */
+const RUN_LISTING_PERMISSIONS = [Permission.RUN_READ, Permission.AGENT_READ, Permission.AGENT_RUN] as const;
 
 /**
  * The `agents` filter a run listing needs (`undefined`: none), else 403.
  * With `agent`, the principal must be able to read that agent's runs.
- * Without, it needs `run:read` (or `agent:*:read`, which reads every run);
- * the listing is then limited to `readableAgents()`, in the one store query
- * that keeps `total` and paging exact.
+ * Without, an unrestricted `chamvi_agent_read` reads every run; any other
+ * principal holding `chamvi_run_read`, `chamvi_agent_read` or
+ * `chamvi_agent_run` for some resource gets the listing limited to
+ * `readableAgents()`, in the one store query that keeps `total` and paging
+ * exact.
  */
-export function assertCanListRuns(principal: Principal, agent: string | undefined, agents: HttpAgents): readonly string[] | undefined {
+export async function assertCanListRuns(
+    ctx: Pick<HttpContext, 'agents' | 'clock'>,
+    principal: Principal,
+    agent: string | undefined,
+): Promise<readonly string[] | undefined> {
     if (agent !== undefined) {
-        if (canReadAgentContent(principal, agent, agents)) {
+        if (await canReadAgentContent(principal, agent, ctx.agents, ctx.clock)) {
             return undefined;
         }
 
-        if (isContentProtected(agent, agents)) {
-            throw new ForbiddenError({ message: `Reading runs of agent "${agent}" needs ${agentPermission(agent, 'read')}.` });
+        if (isContentProtected(agent, ctx.agents)) {
+            throw new ForbiddenError({ message: `Reading runs of agent "${agent}" needs ${Permission.AGENT_READ}.` });
         }
 
-        throw new ForbiddenError({ message: `Missing permission "${Permission.RUN_READ}".` });
+        throw forbidden(Permission.RUN_READ);
     }
 
-    if (hasPermission(principal.permissions, agentPermission('*', 'read'))) {
+    if (await isGranted(principal, Permission.AGENT_READ, ctx.clock)) {
         return undefined;
     }
 
-    if (hasPermission(principal.permissions, Permission.RUN_READ)) {
-        return readableAgents(principal, agents);
+    for (const permission of RUN_LISTING_PERMISSIONS) {
+        if (await isGrantedSome(principal, permission, ctx.clock)) {
+            return readableAgents(principal, ctx.agents, ctx.clock);
+        }
     }
 
-    throw new ForbiddenError({ message: `Missing permission "${Permission.RUN_READ}".` });
+    throw forbidden(Permission.RUN_READ);
 }
 
 /** The agent's `http.on()` subscription, else 404. */
@@ -427,20 +424,15 @@ export function createApproveContainer(): Container<ApproveBody> {
 
 /**
  * A run the principal may answer approvals of: 404 for a missing run (no
- * read permission needed), 403 without `agent:<agent>:approve`.
+ * read permission needed), 403 without `chamvi_agent_approve` for its agent.
  */
 export async function loadApprovableRun(ctx: HttpContext, principal: Principal, id: string): Promise<Run> {
     const run = await ctx.store.runs.findOneOrFail(id);
+    const resource = agentResource(run.agent, ctx.agents.get(run.agent));
 
-    assertCanApprove(principal, run);
+    if (!await isGranted(principal, Permission.AGENT_APPROVE, ctx.clock, resource)) {
+        throw forbidden(Permission.AGENT_APPROVE);
+    }
 
     return run;
-}
-
-function assertCanApprove(principal: Principal, run: Run): void {
-    const permission = agentPermission(run.agent, 'approve');
-
-    if (!hasPermission(principal.permissions, permission)) {
-        throw new ForbiddenError({ message: `Missing permission "${permission}".` });
-    }
 }

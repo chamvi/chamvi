@@ -306,7 +306,10 @@ export async function assembleTools(
         };
     }
 
-    const allow = (name: string) => toolPolicy(name, { run: runContext });
+    // evaluated at each check with the engine clock, so a date or time policy can change its verdict
+    const allow = (name: string) => toolPolicy(name, { run: runContext, now: ctx.clock.now() });
+    const names = Object.keys(tools);
+    const verdicts = await Promise.all(names.map(async (name) => allow(name)));
 
     return {
         tools: wrapToolsForRun(tools, toolContext, ctx.store.effects, {
@@ -317,7 +320,7 @@ export async function assembleTools(
             stepIndex,
             ended,
         }),
-        activeTools: Object.keys(tools).filter(allow),
+        activeTools: names.filter((_name, index) => verdicts[index] === true),
         toolsContext,
     };
 }

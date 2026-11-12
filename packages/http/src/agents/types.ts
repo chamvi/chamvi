@@ -29,7 +29,7 @@ export type AgentSummary = {
     budget: Budget;
     /** Declared state collections. */
     state: string[];
-    /** A private agent: reading its runs and state needs `agent:<name>:read`. */
+    /** A private agent: reading its runs and state needs `chamvi_agent_read` for it. */
     private: boolean;
 };
 

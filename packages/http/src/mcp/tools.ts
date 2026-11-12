@@ -9,7 +9,6 @@ import {
     APPROVAL_OPTIONS_MAX,
     InvalidAgentDefinitionError,
     RunStatus,
-    hasPermission,
 } from '@chamvi/core';
 import type { Agent, RunStatusLiteral } from '@chamvi/core';
 import { fromJsonSchema } from '@modelcontextprotocol/server';
@@ -18,8 +17,8 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../app/constants.ts';
 import { acquireStreamSlot } from '../app/helpers.ts';
 import type { HttpContext } from '../app/types.ts';
-import { toInvoker } from '../auth/helpers.ts';
-import { agentPermission } from '../auth/module.ts';
+import { Permission } from '@chamvi/access';
+import { agentResource, isGranted, toInvoker } from '../auth/helpers.ts';
 import type { Principal } from '../auth/types.ts';
 import { KEY_MAX_LENGTH } from '../request/constants.ts';
 import { validatePayload } from '../request/helpers.ts';
@@ -166,11 +165,11 @@ function registerReadTools(server: McpServer, ctx: HttpContext, principal: Princ
 
     server.registerTool('list_runs', {
         title: 'List runs',
-        description: 'Lists runs, oldest first. agent:*:read lists every run; run:read lists the runs of every agent you may read. Otherwise agent must name an agent whose runs you may read (agent:<agent>:read, or for a public agent agent:<agent>:run). A private agent\'s runs need agent:<agent>:read.',
+        description: 'Lists runs, oldest first. An unrestricted chamvi_agent_read lists every run; otherwise the list holds the runs of the agents you may read. With agent, it must name an agent whose runs you may read (chamvi_agent_read for it, or for a public agent chamvi_run_read or chamvi_agent_run). A private agent\'s runs need chamvi_agent_read.',
         inputSchema: LIST_RUNS_INPUT,
         annotations: { readOnlyHint: true },
     }, (args) => runTool(ctx, async () => {
-        const agents = assertCanListRuns(principal, args.agent, ctx.agents);
+        const agents = await assertCanListRuns(ctx, principal, args.agent);
         const { data, total } = await ctx.store.runs.find({
             ...(args.agent !== undefined ? { agent: args.agent } : {}),
             ...(agents !== undefined ? { agents } : {}),
@@ -324,20 +323,20 @@ export function createRunToolSource(ctx: HttpContext, options: McpEndpointOption
         .filter((tool): tool is McpRunTool => tool !== null);
 }
 
-function registerRunTool(
+async function registerRunTool(
     server: McpServer,
     ctx: HttpContext,
     tool: McpRunTool,
     extra: McpRequestExtra,
     options: McpEndpointOptions,
-): void {
+): Promise<void> {
     const {
         agent,
         subscription,
         schema,
     } = tool;
 
-    if (!hasPermission(extra.principal.permissions, agentPermission(agent.name, 'run'))) {
+    if (!await isGranted(extra.principal, Permission.AGENT_RUN, ctx.clock, agentResource(agent.name, agent))) {
         return;
     }
 
@@ -382,8 +381,8 @@ function registerRunTool(
             });
 
             // the result carries content of the run and of a descendant waiting on an approval
-            const readable = canReadAgentContent(extra.principal, run.agent, ctx.agents) &&
-                (!approval || canReadAgentContent(extra.principal, approval.agent, ctx.agents));
+            const readable = await canReadAgentContent(extra.principal, run.agent, ctx.agents, ctx.clock) &&
+                (!approval || await canReadAgentContent(extra.principal, approval.agent, ctx.agents, ctx.clock));
 
             return toolResult(toRunToolResult(run, deduplicated, readable, approval));
         } finally {
@@ -395,7 +394,7 @@ function registerRunTool(
 function registerApproveTool(server: McpServer, ctx: HttpContext, principal: Principal): void {
     server.registerTool('approve_run', {
         title: 'Approve run',
-        description: 'Answers the approval a waiting run waits on (its waiting.approvalId, from get_run; a waiting.kind dispatch wait is refused). With options, pass the chosen option ids as selected (from get_run\'s waiting.options). Needs agent:<agent>:approve for the run\'s agent.',
+        description: 'Answers the approval a waiting run waits on (its waiting.approvalId, from get_run; a waiting.kind dispatch wait is refused). With options, pass the chosen option ids as selected (from get_run\'s waiting.options). Needs chamvi_agent_approve for the run\'s agent.',
         inputSchema: APPROVE_RUN_INPUT,
     }, (args) => runTool(ctx, async () => {
         const run = await loadApprovableRun(ctx, principal, args.runId);
@@ -413,15 +412,16 @@ function registerApproveTool(server: McpServer, ctx: HttpContext, principal: Pri
 }
 
 /** Registers the tools one MCP request's principal sees (from definitions built once). */
-export function registerTools(
+export async function registerTools(
     server: McpServer,
     ctx: HttpContext,
     runTools: McpRunTool[],
     extra: McpRequestExtra,
     options: McpEndpointOptions,
-): void {
+): Promise<void> {
+    // in definition order, so the tool list keeps the agents' order
     for (const tool of runTools) {
-        registerRunTool(server, ctx, tool, extra, options);
+        await registerRunTool(server, ctx, tool, extra, options);
     }
 
     registerReadTools(server, ctx, extra.principal);

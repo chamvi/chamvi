@@ -6,11 +6,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission } from '@chamvi/access';
 import {
     ADMIN_TOKEN,
     READER_TOKEN,
     call,
     createRunTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { callTool, connectMcp, textOf } from '../../utils/mcp.ts';
@@ -105,24 +107,23 @@ describe('mcp read tools', () => {
         await client.close();
     });
 
-    it('lets agent:<agent>:run read that agent only', async () => {
+    it('lets chamvi_agent_run read that agent only', async () => {
         const setup = createRunTestApp();
         const echo = await start(setup, 'echo');
         const gate = await start(setup, 'gate');
 
-        const client = await connectMcp(setup.app, tokenFor('agent:echo:run'));
+        const client = await connectMcp(setup.app, tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' })));
 
         expect((await callTool(client, 'get_run', { runId: echo })).isError).toBeFalsy();
 
         const denied = await callTool(client, 'get_run', { runId: gate });
 
         expect(denied.isError).toBe(true);
-        expect(textOf(denied)).toBe('Missing permission "run:read".');
+        expect(textOf(denied)).toBe('Missing permission "chamvi_run_read".');
 
         const unfiltered = await callTool(client, 'list_runs', {});
 
-        expect(unfiltered.isError).toBe(true);
-        expect(textOf(unfiltered)).toBe('Missing permission "run:read".');
+        expect(unfiltered.structuredContent).toMatchObject({ total: 1 });
 
         expect((await callTool(client, 'list_runs', { agent: 'gate' })).isError).toBe(true);
         expect((await callTool(client, 'list_runs', { agent: 'echo' })).structuredContent).toMatchObject({ total: 1 });

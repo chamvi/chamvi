@@ -32,6 +32,7 @@ import type {
     Invoker,
     Run,
 } from '@chamvi/core';
+import { Permission } from '@chamvi/access';
 import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
@@ -116,17 +117,24 @@ function setup(options: {
         model: mockModel(done()),
         channels: options.reporterChannels ?? [agent.on({ role: 'draft', from: ['auditor'] })],
     });
+    const errors: unknown[] = [];
     const engine = new Engine({
         store,
         clock,
         agents: [auditor, reporter],
         channels: [agentChannel()],
-        onError: () => {},
+        onError: (error) => {
+            errors.push(error);
+        },
     });
 
     engines.push(engine);
 
-    return { engine, store };
+    return {
+        engine, 
+        errors, 
+        store, 
+    };
 }
 
 async function runAuditor(engine: IEngine, extra: { invoker?: Invoker } = {}) {
@@ -258,11 +266,14 @@ describe('dispatchTo()', () => {
         expect(await store.effects.findOne(`dispatch-count:${parentId}:auditor:default`)).toMatchObject({ result: { count: 1 } });
     });
 
-    it('dispatchTo refuses an invoker without agent:<target>:run', async () => {
+    it('dispatchTo refuses an invoker whose chamvi_agent_run policy names another agent', async () => {
         const invoker: Invoker = {
             id: 'u1',
             kind: 'user',
-            permissions: ['agent:auditor:run'],
+            permissions: [{
+                permission: { name: Permission.AGENT_RUN },
+                policies: [{ type: 'attributes', query: { name: 'auditor' } } as never],
+            }],
         };
         const { engine, store } = setup({ auditor: [turn(call(draft, 'c1')), text('done')] });
         const parentId = await runAuditor(engine, { invoker });
@@ -270,17 +281,20 @@ describe('dispatchTo()', () => {
 
         expect(step?.error).toEqual({
             code: 'validation_error',
-            message: 'The run\'s invoker may not run agent "reporter" (agent:reporter:run).',
+            message: 'The run\'s invoker may not run agent "reporter" (chamvi_agent_run).',
         });
         expect(await dispatched(store)).toHaveLength(0);
         expect(await store.effects.findOne(`dispatch-count:${parentId}:reporter:draft`)).toBeUndefined();
     });
 
-    it('dispatchTo passes an invoker with agent:reporter:* and keeps it unchanged', async () => {
+    it('dispatchTo passes an invoker whose chamvi_agent_run policy names the target and keeps it unchanged', async () => {
         const invoker: Invoker = {
             id: 'u1',
             kind: 'user',
-            permissions: ['agent:reporter:*'],
+            permissions: [{
+                permission: { name: Permission.AGENT_RUN },
+                policies: [{ type: 'attributes', query: { name: 'reporter', private: false } } as never],
+            }],
         };
         const { engine, store } = setup({ auditor: [turn(call(draft, 'c1')), text('done')] });
 
@@ -290,6 +304,103 @@ describe('dispatchTo()', () => {
 
         expect(child?.agent).toBe('reporter');
         expect(child?.trigger.invoker).toEqual(invoker);
+    });
+
+    it('dispatchTo refuses a run stored with old string permissions without throwing', async () => {
+        const {
+            engine, 
+            errors, 
+            store, 
+        } = setup({ auditor: [turn(call(draft, 'c1')), text('done')] });
+
+        // a run queued before the upgrade: intake refuses this shape, the store still holds it
+        const { runId: parentId } = await engine.dispatch({
+            agent: 'auditor',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+            invoker: {
+                id: 'u1', 
+                kind: 'user', 
+                permissions: [], 
+            },
+        });
+        const stored = await store.runs.findOne(parentId);
+
+        await store.runs.update(parentId, {
+            trigger: {
+                ...stored!.trigger,
+                invoker: {
+                    id: 'u1', 
+                    kind: 'user', 
+                    permissions: ['agent:reporter:run', '*'] as never, 
+                },
+            },
+        });
+
+        await engine.start();
+        await engine.idle();
+
+        const [step] = await toolSteps(store, parentId);
+
+        expect(step?.error).toEqual({
+            code: 'validation_error',
+            message: 'The run\'s invoker may not run agent "reporter" (chamvi_agent_run).',
+        });
+        expect(await dispatched(store)).toHaveLength(0);
+        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect(errors).toEqual([]);
+    });
+
+    it('dispatch from a run stored with old string permissions creates the child with no permissions', async () => {
+        const {
+            engine,
+            errors,
+            store,
+        } = setup({
+            auditor: [turn(call({ payload: 'self' }, 'c1', 'own')), text('done')],
+            auditorChannels: [agent.on()],
+        });
+
+        // a run queued before the upgrade: intake refuses this shape, the store still holds it
+        const { runId: parentId } = await engine.dispatch({
+            agent: 'auditor',
+            trigger: 'test',
+            channel: 'test',
+            payload: {},
+            invoker: {
+                id: 'u1',
+                kind: 'user',
+                permissions: [],
+            },
+        });
+        const stored = await store.runs.findOne(parentId);
+
+        await store.runs.update(parentId, {
+            trigger: {
+                ...stored!.trigger,
+                invoker: {
+                    id: 'u1',
+                    kind: 'user',
+                    permissions: ['agent:auditor:run', { permission: { name: Permission.RUN_READ } }] as never,
+                },
+            },
+        });
+
+        await engine.start();
+        await engine.idle();
+
+        const [step] = await toolSteps(store, parentId);
+        const [child] = await dispatched(store);
+
+        expect(step?.error).toBeUndefined();
+        expect(child?.agent).toBe('auditor');
+        expect(child?.trigger.invoker).toEqual({
+            id: 'u1',
+            kind: 'user',
+            permissions: [{ permission: { name: Permission.RUN_READ } }],
+        });
+        expect(errors).toEqual([]);
     });
 
     it('dispatchTo the own agent needs no agent permission', async () => {

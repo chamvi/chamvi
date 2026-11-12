@@ -476,6 +476,7 @@ export class Engine implements IEngine {
         return {
             getAgent: (name) => this.agents.get(name),
             hasChannel: (name) => this.channels.has(name),
+            clock: this.clock,
             effects: this.store.effects,
             runs: this.store.runs,
             // a backstop for a parent that settled or paused after dispatch() checked its frame: read

@@ -11,6 +11,7 @@ import {
     it,
     vi,
 } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { z } from 'zod';
 import { defineModelAgent } from '@chamvi/core';
 import { http, staticTokens } from '@chamvi/http';
@@ -20,6 +21,8 @@ import {
     call,
     createRunAgents,
     createRunTestApp,
+    restricted,
+    tokenFor,
 } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
 
@@ -71,12 +74,12 @@ describe('POST /agents/:name/runs', () => {
                     {
                         value: low,
                         id: 'u-low',
-                        permissions: ['agent:echo:run'],
+                        permissions: [restricted(Permission.AGENT_RUN, { name: 'echo' })],
                     },
                     {
                         value: high,
                         id: 'u-high',
-                        permissions: ['agent:echo:run', 'tool:echo:*'],
+                        permissions: [restricted(Permission.AGENT_RUN, { name: 'echo' }), restricted(Permission.TOOL_USE, { agent: 'echo' })],
                     },
                 ],
             })],
@@ -137,11 +140,33 @@ describe('POST /agents/:name/runs', () => {
         expect((await response.json()).message).toBe(`Agent "${name}" has no http subscription.`);
     });
 
-    it('needs agent:<name>:run', async () => {
+    it('needs chamvi_agent_run', async () => {
         const { app } = createRunTestApp();
 
         expect((await call(app, 'POST', '/agents/echo/runs', { token: READER_TOKEN })).status).toBe(403);
         expect((await call(app, 'POST', '/agents/echo/runs')).status).toBe(401);
+    });
+
+    it('starts only the agent a restricted run grant names', async () => {
+        const { app } = createRunTestApp();
+        const token = tokenFor(restricted(Permission.AGENT_RUN, { name: 'gate' }));
+        const refused = await call(app, 'POST', '/agents/echo/runs', { token });
+
+        expect((await call(app, 'POST', '/agents/gate/runs', { token })).status).toBe(202);
+        expect(refused.status).toBe(403);
+        expect((await refused.json()).message).toBe('Missing permission "chamvi_agent_run".');
+        // an agent the app does not hold is refused, not reported missing
+        expect((await call(app, 'POST', '/agents/nope/runs', { token })).status).toBe(403);
+        expect((await call(app, 'POST', '/agents/nope/runs', { token: ADMIN_TOKEN })).status).toBe(404);
+    });
+
+    it('checks the private attribute of the agent', async () => {
+        const { app } = createRunTestApp();
+        const publicOnly = tokenFor(restricted(Permission.AGENT_RUN, { private: false }));
+
+        expect((await call(app, 'POST', '/agents/echo/runs', { token: publicOnly })).status).toBe(202);
+        // unknown agents count as private
+        expect((await call(app, 'POST', '/agents/nope/runs', { token: publicOnly })).status).toBe(403);
     });
 
     it('never reads the body of an unauthenticated request', async () => {

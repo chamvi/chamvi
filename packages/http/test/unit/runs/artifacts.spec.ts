@@ -6,11 +6,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission } from '@chamvi/access';
 import {
     ADMIN_TOKEN,
     READER_TOKEN,
     call,
     createRunTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 
@@ -77,8 +79,8 @@ describe('GET /runs/:id/artifacts', () => {
         expect((await call(ctx.app, 'GET', `/runs/${runId}/artifacts`)).status).toBe(401);
         expect((await call(ctx.app, 'GET', '/runs/nope/artifacts', { token: tokenFor() })).status).toBe(404);
         expect((await call(ctx.app, 'GET', `/runs/${runId}/artifacts`, { token: tokenFor() })).status).toBe(403);
-        expect((await call(ctx.app, 'GET', `/runs/${runId}/artifacts`, { token: tokenFor('agent:echo:run') })).status).toBe(200);
-        expect((await call(ctx.app, 'GET', `/runs/${runId}/artifacts`, { token: tokenFor('agent:gate:run') })).status).toBe(403);
+        expect((await call(ctx.app, 'GET', `/runs/${runId}/artifacts`, { token: tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' })) })).status).toBe(200);
+        expect((await call(ctx.app, 'GET', `/runs/${runId}/artifacts`, { token: tokenFor(restricted(Permission.AGENT_RUN, { name: 'gate' })) })).status).toBe(403);
     });
 });
 
@@ -129,7 +131,7 @@ describe('GET /runs/:id/artifacts/:artifactId', () => {
         const own = await startWith(ctx, []);
         const other = await startWith(ctx, [{ mediaType: 'text/plain', data: b64('secret') }], 'gate');
         const [artifact] = await ctx.store.artifacts.find(other);
-        const response = await call(ctx.app, 'GET', `/runs/${own}/artifacts/${artifact!.id}`, { token: tokenFor('agent:echo:run') });
+        const response = await call(ctx.app, 'GET', `/runs/${own}/artifacts/${artifact!.id}`, { token: tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' })) });
 
         expect(response.status).toBe(404);
         expect(await response.json()).toMatchObject({ code: 'artifact_not_found' });

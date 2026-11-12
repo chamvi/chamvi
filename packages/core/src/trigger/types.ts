@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { PermissionBinding, PermissionIdentity } from '@chamvi/access';
 import type { Artifact } from '../artifact/types.ts';
 
 /**
@@ -22,7 +23,14 @@ export type Invoker = {
      */
     kind: string;
     name?: string;
-    permissions: readonly string[];
+    /**
+     * The grants, as authup permission bindings with resolved policies;
+     * checked with `can()` of `@chamvi/access`. An entry that is not a
+     * binding (a run stored with the older string grants) grants nothing.
+     */
+    permissions: readonly PermissionBinding[];
+    /** What an `identity` policy evaluates; set for authup logins. */
+    identity?: PermissionIdentity;
 };
 
 /**

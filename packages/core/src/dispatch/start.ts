@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission, can, isPermissionBinding } from '@chamvi/access';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { isObject } from 'smob';
 import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
@@ -13,7 +14,6 @@ import { inject } from '../context/module.ts';
 import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
 import { BudgetExceededError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
-import { hasPermission } from '../permission/match.ts';
 import type { Run, Usage } from '../run/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { ToolContext } from '../tool/types.ts';
@@ -146,11 +146,16 @@ async function start(
         throw new ValidationError(`Agent "${target}" role "${role}" accepts no dispatches from agent "${run.agent}".`);
     }
 
-    // the same permission http and MCP check (agentPermission(target, 'run')); a run without invoker passes
-    const permission = `agent:${target}:run`;
+    // the same check http and MCP make to start a run; a run without invoker passes
+    if (cross && run.invoker) {
+        const allowed = await can(run.invoker, Permission.AGENT_RUN, {
+            attributes: { name: target, private: agent.definition.private === true },
+            now: host.clock.now(),
+        });
 
-    if (cross && run.invoker && !hasPermission(run.invoker.permissions, permission)) {
-        throw new ValidationError(`The run's invoker may not run agent "${target}" (${permission}).`);
+        if (!allowed) {
+            throw new ValidationError(`The run's invoker may not run agent "${target}" (${Permission.AGENT_RUN}).`);
+        }
     }
 
     const maxPerRun = maxPerRunOf(target, subscription);
@@ -208,7 +213,13 @@ async function start(
 
     // runs under serial(runId): the children record is a read-check-write
     const create = async (): Promise<DispatchResult> => {
-        const { invoker } = run;
+        // a run stored before bindings may hold old strings: they grant nothing, so the child gets none of them
+        const invoker = run.invoker ? structuredClone(run.invoker) : undefined;
+
+        if (invoker) {
+            invoker.permissions = Array.isArray(invoker.permissions) ? invoker.permissions.filter((entry) => isPermissionBinding(entry)) : [];
+        }
+
         const result = await host.createRun({
             agent: target,
             trigger: role,
@@ -217,7 +228,7 @@ async function start(
             idempotencyKey: key,
             ...(concurrencyKey !== undefined ? { concurrencyKey } : {}),
             ...(address !== undefined ? { address } : {}),
-            ...(invoker ? { invoker: { ...invoker, permissions: [...invoker.permissions] } } : {}),
+            ...(invoker ? { invoker } : {}),
         }, {
             kind: 'dispatch',
             runId: run.runId,
@@ -335,7 +346,7 @@ export async function dispatch<S extends StateSchema = StateSchema>(
  * Starts a run of `input.agent` through its `agent.on()` role, like
  * dispatch() (`input.agent` the calling run's own agent behaves exactly as
  * dispatch()). Another agent's role must list the caller in `from`, and a
- * run with an invoker needs `agent:<agent>:run` there; the child carries
+ * run with an invoker needs `chamvi_agent_run` for it; the child carries
  * that invoker unchanged. Every dispatch refuses a child whose agent and
  * concurrency key a run up its lineage holds, and once a run up the
  * lineage (or the caller) reached its agent's `budget.maxSubtreeTokens`.

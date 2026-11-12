@@ -5,15 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { DEFAULT_MAX_STEPS, hasPermission } from '@chamvi/core';
-import type { Agent } from '@chamvi/core';
+import { Permission } from '@chamvi/access';
+import { DEFAULT_MAX_STEPS } from '@chamvi/core';
+import type { Agent, IClock } from '@chamvi/core';
 import { BadRequestError, ForbiddenError, NotFoundError } from '@ebec/http';
 import { defineSchema } from '@rapiq/core';
 import { CronExpressionParser } from 'cron-parser';
 import { isObject } from 'smob';
 import { Container } from 'validup';
 import { DEFAULT_PAGE_LIMIT } from '../app/constants.ts';
-import { agentPermission } from '../auth/module.ts';
+import { agentResource, isGranted } from '../auth/helpers.ts';
 import type { Principal } from '../auth/types.ts';
 import { webhookUrl } from '../channels/helpers.ts';
 import { decodeQuery } from '../request/helpers.ts';
@@ -123,12 +124,14 @@ export function requireAgent(agents: HttpAgents, name: string): Agent {
     return agent;
 }
 
-/** 403 for a private agent's state unless the principal holds `agent:<name>:read`. */
-export function assertCanReadState(principal: Principal, agent: Agent): void {
-    const permission = agentPermission(agent.name, 'read');
+/** 403 for a private agent's state unless the principal holds `chamvi_agent_read` for it. */
+export async function assertCanReadState(principal: Principal, agent: Agent, clock: IClock): Promise<void> {
+    if (agent.definition.private !== true) {
+        return;
+    }
 
-    if (agent.definition.private === true && !hasPermission(principal.permissions, permission)) {
-        throw new ForbiddenError({ message: `State of agent "${agent.name}" needs ${permission}.` });
+    if (!await isGranted(principal, Permission.AGENT_READ, clock, agentResource(agent.name, agent))) {
+        throw new ForbiddenError({ message: `State of agent "${agent.name}" needs ${Permission.AGENT_READ}.` });
     }
 }
 

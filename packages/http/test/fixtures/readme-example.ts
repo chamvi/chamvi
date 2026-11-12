@@ -39,7 +39,7 @@ export async function createAgentServer(model: LanguageModel) {
             tokens: [{
                 value: token,
                 id: 'ci',
-                permissions: ['*'],
+                permissions: '*',
             }],
         }),
         shutdown,

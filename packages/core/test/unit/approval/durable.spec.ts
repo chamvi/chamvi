@@ -14,6 +14,7 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
+import { Permission } from '@chamvi/access';
 import {
     Engine,
     InvalidRunStateError,
@@ -62,7 +63,7 @@ const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] 
 const approver: Invoker = {
     id: 'owner',
     kind: 'user',
-    permissions: ['agent:release:approve'],
+    permissions: [{ permission: { name: Permission.AGENT_APPROVE } }],
 };
 
 type Recorder = {

@@ -9,6 +9,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { FlexibleSchema } from 'ai';
 import type { Agent } from '../agent/types.ts';
 import type { ChannelSubscription, DispatchResult } from '../channel/types.ts';
+import type { IClock } from '../clock/types.ts';
 import type { DispatchEnvelope } from '../engine/types.ts';
 import type { IEffectRepository, IRunRepository } from '../repository/types.ts';
 import type { Invoker, TriggerParent, TriggerSource } from '../trigger/types.ts';
@@ -105,6 +106,8 @@ export type DispatchHost = {
     getAgent(name: string): Agent | undefined;
     /** True for a channel registered on the engine. */
     hasChannel(name: string): boolean;
+    /** The engine clock: the time a permission check of a cross-agent dispatch evaluates at. */
+    clock: IClock;
     effects: IEffectRepository;
     runs: Pick<IRunRepository, 'findOne' | 'find'>;
     /** Creates the run with `parent` as its lineage (engine.dispatch() never sets one). */

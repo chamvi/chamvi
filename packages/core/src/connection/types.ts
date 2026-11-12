@@ -227,7 +227,7 @@ export type ConnectionStatus = 'disconnected' |
 /**
  * What a connection asks an operator to see, rendered by kind. `qr` is
  * pairing material: secret, shown only to a holder of
- * `connection:<name>:write`, never logged.
+ * `chamvi_connection_write` for the connection, never logged.
  */
 export type ConnectionWidget = {
     kind: 'qr';

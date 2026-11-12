@@ -25,7 +25,7 @@ export type WebhookChannelOptions = {
     name?: string;
     /**
      * Who may deliver: the first principal wins (as the http app's `auth`),
-     * and it needs `agent:<agent>:run`. Required, since the http app never
+     * and it needs `chamvi_agent_run` for the agent. Required, since the http app never
      * authenticates channel routes.
      */
     auth: Authenticator | Authenticator[];

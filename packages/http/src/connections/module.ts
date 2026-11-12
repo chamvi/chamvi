@@ -16,6 +16,7 @@ import {
     assertConnectionAccess,
     canRead,
     canWrite,
+    connectionResource,
     param,
     requireHandle,
     serializeConnection,
@@ -141,8 +142,8 @@ function streamConnection(event: IAppEvent, ctx: HttpContext, handle: IConnectio
  * `GET /connections` (the handles and the declared connections), and
  * `GET /connections/:name`, `GET /connections/:name/events`,
  * `POST /connections/:name/reset` over the app's connection handles.
- * `connection:<name>:read` lists and shows a connection, `:write` (which
- * implies read) also sees its widgets (a pairing QR), streams it and resets
+ * `chamvi_connection_read` for a connection's `{ name, type }` lists and
+ * shows it, `chamvi_connection_write` (which implies read) also sees its widgets (a pairing QR), streams it and resets
  * it. Widgets never appear in the list. A reset answers 202 once started
  * (its rejection goes to `onError`), 409 while the connection is
  * `held_elsewhere`.
@@ -151,19 +152,20 @@ export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
     app.get('/connections', defineCoreHandler(async (event): Promise<{ data: ConnectionView[] }> => {
         const principal = await authenticate(event, ctx);
         const views = await listConnections(ctx);
+        const readable = await Promise.all(views.map((view) => canRead(ctx, principal, connectionResource(view.name, view.type))));
 
-        return { data: views.filter((view) => canRead(principal, view.name)) };
+        return { data: views.filter((_view, index) => readable[index]) };
     }));
 
     app.get('/connections/:name', defineCoreHandler(async (event): Promise<ConnectionDetailView> => {
         const principal = await authenticate(event, ctx);
         const name = param(event, 'name');
-
-        assertConnectionAccess(principal, name);
-
         // the handle's status joined with what is declared and stored
         const view = (await listConnections(ctx)).find((candidate) => candidate.name === name);
         const handle = ctx.connections().find((candidate) => candidate.name === name);
+        const resource = connectionResource(name, view?.type);
+
+        await assertConnectionAccess(ctx, principal, resource);
 
         // a writer's response can carry a pairing QR
         event.response.headers.set('cache-control', 'private, no-store');
@@ -172,7 +174,7 @@ export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
             throw new NotFoundError({ message: `The connection "${name}" does not exist.` });
         }
 
-        if (!canWrite(principal, name)) {
+        if (!await canWrite(ctx, principal, resource)) {
             return view;
         }
 
@@ -185,13 +187,13 @@ export function registerConnectionRoutes(app: App, ctx: HttpContext): void {
     }));
 
     app.get('/connections/:name/events', defineCoreHandler(async (event) => {
-        const handle = requireHandle(ctx, await authenticate(event, ctx), param(event, 'name'), true);
+        const handle = await requireHandle(ctx, await authenticate(event, ctx), param(event, 'name'), true);
 
         return streamConnection(event, ctx, handle);
     }));
 
     app.post('/connections/:name/reset', defineCoreHandler(async (event): Promise<ConnectionView> => {
-        const handle = requireHandle(ctx, await authenticate(event, ctx), param(event, 'name'), true);
+        const handle = await requireHandle(ctx, await authenticate(event, ctx), param(event, 'name'), true);
         const { reset } = handle.actions;
 
         if (!reset) {

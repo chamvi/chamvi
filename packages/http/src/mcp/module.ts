@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { permissionNames } from '@chamvi/access';
 import { McpServer, createMcpHandler } from '@modelcontextprotocol/server';
 import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { UnauthorizedError } from '@ebec/http';
@@ -40,7 +41,7 @@ function withoutTransferEncoding(input: Headers): Headers {
 export function createMcpEndpoint(ctx: HttpContext, options: McpEndpointOptions): McpHttpHandler {
     const runTools = createRunToolSource(ctx, options);
 
-    return createMcpHandler(({ authInfo }) => {
+    return createMcpHandler(async ({ authInfo }) => {
         const extra = readRequestExtra(authInfo?.extra);
 
         // the route always passes them; a request without them cannot reach here
@@ -50,7 +51,7 @@ export function createMcpEndpoint(ctx: HttpContext, options: McpEndpointOptions)
 
         const server = new McpServer({ name: options.name, version: options.version });
 
-        registerTools(server, ctx, runTools(), extra, options);
+        await registerTools(server, ctx, runTools(), extra, options);
 
         return server;
     }, { maxRequestBodySize: ctx.bodyLimit });
@@ -93,7 +94,7 @@ export function registerMcpRoutes(app: App, ctx: HttpContext, options: McpOption
             authInfo: {
                 token: '',
                 clientId: principal.id,
-                scopes: [...principal.permissions],
+                scopes: permissionNames(principal),
                 extra,
             },
         });

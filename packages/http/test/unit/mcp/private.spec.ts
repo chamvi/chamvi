@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { z } from 'zod';
 import {
     agent,
@@ -22,6 +23,7 @@ import {
     READER_TOKEN,
     createTestApp,
     deployTool,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { approvalModel, textModel } from '../../utils/model.ts';
@@ -72,7 +74,7 @@ async function completedRuns() {
 }
 
 describe('mcp: private agents', () => {
-    it('get_run answers as for an unknown run without agent:<name>:read', async () => {
+    it('get_run answers as for an unknown run without chamvi_agent_read', async () => {
         const setup = await completedRuns();
         const reader = await connectMcp(setup.app, READER_TOKEN);
         const denied = await callTool(reader, 'get_run', { runId: setup.alfred });
@@ -81,7 +83,7 @@ describe('mcp: private agents', () => {
         expect(textOf(denied)).toBe(`Run "${setup.alfred}" was not found.`);
         expect((await callTool(reader, 'get_run', { runId: setup.bob })).isError).toBeFalsy();
 
-        const owner = await connectMcp(setup.app, tokenFor('agent:alfred:read'));
+        const owner = await connectMcp(setup.app, tokenFor(restricted(Permission.AGENT_READ, { name: 'alfred' })));
 
         expect((await callTool(owner, 'get_run', { runId: setup.alfred })).isError).toBeFalsy();
         await reader.close();
@@ -101,7 +103,7 @@ describe('mcp: private agents', () => {
         const filtered = await callTool(reader, 'list_runs', { agent: 'alfred' });
 
         expect(filtered.isError).toBe(true);
-        expect(textOf(filtered)).toBe('Reading runs of agent "alfred" needs agent:alfred:read.');
+        expect(textOf(filtered)).toBe('Reading runs of agent "alfred" needs chamvi_agent_read.');
 
         const admin = await connectMcp(setup.app, ADMIN_TOKEN);
 
@@ -126,7 +128,7 @@ describe('mcp: private agents', () => {
             return result;
         };
 
-        const result = await call(tokenFor('agent:alfred:run'));
+        const result = await call(tokenFor(restricted(Permission.AGENT_RUN, { name: 'alfred' })));
 
         expect(result.isError).toBeFalsy();
         expect(result.structuredContent).toEqual({
@@ -135,7 +137,7 @@ describe('mcp: private agents', () => {
             deduplicated: false,
         });
 
-        const readable = await call(tokenFor('agent:alfred:run', 'agent:alfred:read'));
+        const readable = await call(tokenFor(restricted(Permission.AGENT_RUN, { name: 'alfred' }), restricted(Permission.AGENT_READ, { name: 'alfred' })));
 
         expect(readable.structuredContent).toMatchObject({ status: 'completed', output: 'done' });
     });
@@ -181,7 +183,7 @@ describe('mcp: private agents', () => {
         };
 
         // the invoker's grants also gate the dispatch to alfred
-        const hidden = await call(tokenFor('run:read', 'agent:lead:run', 'agent:alfred:run'));
+        const hidden = await call(tokenFor(Permission.RUN_READ, restricted(Permission.AGENT_RUN, { name: 'lead' }), restricted(Permission.AGENT_RUN, { name: 'alfred' })));
 
         expect(hidden.structuredContent).toEqual({
             runId: expect.any(String),
@@ -189,7 +191,7 @@ describe('mcp: private agents', () => {
             deduplicated: false,
         });
 
-        const shown = await call(tokenFor('run:read', 'agent:lead:run', 'agent:alfred:run', 'agent:alfred:read'));
+        const shown = await call(tokenFor(Permission.RUN_READ, restricted(Permission.AGENT_RUN, { name: 'lead' }), restricted(Permission.AGENT_RUN, { name: 'alfred' }), restricted(Permission.AGENT_READ, { name: 'alfred' })));
 
         expect(shown.structuredContent).toMatchObject({
             status: 'waiting',

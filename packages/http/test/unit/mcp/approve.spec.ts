@@ -10,11 +10,13 @@ import {
     expect,
     it,
 } from 'vitest';
+import { Permission } from '@chamvi/access';
 import {
     ADMIN_TOKEN,
     approvalWaitOf,
     call,
     createRunTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { callTool, connectMcp, textOf } from '../../utils/mcp.ts';
@@ -41,7 +43,7 @@ async function waitingGate(agent = 'gate') {
 describe('mcp approve_run', () => {
     it('answers the approval a waiting run waits on, once', async () => {
         const setup = await waitingGate();
-        const client = await connectMcp(setup.app, tokenFor('agent:gate:approve'));
+        const client = await connectMcp(setup.app, tokenFor(restricted(Permission.AGENT_APPROVE, { name: 'gate' })));
         const args = {
             runId: setup.runId,
             approvalId: setup.approvalId,
@@ -62,9 +64,9 @@ describe('mcp approve_run', () => {
         await setup.engine.drain();
     });
 
-    it('needs agent:<agent>:approve', async () => {
+    it('needs chamvi_agent_approve', async () => {
         const setup = await waitingGate();
-        const client = await connectMcp(setup.app, tokenFor('agent:echo:approve', 'run:read'));
+        const client = await connectMcp(setup.app, tokenFor(restricted(Permission.AGENT_APPROVE, { name: 'echo' }), Permission.RUN_READ));
         const result = await callTool(client, 'approve_run', {
             runId: setup.runId,
             approvalId: setup.approvalId,
@@ -72,7 +74,7 @@ describe('mcp approve_run', () => {
         });
 
         expect(result.isError).toBe(true);
-        expect(textOf(result)).toBe('Missing permission "agent:gate:approve".');
+        expect(textOf(result)).toBe('Missing permission "chamvi_agent_approve".');
         expect((await setup.store.runs.findOne(setup.runId))?.status).toBe('waiting');
         await client.close();
         await setup.engine.drain();

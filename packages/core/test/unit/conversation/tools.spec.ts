@@ -11,6 +11,7 @@ import {
     expect,
     it,
 } from 'vitest';
+import { allPermissions } from '@chamvi/access';
 import {
     Engine,
     MemoryConversationRepository,
@@ -200,7 +201,7 @@ describe('scoped memory tools', () => {
                 ctx.run.trigger.invoker = {
                     id: 'administrator',
                     kind: 'test',
-                    permissions: ['all'],
+                    permissions: allPermissions(),
                 };
                 Object.assign(ctx.run, { conversation: { scope: { identity: { ...identity, chat: 'other' } } } });
 

@@ -5,15 +5,21 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission } from '@chamvi/access';
 import type { Run } from '@chamvi/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { defineCoreHandler } from 'routup';
 import type { App, IAppEvent } from 'routup';
 import { requireAgent } from '../agents/helpers.ts';
 import type { HttpContext } from '../app/types.ts';
-import { authenticate, authorize, toInvoker } from '../auth/helpers.ts';
-import { Permission } from '../auth/constants.ts';
-import { agentPermission } from '../auth/module.ts';
+import {
+    agentResource,
+    authenticate,
+    authorize,
+    forbidden,
+    isGranted,
+    toInvoker,
+} from '../auth/helpers.ts';
 import { HTTP_CHANNEL_NAME } from '../channels/constants.ts';
 import {
     readIdempotencyHeader,
@@ -56,8 +62,17 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
 
     app.post('/agents/:name/runs', defineCoreHandler(async (event) => {
         const name = param(event, 'name');
-        const principal = await authorize(event, ctx, agentPermission(name, 'run'));
-        const subscription = requireHttpSubscription(requireAgent(ctx.agents, name));
+        const principal = await authenticate(event, ctx);
+        // read after authentication, so the check sees the agent as registered now;
+        // checked before the 404: an agent the app does not hold counts as private
+        const agent = ctx.agents.get(name);
+
+        if (!await isGranted(principal, Permission.AGENT_RUN, ctx.clock, agentResource(name, agent))) {
+            throw forbidden(Permission.AGENT_RUN);
+        }
+
+        // the agent the check saw, not a later registration under the same name
+        const subscription = requireHttpSubscription(agent ?? requireAgent(ctx.agents, name));
 
         const body = await validateBody(startContainer, await readJsonBody(event, ctx.bodyLimit));
         const idempotencyKey = body.idempotencyKey ?? readIdempotencyHeader(event.request);
@@ -83,7 +98,7 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
         const principal = await authenticate(event, ctx);
         const query = parseRunListQuery(event.searchParams, ctx.agents.names());
 
-        const agents = assertCanListRuns(principal, query.agent, ctx.agents);
+        const agents = await assertCanListRuns(ctx, principal, query.agent);
         const {
             parent,
             waiting,
@@ -141,9 +156,14 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
     }));
 
     app.post('/runs/:id/cancel', defineCoreHandler(async (event) => {
-        await authorize(event, ctx, Permission.RUN_CANCEL);
-
+        const principal = await authorize(event, ctx, Permission.RUN_CANCEL);
         const id = param(event, 'id');
+        const target = await ctx.store.runs.findOne(id);
+
+        // a missing run is the engine's 404
+        if (target && !await isGranted(principal, Permission.RUN_CANCEL, ctx.clock, { agent: target.agent })) {
+            throw forbidden(Permission.RUN_CANCEL);
+        }
 
         await ctx.engine.cancel(id);
 

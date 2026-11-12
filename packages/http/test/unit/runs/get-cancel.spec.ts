@@ -6,11 +6,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission } from '@chamvi/access';
 import {
     ADMIN_TOKEN,
     READER_TOKEN,
     call,
     createRunTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 
@@ -46,21 +48,21 @@ describe('GET /runs/:id', () => {
         expect((await call(app, 'GET', '/runs/missing', { token: ADMIN_TOKEN })).status).toBe(404);
     });
 
-    it('lets agent:<agent>:run read that agent\'s runs only', async () => {
+    it('lets chamvi_agent_run read that agent\'s runs only', async () => {
         const { app } = createRunTestApp();
         const echo = await start(app, 'echo');
         const gate = await start(app, 'gate');
-        const token = tokenFor('agent:echo:run');
+        const token = tokenFor(restricted(Permission.AGENT_RUN, { name: 'echo' }));
 
         expect((await call(app, 'GET', `/runs/${echo}`, { token })).status).toBe(200);
 
         const denied = await call(app, 'GET', `/runs/${gate}`, { token });
 
         expect(denied.status).toBe(403);
-        expect((await denied.json()).message).toBe('Missing permission "run:read".');
+        expect((await denied.json()).message).toBe('Missing permission "chamvi_run_read".');
     });
 
-    it('lets run:read read every run and nothing else read any', async () => {
+    it('lets chamvi_run_read read every run and nothing else read any', async () => {
         const { app } = createRunTestApp();
         const echo = await start(app, 'echo');
         const gate = await start(app, 'gate');
@@ -93,10 +95,22 @@ describe('POST /runs/:id/cancel', () => {
         expect((await call(app, 'POST', '/runs/missing/cancel', { token: ADMIN_TOKEN })).status).toBe(404);
     });
 
-    it('needs run:cancel', async () => {
+    it('needs chamvi_run_cancel', async () => {
         const { app } = createRunTestApp();
         const runId = await start(app, 'echo');
 
         expect((await call(app, 'POST', `/runs/${runId}/cancel`, { token: READER_TOKEN })).status).toBe(403);
+    });
+
+    it('cancels only the runs of the agent a restricted cancel grant names', async () => {
+        const { app } = createRunTestApp();
+        const echo = await start(app, 'echo');
+        const gate = await start(app, 'gate');
+        const token = tokenFor(restricted(Permission.RUN_CANCEL, { agent: 'gate' }));
+        const refused = await call(app, 'POST', `/runs/${echo}/cancel`, { token });
+
+        expect(refused.status).toBe(403);
+        expect((await refused.json()).message).toBe('Missing permission "chamvi_run_cancel".');
+        expect((await call(app, 'POST', `/runs/${gate}/cancel`, { token })).status).toBe(202);
     });
 });

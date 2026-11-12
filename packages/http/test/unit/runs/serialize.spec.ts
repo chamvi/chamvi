@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission, allPermissions } from '@chamvi/access';
 import type { Run, Step } from '@chamvi/core';
 import { serializeRun, serializeStep } from '../../../src/runs/helpers.ts';
 
@@ -90,7 +91,7 @@ describe('serializeRun', () => {
                     id: 'u1',
                     kind: 'authup',
                     name: 'alice',
-                    permissions: ['*'],
+                    permissions: allPermissions(),
                 },
                 receivedAt: now,
             },
@@ -105,7 +106,7 @@ describe('serializeRun', () => {
             kind: 'authup',
             name: 'alice',
         });
-        expect(run.trigger.invoker?.permissions).toEqual(['*']);
+        expect(run.trigger.invoker?.permissions).toEqual(allPermissions());
     });
 });
 
@@ -129,7 +130,7 @@ describe('serializeStep', () => {
                 approver: {
                     id: 'u1',
                     kind: 'token',
-                    permissions: ['agent:gate:approve'],
+                    permissions: [{ permission: { name: Permission.AGENT_APPROVE } }],
                 },
             },
         };
@@ -139,7 +140,10 @@ describe('serializeStep', () => {
             approved: true,
             approver: { id: 'u1', kind: 'token' },
         });
-        expect((step.output as { approver: { permissions: string[] } }).approver.permissions).toEqual(['agent:gate:approve']);
+
+        const { approver } = step.output as { approver: { permissions: unknown[] } };
+
+        expect(approver.permissions).toEqual([{ permission: { name: Permission.AGENT_APPROVE } }]);
     });
 
     it('leaves other steps and a wait step without approver as they are', () => {
@@ -150,7 +154,7 @@ describe('serializeStep', () => {
         const toolStep: Step = {
             ...base,
             kind: 'tool',
-            output: { approver: { permissions: ['x'] } },
+            output: { approver: { permissions: [{ permission: { name: 'x' } }] } },
         };
 
         expect(serializeStep(toolStep)).toBe(toolStep);

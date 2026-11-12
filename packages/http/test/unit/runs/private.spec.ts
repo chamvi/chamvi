@@ -6,6 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { Permission } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
 import type { IStore } from '@chamvi/core';
 import { http } from '@chamvi/http';
@@ -14,12 +15,13 @@ import {
     READER_TOKEN,
     call,
     createTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
 
-const OWNER_TOKEN = tokenFor('agent:alfred:read');
-const RUNNER_TOKEN = tokenFor('agent:alfred:run');
+const OWNER_TOKEN = tokenFor(restricted(Permission.AGENT_READ, { name: 'alfred' }));
+const RUNNER_TOKEN = tokenFor(restricted(Permission.AGENT_RUN, { name: 'alfred' }));
 
 /** A private `alfred` and a public `bob`, each with one completed run (alfred's with one attachment). */
 async function setup() {
@@ -93,7 +95,7 @@ async function insertGhostRun(store: IStore): Promise<string> {
 }
 
 describe('private agents: single-run routes', () => {
-    it('answers GET /runs/:id with 404 without agent:<name>:read', async () => {
+    it('answers GET /runs/:id with 404 without chamvi_agent_read', async () => {
         const ctx = await setup();
         const path = `/runs/${ctx.alfred}`;
 
@@ -157,7 +159,7 @@ describe('private agents: single-run routes', () => {
 
         expect((await call(ctx.app, 'GET', `/runs/${ghost}`, { token: READER_TOKEN })).status).toBe(404);
         expect((await call(ctx.app, 'GET', `/runs/${ghost}`, { token: ADMIN_TOKEN })).status).toBe(200);
-        expect((await call(ctx.app, 'GET', `/runs/${ghost}`, { token: tokenFor('agent:ghost:read') })).status).toBe(200);
+        expect((await call(ctx.app, 'GET', `/runs/${ghost}`, { token: tokenFor(restricted(Permission.AGENT_READ, { name: 'ghost' })) })).status).toBe(200);
         await ctx.engine.drain();
     });
 });
@@ -165,7 +167,7 @@ describe('private agents: single-run routes', () => {
 describe('private agents: GET /runs', () => {
     type ListBody = { data: Array<{ id: string; agent: string }>; meta: { total: number } };
 
-    it('lists only the runs a run:read principal may read, with an exact total', async () => {
+    it('lists only the runs a chamvi_run_read principal may read, with an exact total', async () => {
         const ctx = await setup();
 
         await insertGhostRun(ctx.store);
@@ -177,7 +179,7 @@ describe('private agents: GET /runs', () => {
         await ctx.engine.drain();
     });
 
-    it('lists every run for a principal holding agent:*:read', async () => {
+    it('lists every run for a principal holding an unrestricted chamvi_agent_read', async () => {
         const ctx = await setup();
 
         await insertGhostRun(ctx.store);
@@ -187,15 +189,15 @@ describe('private agents: GET /runs', () => {
         expect(admin.data.map((run) => run.agent).sort()).toEqual(['alfred', 'bob', 'ghost']);
         expect(admin.meta.total).toBe(3);
 
-        const wide = await (await call(ctx.app, 'GET', '/runs', { token: tokenFor('agent:*:read') })).json() as ListBody;
+        const wide = await (await call(ctx.app, 'GET', '/runs', { token: tokenFor(Permission.AGENT_READ) })).json() as ListBody;
 
         expect(wide.meta.total).toBe(3);
         await ctx.engine.drain();
     });
 
-    it('reads every run it lists for a principal holding agent:*:read', async () => {
+    it('reads every run it lists for a principal holding an unrestricted chamvi_agent_read', async () => {
         const ctx = await setup();
-        const token = tokenFor('agent:*:read');
+        const token = tokenFor(Permission.AGENT_READ);
 
         for (const id of [ctx.alfred, ctx.bob]) {
             expect((await call(ctx.app, 'GET', `/runs/${id}`, { token })).status).toBe(200);
@@ -207,7 +209,7 @@ describe('private agents: GET /runs', () => {
 
     it('reads and lists a public agent\'s runs with that agent\'s read grant alone', async () => {
         const ctx = await setup();
-        const token = tokenFor('agent:bob:read');
+        const token = tokenFor(restricted(Permission.AGENT_READ, { name: 'bob' }));
 
         expect((await call(ctx.app, 'GET', `/runs/${ctx.bob}`, { token })).status).toBe(200);
         expect((await call(ctx.app, 'GET', `/runs/${ctx.alfred}`, { token })).status).toBe(404);
@@ -218,9 +220,9 @@ describe('private agents: GET /runs', () => {
         await ctx.engine.drain();
     });
 
-    it('adds the private agents a run:read principal holds the read grant of', async () => {
+    it('adds the private agents a chamvi_run_read principal holds the read grant of', async () => {
         const ctx = await setup();
-        const token = tokenFor('run:read', 'agent:alfred:read');
+        const token = tokenFor(Permission.RUN_READ, restricted(Permission.AGENT_READ, { name: 'alfred' }));
         const body = await (await call(ctx.app, 'GET', '/runs', { token })).json() as ListBody;
 
         expect(body.data.map((run) => run.agent).sort()).toEqual(['alfred', 'bob']);
@@ -228,21 +230,22 @@ describe('private agents: GET /runs', () => {
         await ctx.engine.drain();
     });
 
-    it('lists the runs of an agent the app does not hold for a run:read principal with its read grant', async () => {
+    it('lists the runs of an agent the app does not hold only for an unrestricted read grant', async () => {
         const ctx = await setup();
         const ghost = await insertGhostRun(ctx.store);
+        const named = tokenFor(Permission.RUN_READ, restricted(Permission.AGENT_READ, { name: 'ghost' }));
+        const body = await (await call(ctx.app, 'GET', '/runs', { token: named })).json() as ListBody;
 
-        for (const token of [tokenFor('run:read', 'agent:ghost:read'), tokenFor('run:read', 'agent:ghost:*')]) {
-            const body = await (await call(ctx.app, 'GET', '/runs', { token })).json() as ListBody;
+        // a policy cannot name agents the app does not hold, so the listing covers registered agents
+        expect(body.data.map((run) => run.agent)).toEqual(['bob']);
+        expect(body.meta.total).toBe(1);
+        // the single read and the filtered listing still follow the grant
+        expect((await call(ctx.app, 'GET', `/runs/${ghost}`, { token: named })).status).toBe(200);
+        expect((await call(ctx.app, 'GET', '/runs?filter[agent]=ghost', { token: named })).status).toBe(200);
 
-            expect(body.data.map((run) => run.id)).toContain(ghost);
-            expect(body.data.map((run) => run.agent).sort()).toEqual(['bob', 'ghost']);
-            expect(body.meta.total).toBe(2);
-        }
+        const wide = await (await call(ctx.app, 'GET', '/runs', { token: tokenFor(Permission.AGENT_READ) })).json() as ListBody;
 
-        const plain = await (await call(ctx.app, 'GET', '/runs', { token: READER_TOKEN })).json() as ListBody;
-
-        expect(plain.data.map((run) => run.agent)).toEqual(['bob']);
+        expect(wide.data.map((run) => run.id)).toContain(ghost);
         await ctx.engine.drain();
     });
 
@@ -253,7 +256,7 @@ describe('private agents: GET /runs', () => {
             const denied = await call(ctx.app, 'GET', '/runs?filter[agent]=alfred', { token });
 
             expect(denied.status).toBe(403);
-            expect((await denied.json()).message).toBe('Reading runs of agent "alfred" needs agent:alfred:read.');
+            expect((await denied.json()).message).toBe('Reading runs of agent "alfred" needs chamvi_agent_read.');
         }
 
         const owned = await call(ctx.app, 'GET', '/runs?filter[agent]=alfred', { token: OWNER_TOKEN });

@@ -7,7 +7,7 @@
 
 import type { ToolExecutionOptions, ToolSet } from 'ai';
 import { isObject } from 'smob';
-import { ToolNotAllowedError } from '../errors/index.ts';
+import { FatalToolError, ToolNotAllowedError } from '../errors/index.ts';
 import type { IEffectRepository } from '../repository/types.ts';
 import type { ToolContext, ToolTrust } from '../tool/types.ts';
 import { hasToolContext } from '../tool/helpers.ts';
@@ -16,7 +16,7 @@ import { assertTrust, gateOutbound, markUntrusted } from '../trust/module.ts';
 import { SUSPENDED_RESULT } from '../approval/constants.ts';
 import { SuspendSignal } from '../approval/request.ts';
 import { EFFECT, EFFECT_HOOKS } from './constants.ts';
-import { currentToolCall, runToolCall } from './frame.ts';
+import { assertExecutionActive, currentToolCall, runToolCall } from './frame.ts';
 import { stableHash, validateToolInput } from './helpers.ts';
 import type { EffectHooks, ToolCallFrame, WrapToolsOptions } from './types.ts';
 
@@ -189,10 +189,44 @@ export function wrapToolsForRun(
 
             return result;
         };
-        const check = () => {
-            if (allow && !allow(name)) {
+        const failedPolicy = (error: unknown) => new FatalToolError(`The tool policy failed for "${name}": ${Error.isError(error) ? error.message : String(error)}`);
+        // The run can end while an asynchronous policy is awaited: nothing executes afterwards.
+        const verdict = (allowed: boolean, awaited: boolean) => {
+            if (awaited) {
+                assertExecutionActive(ended?.() === true || ctx.run.signal.aborted, ctx.run.runId, `The tool "${name}"`);
+            }
+
+            if (!allowed) {
                 throw new ToolNotAllowedError(name);
             }
+        };
+        // A synchronous policy is answered synchronously (undefined), so a
+        // tool without hooks keeps returning its result, streamed or not, as is.
+        const check = (): Promise<void> | undefined => {
+            if (!allow) {
+                return undefined;
+            }
+
+            let result: boolean | Promise<boolean>;
+
+            try {
+                result = allow(name);
+            } catch (error) {
+                throw failedPolicy(error);
+            }
+
+            if (isPromiseLike(result)) {
+                return Promise.resolve(result).then(
+                    (allowed) => verdict(allowed, true),
+                    (error: unknown) => {
+                        throw failedPolicy(error);
+                    },
+                );
+            }
+
+            verdict(result, false);
+
+            return undefined;
         };
         // Only a chamvi tool's own `trust` classifies it: a third-party tool stays trusted unless the
         // agent's `trust.tools` names it, whatever unrelated `trust` field it carries. A hand-built
@@ -274,18 +308,41 @@ export function wrapToolsForRun(
 
         if (!(EFFECT in def)) {
             if (!classified && !hooks.beforeToolExecution && !hooks.afterToolExecution) {
+                const passThrough = (input: unknown, callOptions: unknown) => {
+                    const result = execute.call(def, input, callOptions);
+
+                    if (isAsyncIterable(result)) {
+                        markStreaming();
+                    }
+
+                    return result;
+                };
+
                 wrapped[name] = {
                     ...def,
                     execute: (input: unknown, callOptions: unknown) => inFrame(callOptions, () => {
-                        check();
+                        const pending = check();
 
-                        const result = execute.call(def, input, callOptions);
-
-                        if (isAsyncIterable(result)) {
-                            markStreaming();
+                        if (!pending) {
+                            return passThrough(input, callOptions);
                         }
 
-                        return result;
+                        // an awaited policy: an async generator function keeps streaming
+                        if (isAsyncGeneratorFunction(execute)) {
+                            return (async function* streamed() {
+                                await pending;
+
+                                yield* passThrough(input, callOptions) as AsyncIterable<unknown>;
+                            })();
+                        }
+
+                        // a plain function is only known to stream once it ran, after
+                        // the await: its streamed result is reduced to the final value
+                        return pending.then(async () => {
+                            const result = await passThrough(input, callOptions);
+
+                            return isAsyncIterable(result) ? lastOf(result) : result;
+                        });
                     }),
                 } as ToolSet[string];
 
@@ -298,7 +355,7 @@ export function wrapToolsForRun(
                 wrapped[name] = {
                     ...def,
                     execute: (input: unknown, callOptions: unknown) => inFrame(callOptions, async function* streamed() {
-                        check();
+                        await check();
 
                         const final = await before(input, callOptions);
 
@@ -336,7 +393,7 @@ export function wrapToolsForRun(
             wrapped[name] = {
                 ...def,
                 execute: (input: unknown, callOptions: unknown) => inFrame(callOptions, async () => {
-                    check();
+                    await check();
 
                     const final = await before(input, callOptions);
                     let result: unknown = await readResult(() => execute.call(def, final, callOptions));
@@ -400,7 +457,7 @@ export function wrapToolsForRun(
         wrapped[name] = {
             ...def,
             execute: (input: unknown, callOptions: unknown) => inFrame(callOptions, async () => {
-                check();
+                await check();
 
                 const final = await before(input, callOptions);
                 const key = effectHooks?.effectKey ?
