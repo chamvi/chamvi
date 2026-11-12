@@ -354,6 +354,8 @@ async function registerRunTool(
             ...(args.idempotencyKey !== undefined ? { idempotencyKey: args.idempotencyKey } : {}),
             ...(args.address !== undefined ? { address: args.address } : {}),
             invoker: toInvoker(extra.principal),
+            // the agent checked when the tool was listed: a replacement since is a tool error
+            checked: agent,
         });
 
         const waitSeconds = Math.min(args.waitSeconds ?? 0, options.maxWaitSeconds);

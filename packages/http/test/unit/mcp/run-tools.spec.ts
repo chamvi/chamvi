@@ -393,6 +393,37 @@ describe('mcp run_<agent>', () => {
         await after.close();
     });
 
+    it('answers a tool error when the checked agent was replaced by a private one, and starts no run of it', async () => {
+        const {
+            app, 
+            engine, 
+            store, 
+        } = createRunTestApp();
+        const client = await connectMcp(app, tokenFor(restricted(Permission.AGENT_RUN, { private: false })));
+        const dispatch = engine.dispatch.bind(engine);
+
+        expect((await client.listTools()).tools.map((t) => t.name)).toContain('run_echo');
+
+        vi.spyOn(engine, 'dispatch').mockImplementationOnce(async (envelope) => {
+            await engine.putAgent(defineModelAgent({
+                name: 'echo',
+                model: textModel(),
+                instructions: 'Now private.',
+                channels: [http.on()],
+                private: true,
+            }));
+
+            return dispatch(envelope);
+        });
+
+        const result = await callTool(client, 'run_echo', { payload: { n: 1 } });
+
+        expect(result.isError).toBe(true);
+        expect(textOf(result)).toContain('was replaced');
+        expect((await store.runs.find({})).total).toBe(0);
+        await client.close();
+    });
+
     it('replaces run_<agent> when its agent is replaced', async () => {
         const { app, engine } = createRunTestApp({ agents: [...createRunAgents(), typedAgent()] });
         const first = await connectMcp(app, ADMIN_TOKEN);

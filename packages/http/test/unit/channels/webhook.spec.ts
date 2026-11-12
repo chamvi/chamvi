@@ -317,3 +317,52 @@ describe('webhook.on()', () => {
         expect(() => webhook.on(path as string)).toThrow(InvalidAgentDefinitionError);
     });
 });
+
+describe('POST /channels/webhook/:agent/<path> with an agent replaced during the request', () => {
+    it('refuses a dispatch whose checked agent was replaced by a private one, and starts no run of it', async () => {
+        let replace: (() => Promise<void>) | undefined;
+        const schema = {
+            '~standard': {
+                version: 1 as const,
+                vendor: 'test',
+                validate: async (value: unknown) => {
+                    await replace?.();
+                    replace = undefined;
+
+                    return { value };
+                },
+            },
+        };
+        const {
+            app, 
+            engine, 
+            store, 
+        } = createTestApp({
+            agents: [defineModelAgent({
+                name: 'intake',
+                model: textModel(),
+                instructions: 'Intake.',
+                channels: [webhook.on('/issues', { schema })],
+            })],
+        });
+
+        replace = async () => {
+            await engine.putAgent(defineModelAgent({
+                name: 'intake',
+                model: textModel(),
+                instructions: 'Now private.',
+                channels: [webhook.on('/issues')],
+                private: true,
+            }));
+        };
+
+        const response = await call(app, 'POST', ISSUES, {
+            token: tokenFor(restricted(Permission.AGENT_RUN, { private: false })),
+            body: { id: '1' },
+        });
+
+        expect(response.status).toBe(409);
+        expect(await response.json()).toMatchObject({ code: 'agent_replaced' });
+        expect((await store.runs.find({})).total).toBe(0);
+    });
+});

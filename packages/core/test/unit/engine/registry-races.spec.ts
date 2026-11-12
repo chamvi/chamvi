@@ -192,4 +192,59 @@ describe('registry races', () => {
         expect((await store.agentRevisions.findOne('triage'))?.hash).toBe('h2');
         expect((await store.runs.findOne(runId))?.status).toBe('queued');
     });
+
+    it('a checked run created while the marker moves is cancelled once across replicas', async () => {
+        const clock = new ControllableClock(new Date(1_000_000));
+        const store = { ...createMemoryStore({ clock }), agentRevisions: new GatedRepository() };
+        const a = createEngine(store, clock, { owner: 'a' });
+        const b = createEngine(store, clock, { owner: 'b' });
+        const old = agent('old code');
+
+        await a.putAgent(agent('old code'), { revision: 'h1' });
+        await b.putAgent(old, { revision: 'h1' });
+
+        const entered = store.agentRevisions.arm();
+        const replacing = a.putAgent(agent('new code'), { revision: 'h2' });
+
+        await entered;
+        clock.advance(1);
+
+        const { runId } = await b.dispatch({
+            agent: 'triage',
+            trigger: 'http',
+            channel: 'http',
+            payload: {},
+            checked: old,
+        });
+
+        store.agentRevisions.open();
+        await replacing;
+        expect((await store.runs.findOne(runId))?.status).toBe('queued');
+
+        await b.putAgent(agent('new code'), { revision: 'h2' });
+
+        const cancels: string[] = [];
+
+        for (const engine of [a, b]) {
+            engine.on('run.updated', (e) => {
+                if (e.run.id === runId && e.run.status === 'cancelled') {
+                    cancels.push(e.run.id);
+                }
+            });
+        }
+
+        await Promise.all([a.start(), b.start()]);
+        await Promise.all([a.idle(), b.idle()]);
+        clock.advance(20_000);
+        await Promise.all([a.idle(), b.idle()]);
+
+        const run = await store.runs.findOne(runId);
+
+        expect(run?.status).toBe('cancelled');
+        expect(run?.error?.code).toBe('agent_replaced');
+        expect(run?.output).toBeUndefined();
+        expect(cancels).toEqual([runId]);
+        a.stop();
+        b.stop();
+    });
 });

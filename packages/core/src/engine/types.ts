@@ -145,6 +145,13 @@ export type DispatchEnvelope = Omit<TriggerEnvelope, 'id' | 'receivedAt' | 'atta
     Partial<Pick<TriggerEnvelope, 'id' | 'receivedAt'>> & {
         /** Files to start the run with; stored as artifacts of the run before it is created. */
         attachments?: ArtifactInput[];
+        /**
+         * The agent object the caller's permission check saw; never stored.
+         * Another registered object for the name refuses the dispatch
+         * (AgentReplacedError) before any store write; a replacement while
+         * the run is created cancels that run (`agent_replaced`).
+         */
+        checked?: Agent;
     };
 
 /** An answer to the run's current wait point (`Engine.approve()`). */

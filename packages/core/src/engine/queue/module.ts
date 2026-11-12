@@ -147,7 +147,10 @@ export class RunQueue {
         }
 
         const { store } = this.opts;
+        const listed = this.opts.beforeList?.();
         const { data: queued } = await store.runs.find({ status: [RunStatus.QUEUED] });
+
+        listed?.(queued);
 
         if (queued.length === 0) {
             return;

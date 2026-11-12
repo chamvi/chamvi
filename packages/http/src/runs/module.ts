@@ -100,6 +100,8 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
             ...(body.address !== undefined ? { address: body.address } : {}),
             ...(body.attachments?.length ? { attachments: body.attachments } : {}),
             invoker: toInvoker(principal),
+            // the agent checked above: one being replaced right now is refused before any store write (409)
+            checked: agent,
         });
 
         event.response.status = 202;

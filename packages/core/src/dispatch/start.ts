@@ -147,7 +147,9 @@ async function start(
     }
 
     // the same check http and MCP make to start a run; a run without invoker passes
-    if (cross && run.invoker) {
+    const checked = cross && run.invoker !== undefined;
+
+    if (checked) {
         const allowed = await can(run.invoker, Permission.AGENT_RUN, {
             attributes: { name: target, private: agent.definition.private === true },
             now: host.clock.now(),
@@ -229,6 +231,8 @@ async function start(
             ...(concurrencyKey !== undefined ? { concurrencyKey } : {}),
             ...(address !== undefined ? { address } : {}),
             ...(invoker ? { invoker } : {}),
+            // the agent the invoker check saw: a replacement since is refused (AgentReplacedError)
+            ...(checked ? { checked: agent } : {}),
         }, {
             kind: 'dispatch',
             runId: run.runId,

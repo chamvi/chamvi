@@ -140,6 +140,15 @@ export class RunEntity {
     })
     claimExpiresAt!: Date | null;
 
+    /** The agent's revision when the run was created (`AgentRevisionEntity.hash`). */
+    @Column({
+        name: 'agent_revision',
+        type: 'varchar',
+        length: 128,
+        nullable: true,
+    })
+    agentRevision!: string | null;
+
     @Column({
         name: 'cancel_requested',
         type: 'boolean',

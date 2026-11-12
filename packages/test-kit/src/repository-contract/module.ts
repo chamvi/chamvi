@@ -652,6 +652,26 @@ export function describeRepositoryContract(
             }
         });
 
+        it('run agentRevision round-trips, survives updates and is absent when not set', async () => {
+            const { store } = await setup();
+            const revision = 'a'.repeat(64);
+
+            await store.runs.insert(makeRun(testUuid('stamped'), { agentRevision: revision }));
+            await store.runs.insert(makeRun(testUuid('plain')));
+
+            expect((await store.runs.findOneOrFail(testUuid('stamped'))).agentRevision).toBe(revision);
+            expect(await store.runs.findOneOrFail(testUuid('plain'))).not.toHaveProperty('agentRevision');
+
+            const updated = await store.runs.update(testUuid('stamped'), { status: RunStatus.RUNNING });
+
+            expect(updated.agentRevision).toBe(revision);
+            expect((await store.runs.findOneOrFail(testUuid('stamped'))).agentRevision).toBe(revision);
+
+            const plain = await store.runs.update(testUuid('plain'), { status: RunStatus.RUNNING });
+
+            expect(plain).not.toHaveProperty('agentRevision');
+        });
+
         it('run.address and trigger.channel round-trip', async () => {
             const { store } = await setup();
             const run = makeRun(testUuid('r1'), { address: 'owner/repo#7' });

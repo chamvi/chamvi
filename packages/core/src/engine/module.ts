@@ -45,6 +45,7 @@ import { contextKeyName, isContextKey } from '../context/helpers.ts';
 import type { ContextKey } from '../context/types.ts';
 import {
     AgentNotFoundError,
+    AgentReplacedError,
     ChamviError,
     ChannelNotFoundError,
     ErrorCode,
@@ -119,6 +120,27 @@ export class Engine implements IEngine {
 
     /** The revision each registered agent was loaded at; undefined for an agent without a revision. */
     protected readonly revisions = new Map<string, string | undefined>();
+
+    /** The `formerRevision` each agent was registered with: a run stamped with it counts as current. */
+    protected readonly formerRevisions = new Map<string, string>();
+
+    /**
+     * The agent object each checked dispatch of this engine saw, by run id
+     * (memory only, never stored): a queued run whose agent was replaced
+     * since is cancelled at admission, whatever the clock read. Removed when
+     * the run starts or is cancelled here; a failed cancel keeps it.
+     */
+    protected readonly checkedRuns = new Map<string, Agent>();
+
+    /** Cancels of queued runs stamped with a replaced revision, by run id; idle() waits for them. */
+    protected readonly staleCancels = new Map<string, Promise<void>>();
+
+    /**
+     * Agents a putAgent()/removeAgent() is replacing or removing, by the number
+     * of operations in flight: a checked dispatch for them is refused (or its
+     * run cancelled) until the registry operation finished.
+     */
+    protected readonly replacing = new Map<string, number>();
 
     /** Agents whose revision marker this engine is moving: none of their runs starts here meanwhile. */
     protected readonly syncing = new Set<string>();
@@ -281,6 +303,7 @@ export class Engine implements IEngine {
             },
             onLeaseLost: (runId) => this.loseLease(runId),
             prepareStart: () => this.prepareStart(),
+            beforeList: () => this.pruneCheckedRuns(),
         });
     }
 
@@ -303,8 +326,18 @@ export class Engine implements IEngine {
         parent?: TriggerParent,
         conversation?: ConversationBinding,
     ): Promise<{ runId: string; deduplicated: boolean }> {
-        if (!this.agents.has(envelope.agent)) {
+        // resolved once, synchronously: the agent and revision this run is created for
+        const agent = this.agents.get(envelope.agent);
+        const agentRevision = this.revisions.get(envelope.agent);
+        const { checked } = envelope;
+
+        if (!agent) {
             throw new AgentNotFoundError(envelope.agent);
+        }
+
+        // before the idempotency claim: a retry with the same key is safe
+        if (checked !== undefined && (checked !== agent || this.replacing.has(envelope.agent))) {
+            throw new AgentReplacedError(envelope.agent);
         }
 
         // Also strip forged fields from dispatch-host and internal envelope spreads.
@@ -312,6 +345,7 @@ export class Engine implements IEngine {
 
         delete safe.conversation;
         delete safe.parent;
+        delete safe.checked;
 
         const {
             attachments,
@@ -415,6 +449,11 @@ export class Engine implements IEngine {
             updatedAt: now,
         };
 
+        // a checked dispatch binds the run to the revision its check saw; unchecked runs follow the registry
+        if (checked !== undefined && agentRevision !== undefined) {
+            run.agentRevision = agentRevision;
+        }
+
         if (conversation) {
             run.conversation = structuredClone(conversation);
         }
@@ -425,11 +464,40 @@ export class Engine implements IEngine {
 
         this.emit({ type: 'run.updated', run });
 
+        if (checked !== undefined) {
+            this.checkedRuns.set(run.id, checked);
+        }
+
+        // replaced while the run was created: no startable run of the old check is left
+        if (checked !== undefined && (this.agents.get(run.agent) !== checked || this.replacing.has(run.agent))) {
+            await this.cancelReplaced(run.id, run.agent);
+        }
+
         if (this.started) {
             void this.queue.pump();
         }
 
         return { runId, deduplicated: false };
+    }
+
+    /**
+     * Cancels a run dispatch() just created for an agent object the registry
+     * no longer holds. Never throws: the run is stored, so dispatch() returns
+     * its id; a run settled meanwhile (a registry sweep) is left alone.
+     */
+    protected async cancelReplaced(runId: string, name: string): Promise<void> {
+        try {
+            await this.cancelRun(runId, agentCancelReason(name, 'replaced', this.revisions.get(name)));
+        } catch (error) {
+            if (!(error instanceof InvalidRunStateError)) {
+                // the fence stays: admission cancels the run instead of starting it
+                this.onError(error);
+
+                return;
+            }
+        }
+
+        this.checkedRuns.delete(runId);
     }
 
     protected conversationCapability(): IConversations {
@@ -689,46 +757,60 @@ export class Engine implements IEngine {
             return 'unchanged';
         }
 
-        let cancelled: string[] | undefined;
+        // a replacement of a registered agent: checked dispatches for it are refused until it is published
+        const release = registered ? this.markReplacing(name) : undefined;
 
-        if (revision !== undefined) {
-            this.syncing.add(name);
+        try {
+            let cancelled: string[] | undefined;
 
-            try {
-                if (reload) {
-                    cancelled = await syncRevision(this.registry(), name, revision, formerRevision);
-                } else {
-                    await claimRevision(this.registry(), name, revision, formerRevision);
+            if (revision !== undefined) {
+                this.syncing.add(name);
+
+                try {
+                    if (reload) {
+                        cancelled = await syncRevision(this.registry(), name, revision, formerRevision);
+                    } else {
+                        await claimRevision(this.registry(), name, revision, formerRevision);
+                    }
+                } finally {
+                    this.syncing.delete(name);
                 }
-            } finally {
-                this.syncing.delete(name);
+            } else if (registered && reload) {
+                cancelled = await cancelAgentRuns(this.registry(), name, agentCancelReason(name, 'replaced'), this.clock.now());
             }
-        } else if (registered && reload) {
-            cancelled = await cancelAgentRuns(this.registry(), name, agentCancelReason(name, 'replaced'), this.clock.now());
-        }
 
-        if (cancelled) {
+            if (cancelled) {
+                this.emit({
+                    type: 'agents.cancelled',
+                    name,
+                    reason: 'agent_replaced',
+                    ...(revision !== undefined && { revision }),
+                    runIds: cancelled,
+                });
+            }
+
+            // Finish a registry operation already started, keeping its marker and local publication consistent.
+            const kind = this.agents.has(name) ? 'replaced' : 'added';
+
+            this.agents.set(name, agent);
+            this.revisions.set(name, revision);
+
+            if (formerRevision !== undefined) {
+                this.formerRevisions.set(name, formerRevision);
+            } else {
+                this.formerRevisions.delete(name);
+            }
+
             this.emit({
-                type: 'agents.cancelled',
+                type: 'agents.changed',
                 name,
-                reason: 'agent_replaced',
-                ...(revision !== undefined && { revision }),
-                runIds: cancelled,
+                kind,
             });
+
+            return kind;
+        } finally {
+            release?.();
         }
-
-        // Finish a registry operation already started, keeping its marker and local publication consistent.
-        const kind = this.agents.has(name) ? 'replaced' : 'added';
-
-        this.agents.set(name, agent);
-        this.revisions.set(name, revision);
-        this.emit({
-            type: 'agents.changed',
-            name,
-            kind,
-        });
-
-        return kind;
     }
 
     /**
@@ -741,12 +823,24 @@ export class Engine implements IEngine {
      * registered here are cancelled. Resolves whether it was registered here.
      */
     async removeAgent(name: string): Promise<boolean> {
+        const release = this.markReplacing(name);
+
+        try {
+            return await this.dropAgent(name);
+        } finally {
+            release();
+        }
+    }
+
+    /** removeAgent()'s body, while the name is marked as being replaced. */
+    protected async dropAgent(name: string): Promise<boolean> {
         const registered = this.agents.has(name);
 
         if (registered) {
             this.removals.set(name, this.revisions.get(name));
             this.agents.delete(name);
             this.revisions.delete(name);
+            this.formerRevisions.delete(name);
             this.emit({
                 type: 'agents.changed',
                 name,
@@ -772,6 +866,21 @@ export class Engine implements IEngine {
         }
 
         return registered;
+    }
+
+    /** Marks `name` as being replaced or removed; the returned function clears this mark. */
+    protected markReplacing(name: string): () => void {
+        this.replacing.set(name, (this.replacing.get(name) ?? 0) + 1);
+
+        return () => {
+            const count = (this.replacing.get(name) ?? 1) - 1;
+
+            if (count > 0) {
+                this.replacing.set(name, count);
+            } else {
+                this.replacing.delete(name);
+            }
+        };
     }
 
     getRun(id: string): Promise<Run | undefined> {
@@ -1099,8 +1208,8 @@ export class Engine implements IEngine {
         await this.queue.idle();
         await this.conversations?.idle();
 
-        while (this.deliveries.size > 0) {
-            await Promise.all(this.deliveries);
+        while (this.deliveries.size > 0 || this.staleCancels.size > 0) {
+            await Promise.all([...this.deliveries, ...this.staleCancels.values()]);
             await this.queue.idle();
         }
     }
@@ -1200,6 +1309,7 @@ export class Engine implements IEngine {
             { expectStatus },
         );
 
+        this.checkedRuns.delete(runId);
         this.emit({ type: 'run.updated', run: updated });
         await this.reconcileConversation(updated);
         await onRunSettled(this.dispatchContext(), updated);
@@ -1633,7 +1743,10 @@ export class Engine implements IEngine {
         const agent = this.agents.get(run.agent);
         const skills = agent ? this.skills.get(agent) : undefined;
 
-        if (!agent || !skills || !await this.isCurrent(run.agent)) {
+        // a stamped run starts only where the agent has a revision (isStale below compares it)
+        const unrevised = run.agentRevision !== undefined && this.revisions.get(run.agent) === undefined;
+
+        if (!agent || !skills || unrevised || !await this.isCurrent(run.agent)) {
             // removed or replaced since the claim: left for a replica that runs the agent's current revision
             // guarded by status and owner (`expectStatus: [RUNNING]`, `expectOwner`): a taken-over run is left alone
             const released = await this.ownedUpdate(run.id, {
@@ -1648,6 +1761,22 @@ export class Engine implements IEngine {
 
             return;
         }
+
+        // current at the marker's revision, but the run's checked dispatch saw another agent or revision
+        const revision = this.revisions.get(run.agent);
+
+        if (this.replacedSince(run) || (revision !== undefined && this.isStale(run, revision))) {
+            await this.finish(run.id, {
+                status: RunStatus.CANCELLED,
+                error: agentCancelReason(run.agent, 'replaced', revision),
+            });
+            this.checkedRuns.delete(run.id);
+
+            return;
+        }
+
+        // started on the agent its check saw
+        this.checkedRuns.delete(run.id);
 
         if (agent.kind === 'simple') {
             // a simple agent takes no conversation, so it skips admission
@@ -1772,8 +1901,96 @@ export class Engine implements IEngine {
 
             const revision = this.revisions.get(run.agent);
 
-            return revision === undefined || revision === markers.get(run.agent);
+            if (this.replacedSince(run)) {
+                this.cancelStale(run, revision);
+
+                return false;
+            }
+
+            // a stamped run is left for a replica that holds the agent at a revision
+            if (revision === undefined) {
+                return run.agentRevision === undefined;
+            }
+
+            if (revision !== markers.get(run.agent)) {
+                return false;
+            }
+
+            if (this.isStale(run, revision)) {
+                this.cancelStale(run, revision);
+
+                return false;
+            }
+
+            return true;
         };
+    }
+
+    /**
+     * Prunes the checked-run fence against a pass's listing of queued runs.
+     * Only entries present before the listing started are pruned: their runs
+     * were inserted before it, so a run missing from it is no longer queued
+     * (running elsewhere, waiting or settled). An entry added meanwhile (a
+     * dispatch the listing may not have seen) is kept for the next pass.
+     */
+    protected pruneCheckedRuns(): (queued: readonly Run[]) => void {
+        const before = Array.from(this.checkedRuns.keys());
+
+        return (queued) => {
+            const ids = new Set(queued.map((run) => run.id));
+
+            for (const id of before) {
+                if (!ids.has(id)) {
+                    this.checkedRuns.delete(id);
+                }
+            }
+        };
+    }
+
+    /** Whether a checked dispatch of this engine saw another agent object than the one registered now. */
+    protected replacedSince(run: Run): boolean {
+        const checked = this.checkedRuns.get(run.id);
+
+        return checked !== undefined && checked !== this.agents.get(run.agent);
+    }
+
+    /**
+     * Whether a run's stamp (a checked dispatch's revision) is neither the
+     * revision this engine holds at the marker's hash nor the agent's former
+     * revision. An unstamped run is never stale.
+     */
+    protected isStale(run: Run, revision: string): boolean {
+        return run.agentRevision !== undefined &&
+            run.agentRevision !== revision &&
+            run.agentRevision !== this.formerRevisions.get(run.agent);
+    }
+
+    /** Cancels a queued stale run once per engine; a run settled or started meanwhile is left to the cancel's rules. */
+    protected cancelStale(run: Run, revision: string | undefined): void {
+        if (this.staleCancels.has(run.id)) {
+            return;
+        }
+
+        const pending = this.cancelRun(run.id, agentCancelReason(run.agent, 'replaced', revision))
+            .then(() => {
+                this.checkedRuns.delete(run.id);
+            })
+            .catch((error: unknown) => {
+                // settled meanwhile (another replica cancelled it first)
+                if (error instanceof InvalidRunStateError) {
+                    this.checkedRuns.delete(run.id);
+
+                    return;
+                }
+
+                // the fence stays: the next pass tries again
+                this.onError(error, run);
+            })
+            .finally(() => {
+                this.staleCancels.delete(run.id);
+            });
+
+        this.staleCancels.set(run.id, pending);
     }
 
     /** Whether the registered agent has no revision or is loaded at the stored marker's hash. */
