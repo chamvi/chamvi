@@ -45,7 +45,7 @@ type TriggerEnvelope = {
     concurrencyKey?: string;
     address?: string;        // where the run came from on that channel (an issue, a thread, a caller); also Run.address
     attachments?: Artifact[];
-    invoker?: Invoker;       // { id, kind, name?, permissions, identity? }, from an authenticator only
+    invoker?: Invoker;       // { id, kind, name?, bindings, authorization?, identity? }, from an authenticator only
     parent?: TriggerParent;  // { kind: 'dispatch', runId, agent, role, depth }: set only by dispatch()/dispatchTo(), dropped from any engine.dispatch()
     receivedAt: Date;        // defaults to now
 };
