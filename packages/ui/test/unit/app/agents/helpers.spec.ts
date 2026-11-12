@@ -28,7 +28,7 @@ import {
 } from '../../../../app/agents/helpers.ts';
 import type { AgentWire, ScheduleWire } from '@chamvi/ui-kit';
 import { withoutIteratorHelpers } from '../../../utils/iterator.ts';
-import { ALL, grant } from '../../../utils/permissions.ts';
+import { ALL, authorized, grant } from '../../../utils/permissions.ts';
 import { wireRun } from '../../../utils/runs.ts';
 
 const NOW = Date.parse('2026-10-21T12:00:00.000Z');
@@ -238,6 +238,14 @@ describe('agent helpers', () => {
         expect(await canStartAgent(triage, { bindings: [grant(Permission.AGENT_RUN, { private: false })] })).toBe(true);
         expect(await canStartAgent(agent(), { bindings: ALL })).toBe(false);
         expect(await canStartAgent(triage, undefined)).toBe(false);
+    });
+
+    it('canStartAgent reads an authorization snapshot', async () => {
+        const triage = agent({ channels: [{ channel: 'http', id: 'http' }] });
+
+        expect(await canStartAgent(triage, authorized(grant(Permission.AGENT_RUN, { name: 'triage' })))).toBe(true);
+        expect(await canStartAgent(triage, authorized(grant(Permission.AGENT_RUN, { name: 'other' })))).toBe(false);
+        expect(await canStartAgent(triage, authorized(grant(Permission.AGENT_READ)))).toBe(false);
     });
 
     it('hasHttpSubscription', () => {

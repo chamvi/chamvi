@@ -31,7 +31,7 @@ import { install } from '../../../src/module.ts';
 import AppShell from '../../../src/shell/AppShell.vue';
 import { fakeClient } from '../../utils/client.ts';
 import { json } from '../../utils/fetch.ts';
-import { ALL, grant } from '../../utils/permissions.ts';
+import { ALL, authorized, grant } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
 
 const MAIL_PAGE = {
@@ -56,6 +56,7 @@ const CONFIG: UiConfig = {
 
 type World = {
     bindings: PermissionBinding[];
+    principal?: Partial<MeWire>;
     connections?: ConnectionWire[];
     pages?: unknown[];
     current?: string;
@@ -99,6 +100,7 @@ async function mountShell(world: World): Promise<HTMLElement> {
         id: 'peter',
         kind: 'token',
         bindings: world.bindings,
+        ...world.principal,
     };
     const session = { principal: shallowRef(principal), signOut: world.signOut ?? (async () => undefined) };
     const app = createApp(defineComponent(() => () => h(AppShell, {
@@ -176,6 +178,34 @@ describe('AppShell', () => {
 
     it('does not take a connection read grant for chamvi_connection_create', async () => {
         expect(pageLink(await mountShell({ bindings: [grant(Permission.CONNECTION_READ)] }))).toBeNull();
+    });
+
+    it('gates a page item with the grants of an authorization snapshot', async () => {
+        const connections: ConnectionWire[] = [{
+            name: 'mail-work',
+            type: 'mail',
+            status: 'disconnected',
+        }];
+
+        const reader = await mountShell({
+            bindings: [],
+            principal: { kind: 'authup', ...authorized(grant(Permission.CONNECTION_READ, { name: 'mail-work' })) },
+            connections,
+        });
+
+        expect(pageLink(reader)).not.toBeNull();
+        expect(reader.querySelector('.who-sub')?.textContent?.trim()).toBe('authup · 1 grant');
+    });
+
+    it('shows a snapshot creator restricted by type only the page of that type', async () => {
+        const root = await mountShell({
+            bindings: [],
+            principal: { kind: 'authup', ...authorized(grant(Permission.CONNECTION_CREATE, { type: 'calendar' })) },
+            pages: [MAIL_PAGE, CALENDAR_PAGE],
+        });
+
+        expect(pageLink(root)).toBeNull();
+        expect(root.querySelector('a[data-page="tool-calendar"]')).not.toBeNull();
     });
 
     it('counts the distinct permission names the principal holds', async () => {
