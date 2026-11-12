@@ -68,7 +68,7 @@ When Renovate opens a pull request, an agent reads the changelog of the bumped p
 - **Agent composition:** remote agents over A2A, UI overrides and agent uploads. [Dispatch](/guide/dispatch) between the agents of one app, with durable waits, is implemented.
 - **Context and safety:** compaction, prompt-cache controls, deferred tools, central approval policies, automatic permission classification and untrusted-content isolation. Conversation memory, scoped instructions and skills are foundations, not completion of these plans.
 - **Observability:** OpenTelemetry tracing and replay-based evals.
-- **Follow-ups to merged work:** race-free confinement for repository instruction reads ([#92](https://github.com/chamvi/chamvi/issues/92)), replacing the temporary skills SDK fork ([#97](https://github.com/chamvi/chamvi/issues/97)), and tool-accessible conversation reset/deletion ([#98](https://github.com/chamvi/chamvi/issues/98)).
+- **Follow-ups to merged work:** race-free confinement for repository instruction reads ([#92](https://github.com/chamvi/chamvi/issues/92)) and tool-accessible conversation reset/deletion ([#98](https://github.com/chamvi/chamvi/issues/98)).
 
 See [open issues](https://github.com/chamvi/chamvi/issues) for current tracking. An open issue may lag a merged implementation; code and merged PRs distinguish delivered scope from remaining follow-ups.
 

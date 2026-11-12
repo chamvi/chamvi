@@ -1,41 +1,48 @@
 # Vercel Skills SDK reference
 
-Source baseline: [vercel-labs/skills](https://github.com/vercel-labs/skills/tree/92a9a34ac3bf88e695e468b90c7bf32f163d32c8) at `92a9a34ac3bf88e695e468b90c7bf32f163d32c8` (package `skills`, version `1.7.4`). Temporary headless fork: [tada5hi/skills-cli](https://github.com/tada5hi/skills-cli), merged into `main`, inspected SDK root API at `6c80a94543b91a27df7445f40dfea7a61e0a5e9f`. `@chamvi/skills` owns the exact production Git dependency at this full reviewed commit. The fork ships generated `dist` for Git installs with scripts disabled; maintainers regenerate it with `sdk:build`, avoiding npm Git dependency build/prepare lifecycle behavior. Chamvi generated `dist` stays untracked.
+Source baseline: the npm package [`skills`](https://github.com/vercel-labs/skills) 1.8.1 (`vercel-labs/skills`, API reference `docs/api.md`, public types `dist/index.d.mts`). `@chamvi/skills` depends on `skills@^1.8.1`; nothing else in chamvi does. Import from `skills` only (its single entry point), never the CLI.
 
-The fork exposes existing implementations through `src/index.ts`, built as root `dist/index.mjs` plus `dist/index.d.mts`. Import from `skills`, never `skills/api` or the CLI entry. The root exposes the existing source, Git, discovery, frontmatter, installation/listing, agent, plugin and provider APIs and their types. CLI handlers and telemetry remain internal. The distinct installer/provider remote types are exported as `RemoteSkill` and `ProviderRemoteSkill`. Chamvi consumes these six functions:
-
-| Upstream source and function | Chamvi owner and use |
+| Upstream function | Chamvi owner and use |
 |---|---|
-| `src/source-parser.ts`: `parseSource` | Optional `@chamvi/skills` source preparation, parse operator-provided sources. |
-| `src/git.ts`: `cloneRepo` | Optional `@chamvi/skills` preparation, clone the requested source revision and verify the exact commit. |
-| `src/git.ts`: `cleanupTempDir` | Optional `@chamvi/skills` preparation, clean temporary checkouts on success and failure. |
-| `src/skills.ts`: `discoverSkills` | Optional `@chamvi/skills` preparation, discover source bundles. |
-| `src/skills.ts`: `filterSkills` | Optional `@chamvi/skills` preparation, select explicit role names, with Chamvi checking missing/duplicate selections. |
-| `src/installer.ts`: `installSkillForAgent` | Optional `@chamvi/skills` preparation, copy into caller-supplied staging using explicit `cwd`, `global: false`, `mode: 'copy'`; inspect every result. |
+| `resolveSource(source, { ref, includeInternal, signal })` | `packages/skills/src/prepare/module.ts`: clone the pinned commit once and list its skills (`handle.skills`, each with `name`, `path`, optional `duplicates`); `handle.dispose()` removes the temporary clone in `finally`. |
+| `installSkills(handle, { cwd, skills: [name], ... })` | `prepare/module.ts`: copy one selected skill into sibling staging, then inspect `installed`, `failed` and `skipped`. |
+| `isDiagnostic(error, ...codes)` | `prepare/helpers.ts` `toPreparationError()`: classify a thrown SDK diagnostic by its permanent `code`. |
 
-The optional package owns the dependency and source/install adapter. Its public options/results must be Chamvi-owned shapes, with no upstream SDK type aliases or re-exports. Application consumers configure sources, independent reviewed pins and role selection through Chamvi; they do not import the SDK or configure fork/backend details. No SDK dependency or SDK-specific Node engine bump belongs in `@chamvi/app`. The fork's own minimum is Node >=22.20; Chamvi now requires Node >=24.3.0 across all packages.
+## Options chamvi passes
 
-Upstream installation excludes some files and can dereference source links, including unsafe nested aliases. Before any SDK discovery or copy, the adapter verifies cloned HEAD and inspects `git ls-tree -r -z HEAD`, rejecting every tracked symlink (mode `120000`) across the complete source, including unrelated/unselected paths. Git inspection failure rejects preparation. This conservative source policy prevents static link escapes through both discovery containers and nested installer aliases without duplicating SDK logic. It is not runtime approval or a substitute for Chamvi validation. Preparation must preserve the reviewed selected bytes, verify independent source/bundle pins before replacing assets and clean staging on failure. The adapter supplies the per-discovery `onWarning` no-op, because upstream YAML diagnostics can include private source snippets; CLI callers retain their normal warnings. Supplied warning handlers run outside YAML error handling, and their failures propagate unchanged through nested discovery; they are not mislabeled as parser errors or silently omitted skills. Never approve a newly computed digest during application startup. Importing or loading skills must not invoke the CLI, change process cwd, prompt or execute skill scripts.
+- `ref: revision` and the check `handle.source.commit === revision`: a git source is cloned at the pin and the checked-out commit is verified without running git. An absent `commit` is refused. A HEAD that moved past the pin does not matter.
+- No `fullDepth`: discovery reads upstream's standard locations (the repository root, `skills/` with `.curated`, `.experimental`, `.system`, the agent project skill folders and plugin paths) and the whole tree only when those hold nothing. A vendored copy or a submodule declaring a selected name in a deep folder is then no duplicate; a skill that exists only deep in a source with standard-location skills is not found. `installSkills` given a handle reuses the handle's discovery, so it takes no discovery option. `includeInternal: true`: the operator selects names explicitly, so `metadata.internal` skills are selectable.
+- Submodules: upstream runs `git submodule update --init --recursive --depth 1` after every clone (pinned by the superproject's gitlinks; a failure only prints a `console.warn`). Their content is discovered only through the whole-tree fallback.
+- Selection: each requested name must match exactly one `handle.skills` entry with no `duplicates`; otherwise `invalid()`.
+- Install: `agents: ['universal']` and `mode: 'copy'` (a plain `<stage>/.agents/skills/<name>` copy, no agent links), `lockfile: false`, `telemetry: false`, `duplicates: 'error'`, `symlinks: 'reject'`, one name per call. Accepted only with `failed` and `skipped` empty and exactly one `installed` entry whose path is `join(stage, '.agents', 'skills', name)` and a real directory.
+- No `onWarning`: upstream then drops its warning diagnostics, whose `data.path` can hold temp paths.
+- YAML warnings: upstream parses frontmatter with `yaml`'s default log level, so an unresolved tag reaches `process.emitWarning` as a `YAMLWarning` quoting the source text, which `onWarning` does not cover. `withoutYamlWarnings()` (`prepare/helpers.ts`) drops only warnings named `YAMLWarning` while an SDK call runs; overlapping preparations share the filter and the last one restores `process.emitWarning`.
+- `signal` goes to both calls.
+
+## What chamvi adds
+
+- **Local paths**: upstream refuses `ref` for a local path, so the adapter recognises a local path itself and passes `pathToFileURL(resolve(path)).href`, which upstream clones and pins like any git URL (working-tree edits excluded).
+- **Pre-checks before any fetch** (non-local sources only): a `#` fragment and a `/tree/` path (GitHub `/tree/<ref>`, GitLab `/-/tree/<ref>`; upstream would let `ref` override them), the `owner/repo@skill` or `owner/repo@version` shorthand, also behind `github:`/`gitlab:` (an scp-style `git@host:owner/repo.git` stays valid), and every `<transport>::` remote helper (`ext::`, `fd::`) are refused. After resolve, `handle.source.type` must be `git`, `github` or `gitlab`.
+- **Cancellation**: upstream checks `signal` between steps but does not interrupt a running clone. The adapter awaits the SDK call to settlement and disposes the handle before rejecting with `signal.reason`; stop can therefore wait for a clone.
+
+## Symlinks
+
+Upstream policy: a selected skill that contains a symlink is refused (`SKILLS_SKILL_CONTAINS_SYMLINKS`), a symlinked skill folder is not discovered (selecting it is a missing selection), and a tracked symlink in an unselected path does not fail preparation and is not copied. Chamvi inspects no git tree of its own.
+
+## Error mapping
+
+`toPreparationError()` never forwards an SDK or git message (they can hold credentials or private content):
+
+- `InvalidAgentDefinitionError`: `SKILLS_GIT_AUTH_FAILED` (upstream also reports a missing repository this way), `SKILLS_GIT_SAML_SSO_BLOCKED`, `SKILLS_UNSUPPORTED_GIT_TRANSPORT`, `SKILLS_INVALID_OPTION_VALUE`, `SKILLS_LOCAL_PATH_NOT_FOUND`, `SKILLS_NO_VALID_SKILLS`, `SKILLS_NO_MATCHING_SKILLS`, `SKILLS_AMBIGUOUS_SKILL_SELECTOR`, `SKILLS_DUPLICATE_SKILL_NAME`, `SKILLS_SKILL_CONTAINS_SYMLINKS`.
+- `InvalidAgentDefinitionError` too: `SKILLS_GIT_CLONE_FAILED` whose raw git answer (`error.cause.message`, never the message, which embeds the URL) says the repository is missing (`does not appear to be a git repository`, `fatal: repository '...' not found`, `returned error: 404`): a missing `file://` or ssh path and a plain https 404 arrive this way, GitHub's "Repository not found" arrives as `SKILLS_GIT_AUTH_FAILED`.
+- Retryable `skill_preparation_failed`: `SKILLS_GIT_CLONE_TIMEOUT`, any other `SKILLS_GIT_CLONE_FAILED` (also a missing ref, whose cause stays ambiguous), `SKILLS_SOURCE_FETCH_FAILED`, every unknown code (upstream adds codes in minor releases) and every non-diagnostic.
+
+Upstream's clone falls back to the host's `gh` login and SSH agent/keys after an HTTPS GitHub authentication failure, and honours `SKILLS_CLONE_TIMEOUT_MS`; the public skills reference documents both for operators.
+
+## Ownership
+
+The optional package owns the dependency and the adapter. Its public options/results are chamvi-owned shapes, with no upstream SDK type aliases or re-exports. Application consumers configure sources, independent reviewed pins and role selection through chamvi; they do not import the SDK. No SDK dependency belongs in `@chamvi/app` or core. Preparation preserves the reviewed selected bytes, verifies independent bundle pins before replacing assets and cleans staging on failure. Never approve a newly computed digest during application startup. Importing or loading skills must not invoke the CLI, change process cwd, prompt or execute skill scripts.
 
 Filesystem ownership is `packages/skills/src/bundle/`: `bundle.ts` (`hashSkillBundle`, `readSkillBundle`) verifies complete local inventories and exact framed byte hashes; `helpers.ts` validates strict root metadata; `module.ts` (`loadSkillBundles`) creates immutable catalogs; `packages/skills/src/catalog/` owns domain types, catalog rendering and the ordinary load tool; `runtime/` owns validation, custom adapters and per-engine caches/fingerprints. Core owns only the generic preparation/contribution protocol and lifecycle coordination. Supporting `.yaml`/`.yml` files are opaque UTF-8 references, including `agents/openai.yaml`. Only surrounding description whitespace is trimmed before nonblank/length/control checks. Body/reference bytes and hash framing are unchanged.
 
-Compatibility was verified against the unchanged selected `tada5hi/skills` profile at `233532ce04af00916c026f97a3f6097ee7f189df`: common `ponytail`, `codebase-design`; maintainer `generate-commit-message`, `investigate-pr-comments`, `create-pull-request`, `release-please-version-bump`. This does not establish compatibility for unselected scripts, SVG/CSS, hidden templates or binary assets.
-
-Migration is tracked in [chamvi/chamvi#97](https://github.com/chamvi/chamvi/issues/97), with [upstream PR #1430](https://github.com/vercel-labs/skills/pull/1430) and [issue #2455](https://github.com/vercel-labs/skills/issues/2455). Replace the internal backend with an official release when suitable, rerun the unchanged public consumer fixture and remove the temporary fork pin. Consumers should need only a normal Chamvi version update. The optional adapter is implemented in `packages/skills/src/prepare/`, with a typed consumer fixture (imports migrated to `@chamvi/skills`) in `packages/skills/test/fixtures/readme-example.ts`. Local Git and real Engine tests cover preparation through verified runtime use. Application source remains unchanged until the framework is released.
-
-First-class integration (2026-10-29): pure main-entry `gitSkills` returns skills-owned `ISkillSource & SkillInput` for startup verification; singular `loadSkillBundle` supplies `Skill & SkillInput` ready snapshots. Custom raw values/loaders use `defineSkill`/`defineSkillSource` from skills, without registration. Adapters validate and copy supplied text/declarations, while custom loaders own retrieval and pin verification. App forwards generic inputs without depending on skills. Runtime providers need the optional package, Node >=24.3.0, Git, writable corpus/tmp and source credentials/network. Manual setup/build and catalog composition remain supported. The SDK clone has no AbortSignal: await settlement and cleanup on cancellation rather than detaching work; startup probe/shutdown budgets must allow it.
-
-Delivery evidence (2026-10-29, production baseline `ffec9bdc`): the controller completed anonymous packed installs
-with a fresh empty cache and lifecycle scripts disabled against exact fork `6c80a94543b91a27df7445f40dfea7a61e0a5e9f`.
-Historical logs `/tmp/chamvi-first-class-consumer.log` and `/tmp/chamvi-first-class-consumer-node22.log` cover Node 24 and 22.21.1 (the Node 22 run predates the current >=24.3.0 floor and does not establish current support):
-import-only migration of the frozen original consumer fixture (SHA-256
-`830086665b51f6fcf7d32b40c26c42eb81cde7140cec385d64420a2dc0f657b9`), own Chamvi declaration surface,
-app-free/inert main import, typed first-class App/Engine APIs and the exact six selected skills from
-`233532ce04af00916c026f97a3f6097ee7f189df` (two globals/four maintainer extras, metadata-only initial prompt,
-exact checkpointed bodies). Integration delivery reused this evidence because it changed no production source.
-`packages/skills/test/unit/source/engine.spec.ts` adds real local-Git Engine startup/scoping and old-content-pin
-failure before recovery, followed by approval replay that retains the saved original body and loads the upgraded
-reference. Existing manual-catalog tests remain intact. The issue 97 boundary/acceptance update is drafted locally
-at `/tmp/chamvi-first-class-issue97.md` for controller publication after review; agents-dev is untouched.
-
-PR94 review correction: the manual consumer now imports `InvalidAgentDefinitionError` from `@chamvi/core`, matching the documented core-only installation. The review also renamed the public skill digest property to `hash`, retaining SHA-256 and the same digest framing. Those imports and that requested property rename are the only fixture changes; the current fixture SHA-256 is `695bcdabf35016a023694c273bfbf9aada8ea618beedcd1dbedb2b6acb94c672`. The earlier delivery hashes above remain historical evidence.
+The selected `tada5hi/skills` profile at `233532ce04af00916c026f97a3f6097ee7f189df` is the compatibility profile: common `ponytail`, `codebase-design`; maintainer `generate-commit-message`, `investigate-pr-comments`, `create-pull-request`, `release-please-version-bump`. It does not establish compatibility for unselected scripts, SVG/CSS, hidden templates or binary assets.
