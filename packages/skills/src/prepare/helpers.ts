@@ -163,10 +163,11 @@ let emitWarning: typeof process.emitWarning | undefined;
 let quiet: typeof process.emitWarning | undefined;
 
 /**
- * Runs an SDK call while process warnings named `YAMLWarning` are dropped: the SDK parses source
- * frontmatter with `yaml`'s default log level, whose warnings (an unresolved tag) quote the source text.
- * Other warnings pass through; overlapping calls share one filter, restored by the last one unless
- * someone replaced `process.emitWarning` meanwhile.
+ * Runs an SDK call while process warnings named `YAMLWarning` are dropped. The SDK parses each
+ * `SKILL.md` frontmatter with `yaml`'s default log level, so a warning such as an unresolved tag goes
+ * through `process.emitWarning` with a quote of the source text; the SDK's `onWarning` does not see it.
+ * Other warnings pass through. Overlapping calls share one filter, which the last one to settle
+ * restores unless someone replaced `process.emitWarning` meanwhile.
  */
 export async function withoutYamlWarnings<T>(task: () => Promise<T>): Promise<T> {
     if (quieting === 0) {

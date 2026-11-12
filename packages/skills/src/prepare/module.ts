@@ -106,9 +106,10 @@ export async function prepareSkills(options: PrepareSkillsOptions): Promise<read
         signal?.throwIfAborted();
         // No `onWarning`: the SDK then drops source diagnostics, which can hold private YAML excerpts.
         // The SDK does not interrupt a running clone; it is joined, then disposed, before a cancellation rejects.
+        // Discovery reads the SDK's standard locations (root, `skills/`, agent and plugin folders) and the
+        // whole tree only when those hold nothing, so skills inside vendored copies or submodules stay out.
         handle = await withoutYamlWarnings(() => resolveSource(source, {
             ref: revision,
-            fullDepth: true,
             includeInternal: true,
             signal,
         }));

@@ -170,9 +170,9 @@ describe('prepareSkills', () => {
         const [source, resolveOptions] = vi.mocked(sdk.resolveSource).mock.calls[0]!;
 
         expect(source).toBe(pathToFileURL(fixture.path).href);
+        // standard locations only: no `fullDepth`, the SDK's default
         expect(resolveOptions).toEqual({
             ref: fixture.commit,
-            fullDepth: true,
             includeInternal: true,
             signal,
         });
@@ -258,6 +258,64 @@ describe('prepareSkills', () => {
         await expect(skills.prepareSkills({ ...options, names: ['foo-bar'] })).rejects.toThrow(InvalidAgentDefinitionError);
         expect(fixture.commit).toMatch(/^[a-f0-9]{40}$/u);
         expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('copies the standard-location folder when a deep non-standard folder declares the same name', async () => {
+        const { options } = await setup({ 'vendor/x/skills/audit/SKILL.md': document('audit', 'VENDORED BODY') });
+        const [skill] = await skills.prepareSkills(options);
+
+        expect(await fs.readFile(join(skill!.path, 'SKILL.md'), 'utf8')).toContain('PRIVATE BODY');
+    });
+
+    it('refuses a name two standard-location folders declare', async () => {
+        const { root, options } = await setup({ '.claude/skills/audit/SKILL.md': document('audit', 'AGENT BODY') });
+
+        await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('finds skills in a deep folder when the standard locations hold none', async () => {
+        const fixture = await createGitFixture({ 'vendor/x/y/deep/SKILL.md': document('deep', 'DEEP BODY') });
+
+        fixtures.push(fixture);
+
+        const root = await fs.mkdtemp(join(tmpdir(), 'chamvi-prepare-test-'));
+
+        roots.push(root);
+
+        const [skill] = await skills.prepareSkills({
+            source: fixture.path,
+            revision: fixture.commit,
+            names: ['deep'],
+            directory: join(root, 'corpus'),
+        });
+
+        expect(await fs.readFile(join(skill!.path, 'SKILL.md'), 'utf8')).toContain('DEEP BODY');
+    });
+
+    it('does not find a deep skill of a source that has standard-location skills', async () => {
+        const { root, options } = await setup({ 'vendor/x/y/deep/SKILL.md': document('deep', 'DEEP BODY') });
+
+        await expect(skills.prepareSkills({ ...options, names: ['deep'] })).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(await fs.readdir(root)).toEqual([]);
+    });
+
+    it('prepares a skill of a superproject whose submodule declares the same name', async () => {
+        const sub = await createGitFixture({ 'skills/audit/SKILL.md': document('audit', 'SUBMODULE BODY') });
+
+        fixtures.push(sub);
+
+        const { fixture, options } = await setup();
+
+        await fixture.git('-c', 'protocol.file.allow=always', 'submodule', 'add', sub.url, 'vendor/sub');
+        await fixture.git('commit', '-m', 'submodule');
+
+        const revision = (await fixture.git('rev-parse', 'HEAD')).trim();
+        const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+        const [skill] = await skills.prepareSkills({ ...options, revision });
+
+        expect(await fs.readFile(join(skill!.path, 'SKILL.md'), 'utf8')).toContain('PRIVATE BODY');
+        expect(warn).not.toHaveBeenCalled();
     });
 
     it('installs the exact name when another skill would match it only fuzzily', async () => {
@@ -489,6 +547,52 @@ describe('prepareSkills', () => {
         expect(process.emitWarning).toBe(warnings);
         process.emitWarning('OTHER WARNING');
         expect(warnings).toHaveBeenLastCalledWith('OTHER WARNING');
+    });
+
+    it('drops only YAML warnings during SDK calls and restores emitWarning after success, failure and overlap', async () => {
+        const { root, options } = await setup();
+        const warnings = vi.spyOn(process, 'emitWarning').mockImplementation(() => {});
+        const yaml = Object.assign(new Error('PRIVATE-YAML-EXCERPT'), { name: 'YAMLWarning' });
+        const first = Promise.withResolvers<void>();
+        const second = Promise.withResolvers<void>();
+        const emitting = (gate?: Promise<void>, entered?: () => void) => async (...args: Parameters<typeof sdk.resolveSource>) => {
+            process.emitWarning(yaml);
+            process.emitWarning('OTHER WARNING');
+            entered?.();
+            await gate;
+
+            return actual.resolveSource(...args);
+        };
+        const emitted = () => warnings.mock.calls.map(([warning]) => String(warning)).join('\n');
+
+        vi.mocked(sdk.resolveSource).mockImplementationOnce(emitting());
+        await skills.prepareSkills(options);
+        expect(emitted()).toContain('OTHER WARNING');
+        expect(emitted()).not.toContain('PRIVATE-YAML-EXCERPT');
+        expect(process.emitWarning).toBe(warnings);
+
+        vi.mocked(sdk.resolveSource).mockImplementationOnce(async () => {
+            process.emitWarning(yaml);
+
+            throw sdk.diagnostics.SKILLS_NO_VALID_SKILLS();
+        });
+        await expect(skills.prepareSkills(options)).rejects.toThrow(InvalidAgentDefinitionError);
+        expect(process.emitWarning).toBe(warnings);
+
+        // the first preparation's resolve outlives the second's whole preparation
+        vi.mocked(sdk.resolveSource)
+            .mockImplementationOnce(emitting(second.promise, () => first.resolve()))
+            .mockImplementationOnce(emitting());
+
+        const outer = skills.prepareSkills(options);
+
+        await first.promise;
+        await skills.prepareSkills({ ...options, directory: join(root, 'other') });
+        expect(process.emitWarning).not.toBe(warnings);
+        second.resolve();
+        await outer;
+        expect(process.emitWarning).toBe(warnings);
+        expect(emitted()).not.toContain('PRIVATE-YAML-EXCERPT');
     });
 
     it('redacts source credentials and verifier failures', async () => {
