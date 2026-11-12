@@ -104,7 +104,7 @@
         "happy-dom": "^21.0.4",
         "ilingo": "^6.2.1",
         "pinia": "^4.1.0",
-        "routup": "^6.1.0",
+        "routup": "^6.1.1",
         "smob": "^1.6.2",
         "socket.io-client": "^4.8.4",
         "validup": "^2.0.1",
