@@ -310,7 +310,7 @@ describe('dispatchTo()', () => {
         const invoker: Invoker = {
             id: 'u1',
             kind: 'user',
-            permissions: [{
+            bindings: [{
                 permission: { name: Permission.AGENT_RUN },
                 policies: [{ type: 'attributes', query: { name: 'reporter', private: false } } as never],
             }],
@@ -358,7 +358,7 @@ describe('dispatchTo()', () => {
         const invoker: Invoker = {
             id: 'u1',
             kind: 'user',
-            permissions: [{
+            bindings: [{
                 permission: { name: Permission.AGENT_RUN },
                 policies: [{ type: 'attributes', query: { name: 'reporter', private: false } } as never],
             }],
