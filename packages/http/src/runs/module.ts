@@ -6,7 +6,7 @@
  */
 
 import { Permission } from '@chamvi/access';
-import type { Run } from '@chamvi/core';
+import type { Agent, ChannelSubscription, Run } from '@chamvi/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { defineCoreHandler } from 'routup';
 import type { App, IAppEvent } from 'routup';
@@ -63,20 +63,33 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
     app.post('/agents/:name/runs', defineCoreHandler(async (event) => {
         const name = param(event, 'name');
         const principal = await authenticate(event, ctx);
-        // read after authentication, so the check sees the agent as registered now;
-        // checked before the 404: an agent the app does not hold counts as private
-        const agent = ctx.agents.get(name);
+        // the agent registered under `name` now, checked before the 404 (an agent the app
+        // does not hold counts as private), and its http subscription
+        const resolve = async (): Promise<{ agent: Agent; subscription: ChannelSubscription }> => {
+            const current = ctx.agents.get(name);
 
-        if (!await isGranted(principal, Permission.AGENT_RUN, ctx.clock, agentResource(name, agent))) {
-            throw forbidden(Permission.AGENT_RUN);
-        }
+            if (!await isGranted(principal, Permission.AGENT_RUN, ctx.clock, agentResource(name, current))) {
+                throw forbidden(Permission.AGENT_RUN);
+            }
 
-        // the agent the check saw, not a later registration under the same name
-        const subscription = requireHttpSubscription(agent ?? requireAgent(ctx.agents, name));
+            const agent = current ?? requireAgent(ctx.agents, name);
+
+            return { agent, subscription: requireHttpSubscription(agent) };
+        };
+
+        // read after authentication, so the check sees the agent as registered now
+        let { agent, subscription } = await resolve();
 
         const body = await validateBody(startContainer, await readJsonBody(event, ctx.bodyLimit));
         const idempotencyKey = body.idempotencyKey ?? readIdempotencyHeader(event.request);
-        const payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, body.payload);
+        let payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, body.payload);
+
+        // replaced or removed while the body was read and validated: check the
+        // replacement and validate against its schema, until the agent stays
+        while (ctx.agents.get(name) !== agent) {
+            ({ agent, subscription } = await resolve());
+            payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, body.payload);
+        }
 
         const result = await ctx.engine.dispatch({
             agent: name,
@@ -112,7 +125,7 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
         });
 
         return {
-            data: data.map(serializeRun),
+            data: data.map((run) => serializeRun(run, ctx.agents)),
             meta: {
                 total,
                 limit: query.limit,
@@ -124,7 +137,7 @@ export function registerRunRoutes(app: App, ctx: HttpContext): void {
     app.get('/runs/:id', defineCoreHandler(async (event) => {
         const run = await readableRun(event, ctx, param(event, 'id'));
 
-        return { ...serializeRun(run), steps: (await ctx.store.steps.find(run.id)).map(serializeStep) };
+        return { ...serializeRun(run, ctx.agents), steps: (await ctx.store.steps.find(run.id)).map(serializeStep) };
     }));
 
     app.get('/runs/:id/stream', defineCoreHandler(async (event) => {

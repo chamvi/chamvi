@@ -6,7 +6,7 @@
  */
 
 import { isObject } from 'smob';
-import type { AgentWire, ApiError, RunWire } from '@chamvi/ui-kit';
+import type { ApiError, RunWire } from '@chamvi/ui-kit';
 import { Permission, can } from '@chamvi/access';
 import type { PermissionHolder } from '@chamvi/access';
 import { agentAttributes } from '../agents/helpers.ts';
@@ -96,15 +96,14 @@ export function approvalLinkQuery(run: RunWire): Record<string, string> {
 }
 
 /**
- * The agents among `agents` the principal holds `chamvi_agent_approve` for,
- * checked with `{ name, private }` as the server checks it. The flag comes
- * from `known` (the agent list); an agent missing there counts as private,
- * as the server treats an agent it does not hold.
+ * The agents of `runs` the principal holds `chamvi_agent_approve` for,
+ * checked with `{ name, private }` as the server checks it. The flag is the
+ * runs' `agentPrivate` (no agent list, so no `chamvi_run_read` needed); an
+ * agent counts as private when one of its runs says so or lacks the flag.
  */
 export async function approvableAgents(
     holder: PermissionHolder | undefined,
-    agents: Iterable<string>,
-    known: readonly Pick<AgentWire, 'name' | 'private'>[] = [],
+    runs: Iterable<Pick<RunWire, 'agent'> & { agentPrivate?: boolean }>,
 ): Promise<Set<string>> {
     const granted = new Set<string>();
 
@@ -112,12 +111,16 @@ export async function approvableAgents(
         return granted;
     }
 
+    const flags = new Map<string, boolean>();
+
+    for (const run of runs) {
+        flags.set(run.agent, (flags.get(run.agent) ?? false) || run.agentPrivate !== false);
+    }
+
     const now = new Date();
 
-    await Promise.all(Array.from(new Set(agents), async (name) => {
-        const agent = known.find((item) => item.name === name);
-
-        if (await can(holder, Permission.AGENT_APPROVE, { attributes: agentAttributes({ name, private: agent?.private ?? true }), now })) {
+    await Promise.all(Array.from(flags, async ([name, isPrivate]) => {
+        if (await can(holder, Permission.AGENT_APPROVE, { attributes: agentAttributes({ name, private: isPrivate }), now })) {
             granted.add(name);
         }
     }));

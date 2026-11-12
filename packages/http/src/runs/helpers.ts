@@ -76,9 +76,11 @@ function viewInvoker(invoker: Invoker): InvokerView {
 }
 
 /**
- * Drops the internal claim, conversation binding and invoker permissions.
+ * Drops the internal claim, conversation binding and invoker permissions,
+ * and adds `agentPrivate`: the `private` the server checks the run's agent
+ * with (`agentResource()`; an agent the app does not hold counts as private).
  */
-export function serializeRun(run: Run): RunView {
+export function serializeRun(run: Run, agents: HttpAgents): RunView {
     const view = { ...run };
 
     delete view.claim;
@@ -87,6 +89,7 @@ export function serializeRun(run: Run): RunView {
     return {
         ...view,
         trigger: run.trigger.invoker ? { ...run.trigger, invoker: viewInvoker(run.trigger.invoker) } : run.trigger,
+        agentPrivate: agentResource(run.agent, agents.get(run.agent)).private,
     };
 }
 

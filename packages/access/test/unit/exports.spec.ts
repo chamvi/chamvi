@@ -31,7 +31,7 @@ describe('public api', () => {
         expect(access[name as keyof typeof access]).toBeTypeOf('function');
     });
 
-    it('names the eleven chamvi permissions in order', () => {
+    it('names the thirteen chamvi permissions in order', () => {
         expect(access.PERMISSION_NAMES).toEqual([
             'chamvi_agent_read',
             'chamvi_agent_run',
@@ -44,6 +44,8 @@ describe('public api', () => {
             'chamvi_connection_write',
             'chamvi_connection_create',
             'chamvi_tool_use',
+            'chamvi_knowledge_read',
+            'chamvi_knowledge_write',
         ]);
         expect(Object.values(access.Permission)).toEqual(access.PERMISSION_NAMES);
     });

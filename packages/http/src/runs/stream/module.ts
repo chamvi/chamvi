@@ -118,7 +118,7 @@ export async function streamRun(event: IAppEvent, ctx: HttpContext, runId: strin
     function sendRun(run: Run): boolean {
         lastRun = run;
 
-        return write({ event: 'run.updated', data: JSON.stringify(serializeRun(run)) });
+        return write({ event: 'run.updated', data: JSON.stringify(serializeRun(run, ctx.agents)) });
     }
 
     function sendStep(step: Step): boolean {

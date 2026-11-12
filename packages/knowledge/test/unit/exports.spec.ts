@@ -52,8 +52,8 @@ describe('public api', () => {
     it('exports the REST routes, their path, permissions and page limits', () => {
         expect(knowledge.knowledgeRoutes).toBeTypeOf('function');
         expect(knowledge.KNOWLEDGE_ROUTE_PATH).toBe('/knowledge');
-        expect(knowledge.KNOWLEDGE_READ_PERMISSION).toBe('knowledge:read');
-        expect(knowledge.KNOWLEDGE_WRITE_PERMISSION).toBe('knowledge:write');
+        expect(knowledge.KNOWLEDGE_READ_PERMISSION).toBe('chamvi_knowledge_read');
+        expect(knowledge.KNOWLEDGE_WRITE_PERMISSION).toBe('chamvi_knowledge_write');
         expect(knowledge.KNOWLEDGE_DOCUMENTS_DEFAULT_LIMIT).toBe(50);
         expect(knowledge.KNOWLEDGE_DOCUMENTS_MAX_LIMIT).toBe(100);
     });

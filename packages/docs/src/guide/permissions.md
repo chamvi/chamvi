@@ -25,8 +25,10 @@ These are the names chamvi checks, exported as `Permission` (`Permission.AGENT_R
 | `chamvi_connection_write` | `name`, `type` | Also its widgets (a pairing QR), its live stream, reset, edit, test and delete; implies read |
 | `chamvi_connection_create` | `type` | Add an account of a multi-account type (mail, calendar) |
 | `chamvi_tool_use` | `agent`, `name` (the tool) | Read by [`requireToolPermission()`](/guide/tools#restricting-tools-per-invoker): the agent offers the tool to the invoker's runs |
+| `chamvi_knowledge_read` | `name` (the collection) | Read the [knowledge](/guide/knowledge) collections and their documents (`GET /knowledge/...`) |
+| `chamvi_knowledge_write` | `name` (the collection) | Create, delete and sync collections and write the documents of managed ones |
 
-Any other name works too: a principal may do X when it holds a binding for X whose policies pass. An app checks its own names with `can(invoker, 'release_manage')` (see [Restricting tools per invoker](/guide/tools#restricting-tools-per-invoker)); `@chamvi/knowledge` checks `knowledge:read` and `knowledge:write`.
+Any other name works too: a principal may do X when it holds a binding for X whose policies pass. An app checks its own names with `can(invoker, 'release_manage')` (see [Restricting tools per invoker](/guide/tools#restricting-tools-per-invoker)).
 
 ## How a check reads a binding
 
@@ -68,7 +70,7 @@ With `@chamvi/app`, `authupModule()` reads `AUTHUP_URL`, `AUTHUP_CLIENT_ID` and 
 
 ### Provisioning
 
-A ready [authup provisioning file](https://authup.org/guide/deployment/provisioning) for the eleven permissions, chamvi's client, an unrestricted role and a role restricted to the agent `triage`:
+A ready [authup provisioning file](https://authup.org/guide/deployment/provisioning) for the thirteen permissions, chamvi's client, an unrestricted role and a role restricted to the agent `triage`:
 
 ```yaml
 # provisioning/chamvi.yaml
@@ -84,6 +86,8 @@ permissions:
   - attributes: { name: chamvi_connection_write }
   - attributes: { name: chamvi_connection_create }
   - attributes: { name: chamvi_tool_use }
+  - attributes: { name: chamvi_knowledge_read }
+  - attributes: { name: chamvi_knowledge_write }
 
 policies:
   # the agent triage, for the agent permissions
@@ -110,6 +114,8 @@ roles:
         - chamvi_connection_write
         - chamvi_connection_create
         - chamvi_tool_use
+        - chamvi_knowledge_read
+        - chamvi_knowledge_write
   - attributes: { name: chamvi-triage }
     relations:
       globalPermissions:
@@ -156,10 +162,9 @@ A user of the client's realm (`master` here) with `chamvi-triage` then starts, r
 The permission strings of earlier releases (`agent:<name>:run`, `run:read`, `connection:<name>:write`, `tool:<agent>:<tool>`, `*`) are not translated.
 
 1. Let running and waiting runs finish (drain the app) before the upgrade: a stored run's invoker that carries old strings is read as holding no permissions, so its `requireToolPermission()` tools and cross-agent dispatches are refused.
-2. Rewrite every `CHAMVI_TOKENS` entry: `["*"]` becomes `"*"`, any other list a list of bindings. The start fails until then.
-3. In authup, create the eleven permissions (the file above) and give roles the new names; remove the old ones. A restriction to one agent or connection is a policy on the grant.
-4. `"*"` covers only the eleven `chamvi_*` names. With `@chamvi/knowledge`, grant `knowledge:read` and `knowledge:write` explicitly (a token's binding list, or permissions of those names in authup); a `"*"` token, the `chamvi dev` one included, gets 403 on `/knowledge`.
-5. An `oidc()` mapper returns bindings; an app's own `hasPermission(invoker.permissions, ...)` becomes `await can(invoker, ...)`.
+2. Rewrite every `CHAMVI_TOKENS` entry: `["*"]` becomes `"*"`, any other list a list of bindings. The start fails until then. `"*"` covers every `chamvi_*` name, the two knowledge permissions included (as `*` did): a token that must not read or write knowledge collections gets explicit bindings without them.
+3. In authup, create the thirteen permissions (the file above) and give roles the new names; remove the old ones. A restriction to one agent or connection is a policy on the grant.
+4. An `oidc()` mapper returns bindings; an app's own `hasPermission(invoker.permissions, ...)` becomes `await can(invoker, ...)`.
 
 | Before | Now |
 |---|---|
@@ -169,4 +174,5 @@ The permission strings of earlier releases (`agent:<name>:run`, `run:read`, `con
 | `connection:<name>:read`, `:write` | `chamvi_connection_read`, `chamvi_connection_write` with `{ "name": "<name>" }` |
 | `connections:create` | `chamvi_connection_create` (optionally `{ "type": "mail" }`) |
 | `tool:<agent>:<tool>` | `chamvi_tool_use` with `{ "agent": "<agent>", "name": "<tool>" }` |
+| `knowledge:read`, `knowledge:write` | `chamvi_knowledge_read`, `chamvi_knowledge_write` (optionally `{ "name": "<collection>" }`) |
 | `*` | `"*"` for a static token, the `chamvi-admin` role in authup |

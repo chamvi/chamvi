@@ -32,8 +32,10 @@ const Permission: {
     CONNECTION_WRITE: 'chamvi_connection_write';
     CONNECTION_CREATE: 'chamvi_connection_create';
     TOOL_USE: 'chamvi_tool_use';
+    KNOWLEDGE_READ: 'chamvi_knowledge_read';
+    KNOWLEDGE_WRITE: 'chamvi_knowledge_write';
 };
-const PERMISSION_NAMES: readonly string[];                     // the eleven, in this order
+const PERMISSION_NAMES: readonly string[];                     // the thirteen, in this order
 
 function isPermissionBinding(value: unknown): value is PermissionBinding;
 function allPermissions(): PermissionBinding[];                // one unrestricted binding per name

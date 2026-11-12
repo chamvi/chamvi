@@ -55,6 +55,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
+        "@chamvi/access": "^0.8.0",
         "smob": "^1.6.2"
     },
     "devDependencies": {

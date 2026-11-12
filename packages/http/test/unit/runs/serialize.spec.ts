@@ -9,6 +9,13 @@ import { describe, expect, it } from 'vitest';
 import { Permission, allPermissions } from '@chamvi/access';
 import type { Run, Step } from '@chamvi/core';
 import { serializeRun, serializeStep } from '../../../src/runs/helpers.ts';
+import type { HttpAgents } from '../../../src/app/types.ts';
+
+const NO_AGENTS: HttpAgents = {
+    get: () => undefined,
+    list: () => [],
+    names: () => [],
+};
 
 describe('serializeRun', () => {
     it('serializes the first untrusted source and time on the wire', () => {
@@ -30,7 +37,7 @@ describe('serializeRun', () => {
             createdAt: now,
             updatedAt: now,
         };
-        const view = serializeRun(run);
+        const view = serializeRun(run, NO_AGENTS);
 
         expect(view.taint).toEqual(run.taint);
         expect(JSON.parse(JSON.stringify(view)).taint).toEqual({
@@ -39,7 +46,7 @@ describe('serializeRun', () => {
         });
     });
 
-    it('drops the claim and keeps every other key', () => {
+    it('drops the claim, keeps every other key and adds agentPrivate', () => {
         const now = new Date(0);
         const run: Run = {
             id: 'r1',
@@ -67,11 +74,16 @@ describe('serializeRun', () => {
             createdAt: now,
             updatedAt: now,
         };
-        const view = serializeRun(run);
+        const view = serializeRun(run, NO_AGENTS);
 
         expect(view).not.toHaveProperty('claim');
-        expect(view).toEqual({ ...run, claim: undefined });
-        expect(Object.keys(view)).toEqual(Object.keys(run).filter((key) => key !== 'claim'));
+        // an agent the app does not hold counts as private
+        expect(view).toEqual({
+            ...run, 
+            claim: undefined, 
+            agentPrivate: true, 
+        });
+        expect(Object.keys(view)).toEqual([...Object.keys(run).filter((key) => key !== 'claim'), 'agentPrivate']);
         expect(view.waiting?.id).toBe('a1');
     });
 
@@ -99,7 +111,7 @@ describe('serializeRun', () => {
             createdAt: now,
             updatedAt: now,
         };
-        const view = serializeRun(run);
+        const view = serializeRun(run, NO_AGENTS);
 
         expect(view.trigger.invoker).toEqual({
             id: 'u1',

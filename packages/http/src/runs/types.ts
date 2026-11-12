@@ -23,6 +23,13 @@ export type InvokerView = Omit<Invoker, 'permissions'>;
  */
 export type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
     trigger: Omit<TriggerEnvelope, 'invoker'> & { invoker?: InvokerView };
+    /**
+     * The run's agent is private (or not held by the app), as the server
+     * checks it: `{ name: agent, private: agentPrivate }` are the attributes
+     * of the agent permissions (`chamvi_agent_approve`, ...). Read when the
+     * run is serialized.
+     */
+    agentPrivate: boolean;
 };
 
 /** `GET /runs` query after decoding. */
