@@ -29,6 +29,7 @@ describe('public api', () => {
             'NavIcon',
             'RATE_LIMIT_BACKOFF_MS',
             'RECONNECT_DELAYS_MS',
+            'REQUEST_TIMEOUT_MS',
             'RETURN_STORAGE_KEY',
             'STATUS_BADGES',
             'STORAGE_PREFIX',
