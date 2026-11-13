@@ -33,7 +33,7 @@ export class HealthController {
         return { status: 'ok' };
     }
 
-    /** Whether the app takes traffic: 503 with the reason while it does not; never answered with a 304. */
+    /** Whether the app takes traffic: 503 with the reason while it does not. The 503 is never answered with a 304. */
     // the 503 is a raw `Response`, so routup's send path never gives it an etag and an `If-None-Match`
     // can never turn it into a 304
     @DGet('/readyz')
