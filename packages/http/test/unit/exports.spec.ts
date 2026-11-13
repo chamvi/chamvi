@@ -13,8 +13,22 @@ import {
 } from 'vitest';
 import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } from '@chamvi/access';
 import * as http from '@chamvi/http';
+import type { swaggerUI } from '@routup/swagger-ui';
 
 describe('public api', () => {
+    it('exports the openapi option type', () => {
+        // `documentPath` and `swaggerUI` are internal (for specs)
+        expectTypeOf<http.OpenApiOptions>().toEqualTypeOf<{
+            ui?: boolean;
+            documentPath?: string;
+            swaggerUI?: typeof swaggerUI;
+        }>();
+        expectTypeOf<http.HttpAppOptions['openapi']>().toEqualTypeOf<false | http.OpenApiOptions | undefined>();
+        expect(http).not.toHaveProperty('registerOpenApiRoutes');
+        expect(http).not.toHaveProperty('loadOpenApiDocument');
+        expect(http).not.toHaveProperty('OPENAPI_DOCUMENT_PATH');
+    });
+
     it('exports the channel HTTP rate-limit policy type', () => {
         expectTypeOf<http.ChannelRateLimitOptions>().toEqualTypeOf<{ max: number; windowMs?: number }>();
         expectTypeOf<http.HttpAppOptions['channelRateLimits']>()

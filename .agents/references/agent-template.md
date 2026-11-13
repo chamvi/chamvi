@@ -153,3 +153,7 @@ Checked `main` at `8aa1bba6` (2026-11-11): `.env.example` line 4, `deploy/flux/s
 ## authup snapshot and deadline (#206, #208, unreleased)
 
 Checked `00ec8afc` (2026-11-12): the template names no `AUTHUP_*` variable and no `PermissionHolder` field, so neither the `permissions` to `bindings` rename of the holder (the `CHAMVI_TOKENS` key stays `permissions`) nor the optional `AUTHUP_TIMEOUT_MS` (`authupModule()`, default 10 000 ms) needs a template change. An app reading `invoker.permissions` itself must call `can()`: an authup invoker keeps its grants in `authorization` and its `bindings` are empty.
+
+## OpenAPI document and Swagger UI (unreleased)
+
+Checked against this file's contract map: `<basePath>/openapi.json` and `<basePath>/docs` are new routes of every app, served by default; no env, CLI or public API change, so no template change is required; the template's image build does run the postinstall analytics script of `@scarf/scarf` (a dependency of `swagger-ui-dist`) unless it sets `SCARF_ANALYTICS=false`. After the release the README may link `/docs` next to its curl flow; an app route at `/docs` or `/openapi.json` is refused at construction.

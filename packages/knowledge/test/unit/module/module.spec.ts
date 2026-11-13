@@ -224,7 +224,11 @@ async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
             storeModule(),
             ...(http ? [staticTokensModule()] : []),
             engineModule(),
-            ...(http ? [httpModule({ metrics: false, rateLimit: false })] : []),
+            ...(http ? [httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            })] : []),
             knowledge,
         ],
     });

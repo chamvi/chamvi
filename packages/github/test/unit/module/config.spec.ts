@@ -99,7 +99,11 @@ async function serve(modules: IModule[], agents: Agent[]): Promise<{ harness: Mo
             storeModule(),
             staticTokensModule(),
             engineModule(),
-            httpModule({ metrics: false, rateLimit: false }),
+            httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            }),
             ...modules,
         ],
     });
@@ -271,7 +275,11 @@ describe('githubModule configuration', () => {
                 storeModule(),
                 staticTokensModule(),
                 engineModule(),
-                httpModule({ metrics: false, rateLimit: false }),
+                httpModule({
+                    metrics: false,
+                    rateLimit: false,
+                    openapi: false,
+                }),
                 githubModule({ env: {} }),
             ],
         });

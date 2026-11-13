@@ -38,7 +38,7 @@ export class AuthorizationService implements IAuthorizationService {
         }));
     }
 
-    async check(data: AuthorizationCheckBody, principal: Principal): Promise<AuthorizationCheckView> {
+    async check(data: AuthorizationCheckBody | undefined, principal: Principal): Promise<AuthorizationCheckView> {
         const body = await validateBody(this.container, data);
         const names = [...new Set(body.names ?? PERMISSION_NAMES)];
         const verdicts = await Promise.all(names.map((name) => isGrantedSome(principal, name, this.clock)));

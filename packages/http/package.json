@@ -33,10 +33,20 @@
     "scripts": {
         "build:types": "tsc --noEmit -p tsconfig.build.json",
         "build:js": "tsdown",
-        "build": "npm run build:types && npm run build:js",
+        "build:swagger": "trapi generate",
+        "build": "npm run build:types && npm run build:js && npm run build:swagger",
         "typecheck": "tsc --noEmit -p tsconfig.json",
         "test": "vitest --config test/vitest.config.ts --run",
         "test:coverage": "vitest --config test/vitest.config.ts --run --coverage"
+    },
+    "nx": {
+        "targets": {
+            "test": {
+                "dependsOn": [
+                    "build"
+                ]
+            }
+        }
     },
     "keywords": [
         "chamvi",
@@ -68,6 +78,7 @@
         "@routup/decorators": "^5.0.2",
         "@routup/prometheus": "^4.0.1",
         "@routup/rate-limit": "^4.0.2",
+        "@routup/swagger-ui": "^4.0.2",
         "@standard-schema/spec": "^1.1.0",
         "@validup/standard-schema": "^2.0.2",
         "cron-parser": "^5.10.4",
@@ -82,7 +93,10 @@
         "@chamvi/test-kit": "^0.8.0",
         "@modelcontextprotocol/client": "^2.4.0",
         "@swc/core": "^1.16.22",
+        "@trapi/cli": "^2.2.0",
+        "@trapi/core": "^2.2.0",
         "ai": "^7.0.165",
+        "ajv": "^8.20.0",
         "jose": "^6.2.15",
         "unplugin-swc": "^2.0.0",
         "zod": "^4.6.7"

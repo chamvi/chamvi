@@ -134,6 +134,8 @@ Paths are relative to `basePath` (default none).
 | `GET /healthz` | none | `200 { status: 'ok' }` |
 | `GET /readyz` | none | `200`, or `503 { status: 'unavailable', reason }` with `shutting-down`, `draining` or `store-unreachable` |
 | `GET /metrics` | none | Prometheus text format |
+| `GET /openapi.json` | none | The OpenAPI 3.2 document of these REST routes (not MCP, the channel mount or extra routes), built with the package; `servers` is `basePath` |
+| `GET /docs` | none | A Swagger UI over that document (`GET` and `HEAD` only, a same-origin Content-Security-Policy); `openapi: { ui: false }` serves the document only, `openapi: false` neither |
 
 `GET /runs` takes the [rapiq](https://www.npmjs.com/package/@rapiq/codec-url) URL syntax: `filter[agent]=triage`, `filter[status]=queued,running`, `page[limit]=20` (default 50, at most 100), `page[offset]=40` and `sort=createdAt` (oldest first, the default) or `sort=-createdAt` (newest first). The expression dialect works too (`filter=eq(agent,'triage')`); only filters joined with `and` are supported. Unknown keys, operators and sorts answer 400.
 
@@ -271,6 +273,7 @@ process.once('SIGTERM', () => {
 | `stream.pollMs` | `number` | `2_000` | Repository poll of SSE streams |
 | `stream.maxOpen` | `number` | `1_000` | Open SSE streams plus waiting MCP `run_<agent>` calls per app; a positive integer, else `createHttpApp` throws `InvalidAgentDefinitionError` |
 | `mcp` | `false \| { name?, version?, maxWaitSeconds? }` | `chamvi`, `0.0.0`, `60` | MCP server info and wait cap; `false` mounts nothing |
+| `openapi` | `false \| { ui? }` | document and UI | `GET /openapi.json` and the Swagger UI at `/docs`; `ui: false` serves the document only, `false` neither. A missing or unreadable built document serves neither and is reported once to `onError` |
 | `cors` | `false \| CorsOptions` | off | `@routup/cors` options |
 | `rateLimit` | `false \| Partial<RateLimitOptions>` | 300 per minute | `@routup/rate-limit` options |
 | `metrics` | `false \| Partial<PrometheusOptions>` | `/metrics` | `@routup/prometheus` options |

@@ -66,6 +66,7 @@ describe('httpModule channel policies', () => {
                     channelRateLimits: { github: policy },
                     trustProxy: ['127.0.0.1/32'],
                     metrics: false,
+                    openapi: false,
                 }),
                 {
                     name: 'test:github',

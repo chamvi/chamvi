@@ -155,7 +155,7 @@ describe('connection handles', () => {
                 storeModule(),
                 staticTokensModule(),
                 engineModule(),
-                httpModule(),
+                httpModule({ openapi: false }),
                 {
                     name: 'handles',
                     async setup(container) {

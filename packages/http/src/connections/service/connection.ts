@@ -39,7 +39,7 @@ export class ConnectionService implements IConnectionService {
         return { data: views.filter((_view, index) => readable[index]) };
     }
 
-    async get(name: string, principal: Principal): Promise<ConnectionView | ConnectionDetailView> {
+    async get(name: string, principal: Principal): Promise<ConnectionDetailView> {
         // the handle's status joined with what is declared and stored
         const view = (await listConnections(this.ctx)).find((candidate) => candidate.name === name);
         const handle = this.ctx.connections().find((candidate) => candidate.name === name);

@@ -88,7 +88,11 @@ async function serve(dav: FakeCalDav): Promise<(method: string, path: string, bo
             storeModule(),
             staticTokensModule(),
             engineModule(),
-            httpModule({ metrics: false, rateLimit: false }),
+            httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            }),
             toolCalendarModule({ env: {}, fetch: dav.fetch }),
         ],
     });

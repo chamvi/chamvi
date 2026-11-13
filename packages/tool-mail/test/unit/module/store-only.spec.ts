@@ -131,7 +131,11 @@ async function serve(store: IStore, env: Record<string, string>): Promise<Served
             storeModule({ store }),
             staticTokensModule(),
             engineModule(),
-            httpModule({ metrics: false, rateLimit: false }),
+            httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            }),
             toolMailModule({ env }),
         ],
     });

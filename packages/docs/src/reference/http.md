@@ -36,6 +36,16 @@ The keys must exactly name mounted input channels. `max` must be a positive safe
 
 The same options pass through `httpModule()` in `@chamvi/app`. See [GitHub intake behind an ingress](/deployment/github-app#bursts-and-http-intake) for finite and disabled examples. `trustProxy` defaults to trusting no forwarded headers; restrict it to known proxy source addresses or CIDRs, never blindly trust arbitrary client headers.
 
+## OpenAPI document
+
+Every app serves the OpenAPI 3.2 document of its REST API at `GET <basePath>/openapi.json` and a Swagger UI over it at `<basePath>/docs`. The document describes the built-in REST routes only: MCP, the `/channels/<name>` mount and extra routes are not in it. It is generated from the controllers when `@chamvi/http` is built (`dist/swagger.json` in the published package), never at runtime; its `servers` entry is the app's `basePath`. A missing or unreadable document serves neither path and is reported once to `onError`; a UI that cannot be mounted leaves only `/docs` unserved, reported the same way; the API still starts.
+
+- `openapi: { ui: false }` serves the document without the UI; `openapi: false` serves neither. With `@chamvi/app`, pass it through `httpModule({ openapi: false })`; there is no environment variable for it.
+- Both are unauthenticated, rate-limited like every other route and labelled `/openapi.json`, `/docs` and `/docs/*` in the metrics. Turn them off, or keep them off the public ingress, if the shape of the API should not be public.
+- The UI answers `GET` and `HEAD` at `<basePath>/docs` (lower case) and the five files its page loads, everything else under `/docs` with the JSON 404. The page loads nothing from another origin: its Content-Security-Policy allows only same-origin files and, of inline code, exactly the blocks of its own page by hash.
+- `docs` and `openapi.json` are reserved first path segments: an extra route there is refused at construction, also with `openapi: false`.
+- The UI's npm dependency `swagger-ui-dist` installs `@scarf/scarf`, whose install script reports install analytics. Set `SCARF_ANALYTICS=false` in the environment that runs `npm install` (an image build stage, CI), or `"scarfSettings": { "enabled": false }` in the app's `package.json`, to turn it off.
+
 ## Channels
 
 ```ts

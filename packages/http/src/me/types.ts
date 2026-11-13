@@ -8,7 +8,7 @@
 import type { PermissionIdentity } from '@chamvi/access';
 
 /**
- * `GET /me`: the authenticated principal's identity as the app records it
+ * `GET /me`: the caller's identity as the app records it
  * as an invoker (the name from `name` or `preferred_username`, never the
  * claims); never its bindings or authorization (`POST /authorization/check`
  * answers verdicts instead).

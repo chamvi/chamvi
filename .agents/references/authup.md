@@ -25,3 +25,20 @@ Differences:
 - Caller: authup services take an `ActorContext` (`buildActorContext(event)`); chamvi services take the `principal` (`usePrincipal(event)`) as an argument.
 - Responses: authup wraps records as `{ data, meta }`; chamvi keeps its own response shapes and adds no envelope.
 - Wiring: authup resolves repositories and services from an `IContainer` per controller; `@chamvi/http` has no DI container and builds the services from the `HttpContext` in `createHttpApp`.
+
+## OpenAPI document and Swagger UI
+
+Pinned to authup commit `052c85a85`; paths under `apps/server-core/`.
+
+| authup | chamvi (`packages/http/`) |
+|---|---|
+| `trapi.config.ts` (`@routup/decorators/preset` plus a `DQuerySchema` method handler, the `ErrorResponse` default response, `data.extra`) | `trapi.config.ts` (same preset and error response; handlers for `DQuerySchema`, `DProduces` and `DStatus`) |
+| `src/adapters/http/decorators/query-schema.ts` (`DQuerySchema(entity, shape)`, a runtime no-op) | `src/decorators/query-schema.ts` (`DQuerySchema('runs' \| 'kv' \| 'documents')`, a runtime no-op), `src/decorators/produces.ts`, `src/decorators/status.ts` |
+| `src/adapters/http/middleware/built-in/swagger.ts` (`createSwaggerMiddleware`: reads once, a non-object mounts nothing with a warning, `/openapi.json` registered before the UI) | `src/openapi/module.ts` (`registerOpenApiRoutes`), `src/openapi/helpers.ts` |
+
+Differences:
+
+- Location: authup serves the document under the UI mount (`<mount>/openapi.json`); chamvi serves `<basePath>/openapi.json` at the API root next to `<basePath>/docs`, registered outside the UI mount.
+- Content: authup sends the file verbatim; chamvi re-serializes it with `servers` set from `basePath`. A missing document is a logger warning in authup, one `onError` report in chamvi.
+- UI guard: authup mounts the plugin as is; chamvi answers only GET and HEAD at the lower-case shell path and the five files it loads (everything else the JSON 404) and sends a hash-based CSP with the static security headers.
+- Query parameters: authup projects its rapiq schema registry into the document (and checks a schema hash at runtime); chamvi describes the parameters of its three list routes by hand in `trapi.config.ts` and its document spec feeds each documented example to the route's parser.

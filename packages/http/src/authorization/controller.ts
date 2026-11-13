@@ -10,6 +10,7 @@ import {
     DContext,
     DController,
     DPost,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
@@ -23,6 +24,7 @@ import type {
 } from './types.ts';
 
 @DTags('authorization')
+@DSecurity([], 'bearer')
 @DController('/authorization')
 export class AuthorizationController {
     protected service: IAuthorizationService;
@@ -32,13 +34,14 @@ export class AuthorizationController {
     }
 
     /**
-     * `POST /authorization/check`: any authenticated principal asks which of
-     * the permission names it may attempt.
+     * Which of the asked permission names the authenticated caller may
+     * attempt; without a body, every chamvi permission is asked.
      */
     @DPost('/check', [ForceLoggedInMiddleware, JsonBodyMiddleware])
     async check(
-        @DBody() data: AuthorizationCheckBody,
         @DContext() event: IAppEvent,
+        // optional (hence after `event`, routup binds by index) so the openapi document marks the body optional
+        @DBody() data?: AuthorizationCheckBody,
     ): Promise<AuthorizationCheckView> {
         return this.service.check(data, await usePrincipal(event));
     }

@@ -366,7 +366,11 @@ describe('githubModule', () => {
                 storeModule(),
                 staticTokensModule(),
                 engineModule(),
-                httpModule({ metrics: false, rateLimit: false }),
+                httpModule({
+                    metrics: false,
+                    rateLimit: false,
+                    openapi: false,
+                }),
                 githubModule({ env: githubEnv({ GITHUB_APP_SLUG: 'chamvi-test' }) }),
             ],
         });
@@ -418,7 +422,11 @@ describe('githubModule', () => {
                 storeModule(),
                 staticTokensModule(),
                 engineModule(),
-                httpModule({ metrics: false, rateLimit: false }),
+                httpModule({
+                    metrics: false,
+                    rateLimit: false,
+                    openapi: false,
+                }),
                 githubModule({ env: githubEnv({ GITHUB_APP_SLUG: 'chamvi-test' }) }),
             ],
         });

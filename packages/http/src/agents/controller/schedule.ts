@@ -9,6 +9,7 @@ import {
     DContext,
     DController,
     DGet,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
@@ -16,7 +17,8 @@ import { usePrincipal } from '../../auth/helpers.ts';
 import { ForceLoggedInMiddleware } from '../../middleware/index.ts';
 import type { IAgentService, ScheduleControllerContext, ScheduleSummary } from '../types.ts';
 
-@DTags('schedules')
+@DTags('schedule')
+@DSecurity([], 'bearer')
 @DController('/schedules')
 export class ScheduleController {
     protected service: IAgentService;
@@ -25,7 +27,7 @@ export class ScheduleController {
         this.service = ctx.service;
     }
 
-    /** `GET /schedules`: the cron subscriptions of the agents the principal may read runs of. */
+    /** The cron schedules of the agents whose runs the caller may read. */
     @DGet('', [ForceLoggedInMiddleware])
     async list(@DContext() event: IAppEvent): Promise<{ data: ScheduleSummary[] }> {
         return this.service.schedules(await usePrincipal(event));

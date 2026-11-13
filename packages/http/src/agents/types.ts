@@ -59,25 +59,25 @@ export type ScheduleSummary = {
 // #endregion summaries
 
 // #region services
-/** `GET /agents`: the agents and load issues the principal may read runs of. */
+/** `GET /agents`: the agents, and their load issues, whose runs the caller may read. */
 export type AgentListView = {
     data: AgentSummary[];
     issues: AgentIssue[];
 };
 
-/** A kv entry as `store.state.find` returns it. */
+/** A key and its value. */
 export type KvEntry = {
     key: string;
     value: unknown;
 };
 
-/** `GET/PATCH /agents/:name/state/kv/:key`: the key and its value (`null` when unset). */
+/** `GET/PATCH /agents/{name}/state/kv/{key}`: the key and its value (`null` when unset). */
 export type KvView = {
     key: string;
     value: unknown;
 };
 
-/** Body of `PATCH /agents/:name/state/kv/:key`. */
+/** Body of `PATCH /agents/{name}/state/kv/{key}`. */
 export type KvWriteBody = {
     value: unknown;
 };

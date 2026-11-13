@@ -9,6 +9,7 @@ import {
     DContext,
     DController,
     DGet,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
@@ -17,7 +18,8 @@ import { ForceLoggedInMiddleware } from '../../middleware/index.ts';
 import type { UiPage } from '../../static/types.ts';
 import type { ConnectionConfigControllerContext, IConnectionConfigService } from '../types.ts';
 
-@DTags('connections')
+@DTags('ui-page')
+@DSecurity([], 'bearer')
 @DController('/ui-pages')
 export class UiPageController {
     protected config: IConnectionConfigService;
@@ -26,7 +28,7 @@ export class UiPageController {
         this.config = ctx.config;
     }
 
-    /** `GET /ui-pages`: the dashboard pages, their paths under `basePath`. */
+    /** The dashboard pages, their paths under `basePath`. */
     @DGet('', [ForceLoggedInMiddleware])
     async list(@DContext() event: IAppEvent): Promise<{ data: UiPage[] }> {
         return this.config.uiPages(await usePrincipal(event));

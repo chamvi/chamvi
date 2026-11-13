@@ -102,7 +102,11 @@ async function serve(): Promise<(method: string, path: string, body?: unknown) =
             storeModule(),
             staticTokensModule(),
             engineModule(),
-            httpModule({ metrics: false, rateLimit: false }),
+            httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            }),
             toolMailModule({ env: {} }),
         ],
     });

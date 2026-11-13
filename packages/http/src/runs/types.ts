@@ -21,15 +21,16 @@ import type { HttpContext } from '../app/types.ts';
 import type { Principal } from '../auth/types.ts';
 import type { HTTP_CHANNEL_NAME, MCP_CHANNEL_NAME } from '../channels/constants.ts';
 
-/** An invoker or approver as it leaves the package: identity only, never the grants. */
+/** An invoker or approver as the API serves it: its identity only, never its grants. */
 export type InvokerView = Omit<Invoker, 'bindings' | 'authorization'>;
 
 /**
- * A run as it leaves the package (REST, SSE, MCP): without the internal
- * claim and conversation binding, and the invoker without its bindings.
+ * A run as the API serves it (REST, SSE, MCP): its invoker carries the
+ * identity only, never the grants.
  */
 export type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
-    trigger: Omit<TriggerEnvelope, 'invoker'> & { invoker?: InvokerView };
+    /** What started the run; `payload` is absent when the run was started without one. */
+    trigger: Omit<TriggerEnvelope, 'invoker' | 'payload'> & { payload?: unknown; invoker?: InvokerView };
     /**
      * The run's agent is private (or not held by the app), as the server
      * checks it: `{ name: agent, private: agentPrivate }` are the attributes
@@ -53,7 +54,7 @@ export type RunListQuery = {
     order: 'asc' | 'desc';
 };
 
-/** Body of `POST /agents/:name/runs`; internal. */
+/** Body of `POST /agents/{name}/runs`; internal. */
 export type StartRunBody = {
     payload?: unknown;
     idempotencyKey?: string;
@@ -63,7 +64,25 @@ export type StartRunBody = {
     attachments?: ArtifactInput[];
 };
 
-/** Body of `POST /runs/:id/approve`. */
+/** One attachment of `POST /agents/{name}/runs` as sent. */
+export type AttachmentRequestBody = {
+    /** `type/subtype`, e.g. `image/png`. */
+    mediaType: string;
+    filename?: string;
+    /** The bytes in base64. */
+    data: string;
+};
+
+/** The body of `POST /agents/{name}/runs`. */
+export type StartRunRequestBody = {
+    payload?: unknown;
+    idempotencyKey?: string;
+    /** Where the run came from on the http channel (a caller-defined thread or conversation). */
+    address?: string;
+    attachments?: AttachmentRequestBody[];
+};
+
+/** Body of `POST /runs/{id}/approve`. */
 export type ApproveBody = {
     /** The wait point being answered; another one than the run's current is 409. */
     approvalId: string;
@@ -77,10 +96,11 @@ export type ApproveBody = {
 /** What `RunService` needs of the http context. */
 export type RunServiceContext = Pick<HttpContext, 'engine' | 'store' | 'agents' | 'clock'>;
 
-/** `POST /agents/:name/runs`: the agent name, the untrusted body and the `Idempotency-Key` header. */
+/** `POST /agents/{name}/runs`: the agent name, the untrusted body and the `Idempotency-Key` header. */
 export type StartRunInput = {
     agent: string;
-    data: StartRunBody;
+    /** Unvalidated: a `StartRunRequestBody` on the wire. */
+    data: unknown;
     idempotencyHeader?: string | null;
 };
 
@@ -125,7 +145,7 @@ export type RunFindView = {
     total: number;
 };
 
-/** `GET /runs/:id`: the run with its steps. */
+/** `GET /runs/{id}`: the run with its steps. */
 export type RunDetailView = RunView & { steps: Step[] };
 
 /** One artifact of a run with its bytes. */
@@ -134,13 +154,13 @@ export type RunArtifactView = {
     data: Uint8Array;
 };
 
-/** `POST /runs/:id/cancel`: the run's status after the cancel. */
+/** `POST /runs/{id}/cancel`: the run's status after the cancel. */
 export type CancelRunView = {
     runId: string;
     status?: RunStatusLiteral;
 };
 
-/** `POST /runs/:id/approve`: the answered run, queued again. */
+/** `POST /runs/{id}/approve`: the answered run, queued again. */
 export type ApproveRunView = {
     runId: string;
     status: 'queued';

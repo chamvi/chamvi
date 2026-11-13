@@ -14,11 +14,13 @@ import {
     DHeader,
     DPath,
     DPost,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../app/helpers.ts';
 import { usePrincipal } from '../auth/helpers.ts';
+import { DProduces, DQuerySchema, DStatus } from '../decorators/index.ts';
 import { ForceLoggedInMiddleware, JsonBodyMiddleware, RequiredJsonBodyMiddleware } from '../middleware/index.ts';
 import { contentDisposition, toBody } from './helpers.ts';
 import { streamRun } from './stream/module.ts';
@@ -30,11 +32,12 @@ import type {
     RunControllerContext,
     RunDetailView,
     RunListView,
-    StartRunBody,
+    StartRunRequestBody,
     StartRunView,
 } from './types.ts';
 
-@DTags('runs')
+@DTags('run')
+@DSecurity([], 'bearer')
 @DController('')
 export class RunController {
     protected service: IRunService;
@@ -43,13 +46,16 @@ export class RunController {
         this.service = ctx.service;
     }
 
-    /** `POST /agents/:name/runs`: starts a run through the agent's http subscription. */
+    /** Starts a run through the agent's http subscription. */
     @DPost('/agents/:name/runs', [ForceLoggedInMiddleware, JsonBodyMiddleware])
+    @DStatus('202')
     async start(
         @DPath('name') name: string,
-        @DBody() data: StartRunBody,
-        @DHeader('idempotency-key') idempotencyHeader: string | null,
         @DContext() event: IAppEvent,
+        // optional (hence after `event`) so the openapi document marks the body and the header optional;
+        // routup passes the parsed body or undefined, and null for an absent header, which the service reads as unset
+        @DBody() data?: StartRunRequestBody,
+        @DHeader('idempotency-key') idempotencyHeader?: string,
     ): Promise<StartRunView> {
         const result = await this.service.start({
             agent: name,
@@ -62,13 +68,18 @@ export class RunController {
         return result;
     }
 
-    /** `GET /runs`: a page of the runs the principal may read. */
+    /**
+     * A page of the runs the caller may read. The filters also read the
+     * expression form, `filter=and(eq(agent,'a'),in(status,'queued','running'))`,
+     * which cannot be mixed with the bracket form.
+     */
     @DGet('/runs', [ForceLoggedInMiddleware])
+    @DQuerySchema('runs')
     async list(@DContext() event: IAppEvent): Promise<RunListView> {
         return this.service.list(event.searchParams, await usePrincipal(event));
     }
 
-    /** `GET /runs/:id`: the run with its steps. */
+    /** The run with its steps. */
     @DGet('/runs/:id', [ForceLoggedInMiddleware])
     async get(
         @DPath('id') id: string,
@@ -77,8 +88,10 @@ export class RunController {
         return this.service.get(id, await usePrincipal(event));
     }
 
-    /** `GET /runs/:id/stream`: the run's events as SSE. */
+    /** The run's events as server-sent events, resumable after a step. */
     @DGet('/runs/:id/stream', [ForceLoggedInMiddleware])
+    @DQuerySchema('stream')
+    @DProduces('text/event-stream', 'Server-sent events: the run\'s events, until the run settles.')
     async stream(
         @DPath('id') id: string,
         @DContext() event: IAppEvent,
@@ -88,7 +101,7 @@ export class RunController {
         return streamRun(event, useHttpContext(event), run.id);
     }
 
-    /** `GET /runs/:id/artifacts`: the run's artifacts (metadata). */
+    /** The run's artifacts (metadata). */
     @DGet('/runs/:id/artifacts', [ForceLoggedInMiddleware])
     async artifacts(
         @DPath('id') id: string,
@@ -97,8 +110,9 @@ export class RunController {
         return this.service.artifacts(id, await usePrincipal(event));
     }
 
-    /** `GET /runs/:id/artifacts/:artifactId`: the artifact's bytes as a download. */
+    /** The artifact's bytes as a download. */
     @DGet('/runs/:id/artifacts/:artifactId', [ForceLoggedInMiddleware])
+    @DProduces('application/octet-stream', 'The artifact\'s bytes as an attachment download; the actual `content-type` is the artifact\'s stored media type.')
     async artifact(
         @DPath('id') id: string,
         @DPath('artifactId') artifactId: string,
@@ -118,8 +132,9 @@ export class RunController {
         return new Response(toBody(data), { status: 200, headers });
     }
 
-    /** `POST /runs/:id/cancel`: cancels the run. */
+    /** Cancels the run. */
     @DPost('/runs/:id/cancel', [ForceLoggedInMiddleware])
+    @DStatus('202')
     async cancel(
         @DPath('id') id: string,
         @DContext() event: IAppEvent,
@@ -131,8 +146,9 @@ export class RunController {
         return result;
     }
 
-    /** `POST /runs/:id/approve`: answers the run's approval wait point. */
+    /** Answers the run's approval wait point. */
     @DPost('/runs/:id/approve', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
+    @DStatus('202')
     async approve(
         @DPath('id') id: string,
         @DBody() data: ApproveBody,

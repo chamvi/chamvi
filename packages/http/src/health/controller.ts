@@ -7,10 +7,16 @@
 
 import {
     DController,
+    DDescription,
     DGet,
     DTags,
 } from '@routup/decorators';
-import type { HealthControllerContext, IHealthService, ReadinessView } from './types.ts';
+import type {
+    HealthControllerContext,
+    IHealthService,
+    ReadinessReadyView,
+    ReadinessUnavailableView,
+} from './types.ts';
 
 /** `/healthz` (process alive) and `/readyz` (store, engine, shutdown); unauthenticated. */
 @DTags('health')
@@ -27,13 +33,13 @@ export class HealthController {
         return { status: 'ok' };
     }
 
-    /**
-     * `GET /readyz`: 503 with the reason while the app takes no traffic. The
-     * 503 is a raw `Response`, so routup's send path never gives it an etag
-     * and an `If-None-Match` can never turn it into a 304.
-     */
+    /** Whether the app takes traffic: 503 with the reason while it does not. The 503 is never answered with a 304. */
+    // the 503 is a raw `Response`, so routup's send path never gives it an etag and an `If-None-Match`
+    // can never turn it into a 304
     @DGet('/readyz')
-    async ready(): Promise<ReadinessView | Response> {
+    @DDescription<ReadinessReadyView>(200, 'The app takes traffic.')
+    @DDescription<ReadinessUnavailableView>(503, 'The app takes no traffic, and why.')
+    async ready(): Promise<ReadinessReadyView | Response> {
         const view = await this.service.readiness();
 
         if (view.status === 'unavailable') {

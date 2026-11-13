@@ -104,6 +104,7 @@ function createFixture(extra: Partial<KnowledgeOptions> = {}): Fixture {
             ],
         }),
         rateLimit: false,
+        openapi: false,
         routes: knowledgeRoutes(knowledge),
     });
 

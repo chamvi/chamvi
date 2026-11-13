@@ -17,8 +17,8 @@ export type AuthorizationCheckBody = {
 };
 
 /**
- * The asked names the principal may attempt (`canSome`, an upper bound:
- * a policy that needs a resource passes, the route decides per resource),
+ * The asked names the caller may attempt (an upper bound: a grant
+ * restricted by a resource policy counts, the route decides per resource),
  * deduplicated, in request order. An absent name is denied.
  */
 export type AuthorizationCheckView = {
@@ -33,9 +33,9 @@ export type AuthorizationServiceContext = {
 export interface IAuthorizationService {
     /**
      * The asked names (`data` untrusted, validated here) the principal may
-     * attempt; every `chamvi_*` name when `names` is absent.
+     * attempt; every `chamvi_*` name when `names` (or the body) is absent.
      */
-    check(data: AuthorizationCheckBody, principal: Principal): Promise<AuthorizationCheckView>;
+    check(data: AuthorizationCheckBody | undefined, principal: Principal): Promise<AuthorizationCheckView>;
 }
 
 export type AuthorizationControllerContext = {

@@ -15,6 +15,7 @@ export * from './channels/index.ts';
 export * from './connections/index.ts';
 export * from './mcp/index.ts';
 export * from './me/index.ts';
+export * from './openapi/index.ts';
 export * from './request/index.ts';
 export * from './runs/index.ts';
 export * from './shutdown/index.ts';
