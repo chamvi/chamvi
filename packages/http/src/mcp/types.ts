@@ -13,7 +13,6 @@ import type {
     RunStatusLiteral,
 } from '@chamvi/core';
 import type { StandardSchemaWithJSON } from '@modelcontextprotocol/server';
-import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Principal } from '../auth/types.ts';
 import type { IRunService } from '../runs/types.ts';
 
@@ -103,7 +102,6 @@ export type RunAgentArgs = {
 export type McpRunTool = {
     agent: Agent;
     subscription: ChannelSubscription;
-    schema?: StandardSchemaV1;
     description: string;
     inputSchema: StandardSchemaWithJSON<RunAgentArgs, RunAgentArgs>;
 };

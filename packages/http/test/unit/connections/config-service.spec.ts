@@ -13,7 +13,6 @@ import {
     vi,
 } from 'vitest';
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import {
     ChamviError,
     ErrorCode,
@@ -30,19 +29,11 @@ import type {
     IConnectionTypeProvider,
 } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
-import type { Principal } from '@chamvi/http';
 import { ConnectionConfigService } from '../../../src/connections/service/index.ts';
 import type { IConnectionConfigService } from '../../../src/connections/types.ts';
+import { principalOf } from '../../utils/principal.ts';
 
 const PASSWORD = 'hunter2-plaintext-secret';
-
-function principalOf(...grants: Array<string | PermissionBinding>): Principal {
-    return {
-        id: 'p',
-        kind: 'token',
-        bindings: grants.map((grant) => (typeof grant === 'string' ? { permission: { name: grant } } : grant)),
-    };
-}
 
 function mailDefinition(overrides: Partial<ConnectionTypeDefinition> = {}): ConnectionTypeDefinition {
     return {

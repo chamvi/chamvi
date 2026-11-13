@@ -253,7 +253,6 @@ export function buildRunTool(agent: Agent, options: McpEndpointOptions): McpRunT
     return {
         agent,
         subscription,
-        ...(schema ? { schema } : {}),
         description: describeAgent(agent),
         inputSchema,
     };

@@ -10,11 +10,9 @@ import { isValidupError } from 'validup';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import { createMemoryStore, defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
-import type { Principal } from '@chamvi/http';
 import { http } from '@chamvi/http';
 import { AgentStateService } from '../../../src/agents/service/index.ts';
 import { createErrorHandler } from '../../../src/app/helpers.ts';
@@ -22,14 +20,7 @@ import type { HttpContext } from '../../../src/app/types.ts';
 import { restricted } from '../../utils/app.ts';
 import { inventoryAgents } from '../../utils/agents.ts';
 import { textModel } from '../../utils/model.ts';
-
-function principalOf(...grants: Array<string | PermissionBinding>): Principal {
-    return {
-        id: 'p',
-        kind: 'token',
-        bindings: grants.map((grant) => (typeof grant === 'string' ? { permission: { name: grant } } : grant)),
-    };
-}
+import { principalOf } from '../../utils/principal.ts';
 
 /** The body the app's error handler answers `error` with. */
 async function renderError(error: unknown): Promise<unknown> {

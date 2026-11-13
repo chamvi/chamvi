@@ -11,7 +11,7 @@ import { usePrincipal } from '../auth/helpers.ts';
 
 /** Authenticates the request (401 otherwise) before any body is read. */
 export class ForceLoggedInMiddleware implements HandlerInterface {
-    public async run(event: IAppEvent) {
+    public async run(event: IAppEvent): Promise<Response | undefined> {
         await usePrincipal(event);
 
         return event.next();

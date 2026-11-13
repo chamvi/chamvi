@@ -12,23 +12,14 @@ import {
     vi,
 } from 'vitest';
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import { createMemoryStore } from '@chamvi/core';
 import type { ConnectionStatus, IConnectionHandle } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
-import type { Principal } from '@chamvi/http';
 import { ConnectionService } from '../../../src/connections/service/index.ts';
 import { flush, restricted } from '../../utils/app.ts';
+import { principalOf } from '../../utils/principal.ts';
 
 const QR = '2@SECRET-QR-REFERENCE';
-
-function principalOf(...grants: Array<string | PermissionBinding>): Principal {
-    return {
-        id: 'p',
-        kind: 'token',
-        bindings: grants.map((grant) => (typeof grant === 'string' ? { permission: { name: grant } } : grant)),
-    };
-}
 
 function handleOf(name: string, options: { status?: ConnectionStatus; reset?: () => Promise<void> } = {}): IConnectionHandle {
     return {

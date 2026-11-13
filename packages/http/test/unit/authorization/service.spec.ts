@@ -6,24 +6,11 @@
  */
 
 import { isValidupError } from 'validup';
-import { 
-    describe, 
-    expect, 
-    it, 
-    vi, 
-} from 'vitest';
+import { describe, expect, it } from 'vitest';
 import { PERMISSION_NAMES } from '@chamvi/access';
 import { ControllableClock } from '@chamvi/test-kit';
-import type { Principal } from '@chamvi/http';
 import { AuthorizationService } from '../../../src/authorization/service.ts';
-
-function principalOf(...names: string[]): Principal {
-    return {
-        id: 'p',
-        kind: 'token',
-        bindings: names.map((name) => ({ permission: { name } })),
-    };
-}
+import { principalOf } from '../../utils/principal.ts';
 
 describe('AuthorizationService', () => {
     it('answers every permission name without names', async () => {
@@ -32,16 +19,14 @@ describe('AuthorizationService', () => {
         expect(await service.check({}, principalOf(...PERMISSION_NAMES))).toEqual({ permissions: [...PERMISSION_NAMES] });
     });
 
-    it('evaluates a name asked twice once', async () => {
-        const clock = new ControllableClock();
-        const now = vi.spyOn(clock, 'now');
-        const service = new AuthorizationService({ clock });
+    it('answers a name asked twice once, in request order', async () => {
+        const service = new AuthorizationService({ clock: new ControllableClock() });
 
-        expect(await service.check({ names: ['a', 'a'] }, principalOf('a'))).toEqual({ permissions: ['a'] });
-        expect(now).toHaveBeenCalledTimes(1);
+        // the http-level spec covers unknown names; here only the dedupe
+        expect(await service.check({ names: ['b', 'a', 'b', 'a'] }, principalOf('a', 'b'))).toEqual({ permissions: ['b', 'a'] });
     });
 
-    it('rejects names that are no array with a validation error', async () => {
+    it('rejects a names value that is not a string array with a validup error', async () => {
         const service = new AuthorizationService({ clock: new ControllableClock() });
         const error = await service.check({ names: 'a' } as never, principalOf('a')).catch((e: unknown) => e);
 

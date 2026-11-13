@@ -123,7 +123,7 @@ export type ConnectionCreateBody = {
     secrets?: Record<string, unknown>;
 };
 
-// #region services
+// #region helpers
 /** What a configuration request addresses: a declared connection, or a stored account no process loaded yet. */
 export type ConfigTarget = {
     name: string;
@@ -138,6 +138,9 @@ export type FormInput = {
     clear?: readonly string[];
 };
 
+// #endregion helpers
+
+// #region services
 /** What `ConnectionService` needs of the http context. */
 export type ConnectionServiceContext = Pick<HttpContext, 'connections' | 'connectionTypes' | 'connectionConfigs' | 'store' | 'clock' | 'onError'>;
 

@@ -85,6 +85,8 @@ export class RunService implements IRunService {
             ...(body.address !== undefined ? { address: body.address } : {}),
             ...(body.attachments !== undefined ? { attachments: body.attachments } : {}),
         };
+        // not this.dispatch(): the replacement re-check below has to sit
+        // between the payload validation and the engine dispatch
         let envelope = await this.toDispatchEnvelope(request, principal);
 
         // replaced or removed while the payload was validated: check the

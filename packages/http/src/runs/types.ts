@@ -73,7 +73,6 @@ export type ApproveBody = {
     selected?: string[];
 };
 
-
 // #region services
 /** What `RunService` needs of the http context. */
 export type RunServiceContext = Pick<HttpContext, 'engine' | 'store' | 'agents' | 'clock'>;
@@ -154,7 +153,11 @@ export type ApproveRunView = {
 export interface IRunService {
     /** `chamvi_agent_run` (403), the agent (404), its http subscription (404), the body, then the dispatch. */
     start(input: StartRunInput, principal: Principal): Promise<StartRunView>;
-    /** Validates the payload against the subscription's schema, then dispatches with `checked: agent` (409 for a replaced agent). */
+    /**
+     * Dispatches an `agent` the caller has already authorized and resolved:
+     * validates the payload against the subscription's schema, then
+     * dispatches with `checked: agent` (409 for a replaced agent).
+     */
     dispatch(input: DispatchRunInput, principal: Principal): Promise<StartRunView>;
     list(query: URLSearchParams, principal: Principal): Promise<RunListView>;
     /** The runs the principal may list (403 otherwise, see `assertCanListRuns()`), as stored. */
@@ -170,7 +173,7 @@ export interface IRunService {
     approve(id: string, data: ApproveBody, principal: Principal): Promise<ApproveRunView>;
     /** The run once the principal may answer its approvals: 404 for a missing run, 403 without `chamvi_agent_approve`. */
     getApprovable(id: string, principal: Principal): Promise<Run>;
-    /** Answers the approval of a run from `getApprovable()` with a validated answer (the engine's 404, 409). */
+    /** Answers the approval of a run from `getApprovable()` with an answer validated by the caller (the engine's 404, 409). */
     answer(run: Run, answer: ApproveBody, principal: Principal): Promise<ApproveRunView>;
 }
 

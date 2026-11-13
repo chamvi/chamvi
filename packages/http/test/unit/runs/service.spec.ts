@@ -13,25 +13,17 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import { ErrorCode, defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
-import type { Principal } from '@chamvi/http';
 import { http } from '@chamvi/http';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { createLiveAgents } from '../../../src/app/helpers.ts';
 import { KEY_MAX_LENGTH } from '../../../src/request/constants.ts';
 import { RunService } from '../../../src/runs/service.ts';
+import type { StartRunBody } from '../../../src/runs/types.ts';
 import { createRunAgents, createTestApp, restricted } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
-
-function principalOf(...grants: Array<string | PermissionBinding>): Principal {
-    return {
-        id: 'p',
-        kind: 'token',
-        bindings: grants.map((grant) => (typeof grant === 'string' ? { permission: { name: grant } } : grant)),
-    };
-}
+import { principalOf } from '../../utils/principal.ts';
 
 const admin = principalOf(
     Permission.AGENT_RUN,
@@ -167,7 +159,8 @@ describe('RunService.start', () => {
         await service.start({ agent: 'echo', data: { attachments: [] } }, admin);
         await service.start({
             agent: 'echo',
-            data: { attachments: [{ mediaType: 'text/plain', data: 'aGk=' }] as never },
+            // the untrusted body carries base64, the validator decodes it
+            data: { attachments: [{ mediaType: 'text/plain', data: 'aGk=' }] as unknown as StartRunBody['attachments'] },
         }, admin);
 
         expect(dispatch.mock.calls[0]?.[0]).not.toHaveProperty('attachments');

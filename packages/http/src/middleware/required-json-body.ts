@@ -11,7 +11,7 @@ import { cacheJsonBody } from './helpers.ts';
 
 /** A required JSON body for `@DBody()`: an empty one is a 400. List it after ForceLoggedInMiddleware. */
 export class RequiredJsonBodyMiddleware implements HandlerInterface {
-    public async run(event: IAppEvent) {
+    public async run(event: IAppEvent): Promise<Response | undefined> {
         await cacheJsonBody(event, true);
 
         return event.next();

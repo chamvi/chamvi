@@ -73,7 +73,11 @@ export class AgentStateService implements IAgentStateService {
     }
 
     /** `permission` for `{ name }` (403), the agent (404), then `chamvi_agent_read` for a private one (403). */
-    protected async readableAgent(name: string, principal: Principal, permission: string): Promise<Agent> {
+    protected async readableAgent(
+        name: string,
+        principal: Principal,
+        permission: typeof Permission.STATE_READ | typeof Permission.STATE_WRITE,
+    ): Promise<Agent> {
         await assertGranted(principal, this.ctx.clock, permission, { name });
 
         const agent = requireAgent(this.ctx.agents, name);

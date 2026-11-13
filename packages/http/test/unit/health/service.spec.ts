@@ -19,9 +19,9 @@ type Setup = {
 };
 
 function setup({
-    shuttingDown = false, 
-    draining = false, 
-    hanging = false, 
+    shuttingDown = false,
+    draining = false,
+    hanging = false,
 }: Setup = {}) {
     const clock = new ControllableClock(new Date(1_000_000));
     const store: IStore = createMemoryStore({ clock });
@@ -47,10 +47,29 @@ function setup({
 }
 
 describe('HealthService', () => {
-    it('answers ok', async () => {
-        const { service } = setup();
+    it('answers ok and clears its store timeout', async () => {
+        const { clock, service } = setup();
+        const cleared: boolean[] = [];
+        const { setTimeout } = clock;
+
+        clock.setTimeout = (fn, ms) => {
+            const index = cleared.length;
+
+            cleared.push(false);
+
+            const timer = setTimeout.call(clock, fn, ms);
+
+            return {
+                clear: () => {
+                    cleared[index] = true;
+                    timer.clear();
+                },
+            };
+        };
 
         expect(await service.readiness()).toEqual({ status: 'ok' });
+        // no timer stays pending once readiness answered
+        expect(cleared).toEqual([true]);
     });
 
     it('answers shutting-down once the shutdown started', async () => {
@@ -85,9 +104,9 @@ describe('HealthService', () => {
 
     it('answers shutting-down before draining and draining before the store', async () => {
         expect(await setup({
-            shuttingDown: true, 
-            draining: true, 
-            hanging: true, 
+            shuttingDown: true,
+            draining: true,
+            hanging: true,
         }).service.readiness())
             .toEqual({ status: 'unavailable', reason: 'shutting-down' });
         expect(await setup({ draining: true, hanging: true }).service.readiness())

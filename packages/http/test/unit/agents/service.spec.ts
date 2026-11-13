@@ -7,23 +7,14 @@
 
 import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
-import type { Principal } from '@chamvi/http';
 import { AgentService } from '../../../src/agents/service/index.ts';
 import { cronOn, restricted } from '../../utils/app.ts';
 import { inventoryAgents } from '../../utils/agents.ts';
 import { textModel } from '../../utils/model.ts';
-
-function principalOf(...bindings: PermissionBinding[]): Principal {
-    return {
-        id: 'p',
-        kind: 'token',
-        bindings,
-    };
-}
+import { principalOf } from '../../utils/principal.ts';
 
 function setup() {
     const clock = new ControllableClock(new Date(1_000_000));
