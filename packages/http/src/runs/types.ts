@@ -171,10 +171,11 @@ export interface IRunService {
     cancel(id: string, principal: Principal): Promise<CancelRunView>;
     /** The run (404), `chamvi_agent_approve` for its agent (403), then the body. */
     approve(id: string, data: ApproveBody, principal: Principal): Promise<ApproveRunView>;
-    /** The run once the principal may answer its approvals: 404 for a missing run, 403 without `chamvi_agent_approve`. */
-    getApprovable(id: string, principal: Principal): Promise<Run>;
-    /** Answers the approval of a run from `getApprovable()` with an answer validated by the caller (the engine's 404, 409). */
-    answer(run: Run, answer: ApproveBody, principal: Principal): Promise<ApproveRunView>;
+    /**
+     * Answers the run's approval with an answer the caller validated: the run
+     * (404), `chamvi_agent_approve` for its agent (403), then the engine's 404, 409.
+     */
+    answer(id: string, answer: ApproveBody, principal: Principal): Promise<ApproveRunView>;
 }
 
 export type RunControllerContext = {

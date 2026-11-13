@@ -175,18 +175,21 @@ export class RunService implements IRunService {
 
     async approve(id: string, data: ApproveBody, principal: Principal): Promise<ApproveRunView> {
         // authorize against the run's agent before validating the body
-        const run = await this.getApprovable(id, principal);
+        const run = await loadApprovableRun(this.ctx, principal, id);
         const body = await validateBody(this.approveContainer, data);
 
-        return this.answer(run, body, principal);
+        return this.applyAnswer(run.id, body, principal);
     }
 
-    getApprovable(id: string, principal: Principal): Promise<Run> {
-        return loadApprovableRun(this.ctx, principal, id);
+    async answer(id: string, answer: ApproveBody, principal: Principal): Promise<ApproveRunView> {
+        const run = await loadApprovableRun(this.ctx, principal, id);
+
+        return this.applyAnswer(run.id, answer, principal);
     }
 
-    async answer(run: Run, answer: ApproveBody, principal: Principal): Promise<ApproveRunView> {
-        await this.ctx.engine.approve(run.id, {
+    /** The engine call of an answer whose run the principal may approve (the engine's 404, 409). */
+    protected async applyAnswer(runId: string, answer: ApproveBody, principal: Principal): Promise<ApproveRunView> {
+        await this.ctx.engine.approve(runId, {
             approvalId: answer.approvalId,
             approved: answer.approved,
             ...(answer.reason !== undefined ? { reason: answer.reason } : {}),
@@ -194,7 +197,7 @@ export class RunService implements IRunService {
             approver: toInvoker(principal),
         });
 
-        return { runId: run.id, status: 'queued' };
+        return { runId, status: 'queued' };
     }
 
     /**

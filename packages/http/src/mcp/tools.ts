@@ -388,9 +388,7 @@ function registerApproveTool(server: McpServer, ctx: HttpContext, services: McpS
         inputSchema: APPROVE_RUN_INPUT,
     }, (args) => runTool(ctx, async () => {
         // the arguments are validated by the tool's input schema, not by the REST body rules
-        const run = await services.runs.getApprovable(args.runId, principal);
-
-        return toolResult(await services.runs.answer(run, args, principal));
+        return toolResult(await services.runs.answer(args.runId, args, principal));
     }));
 }
 
