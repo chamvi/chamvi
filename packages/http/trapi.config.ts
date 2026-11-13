@@ -93,7 +93,7 @@ const QUERY_PARAMETERS: Record<string, () => Parameter[]> = {
     kv: () => [pageLimit(), pageOffset()],
     documents: () => [
         queryParameter('filter[<field>]', STRING, [
-            'Not a literal name: one parameter per document field, `filter[color]=red&filter[size]=3`,',
+            'Not a literal name: one parameter per document field, `filter[color]=red&filter[qty]=3`,',
             'matching documents whose top-level field equals the value.',
             'The value is read as a number, boolean or `null` where it parses as one.',
             'Each field at most once; only equality, no list; `filter[id]` and nested paths are rejected with 400.',

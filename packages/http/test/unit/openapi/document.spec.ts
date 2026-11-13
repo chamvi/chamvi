@@ -9,15 +9,19 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isObject } from 'smob';
 import { describe, expect, it } from 'vitest';
+import { parseCollectionQuery, parseKvListQuery } from '../../../src/agents/helpers.ts';
+import { parseRunListQuery } from '../../../src/runs/helpers.ts';
 
 type Schema = Record<string, any>;
 
 type Operation = {
+    description?: string;
     tags?: string[];
     security?: Record<string, string[]>[];
     parameters?: {
         name: string;
         in: string;
+        description?: string;
         required?: boolean
     }[];
     requestBody?: { required?: boolean; content?: Record<string, { schema?: Schema }> };
@@ -338,8 +342,36 @@ describe.skipIf(!document)('the generated openapi document', () => {
 
     it('marks the start body and its idempotency header optional', () => {
         const operation = doc.paths['/agents/{name}/runs']?.post as Operation;
+        const header = operation.parameters?.find((parameter) => parameter.in === 'header' && parameter.name === 'idempotency-key');
 
         expect(operation.requestBody?.required).not.toBe(true);
+        expect(header?.required).toBe(false);
+    });
+
+    it('documents only query examples the route parses', () => {
+        const parsers: [string, (params: URLSearchParams) => unknown, boolean][] = [
+            ['/runs', (params) => parseRunListQuery(params), true],
+            ['/agents/{name}/state/kv', (params) => parseKvListQuery(params), false],
+            ['/agents/{name}/state/collections/{collection}', (params) => parseCollectionQuery(params), true],
+        ];
+
+        for (const [path, parse, documented] of parsers) {
+            const operation = doc.paths[path]?.get as Operation;
+            const texts: string[] = [operation.description ?? '', ...(operation.parameters ?? []).map((parameter) => parameter.description ?? '')];
+            // a backticked query string; placeholders (`filter[<field>]=value`, `filter[...]`) carry `<` or `...` and are skipped
+            const examples = texts
+                .flatMap((text) => Array.from(text.matchAll(/`([^`]+)`/g), (match) => match[1] as string))
+                .filter((example) => /^(?:filter|sort|page)(?:\[[^\]]*\])?=/.test(example))
+                .filter((example) => !example.includes('<') && !example.includes('...'));
+
+            if (documented) {
+                expect(examples.length, path).toBeGreaterThan(0);
+            }
+
+            for (const example of examples) {
+                expect(() => parse(new URLSearchParams(example)), `${path} ${example}`).not.toThrow();
+            }
+        }
     });
 
     it('gives every parameter a schema', () => {

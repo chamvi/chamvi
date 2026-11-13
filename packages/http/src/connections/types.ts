@@ -158,7 +158,7 @@ export interface IConnectionService {
     /** The connections the principal may read; never widgets. */
     list(principal: Principal): Promise<{ data: ConnectionView[] }>;
     /** 403, then 404; a writer also gets the widgets, `canReset` and `live`. */
-    get(name: string, principal: Principal): Promise<ConnectionView | ConnectionDetailView>;
+    get(name: string, principal: Principal): Promise<ConnectionDetailView>;
     /** The handle of `name` the principal may write (403, then 404). */
     requireWritable(name: string, principal: Principal): Promise<IConnectionHandle>;
     /**

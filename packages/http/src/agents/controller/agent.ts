@@ -83,7 +83,7 @@ export class AgentController {
     /**
      * `GET /agents/:name/state/collections/:collection`: documents by top-level
      * equality filters. The filters also read rapiq's expression form,
-     * `filter=and(eq(color,'red'),eq(size,3))`, which cannot be mixed with the bracket form.
+     * `filter=and(eq(color,'red'),eq(qty,'3'))`, which cannot be mixed with the bracket form.
      */
     @DGet('/:name/state/collections/:collection', [ForceLoggedInMiddleware])
     @DQuerySchema('documents')
