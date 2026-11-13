@@ -1,5 +1,43 @@
 # Changelog
 
+## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **access,core,http:** name a holder's binding list bindings ([#212](https://github.com/chamvi/chamvi/issues/212))
+* **app,ui-kit:** the token format in `CHAMVI_TOKENS` and `chamvi.json`.
+
+### Features
+
+* **access:** add the permission check over authup bindings ([#202](https://github.com/chamvi/chamvi/issues/202)) ([9304038](https://github.com/chamvi/chamvi/commit/930403896b0db5e7bc3c34b9230dabdefca7c17c))
+* **app,ui-kit:** configure tokens as permission bindings ([#204](https://github.com/chamvi/chamvi/issues/204)) ([b715aa5](https://github.com/chamvi/chamvi/commit/b715aa55588097506ba062a4fb9d89999ced5400))
+
+
+### Bug Fixes
+
+* **chat-whatsapp:** keep libsignal's session logs out of the console ([#216](https://github.com/chamvi/chamvi/issues/216)) ([730e75c](https://github.com/chamvi/chamvi/commit/730e75c6762fce3929646ea8d34474eafadace58))
+
+
+### Code Refactoring
+
+* **access,core,http:** name a holder's binding list bindings ([#212](https://github.com/chamvi/chamvi/issues/212)) ([6e9bc29](https://github.com/chamvi/chamvi/commit/6e9bc296025967123e2fc55738e770db47a09c88))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/chat bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/store-db bumped from ^0.8.0 to ^0.8.1
+    * @chamvi/test-kit bumped from ^0.8.0 to ^0.8.1
+  * peerDependencies
+    * @chamvi/app bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/chat bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+
 ## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
 
 

@@ -1,5 +1,53 @@
 # Changelog
 
+## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **http:** generate and serve an OpenAPI document ([#222](https://github.com/chamvi/chamvi/issues/222))
+* **http,ui-kit,ui:** answer dashboard permission checks on the server ([#217](https://github.com/chamvi/chamvi/issues/217))
+* **access,core,http,app,ui-kit:** carry authup authorization snapshots and bound authup calls ([#214](https://github.com/chamvi/chamvi/issues/214))
+* **access,core,http:** name a holder's binding list bindings ([#212](https://github.com/chamvi/chamvi/issues/212))
+* **access,knowledge,http:** the knowledge permission names.
+* **app,ui-kit:** the token format in `CHAMVI_TOKENS` and `chamvi.json`.
+* **github,chat-discord:** the GitHub module id is `chamvi:github:<name>`, so `GITHUB_MODULE_NAME` is no longer a module id, and missing GitHub env no longer throws at the factory.
+
+### Features
+
+* **access,core,http,app,ui-kit:** carry authup authorization snapshots and bound authup calls ([#214](https://github.com/chamvi/chamvi/issues/214)) ([9bb9619](https://github.com/chamvi/chamvi/commit/9bb961913855b0dca5298f21affda2acf774a0af))
+* **access,knowledge,http:** static knowledge permissions and review follow-ups ([#209](https://github.com/chamvi/chamvi/issues/209)) ([ae17b2e](https://github.com/chamvi/chamvi/commit/ae17b2ea9e1ce1e7eed8b0132ae0bfc78fd67370))
+* **access:** add the permission check over authup bindings ([#202](https://github.com/chamvi/chamvi/issues/202)) ([9304038](https://github.com/chamvi/chamvi/commit/930403896b0db5e7bc3c34b9230dabdefca7c17c))
+* **app,ui-kit:** configure tokens as permission bindings ([#204](https://github.com/chamvi/chamvi/issues/204)) ([b715aa5](https://github.com/chamvi/chamvi/commit/b715aa55588097506ba062a4fb9d89999ced5400))
+* **github,chat-discord:** configure GitHub and Discord from the store ([#186](https://github.com/chamvi/chamvi/issues/186)) ([0639e06](https://github.com/chamvi/chamvi/commit/0639e065eb7d8482b4607fda7f8ade3fa034a1cb))
+* **http,tool-mail,tool-calendar:** add the connection config API ([#185](https://github.com/chamvi/chamvi/issues/185)) ([96b1222](https://github.com/chamvi/chamvi/commit/96b1222171ada44ab5b35b42edd2f0d406789448))
+* **http,ui-kit,ui:** answer dashboard permission checks on the server ([#217](https://github.com/chamvi/chamvi/issues/217)) ([708791a](https://github.com/chamvi/chamvi/commit/708791ac34ef3d51fd92f34dc7716fc9cbcebbc2))
+* **http:** generate and serve an OpenAPI document ([#222](https://github.com/chamvi/chamvi/issues/222)) ([0d0fc35](https://github.com/chamvi/chamvi/commit/0d0fc3515da029944b0f0584e6b4dcbfb4f4f896))
+
+
+### Bug Fixes
+
+* **deps:** bump authup packages to 1.0.0-beta.74 ([1d7d6bd](https://github.com/chamvi/chamvi/commit/1d7d6bd7c00f759efb70513e42894d205ce3090e))
+* keep env secrets from stored accounts and close audit findings ([#198](https://github.com/chamvi/chamvi/issues/198)) ([f717a57](https://github.com/chamvi/chamvi/commit/f717a57725b2b532b1c3e4746b5a3fbd4c49e197))
+
+
+### Code Refactoring
+
+* **access,core,http:** name a holder's binding list bindings ([#212](https://github.com/chamvi/chamvi/issues/212)) ([6e9bc29](https://github.com/chamvi/chamvi/commit/6e9bc296025967123e2fc55738e770db47a09c88))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/access bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/channel-cron bumped from ^0.8.0 to ^0.8.1
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/http bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/store-db bumped from ^0.8.0 to ^0.8.1
+  * devDependencies
+    * @chamvi/test-kit bumped from ^0.8.0 to ^0.8.1
+
 ## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
 
 

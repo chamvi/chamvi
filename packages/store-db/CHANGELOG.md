@@ -1,5 +1,29 @@
 # Changelog
 
+## [0.8.1](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.8.1) (2026-11-13)
+
+
+### Features
+
+* **access:** add the permission check over authup bindings ([#202](https://github.com/chamvi/chamvi/issues/202)) ([9304038](https://github.com/chamvi/chamvi/commit/930403896b0db5e7bc3c34b9230dabdefca7c17c))
+* **core,store-db:** store connection settings and sealed secrets ([#192](https://github.com/chamvi/chamvi/issues/192)) ([21ab44f](https://github.com/chamvi/chamvi/commit/21ab44f3b2034fb42ac515eb2d930826d1ce10ba))
+* **http,ui-kit:** test saved connections and show configuration state ([#193](https://github.com/chamvi/chamvi/issues/193)) ([18cd2dc](https://github.com/chamvi/chamvi/commit/18cd2dc6b65bb6ce4c74fecff3c4fb6a4ba26387))
+
+
+### Bug Fixes
+
+* **core,http:** bind a dispatched run to the agent revision its check saw ([#213](https://github.com/chamvi/chamvi/issues/213)) ([2479f77](https://github.com/chamvi/chamvi/commit/2479f77a854b469002b65b128502e6001579582d))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/test-kit bumped from ^0.8.0 to ^0.8.1
+  * peerDependencies
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+
 ## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
 
 

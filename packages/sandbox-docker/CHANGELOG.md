@@ -1,5 +1,25 @@
 # Changelog
 
+## [0.8.1](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.8.1) (2026-11-13)
+
+
+### Features
+
+* **access:** add the permission check over authup bindings ([#202](https://github.com/chamvi/chamvi/issues/202)) ([9304038](https://github.com/chamvi/chamvi/commit/930403896b0db5e7bc3c34b9230dabdefca7c17c))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/coding bumped from ^0.8.0 to ^0.8.1
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/sandbox bumped from ^0.8.0 to ^0.8.1
+    * @chamvi/test-kit bumped from ^0.8.0 to ^0.8.1
+  * peerDependencies
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/sandbox bumped from ^0.8.0 to ^0.8.1
+
 ## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
 
 
