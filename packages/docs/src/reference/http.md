@@ -38,7 +38,7 @@ The same options pass through `httpModule()` in `@chamvi/app`. See [GitHub intak
 
 ## OpenAPI document
 
-Every app serves the OpenAPI 3.2 document of its REST API at `GET <basePath>/openapi.json` and a Swagger UI over it at `<basePath>/docs`. The document describes the built-in REST routes only: MCP, the `/channels/<name>` mount and extra routes are not in it. It is generated from the controllers when `@chamvi/http` is built (`dist/swagger.json` in the published package), never at runtime; its `servers` entry is the app's `basePath`. A missing or unreadable document serves neither path and is reported once to `onError`; the API still starts.
+Every app serves the OpenAPI 3.2 document of its REST API at `GET <basePath>/openapi.json` and a Swagger UI over it at `<basePath>/docs`. The document describes the built-in REST routes only: MCP, the `/channels/<name>` mount and extra routes are not in it. It is generated from the controllers when `@chamvi/http` is built (`dist/swagger.json` in the published package), never at runtime; its `servers` entry is the app's `basePath`. A missing or unreadable document serves neither path and is reported once to `onError`; a UI that cannot be mounted leaves only `/docs` unserved, reported the same way; the API still starts.
 
 - `openapi: { ui: false }` serves the document without the UI; `openapi: false` serves neither. With `@chamvi/app`, pass it through `httpModule({ openapi: false })`; there is no environment variable for it.
 - Both are unauthenticated, rate-limited like every other route and labelled `/openapi.json`, `/docs` and `/docs/*` in the metrics. Turn them off, or keep them off the public ingress, if the shape of the API should not be public.
