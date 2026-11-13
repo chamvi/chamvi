@@ -1,0 +1,147 @@
+/*
+ * Copyright (c) 2026.
+ * Author Peter Placzek (tada5hi)
+ * For the full copyright and license information,
+ * view the LICENSE file that was distributed with this source code.
+ */
+
+import type { Artifact } from '@chamvi/core';
+import {
+    DBody,
+    DContext,
+    DController,
+    DGet,
+    DHeader,
+    DPath,
+    DPost,
+    DTags,
+} from '@routup/decorators';
+import type { IAppEvent } from 'routup';
+import { useHttpContext } from '../app/helpers.ts';
+import { usePrincipal } from '../auth/helpers.ts';
+import { ForceLoggedInMiddleware, JsonBodyMiddleware, RequiredJsonBodyMiddleware } from '../middleware/index.ts';
+import { contentDisposition, toBody } from './helpers.ts';
+import { streamRun } from './stream/module.ts';
+import type {
+    ApproveBody,
+    ApproveRunView,
+    CancelRunView,
+    IRunService,
+    RunControllerContext,
+    RunDetailView,
+    RunListView,
+    StartRunBody,
+    StartRunView,
+} from './types.ts';
+
+@DTags('runs')
+@DController('')
+export class RunController {
+    protected service: IRunService;
+
+    constructor(ctx: RunControllerContext) {
+        this.service = ctx.service;
+    }
+
+    /** `POST /agents/:name/runs`: starts a run through the agent's http subscription. */
+    @DPost('/agents/:name/runs', [ForceLoggedInMiddleware, JsonBodyMiddleware])
+    async start(
+        @DPath('name') name: string,
+        @DBody() data: StartRunBody,
+        @DHeader('idempotency-key') idempotencyHeader: string | null,
+        @DContext() event: IAppEvent,
+    ): Promise<StartRunView> {
+        const result = await this.service.start({
+            agent: name,
+            data,
+            idempotencyHeader,
+        }, await usePrincipal(event));
+
+        event.response.status = 202;
+
+        return result;
+    }
+
+    /** `GET /runs`: a page of the runs the principal may read. */
+    @DGet('/runs', [ForceLoggedInMiddleware])
+    async list(@DContext() event: IAppEvent): Promise<RunListView> {
+        return this.service.list(event.searchParams, await usePrincipal(event));
+    }
+
+    /** `GET /runs/:id`: the run with its steps. */
+    @DGet('/runs/:id', [ForceLoggedInMiddleware])
+    async get(
+        @DPath('id') id: string,
+        @DContext() event: IAppEvent,
+    ): Promise<RunDetailView> {
+        return this.service.get(id, await usePrincipal(event));
+    }
+
+    /** `GET /runs/:id/stream`: the run's events as SSE. */
+    @DGet('/runs/:id/stream', [ForceLoggedInMiddleware])
+    async stream(
+        @DPath('id') id: string,
+        @DContext() event: IAppEvent,
+    ): Promise<Response> {
+        const run = await this.service.getReadable(id, await usePrincipal(event));
+
+        return streamRun(event, useHttpContext(event), run.id);
+    }
+
+    /** `GET /runs/:id/artifacts`: the run's artifacts (metadata). */
+    @DGet('/runs/:id/artifacts', [ForceLoggedInMiddleware])
+    async artifacts(
+        @DPath('id') id: string,
+        @DContext() event: IAppEvent,
+    ): Promise<{ data: Artifact[] }> {
+        return this.service.artifacts(id, await usePrincipal(event));
+    }
+
+    /** `GET /runs/:id/artifacts/:artifactId`: the artifact's bytes as a download. */
+    @DGet('/runs/:id/artifacts/:artifactId', [ForceLoggedInMiddleware])
+    async artifact(
+        @DPath('id') id: string,
+        @DPath('artifactId') artifactId: string,
+        @DContext() event: IAppEvent,
+    ): Promise<Response> {
+        const { artifact, data } = await this.service.artifact(id, artifactId, await usePrincipal(event));
+        // from the response headers, so CORS and RateLimit-* survive
+        const headers = new Headers(event.response.headers);
+
+        headers.set('content-type', artifact.mediaType);
+        headers.set('content-length', String(data.byteLength));
+        headers.set('content-disposition', contentDisposition(artifact.filename));
+        // a stored text/html or image/svg+xml must never render as a page of this origin
+        headers.set('x-content-type-options', 'nosniff');
+        headers.set('cache-control', 'private, no-store');
+
+        return new Response(toBody(data), { status: 200, headers });
+    }
+
+    /** `POST /runs/:id/cancel`: cancels the run. */
+    @DPost('/runs/:id/cancel', [ForceLoggedInMiddleware])
+    async cancel(
+        @DPath('id') id: string,
+        @DContext() event: IAppEvent,
+    ): Promise<CancelRunView> {
+        const result = await this.service.cancel(id, await usePrincipal(event));
+
+        event.response.status = 202;
+
+        return result;
+    }
+
+    /** `POST /runs/:id/approve`: answers the run's approval wait point. */
+    @DPost('/runs/:id/approve', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
+    async approve(
+        @DPath('id') id: string,
+        @DBody() data: ApproveBody,
+        @DContext() event: IAppEvent,
+    ): Promise<ApproveRunView> {
+        const result = await this.service.approve(id, data, await usePrincipal(event));
+
+        event.response.status = 202;
+
+        return result;
+    }
+}

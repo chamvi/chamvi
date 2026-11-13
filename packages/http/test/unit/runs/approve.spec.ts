@@ -188,6 +188,24 @@ describe('POST /runs/:id/approve', () => {
         await engine.drain();
     });
 
+    it('answers 404 for an unknown run with a malformed object body', async () => {
+        const { app, engine } = createRunTestApp();
+        const response = await call(app, 'POST', '/runs/unknown/approve', { token: ADMIN_TOKEN, body: {} });
+
+        expect(response.status).toBe(404);
+        expect((await response.json()).code).toBe('run_not_found');
+        await engine.drain();
+    });
+
+    it('refuses an empty body with 400 before the run lookup', async () => {
+        const { app, engine } = createRunTestApp();
+        const response = await call(app, 'POST', '/runs/unknown/approve', { token: ADMIN_TOKEN });
+
+        expect(response.status).toBe(400);
+        expect((await response.json()).message).toBe('The request needs a JSON body.');
+        await engine.drain();
+    });
+
     it('401 without credentials', async () => {
         const {
             app,
@@ -245,18 +263,26 @@ describe('POST /runs/:id/approve', () => {
         await choose.engine.drain();
     });
 
-    it('authorizes before reading the body', async () => {
+    it('reads the body after authentication, before authorizing', async () => {
         const {
             app,
             engine,
             runId,
         } = await pausedGate({ bodyLimit: 1024 });
-        const response = await call(app, 'POST', `/runs/${runId}/approve`, {
-            token: tokenFor(Permission.RUN_READ),
+        const token = tokenFor(Permission.RUN_READ);
+        const oversized = await call(app, 'POST', `/runs/${runId}/approve`, {
+            token,
             body: { approvalId: 'a'.repeat(4096), approved: true },
         });
+        const anonymous = await call(app, 'POST', `/runs/${runId}/approve`, { body: { approvalId: 'a'.repeat(4096), approved: true } });
+        const refused = await call(app, 'POST', `/runs/${runId}/approve`, {
+            token,
+            body: { approvalId: 'a', approved: true },
+        });
 
-        expect(response.status).toBe(403);
+        expect(oversized.status).toBe(413);
+        expect(anonymous.status).toBe(401);
+        expect(refused.status).toBe(403);
         await engine.drain();
     });
 

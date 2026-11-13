@@ -219,6 +219,11 @@ describe('POST /authorization/check', () => {
         const { app } = createTestApp();
 
         expect((await check(app, ADMIN_TOKEN, [])).response.status).toBe(400);
+
+        const nul = await check(app, ADMIN_TOKEN, null);
+
+        expect(nul.response.status).toBe(400);
+        expect(nul.body).toMatchObject({ message: 'The request body must be a JSON object.' });
     });
 
     it('401 without credentials, before the body is read', async () => {
@@ -241,6 +246,21 @@ describe('POST /authorization/check', () => {
         expect(response.status).toBe(401);
         expect(response.headers.get('www-authenticate')).toBe('Bearer');
         expect(pulled).toBe(false);
+    });
+
+    it('401 without credentials and without a body', async () => {
+        const { app } = createTestApp();
+        const response = await call(app, 'POST', '/authorization/check');
+
+        expect(response.status).toBe(401);
+    });
+
+    it('answers another method with the JSON 404', async () => {
+        const { app } = createTestApp();
+        const response = await call(app, 'GET', '/authorization/check', { token: ADMIN_TOKEN });
+
+        expect(response.status).toBe(404);
+        expect(await response.json()).toMatchObject({ code: 'not_found' });
     });
 
     it('a route registered under /authorization is refused', () => {

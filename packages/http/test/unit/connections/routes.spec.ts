@@ -358,6 +358,22 @@ describe('connection routes', () => {
         expect(response.headers.get('cache-control')).toBe('private, no-store');
     });
 
+    it('keeps the 404 of a connection detail out of every cache', async () => {
+        const { app } = world([fakeHandle('alpha')]);
+        const response = await call(app, 'GET', '/connections/nope', { token: ADMIN_TOKEN });
+
+        expect(response.status).toBe(404);
+        expect(response.headers.get('cache-control')).toBe('private, no-store');
+    });
+
+    it('keeps the 403 of a connection detail out of every cache', async () => {
+        const { app } = world([fakeHandle('alpha')]);
+        const response = await call(app, 'GET', '/connections/alpha', { token: tokenFor(Permission.RUN_READ) });
+
+        expect(response.status).toBe(403);
+        expect(response.headers.get('cache-control')).toBe('private, no-store');
+    });
+
     it('gives the stream slot back when the subscription fails', async () => {
         const fake = fakeHandle('alpha');
         const { subscribe } = fake.handle;

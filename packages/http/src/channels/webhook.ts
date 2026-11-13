@@ -111,7 +111,7 @@ export function webhookChannel(options: WebhookChannelOptions): WebhookChannel {
 
         const payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, body);
 
-        const idempotencyKey = readIdempotencyHeader(request) ?? subscription.idempotencyKey?.(payload);
+        const idempotencyKey = readIdempotencyHeader(request.headers.get('idempotency-key')) ?? subscription.idempotencyKey?.(payload);
         const concurrencyKey = subscription.concurrencyKey?.(payload);
 
         assertDerivedKey('idempotency key', idempotencyKey);

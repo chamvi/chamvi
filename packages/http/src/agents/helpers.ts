@@ -22,9 +22,10 @@ import { isDefined } from '../request/validators.ts';
 import type { HttpAgents } from '../app/types.ts';
 import type {
     AgentSummary,
-    KvBody,
+    KvWriteBody,
     ScheduleOverlap,
     ScheduleSummary,
+    StateDocumentView,
 } from './types.ts';
 
 /**
@@ -144,8 +145,8 @@ export function assertCollection(agent: Agent, collection: string): void {
     }
 }
 
-export function createKvContainer(): Container<KvBody> {
-    const container = new Container<KvBody>();
+export function createKvContainer(): Container<KvWriteBody> {
+    const container = new Container<KvWriteBody>();
 
     container.mount('value', isDefined());
 
@@ -206,6 +207,6 @@ export function parseCollectionQuery(searchParams: URLSearchParams): { where: Re
 }
 
 /** A stored document on the wire: its fields plus the store `id` (which wins over a field named `id`). */
-export function serializeDoc(entry: { id: string; doc: unknown }): Record<string, unknown> {
+export function serializeDoc(entry: { id: string; doc: unknown }): StateDocumentView {
     return isObject(entry.doc) ? { ...entry.doc, id: entry.id } : { id: entry.id, doc: entry.doc };
 }

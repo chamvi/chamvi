@@ -150,7 +150,7 @@ export async function readableAgents(principal: Principal, agents: HttpAgents, c
  * one of an agent the principal may not read under the private-agent rule
  * (the same error, so run ids are not probed), else 403.
  */
-export async function loadReadableRun(ctx: HttpContext, principal: Principal, id: string): Promise<Run> {
+export async function loadReadableRun(ctx: Pick<HttpContext, 'store' | 'agents' | 'clock'>, principal: Principal, id: string): Promise<Run> {
     const run = await ctx.store.runs.findOneOrFail(id);
 
     if (await canReadRun(principal, run, ctx.agents, ctx.clock)) {
@@ -250,7 +250,7 @@ function createAttachmentContainer(): Container<ArtifactInput> {
 }
 
 /** An artifact of `run` with its bytes; ArtifactNotFoundError (404) for an unknown id or another run's artifact. */
-export async function loadRunArtifact(ctx: HttpContext, run: Run, id: string): Promise<{ artifact: Artifact; data: Uint8Array }> {
+export async function loadRunArtifact(ctx: Pick<HttpContext, 'store'>, run: Run, id: string): Promise<{ artifact: Artifact; data: Uint8Array }> {
     const artifact = await ctx.store.artifacts.findOne(id);
 
     if (!artifact || artifact.runId !== run.id) {
@@ -429,7 +429,7 @@ export function createApproveContainer(): Container<ApproveBody> {
  * A run the principal may answer approvals of: 404 for a missing run (no
  * read permission needed), 403 without `chamvi_agent_approve` for its agent.
  */
-export async function loadApprovableRun(ctx: HttpContext, principal: Principal, id: string): Promise<Run> {
+export async function loadApprovableRun(ctx: Pick<HttpContext, 'store' | 'agents' | 'clock'>, principal: Principal, id: string): Promise<Run> {
     const run = await ctx.store.runs.findOneOrFail(id);
     const resource = agentResource(run.agent, ctx.agents.get(run.agent));
 

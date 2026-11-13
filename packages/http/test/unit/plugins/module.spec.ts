@@ -361,6 +361,7 @@ describe('route labels', () => {
         expect(label('/API/webhooks/github', '/api', [extra('/webhooks/github')])).toBe('/webhooks/github');
         expect(label('/RUNS/abc')).toBe('/runs/:id');
         expect(label('/HEALTHZ')).toBe('/healthz');
+        expect(label('/authorization/check')).toBe('/authorization/check');
     });
 
     it('treats operational paths and the stream in any case', () => {

@@ -238,8 +238,8 @@ export function assertContentLength(event: IAppEvent, limit: number): void {
 
 /**
  * Reads a JSON body of at most `limit` bytes: `undefined` when empty, 413
- * when too large, 415 for another media type, 400 when unparsable. Call it
- * only after `authorize`.
+ * when too large, 415 for another media type, 400 when unparsable. The body
+ * middleware calls it after authentication.
  */
 export async function readJsonBody(event: IAppEvent, limit: number): Promise<unknown> {
     const { request } = event;
@@ -261,18 +261,13 @@ export async function readJsonBody(event: IAppEvent, limit: number): Promise<unk
 
 /**
  * Validates a JSON object body with a validup container. A missing body
- * reads as `{}` unless `required`; unknown keys are dropped.
+ * reads as `{}`; unknown keys are dropped.
  */
 export async function validateBody<T extends Record<string, any>>(
     container: Container<T>,
     body: unknown,
-    options: { required?: boolean } = {},
 ): Promise<T> {
     if (body === undefined) {
-        if (options.required) {
-            throw new BadRequestError({ message: 'The request needs a JSON body.' });
-        }
-
         body = {};
     }
 
@@ -374,10 +369,8 @@ export function decodeQuery(searchParams: URLSearchParams, schema: AnySchema): D
     };
 }
 
-/** An `Idempotency-Key` header: 1 to `KEY_MAX_LENGTH` characters, else 400. */
-export function readIdempotencyHeader(request: Request): string | undefined {
-    const value = request.headers.get('idempotency-key');
-
+/** An `Idempotency-Key` header value (`null`: absent): 1 to `KEY_MAX_LENGTH` characters, else 400. */
+export function readIdempotencyHeader(value: string | null): string | undefined {
     if (value === null) {
         return undefined;
     }

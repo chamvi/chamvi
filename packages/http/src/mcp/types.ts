@@ -13,8 +13,8 @@ import type {
     RunStatusLiteral,
 } from '@chamvi/core';
 import type { StandardSchemaWithJSON } from '@modelcontextprotocol/server';
-import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Principal } from '../auth/types.ts';
+import type { IRunService } from '../runs/types.ts';
 
 /** A run as `list_runs` lists it. */
 export type RunSummary = Pick<Run, 'id' | 'agent' | 'status' | 'createdAt' | 'finishedAt' | 'error'>;
@@ -63,6 +63,11 @@ export type McpEndpointOptions = {
     maxWaitSeconds: number;
 };
 
+/** The services the MCP tools call (shared with the REST controllers); internal. */
+export type McpServices = {
+    runs: IRunService;
+};
+
 /** What the route hands each MCP request through `authInfo.extra`; internal. */
 export type McpRequestExtra = {
     principal: Principal;
@@ -97,7 +102,6 @@ export type RunAgentArgs = {
 export type McpRunTool = {
     agent: Agent;
     subscription: ChannelSubscription;
-    schema?: StandardSchemaV1;
     description: string;
     inputSchema: StandardSchemaWithJSON<RunAgentArgs, RunAgentArgs>;
 };
