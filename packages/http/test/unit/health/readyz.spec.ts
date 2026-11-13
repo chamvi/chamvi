@@ -46,6 +46,27 @@ describe('GET /readyz', () => {
         expect(await response.json()).toEqual({ status: 'unavailable', reason: 'draining' });
     });
 
+    it('answers a failure with plain JSON and never conditionally', async () => {
+        const { app } = createTestApp({ shutdown: fakeShutdown(true) });
+        const body = { status: 'unavailable', reason: 'shutting-down' };
+        const first = await call(app, 'GET', '/readyz');
+
+        expect(first.status).toBe(503);
+        expect(first.headers.get('content-type')).toBe('application/json');
+        expect(await first.json()).toEqual(body);
+
+        const etag = first.headers.get('etag');
+        const candidates = etag ? [etag] : ['*', '"readyz"', 'W/"readyz"'];
+
+        for (const candidate of candidates) {
+            const repeat = await call(app, 'GET', '/readyz', { headers: { 'if-none-match': candidate } });
+
+            expect(repeat.status).toBe(503);
+            expect(repeat.headers.get('content-type')).toBe('application/json');
+            expect(await repeat.json()).toEqual(body);
+        }
+    });
+
     it('fails once the shutdown started', async () => {
         const { app } = createTestApp({ shutdown: fakeShutdown(true) });
         const response = await call(app, 'GET', '/readyz');

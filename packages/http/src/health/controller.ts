@@ -6,12 +6,10 @@
  */
 
 import {
-    DContext,
     DController,
     DGet,
     DTags,
 } from '@routup/decorators';
-import type { IAppEvent } from 'routup';
 import type { HealthControllerContext, IHealthService, ReadinessView } from './types.ts';
 
 /** `/healthz` (process alive) and `/readyz` (store, engine, shutdown); unauthenticated. */
@@ -29,13 +27,17 @@ export class HealthController {
         return { status: 'ok' };
     }
 
-    /** `GET /readyz`: 503 with the reason while the app takes no traffic. */
+    /**
+     * `GET /readyz`: 503 with the reason while the app takes no traffic. The
+     * 503 is a raw `Response`, so routup's send path never gives it an etag
+     * and an `If-None-Match` can never turn it into a 304.
+     */
     @DGet('/readyz')
-    async ready(@DContext() event: IAppEvent): Promise<ReadinessView> {
+    async ready(): Promise<ReadinessView | Response> {
         const view = await this.service.readiness();
 
         if (view.status === 'unavailable') {
-            event.response.status = 503;
+            return Response.json(view, { status: 503 });
         }
 
         return view;
