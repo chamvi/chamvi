@@ -25,7 +25,6 @@ import {
     NavIcon,
     StatusChip,
     useAppContext,
-    useResolved,
 } from '@chamvi/ui-kit';
 import AgentRuns from '../components/agent-runs/AgentRuns.vue';
 import AgentStatePanel from '../components/agent-state/AgentStatePanel.vue';
@@ -72,11 +71,7 @@ const tab = computed<Tab>({
 });
 
 const chips = computed(() => (agent.value ? channelChips(agent.value, schedules.value) : []));
-const canStart = useResolved(
-    () => [agent.value, session.principal.value] as const,
-    ([shown, principal]) => (shown ? canStartAgent(shown, principal) : Promise.resolve(false)),
-    false,
-);
+const canStart = computed(() => (agent.value ? canStartAgent(agent.value, session.allowed) : false));
 const invoker = computed(() => session.principal.value?.name ?? session.principal.value?.id);
 const stateCount = computed(() => (state.error.value ? undefined :
     `${state.kv.value.length + state.collections.value.length}${state.moreKv.value ? '+' : ''}`));

@@ -26,7 +26,7 @@ Open `/ui/` and paste a token; the dashboard opens on the agents overview. Nothi
 
 Agent names link to the agent page from every other page. The 24 h figures come from the newest 100 runs (of the agent on its page, of the whole app on the overview and the runs page), since the API has no time filter: more runs than that in a day show `100+`. Only tools that need an approval are listed, because an agent may build its tool set per run.
 
-A principal without the grant a page needs sees a notice naming it; the rest of the dashboard keeps working. An approval link from a channel's message needs read access to its run (`chamvi_run_read` or `chamvi_agent_run`) besides `chamvi_agent_approve`. Each grant is checked for the agent or connection in question, with the same [permission bindings](/guide/permissions) the server evaluates, so a role restricted to one agent sees that agent's controls only; the server still decides every request.
+A principal without the grant a page needs sees a notice naming it; the rest of the dashboard keeps working. An approval link from a channel's message needs read access to its run (`chamvi_run_read` or `chamvi_agent_run`) besides `chamvi_agent_approve`. The dashboard evaluates no permission itself: it asks `POST /authorization/check` ([HTTP API](/guide/http)) once signed in and every minute, and shows a control or page when the answer allows the name (until the first answer nothing shows). The answer ignores which agent or connection a [permission binding](/guide/permissions) is limited to, so a control can show on an item the server then refuses. The dashboard shows that refusal in place, with the missing permission name.
 
 ## Connection pages
 

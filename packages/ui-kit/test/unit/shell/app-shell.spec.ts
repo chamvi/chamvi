@@ -23,7 +23,6 @@ import {
 } from 'vue';
 import type { App } from 'vue';
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import type { IApiClient, MeWire } from '../../../src/api/types.ts';
 import type { UiConfig } from '../../../src/config/types.ts';
 import type { ConnectionWire } from '../../../src/connections/types.ts';
@@ -31,7 +30,7 @@ import { install } from '../../../src/module.ts';
 import AppShell from '../../../src/shell/AppShell.vue';
 import { fakeClient } from '../../utils/client.ts';
 import { json } from '../../utils/fetch.ts';
-import { ALL, authorized, grant } from '../../utils/permissions.ts';
+import { ALL, verdicts } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
 
 const MAIL_PAGE = {
@@ -55,7 +54,8 @@ const CONFIG: UiConfig = {
 };
 
 type World = {
-    bindings: PermissionBinding[];
+    /** The names the session's check allowed. */
+    allowed: readonly string[];
     principal?: Partial<MeWire>;
     connections?: ConnectionWire[];
     pages?: unknown[];
@@ -99,10 +99,13 @@ async function mountShell(world: World): Promise<HTMLElement> {
     const principal: MeWire = {
         id: 'peter',
         kind: 'token',
-        bindings: world.bindings,
         ...world.principal,
     };
-    const session = { principal: shallowRef(principal), signOut: world.signOut ?? (async () => undefined) };
+    const session = {
+        principal: shallowRef(principal),
+        ...verdicts(world.allowed),
+        signOut: world.signOut ?? (async () => undefined),
+    };
     const app = createApp(defineComponent(() => () => h(AppShell, {
         principal,
         current: world.current,
@@ -136,7 +139,7 @@ const pageLink = (root: HTMLElement) => root.querySelector<HTMLAnchorElement>('a
 describe('AppShell', () => {
     it('shows a page item for a reader of its type', async () => {
         const root = await mountShell({
-            bindings: [grant(Permission.CONNECTION_READ, { name: 'mail-work' })],
+            allowed: [Permission.CONNECTION_READ],
             connections: [{
                 name: 'mail-work', 
                 type: 'mail', 
@@ -147,25 +150,16 @@ describe('AppShell', () => {
         expect(pageLink(root)?.textContent).toContain('Mail');
     });
 
-    it('shows it for a holder of chamvi_connection_create with zero connections', async () => {
-        const root = await mountShell({ bindings: [grant(Permission.CONNECTION_CREATE)] });
+    it('shows it to a session allowed chamvi_connection_create with zero connections', async () => {
+        const root = await mountShell({ allowed: [Permission.CONNECTION_CREATE], pages: [MAIL_PAGE, CALENDAR_PAGE] });
 
         expect(pageLink(root)).not.toBeNull();
-    });
-
-    it('shows a creator restricted by type only the page of that type', async () => {
-        const root = await mountShell({
-            bindings: [grant(Permission.CONNECTION_CREATE, { type: 'calendar' })],
-            pages: [MAIL_PAGE, CALENDAR_PAGE],
-        });
-
-        expect(pageLink(root)).toBeNull();
         expect(root.querySelector('a[data-page="tool-calendar"]')).not.toBeNull();
     });
 
     it('hides it otherwise', async () => {
         const root = await mountShell({
-            bindings: [grant(Permission.CONNECTION_READ, { name: 'other' })],
+            allowed: [Permission.CONNECTION_READ],
             connections: [{
                 name: 'other', 
                 type: 'whatsapp', 
@@ -176,53 +170,24 @@ describe('AppShell', () => {
         expect(pageLink(root)).toBeNull();
     });
 
-    it('does not take a connection read grant for chamvi_connection_create', async () => {
-        expect(pageLink(await mountShell({ bindings: [grant(Permission.CONNECTION_READ)] }))).toBeNull();
+    it('does not take chamvi_connection_read for chamvi_connection_create', async () => {
+        expect(pageLink(await mountShell({ allowed: [Permission.CONNECTION_READ, Permission.CONNECTION_WRITE] }))).toBeNull();
     });
 
-    it('gates a page item with the grants of an authorization snapshot', async () => {
-        const connections: ConnectionWire[] = [{
-            name: 'mail-work',
-            type: 'mail',
-            status: 'disconnected',
-        }];
+    it('shows the kind and the number of allowed names', async () => {
+        const one = await mountShell({ allowed: [Permission.RUN_READ], principal: { kind: 'authup' } });
 
-        const reader = await mountShell({
-            bindings: [],
-            principal: { kind: 'authup', ...authorized(grant(Permission.CONNECTION_READ, { name: 'mail-work' })) },
-            connections,
-        });
+        expect(one.querySelector('.who-sub')?.textContent?.trim()).toBe('authup · 1 permission');
+        mounted?.unmount();
 
-        expect(pageLink(reader)).not.toBeNull();
-        expect(reader.querySelector('.who-sub')?.textContent?.trim()).toBe('authup · 1 grant');
-    });
+        const two = await mountShell({ allowed: [Permission.RUN_READ, Permission.CONNECTION_READ] });
 
-    it('shows a snapshot creator restricted by type only the page of that type', async () => {
-        const root = await mountShell({
-            bindings: [],
-            principal: { kind: 'authup', ...authorized(grant(Permission.CONNECTION_CREATE, { type: 'calendar' })) },
-            pages: [MAIL_PAGE, CALENDAR_PAGE],
-        });
-
-        expect(pageLink(root)).toBeNull();
-        expect(root.querySelector('a[data-page="tool-calendar"]')).not.toBeNull();
-    });
-
-    it('counts the distinct permission names the principal holds', async () => {
-        const root = await mountShell({
-            bindings: [
-                grant(Permission.CONNECTION_READ, { name: 'a' }),
-                grant(Permission.CONNECTION_READ, { name: 'b' }),
-                grant(Permission.RUN_READ),
-            ],
-        });
-
-        expect(root.querySelector('.who-sub')?.textContent?.trim()).toBe('token · 2 grants');
+        expect(two.querySelector('.who-sub')?.textContent?.trim()).toBe('token · 2 permissions');
     });
 
     it('links a page by its full path and leaves it to the browser', async () => {
         const navigate = vi.fn();
-        const root = await mountShell({ bindings: ALL, navigate });
+        const root = await mountShell({ allowed: ALL, navigate });
         const link = pageLink(root)!;
         const event = new MouseEvent('click', { bubbles: true, cancelable: true });
 
@@ -234,7 +199,7 @@ describe('AppShell', () => {
 
     it('draws the fixed items as links under the ui base', async () => {
         const root = await mountShell({
-            bindings: ALL,
+            allowed: ALL,
             connections: [{
                 name: 'mail-work', 
                 type: 'mail', 
@@ -249,7 +214,7 @@ describe('AppShell', () => {
 
     it('routes a fixed item through navigate when the host has a router', async () => {
         const navigate = vi.fn();
-        const root = await mountShell({ bindings: ALL, navigate });
+        const root = await mountShell({ allowed: ALL, navigate });
         const event = new MouseEvent('click', { bubbles: true, cancelable: true });
 
         root.querySelector('a[data-nav="runs"]')!.dispatchEvent(event);
@@ -260,7 +225,7 @@ describe('AppShell', () => {
 
     it('leaves a modified click on a fixed item to the browser', async () => {
         const navigate = vi.fn();
-        const root = await mountShell({ bindings: ALL, navigate });
+        const root = await mountShell({ allowed: ALL, navigate });
         const event = new MouseEvent('click', {
             bubbles: true,
             cancelable: true,
@@ -279,7 +244,7 @@ describe('AppShell', () => {
 
         vi.spyOn(window.location, 'replace').mockImplementation(replace as never);
 
-        const root = await mountShell({ bindings: ALL, signOut });
+        const root = await mountShell({ allowed: ALL, signOut });
 
         root.querySelector<HTMLButtonElement>('button[aria-label="Sign out"]')!.click();
         await flush();
@@ -296,7 +261,7 @@ describe('AppShell', () => {
         vi.spyOn(window.location, 'replace').mockImplementation(replace as never);
 
         const root = await mountShell({
-            bindings: ALL,
+            allowed: ALL,
             signOut,
             onSignOut,
         });
@@ -310,7 +275,7 @@ describe('AppShell', () => {
     });
 
     it('marks the current item and renders no accounts column without the slot', async () => {
-        const root = await mountShell({ bindings: ALL, current: 'tool-mail' });
+        const root = await mountShell({ allowed: ALL, current: 'tool-mail' });
 
         expect(pageLink(root)?.getAttribute('aria-current')).toBe('page');
         expect(root.querySelector('a[data-nav="agents"]')?.getAttribute('aria-current')).toBeNull();
@@ -319,7 +284,7 @@ describe('AppShell', () => {
 
     it('renders the accounts slot as a second column', async () => {
         const root = await mountShell({
-            bindings: ALL,
+            allowed: ALL,
             accounts: () => h('p', { id: 'accounts' }, 'work'),
         });
 

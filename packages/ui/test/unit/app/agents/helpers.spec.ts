@@ -28,7 +28,7 @@ import {
 } from '../../../../app/agents/helpers.ts';
 import type { AgentWire, ScheduleWire } from '@chamvi/ui-kit';
 import { withoutIteratorHelpers } from '../../../utils/iterator.ts';
-import { ALL, authorized, grant } from '../../../utils/permissions.ts';
+import { ALL, allowedOf } from '../../../utils/permissions.ts';
 import { wireRun } from '../../../utils/runs.ts';
 
 const NOW = Date.parse('2026-10-21T12:00:00.000Z');
@@ -218,34 +218,24 @@ describe('activityLabel', () => {
 });
 
 describe('agent helpers', () => {
-    it('hiddenRunsNotice names the read grant only for a private agent the principal may not read', async () => {
-        const holder = (...bindings: ReturnType<typeof grant>[]) => ({ bindings });
+    it('hiddenRunsNotice names the read permission only for a private agent the session is not allowed to read', () => {
         const alfred = agent({ name: 'alfred', private: true });
 
-        expect(await hiddenRunsNotice(alfred, holder(grant(Permission.RUN_READ)))).toBe('Runs hidden: reading them needs chamvi_agent_read for alfred');
-        expect(await hiddenRunsNotice(alfred, holder(grant(Permission.RUN_READ), grant(Permission.AGENT_READ, { name: 'alfred' })))).toBeUndefined();
-        expect(await hiddenRunsNotice(alfred, holder(...ALL))).toBeUndefined();
-        expect(await hiddenRunsNotice(alfred, holder(grant(Permission.AGENT_READ, { name: 'other' })))).toBe('Runs hidden: reading them needs chamvi_agent_read for alfred');
-        expect(await hiddenRunsNotice(alfred, undefined)).toBe('Runs hidden: reading them needs chamvi_agent_read for alfred');
-        expect(await hiddenRunsNotice(agent({ name: 'bob', private: false }), holder(grant(Permission.RUN_READ)))).toBeUndefined();
+        expect(hiddenRunsNotice(alfred, allowedOf(Permission.RUN_READ))).toBe('Runs hidden: reading them needs chamvi_agent_read for alfred');
+        expect(hiddenRunsNotice(alfred, allowedOf(Permission.RUN_READ, Permission.AGENT_READ))).toBeUndefined();
+        expect(hiddenRunsNotice(alfred, allowedOf(...ALL))).toBeUndefined();
+        expect(hiddenRunsNotice(alfred, allowedOf())).toBe('Runs hidden: reading them needs chamvi_agent_read for alfred');
+        expect(hiddenRunsNotice(agent({ name: 'bob', private: false }), allowedOf(Permission.RUN_READ))).toBeUndefined();
     });
 
-    it('canStartAgent needs chamvi_agent_run for the agent and an http subscription', async () => {
+    it('canStartAgent needs chamvi_agent_run and an http subscription', () => {
         const triage = agent({ channels: [{ channel: 'http', id: 'http' }] });
 
-        expect(await canStartAgent(triage, { bindings: [grant(Permission.AGENT_RUN, { name: 'triage' })] })).toBe(true);
-        expect(await canStartAgent(triage, { bindings: [grant(Permission.AGENT_RUN, { name: 'other' })] })).toBe(false);
-        expect(await canStartAgent(triage, { bindings: [grant(Permission.AGENT_RUN, { private: false })] })).toBe(true);
-        expect(await canStartAgent(agent(), { bindings: ALL })).toBe(false);
-        expect(await canStartAgent(triage, undefined)).toBe(false);
-    });
-
-    it('canStartAgent reads an authorization snapshot', async () => {
-        const triage = agent({ channels: [{ channel: 'http', id: 'http' }] });
-
-        expect(await canStartAgent(triage, authorized(grant(Permission.AGENT_RUN, { name: 'triage' })))).toBe(true);
-        expect(await canStartAgent(triage, authorized(grant(Permission.AGENT_RUN, { name: 'other' })))).toBe(false);
-        expect(await canStartAgent(triage, authorized(grant(Permission.AGENT_READ)))).toBe(false);
+        expect(canStartAgent(triage, allowedOf(Permission.AGENT_RUN))).toBe(true);
+        expect(canStartAgent(agent({ ...triage, private: true }), allowedOf(Permission.AGENT_RUN))).toBe(true);
+        expect(canStartAgent(triage, allowedOf(Permission.AGENT_READ, Permission.RUN_READ))).toBe(false);
+        expect(canStartAgent(triage, allowedOf())).toBe(false);
+        expect(canStartAgent(agent(), allowedOf(...ALL))).toBe(false);
     });
 
     it('hasHttpSubscription', () => {

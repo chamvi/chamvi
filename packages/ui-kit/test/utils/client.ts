@@ -7,7 +7,6 @@
 
 import { ApiError } from '../../src/api/error.ts';
 import type { IApiClient, MeWire } from '../../src/api/types.ts';
-import { ALL } from './permissions.ts';
 
 /** A client whose every method throws unless the test overrides it. */
 export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {
@@ -17,6 +16,7 @@ export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {
 
     return {
         me: missing('me'),
+        checkAuthorization: missing('checkAuthorization'),
         listAgents: missing('listAgents'),
         listSchedules: missing('listSchedules'),
         listRuns: missing('listRuns'),
@@ -37,7 +37,6 @@ export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {
 export const ME: MeWire = {
     id: 'admin',
     kind: 'token',
-    bindings: ALL,
 };
 
 export function apiError(status: number, code = `http_${status}`): ApiError {

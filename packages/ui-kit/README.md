@@ -34,6 +34,19 @@ await mountPage(App);
 
 `mountPage` reads the config block the server injects, installs authup when configured and vuecs, restores the session and provides the app context (`useAppContext()`). A page without a principal goes to the dashboard's login. The dashboard passes `mountPage(App, { router })` for its own routed navigation.
 
+## Permissions
+
+The browser never evaluates a permission. The session asks the server which `chamvi_*` names the principal may attempt (`POST /authorization/check`) on sign-in, on restore and every `VERDICT_REFRESH_MS` (60 s), and keeps the answer:
+
+```ts
+const { session } = useAppContext();
+
+session.allowed('chamvi_agent_run'); // reactive inside computed() and templates
+session.permissions.value.size;      // the allowed names
+```
+
+Nothing is allowed until the first answer arrives, nor after it failed or after sign-out. A verdict is an upper bound: a control it shows can still meet a 403 for one resource, and the route behind it decides.
+
 ## License
 
 Apache-2.0

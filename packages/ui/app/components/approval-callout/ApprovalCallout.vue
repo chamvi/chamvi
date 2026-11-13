@@ -41,7 +41,7 @@ import JsonBlock from '../json-block/JsonBlock.vue';
 
 const props = defineProps<{
     run: RunWire;
-    /** The principal holds `chamvi_agent_approve` for the run's agent. */
+    /** The session is allowed `chamvi_agent_approve` (an upper bound: the API may still refuse with 403). */
     canAnswer: boolean;
     busy?: boolean;
     /** The approval a link opened: highlighted, scrolled into view and focused. */
@@ -301,7 +301,7 @@ watch(() => props.highlight, reveal);
                 Approving or denying queues the run again.
             </p>
             <p v-else>
-                Answering needs <span class="mono">agent:{{ run.agent }}:approve</span>.
+                Answering needs <span class="mono">chamvi_agent_approve</span> for {{ run.agent }}.
             </p>
             <div
                 v-if="canAnswer"
@@ -310,6 +310,7 @@ watch(() => props.highlight, reveal);
                 <VCButton
                     class="btn"
                     :disabled="busy"
+                    data-testid="deny"
                     @click="send(false)"
                 >
                     Deny

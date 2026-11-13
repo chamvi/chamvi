@@ -5,18 +5,17 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } from '@chamvi/access';
+import type { PermissionIdentity } from '@chamvi/access';
 
 /**
- * `GET /me`: the authenticated principal as the app records it as an invoker
- * (the name from `name` or `preferred_username`, never the claims), with its
- * own permission bindings and identity, which the dashboard evaluates.
+ * `GET /me`: the authenticated principal's identity as the app records it
+ * as an invoker (the name from `name` or `preferred_username`, never the
+ * claims); never its bindings or authorization (`POST /authorization/check`
+ * answers verdicts instead).
  */
 export type MeView = {
     id: string;
     kind: string;
     name?: string;
-    bindings: PermissionBinding[];
-    authorization?: PermissionAuthorization;
     identity?: PermissionIdentity;
 };

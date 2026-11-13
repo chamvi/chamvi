@@ -6,9 +6,8 @@
  */
 
 import { isObject } from 'smob';
-import { onScopeDispose, shallowRef } from 'vue';
+import { computed, onScopeDispose, shallowRef } from 'vue';
 import { asApiError, retryDelayOf } from '../api/helpers.ts';
-import { useResolved } from '../auth/composables.ts';
 import { createConnectionsApi } from '../connections/api.ts';
 import { useConnections } from '../connections/composables.ts';
 import { CONNECTIONS_POLL_MS } from '../connections/constants.ts';
@@ -67,11 +66,7 @@ export function useUiPages() {
     });
 
     return {
-        pages: useResolved(
-            () => [registered.value, connections.value, session.principal.value] as const,
-            ([pages, list, principal]) => visibleUiPages(pages, list, principal),
-            [] as UiPageWire[],
-        ),
+        pages: computed(() => visibleUiPages(registered.value, connections.value, (name) => session.allowed(name))),
         types,
         typesLoaded,
         connections,

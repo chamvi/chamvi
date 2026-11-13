@@ -6,16 +6,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { Permission } from '@chamvi/access';
 import { computed, shallowRef, watch } from 'vue';
-import type { MeWire } from '../api/types.ts';
-import { useResolved } from '../auth/composables.ts';
 import { useAppContext } from '../context/module.ts';
 import AccountsColumn from '../shell/AccountsColumn.vue';
 import AppShell from '../shell/AppShell.vue';
 import { useUiPages } from '../shell/composables.ts';
 import ConnectionForm from './ConnectionForm.vue';
-import { canAddAccount, canReadConnection } from './helpers.ts';
-import type { ConnectionCreated, ConnectionDeleted, ConnectionTypeWire } from './types.ts';
+import type { ConnectionCreated, ConnectionDeleted } from './types.ts';
 
 /** A `*-ui` page's whole content: the shell, its accounts column and the form of the open account. */
 const props = defineProps<{
@@ -68,17 +66,13 @@ function forget(name: string, gone: boolean): void {
     removed.value = next;
 }
 
+// an upper bound: the create route decides per type
+const canCreate = computed(() => session.allowed(Permission.CONNECTION_CREATE));
 // the query is only a request: honoured once the list and the type can say whether it may be
-// `undefined` while the verdict is out: the page then waits instead of opening the first account
-const creatable = useResolved<readonly [ConnectionTypeWire | undefined, MeWire | undefined], boolean | undefined>(
-    () => [definition.value, session.principal.value] as const,
-    ([type, principal]) => (type ? canAddAccount(type, principal) : Promise.resolve(undefined)),
-    undefined,
-);
-const adding = computed(() => addRequested.value && definition.value !== undefined && creatable.value === true);
-// a type the app never serves stays absent: only the answer ends the wait
-const pending = computed(() => !loaded.value ||
-    (addRequested.value && (!typesLoaded.value || (definition.value !== undefined && creatable.value === undefined))));
+const adding = computed(() => addRequested.value && definition.value !== undefined &&
+    definition.value.multiple && definition.value.creatable && canCreate.value);
+// the page waits for the types instead of opening the first account; a type the app never serves stays absent: only the answer ends the wait
+const pending = computed(() => !loaded.value || (addRequested.value && !typesLoaded.value));
 const current = computed(() => {
     if (pending.value || adding.value) {
         return undefined;
@@ -114,12 +108,12 @@ function open(name: string | undefined, add = false): void {
     remember();
 }
 
-async function onCreated(result: ConnectionCreated): Promise<void> {
+function onCreated(result: ConnectionCreated): void {
     // the same name created again is a new account
     forget(result.name, false);
 
     // write implies read; the form of an unreadable account would only show its 403
-    if (await canReadConnection(session.principal.value, { name: result.name, type: props.type })) {
+    if (session.allowed(Permission.CONNECTION_READ) || session.allowed(Permission.CONNECTION_WRITE)) {
         open(result.name);
     } else {
         open(undefined);
@@ -147,7 +141,7 @@ function onDeleted(result: ConnectionDeleted): void {
                 v-if="definition"
                 :type="definition"
                 :connections="listed"
-                :principal="session.principal.value"
+                :can-create="canCreate"
                 :current="current"
                 @select="open($event)"
                 @add="open(undefined, true)"

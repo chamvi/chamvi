@@ -84,11 +84,10 @@ async function mount(): Promise<HTMLElement> {
         },
         client: { send },
         session: {
-            principal: shallowRef({
-                id: 'a', 
-                kind: 'token', 
-                bindings: [],
-            }), 
+            principal: shallowRef({ id: 'a', kind: 'token' }),
+            // POST /authorization/check answered no names
+            permissions: shallowRef(new Set<string>()),
+            allowed: () => false,
         },
     } as unknown as AppContext);
     app.mount(root);

@@ -24,7 +24,6 @@ import { useAppContext } from '../../../src/context/module.ts';
 import { mountPage } from '../../../src/shell/mount.ts';
 import { json } from '../../utils/fetch.ts';
 import icons from '../../utils/icons.ts';
-import { ALL } from '../../utils/permissions.ts';
 
 const addCollection = vi.hoisted(() => vi.fn());
 
@@ -36,7 +35,6 @@ vi.mock('@iconify/vue', async (original) => ({
 const ME = {
     id: 'admin',
     kind: 'token',
-    bindings: ALL,
 };
 
 const Page = defineComponent(() => {

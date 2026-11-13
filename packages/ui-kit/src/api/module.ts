@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { AuthorizationCheckView } from '@chamvi/http';
 import { isObject } from 'smob';
 import { ApiError } from './error.ts';
 import {
@@ -114,6 +115,11 @@ export function createApiClient(options: ApiClientOptions): IApiClient {
 
     return {
         me: (token) => request<MeWire>('/me', token === undefined ? {} : { token }),
+        checkAuthorization: (names, token) => request<AuthorizationCheckView>('/authorization/check', {
+            method: 'POST',
+            body: names === undefined ? {} : { names: [...names] },
+            ...(token === undefined ? {} : { token }),
+        }),
         listAgents: async () => {
             const body = await request('/agents');
 

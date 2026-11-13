@@ -117,6 +117,35 @@ describe('useConnection', () => {
         scope.stop();
     });
 
+    it('a session allowed the name but sent the reader view keeps polling and never opens the stream', async () => {
+        vi.useFakeTimers();
+
+        try {
+            const stream = vi.fn(async () => {
+                throw apiError(403, 'forbidden');
+            });
+            // write is scoped to another connection: the server answers this one without the writer-only part
+            const get = vi.fn(async () => ({
+                name: 'whatsapp',
+                type: 'whatsapp',
+                status: 'pairing' as const,
+            }));
+            const scope = effectScope();
+            const state = scope.run(() => useConnection(fakeApi({ get, stream }), 'whatsapp', { write: true }))!;
+
+            await vi.advanceTimersByTimeAsync(0);
+            await vi.advanceTimersByTimeAsync(CONNECTIONS_POLL_MS * 2);
+            expect(get).toHaveBeenCalledTimes(3);
+            expect(stream).not.toHaveBeenCalled();
+            expect(state.writable.value).toBe(false);
+            expect(state.widgets.value).toEqual([]);
+            expect(state.error.value).toBeUndefined();
+            scope.stop();
+        } finally {
+            vi.useRealTimers();
+        }
+    });
+
     it('a writer follows status and widgets live, the QR gone once connected', async () => {
         const live = liveStream();
         let signal: AbortSignal | undefined;

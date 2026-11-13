@@ -15,7 +15,7 @@ import {
 } from 'vitest';
 import { createApp, shallowRef } from 'vue';
 import type { App } from 'vue';
-import { APP_CONTEXT, installVuecs } from '@chamvi/ui-kit';
+import { APP_CONTEXT, ApiError, installVuecs } from '@chamvi/ui-kit';
 import type { AppContext, ConnectionSettingsWire, ConnectionTypeWire } from '@chamvi/ui-kit';
 import Page from '../../app/App.vue';
 
@@ -51,8 +51,14 @@ afterEach(() => {
     document.body.innerHTML = '';
 });
 
-async function mount(names: string[]): Promise<HTMLElement> {
-    const send = async (url: string) => {
+async function mount(names: string[], options: { permissions?: string[]; refuseSave?: boolean } = {}): Promise<HTMLElement> {
+    const permissions = options.permissions ?? [];
+    const send = async (url: string, init: { method?: string } = {}) => {
+        if (init.method === 'PUT' && options.refuseSave) {
+            // the client turns a non-2xx answer into an ApiError, as `@chamvi/http` answers a missing permission
+            throw new ApiError(403, 'FORBIDDEN', 'Missing permission "chamvi_connection_write".');
+        }
+
         const body: Record<string, unknown> = {
             '/ui-pages': { data: [] },
             '/connection-types': { data: [TYPE] },
@@ -83,11 +89,10 @@ async function mount(names: string[]): Promise<HTMLElement> {
         },
         client: { send },
         session: {
-            principal: shallowRef({
-                id: 'a', 
-                kind: 'token', 
-                bindings: [],
-            }), 
+            principal: shallowRef({ id: 'a', kind: 'token' }),
+            // the names POST /authorization/check answered
+            permissions: shallowRef(new Set(permissions)),
+            allowed: (name: string) => permissions.includes(name),
         },
     } as unknown as AppContext);
     app.mount(root);
@@ -112,5 +117,19 @@ describe('the GitHub page', () => {
         const root = await mount(['github-eu']);
 
         expect(root.querySelector('h1')?.textContent).toContain('GitHub: github-eu');
+    });
+
+    it('names chamvi_connection_write inline when the API refuses the save (403)', async () => {
+        const root = await mount(['acme'], {
+            permissions: ['chamvi_connection_read', 'chamvi_connection_write'],
+            refuseSave: true,
+        });
+
+        root.querySelector('form')?.dispatchEvent(new Event('submit', { cancelable: true }));
+        await new Promise((resolve) => {
+            setTimeout(resolve, 50);
+        });
+
+        expect(root.querySelector('[data-testid="connection-form-failure"]')?.textContent).toContain('chamvi_connection_write');
     });
 });

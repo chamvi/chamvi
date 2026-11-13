@@ -16,7 +16,7 @@ import {
 } from 'vitest';
 import { createApp, shallowRef } from 'vue';
 import type { App } from 'vue';
-import { APP_CONTEXT, installVuecs } from '@chamvi/ui-kit';
+import { APP_CONTEXT, ApiError, installVuecs } from '@chamvi/ui-kit';
 import type { AppContext, ConnectionDetailWire } from '@chamvi/ui-kit';
 import Page from '../../app/App.vue';
 
@@ -46,7 +46,12 @@ afterEach(() => {
 type Call = { method: string; url: string };
 
 async function mount(options: {
-    bindings: Binding[];
+    /** The names `POST /authorization/check` answered for the session. */
+    permissions: string[];
+    /** `POST /connections/wa/reset` answers 403, as `@chamvi/http` does without the write permission. */
+    refuseReset?: boolean;
+    /** `GET /connections/wa` answers the reader view: write is allowed by name, for another connection. */
+    readerView?: boolean;
     connections?: Array<{
         name: string; 
         type: string; 
@@ -59,6 +64,10 @@ async function mount(options: {
         const method = init.method ?? 'GET';
 
         calls.push({ method, url });
+
+        if (url === '/connections/wa/reset' && options.refuseReset) {
+            throw new ApiError(403, 'FORBIDDEN', 'Missing permission "chamvi_connection_write".');
+        }
 
         if (url === '/connections/wa/events') {
             return new Response(new ReadableStream<Uint8Array>({
@@ -85,7 +94,11 @@ async function mount(options: {
                     },
                 ],
             },
-            '/connections/wa': PAIRING,
+            '/connections/wa': options.readerView ? {
+                ...PAIRING, 
+                widgets: undefined, 
+                canReset: undefined, 
+            } : PAIRING,
             '/connections/wa/reset': { ...PAIRING, widgets: undefined },
         };
 
@@ -111,11 +124,9 @@ async function mount(options: {
         },
         client: { send },
         session: {
-            principal: shallowRef({
-                id: 'a',
-                kind: 'token',
-                bindings: options.bindings,
-            }),
+            principal: shallowRef({ id: 'a', kind: 'token' }),
+            permissions: shallowRef(new Set(options.permissions)),
+            allowed: (name: string) => options.permissions.includes(name),
         },
     } as unknown as AppContext);
     app.mount(root);
@@ -133,27 +144,18 @@ async function mount(options: {
     };
 }
 
-/** A permission binding, restricted to one connection when `name` is given. */
-function grant(permission: string, name?: string) {
-    return name === undefined ?
-        { permission: { name: permission } } :
-        { permission: { name: permission }, policies: [{ type: 'attributes', query: { name } }] };
-}
-
-type Binding = ReturnType<typeof grant>;
-
-const ALL: Binding[] = ['chamvi_connection_read', 'chamvi_connection_write', 'chamvi_connection_create'].map((name) => grant(name));
+const ALL = ['chamvi_connection_read', 'chamvi_connection_write', 'chamvi_connection_create'];
 
 describe('the WhatsApp page', () => {
     it('lists only WhatsApp connections, from GET /connections', async () => {
-        const { root } = await mount({ bindings: ALL });
+        const { root } = await mount({ permissions: ALL });
 
         expect(root.querySelector('[data-account="wa"]')).not.toBeNull();
         expect(root.querySelector('[data-account="other"]')).toBeNull();
     });
 
-    it('renders a QR while pairing and only for a writer', async () => {
-        const writer = await mount({ bindings: [grant('chamvi_connection_write', 'wa')] });
+    it('renders a QR while pairing and only while the session is allowed chamvi_connection_write', async () => {
+        const writer = await mount({ permissions: ['chamvi_connection_write'] });
         const img = writer.testId('connection-qr');
 
         expect(img?.getAttribute('src')).toMatch(/^data:image\/svg\+xml,/);
@@ -165,7 +167,7 @@ describe('the WhatsApp page', () => {
         mounted?.unmount();
         mounted = undefined;
 
-        const reader = await mount({ bindings: [grant('chamvi_connection_read', 'wa')] });
+        const reader = await mount({ permissions: ['chamvi_connection_read'] });
 
         expect(reader.testId('connection-qr')).toBeNull();
         expect(reader.testId('connection-readonly')).not.toBeNull();
@@ -173,12 +175,25 @@ describe('the WhatsApp page', () => {
         expect(reader.calls.some((call) => call.url.endsWith('/events'))).toBe(false);
     });
 
+    it('opens no QR stream for the reader view a name-level writer gets for this session', async () => {
+        const {
+            root, 
+            calls, 
+            testId, 
+        } = await mount({ permissions: ['chamvi_connection_write'], readerView: true });
+
+        expect(testId('connection-qr')).toBeNull();
+        expect(testId('connection-readonly')).not.toBeNull();
+        expect(root.innerHTML).not.toContain('secret-pairing-material');
+        expect(calls.some((call) => call.url.endsWith('/events'))).toBe(false);
+    });
+
     it('reset confirms in the page', async () => {
         const dialog = vi.fn(() => true);
 
         vi.stubGlobal('confirm', dialog);
 
-        const { calls, testId } = await mount({ bindings: [grant('chamvi_connection_write', 'wa')] });
+        const { calls, testId } = await mount({ permissions: ['chamvi_connection_write'] });
         const posts = () => calls.filter((call) => call.method === 'POST');
 
         testId('connection-reset')?.click();
@@ -195,11 +210,22 @@ describe('the WhatsApp page', () => {
         expect(testId('connection-reset-confirm')).toBeNull();
     });
 
+    it('names chamvi_connection_write inline when the API refuses the reset (403)', async () => {
+        const { testId } = await mount({ permissions: ['chamvi_connection_write'], refuseReset: true });
+
+        testId('connection-reset')?.click();
+        await flush();
+        testId('connection-reset-yes')?.click();
+        await flush();
+
+        expect(testId('connection-reset-error')?.textContent).toContain('chamvi_connection_write');
+    });
+
     it.each(['other', 'gone'])('opens the first WhatsApp session for ?connection=%s, not a foreign or stale one', async (name) => {
         globalThis.history.replaceState({}, '', `/ui/ext/chat-whatsapp/?connection=${name}`);
 
         try {
-            const { calls, root } = await mount({ bindings: ALL });
+            const { calls, root } = await mount({ permissions: ALL });
 
             expect(calls.some((call) => call.url.startsWith(`/connections/${name}`))).toBe(false);
             expect(calls).toContainEqual({ method: 'GET', url: '/connections/wa' });
@@ -210,7 +236,7 @@ describe('the WhatsApp page', () => {
     });
 
     it('says so when the app has no WhatsApp connection', async () => {
-        const { testId } = await mount({ bindings: ALL, connections: [] });
+        const { testId } = await mount({ permissions: ALL, connections: [] });
 
         expect(testId('connections-empty')).not.toBeNull();
     });

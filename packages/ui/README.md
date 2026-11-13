@@ -68,7 +68,7 @@ Open `http://<host>/ui/` and sign in with a bearer token of the app.
 
 ## Views
 
-Each view checks the signed-in principal's permission bindings (`GET /me`) with `can` from `@chamvi/access`, with the resource's attributes (an agent's `name` and `private`, a run's `agent`, a connection's `name` and `type`), so a grant restricted by a policy shows only what the server allows.
+Each view asks the session which permissions the signed-in principal may attempt (`POST /authorization/check`, refreshed while signed in) and shows a control while its permission is allowed. The answer is an upper bound: a permission restricted by a policy (to one agent, say) still shows the control, and the request decides for that resource. An action the API refuses (403) shows inline the permission it needs, e.g. `Starting a run needs chamvi_agent_run for deploy.`
 
 | View | Shows | Needs |
 |---|---|---|

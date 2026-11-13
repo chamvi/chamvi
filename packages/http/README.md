@@ -128,7 +128,8 @@ Paths are relative to `basePath` (default none).
 | `GET /agents/:name/state/kv/:key` | `chamvi_state_read` | `200 { key, value }` (`null` when unset) |
 | `PATCH /agents/:name/state/kv/:key` | `chamvi_state_write` | `200 { key, value }`; body `{ value }` |
 | `GET /agents/:name/state/collections/:collection` | `chamvi_state_read` | `200 { data }`, each document `{ id, ...fields }` (a non-object document as `{ id, doc }`); top-level equality filters (`filter[status]=open`; rapiq turns `42`, `007`, `true` and `null` into a number, boolean or null, so double-quote a value to match it as a string: `filter[issue]="42"`), `page[limit]`; `id` is the store id, not a document field, so `filter[id]` is 400; a `page[offset]` above 0 is 400 (the store pages by limit only) |
-| `GET /me` | authenticated | `200 { id, kind, name?, bindings, authorization?, identity? }`: the caller itself (the name as an invoker records it), with its own permission bindings and authup snapshot only, for a client to evaluate with `@chamvi/access` |
+| `GET /me` | authenticated | `200 { id, kind, name?, identity? }`: the caller itself (the name as an invoker records it); never its bindings or authup snapshot |
+| `POST /authorization/check` | authenticated | `200 { permissions }`: of the permission names in the body `{ names? }` (at most 64, each 1 to 255 characters; absent: every `chamvi_*` name), the ones the caller may attempt (`canSome`), deduplicated, in request order; an unknown name is answered absent. An upper bound for a client to gate controls with: a policy that needs a resource passes here, and the route behind the control still decides per resource |
 | `/mcp` | authenticated | The MCP endpoint (see [MCP tools](#mcp-tools)) |
 | `GET /healthz` | none | `200 { status: 'ok' }` |
 | `GET /readyz` | none | `200`, or `503 { status: 'unavailable', reason }` with `shutting-down`, `draining` or `store-unreachable` |

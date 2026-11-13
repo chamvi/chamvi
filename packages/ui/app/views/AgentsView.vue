@@ -12,7 +12,7 @@ import { channelChips, hiddenRunsNotice, matchesName } from '../agents/helpers.t
 import AgentCard from '../components/agent-card/AgentCard.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';
-import { useAppContext, useResolved } from '@chamvi/ui-kit';
+import { useAppContext } from '@chamvi/ui-kit';
 
 const { client, session } = useAppContext();
 const {
@@ -27,19 +27,7 @@ const {
 const query = ref('');
 const shown = computed(() => agents.value.filter((agent) => matchesName(agent, query.value)));
 // a private agent's card says why its runs are missing
-const hidden = useResolved(
-    () => [agents.value, session.principal.value] as const,
-    async ([list, principal]) => {
-        const notices: Record<string, string | undefined> = {};
-
-        await Promise.all(list.map(async (agent) => {
-            notices[agent.name] = await hiddenRunsNotice(agent, principal);
-        }));
-
-        return notices;
-    },
-    {} as Record<string, string | undefined>,
-);
+const hidden = computed(() => Object.fromEntries(agents.value.map((agent) => [agent.name, hiddenRunsNotice(agent, session.allowed)])));
 </script>
 
 <template>

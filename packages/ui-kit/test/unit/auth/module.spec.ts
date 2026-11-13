@@ -7,7 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 import { ApiError } from '../../../src/api/error.ts';
-import { RETURN_STORAGE_KEY, TOKEN_STORAGE_KEY } from '../../../src/auth/constants.ts';
+import type { IApiClient } from '../../../src/api/types.ts';
+import { RETURN_STORAGE_KEY, TOKEN_STORAGE_KEY, VERDICT_REFRESH_MS } from '../../../src/auth/constants.ts';
 import { createSession } from '../../../src/auth/module.ts';
 import type { IAuthupAdapter } from '../../../src/auth/types.ts';
 import { DEV_CONFIG } from '../../../src/config/constants.ts';
@@ -19,6 +20,7 @@ import {
     meFor,
 } from '../../utils/client.ts';
 import { MemoryStorage } from '../../utils/storage.ts';
+import { createFakeIntervals, flush } from '../../utils/timers.ts';
 
 const AUTHUP_CONFIG: UiConfig = {
     ...DEV_CONFIG,
@@ -230,5 +232,179 @@ describe('createSession', () => {
         const session = createSession(DEV_CONFIG, { storage: new MemoryStorage(), client: () => fakeClient() });
 
         await expect(session.startAuthup('/')).rejects.toThrow(/authup/);
+    });
+});
+
+describe('createSession verdicts', () => {
+    type Pending = {
+        token: string | undefined;
+        resolve: (names: string[]) => void;
+        reject: (error: unknown) => void
+    };
+
+    /** A check that answers only when the test resolves the pending call. */
+    function gatedCheck() {
+        const calls: Pending[] = [];
+        const check: IApiClient['checkAuthorization'] = (_names, token) => new Promise((resolve, reject) => {
+            calls.push({
+                token,
+                resolve: (permissions) => resolve({ permissions }),
+                reject,
+            });
+        });
+
+        return { calls, check };
+    }
+
+    function setup(options: { check: IApiClient['checkAuthorization']; me?: IApiClient['me'] }) {
+        const storage = new MemoryStorage();
+        const intervals = createFakeIntervals();
+        const session = createSession(DEV_CONFIG, {
+            storage,
+            client: () => fakeClient({ me: options.me ?? meFor('good', 'other'), checkAuthorization: options.check }),
+            timers: intervals.timers,
+        });
+
+        return {
+            storage,
+            intervals,
+            session,
+        };
+    }
+
+    it('holds the names the check allowed after signInWithToken', async () => {
+        const { session } = setup({ check: async () => ({ permissions: ['chamvi_run_read', 'chamvi_agent_read'] }) });
+
+        await session.signInWithToken('good');
+        await flush();
+        expect([...session.permissions.value]).toEqual(['chamvi_run_read', 'chamvi_agent_read']);
+        expect(session.allowed('chamvi_run_read')).toBe(true);
+        expect(session.allowed('chamvi_agent_run')).toBe(false);
+    });
+
+    it('holds the names the check allowed after restore', async () => {
+        const { session, storage } = setup({ check: async () => ({ permissions: ['chamvi_run_read'] }) });
+
+        storage.setItem(TOKEN_STORAGE_KEY, 'good');
+        expect(await session.restore()).toBe(true);
+        await flush();
+        expect(session.allowed('chamvi_run_read')).toBe(true);
+        expect(session.allowed('chamvi_run_cancel')).toBe(false);
+    });
+
+    it('allows nothing before the check answers, and signs in meanwhile', async () => {
+        const { calls, check } = gatedCheck();
+        const { session } = setup({ check });
+
+        expect(session.allowed('chamvi_run_read')).toBe(false);
+
+        const signedIn = session.signInWithToken('good');
+
+        await flush();
+        expect(session.principal.value).toEqual(ME);
+        expect(session.permissions.value.size).toBe(0);
+        expect(session.allowed('chamvi_run_read')).toBe(false);
+        expect(calls).toHaveLength(1);
+
+        calls[0]!.resolve(['chamvi_run_read']);
+        await signedIn;
+        await flush();
+        expect(session.allowed('chamvi_run_read')).toBe(true);
+    });
+
+    it('allows nothing when the initial check fails, and stays signed in', async () => {
+        const { session } = setup({
+            check: async () => {
+                throw apiError(503, 'service_unavailable');
+            },
+        });
+
+        await session.signInWithToken('good');
+        await flush();
+        expect(session.principal.value).toEqual(ME);
+        expect(session.allowed('chamvi_run_read')).toBe(false);
+    });
+
+    it('asks again every VERDICT_REFRESH_MS and keeps the last answer when a refresh fails', async () => {
+        const { calls, check } = gatedCheck();
+        const { session, intervals } = setup({ check });
+        const signedIn = session.signInWithToken('good');
+
+        await flush();
+        calls[0]!.resolve(['chamvi_run_read']);
+        await signedIn;
+        await flush();
+        expect(intervals.pending()).toEqual([VERDICT_REFRESH_MS]);
+
+        intervals.tick();
+        await flush();
+        expect(calls).toHaveLength(2);
+        calls[1]!.resolve(['chamvi_run_read', 'chamvi_run_cancel']);
+        await flush();
+        expect(session.allowed('chamvi_run_cancel')).toBe(true);
+
+        intervals.tick();
+        await flush();
+        calls[2]!.reject(new TypeError('fetch failed'));
+        await flush();
+        expect([...session.permissions.value]).toEqual(['chamvi_run_read', 'chamvi_run_cancel']);
+
+        intervals.tick();
+        await flush();
+        calls[3]!.resolve([]);
+        await flush();
+        expect(session.permissions.value.size).toBe(0);
+    });
+
+    it('signOut empties the names at once and stops asking', async () => {
+        const { calls, check } = gatedCheck();
+        const { session, intervals } = setup({ check });
+        const signedIn = session.signInWithToken('good');
+
+        await flush();
+        calls[0]!.resolve(['chamvi_run_read']);
+        await signedIn;
+        await flush();
+
+        intervals.tick();
+        await flush();
+
+        const signedOut = session.signOut();
+
+        expect(session.permissions.value.size).toBe(0);
+        expect(session.allowed('chamvi_run_read')).toBe(false);
+        expect(intervals.pending()).toEqual([]);
+
+        // the refresh that was in flight answers after the sign-out
+        calls[1]!.resolve(['chamvi_run_read']);
+        await signedOut;
+        await flush();
+        expect(session.allowed('chamvi_run_read')).toBe(false);
+
+        intervals.tick();
+        await flush();
+        expect(calls).toHaveLength(2);
+    });
+
+    it('drops the late answer of a previous principal', async () => {
+        const { calls, check } = gatedCheck();
+        const { session, intervals } = setup({ check });
+        const first = session.signInWithToken('good');
+
+        await flush();
+
+        const second = session.signInWithToken('other');
+
+        await flush();
+        expect(calls).toHaveLength(2);
+
+        calls[1]!.resolve(['chamvi_agent_read']);
+        await second;
+        await flush();
+        calls[0]!.resolve(['chamvi_run_read', 'chamvi_agent_run']);
+        await first;
+        await flush();
+        expect([...session.permissions.value]).toEqual(['chamvi_agent_read']);
+        expect(intervals.pending()).toEqual([VERDICT_REFRESH_MS]);
     });
 });

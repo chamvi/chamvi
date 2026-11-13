@@ -172,7 +172,7 @@ describe('createApiClient', () => {
         const { fetch, requests } = createFakeFetch([unauth(), json({
             id: 'u',
             kind: 'k',
-            bindings: [],
+            name: 'User',
         }), unauth(), unauth()]);
         const client = createApiClient({
             apiBase: '',
@@ -197,7 +197,7 @@ describe('createApiClient', () => {
         expect(await client.me()).toEqual({
             id: 'u',
             kind: 'k',
-            bindings: [],
+            name: 'User',
         });
         expect(requests.map((r) => r.headers.get('authorization'))).toEqual(['Bearer old', 'Bearer new']);
         expect(unauthorized).toBe(0);
@@ -342,5 +342,25 @@ describe('createApiClient', () => {
         expect(requests[0]!.headers.get('last-event-id')).toBe('3');
         expect(requests[0]!.headers.get('accept')).toBe('text/event-stream');
         expect(requests[0]!.signal).toBe(controller.signal);
+    });
+    it('checkAuthorization posts the asked names, or an empty body for every name', async () => {
+        const { fetch, requests } = createFakeFetch([
+            json({ permissions: ['chamvi_run_read'] }),
+            json({ permissions: [] }),
+        ]);
+        const client = createApiClient({
+            apiBase: '/api',
+            token: async () => 'tok',
+            fetch,
+        });
+
+        expect(await client.checkAuthorization()).toEqual({ permissions: ['chamvi_run_read'] });
+        expect(requests[0]).toMatchObject({ url: '/api/authorization/check', method: 'POST' });
+        expect(requests[0]!.headers.get('authorization')).toBe('Bearer tok');
+        expect(JSON.parse(requests[0]!.body!)).toEqual({});
+
+        expect(await client.checkAuthorization(['chamvi_run_read', 'release_manage'], 'pasted')).toEqual({ permissions: [] });
+        expect(requests[1]!.headers.get('authorization')).toBe('Bearer pasted');
+        expect(JSON.parse(requests[1]!.body!)).toEqual({ names: ['chamvi_run_read', 'release_manage'] });
     });
 });

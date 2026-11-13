@@ -149,7 +149,24 @@ async function served(options: AuthupModuleOptions) {
         headers: { authorization: `Bearer ${token}` },
     });
 
-    return { request, logger };
+    /** `POST /authorization/check` without names: every name the login may attempt. */
+    const check = async (token: string): Promise<string[]> => {
+        const response = await fetch(`http://127.0.0.1:${port}/authorization/check`, {
+            method: 'POST',
+            headers: { authorization: `Bearer ${token}`, 'content-type': 'application/json' },
+            body: '{}',
+        });
+
+        expect(response.status).toBe(200);
+
+        return (await response.json() as { permissions: string[] }).permissions;
+    };
+
+    return {
+        request,
+        check,
+        logger,
+    };
 }
 
 const authupErrors = (logger: RecordingLogger) => logger.entries.filter((entry) => entry.msg === 'authup error');
@@ -197,16 +214,13 @@ describe('authupModule', () => {
 
     it('a given verifier, catalog and realm are used', async () => {
         const verifier = fakeVerifier();
-        const { request } = await served(injected(verifier));
+        const { request, check } = await served(injected(verifier));
 
         const response = await request('/me', 'authup-token');
 
         expect(response.status).toBe(200);
 
-        const me = await response.json() as {
-            bindings: unknown[];
-            authorization: { realm: string; snapshot: { grants: { permission: { name: string } }[] } };
-        };
+        const me = await response.json() as Record<string, unknown>;
 
         expect(me).toMatchObject({
             id: AUTHUP_USER,
@@ -217,10 +231,16 @@ describe('authupModule', () => {
                 realmId: AUTHUP_REALM, 
             },
         });
-        expect(me.bindings).toEqual([]);
-        expect(me.authorization.realm).toBe(AUTHUP_REALM);
-        expect(me.authorization.snapshot.grants.map((binding) => binding.permission.name)).toEqual([Permission.CONNECTION_WRITE]);
+        // /me is the identity only: the grants of the snapshot answer through the permission check
+        expect(me).not.toHaveProperty('bindings');
+        expect(me).not.toHaveProperty('authorization');
         expect(verifier.verify).toHaveBeenCalledTimes(1);
+
+        const permissions = await check('authup-token');
+
+        expect(permissions).toContain(Permission.CONNECTION_WRITE);
+        expect(permissions).not.toContain(Permission.AGENT_RUN);
+        expect(permissions).not.toContain(Permission.CONNECTION_CREATE);
     });
 
     it('a restricted grant opens exactly its connection page, with the QR and the reset', async () => {
@@ -250,7 +270,11 @@ describe('authupModule', () => {
     });
 
     it('an unreadable catalog grants the login nothing and is reported, a static token still passes', async () => {
-        const { request, logger } = await served({
+        const {
+            request,
+            check,
+            logger,
+        } = await served({
             ...injected(),
             catalog: async () => {
                 throw new Error('permission_read is required.');
@@ -263,8 +287,11 @@ describe('authupModule', () => {
 
         const view = await me.json() as Record<string, unknown>;
 
-        expect(view).toMatchObject({ id: AUTHUP_USER, bindings: [] });
+        expect(view).toMatchObject({ id: AUTHUP_USER });
+        expect(view).not.toHaveProperty('bindings');
         expect(view).not.toHaveProperty('authorization');
+        // no snapshot: the check allows the login nothing
+        expect(await check('authup-token')).toEqual([]);
         expect((await request('/connections/bot', 'authup-token')).status).toBe(403);
         expect(authupErrors(logger).length).toBeGreaterThanOrEqual(1);
         expect((await request('/connections/bot', TOKEN)).status).toBe(200);

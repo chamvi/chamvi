@@ -44,7 +44,8 @@ An agent without `http.on()` answers 404 on REST and gets no MCP tool; the engin
 | `GET /connections/:name` | `chamvi_connection_read` or `chamvi_connection_write` | `{ name, type, status, widgets?, canReset? }`; `widgets` (the pairing QR) and `canReset` (the connection offers a reset) only with write |
 | `GET /connections/:name/events` | `chamvi_connection_write` | SSE: `status` (`{ status }`) and `widgets` (`{ widgets }`) at open and on every change, `ping` to keep proxies open; the run stream's limits |
 | `POST /connections/:name/reset` | `chamvi_connection_write` | `202 { name, type, status }` once the reset started (the live stream carries its outcome, a failure goes to `onError`); clears the connection's session and reconnects (404 when it has no reset, 409 while it is `held_elsewhere`) |
-| `GET /me` | authenticated | `200 { id, kind, name?, bindings, authorization?, identity? }`: the caller itself, with its own permission bindings and authup snapshot, for a client to evaluate with `@chamvi/access` |
+| `GET /me` | authenticated | `200 { id, kind, name?, identity? }`: the caller itself, never its permission bindings or authup snapshot |
+| `POST /authorization/check` | authenticated | Body `{ names? }` (at most 64 names, each 1 to 255 characters; absent, `{}` or no body means every `chamvi_*` name). `200 { permissions }`: the requested names the caller may attempt, deduplicated, in request order; a name that is not granted, or not known, is absent (never a 400). The answer is an upper bound for a client to gate controls with: a policy that needs a resource passes here, and the route behind the control decides per resource |
 | `/mcp` | authenticated | MCP endpoint |
 | `GET /healthz`, `/readyz`, `/metrics` | none | Liveness, readiness, Prometheus |
 

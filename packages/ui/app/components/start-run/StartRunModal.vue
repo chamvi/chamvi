@@ -14,9 +14,10 @@ import {
     ref,
     watch,
 } from 'vue';
+import { Permission } from '@chamvi/access';
 import { createStartKeys } from '../../agents/helpers.ts';
+import { refusalText } from '../../errors/helpers.ts';
 import { isPayload } from '../../forms/validators.ts';
-import { ApiError } from '@chamvi/ui-kit';
 import type { StartRunResult } from '@chamvi/ui-kit';
 
 const props = defineProps<{
@@ -35,7 +36,7 @@ const payloadForm = new Container<{ payload: string }>();
 payloadForm.mount('payload', isPayload());
 
 const v = useValidup(payloadForm, form);
-/** A start the API refused; invalid JSON is the field's issue. */
+/** A start the API refused (a 403 names the permission); invalid JSON is the field's issue. */
 const error = ref<string>();
 const busy = ref(false);
 const keys = createStartKeys();
@@ -67,7 +68,7 @@ async function submit(): Promise<void> {
         open.value = false;
         emit('started', result);
     } catch (e) {
-        error.value = e instanceof ApiError ? `${e.code} · ${e.message}` : String(e);
+        error.value = refusalText(e, 'Starting a run', Permission.AGENT_RUN, props.agent);
     } finally {
         busy.value = false;
     }

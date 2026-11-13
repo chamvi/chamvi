@@ -5,33 +5,26 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { Permission, can } from '@chamvi/access';
-import type { PermissionHolder } from '@chamvi/access';
+import { Permission } from '@chamvi/access';
 import type { ConnectionWire } from '../connections/types.ts';
 import type { UiPageWire } from './types.ts';
 
 /**
  * The pages this principal gets a sidebar item for: it may read a connection
- * of the page's type (`GET /connections` lists only those), or may create
- * one of that type (`chamvi_connection_create` for `{ type }`).
+ * of the page's type (`GET /connections` lists only those), or it is allowed
+ * `chamvi_connection_create` (an upper bound: the create route decides per
+ * type).
  */
-export async function visibleUiPages(
+export function visibleUiPages(
     pages: readonly UiPageWire[],
     connections: readonly ConnectionWire[],
-    holder: PermissionHolder | undefined,
-): Promise<UiPageWire[]> {
-    const readable = new Set(connections.map((connection) => connection.type));
-    const types = new Set(pages.flatMap((page) => page.types).filter((type) => !readable.has(type)));
-    const creatable = new Set<string>();
-    const now = new Date();
-
-    if (holder) {
-        await Promise.all(Array.from(types, async (type) => {
-            if (await can(holder, Permission.CONNECTION_CREATE, { attributes: { type }, now })) {
-                creatable.add(type);
-            }
-        }));
+    allowed: (name: string) => boolean,
+): UiPageWire[] {
+    if (allowed(Permission.CONNECTION_CREATE)) {
+        return [...pages];
     }
 
-    return pages.filter((page) => page.types.some((type) => readable.has(type) || creatable.has(type)));
+    const readable = new Set(connections.map((connection) => connection.type));
+
+    return pages.filter((page) => page.types.some((type) => readable.has(type)));
 }

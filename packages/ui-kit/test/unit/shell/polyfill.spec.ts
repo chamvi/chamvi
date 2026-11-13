@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { Permission, can } from '@chamvi/access';
 import {
     afterEach,
     describe,
@@ -30,18 +29,14 @@ describe('installStringPolyfills', () => {
         expect(prototype.toWellFormed).toBe(native);
     });
 
-    it('installs a fallback without the method (Firefox before 119), and checks pass again', async () => {
+    it('installs a non-enumerable fallback without the method (Firefox before 119)', () => {
         delete prototype.toWellFormed;
-
-        const holder = { bindings: [{ permission: { name: Permission.AGENT_RUN } }] };
-
-        await expect(can(holder, Permission.AGENT_RUN)).resolves.toBe(false);
 
         installStringPolyfills();
 
+        expect(typeof prototype.toWellFormed).toBe('function');
         expect(prototype.toWellFormed).not.toBe(native);
         expect(Object.getOwnPropertyDescriptor(String.prototype, 'toWellFormed')?.enumerable).toBe(false);
-        await expect(can({ bindings: [{ permission: { name: Permission.AGENT_RUN } }] }, Permission.AGENT_RUN)).resolves.toBe(true);
     });
 
     it('replaces lone surrogates as the specification does', () => {

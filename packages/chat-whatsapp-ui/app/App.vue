@@ -11,14 +11,11 @@ import {
     AccountsColumn,
     AppShell,
     ConnectionPanel,
-    canWriteConnection,
     createConnectionsApi,
     useAppContext,
-    useResolved,
     useUiPages,
 } from '@chamvi/ui-kit';
-import type { MeWire } from '@chamvi/ui-kit';
-import { WHATSAPP_TYPE } from './constants.ts';
+import { CONNECTION_WRITE, WHATSAPP_TYPE } from './constants.ts';
 import QrWidget from './QrWidget.vue';
 
 const { client, session } = useAppContext();
@@ -33,17 +30,8 @@ const current = computed(() => {
 
     return listed ? chosen.value : sessions.value[0]?.name;
 });
-const verdict = useResolved<readonly [string | undefined, MeWire | undefined], { name: string; write: boolean } | undefined>(
-    () => [current.value, session.principal.value] as const,
-    async ([name, principal]) => (name === undefined ?
-        undefined :
-        { name, write: await canWriteConnection(principal, { name, type: WHATSAPP_TYPE.type }) }),
-    undefined,
-    // a writer's verdict (the QR stream) never outlives its principal
-    { reset: true },
-);
-// the panel waits for the verdict of the open session: it decides once whether to follow the stream (and the QR)
-const write = computed(() => (verdict.value && verdict.value.name === current.value ? verdict.value.write : undefined));
+// the QR stream and reset follow the session's verdict (an upper bound: a refused reset shows its 403 inline)
+const write = computed(() => (current.value === undefined ? undefined : session.allowed(CONNECTION_WRITE)));
 
 /** The open session lives in the query, so a reload comes back to it. */
 function open(name: string): void {
@@ -65,7 +53,6 @@ function open(name: string): void {
             <AccountsColumn
                 :type="WHATSAPP_TYPE"
                 :connections="connections"
-                :principal="session.principal.value"
                 :current="current"
                 @select="open($event)"
             />

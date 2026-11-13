@@ -8,15 +8,18 @@
 // @vitest-environment happy-dom
 
 import { Permission } from '@chamvi/access';
-import type { PermissionBinding } from '@chamvi/access';
 import { describe, expect, it } from 'vitest';
-import { createApp, shallowRef } from 'vue';
+import { createApp } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import { APP_CONTEXT } from '@chamvi/ui-kit';
+import { APP_CONTEXT, ApiError } from '@chamvi/ui-kit';
 import type { AppContext } from '@chamvi/ui-kit';
 import ConnectionView from '../../../../app/views/ConnectionView.vue';
 import { RouteName } from '../../../../app/router/constants.ts';
-import { ALL, grant } from '../../../utils/permissions.ts';
+import { ALL, sessionOf } from '../../../utils/permissions.ts';
+
+const flush = () => new Promise((resolve) => {
+    setTimeout(resolve, 10);
+});
 
 const DETAIL = {
     name: 'wa',
@@ -26,10 +29,16 @@ const DETAIL = {
     widgets: [{ kind: 'qr', value: '2@secret-pairing-material' }],
 };
 
-async function mountView(bindings: PermissionBinding[]) {
-    const send = async (url: string) => {
+
+async function mountView(names: readonly string[], options: { refuseReset?: boolean } = {}) {
+    const send = async (url: string, init: { method?: string } = {}) => {
         if (url.endsWith('/events')) {
             return new Promise<Response>(() => {});
+        }
+
+        if (url.endsWith('/reset') && init.method === 'POST' && options.refuseReset) {
+            // the client turns a non-2xx answer into an ApiError, as `@chamvi/http` answers a missing permission
+            throw new ApiError(403, 'FORBIDDEN', `Missing permission "${Permission.CONNECTION_WRITE}".`);
         }
 
         return new Response(JSON.stringify(url === '/connections' ? { data: [DETAIL] } : DETAIL));
@@ -58,19 +67,11 @@ async function mountView(bindings: PermissionBinding[]) {
     app.use(router);
     app.provide(APP_CONTEXT, {
         client: { send },
-        session: {
-            principal: shallowRef({
-                id: 'a', 
-                kind: 'token', 
-                bindings, 
-            }), 
-        },
+        session: sessionOf(names),
     } as unknown as AppContext);
     app.mount(root);
 
-    await new Promise((resolve) => {
-        setTimeout(resolve, 10);
-    });
+    await flush();
 
     return { root, unmount: () => app.unmount() };
 }
@@ -89,21 +90,31 @@ describe('the connection view', () => {
         unmount();
     });
 
-    it('offers reset to a write grant restricted to the connection\'s type', async () => {
-        const { root, unmount } = await mountView([grant(Permission.CONNECTION_WRITE, { type: 'whatsapp' })]);
+    it('offers reset when the session is allowed chamvi_connection_write', async () => {
+        const { root, unmount } = await mountView([Permission.CONNECTION_WRITE]);
 
         expect(root.querySelector('[data-testid="connection-reset"]')).not.toBeNull();
         unmount();
     });
 
-    it('offers no reset to a reader whose write grant names another type', async () => {
-        const { root, unmount } = await mountView([
-            grant(Permission.CONNECTION_READ),
-            grant(Permission.CONNECTION_WRITE, { type: 'mail' }),
-        ]);
+    it('offers no reset to a reader without chamvi_connection_write', async () => {
+        const { root, unmount } = await mountView([Permission.CONNECTION_READ]);
 
         expect(root.querySelector('[data-testid="connection-status"]')).not.toBeNull();
         expect(root.querySelector('[data-testid="connection-reset"]')).toBeNull();
+        expect(root.querySelector('[data-testid="connection-readonly"]')?.textContent).toContain(Permission.CONNECTION_WRITE);
+        unmount();
+    });
+
+    it('names chamvi_connection_write inline when the API refuses the reset (403)', async () => {
+        const { root, unmount } = await mountView([Permission.CONNECTION_WRITE], { refuseReset: true });
+
+        root.querySelector<HTMLElement>('[data-testid="connection-reset"]')?.click();
+        await flush();
+        root.querySelector<HTMLElement>('[data-testid="connection-reset-yes"]')?.click();
+        await flush();
+
+        expect(root.querySelector('[data-testid="connection-reset-error"]')?.textContent).toContain(Permission.CONNECTION_WRITE);
         unmount();
     });
 });
