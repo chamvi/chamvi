@@ -64,9 +64,9 @@ function declare(definition: ConnectionTypeDefinition, name: string, overrides: 
         editable: true,
         deletable: false,
         resolved: resolveConnection({
-            definition, 
-            name, 
-            readVariable: () => undefined, 
+            definition,
+            name,
+            readVariable: () => undefined,
         }),
         ...overrides,
     };
@@ -105,9 +105,9 @@ function setup(options: SetupOptions = {}) {
         clock,
         onError: () => undefined,
         uiPages: () => [{
-            slug: 'mail', 
-            label: 'Mail', 
-            types: ['mail'], 
+            slug: 'mail',
+            label: 'Mail',
+            types: ['mail'],
             path: '/ext/mail',
         }],
         basePath: '/api',
@@ -121,9 +121,9 @@ const reader = principalOf(Permission.CONNECTION_READ);
 const writer = principalOf(Permission.CONNECTION_WRITE);
 const creator = principalOf(Permission.CONNECTION_CREATE, Permission.CONNECTION_WRITE);
 const createBody = {
-    account: 'work', 
-    settings: { host: 'imap.example.org' }, 
-    secrets: { password: PASSWORD }, 
+    account: 'work',
+    settings: { host: 'imap.example.org' },
+    secrets: { password: PASSWORD },
 };
 
 describe('ConnectionConfigService', () => {
@@ -133,9 +133,9 @@ describe('ConnectionConfigService', () => {
         expect((await service.types(nobody)).data.map((view) => view.type)).toEqual(['mail']);
         expect(await service.uiPages(nobody)).toEqual({
             data: [{
-                slug: 'mail', 
-                label: 'Mail', 
-                types: ['mail'], 
+                slug: 'mail',
+                label: 'Mail',
+                types: ['mail'],
                 path: '/api/ext/mail',
             }],
         });
@@ -160,9 +160,9 @@ describe('ConnectionConfigService', () => {
         const view = await service.create('mail', createBody, creator);
 
         expect(view).toMatchObject({
-            name: 'mail-work', 
-            type: 'mail', 
-            state: 'configured', 
+            name: 'mail-work',
+            type: 'mail',
+            state: 'configured',
         });
         expect(JSON.stringify(view)).not.toContain(PASSWORD);
     });

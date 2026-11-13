@@ -57,10 +57,10 @@ describe('ConnectionService', () => {
         expect(await service.list(nobody)).toEqual({ data: [] });
         expect(await service.list(principalOf(restricted(Permission.CONNECTION_READ, { name: 'beta' })))).toEqual({
             data: [{
-                name: 'beta', 
-                type: 'whatsapp', 
-                status: 'pairing', 
-            }], 
+                name: 'beta',
+                type: 'whatsapp',
+                status: 'pairing',
+            }],
         });
     });
 
@@ -76,9 +76,9 @@ describe('ConnectionService', () => {
         const { service } = setup([handleOf('alpha')]);
 
         expect(await service.get('alpha', reader)).toEqual({
-            name: 'alpha', 
-            type: 'whatsapp', 
-            status: 'pairing', 
+            name: 'alpha',
+            type: 'whatsapp',
+            status: 'pairing',
         });
         expect(await service.get('alpha', writer)).toEqual({
             name: 'alpha',
@@ -117,14 +117,14 @@ describe('ConnectionService', () => {
         const failure = new Error('reset failed');
         const { service, onError } = setup([handleOf('alpha', {
             reset: async () => {
-                throw failure; 
-            }, 
+                throw failure;
+            },
         })]);
 
         expect(await service.reset('alpha', writer)).toEqual({
-            name: 'alpha', 
-            type: 'whatsapp', 
-            status: 'pairing', 
+            name: 'alpha',
+            type: 'whatsapp',
+            status: 'pairing',
         });
 
         await flush();
