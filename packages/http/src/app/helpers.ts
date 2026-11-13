@@ -23,6 +23,7 @@ import {
     DEFAULT_METRICS_PATH,
     DEFAULT_READY_TIMEOUT_MS,
     DEFAULT_STREAM_POLL_MS,
+    HTTP_CONTEXT,
     RESERVED_ROUTE_SEGMENTS,
     STREAM_RETRY_AFTER_SECONDS,
 } from './constants.ts';
@@ -254,6 +255,20 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         // eslint-disable-next-line no-console
         onError: options.onError ?? ((error) => console.error('[chamvi]', error)),
     };
+}
+
+/**
+ * The HttpContext `createHttpApp` put on the event; a request outside such
+ * an app is a server misconfiguration (InvalidAgentDefinitionError).
+ */
+export function useHttpContext(event: IAppEvent): HttpContext {
+    const ctx = event.store[HTTP_CONTEXT] as HttpContext | undefined;
+
+    if (!ctx) {
+        throw new InvalidAgentDefinitionError('The request carries no http context: mount the routes with createHttpApp.');
+    }
+
+    return ctx;
 }
 
 function renderError(event: IAppEvent, body: ErrorBody): Response {

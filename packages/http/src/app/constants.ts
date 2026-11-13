@@ -5,6 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+/** Where `createHttpApp` puts the HttpContext in `event.store`, for the middleware classes; internal. */
+export const HTTP_CONTEXT: unique symbol = Symbol('chamvi:http-context');
+
 /** Bytes a REST or MCP request body may have. */
 export const DEFAULT_BODY_LIMIT = 1_048_576;
 

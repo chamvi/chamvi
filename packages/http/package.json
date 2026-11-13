@@ -63,7 +63,9 @@
         "@rapiq/core": "^2.4.0",
         "@rapiq/parser-expression": "^2.4.0",
         "@rapiq/parser-simple": "^2.4.0",
+        "@routup/body": "^4.0.1",
         "@routup/cors": "^2.0.1",
+        "@routup/decorators": "^5.0.2",
         "@routup/prometheus": "^4.0.1",
         "@routup/rate-limit": "^4.0.2",
         "@standard-schema/spec": "^1.1.0",
@@ -79,8 +81,10 @@
         "@chamvi/core": "^0.8.0",
         "@chamvi/test-kit": "^0.8.0",
         "@modelcontextprotocol/client": "^2.4.0",
+        "@swc/core": "^1.16.22",
         "ai": "^7.0.165",
         "jose": "^6.2.15",
+        "unplugin-swc": "^2.0.0",
         "zod": "^4.6.7"
     },
     "peerDependencies": {

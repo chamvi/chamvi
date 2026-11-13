@@ -6,9 +6,11 @@
  */
 
 import { NotFoundError } from '@ebec/http';
+import { decorators } from '@routup/decorators';
 import { App, defineCoreHandler } from 'routup';
 import { registerAgentRoutes } from '../agents/module.ts';
-import { registerAuthorizationRoutes } from '../authorization/module.ts';
+import { AuthorizationController } from '../authorization/controller.ts';
+import { AuthorizationService } from '../authorization/service.ts';
 import { registerChannelRoutes } from '../channels/module.ts';
 import { registerConnectionRoutes } from '../connections/module.ts';
 import { registerHealthRoutes } from '../health/module.ts';
@@ -18,6 +20,7 @@ import { installPlugins } from '../plugins/module.ts';
 import { assertNoNul } from '../request/helpers.ts';
 import { registerRoutes } from '../routes/module.ts';
 import { registerRunRoutes } from '../runs/module.ts';
+import { HTTP_CONTEXT } from './constants.ts';
 import { buildContext, createErrorHandler } from './helpers.ts';
 import type { HttpAppOptions } from './types.ts';
 
@@ -35,12 +38,18 @@ export function createHttpApp(options: HttpAppOptions): App {
     installPlugins(app, { ...options, basePath: ctx.basePath });
     app.use(defineCoreHandler((event) => {
         assertNoNul(event);
+        // the middleware classes of the controllers are built without arguments
+        event.store[HTTP_CONTEXT] = ctx;
 
         return event.next();
     }));
+    app.use(decorators({
+        controllers: [
+            new AuthorizationController({ service: new AuthorizationService({ clock: ctx.clock }) }),
+        ],
+    }));
     registerHealthRoutes(app, ctx);
     registerMeRoutes(app, ctx);
-    registerAuthorizationRoutes(app, ctx);
     registerAgentRoutes(app, ctx);
     registerRunRoutes(app, ctx);
     registerChannelRoutes(app, ctx);

@@ -16,6 +16,7 @@ import type { Agent, IClock, Invoker } from '@chamvi/core';
 import { ForbiddenError, UnauthorizedError } from '@ebec/http';
 import type { IAppEvent } from 'routup';
 import { isObject } from 'smob';
+import { useHttpContext } from '../app/helpers.ts';
 import type { HttpContext } from '../app/types.ts';
 import { PRINCIPAL } from './constants.ts';
 import type { Authenticator, Principal } from './types.ts';
@@ -159,10 +160,34 @@ export function authenticate(event: IAppEvent, ctx: HttpContext): Promise<Princi
     return pending;
 }
 
+/** The principal of a request inside `createHttpApp`: `authenticate` with the event's context. */
+export function usePrincipal(event: IAppEvent): Promise<Principal> {
+    return authenticate(event, useHttpContext(event));
+}
+
 /**
- * `authenticate`, then 403 when `permission` is given and not granted: for
- * the resource `attributes` when given (`can`), else for some resource
- * (`canSome`, a collection gate), at the engine clock's time.
+ * 403 unless the principal holds `permission`: for the resource
+ * `attributes` when given (`can`), else for some resource (`canSome`, a
+ * collection gate), at the clock's time.
+ */
+export async function assertGranted(
+    principal: Principal,
+    clock: IClock,
+    permission: string,
+    attributes?: Record<string, unknown>,
+): Promise<void> {
+    const granted = attributes !== undefined ?
+        await isGranted(principal, permission, clock, attributes) :
+        await isGrantedSome(principal, permission, clock);
+
+    if (!granted) {
+        throw forbidden(permission);
+    }
+}
+
+/**
+ * `authenticate`, then `assertGranted` when `permission` is given, at the
+ * engine clock's time.
  */
 export async function authorize(
     event: IAppEvent,
@@ -172,16 +197,8 @@ export async function authorize(
 ): Promise<Principal> {
     const principal = await authenticate(event, ctx);
 
-    if (permission === undefined) {
-        return principal;
-    }
-
-    const granted = attributes !== undefined ?
-        await isGranted(principal, permission, ctx.clock, attributes) :
-        await isGrantedSome(principal, permission, ctx.clock);
-
-    if (!granted) {
-        throw forbidden(permission);
+    if (permission !== undefined) {
+        await assertGranted(principal, ctx.clock, permission, attributes);
     }
 
     return principal;
