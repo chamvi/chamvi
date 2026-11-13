@@ -193,12 +193,50 @@ describe('GET /docs', () => {
         expect(third.headers.get('content-security-policy')).toBe(csp);
     });
 
-    it('never takes the policy from a HEAD answer', async () => {
+    it.each(['POST', 'DELETE', 'PUT'])('answers %s below /docs with the JSON 404', async (method) => {
         const { app } = setup();
-        const head = await app.fetch(new Request('http://test/docs', { method: 'HEAD' }));
 
-        expect(head.headers.get('content-security-policy') ?? 'sha256-').toContain('sha256-');
-        expect((await get(app, '/docs')).headers.get('content-security-policy')).toContain('sha256-');
+        for (const path of ['/docs', '/docs/', '/docs/swagger-ui.css']) {
+            const response = await app.fetch(new Request(`http://test${path}`, { method }));
+
+            expect(response.status).toBe(404);
+            expect(response.headers.get('content-type')).toContain('application/json');
+            expect(response.headers.get('content-security-policy')).toBeNull();
+            expect(await response.json()).toMatchObject({ status: 404 });
+        }
+
+        // the next shell still carries the full policy
+        const shell = await get(app, '/docs');
+        const html = await shell.text();
+
+        expect(shell.headers.get('content-security-policy')).toContain(`script-src 'self' ${sha256(/<script>([\s\S]*?)<\/script>/.exec(html)![1]!)};`);
+    });
+
+    it.each(['', '/api'])('sends the full policy on a HEAD before any GET, and the same on the GET and its 304 (basePath "%s")', async (basePath) => {
+        const { app } = setup({ basePath });
+        const head = await app.fetch(new Request(`http://test${basePath}/docs`, { method: 'HEAD' }));
+
+        expect(head.status).toBe(200);
+
+        const first = await get(app, `${basePath}/docs`);
+        const html = await first.text();
+        const csp = first.headers.get('content-security-policy');
+        const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!;
+        const style = /<style>([\s\S]*?)<\/style>/.exec(html)![1]!;
+
+        expect(csp).toContain(`script-src 'self' ${sha256(script)};`);
+        expect(csp).toContain(`style-src 'self' ${sha256(style)};`);
+        // a HEAD before any GET already carries the policy of the shell a GET sends
+        expect(head.headers.get('content-security-policy')).toBe(csp);
+
+        const second = await get(app, `${basePath}/docs`, { 'if-none-match': first.headers.get('etag')! });
+
+        expect(second.status).toBe(304);
+        expect(second.headers.get('content-security-policy')).toBe(csp);
+
+        const later = await app.fetch(new Request(`http://test${basePath}/docs/`, { method: 'HEAD' }));
+
+        expect(later.headers.get('content-security-policy')).toBe(csp);
     });
 
     it('omits the policy on a conditional answer before any full shell was sent', async () => {

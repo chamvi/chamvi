@@ -61,8 +61,10 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
         // (`/docs/` mounts as `/docs/`)
         const rest = event.mountPath.replace(/\/$/, '') === mount ? event.path.slice(mount.length) : undefined;
         const shell = rest === '' || rest === '/';
+        // the plugin answers every method, the catch-all's JSON 404 is what any other path gives a POST
+        const readable = event.method === 'GET' || event.method === 'HEAD';
 
-        if (rest === undefined || (!shell && !OPENAPI_UI_ASSETS.includes(rest.slice(1)))) {
+        if (!readable || rest === undefined || (!shell && !OPENAPI_UI_ASSETS.includes(rest.slice(1)))) {
             throw new NotFoundError({ message: 'The requested route does not exist.' });
         }
 
@@ -76,9 +78,14 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
             return response;
         }
 
-        // a HEAD answer has no body to hash
-        if (policy === undefined && response.status === 200 && event.method === 'GET') {
-            policy = buildOpenApiUiCsp(await response.clone().text());
+        // a HEAD answer holds the same shell until the server adapter drops the body, so a HEAD before
+        // any GET carries the full policy too; an empty body (nothing to hash) never sets it
+        if (policy === undefined && response.status === 200) {
+            const html = await response.clone().text();
+
+            if (html !== '') {
+                policy = buildOpenApiUiCsp(html);
+            }
         }
 
         // a 304 carries the same full policy (a browser merges it into its stored shell); before any
