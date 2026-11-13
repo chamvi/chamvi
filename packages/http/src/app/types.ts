@@ -21,6 +21,7 @@ import type { Options as RateLimitPluginOptions } from '@routup/rate-limit';
 import type { AppOptionsInput } from 'routup';
 import type { AgentIssue } from '../agents/types.ts';
 import type { Authenticator, Principal } from '../auth/types.ts';
+import type { OpenApiOptions } from '../openapi/types.ts';
 import type { IShutdown } from '../shutdown/types.ts';
 import type { UiPage } from '../static/types.ts';
 
@@ -83,6 +84,14 @@ export type HttpAppOptions = {
         maxOpen?: number;
     };
     mcp?: false | McpOptions;
+    /**
+     * The OpenAPI document of the REST API at `GET <basePath>/openapi.json`
+     * and a Swagger UI over it at `<basePath>/docs` (`ui: false` serves the
+     * document only), both unauthenticated; false serves neither. A missing
+     * or unreadable document (a build without its last step) mounts neither
+     * and is reported once to `onError`. Default: both.
+     */
+    openapi?: false | OpenApiOptions;
     /** CORS is off unless given. */
     cors?: false | CorsOptions;
     rateLimit?: false | Partial<RateLimitOptions>;

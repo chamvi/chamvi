@@ -15,6 +15,14 @@ import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } f
 import * as http from '@chamvi/http';
 
 describe('public api', () => {
+    it('exports the openapi option type', () => {
+        expectTypeOf<http.OpenApiOptions>().toEqualTypeOf<{ ui?: boolean; documentPath?: string }>();
+        expectTypeOf<http.HttpAppOptions['openapi']>().toEqualTypeOf<false | http.OpenApiOptions | undefined>();
+        expect(http).not.toHaveProperty('registerOpenApiRoutes');
+        expect(http).not.toHaveProperty('loadOpenApiDocument');
+        expect(http).not.toHaveProperty('OPENAPI_DOCUMENT_PATH');
+    });
+
     it('exports the channel HTTP rate-limit policy type', () => {
         expectTypeOf<http.ChannelRateLimitOptions>().toEqualTypeOf<{ max: number; windowMs?: number }>();
         expectTypeOf<http.HttpAppOptions['channelRateLimits']>()

@@ -78,6 +78,7 @@
         "@routup/decorators": "^5.0.2",
         "@routup/prometheus": "^4.0.1",
         "@routup/rate-limit": "^4.0.2",
+        "@routup/swagger-ui": "^4.0.2",
         "@standard-schema/spec": "^1.1.0",
         "@validup/standard-schema": "^2.0.2",
         "cron-parser": "^5.10.4",

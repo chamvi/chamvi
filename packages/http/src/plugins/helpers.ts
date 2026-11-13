@@ -56,7 +56,8 @@ export function isUnlimitedRoute(event: IAppEvent, basePath: string, routes: rea
 
 /** The routes of the app as metric labels, matched against the path without `basePath`; keep in step with the controllers. */
 const ROUTE_TEMPLATES: Array<[RegExp, string]> = [
-    [/^\/(?:healthz|readyz|agents|schedules|runs|mcp|me|connections|connection-types|ui-pages)$/, ''],
+    [/^\/(?:healthz|readyz|agents|schedules|runs|mcp|me|connections|connection-types|ui-pages|openapi\.json|docs)$/, ''],
+    [/^\/docs\/.+$/, '/docs/*'],
     [/^\/authorization\/check$/, '/authorization/check'],
     [/^\/runs\/[^/]+$/, '/runs/:id'],
     [/^\/runs\/[^/]+\/stream$/, '/runs/:id/stream'],

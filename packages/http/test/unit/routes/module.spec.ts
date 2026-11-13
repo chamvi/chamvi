@@ -313,6 +313,20 @@ describe('extra routes', () => {
         expect(() => createTestApp({ metrics: undefined, routes })).toThrow(InvalidAgentDefinitionError);
     });
 
+    it.each([
+        ['openapi on', { openapi: {} }],
+        ['openapi: false', { openapi: false as const }],
+    ])('refuses the openapi paths in any case (%s)', (_name, options) => {
+        for (const path of ['/docs', '/Docs/x', '/openapi.json', '/OpenAPI.JSON', '/openapi.json/x']) {
+            expect(() => createTestApp({ ...options, routes: [route({ method: 'GET', path })] }))
+                .toThrow(`Route path "${path}" collides with a built-in route.`);
+        }
+    });
+
+    it.each(['/openapi.jsonx', '/openapi', '/documents', '/doc'])('accepts %s, no openapi path', (path) => {
+        expect(() => createTestApp({ routes: [route({ method: 'GET', path })] })).not.toThrow();
+    });
+
     it('accepts a path under /hooks, no longer a built-in route', () => {
         expect(() => createTestApp({ routes: [route({ path: '/hooks/x' })] })).not.toThrow();
     });

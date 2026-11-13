@@ -19,6 +19,7 @@ import { HealthController } from '../health/controller.ts';
 import { HealthService } from '../health/service.ts';
 import { registerMcpRoutes } from '../mcp/module.ts';
 import { MeController } from '../me/controller.ts';
+import { registerOpenApiRoutes } from '../openapi/module.ts';
 import { installPlugins } from '../plugins/module.ts';
 import { assertNoNul } from '../request/helpers.ts';
 import { registerRoutes } from '../routes/module.ts';
@@ -30,7 +31,8 @@ import type { HttpAppOptions } from './types.ts';
 
 /**
  * Builds the routup App of a chamvi app: health, REST, the listed channels
- * (`/channels/<name>`), the connection handles (`/connections`) and MCP, one JSON error body for every route under `basePath`.
+ * (`/channels/<name>`), the connection handles (`/connections`), the
+ * OpenAPI document and its UI (`/openapi.json`, `/docs`) and MCP, one JSON error body for every route under `basePath`.
  */
 export function createHttpApp(options: HttpAppOptions): App {
     const ctx = buildContext(options);
@@ -65,6 +67,11 @@ export function createHttpApp(options: HttpAppOptions): App {
             new UiPageController({ config: connectionConfigService }),
         ],
     }));
+
+    if (options.openapi !== false) {
+        registerOpenApiRoutes(app, ctx, options.openapi ?? {});
+    }
+
     registerChannelRoutes(app, ctx);
     registerRoutes(app, ctx);
 

@@ -99,6 +99,8 @@ export function createTestApp(overrides: TestAppOverrides = {}) {
         auth: [testAuth, permissionsAuth],
         metrics: false,
         rateLimit: false,
+        // off unless a spec asks: a missing built document would be reported to `onError`
+        openapi: false,
         // a given engine brings its own channels
         ...(engineOverride ? {} : { channels: [hooks] }),
         ...options,
