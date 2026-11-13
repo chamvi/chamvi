@@ -16,6 +16,7 @@ import { Permission } from '@chamvi/access';
 import type { PermissionBinding } from '@chamvi/access';
 import {
     ChamviError,
+    ErrorCode,
     InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
@@ -188,6 +189,8 @@ describe('ConnectionConfigService', () => {
         const { service } = setup();
 
         await expect(service.read('NOT_VALID', nobody)).rejects.toMatchObject({ status: 403 });
+        // the error exists, deferred behind the check: a core ValidationError, rendered as a 400
+        await expect(service.read('NOT_VALID', reader)).rejects.toMatchObject({ code: ErrorCode.VALIDATION });
     });
 
     it('refuses an update without write (403) and of a connection set in code (409)', async () => {

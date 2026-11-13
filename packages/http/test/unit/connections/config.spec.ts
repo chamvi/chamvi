@@ -1806,4 +1806,61 @@ describe('connection configuration', () => {
             expect(await json(await call(app, 'GET', '/ui-pages', { token: tokenFor() }))).toEqual({ data: [] });
         });
     });
+
+    describe('the no-store header', () => {
+        const NO_STORE = 'private, no-store';
+
+        it('is on every response of GET /connections/:name/config, errors included', async () => {
+            const { app } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+            const nobody = tokenFor(Permission.RUN_READ);
+            const responses = [
+                await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }),
+                await call(app, 'GET', '/connections/mail-work/config', { token: nobody }),
+                await call(app, 'GET', '/connections/nope/config', { token: ADMIN_TOKEN }),
+            ];
+
+            expect(responses.map((response) => response.status)).toEqual([200, 403, 404]);
+            expect(responses.map((response) => response.headers.get('cache-control'))).toEqual([NO_STORE, NO_STORE, NO_STORE]);
+        });
+
+        it('is on every response of PUT /connections/:name/config, errors included', async () => {
+            const { app } = world({
+                declared: (definition) => [
+                    declare(definition, 'mail-work'),
+                    declare(definition, 'mail-code', {}, { editable: false }),
+                ],
+            });
+            const reader = tokenFor(Permission.CONNECTION_READ);
+            const save = { settings: { host: 'imap.example' }, secrets: { set: { password: PASSWORD } } };
+            const responses = [
+                await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: save }),
+                await call(app, 'PUT', '/connections/mail-work/config', { token: reader, body: save }),
+                await call(app, 'PUT', '/connections/mail-code/config', { token: ADMIN_TOKEN, body: save }),
+                await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: { settings: 'no object' } }),
+            ];
+
+            expect(responses.map((response) => response.status)).toEqual([200, 403, 409, 400]);
+            expect(responses.map((response) => response.headers.get('cache-control'))).toEqual([NO_STORE, NO_STORE, NO_STORE, NO_STORE]);
+        });
+
+        it('is not set on GET /connections and DELETE /connections/:name', async () => {
+            const { app } = world();
+
+            await call(app, 'POST', '/connection-types/mail/connections', {
+                token: ADMIN_TOKEN,
+                body: {
+                    account: 'work',
+                    settings: { host: 'imap.example' },
+                    secrets: { password: PASSWORD },
+                },
+            });
+
+            const list = await call(app, 'GET', '/connections', { token: ADMIN_TOKEN });
+            const deleted = await call(app, 'DELETE', '/connections/mail-work', { token: ADMIN_TOKEN });
+
+            expect([list.status, deleted.status]).toEqual([200, 200]);
+            expect(list.headers.get('cache-control')).toBeNull();
+            expect(deleted.headers.get('cache-control')).toBeNull();
+        });
+    });
 });

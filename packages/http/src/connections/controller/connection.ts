@@ -61,7 +61,7 @@ export class ConnectionController {
         @DPath('name') name: string,
         @DContext() event: IAppEvent,
     ): Promise<ConnectionView | ConnectionDetailView> {
-        // a writer's response can carry a pairing QR
+        // a writer's response can carry a pairing QR; set first on purpose, so error responses carry it too
         noStore(event);
 
         return this.service.get(name, await usePrincipal(event));
@@ -97,6 +97,7 @@ export class ConnectionController {
         @DPath('name') name: string,
         @DContext() event: IAppEvent,
     ): Promise<ConnectionSettingsView> {
+        // set first on purpose, so error responses carry it too
         noStore(event);
 
         return this.config.read(name, await usePrincipal(event));
@@ -109,6 +110,7 @@ export class ConnectionController {
         @DBody() data: ConnectionSaveBody,
         @DContext() event: IAppEvent,
     ): Promise<ConnectionSettingsView> {
+        // set first on purpose, so error responses carry it too
         noStore(event);
 
         return this.config.update(name, data, await usePrincipal(event));
