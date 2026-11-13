@@ -13,9 +13,10 @@ import { AuthorizationController } from '../authorization/controller.ts';
 import { AuthorizationService } from '../authorization/service.ts';
 import { registerChannelRoutes } from '../channels/module.ts';
 import { registerConnectionRoutes } from '../connections/module.ts';
-import { registerHealthRoutes } from '../health/module.ts';
+import { HealthController } from '../health/controller.ts';
+import { HealthService } from '../health/service.ts';
 import { registerMcpRoutes } from '../mcp/module.ts';
-import { registerMeRoutes } from '../me/module.ts';
+import { MeController } from '../me/controller.ts';
 import { installPlugins } from '../plugins/module.ts';
 import { assertNoNul } from '../request/helpers.ts';
 import { registerRoutes } from '../routes/module.ts';
@@ -45,11 +46,11 @@ export function createHttpApp(options: HttpAppOptions): App {
     }));
     app.use(decorators({
         controllers: [
+            new HealthController({ service: new HealthService(ctx) }),
+            new MeController(),
             new AuthorizationController({ service: new AuthorizationService({ clock: ctx.clock }) }),
         ],
     }));
-    registerHealthRoutes(app, ctx);
-    registerMeRoutes(app, ctx);
     registerAgentRoutes(app, ctx);
     registerRunRoutes(app, ctx);
     registerChannelRoutes(app, ctx);
