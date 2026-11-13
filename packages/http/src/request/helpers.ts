@@ -238,8 +238,8 @@ export function assertContentLength(event: IAppEvent, limit: number): void {
 
 /**
  * Reads a JSON body of at most `limit` bytes: `undefined` when empty, 413
- * when too large, 415 for another media type, 400 when unparsable. Call it
- * only after `authorize`.
+ * when too large, 415 for another media type, 400 when unparsable. The body
+ * middleware calls it after authentication.
  */
 export async function readJsonBody(event: IAppEvent, limit: number): Promise<unknown> {
     const { request } = event;

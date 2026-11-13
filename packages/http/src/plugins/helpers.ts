@@ -54,7 +54,7 @@ export function isUnlimitedRoute(event: IAppEvent, basePath: string, routes: rea
     return route?.rateLimit === false;
 }
 
-/** The routes of the app as metric labels, matched against the path without `basePath`; keep in step with the route modules. */
+/** The routes of the app as metric labels, matched against the path without `basePath`; keep in step with the controllers. */
 const ROUTE_TEMPLATES: Array<[RegExp, string]> = [
     [/^\/(?:healthz|readyz|agents|schedules|runs|mcp|me|connections|connection-types|ui-pages)$/, ''],
     [/^\/authorization\/check$/, '/authorization/check'],
