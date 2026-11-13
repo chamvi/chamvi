@@ -44,8 +44,19 @@ export function testFailureMessage(error: unknown, secrets: readonly string[]): 
         return 'The connection test failed.';
     }
 
-    return secrets
+    // one pass over the original message, the longest secret first: a secret that is part of
+    // another one must not cut it and leave the rest readable
+    const pattern = secrets
         .filter((secret) => secret.length > 0)
-        .reduce((message, secret) => message.replaceAll(secret, '[secret]'), error.message)
+        .toSorted((a, b) => b.length - a.length)
+        .map((secret) => RegExp.escape(secret))
+        .join('|');
+
+    if (pattern.length === 0) {
+        return error.message.slice(0, TEST_MESSAGE_MAX_LENGTH);
+    }
+
+    return error.message
+        .replaceAll(new RegExp(pattern, 'g'), '[secret]')
         .slice(0, TEST_MESSAGE_MAX_LENGTH);
 }
