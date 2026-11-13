@@ -103,7 +103,13 @@ type Probe = [method: string, template: string, path: string, status: number, to
 
 describe.skipIf(!document)('live responses against the openapi document', () => {
     const doc = document as Document;
-    const ajv = createAjv(doc);
+    // built in a hook: the suite body also runs when the suite is skipped, without a document
+    let ajv: Ajv2020;
+
+    beforeAll(() => {
+        ajv = createAjv(doc);
+    });
+
     const validators = new Map<string, ValidateFunction>();
 
     /** The documented JSON schema for the answer, the `default` response for a status the operation does not list. */
