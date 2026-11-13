@@ -65,7 +65,11 @@ async function served(env: Record<string, string> = {}, basePath = '') {
             storeModule(),
             staticTokensModule(),
             engineModule(),
-            httpModule({ metrics: false, rateLimit: false }),
+            httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            }),
             uiModule({ env, root: ROOT }),
         ],
     });
@@ -193,7 +197,11 @@ describe('uiModule with a registered page', () => {
                 storeModule(),
                 staticTokensModule(),
                 engineModule(),
-                httpModule({ metrics: false, rateLimit: false }),
+                httpModule({
+                    metrics: false,
+                    rateLimit: false,
+                    openapi: false,
+                }),
                 ...(order === 'dashboard' ? [dashboard, page] : [page, dashboard]),
             ],
         });

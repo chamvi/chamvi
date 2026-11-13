@@ -95,7 +95,7 @@ async function build(options: { agents?: Agent[]; modules?: IModule[] } = {}) {
             staticTokensModule(),
             engineModule(),
             schedulerModule(),
-            httpModule(),
+            httpModule({ openapi: false }),
             ...(options.modules ?? []),
         ],
     });

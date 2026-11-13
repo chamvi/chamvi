@@ -130,7 +130,11 @@ async function serve(input: ServeInput = {}) {
             storeModule(),
             staticTokensModule(),
             engineModule(),
-            httpModule({ metrics: false, rateLimit: false }),
+            httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            }),
             module,
             ...(second ? [second] : []),
         ],

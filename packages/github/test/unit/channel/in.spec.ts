@@ -422,6 +422,7 @@ describe('github channel in', () => {
             }),
             metrics: false,
             rateLimit: false,
+            openapi: false,
             channels: [enterprise],
         });
         const response = await deliver(app, {

@@ -117,7 +117,11 @@ async function serve(store: IStore, env: Record<string, string>, dav: FakeCalDav
             storeModule({ store }),
             staticTokensModule(),
             engineModule(),
-            httpModule({ metrics: false, rateLimit: false }),
+            httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            }),
             toolCalendarModule({ env, fetch: dav.fetch }),
         ],
     });

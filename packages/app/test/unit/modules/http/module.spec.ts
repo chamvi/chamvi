@@ -122,7 +122,8 @@ async function build(options: {
             staticTokensModule(),
             engineModule(),
             options.scheduler ?? schedulerModule(),
-            httpModule(options.http),
+            // http's built document is no input of these specs
+            httpModule({ openapi: false, ...options.http }),
             ...(options.modules ?? []),
         ],
     });

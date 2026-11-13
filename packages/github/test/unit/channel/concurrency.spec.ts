@@ -112,6 +112,7 @@ describe('GitHub burst admission', () => {
             rateLimit: { max: 1 },
             channelRateLimits: { github: false },
             metrics: false,
+            openapi: false,
         });
 
         await engine.start();

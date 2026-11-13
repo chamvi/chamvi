@@ -110,6 +110,8 @@ export function createGithubTestApp(input: GithubTestAppInput): GithubTestApp {
         })],
         metrics: false,
         rateLimit: input.rateLimit ?? false,
+        // http's built document, absent from a source checkout before the build: off, so `onError` sees only github's errors
+        openapi: false,
         channels: [channel],
         onError,
     });

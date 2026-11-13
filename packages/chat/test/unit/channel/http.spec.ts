@@ -76,6 +76,7 @@ async function serve(input: Partial<IntakeFixtureInput> & { start?: boolean } = 
         })],
         metrics: false,
         rateLimit: false,
+        openapi: false,
         channels: [fixture.channel],
     });
 
@@ -191,6 +192,7 @@ describe('chat channel webhooks', () => {
                 }],
             })],
             metrics: false,
+            openapi: false,
             channels: [plain.channel],
         })).toThrow(InvalidAgentDefinitionError);
 

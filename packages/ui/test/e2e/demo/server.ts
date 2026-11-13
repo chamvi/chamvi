@@ -177,6 +177,8 @@ const app = createHttpApp({
         }],
     })],
     metrics: false,
+    // http's built document is not what the dashboard specs drive
+    openapi: false,
     // one client address for the whole suite: its specs must not share a budget
     rateLimit: false,
     connections: () => [connection.handle],

@@ -138,7 +138,11 @@ async function served(options: AuthupModuleOptions) {
             engineModule(),
             connection('bot'),
             connection('other'),
-            httpModule({ metrics: false, rateLimit: false }),
+            httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            }),
         ],
     });
 

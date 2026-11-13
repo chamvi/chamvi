@@ -67,7 +67,11 @@ async function serve(modules: IModule[], agents: Agent[] = []): Promise<{ call: 
             storeModule(),
             staticTokensModule(),
             engineModule(),
-            httpModule({ metrics: false, rateLimit: false }),
+            httpModule({
+                metrics: false,
+                rateLimit: false,
+                openapi: false,
+            }),
             ...modules,
         ],
     });

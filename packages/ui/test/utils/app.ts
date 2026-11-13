@@ -40,6 +40,8 @@ export function createUiTestApp(options: Partial<Omit<HttpAppOptions, 'engine' |
             }],
         })],
         metrics: false,
+        // http's built document, absent from a source checkout before the build: off, so `errors` holds only the dashboard's
+        openapi: false,
         onError: (error) => {
             errors.push(error);
         },
