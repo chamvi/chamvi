@@ -15,6 +15,7 @@ import type {
 import type { StandardSchemaWithJSON } from '@modelcontextprotocol/server';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Principal } from '../auth/types.ts';
+import type { IRunService } from '../runs/types.ts';
 
 /** A run as `list_runs` lists it. */
 export type RunSummary = Pick<Run, 'id' | 'agent' | 'status' | 'createdAt' | 'finishedAt' | 'error'>;
@@ -61,6 +62,11 @@ export type McpEndpointOptions = {
     name: string;
     version: string;
     maxWaitSeconds: number;
+};
+
+/** The services the MCP tools call (shared with the REST controllers); internal. */
+export type McpServices = {
+    runs: IRunService;
 };
 
 /** What the route hands each MCP request through `authInfo.extra`; internal. */

@@ -10,6 +10,7 @@ import type {
     Agent,
     Artifact,
     ChannelSubscription,
+    DispatchEnvelope,
     Run,
 } from '@chamvi/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
@@ -41,9 +42,12 @@ import type {
     ApproveBody,
     ApproveRunView,
     CancelRunView,
+    DispatchRunInput,
     IRunService,
     RunArtifactView,
     RunDetailView,
+    RunFindFilter,
+    RunFindView,
     RunListView,
     RunServiceContext,
     StartRunBody,
@@ -67,47 +71,39 @@ export class RunService implements IRunService {
 
     async start(input: StartRunInput, principal: Principal): Promise<StartRunView> {
         const name = input.agent;
-        let { agent, subscription } = await this.resolveStart(name, principal);
+        const { agent, subscription } = await this.resolveStart(name, principal);
 
         const body = await validateBody(this.startContainer, input.data);
         const idempotencyKey = body.idempotencyKey ?? readIdempotencyHeader(input.idempotencyHeader ?? null);
-        let payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, body.payload);
+
+        let request: DispatchRunInput = {
+            agent,
+            subscription,
+            channel: HTTP_CHANNEL_NAME,
+            payload: body.payload,
+            ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
+            ...(body.address !== undefined ? { address: body.address } : {}),
+            ...(body.attachments !== undefined ? { attachments: body.attachments } : {}),
+        };
+        let envelope = await this.toDispatchEnvelope(request, principal);
 
         // replaced or removed while the payload was validated: check the
         // replacement and validate against its schema, until the agent stays
-        while (this.ctx.agents.get(name) !== agent) {
-            ({ agent, subscription } = await this.resolveStart(name, principal));
-            payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, body.payload);
+        while (this.ctx.agents.get(name) !== request.agent) {
+            request = { ...request, ...await this.resolveStart(name, principal) };
+            envelope = await this.toDispatchEnvelope(request, principal);
         }
 
-        return this.ctx.engine.dispatch({
-            agent: name,
-            trigger: subscription.id,
-            channel: HTTP_CHANNEL_NAME,
-            payload,
-            ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
-            ...(body.address !== undefined ? { address: body.address } : {}),
-            ...(body.attachments?.length ? { attachments: body.attachments } : {}),
-            invoker: toInvoker(principal),
-            // the agent checked above: one being replaced right now is refused before any store write (409)
-            checked: agent,
-        });
+        return this.ctx.engine.dispatch(envelope);
+    }
+
+    async dispatch(input: DispatchRunInput, principal: Principal): Promise<StartRunView> {
+        return this.ctx.engine.dispatch(await this.toDispatchEnvelope(input, principal));
     }
 
     async list(query: URLSearchParams, principal: Principal): Promise<RunListView> {
         const parsed = parseRunListQuery(query, this.ctx.agents.names());
-        const agents = await assertCanListRuns(this.ctx, principal, parsed.agent);
-        const {
-            parent,
-            waiting,
-            ...options
-        } = parsed;
-        const { data, total } = await this.ctx.store.runs.find({
-            ...options,
-            ...(agents !== undefined ? { agents } : {}),
-            parentRunId: parent,
-            waitKind: waiting,
-        });
+        const { data, total } = await this.find(parsed, principal);
 
         return {
             data: data.map((run) => serializeRun(run, this.ctx.agents)),
@@ -117,6 +113,23 @@ export class RunService implements IRunService {
                 offset: parsed.offset,
             },
         };
+    }
+
+    async find(filter: RunFindFilter, principal: Principal): Promise<RunFindView> {
+        const agents = await assertCanListRuns(this.ctx, principal, filter.agent);
+        const {
+            parent,
+            waiting,
+            ...options
+        } = filter;
+        const { data, total } = await this.ctx.store.runs.find({
+            ...options,
+            ...(agents !== undefined ? { agents } : {}),
+            parentRunId: parent,
+            waitKind: waiting,
+        });
+
+        return { data, total };
     }
 
     getReadable(id: string, principal: Principal): Promise<Run> {
@@ -160,18 +173,48 @@ export class RunService implements IRunService {
 
     async approve(id: string, data: ApproveBody, principal: Principal): Promise<ApproveRunView> {
         // authorize against the run's agent before validating the body
-        const run = await loadApprovableRun(this.ctx, principal, id);
+        const run = await this.getApprovable(id, principal);
         const body = await validateBody(this.approveContainer, data);
 
+        return this.answer(run, body, principal);
+    }
+
+    getApprovable(id: string, principal: Principal): Promise<Run> {
+        return loadApprovableRun(this.ctx, principal, id);
+    }
+
+    async answer(run: Run, answer: ApproveBody, principal: Principal): Promise<ApproveRunView> {
         await this.ctx.engine.approve(run.id, {
-            approvalId: body.approvalId,
-            approved: body.approved,
-            ...(body.reason !== undefined ? { reason: body.reason } : {}),
-            ...(body.selected !== undefined ? { selected: body.selected } : {}),
+            approvalId: answer.approvalId,
+            approved: answer.approved,
+            ...(answer.reason !== undefined ? { reason: answer.reason } : {}),
+            ...(answer.selected !== undefined ? { selected: answer.selected } : {}),
             approver: toInvoker(principal),
         });
 
         return { runId: run.id, status: 'queued' };
+    }
+
+    /**
+     * The engine's dispatch envelope for `input`, its payload validated
+     * against the subscription's schema.
+     */
+    protected async toDispatchEnvelope(input: DispatchRunInput, principal: Principal): Promise<DispatchEnvelope> {
+        const { agent, subscription } = input;
+        const payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, input.payload);
+
+        return {
+            agent: agent.name,
+            trigger: subscription.id,
+            channel: input.channel,
+            payload,
+            ...(input.idempotencyKey !== undefined ? { idempotencyKey: input.idempotencyKey } : {}),
+            ...(input.address !== undefined ? { address: input.address } : {}),
+            ...(input.attachments?.length ? { attachments: input.attachments } : {}),
+            invoker: toInvoker(principal),
+            // the agent the caller checked: one replaced since, or being replaced right now, is refused before any store write (409)
+            checked: agent,
+        };
     }
 
     /**

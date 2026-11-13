@@ -6,8 +6,10 @@
  */
 
 import type {
+    Agent,
     Artifact,
     ArtifactInput,
+    ChannelSubscription,
     Invoker,
     Run,
     RunStatusLiteral,
@@ -17,6 +19,7 @@ import type {
 } from '@chamvi/core';
 import type { HttpContext } from '../app/types.ts';
 import type { Principal } from '../auth/types.ts';
+import type { HTTP_CHANNEL_NAME, MCP_CHANNEL_NAME } from '../channels/constants.ts';
 
 /** An invoker or approver as it leaves the package: identity only, never the grants. */
 export type InvokerView = Omit<Invoker, 'bindings' | 'authorization'>;
@@ -82,6 +85,21 @@ export type StartRunInput = {
     idempotencyHeader?: string | null;
 };
 
+/**
+ * A start of a checked agent through its http subscription, on REST
+ * (`http`) or MCP (`mcp`); `payload` is untrusted and validated against
+ * the subscription's schema.
+ */
+export type DispatchRunInput = {
+    agent: Agent;
+    subscription: ChannelSubscription;
+    channel: typeof HTTP_CHANNEL_NAME | typeof MCP_CHANNEL_NAME;
+    payload: unknown;
+    idempotencyKey?: string;
+    address?: string;
+    attachments?: ArtifactInput[];
+};
+
 /** The started (or deduplicated) run. */
 export type StartRunView = {
     runId: string;
@@ -96,6 +114,16 @@ export type RunListView = {
         limit: number;
         offset: number;
     };
+};
+
+/** A run listing's filter and page: `GET /runs` (parsed) and MCP `list_runs`. */
+export type RunFindFilter = Pick<RunListQuery, 'agent' | 'parent' | 'status' | 'waiting' | 'limit' | 'offset'> &
+    Partial<Pick<RunListQuery, 'order'>>;
+
+/** A page of runs as stored, with the total of the filter. */
+export type RunFindView = {
+    data: Run[];
+    total: number;
 };
 
 /** `GET /runs/:id`: the run with its steps. */
@@ -126,7 +154,11 @@ export type ApproveRunView = {
 export interface IRunService {
     /** `chamvi_agent_run` (403), the agent (404), its http subscription (404), the body, then the dispatch. */
     start(input: StartRunInput, principal: Principal): Promise<StartRunView>;
+    /** Validates the payload against the subscription's schema, then dispatches with `checked: agent` (409 for a replaced agent). */
+    dispatch(input: DispatchRunInput, principal: Principal): Promise<StartRunView>;
     list(query: URLSearchParams, principal: Principal): Promise<RunListView>;
+    /** The runs the principal may list (403 otherwise, see `assertCanListRuns()`), as stored. */
+    find(filter: RunFindFilter, principal: Principal): Promise<RunFindView>;
     /** The run once the principal may read it: 404 for a missing or protected agent's run, else 403. */
     getReadable(id: string, principal: Principal): Promise<Run>;
     get(id: string, principal: Principal): Promise<RunDetailView>;
@@ -136,6 +168,10 @@ export interface IRunService {
     cancel(id: string, principal: Principal): Promise<CancelRunView>;
     /** The run (404), `chamvi_agent_approve` for its agent (403), then the body. */
     approve(id: string, data: ApproveBody, principal: Principal): Promise<ApproveRunView>;
+    /** The run once the principal may answer its approvals: 404 for a missing run, 403 without `chamvi_agent_approve`. */
+    getApprovable(id: string, principal: Principal): Promise<Run>;
+    /** Answers the approval of a run from `getApprovable()` with a validated answer (the engine's 404, 409). */
+    answer(run: Run, answer: ApproveBody, principal: Principal): Promise<ApproveRunView>;
 }
 
 export type RunControllerContext = {

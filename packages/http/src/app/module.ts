@@ -48,6 +48,7 @@ export function createHttpApp(options: HttpAppOptions): App {
     }));
 
     const agentService = new AgentService(ctx);
+    const runService = new RunService(ctx);
 
     app.use(decorators({
         controllers: [
@@ -56,7 +57,7 @@ export function createHttpApp(options: HttpAppOptions): App {
             new AuthorizationController({ service: new AuthorizationService({ clock: ctx.clock }) }),
             new AgentController({ service: agentService, state: new AgentStateService(ctx) }),
             new ScheduleController({ service: agentService }),
-            new RunController({ service: new RunService(ctx) }),
+            new RunController({ service: runService }),
         ],
     }));
     registerChannelRoutes(app, ctx);
@@ -64,7 +65,7 @@ export function createHttpApp(options: HttpAppOptions): App {
     registerRoutes(app, ctx);
 
     if (options.mcp !== false) {
-        registerMcpRoutes(app, ctx, options.mcp);
+        registerMcpRoutes(app, ctx, { runs: runService }, options.mcp);
     }
 
     app.use(defineCoreHandler(() => {

@@ -15,6 +15,7 @@ import { App } from 'routup';
 import type { IShutdown } from '@chamvi/http';
 import { buildContext, createErrorHandler } from '../../../src/app/helpers.ts';
 import { registerMcpRoutes } from '../../../src/mcp/module.ts';
+import { RunService } from '../../../src/runs/service.ts';
 import {
     ADMIN_TOKEN,
     call,
@@ -105,7 +106,7 @@ describe('/mcp', () => {
         });
         const app = new App();
 
-        registerMcpRoutes(app, ctx);
+        registerMcpRoutes(app, ctx, { runs: new RunService(ctx) });
         app.use(createErrorHandler(ctx));
         expect(ctx.closers.size).toBe(1);
 

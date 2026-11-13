@@ -18,10 +18,9 @@ import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../app/constants.ts';
 import { acquireStreamSlot } from '../app/helpers.ts';
 import type { HttpContext } from '../app/types.ts';
 import { Permission } from '@chamvi/access';
-import { agentResource, isGranted, toInvoker } from '../auth/helpers.ts';
+import { agentResource, isGranted } from '../auth/helpers.ts';
 import type { Principal } from '../auth/types.ts';
 import { KEY_MAX_LENGTH } from '../request/constants.ts';
-import { validatePayload } from '../request/helpers.ts';
 import {
     APPROVAL_ID_MAX_LENGTH,
     APPROVAL_OPTION_ID_MAX_LENGTH,
@@ -29,11 +28,8 @@ import {
 } from '../runs/constants.ts';
 import { MCP_CHANNEL_NAME } from '../channels/constants.ts';
 import {
-    assertCanListRuns,
     canReadAgentContent,
     findHttpSubscription,
-    loadApprovableRun,
-    loadReadableRun,
     serializeRun,
 } from '../runs/helpers.ts';
 import {
@@ -54,6 +50,7 @@ import type {
     McpEndpointOptions,
     McpRequestExtra,
     McpRunTool,
+    McpServices,
     RunAgentArgs,
     RunSummary,
 } from './types.ts';
@@ -155,13 +152,13 @@ function summarize(run: RunSummary): RunSummary {
     };
 }
 
-function registerReadTools(server: McpServer, ctx: HttpContext, principal: Principal): void {
+function registerReadTools(server: McpServer, ctx: HttpContext, services: McpServices, principal: Principal): void {
     server.registerTool('get_run', {
         title: 'Get run',
         description: 'Reads one run: status, output, error and what a waiting run waits on (waiting.kind approval: answer it with approve_run; dispatch: the runs it dispatched, waiting.runIds).',
         inputSchema: GET_RUN_INPUT,
         annotations: { readOnlyHint: true },
-    }, (args) => runTool(ctx, async () => toolResult(serializeRun(await loadReadableRun(ctx, principal, args.runId), ctx.agents))));
+    }, (args) => runTool(ctx, async () => toolResult(serializeRun(await services.runs.getReadable(args.runId, principal), ctx.agents))));
 
     server.registerTool('list_runs', {
         title: 'List runs',
@@ -169,14 +166,12 @@ function registerReadTools(server: McpServer, ctx: HttpContext, principal: Princ
         inputSchema: LIST_RUNS_INPUT,
         annotations: { readOnlyHint: true },
     }, (args) => runTool(ctx, async () => {
-        const agents = await assertCanListRuns(ctx, principal, args.agent);
-        const { data, total } = await ctx.store.runs.find({
+        const { data, total } = await services.runs.find({
             ...(args.agent !== undefined ? { agent: args.agent } : {}),
-            ...(agents !== undefined ? { agents } : {}),
             ...(args.status !== undefined ? { status: args.status } : {}),
             limit: args.limit ?? DEFAULT_PAGE_LIMIT,
             offset: args.offset ?? 0,
-        });
+        }, principal);
 
         return toolResult({ data: data.map(summarize), total });
     }));
@@ -326,15 +321,12 @@ export function createRunToolSource(ctx: HttpContext, options: McpEndpointOption
 async function registerRunTool(
     server: McpServer,
     ctx: HttpContext,
+    services: McpServices,
     tool: McpRunTool,
     extra: McpRequestExtra,
     options: McpEndpointOptions,
 ): Promise<void> {
-    const {
-        agent,
-        subscription,
-        schema,
-    } = tool;
+    const { agent, subscription } = tool;
 
     if (!await isGranted(extra.principal, Permission.AGENT_RUN, ctx.clock, agentResource(agent.name, agent))) {
         return;
@@ -345,18 +337,15 @@ async function registerRunTool(
         description: tool.description,
         inputSchema: tool.inputSchema,
     }, (args, toolCtx) => runTool(ctx, async () => {
-        const payload = await validatePayload(schema, args.payload);
-        const { runId, deduplicated } = await ctx.engine.dispatch({
-            agent: agent.name,
-            trigger: subscription.id,
+        // the agent checked when the tool was listed: a replacement since is a tool error
+        const { runId, deduplicated } = await services.runs.dispatch({
+            agent,
+            subscription,
             channel: MCP_CHANNEL_NAME,
-            payload,
+            payload: args.payload,
             ...(args.idempotencyKey !== undefined ? { idempotencyKey: args.idempotencyKey } : {}),
             ...(args.address !== undefined ? { address: args.address } : {}),
-            invoker: toInvoker(extra.principal),
-            // the agent checked when the tool was listed: a replacement since is a tool error
-            checked: agent,
-        });
+        }, extra.principal);
 
         const waitSeconds = Math.min(args.waitSeconds ?? 0, options.maxWaitSeconds);
         // a wait holds one stream.maxOpen slot; over the cap the dispatched run is answered at once
@@ -393,23 +382,16 @@ async function registerRunTool(
     }));
 }
 
-function registerApproveTool(server: McpServer, ctx: HttpContext, principal: Principal): void {
+function registerApproveTool(server: McpServer, ctx: HttpContext, services: McpServices, principal: Principal): void {
     server.registerTool('approve_run', {
         title: 'Approve run',
         description: 'Answers the approval a waiting run waits on (its waiting.approvalId, from get_run; a waiting.kind dispatch wait is refused). With options, pass the chosen option ids as selected (from get_run\'s waiting.options). Needs chamvi_agent_approve for the run\'s agent.',
         inputSchema: APPROVE_RUN_INPUT,
     }, (args) => runTool(ctx, async () => {
-        const run = await loadApprovableRun(ctx, principal, args.runId);
+        // the arguments are validated by the tool's input schema, not by the REST body rules
+        const run = await services.runs.getApprovable(args.runId, principal);
 
-        await ctx.engine.approve(run.id, {
-            approvalId: args.approvalId,
-            approved: args.approved,
-            ...(args.reason !== undefined ? { reason: args.reason } : {}),
-            ...(args.selected !== undefined ? { selected: args.selected } : {}),
-            approver: toInvoker(principal),
-        });
-
-        return toolResult({ runId: run.id, status: RunStatus.QUEUED });
+        return toolResult(await services.runs.answer(run, args, principal));
     }));
 }
 
@@ -417,15 +399,16 @@ function registerApproveTool(server: McpServer, ctx: HttpContext, principal: Pri
 export async function registerTools(
     server: McpServer,
     ctx: HttpContext,
+    services: McpServices,
     runTools: McpRunTool[],
     extra: McpRequestExtra,
     options: McpEndpointOptions,
 ): Promise<void> {
     // in definition order, so the tool list keeps the agents' order
     for (const tool of runTools) {
-        await registerRunTool(server, ctx, tool, extra, options);
+        await registerRunTool(server, ctx, services, tool, extra, options);
     }
 
-    registerReadTools(server, ctx, extra.principal);
-    registerApproveTool(server, ctx, extra.principal);
+    registerReadTools(server, ctx, services, extra.principal);
+    registerApproveTool(server, ctx, services, extra.principal);
 }

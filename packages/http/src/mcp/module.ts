@@ -22,7 +22,7 @@ import {
 } from './constants.ts';
 import { readRequestExtra } from './helpers.ts';
 import { createRunToolSource, registerTools } from './tools.ts';
-import type { McpEndpointOptions, McpRequestExtra } from './types.ts';
+import type { McpEndpointOptions, McpRequestExtra, McpServices } from './types.ts';
 
 function withoutTransferEncoding(input: Headers): Headers {
     const headers = new Headers(input);
@@ -38,7 +38,7 @@ function withoutTransferEncoding(input: Headers): Headers {
  * built once per agent object (see `createRunToolSource`). Bodies are bounded
  * by `bodyLimit`, like REST.
  */
-export function createMcpEndpoint(ctx: HttpContext, options: McpEndpointOptions): McpHttpHandler {
+export function createMcpEndpoint(ctx: HttpContext, services: McpServices, options: McpEndpointOptions): McpHttpHandler {
     const runTools = createRunToolSource(ctx, options);
 
     return createMcpHandler(async ({ authInfo }) => {
@@ -51,15 +51,15 @@ export function createMcpEndpoint(ctx: HttpContext, options: McpEndpointOptions)
 
         const server = new McpServer({ name: options.name, version: options.version });
 
-        await registerTools(server, ctx, runTools(), extra, options);
+        await registerTools(server, ctx, services, runTools(), extra, options);
 
         return server;
     }, { maxRequestBodySize: ctx.bodyLimit });
 }
 
 /** Mounts the MCP endpoint at `/mcp` (authenticated); the app's shutdown hook ends open waits and closes it. */
-export function registerMcpRoutes(app: App, ctx: HttpContext, options: McpOptions = {}): void {
-    const handler = createMcpEndpoint(ctx, {
+export function registerMcpRoutes(app: App, ctx: HttpContext, services: McpServices, options: McpOptions = {}): void {
+    const handler = createMcpEndpoint(ctx, services, {
         name: options.name ?? DEFAULT_MCP_NAME,
         version: options.version ?? DEFAULT_MCP_VERSION,
         maxWaitSeconds: options.maxWaitSeconds ?? DEFAULT_MCP_MAX_WAIT_SECONDS,
