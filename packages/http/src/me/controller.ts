@@ -21,7 +21,7 @@ import type { MeView } from './types.ts';
 @DSecurity([], 'bearer')
 @DController('/me')
 export class MeController {
-    /** `GET /me`: any authenticated principal, its own identity only (never its bindings or authorization). */
+    /** The caller's own identity, never its permission bindings or authorization. */
     @DGet('', [ForceLoggedInMiddleware])
     async me(@DContext() event: IAppEvent): Promise<MeView> {
         const {

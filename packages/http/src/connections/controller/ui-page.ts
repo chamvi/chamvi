@@ -28,7 +28,7 @@ export class UiPageController {
         this.config = ctx.config;
     }
 
-    /** `GET /ui-pages`: the dashboard pages, their paths under `basePath`. */
+    /** The dashboard pages, their paths under `basePath`. */
     @DGet('', [ForceLoggedInMiddleware])
     async list(@DContext() event: IAppEvent): Promise<{ data: UiPage[] }> {
         return this.config.uiPages(await usePrincipal(event));

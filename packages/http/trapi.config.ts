@@ -3,7 +3,8 @@
  * `trapi generate` (the last build step) into `dist/swagger.json`.
  *
  * Nothing rewrites the document afterwards. The `@DQuerySchema` handler
- * contributes the query parameters of the three list routes, the
+ * contributes the query parameters of the three list routes and the
+ * stream's resume parameters, the
  * `@DProduces` handler the 200 of the SSE and download routes, the
  * `@DStatus` handler the 201 or 202 of the routes answering one, the error
  * response is declared document-wide, and the `ErrorResponse` component
@@ -22,7 +23,7 @@ import { defineConfig } from '@trapi/cli';
 import { method, readString } from '@trapi/core';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from './src/app/constants.ts';
 
-const PACKAGE = JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8')) as { version: string; description: string };
+const PACKAGE = JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8')) as { version: string };
 
 const ERROR_SCHEMA_NAME = 'ErrorResponse';
 const ERROR_ISSUE_SCHEMA_NAME = 'ErrorIssue';
@@ -66,16 +67,18 @@ const ONCE = 'Given at most once; any other `filter[...]` key is rejected with 4
 
 /**
  * Per `@DQuerySchema` name: the query parameters `parseRunListQuery`,
- * `parseKvListQuery` and `parseCollectionQuery` read. Filters are listed in
- * the bracket form; the expression form (`filter=eq(agent,'a')`) is named in
- * the operation descriptions.
+ * `parseKvListQuery` and `parseCollectionQuery` read, and the stream's
+ * resume query and header. Filters are listed in the bracket form; the
+ * expression form (`filter=eq(agent,'a')`) is named in the operation
+ * descriptions.
  */
 const QUERY_PARAMETERS: Record<string, () => Parameter[]> = {
     runs: () => [
         queryParameter('filter[agent]', STRING, `The runs of one agent, by name. ${ONCE}`),
         queryParameter('filter[parent]', STRING, `The child runs of one run, by run id. ${ONCE}`),
         queryParameter('filter[status]', STRING, [
-            'The runs in one status, or in any of a comma separated list (`queued,running`).',
+            'The runs in one status, or in any of a comma separated list (`queued,running`);',
+            'repeated, the lists combine.',
             `Statuses: ${Object.values(RunStatus).join(', ')}.`,
         ].join(' ')),
         queryParameter(
@@ -92,6 +95,22 @@ const QUERY_PARAMETERS: Record<string, () => Parameter[]> = {
         pageOffset(),
     ],
     kv: () => [pageLimit(), pageOffset()],
+    // `parseAfter()` and `resolveLastStep()` in `src/runs/stream/helpers.ts`
+    stream: () => [
+        queryParameter('after', INTEGER, [
+            'Resume after this step index, for clients that cannot set `Last-Event-ID`:',
+            'the stream sends the current run, then only the steps after it.',
+            'A non-negative integer given at most once; anything else is rejected with 400.',
+        ].join(' '), { validators: { minimum: { value: 0 } } }),
+        {
+            ...queryParameter('Last-Event-ID', STRING, [
+                'The `id` of the last `step.appended` event received (a step index), as an `EventSource` sends it on a reconnect:',
+                'the stream sends the current run, then only the steps after it.',
+                'A valid value wins over `after`; a value that is no non-negative integer is ignored.',
+            ].join(' ')),
+            in: 'header',
+        },
+    ],
     documents: () => [
         queryParameter('filter[<field>]', STRING, [
             'Not a literal name: one parameter per document field, `filter[color]=red&filter[qty]=3`,',
@@ -257,7 +276,10 @@ export default defineConfig({
         data: {
             name: '@chamvi/http',
             version: PACKAGE.version,
-            description: PACKAGE.description,
+            description: [
+                'The REST API of a chamvi app: health, runs, agents and their state, connections.',
+                'The MCP endpoint, the channel routes (`/channels/...`) and routes an app adds are outside this document.',
+            ].join(' '),
             operationIdStrategy: 'path',
             responses: [DEFAULT_RESPONSE],
             securityDefinitions: {

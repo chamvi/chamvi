@@ -454,6 +454,71 @@ describe.skipIf(!document)('the generated openapi document', () => {
         expect(header?.required).toBe(false);
     });
 
+    it('marks the check body optional: without one every chamvi permission is asked', () => {
+        const operation = doc.paths['/authorization/check']?.post as Operation;
+
+        expect(operation.requestBody?.content?.['application/json']?.schema).toBeDefined();
+        expect(operation.requestBody?.required).not.toBe(true);
+    });
+
+    it('documents the resume parameters of the run stream', () => {
+        const parameters = (doc.paths['/runs/{id}/stream']?.get as Operation).parameters ?? [];
+        const after = parameters.find((parameter) => parameter.in === 'query' && parameter.name === 'after');
+        const lastEventId = parameters.find((parameter) => parameter.in === 'header' && parameter.name === 'Last-Event-ID');
+
+        expect(parameters.filter((parameter) => parameter.in !== 'path').map((parameter) => `${parameter.in}:${parameter.name}`).toSorted())
+            .toEqual(['header:Last-Event-ID', 'query:after']);
+        expect(after?.required).toBe(false);
+        expect((after as { schema?: Schema } | undefined)?.schema).toMatchObject({ type: 'integer', minimum: 0 });
+        expect(after?.description).toMatch(/400/);
+        expect(lastEventId?.required).toBe(false);
+        expect((lastEventId as { schema?: Schema } | undefined)?.schema).toMatchObject({ type: 'string' });
+        expect(lastEventId?.description).toMatch(/wins over `after`/);
+    });
+
+    it('can be inlined into the ui shell unescaped', () => {
+        // @routup/swagger-ui writes the document into a <script> with String.replace, unescaped
+        // (routup/plugins#855): nothing may close the script or open a comment, no replacement pattern expand
+        const content = JSON.stringify(doc);
+
+        expect(content).not.toMatch(/<\/script/i);
+        expect(content).not.toContain('<!--');
+
+        for (const pattern of ['$&', '$`', '$\'', '$$']) {
+            expect(content, pattern).not.toContain(pattern);
+        }
+    });
+
+    it('speaks to API consumers in its descriptions', () => {
+        const texts: string[] = [];
+        const collect = (value: unknown): void => {
+            if (Array.isArray(value)) {
+                value.forEach(collect);
+
+                return;
+            }
+
+            if (!isObject(value)) {
+                return;
+            }
+
+            for (const [key, child] of Object.entries(value)) {
+                if ((key === 'description' || key === 'summary') && typeof child === 'string') {
+                    texts.push(child);
+                } else {
+                    collect(child);
+                }
+            }
+        };
+
+        collect(doc.paths);
+        collect(doc.components);
+
+        // route syntax of the router (`/runs/:id`), internal type, store and service names, the router's etag path
+        expect(texts.filter((text) => /\/:[a-z]|\bStartRunBody\b|\bstore\.|Service\b|\betag\b/i.test(text))).toEqual([]);
+        expect((doc as unknown as { info: { description: string } }).info.description).not.toMatch(/webhooks and MCP/i);
+    });
+
     it('documents only query examples the route parses', () => {
         const parsers: [string, (params: URLSearchParams) => unknown, boolean][] = [
             ['/runs', (params) => parseRunListQuery(params), true],

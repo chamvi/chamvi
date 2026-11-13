@@ -52,13 +52,13 @@ export class ConnectionController {
         this.config = ctx.config;
     }
 
-    /** `GET /connections`: the handles, the declared connections and the stored accounts the principal may read. */
+    /** The live connections, the declared ones and the stored accounts the caller may read. */
     @DGet('', [ForceLoggedInMiddleware])
     async list(@DContext() event: IAppEvent): Promise<{ data: ConnectionView[] }> {
         return this.service.list(await usePrincipal(event));
     }
 
-    /** `GET /connections/:name`: the connection, with its widgets for a writer. */
+    /** The connection, with its widgets for a writer. */
     @DGet('/:name', [ForceLoggedInMiddleware])
     async get(
         @DPath('name') name: string,
@@ -70,7 +70,7 @@ export class ConnectionController {
         return this.service.get(name, await usePrincipal(event));
     }
 
-    /** `GET /connections/:name/events`: the handle's status and widgets as SSE. */
+    /** The connection's status and widgets as server-sent events. */
     @DGet('/:name/events', [ForceLoggedInMiddleware])
     @DProduces('text/event-stream', 'Server-sent events: the handle\'s status and widgets.')
     async events(
@@ -82,7 +82,7 @@ export class ConnectionController {
         return streamConnection(event, useHttpContext(event), handle);
     }
 
-    /** `POST /connections/:name/reset`: starts the handle's reset (202). */
+    /** Starts the connection's reset. */
     @DPost('/:name/reset', [ForceLoggedInMiddleware])
     @DStatus('202')
     async reset(
@@ -96,7 +96,7 @@ export class ConnectionController {
         return result;
     }
 
-    /** `GET /connections/:name/config`: the stored settings and every field's source. */
+    /** The stored settings and every field's source. */
     @DGet('/:name/config', [ForceLoggedInMiddleware])
     async read(
         @DPath('name') name: string,
@@ -108,7 +108,7 @@ export class ConnectionController {
         return this.config.read(name, await usePrincipal(event));
     }
 
-    /** `PUT /connections/:name/config`: saves settings and secrets. */
+    /** Saves settings and secrets. */
     @DPut('/:name/config', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
     async update(
         @DPath('name') name: string,
@@ -121,7 +121,7 @@ export class ConnectionController {
         return this.config.update(name, data, await usePrincipal(event));
     }
 
-    /** `DELETE /connections/:name`: deletes a stored account. */
+    /** Deletes a stored account. */
     @DDelete('/:name', [ForceLoggedInMiddleware])
     async delete(
         @DPath('name') name: string,
@@ -130,7 +130,7 @@ export class ConnectionController {
         return this.config.delete(name, await usePrincipal(event));
     }
 
-    /** `POST /connections/:name/test`: tests the saved values; the body is never read. */
+    /** Tests the saved values; the body is never read. */
     @DPost('/:name/test', [ForceLoggedInMiddleware])
     async test(
         @DPath('name') name: string,

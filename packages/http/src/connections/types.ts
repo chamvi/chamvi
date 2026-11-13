@@ -42,10 +42,10 @@ export type ConnectionView = {
     deletable?: boolean;
 };
 
-/** `GET /connections/:name`: `widgets`, `canReset` and `live: true` only for a holder of `chamvi_connection_write` for it. */
+/** `GET /connections/{name}`: `widgets`, `canReset` and `live: true` only for a holder of `chamvi_connection_write` for it. */
 export type ConnectionDetailView = ConnectionView & {
     widgets?: ConnectionWidget[];
-    /** The connection offers a reset (`POST /connections/:name/reset` does not answer 404). */
+    /** The connection offers a reset (`POST /connections/{name}/reset` does not answer 404). */
     canReset?: boolean;
 };
 
@@ -69,7 +69,7 @@ export type ConnectionTypeView = {
     multiple: boolean;
     /** Accounts of the type can be added from the dashboard now. */
     creatable: boolean;
-    /** `POST /connections/:name/test` does not answer 404. */
+    /** `POST /connections/{name}/test` does not answer 404. */
     testable: boolean;
     fields: ConnectionTypeFieldView[];
 };
@@ -82,7 +82,7 @@ export type ConnectionSettingsFieldView = {
 };
 
 /**
- * `GET /connections/:name/config`. `settings` holds stored plain values only:
+ * `GET /connections/{name}/config`. `settings` holds stored plain values only:
  * never a secret, and never a field locked by env or code.
  */
 export type ConnectionSettingsView = {
@@ -100,7 +100,7 @@ export type ConnectionSettingsView = {
     deletable: boolean;
 };
 
-/** `POST /connections/:name/test`; `message` never carries a secret. */
+/** `POST /connections/{name}/test`; `message` never carries a secret. */
 export type ConnectionTestView = {
     ok: boolean;
     message?: string;
@@ -109,7 +109,7 @@ export type ConnectionTestView = {
 /** Secret values by field name; `''` or `null` keeps the stored value. */
 export type ConnectionSecretValues = Record<string, string | null>;
 
-/** `PUT /connections/:name/config`. An empty value is unset. */
+/** `PUT /connections/{name}/config`. An empty value is unset. */
 export type ConnectionSaveBody = {
     /** The complete settings: replaces the stored ones. Absent keeps them. */
     settings?: Record<string, unknown>;
@@ -119,7 +119,7 @@ export type ConnectionSaveBody = {
     };
 };
 
-/** `POST /connection-types/:type/connections`; `secrets` by field name. */
+/** `POST /connection-types/{type}/connections`; `secrets` by field name. */
 export type ConnectionCreateBody = {
     account: string;
     settings: Record<string, unknown>;

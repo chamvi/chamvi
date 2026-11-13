@@ -33,11 +33,9 @@ export class HealthController {
         return { status: 'ok' };
     }
 
-    /**
-     * `GET /readyz`: 503 with the reason while the app takes no traffic. The
-     * 503 is a raw `Response`, so routup's send path never gives it an etag
-     * and an `If-None-Match` can never turn it into a 304.
-     */
+    /** Whether the app takes traffic: 503 with the reason while it does not; never answered with a 304. */
+    // the 503 is a raw `Response`, so routup's send path never gives it an etag and an `If-None-Match`
+    // can never turn it into a 304
     @DGet('/readyz')
     @DDescription<ReadinessReadyView>(200, 'The app takes traffic.')
     @DDescription<ReadinessUnavailableView>(503, 'The app takes no traffic, and why.')

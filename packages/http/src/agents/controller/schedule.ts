@@ -27,7 +27,7 @@ export class ScheduleController {
         this.service = ctx.service;
     }
 
-    /** `GET /schedules`: the cron subscriptions of the agents the principal may read runs of. */
+    /** The cron schedules of the agents whose runs the caller may read. */
     @DGet('', [ForceLoggedInMiddleware])
     async list(@DContext() event: IAppEvent): Promise<{ data: ScheduleSummary[] }> {
         return this.service.schedules(await usePrincipal(event));

@@ -46,7 +46,7 @@ export class RunController {
         this.service = ctx.service;
     }
 
-    /** `POST /agents/:name/runs`: starts a run through the agent's http subscription. */
+    /** Starts a run through the agent's http subscription. */
     @DPost('/agents/:name/runs', [ForceLoggedInMiddleware, JsonBodyMiddleware])
     @DStatus('202')
     async start(
@@ -69,8 +69,8 @@ export class RunController {
     }
 
     /**
-     * `GET /runs`: a page of the runs the principal may read. The filters also
-     * read rapiq's expression form, `filter=and(eq(agent,'a'),in(status,'queued','running'))`,
+     * A page of the runs the caller may read. The filters also read the
+     * expression form, `filter=and(eq(agent,'a'),in(status,'queued','running'))`,
      * which cannot be mixed with the bracket form.
      */
     @DGet('/runs', [ForceLoggedInMiddleware])
@@ -79,7 +79,7 @@ export class RunController {
         return this.service.list(event.searchParams, await usePrincipal(event));
     }
 
-    /** `GET /runs/:id`: the run with its steps. */
+    /** The run with its steps. */
     @DGet('/runs/:id', [ForceLoggedInMiddleware])
     async get(
         @DPath('id') id: string,
@@ -88,8 +88,9 @@ export class RunController {
         return this.service.get(id, await usePrincipal(event));
     }
 
-    /** `GET /runs/:id/stream`: the run's events as SSE. */
+    /** The run's events as server-sent events, resumable after a step. */
     @DGet('/runs/:id/stream', [ForceLoggedInMiddleware])
+    @DQuerySchema('stream')
     @DProduces('text/event-stream', 'Server-sent events: the run\'s events, until the run settles.')
     async stream(
         @DPath('id') id: string,
@@ -100,7 +101,7 @@ export class RunController {
         return streamRun(event, useHttpContext(event), run.id);
     }
 
-    /** `GET /runs/:id/artifacts`: the run's artifacts (metadata). */
+    /** The run's artifacts (metadata). */
     @DGet('/runs/:id/artifacts', [ForceLoggedInMiddleware])
     async artifacts(
         @DPath('id') id: string,
@@ -109,7 +110,7 @@ export class RunController {
         return this.service.artifacts(id, await usePrincipal(event));
     }
 
-    /** `GET /runs/:id/artifacts/:artifactId`: the artifact's bytes as a download. */
+    /** The artifact's bytes as a download. */
     @DGet('/runs/:id/artifacts/:artifactId', [ForceLoggedInMiddleware])
     @DProduces('application/octet-stream', 'The artifact\'s bytes as an attachment download; the actual `content-type` is the artifact\'s stored media type.')
     async artifact(
@@ -131,7 +132,7 @@ export class RunController {
         return new Response(toBody(data), { status: 200, headers });
     }
 
-    /** `POST /runs/:id/cancel`: cancels the run. */
+    /** Cancels the run. */
     @DPost('/runs/:id/cancel', [ForceLoggedInMiddleware])
     @DStatus('202')
     async cancel(
@@ -145,7 +146,7 @@ export class RunController {
         return result;
     }
 
-    /** `POST /runs/:id/approve`: answers the run's approval wait point. */
+    /** Answers the run's approval wait point. */
     @DPost('/runs/:id/approve', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
     @DStatus('202')
     async approve(

@@ -43,13 +43,13 @@ export class AgentController {
         this.state = ctx.state;
     }
 
-    /** `GET /agents`: the agents and load issues the principal may read runs of. */
+    /** The agents, and their load issues, whose runs the caller may read. */
     @DGet('', [ForceLoggedInMiddleware])
     async list(@DContext() event: IAppEvent): Promise<AgentListView> {
         return this.service.list(await usePrincipal(event));
     }
 
-    /** `GET /agents/:name/state/kv`: a page of kv entries in key order. */
+    /** A page of the agent's key-value entries, in key order. */
     @DGet('/:name/state/kv', [ForceLoggedInMiddleware])
     @DQuerySchema('kv')
     async listKv(
@@ -59,7 +59,7 @@ export class AgentController {
         return this.state.list(name, event.searchParams, await usePrincipal(event));
     }
 
-    /** `GET /agents/:name/state/kv/:key`: the value, `null` when unset. */
+    /** The key's value, `null` when unset. */
     @DGet('/:name/state/kv/:key', [ForceLoggedInMiddleware])
     async getKv(
         @DPath('name') name: string,
@@ -69,7 +69,7 @@ export class AgentController {
         return this.state.get(name, key, await usePrincipal(event));
     }
 
-    /** `PATCH /agents/:name/state/kv/:key`: writes `value`. */
+    /** Writes `value` under the key. */
     @DPatch('/:name/state/kv/:key', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
     async setKv(
         @DPath('name') name: string,
@@ -81,8 +81,8 @@ export class AgentController {
     }
 
     /**
-     * `GET /agents/:name/state/collections/:collection`: documents by top-level
-     * equality filters. The filters also read rapiq's expression form,
+     * The collection's documents matching top-level equality filters. The
+     * filters also read the expression form,
      * `filter=and(eq(color,'red'),eq(qty,'3'))`, which cannot be mixed with the bracket form.
      */
     @DGet('/:name/state/collections/:collection', [ForceLoggedInMiddleware])

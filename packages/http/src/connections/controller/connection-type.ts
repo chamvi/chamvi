@@ -37,13 +37,13 @@ export class ConnectionTypeController {
         this.config = ctx.config;
     }
 
-    /** `GET /connection-types`: one entry per type, with the fields a form needs. */
+    /** One entry per type, with the fields a form needs. */
     @DGet('', [ForceLoggedInMiddleware])
     async list(@DContext() event: IAppEvent): Promise<{ data: ConnectionTypeView[] }> {
         return this.config.types(await usePrincipal(event));
     }
 
-    /** `POST /connection-types/:type/connections`: adds an account of the type (201). */
+    /** Adds an account of the type. */
     @DPost('/:type/connections', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
     @DStatus('201')
     async create(

@@ -5,8 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-/** The query vocabularies the OpenAPI document describes: runs list, kv list, collection read. */
-export type QuerySchemaName = 'runs' | 'kv' | 'documents';
+/**
+ * The request parameters the OpenAPI document describes beyond the path:
+ * runs list, kv list, collection read, and the run stream's resume point
+ * (its `after` query and `Last-Event-ID` header).
+ */
+export type QuerySchemaName = 'runs' | 'kv' | 'documents' | 'stream';
 
 /** The non-JSON response bodies the OpenAPI document describes: an SSE stream, a download. */
 export type ProducedMediaType = 'text/event-stream' | 'application/octet-stream';
