@@ -219,6 +219,11 @@ describe('POST /authorization/check', () => {
         const { app } = createTestApp();
 
         expect((await check(app, ADMIN_TOKEN, [])).response.status).toBe(400);
+
+        const nul = await check(app, ADMIN_TOKEN, null);
+
+        expect(nul.response.status).toBe(400);
+        expect(nul.body).toMatchObject({ message: 'The request body must be a JSON object.' });
     });
 
     it('401 without credentials, before the body is read', async () => {

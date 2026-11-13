@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { App, defineCoreHandler } from 'routup';
 import { isValidupError } from 'validup';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
@@ -16,6 +17,8 @@ import { ControllableClock } from '@chamvi/test-kit';
 import type { Principal } from '@chamvi/http';
 import { http } from '@chamvi/http';
 import { AgentStateService } from '../../../src/agents/service/index.ts';
+import { createErrorHandler } from '../../../src/app/helpers.ts';
+import type { HttpContext } from '../../../src/app/types.ts';
 import { restricted } from '../../utils/app.ts';
 import { inventoryAgents } from '../../utils/agents.ts';
 import { textModel } from '../../utils/model.ts';
@@ -26,6 +29,18 @@ function principalOf(...grants: Array<string | PermissionBinding>): Principal {
         kind: 'token',
         bindings: grants.map((grant) => (typeof grant === 'string' ? { permission: { name: grant } } : grant)),
     };
+}
+
+/** The body the app's error handler answers `error` with. */
+async function renderError(error: unknown): Promise<unknown> {
+    const app = new App();
+
+    app.use(defineCoreHandler(() => {
+        throw error;
+    }));
+    app.use(createErrorHandler({ onError: () => {} } as unknown as HttpContext));
+
+    return (await app.fetch(new Request('http://test/'))).json();
 }
 
 function setup() {
@@ -105,8 +120,8 @@ describe('AgentStateService', () => {
         const { service } = setup();
         const error = await service.set('intake', 'cursor', {} as never, writer).catch((e: unknown) => e);
 
-        // the error handler answers a validup error with 400 validation_error
         expect(isValidupError(error)).toBe(true);
+        expect(await renderError(error)).toMatchObject({ status: 400, code: 'validation_error' });
     });
 
     it('lists the documents of a declared collection', async () => {

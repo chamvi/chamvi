@@ -66,6 +66,14 @@ describe('state kv', () => {
         expect((await call(app, 'PATCH', KV, { token: ADMIN_TOKEN })).status).toBe(400);
     });
 
+    it('refuses a null body as no JSON object', async () => {
+        const { app } = setup();
+        const response = await call(app, 'PATCH', '/agents/echo/state/kv/k', { token: ADMIN_TOKEN, body: null });
+
+        expect(response.status).toBe(400);
+        expect((await response.json()).message).toBe('The request body must be a JSON object.');
+    });
+
     it('needs chamvi_state_read and chamvi_state_write', async () => {
         const { app } = setup();
 

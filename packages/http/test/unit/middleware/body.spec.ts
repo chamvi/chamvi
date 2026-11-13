@@ -123,6 +123,17 @@ describe('the JSON body middleware behind @DBody()', () => {
         expect(await response.json()).toEqual({ body: {} });
     });
 
+    it.each(['/optional', '/required'])('hands %s a JSON null as null, not as {}', async (path) => {
+        const response = await post(probeApp(), path, {
+            token: ADMIN_TOKEN,
+            body: 'null',
+            headers: JSON_HEADERS,
+        });
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ body: null });
+    });
+
     it('refuses an empty body on a required route', async () => {
         const response = await post(probeApp(), '/required', { token: ADMIN_TOKEN });
 
