@@ -7,6 +7,7 @@
 
 import type { AuthorizationCheckView } from '@chamvi/http';
 import { isObject } from 'smob';
+import { REQUEST_TIMEOUT_MS } from './constants.ts';
 import { ApiError } from './error.ts';
 import {
     pageQuery,
@@ -44,13 +45,40 @@ function dataOf<T>(body: unknown): T[] {
 }
 
 /**
+ * A signal for one request that aborts with the caller's `signal` or after
+ * `ms` without an answer. `clear()` ends the deadline once the answer is
+ * there, so a stream or a slow body is not cut off, while the caller's abort
+ * keeps reaching it; `expired()` tells a timeout from the caller's abort.
+ * Composed by hand: the browser target has no `AbortSignal.any()`.
+ */
+function withDeadline(signal: AbortSignal | undefined, ms: number) {
+    const controller = new AbortController();
+    let expired = false;
+    const abort = () => controller.abort(signal?.reason);
+    const timer = setTimeout(() => {
+        expired = true;
+        controller.abort();
+    }, ms);
+
+    signal?.addEventListener('abort', abort, { once: true });
+
+    return {
+        signal: controller.signal,
+        expired: () => expired,
+        clear: () => clearTimeout(timer),
+    };
+}
+
+/**
  * The chamvi REST API from the browser: bearer token per request, JSON in
  * and out, every non-2xx answer an `ApiError`. A 401 asks `refresh` once
  * and retries when it answers `true`; a 401 that stands calls
- * `onUnauthorized`.
+ * `onUnauthorized`. A request without an answer within `timeoutMs` fails as
+ * `ApiError` `timeout` (status 0).
  */
 export function createApiClient(options: ApiClientOptions): IApiClient {
     const doFetch = options.fetch ?? ((input, init) => fetch(input, init));
+    const timeoutMs = options.timeoutMs ?? REQUEST_TIMEOUT_MS;
 
     async function send(target: string, init: RequestOptions, retried = false): Promise<Response> {
         const headers = new Headers(init.headers);
@@ -72,12 +100,28 @@ export function createApiClient(options: ApiClientOptions): IApiClient {
             body = JSON.stringify(init.body);
         }
 
-        const response = await doFetch(`${options.apiBase}${target}`, {
-            method: init.method ?? 'GET',
-            headers,
-            body,
-            signal: init.signal,
-        });
+        init.signal?.throwIfAborted();
+
+        // bounds the wait for the answer only: without it a request the API never answers holds sign-in and startup
+        const deadline = withDeadline(init.signal, timeoutMs);
+        let response: Response;
+
+        try {
+            response = await doFetch(`${options.apiBase}${target}`, {
+                method: init.method ?? 'GET',
+                headers,
+                body,
+                signal: deadline.signal,
+            });
+        } catch (e) {
+            if (deadline.expired()) {
+                throw new ApiError(0, 'timeout', 'The API did not answer in time.');
+            }
+
+            throw e;
+        } finally {
+            deadline.clear();
+        }
 
         if (response.ok) {
             return response;

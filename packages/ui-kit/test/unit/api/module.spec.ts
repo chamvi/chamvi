@@ -5,11 +5,18 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { describe, expect, it } from 'vitest';
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from 'vitest';
+import { REQUEST_TIMEOUT_MS } from '../../../src/api/constants.ts';
 import { ApiError } from '../../../src/api/error.ts';
 import { runListQuery } from '../../../src/api/helpers.ts';
 import { createApiClient } from '../../../src/api/module.ts';
-import { createFakeFetch, json } from '../../utils/fetch.ts';
+import { createFakeFetch, json, sse } from '../../utils/fetch.ts';
 
 describe('createApiClient', () => {
     it('sends the bearer token and the JSON body', async () => {
@@ -341,7 +348,9 @@ describe('createApiClient', () => {
         expect(requests[0]).toMatchObject({ url: '/api/runs/r1/stream' });
         expect(requests[0]!.headers.get('last-event-id')).toBe('3');
         expect(requests[0]!.headers.get('accept')).toBe('text/event-stream');
-        expect(requests[0]!.signal).toBe(controller.signal);
+        expect(requests[0]!.signal?.aborted).toBe(false);
+        controller.abort();
+        expect(requests[0]!.signal?.aborted).toBe(true);
     });
     it('checkAuthorization posts the asked names, or an empty body for every name', async () => {
         const { fetch, requests } = createFakeFetch([
@@ -362,5 +371,132 @@ describe('createApiClient', () => {
         expect(await client.checkAuthorization(['chamvi_run_read', 'release_manage'], 'pasted')).toEqual({ permissions: [] });
         expect(requests[1]!.headers.get('authorization')).toBe('Bearer pasted');
         expect(JSON.parse(requests[1]!.body!)).toEqual({ names: ['chamvi_run_read', 'release_manage'] });
+    });
+});
+
+describe('createApiClient: the answer deadline', () => {
+    /** A fetch that never answers; it rejects as the platform does once its signal aborts. */
+    const silent = () => {
+        const signals: AbortSignal[] = [];
+        const fetch = ((_input: RequestInfo | URL, init: RequestInit = {}) => new Promise<Response>((_resolve, reject) => {
+            const { signal } = init;
+
+            if (!signal) {
+                return;
+            }
+
+            signals.push(signal);
+            signal.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
+        })) as typeof globalThis.fetch;
+
+        return { fetch, signals };
+    };
+
+    afterEach(() => {
+        vi.useRealTimers();
+    });
+
+    it('fails a request the API does not answer within REQUEST_TIMEOUT_MS as a timeout ApiError', async () => {
+        vi.useFakeTimers();
+
+        const { fetch, signals } = silent();
+        const client = createApiClient({
+            apiBase: '/api',
+            token: async () => 'tok',
+            fetch,
+        });
+        const outcome = client.me().catch((e: unknown) => e);
+
+        await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 1);
+        expect(signals[0]!.aborted).toBe(false);
+
+        await vi.advanceTimersByTimeAsync(1);
+
+        const error = await outcome;
+
+        expect(error).toBeInstanceOf(ApiError);
+        expect(error).toMatchObject({ status: 0, code: 'timeout' });
+        expect(signals[0]!.aborted).toBe(true);
+    });
+
+    it('takes the deadline from timeoutMs', async () => {
+        vi.useFakeTimers();
+
+        const { fetch } = silent();
+        const client = createApiClient({
+            apiBase: '/api',
+            token: async () => 'tok',
+            fetch,
+            timeoutMs: 50,
+        });
+        const outcome = client.checkAuthorization().catch((e: unknown) => e);
+
+        await vi.advanceTimersByTimeAsync(50);
+
+        expect(await outcome).toMatchObject({ code: 'timeout' });
+    });
+
+    it('ends with the answer: a stream or a slow body is not cut off afterwards', async () => {
+        vi.useFakeTimers();
+
+        const { fetch, requests } = createFakeFetch([sse(['data: 1\n\n'])]);
+        const client = createApiClient({
+            apiBase: '/api',
+            token: async () => 'tok',
+            fetch,
+        });
+        const controller = new AbortController();
+
+        await client.streamRun('r1', { signal: controller.signal });
+
+        expect(vi.getTimerCount()).toBe(0);
+        await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS * 2);
+        expect(requests[0]!.signal?.aborted).toBe(false);
+    });
+
+    it('passes the caller\'s abort through as it is, and does not abort the caller\'s signal on a timeout', async () => {
+        vi.useFakeTimers();
+
+        const { fetch } = silent();
+        const client = createApiClient({
+            apiBase: '/api',
+            token: async () => 'tok',
+            fetch,
+        });
+        const aborted = new AbortController();
+        const first = client.send('/connections', { signal: aborted.signal }).catch((e: unknown) => e);
+
+        aborted.abort();
+
+        const error = await first;
+
+        expect(error).not.toBeInstanceOf(ApiError);
+        expect((error as Error).name).toBe('AbortError');
+        expect(vi.getTimerCount()).toBe(0);
+
+        const kept = new AbortController();
+        const second = client.send('/connections', { signal: kept.signal }).catch((e: unknown) => e);
+
+        await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS);
+
+        expect(await second).toMatchObject({ code: 'timeout' });
+        expect(kept.signal.aborted).toBe(false);
+    });
+
+    it('does not start a request whose signal is already aborted', async () => {
+        const { fetch, signals } = silent();
+        const client = createApiClient({
+            apiBase: '/api',
+            token: async () => 'tok',
+            fetch,
+        });
+        const controller = new AbortController();
+
+        controller.abort();
+
+        const error = await client.send('/connections', { signal: controller.signal }).catch((e: unknown) => e);
+
+        expect((error as Error).name).toBe('AbortError');
+        expect(signals).toHaveLength(0);
     });
 });

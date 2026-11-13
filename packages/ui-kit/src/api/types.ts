@@ -95,6 +95,8 @@ export type ApiClientOptions = {
     /** Called when a 401 stands after the refresh. */
     onUnauthorized?: () => void;
     fetch?: typeof fetch;
+    /** How long a request waits for the answer before it fails as a `timeout` `ApiError`. Default `REQUEST_TIMEOUT_MS`. */
+    timeoutMs?: number;
 };
 
 /** A raw request through the client: bearer, refresh and errors as for every call. */
