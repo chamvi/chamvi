@@ -374,10 +374,8 @@ export function decodeQuery(searchParams: URLSearchParams, schema: AnySchema): D
     };
 }
 
-/** An `Idempotency-Key` header: 1 to `KEY_MAX_LENGTH` characters, else 400. */
-export function readIdempotencyHeader(request: Request): string | undefined {
-    const value = request.headers.get('idempotency-key');
-
+/** An `Idempotency-Key` header value (`null`: absent): 1 to `KEY_MAX_LENGTH` characters, else 400. */
+export function readIdempotencyHeader(value: string | null): string | undefined {
     if (value === null) {
         return undefined;
     }

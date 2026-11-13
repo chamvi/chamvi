@@ -21,7 +21,8 @@ import { MeController } from '../me/controller.ts';
 import { installPlugins } from '../plugins/module.ts';
 import { assertNoNul } from '../request/helpers.ts';
 import { registerRoutes } from '../routes/module.ts';
-import { registerRunRoutes } from '../runs/module.ts';
+import { RunController } from '../runs/controller.ts';
+import { RunService } from '../runs/service.ts';
 import { HTTP_CONTEXT } from './constants.ts';
 import { buildContext, createErrorHandler } from './helpers.ts';
 import type { HttpAppOptions } from './types.ts';
@@ -55,9 +56,9 @@ export function createHttpApp(options: HttpAppOptions): App {
             new AuthorizationController({ service: new AuthorizationService({ clock: ctx.clock }) }),
             new AgentController({ service: agentService, state: new AgentStateService(ctx) }),
             new ScheduleController({ service: agentService }),
+            new RunController({ service: new RunService(ctx) }),
         ],
     }));
-    registerRunRoutes(app, ctx);
     registerChannelRoutes(app, ctx);
     registerConnectionRoutes(app, ctx);
     registerRoutes(app, ctx);

@@ -95,6 +95,19 @@ describe('POST /runs/:id/cancel', () => {
         expect((await call(app, 'POST', '/runs/missing/cancel', { token: ADMIN_TOKEN })).status).toBe(404);
     });
 
+    it('answers the JSON 404 for a method no run route declares', async () => {
+        const { app } = createRunTestApp();
+        const response = await call(app, 'DELETE', '/runs/x', { token: ADMIN_TOKEN });
+
+        expect(response.status).toBe(404);
+        expect(response.headers.get('content-type')).toBe('application/json; charset=utf-8');
+        expect(await response.json()).toEqual({
+            status: 404,
+            code: 'not_found',
+            message: 'The requested route does not exist.',
+        });
+    });
+
     it('needs chamvi_run_cancel', async () => {
         const { app } = createRunTestApp();
         const runId = await start(app, 'echo');
