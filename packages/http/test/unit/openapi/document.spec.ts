@@ -16,11 +16,11 @@ type Operation = {
     tags?: string[];
     security?: Record<string, string[]>[];
     parameters?: {
-        name: string; 
-        in: string; 
-        required?: boolean 
+        name: string;
+        in: string;
+        required?: boolean
     }[];
-    requestBody?: { content?: Record<string, { schema?: Schema }> };
+    requestBody?: { required?: boolean; content?: Record<string, { schema?: Schema }> };
     responses: Record<string, { description?: string; content?: Record<string, { schema?: Schema }> }>;
 };
 
@@ -319,18 +319,27 @@ describe.skipIf(!document)('the generated openapi document', () => {
         expect(Object.keys(responseSchema(doc, operation, '503').properties ?? {}).toSorted()).toEqual(['reason', 'status']);
     });
 
-    it('names the media type of the raw responses', () => {
+    it('declares the bodies of the raw responses', () => {
         for (const path of ['/runs/{id}/stream', '/connections/{name}/events']) {
-            const response = doc.paths[path]?.get?.responses['200'];
-
-            expect(response?.description, path).toContain('text/event-stream');
-            expect(response?.content, path).toBeUndefined();
+            expect(doc.paths[path]?.get?.responses['200']?.content, path).toEqual({ 'text/event-stream': { schema: { type: 'string' } } });
         }
 
         const download = doc.paths['/runs/{id}/artifacts/{artifactId}']?.get?.responses['200'];
 
-        expect(download?.description).toContain('media type');
-        expect(download?.content).toBeUndefined();
+        expect(download?.content).toEqual({ 'application/octet-stream': { schema: { type: 'string', format: 'binary' } } });
+        expect(download?.description).toContain('stored media type');
+    });
+
+    it('gives a connection read one schema, not a oneOf every body matches twice', () => {
+        const schema = doc.paths['/connections/{name}']?.get?.responses['200']?.content?.['application/json']?.schema;
+
+        expect(schema).toEqual({ $ref: '#/components/schemas/ConnectionDetailView' });
+    });
+
+    it('marks the start body and its idempotency header optional', () => {
+        const operation = doc.paths['/agents/{name}/runs']?.post as Operation;
+
+        expect(operation.requestBody?.required).not.toBe(true);
     });
 
     it('gives every parameter a schema', () => {
@@ -346,6 +355,8 @@ describe.skipIf(!document)('the generated openapi document', () => {
 
         expect(header?.name).toBe('idempotency-key');
         expect(header?.required).toBe(false);
+        expect((header as { schema?: Schema } | undefined)?.schema).toMatchObject({ type: 'string' });
+        expect(JSON.stringify((header as { schema?: Schema } | undefined)?.schema)).not.toContain('null');
     });
 
     it('names the package and its version', () => {
@@ -356,10 +367,16 @@ describe.skipIf(!document)('the generated openapi document', () => {
 
     it('lists the query parameters of the three list routes', () => {
         expect(parameterNames(doc.paths['/runs']?.get as Operation, 'query').toSorted())
-            .toEqual(['filter', 'page[limit]', 'page[offset]', 'sort']);
+            .toEqual(['filter[agent]', 'filter[parent]', 'filter[status]', 'filter[waiting]', 'page[limit]', 'page[offset]', 'sort']);
         expect(parameterNames(doc.paths['/agents/{name}/state/kv']?.get as Operation, 'query').toSorted())
             .toEqual(['page[limit]', 'page[offset]']);
         expect(parameterNames(doc.paths['/agents/{name}/state/collections/{collection}']?.get as Operation, 'query').toSorted())
-            .toEqual(['filter', 'page[limit]']);
+            .toEqual(['filter[<field>]', 'page[limit]']);
+
+        const runs = (doc.paths['/runs']?.get as Operation).parameters ?? [];
+        const schemaOf = (name: string) => (runs.find((parameter) => parameter.name === name) as { schema?: Schema } | undefined)?.schema;
+
+        expect(schemaOf('sort')).toMatchObject({ type: 'string', enum: ['createdAt', '-createdAt'] });
+        expect(schemaOf('filter[waiting]')).toMatchObject({ type: 'string', enum: ['approval', 'dispatch'] });
     });
 });

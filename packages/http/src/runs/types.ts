@@ -63,9 +63,6 @@ export type StartRunBody = {
     attachments?: ArtifactInput[];
 };
 
-/** The `Idempotency-Key` header of `POST /agents/:name/runs`; `null` when absent. */
-export type IdempotencyHeader = string | null;
-
 /** One attachment of `POST /agents/:name/runs` as sent. */
 export type AttachmentRequestBody = {
     /** `type/subtype`, e.g. `image/png`. */

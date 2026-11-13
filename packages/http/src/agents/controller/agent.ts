@@ -80,7 +80,11 @@ export class AgentController {
         return this.state.set(name, key, data, await usePrincipal(event));
     }
 
-    /** `GET /agents/:name/state/collections/:collection`: documents by top-level equality filters. */
+    /**
+     * `GET /agents/:name/state/collections/:collection`: documents by top-level
+     * equality filters. The filters also read rapiq's expression form,
+     * `filter=and(eq(color,'red'),eq(size,3))`, which cannot be mixed with the bracket form.
+     */
     @DGet('/:name/state/collections/:collection', [ForceLoggedInMiddleware])
     @DQuerySchema('documents')
     async listDocuments(

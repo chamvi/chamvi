@@ -7,3 +7,6 @@
 
 /** The query vocabularies the OpenAPI document describes: runs list, kv list, collection read. */
 export type QuerySchemaName = 'runs' | 'kv' | 'documents';
+
+/** The non-JSON response bodies the OpenAPI document describes: an SSE stream, a download. */
+export type ProducedMediaType = 'text/event-stream' | 'application/octet-stream';

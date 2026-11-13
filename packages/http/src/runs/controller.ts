@@ -10,7 +10,6 @@ import {
     DBody,
     DContext,
     DController,
-    DDescription,
     DGet,
     DHeader,
     DPath,
@@ -21,7 +20,7 @@ import {
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../app/helpers.ts';
 import { usePrincipal } from '../auth/helpers.ts';
-import { DQuerySchema } from '../decorators/index.ts';
+import { DProduces, DQuerySchema } from '../decorators/index.ts';
 import { ForceLoggedInMiddleware, JsonBodyMiddleware, RequiredJsonBodyMiddleware } from '../middleware/index.ts';
 import { contentDisposition, toBody } from './helpers.ts';
 import { streamRun } from './stream/module.ts';
@@ -30,7 +29,6 @@ import type {
     ApproveRunView,
     CancelRunView,
     IRunService,
-    IdempotencyHeader,
     RunControllerContext,
     RunDetailView,
     RunListView,
@@ -52,10 +50,11 @@ export class RunController {
     @DPost('/agents/:name/runs', [ForceLoggedInMiddleware, JsonBodyMiddleware])
     async start(
         @DPath('name') name: string,
-        @DBody() data: StartRunRequestBody,
         @DContext() event: IAppEvent,
-        // last and optional so the openapi document marks it optional; routup passes null when it is absent
-        @DHeader('idempotency-key') idempotencyHeader?: IdempotencyHeader,
+        // optional (hence after `event`) so the openapi document marks the body and the header optional;
+        // routup passes the parsed body or undefined, and null for an absent header, which the service reads as unset
+        @DBody() data?: StartRunRequestBody,
+        @DHeader('idempotency-key') idempotencyHeader?: string,
     ): Promise<StartRunView> {
         const result = await this.service.start({
             agent: name,
@@ -68,7 +67,11 @@ export class RunController {
         return result;
     }
 
-    /** `GET /runs`: a page of the runs the principal may read. */
+    /**
+     * `GET /runs`: a page of the runs the principal may read. The filters also
+     * read rapiq's expression form, `filter=and(eq(agent,'a'),in(status,'queued','running'))`,
+     * which cannot be mixed with the bracket form.
+     */
     @DGet('/runs', [ForceLoggedInMiddleware])
     @DQuerySchema('runs')
     async list(@DContext() event: IAppEvent): Promise<RunListView> {
@@ -86,7 +89,7 @@ export class RunController {
 
     /** `GET /runs/:id/stream`: the run's events as SSE. */
     @DGet('/runs/:id/stream', [ForceLoggedInMiddleware])
-    @DDescription(200, 'A `text/event-stream` (server-sent events) of the run\'s events, until the run settles.')
+    @DProduces('text/event-stream', 'Server-sent events: the run\'s events, until the run settles.')
     async stream(
         @DPath('id') id: string,
         @DContext() event: IAppEvent,
@@ -107,7 +110,7 @@ export class RunController {
 
     /** `GET /runs/:id/artifacts/:artifactId`: the artifact's bytes as a download. */
     @DGet('/runs/:id/artifacts/:artifactId', [ForceLoggedInMiddleware])
-    @DDescription(200, 'The artifact\'s bytes as an attachment download, with its stored media type as `content-type`.')
+    @DProduces('application/octet-stream', 'The artifact\'s bytes as an attachment download; the actual `content-type` is the artifact\'s stored media type.')
     async artifact(
         @DPath('id') id: string,
         @DPath('artifactId') artifactId: string,

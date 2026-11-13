@@ -10,7 +10,6 @@ import {
     DContext,
     DController,
     DDelete,
-    DDescription,
     DGet,
     DPath,
     DPost,
@@ -21,6 +20,7 @@ import {
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../../app/helpers.ts';
 import { usePrincipal } from '../../auth/helpers.ts';
+import { DProduces } from '../../decorators/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
 import { streamConnection } from '../stream/module.ts';
 import type {
@@ -63,7 +63,7 @@ export class ConnectionController {
     async get(
         @DPath('name') name: string,
         @DContext() event: IAppEvent,
-    ): Promise<ConnectionView | ConnectionDetailView> {
+    ): Promise<ConnectionDetailView> {
         // a writer's response can carry a pairing QR; set first on purpose, so error responses carry it too
         noStore(event);
 
@@ -72,7 +72,7 @@ export class ConnectionController {
 
     /** `GET /connections/:name/events`: the handle's status and widgets as SSE. */
     @DGet('/:name/events', [ForceLoggedInMiddleware])
-    @DDescription(200, 'A `text/event-stream` (server-sent events) of the handle\'s status and widgets.')
+    @DProduces('text/event-stream', 'Server-sent events: the handle\'s status and widgets.')
     async events(
         @DPath('name') name: string,
         @DContext() event: IAppEvent,
