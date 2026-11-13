@@ -13,10 +13,16 @@ import {
 } from 'vitest';
 import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } from '@chamvi/access';
 import * as http from '@chamvi/http';
+import type { swaggerUI } from '@routup/swagger-ui';
 
 describe('public api', () => {
     it('exports the openapi option type', () => {
-        expectTypeOf<http.OpenApiOptions>().toEqualTypeOf<{ ui?: boolean; documentPath?: string }>();
+        // `documentPath` and `swaggerUI` are internal (for specs)
+        expectTypeOf<http.OpenApiOptions>().toEqualTypeOf<{
+            ui?: boolean;
+            documentPath?: string;
+            swaggerUI?: typeof swaggerUI;
+        }>();
         expectTypeOf<http.HttpAppOptions['openapi']>().toEqualTypeOf<false | http.OpenApiOptions | undefined>();
         expect(http).not.toHaveProperty('registerOpenApiRoutes');
         expect(http).not.toHaveProperty('loadOpenApiDocument');

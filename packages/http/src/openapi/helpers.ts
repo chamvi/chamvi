@@ -57,7 +57,11 @@ function inlineHashes(html: string, pattern: RegExp): string {
 
 /**
  * The Content-Security-Policy of a UI page: its own files, and of inline
- * code only the blocks this page holds (by hash), so nothing injected runs.
+ * code only the blocks this page holds (by hash), so no script or style
+ * injected into the page at runtime (into the DOM) runs. It does not
+ * protect the inlined document itself: its text is part of the hashed
+ * block, so the document must never close that block (routup/plugins#855;
+ * `document.spec.ts` checks the built one).
  */
 export function buildOpenApiUiCsp(html: string): string {
     const scripts = inlineHashes(html, /<script(?![^>]*\ssrc=)[^>]*>([\s\S]*?)<\/script>/gi);

@@ -23,7 +23,8 @@ import type { OpenApiOptions } from './types.ts';
 /**
  * `GET <basePath>/openapi.json` and, unless `ui: false`, the Swagger UI at
  * `<basePath>/docs`, both unauthenticated. The document is read once; when
- * it is missing or not a JSON object nothing is mounted and `onError` gets
+ * it is missing or not a JSON object nothing is mounted, and when the UI
+ * cannot be mounted only the document is served; either way `onError` gets
  * one report: documentation is no precondition for serving the API.
  */
 export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenApiOptions): void {
@@ -32,7 +33,8 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
 
     if (!document) {
         ctx.onError(new InvalidAgentDefinitionError(`The OpenAPI document "${path}" is missing or not a JSON object, so ` +
-            `${OPENAPI_DOCUMENT_ROUTE} and ${OPENAPI_UI_PATH} are not served; build @chamvi/http with "npm run build".`));
+            `${OPENAPI_DOCUMENT_ROUTE} and ${OPENAPI_UI_PATH} are not served; the published @chamvi/http ships it, ` +
+            'a source checkout builds it with "npm run build".'));
 
         return;
     }
@@ -98,13 +100,27 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
 
         return response;
     }));
-    // the parsed document, the same object the JSON route serves: the plugin inlines it into its shell
-    swaggerUI(document, {
-        url: `${ctx.basePath}${OPENAPI_DOCUMENT_ROUTE}`,
-        // no topbar (the shell hides it anyway): its logo carries an inline style the CSP refuses
-        layout: 'BaseLayout',
-        // no badge from validator.swagger.io
-        validatorUrl: null,
-    }).install(ui);
+
+    const factory = options.swaggerUI ?? swaggerUI;
+
+    // the plugin reads its template and resolves swagger-ui-dist synchronously: a broken install costs the UI, not the app
+    try {
+        // the parsed document, the same object the JSON route serves: the plugin inlines it into its shell
+        factory(document, {
+            url: `${ctx.basePath}${OPENAPI_DOCUMENT_ROUTE}`,
+            // no topbar (the shell hides it anyway): its logo carries an inline style the CSP refuses
+            layout: 'BaseLayout',
+            // no badge from validator.swagger.io
+            validatorUrl: null,
+        }).install(ui);
+    } catch (error) {
+        const reason = Error.isError(error) ? error.message : String(error);
+
+        ctx.onError(new InvalidAgentDefinitionError(`The Swagger UI cannot be mounted, so ${OPENAPI_UI_PATH} is not served ` +
+            `(${OPENAPI_DOCUMENT_ROUTE} is): ${reason}`));
+
+        return;
+    }
+
     app.use(OPENAPI_UI_PATH, ui);
 }

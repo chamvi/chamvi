@@ -396,6 +396,35 @@ describe('an unusable document', () => {
     });
 });
 
+describe('a swagger ui that cannot be mounted', () => {
+    it('reports once and serves the document without the ui', async () => {
+        const { app, errors } = setup({
+            openapi: {
+                documentPath: DOCUMENT_PATH,
+                // as when swagger-ui-dist or the plugin's template cannot be read
+                swaggerUI: () => {
+                    throw new Error('ENOENT: swagger-ui-dist');
+                },
+            },
+        });
+
+        const document = await get(app, '/openapi.json');
+
+        expect(document.status).toBe(200);
+        expect(await document.json()).toEqual({ ...DOCUMENT, servers: [{ url: '/' }] });
+
+        const docs = await get(app, '/docs');
+
+        expect(docs.status).toBe(404);
+        expect(await docs.json()).toMatchObject({ status: 404 });
+        expect((await get(app, '/healthz')).status).toBe(200);
+        expect(errors).toHaveLength(1);
+        expect(errors[0]).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect((errors[0] as Error).message).toMatch(/Swagger UI/);
+        expect((errors[0] as Error).message).toContain('ENOENT: swagger-ui-dist');
+    });
+});
+
 describe('the default document', () => {
     it('is the package\'s built dist/swagger.json, also when the package runs from source', () => {
         expect(OPENAPI_DOCUMENT_PATH).toBe(fileURLToPath(new URL('../../../dist/swagger.json', import.meta.url)));
