@@ -10,15 +10,18 @@ import {
     DBody,
     DContext,
     DController,
+    DDescription,
     DGet,
     DHeader,
     DPath,
     DPost,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../app/helpers.ts';
 import { usePrincipal } from '../auth/helpers.ts';
+import { DQuerySchema } from '../decorators/index.ts';
 import { ForceLoggedInMiddleware, JsonBodyMiddleware, RequiredJsonBodyMiddleware } from '../middleware/index.ts';
 import { contentDisposition, toBody } from './helpers.ts';
 import { streamRun } from './stream/module.ts';
@@ -27,14 +30,16 @@ import type {
     ApproveRunView,
     CancelRunView,
     IRunService,
+    IdempotencyHeader,
     RunControllerContext,
     RunDetailView,
     RunListView,
-    StartRunBody,
+    StartRunRequestBody,
     StartRunView,
 } from './types.ts';
 
-@DTags('runs')
+@DTags('run')
+@DSecurity([], 'bearer')
 @DController('')
 export class RunController {
     protected service: IRunService;
@@ -47,9 +52,10 @@ export class RunController {
     @DPost('/agents/:name/runs', [ForceLoggedInMiddleware, JsonBodyMiddleware])
     async start(
         @DPath('name') name: string,
-        @DBody() data: StartRunBody,
-        @DHeader('idempotency-key') idempotencyHeader: string | null,
+        @DBody() data: StartRunRequestBody,
         @DContext() event: IAppEvent,
+        // last and optional so the openapi document marks it optional; routup passes null when it is absent
+        @DHeader('idempotency-key') idempotencyHeader?: IdempotencyHeader,
     ): Promise<StartRunView> {
         const result = await this.service.start({
             agent: name,
@@ -64,6 +70,7 @@ export class RunController {
 
     /** `GET /runs`: a page of the runs the principal may read. */
     @DGet('/runs', [ForceLoggedInMiddleware])
+    @DQuerySchema('runs')
     async list(@DContext() event: IAppEvent): Promise<RunListView> {
         return this.service.list(event.searchParams, await usePrincipal(event));
     }
@@ -79,6 +86,7 @@ export class RunController {
 
     /** `GET /runs/:id/stream`: the run's events as SSE. */
     @DGet('/runs/:id/stream', [ForceLoggedInMiddleware])
+    @DDescription(200, 'A `text/event-stream` (server-sent events) of the run\'s events, until the run settles.')
     async stream(
         @DPath('id') id: string,
         @DContext() event: IAppEvent,
@@ -99,6 +107,7 @@ export class RunController {
 
     /** `GET /runs/:id/artifacts/:artifactId`: the artifact's bytes as a download. */
     @DGet('/runs/:id/artifacts/:artifactId', [ForceLoggedInMiddleware])
+    @DDescription(200, 'The artifact\'s bytes as an attachment download, with its stored media type as `content-type`.')
     async artifact(
         @DPath('id') id: string,
         @DPath('artifactId') artifactId: string,

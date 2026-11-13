@@ -9,6 +9,7 @@ import {
     DContext,
     DController,
     DGet,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
@@ -17,6 +18,7 @@ import { ForceLoggedInMiddleware } from '../middleware/index.ts';
 import type { MeView } from './types.ts';
 
 @DTags('me')
+@DSecurity([], 'bearer')
 @DController('/me')
 export class MeController {
     /** `GET /me`: any authenticated principal, its own identity only (never its bindings or authorization). */

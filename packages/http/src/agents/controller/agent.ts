@@ -12,10 +12,12 @@ import {
     DGet,
     DPatch,
     DPath,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
 import { usePrincipal } from '../../auth/helpers.ts';
+import { DQuerySchema } from '../../decorators/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
 import type {
     AgentControllerContext,
@@ -28,7 +30,8 @@ import type {
     StateDocumentView,
 } from '../types.ts';
 
-@DTags('agents')
+@DTags('agent')
+@DSecurity([], 'bearer')
 @DController('/agents')
 export class AgentController {
     protected service: IAgentService;
@@ -48,6 +51,7 @@ export class AgentController {
 
     /** `GET /agents/:name/state/kv`: a page of kv entries in key order. */
     @DGet('/:name/state/kv', [ForceLoggedInMiddleware])
+    @DQuerySchema('kv')
     async listKv(
         @DPath('name') name: string,
         @DContext() event: IAppEvent,
@@ -78,6 +82,7 @@ export class AgentController {
 
     /** `GET /agents/:name/state/collections/:collection`: documents by top-level equality filters. */
     @DGet('/:name/state/collections/:collection', [ForceLoggedInMiddleware])
+    @DQuerySchema('documents')
     async listDocuments(
         @DPath('name') name: string,
         @DPath('collection') collection: string,

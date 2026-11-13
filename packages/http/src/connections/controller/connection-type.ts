@@ -12,6 +12,7 @@ import {
     DGet,
     DPath,
     DPost,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
@@ -25,7 +26,8 @@ import type {
     IConnectionConfigService,
 } from '../types.ts';
 
-@DTags('connections')
+@DTags('connection-type')
+@DSecurity([], 'bearer')
 @DController('/connection-types')
 export class ConnectionTypeController {
     protected config: IConnectionConfigService;

@@ -10,6 +10,7 @@ import {
     DContext,
     DController,
     DPost,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
@@ -23,6 +24,7 @@ import type {
 } from './types.ts';
 
 @DTags('authorization')
+@DSecurity([], 'bearer')
 @DController('/authorization')
 export class AuthorizationController {
     protected service: IAuthorizationService;

@@ -7,10 +7,17 @@
 
 import {
     DController,
+    DDescription,
     DGet,
     DTags,
 } from '@routup/decorators';
-import type { HealthControllerContext, IHealthService, ReadinessView } from './types.ts';
+import type {
+    HealthControllerContext,
+    IHealthService,
+    ReadinessReadyView,
+    ReadinessUnavailableView,
+    ReadinessView,
+} from './types.ts';
 
 /** `/healthz` (process alive) and `/readyz` (store, engine, shutdown); unauthenticated. */
 @DTags('health')
@@ -33,6 +40,8 @@ export class HealthController {
      * and an `If-None-Match` can never turn it into a 304.
      */
     @DGet('/readyz')
+    @DDescription<ReadinessReadyView>(200, 'The app takes traffic.')
+    @DDescription<ReadinessUnavailableView>(503, 'The app takes no traffic, and why.')
     async ready(): Promise<ReadinessView | Response> {
         const view = await this.service.readiness();
 

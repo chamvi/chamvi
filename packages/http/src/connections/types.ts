@@ -106,12 +106,15 @@ export type ConnectionTestView = {
     message?: string;
 };
 
+/** Secret values by field name; `''` or `null` keeps the stored value. */
+export type ConnectionSecretValues = Record<string, string | null>;
+
 /** `PUT /connections/:name/config`. An empty value is unset. */
 export type ConnectionSaveBody = {
     /** The complete settings: replaces the stored ones. Absent keeps them. */
     settings?: Record<string, unknown>;
     secrets?: {
-        set?: Record<string, unknown>;
+        set?: ConnectionSecretValues;
         clear?: string[];
     };
 };
@@ -120,7 +123,7 @@ export type ConnectionSaveBody = {
 export type ConnectionCreateBody = {
     account: string;
     settings: Record<string, unknown>;
-    secrets?: Record<string, unknown>;
+    secrets?: ConnectionSecretValues;
 };
 
 // #region helpers

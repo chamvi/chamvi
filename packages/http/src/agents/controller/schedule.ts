@@ -9,6 +9,7 @@ import {
     DContext,
     DController,
     DGet,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
@@ -16,7 +17,8 @@ import { usePrincipal } from '../../auth/helpers.ts';
 import { ForceLoggedInMiddleware } from '../../middleware/index.ts';
 import type { IAgentService, ScheduleControllerContext, ScheduleSummary } from '../types.ts';
 
-@DTags('schedules')
+@DTags('schedule')
+@DSecurity([], 'bearer')
 @DController('/schedules')
 export class ScheduleController {
     protected service: IAgentService;

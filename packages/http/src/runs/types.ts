@@ -63,6 +63,27 @@ export type StartRunBody = {
     attachments?: ArtifactInput[];
 };
 
+/** The `Idempotency-Key` header of `POST /agents/:name/runs`; `null` when absent. */
+export type IdempotencyHeader = string | null;
+
+/** One attachment of `POST /agents/:name/runs` as sent. */
+export type AttachmentRequestBody = {
+    /** `type/subtype`, e.g. `image/png`. */
+    mediaType: string;
+    filename?: string;
+    /** The bytes in base64. */
+    data: string;
+};
+
+/** Body of `POST /agents/:name/runs` as sent; `StartRunBody` once validated. */
+export type StartRunRequestBody = {
+    payload?: unknown;
+    idempotencyKey?: string;
+    /** Where the run came from on the http channel (a caller-defined thread or conversation). */
+    address?: string;
+    attachments?: AttachmentRequestBody[];
+};
+
 /** Body of `POST /runs/:id/approve`. */
 export type ApproveBody = {
     /** The wait point being answered; another one than the run's current is 409. */
@@ -80,7 +101,8 @@ export type RunServiceContext = Pick<HttpContext, 'engine' | 'store' | 'agents' 
 /** `POST /agents/:name/runs`: the agent name, the untrusted body and the `Idempotency-Key` header. */
 export type StartRunInput = {
     agent: string;
-    data: StartRunBody;
+    /** Unvalidated: a `StartRunRequestBody` on the wire. */
+    data: unknown;
     idempotencyHeader?: string | null;
 };
 

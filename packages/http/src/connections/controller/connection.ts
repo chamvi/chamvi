@@ -10,10 +10,12 @@ import {
     DContext,
     DController,
     DDelete,
+    DDescription,
     DGet,
     DPath,
     DPost,
     DPut,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
@@ -37,7 +39,8 @@ function noStore(event: IAppEvent): void {
     event.response.headers.set('cache-control', 'private, no-store');
 }
 
-@DTags('connections')
+@DTags('connection')
+@DSecurity([], 'bearer')
 @DController('/connections')
 export class ConnectionController {
     protected service: IConnectionService;
@@ -69,6 +72,7 @@ export class ConnectionController {
 
     /** `GET /connections/:name/events`: the handle's status and widgets as SSE. */
     @DGet('/:name/events', [ForceLoggedInMiddleware])
+    @DDescription(200, 'A `text/event-stream` (server-sent events) of the handle\'s status and widgets.')
     async events(
         @DPath('name') name: string,
         @DContext() event: IAppEvent,

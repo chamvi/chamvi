@@ -9,6 +9,7 @@ import {
     DContext,
     DController,
     DGet,
+    DSecurity,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
@@ -17,7 +18,8 @@ import { ForceLoggedInMiddleware } from '../../middleware/index.ts';
 import type { UiPage } from '../../static/types.ts';
 import type { ConnectionConfigControllerContext, IConnectionConfigService } from '../types.ts';
 
-@DTags('connections')
+@DTags('ui-page')
+@DSecurity([], 'bearer')
 @DController('/ui-pages')
 export class UiPageController {
     protected config: IConnectionConfigService;
