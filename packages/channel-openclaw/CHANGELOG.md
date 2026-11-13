@@ -1,5 +1,34 @@
 # Changelog
 
+## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-13)
+
+
+### ⚠ BREAKING CHANGES
+
+* **app,ui-kit:** the token format in `CHAMVI_TOKENS` and `chamvi.json`.
+
+### Features
+
+* **access:** add the permission check over authup bindings ([#202](https://github.com/chamvi/chamvi/issues/202)) ([9304038](https://github.com/chamvi/chamvi/commit/930403896b0db5e7bc3c34b9230dabdefca7c17c))
+* **app,ui-kit:** configure tokens as permission bindings ([#204](https://github.com/chamvi/chamvi/issues/204)) ([b715aa5](https://github.com/chamvi/chamvi/commit/b715aa55588097506ba062a4fb9d89999ced5400))
+
+
+### Bug Fixes
+
+* harden connection create, tests and static serving ([#201](https://github.com/chamvi/chamvi/issues/201)) ([7f1518f](https://github.com/chamvi/chamvi/commit/7f1518fb9a1e4485960e404a25547fc23531c3c8))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * devDependencies
+    * @chamvi/app bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/test-kit bumped from ^0.8.0 to ^0.8.1
+  * peerDependencies
+    * @chamvi/app bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+
 ## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
 
 

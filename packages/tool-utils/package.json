@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/tool-utils",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "type": "module",
     "description": "Utility tools for chamvi agents: the current time, date arithmetic, exact calculation and run info a model cannot do reliably itself.",
     "author": {
@@ -55,12 +55,12 @@
         "smob": "^1.6.2"
     },
     "devDependencies": {
-        "@chamvi/core": "^0.8.0",
-        "@chamvi/test-kit": "^0.8.0",
+        "@chamvi/core": "^0.9.0",
+        "@chamvi/test-kit": "^0.8.1",
         "ai": "^7.0.165"
     },
     "peerDependencies": {
-        "@chamvi/core": "^0.8.0",
+        "@chamvi/core": "^0.9.0",
         "ai": "^7"
     }
 }

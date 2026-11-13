@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/sandbox-docker",
-    "version": "0.8.0",
+    "version": "0.8.1",
     "type": "module",
     "description": "Docker sandbox provider for chamvi: one hardened container per workspace.",
     "author": {
@@ -55,14 +55,14 @@
         "smob": "^1.6.2"
     },
     "devDependencies": {
-        "@chamvi/coding": "^0.8.0",
-        "@chamvi/core": "^0.8.0",
-        "@chamvi/sandbox": "^0.8.0",
-        "@chamvi/test-kit": "^0.8.0",
+        "@chamvi/coding": "^0.8.1",
+        "@chamvi/core": "^0.9.0",
+        "@chamvi/sandbox": "^0.8.1",
+        "@chamvi/test-kit": "^0.8.1",
         "ai": "^7.0.165"
     },
     "peerDependencies": {
-        "@chamvi/core": "^0.8.0",
-        "@chamvi/sandbox": "^0.8.0"
+        "@chamvi/core": "^0.9.0",
+        "@chamvi/sandbox": "^0.8.1"
     }
 }
