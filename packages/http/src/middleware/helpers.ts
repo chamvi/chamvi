@@ -8,16 +8,20 @@
 import { BadRequestError } from '@ebec/http';
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../app/helpers.ts';
+import { usePrincipal } from '../auth/helpers.ts';
 import { REQUEST_BODY_CACHE } from '../request/constants.ts';
 import { readJsonBody } from '../request/helpers.ts';
 
 /**
- * Reads the JSON body with chamvi's reader (`bodyLimit`, 413, 415, 400) into
- * `@routup/body`'s cache, so `@DBody()` returns it and never reads the
- * stream. An empty body is `{}`, or a 400 when `required`; a JSON `null`
+ * Authenticates first (a 401 before any read, whatever the middleware order;
+ * memoized, so free after ForceLoggedInMiddleware), then reads the JSON body
+ * with chamvi's reader (`bodyLimit`, 413, 415, 400) into `@routup/body`'s
+ * cache, so `@DBody()` returns it and never reads the stream. An empty body is `{}`, or a 400 when `required`; a JSON `null`
  * stays `null`, so `validateBody` refuses it as no object.
  */
 export async function cacheJsonBody(event: IAppEvent, required: boolean): Promise<void> {
+    await usePrincipal(event);
+
     const body = await readJsonBody(event, useHttpContext(event).bodyLimit);
 
     if (body === undefined && required) {

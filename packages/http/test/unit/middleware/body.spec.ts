@@ -22,6 +22,7 @@ import {
     RequiredJsonBodyMiddleware,
 } from '../../../src/middleware/index.ts';
 import { ADMIN_TOKEN, createTestApp, testAuth } from '../../utils/app.ts';
+import { countingStream } from '../../utils/body.ts';
 
 const LIMIT = 64;
 
@@ -36,14 +37,24 @@ class ProbeController {
     async required(@DBody() body: unknown): Promise<{ body: unknown }> {
         return { body };
     }
+
+    @DPost('/bare-optional', [JsonBodyMiddleware])
+    async bareOptional(@DBody() body: unknown): Promise<{ body: unknown }> {
+        return { body };
+    }
+
+    @DPost('/bare-required', [RequiredJsonBodyMiddleware])
+    async bareRequired(@DBody() body: unknown): Promise<{ body: unknown }> {
+        return { body };
+    }
 }
 
 function probeApp(): App {
     const { engine } = createTestApp();
     const ctx = buildContext({
-        engine, 
-        auth: testAuth, 
-        bodyLimit: LIMIT, 
+        engine,
+        auth: testAuth,
+        bodyLimit: LIMIT,
     });
     const app = new App();
 
@@ -98,9 +109,9 @@ describe('the JSON body middleware behind @DBody()', () => {
     it.each(['/optional', '/required'])('hands %s the parsed body', async (path) => {
         const app = probeApp();
         const response = await post(app, path, {
-            token: ADMIN_TOKEN, 
-            body: '{"a":1}', 
-            headers: JSON_HEADERS, 
+            token: ADMIN_TOKEN,
+            body: '{"a":1}',
+            headers: JSON_HEADERS,
         });
 
         expect(response.status).toBe(200);
@@ -148,9 +159,9 @@ describe('the JSON body middleware behind @DBody()', () => {
         expect(untyped.status).toBe(415);
 
         const text = await post(app, '/optional', {
-            token: ADMIN_TOKEN, 
-            body: '{}', 
-            headers: { 'content-type': 'text/plain' }, 
+            token: ADMIN_TOKEN,
+            body: '{}',
+            headers: { 'content-type': 'text/plain' },
         });
 
         expect(text.status).toBe(415);
@@ -158,9 +169,9 @@ describe('the JSON body middleware behind @DBody()', () => {
 
     it('refuses invalid JSON with 400', async () => {
         const response = await post(probeApp(), '/optional', {
-            token: ADMIN_TOKEN, 
-            body: '{', 
-            headers: JSON_HEADERS, 
+            token: ADMIN_TOKEN,
+            body: '{',
+            headers: JSON_HEADERS,
         });
 
         expect(response.status).toBe(400);
@@ -169,9 +180,9 @@ describe('the JSON body middleware behind @DBody()', () => {
 
     it('refuses a body over the limit with 413 and closes a connection with more left', async () => {
         const response = await post(probeApp(), '/optional', {
-            token: ADMIN_TOKEN, 
-            body: streamOf([40, 40, 40, 40]), 
-            headers: JSON_HEADERS, 
+            token: ADMIN_TOKEN,
+            body: streamOf([40, 40, 40, 40]),
+            headers: JSON_HEADERS,
         });
 
         expect(response.status).toBe(413);
@@ -190,6 +201,23 @@ describe('the JSON body middleware behind @DBody()', () => {
 
         expect(response.status).toBe(401);
         expect(reads).toBe(0);
+    });
+
+    it.each(['/bare-optional', '/bare-required'])('authenticates in %s without ForceLoggedInMiddleware before any read', async (path) => {
+        const stream = countingStream(LIMIT * 4);
+        const response = await post(probeApp(), path, { body: stream.body, headers: JSON_HEADERS });
+
+        expect(response.status).toBe(401);
+        expect(stream.reads()).toBe(0);
+
+        const authed = await post(probeApp(), path, {
+            token: ADMIN_TOKEN,
+            body: '{"a":1}',
+            headers: JSON_HEADERS,
+        });
+
+        expect(authed.status).toBe(200);
+        expect(await authed.json()).toEqual({ body: { a: 1 } });
     });
 
     it('never decompresses a body, so @routup/body did not read it', async () => {

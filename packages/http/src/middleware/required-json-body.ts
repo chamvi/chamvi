@@ -9,7 +9,7 @@ import type { HandlerInterface } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
 import { cacheJsonBody } from './helpers.ts';
 
-/** A required JSON body for `@DBody()`: an empty one is a 400. List it after ForceLoggedInMiddleware. */
+/** A required JSON body for `@DBody()`: an empty one is a 400. Authenticates before the read. */
 export class RequiredJsonBodyMiddleware implements HandlerInterface {
     public async run(event: IAppEvent): Promise<Response | undefined> {
         await cacheJsonBody(event, true);
