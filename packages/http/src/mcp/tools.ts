@@ -386,10 +386,8 @@ function registerApproveTool(server: McpServer, ctx: HttpContext, services: McpS
         title: 'Approve run',
         description: 'Answers the approval a waiting run waits on (its waiting.approvalId, from get_run; a waiting.kind dispatch wait is refused). With options, pass the chosen option ids as selected (from get_run\'s waiting.options). Needs chamvi_agent_approve for the run\'s agent.',
         inputSchema: APPROVE_RUN_INPUT,
-    }, (args) => runTool(ctx, async () => {
-        // the arguments are validated by the tool's input schema, not by the REST body rules
-        return toolResult(await services.runs.answer(args.runId, args, principal));
-    }));
+    // the arguments are validated by the tool's input schema, not by the REST body rules
+    }, (args) => runTool(ctx, async () => toolResult(await services.runs.answer(args.runId, args, principal))));
 }
 
 /** Registers the tools one MCP request's principal sees (from definitions built once). */
