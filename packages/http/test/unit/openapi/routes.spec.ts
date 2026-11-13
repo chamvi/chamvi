@@ -7,7 +7,6 @@
 
 import { createHash } from 'node:crypto';
 import {
-    existsSync,
     mkdtempSync,
     rmSync,
     writeFileSync,
@@ -15,7 +14,8 @@ import {
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ChamviError } from '@chamvi/core';
+import { ErrorCode, InvalidAgentDefinitionError } from '@chamvi/core';
+import type { ChamviError } from '@chamvi/core';
 import {
     afterAll,
     describe,
@@ -116,13 +116,12 @@ describe('GET /openapi.json', () => {
         expect((await get(app, '/openapi.json', { 'if-none-match': etag! })).status).toBe(304);
     });
 
-    it('stays JSON next to whatever the UI answers under /docs', async () => {
+    it('stays JSON, /docs/openapi.json is the JSON 404', async () => {
         const { app } = setup();
         const below = await get(app, '/docs/openapi.json');
 
-        // the UI answers every unknown path under its mount with its HTML shell
-        expect(below.status).toBe(200);
-        expect(below.headers.get('content-type')).toBe('text/html; charset=utf-8');
+        expect(below.status).toBe(404);
+        expect(await below.json()).toMatchObject({ status: 404 });
 
         const response = await get(app, '/openapi.json');
 
@@ -132,7 +131,7 @@ describe('GET /openapi.json', () => {
 });
 
 describe('GET /docs', () => {
-    it.each(['/docs', '/docs/', '/DOCS'])('serves the UI shell at %s, inlining the served document', async (path) => {
+    it.each(['/docs', '/docs/'])('serves the UI shell at %s, inlining the served document', async (path) => {
         const { app } = setup();
         const response = await get(app, path);
 
@@ -158,6 +157,59 @@ describe('GET /docs', () => {
         expect(options.validatorUrl).toBeNull();
         expect(options.spec).toEqual(await (await get(app, '/api/openapi.json')).json());
         expect((await get(app, '/docs')).status).toBe(404);
+    });
+
+    it.each([
+        ['/DOCS', ''],
+        ['/DoCs/', ''],
+        ['/API/docs', '/api'],
+    ])('answers the shell only at its canonical path: %s is the JSON 404 and does not leak into <base href>', async (path, basePath) => {
+        const { app } = setup({ basePath });
+        const other = await get(app, path);
+
+        expect(other.status).toBe(404);
+        expect(await other.json()).toMatchObject({ status: 404 });
+        expect(await (await get(app, `${basePath}/docs`)).text()).toContain(`<base href="${basePath}/docs/" />`);
+    });
+
+    it.each(['', '/api'])('keeps the full policy on a conditional answer of the shell (basePath "%s")', async (basePath) => {
+        const { app } = setup({ basePath });
+        const first = await get(app, `${basePath}/docs`);
+        const csp = first.headers.get('content-security-policy');
+        const etag = first.headers.get('etag');
+
+        await first.text();
+        expect(csp).toContain('sha256-');
+        expect(etag).toBeTruthy();
+
+        const second = await get(app, `${basePath}/docs`, { 'if-none-match': etag! });
+
+        expect(second.status).toBe(304);
+        // a browser merges these headers into its stored shell: never a policy without the hashes
+        expect(second.headers.get('content-security-policy')).toBe(csp);
+
+        const third = await get(app, `${basePath}/docs/`);
+
+        expect(third.headers.get('content-security-policy')).toBe(csp);
+    });
+
+    it('never takes the policy from a HEAD answer', async () => {
+        const { app } = setup();
+        const head = await app.fetch(new Request('http://test/docs', { method: 'HEAD' }));
+
+        expect(head.headers.get('content-security-policy') ?? 'sha256-').toContain('sha256-');
+        expect((await get(app, '/docs')).headers.get('content-security-policy')).toContain('sha256-');
+    });
+
+    it('omits the policy on a conditional answer before any full shell was sent', async () => {
+        const { app } = setup();
+        const etag = (await get(setup().app, '/docs')).headers.get('etag');
+        const response = await get(app, '/docs', { 'if-none-match': etag! });
+
+        expect(response.status).toBe(304);
+        // the stored shell (same etag, same body) keeps its own full policy
+        expect(response.headers.get('content-security-policy')).toBeNull();
+        expect((await get(app, '/docs')).headers.get('content-security-policy')).toContain('sha256-');
     });
 
     it('sends a CSP that allows exactly the inline blocks of the page, and the static security headers', async () => {
@@ -226,20 +278,27 @@ describe('GET /docs', () => {
         }
     });
 
-    it('leaves the rest below /docs to the plugin: its files, a bare 404 for package.json', async () => {
+    it.each([
+        '/docs/index.html',
+        '/docs/swagger-initializer.js',
+        '/docs/oauth2-redirect.html',
+        '/docs/oauth2-redirect.js',
+        '/docs/package.json',
+        '/docs/README.md',
+        '/docs/LICENSE',
+        '/docs/index.js',
+        '/docs/swagger-ui-bundle.js.map',
+        '/docs/log.bundle-sizes.swagger-ui.txt',
+        '/docs/x',
+        '/docs/a/swagger-ui.css',
+        '/docs/SWAGGER-UI.CSS',
+    ])('answers %s, no file of the shell, with the JSON 404', async (path) => {
         const { app } = setup();
-        // swagger-ui-dist's own demo page: served, under the same policy (it cannot reach its remote document)
-        const page = await get(app, '/docs/index.html');
+        const response = await get(app, path);
 
-        expect(page.status).toBe(200);
-        expect(page.headers.get('content-security-policy')).toContain('connect-src \'self\'');
-        expect(page.headers.get('x-frame-options')).toBe('DENY');
-        await page.arrayBuffer();
-
-        const manifest = await get(app, '/docs/package.json');
-
-        expect(manifest.status).toBe(404);
-        expect(await manifest.text()).toBe('');
+        expect(response.status).toBe(404);
+        expect(response.headers.get('content-type')).toContain('application/json');
+        expect(await response.json()).toMatchObject({ status: 404 });
     });
 
     it('serves the document without the UI with ui: false', async () => {
@@ -286,7 +345,8 @@ describe('an unusable document', () => {
 
         expect((await get(app, '/healthz')).status).toBe(200);
         expect(errors).toHaveLength(1);
-        expect(errors[0]).toBeInstanceOf(ChamviError);
+        expect(errors[0]).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect((errors[0] as ChamviError).code).toBe(ErrorCode.INVALID_AGENT_DEFINITION);
         expect((errors[0] as Error).message).toContain(documentPath);
         expect((errors[0] as Error).message).toContain('npm run build');
     });
@@ -302,7 +362,7 @@ describe('the default document', () => {
         expect(OPENAPI_DOCUMENT_PATH).toBe(fileURLToPath(new URL('../../../dist/swagger.json', import.meta.url)));
     });
 
-    it('is served when built, else reported once without stopping the app', async () => {
+    it('is served by default (the test target builds it first)', async () => {
         const errors: unknown[] = [];
         const { app } = createTestApp({
             openapi: {},
@@ -312,15 +372,10 @@ describe('the default document', () => {
         });
         const response = await get(app, '/openapi.json');
 
-        if (existsSync(OPENAPI_DOCUMENT_PATH)) {
-            expect(response.status).toBe(200);
-            expect(errors).toEqual([]);
-        } else {
-            expect(response.status).toBe(404);
-            expect(errors).toHaveLength(1);
-        }
-
-        expect((await get(app, '/healthz')).status).toBe(200);
+        expect(response.status).toBe(200);
+        expect(errors).toEqual([]);
+        expect((await response.json() as { openapi: string }).openapi).toMatch(/^3\./);
+        expect((await get(app, '/docs')).status).toBe(200);
     });
 });
 

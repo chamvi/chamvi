@@ -5,12 +5,18 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/core';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { NotFoundError } from '@ebec/http';
 import { swaggerUI } from '@routup/swagger-ui';
 import { App, defineCoreHandler } from 'routup';
 import type { HttpContext } from '../app/types.ts';
 import { DOCUMENT_CACHE_CONTROL, STATIC_SECURITY_HEADERS } from '../static/constants.ts';
-import { OPENAPI_DOCUMENT_PATH, OPENAPI_DOCUMENT_ROUTE, OPENAPI_UI_PATH } from './constants.ts';
+import {
+    OPENAPI_DOCUMENT_PATH,
+    OPENAPI_DOCUMENT_ROUTE,
+    OPENAPI_UI_ASSETS,
+    OPENAPI_UI_PATH,
+} from './constants.ts';
 import { buildOpenApiUiCsp, loadOpenApiDocument } from './helpers.ts';
 import type { OpenApiOptions } from './types.ts';
 
@@ -25,7 +31,7 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
     const document = loadOpenApiDocument(path, ctx.basePath);
 
     if (!document) {
-        ctx.onError(new ChamviError(`The OpenAPI document "${path}" is missing or not a JSON object, so ` +
+        ctx.onError(new InvalidAgentDefinitionError(`The OpenAPI document "${path}" is missing or not a JSON object, so ` +
             `${OPENAPI_DOCUMENT_ROUTE} and ${OPENAPI_UI_PATH} are not served; build @chamvi/http with "npm run build".`));
 
         return;
@@ -46,29 +52,41 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
     }
 
     const ui = new App();
-    // one entry per HTML body: the shell and the few pages of swagger-ui-dist
-    const policies = new Map<string, string>();
+    const mount = `${ctx.basePath}${OPENAPI_UI_PATH}`;
+    // computed once from the first full shell (a 200 GET): the plugin compiles it once, so its hashes never change
+    let policy: string | undefined;
 
     ui.use(defineCoreHandler(async (event) => {
+        // only the canonical casing: the plugin compiles its `<base href>` from the first request's mount path
+        // (`/docs/` mounts as `/docs/`)
+        const rest = event.mountPath.replace(/\/$/, '') === mount ? event.path.slice(mount.length) : undefined;
+        const shell = rest === '' || rest === '/';
+
+        if (rest === undefined || (!shell && !OPENAPI_UI_ASSETS.includes(rest.slice(1)))) {
+            throw new NotFoundError({ message: 'The requested route does not exist.' });
+        }
+
         for (const [name, value] of Object.entries(STATIC_SECURITY_HEADERS)) {
             event.response.headers.set(name, value);
         }
 
         const response = await event.next();
 
-        if (!response?.headers.get('content-type')?.startsWith('text/html')) {
+        if (!shell || !response) {
             return response;
         }
 
-        const html = await response.clone().text();
-        let csp = policies.get(html);
-
-        if (csp === undefined) {
-            csp = buildOpenApiUiCsp(html);
-            policies.set(html, csp);
+        // a HEAD answer has no body to hash
+        if (policy === undefined && response.status === 200 && event.method === 'GET') {
+            policy = buildOpenApiUiCsp(await response.clone().text());
         }
 
-        response.headers.set('content-security-policy', csp);
+        // a 304 carries the same full policy (a browser merges it into its stored shell); before any
+        // full shell none at all, so the stored one (same etag, same body) keeps its own
+        if (policy !== undefined) {
+            response.headers.set('content-security-policy', policy);
+        }
+
         response.headers.set('cache-control', DOCUMENT_CACHE_CONTROL);
 
         return response;
