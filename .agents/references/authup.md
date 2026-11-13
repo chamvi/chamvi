@@ -32,8 +32,8 @@ Pinned to authup commit `052c85a85`; paths under `apps/server-core/`.
 
 | authup | chamvi (`packages/http/`) |
 |---|---|
-| `trapi.config.ts` (`@routup/decorators/preset` plus a `DQuerySchema` method handler, the `ErrorResponse` default response, `data.extra`) | `trapi.config.ts` (same preset and error response; handlers for `DQuerySchema` and `DProduces`) |
-| `src/adapters/http/decorators/query-schema.ts` (`DQuerySchema(entity, shape)`, a runtime no-op) | `src/decorators/query-schema.ts` (`DQuerySchema('runs' \| 'kv' \| 'documents')`, a runtime no-op), `src/decorators/produces.ts` |
+| `trapi.config.ts` (`@routup/decorators/preset` plus a `DQuerySchema` method handler, the `ErrorResponse` default response, `data.extra`) | `trapi.config.ts` (same preset and error response; handlers for `DQuerySchema`, `DProduces` and `DStatus`) |
+| `src/adapters/http/decorators/query-schema.ts` (`DQuerySchema(entity, shape)`, a runtime no-op) | `src/decorators/query-schema.ts` (`DQuerySchema('runs' \| 'kv' \| 'documents')`, a runtime no-op), `src/decorators/produces.ts`, `src/decorators/status.ts` |
 | `src/adapters/http/middleware/built-in/swagger.ts` (`createSwaggerMiddleware`: reads once, a non-object mounts nothing with a warning, `/openapi.json` registered before the UI) | `src/openapi/module.ts` (`registerOpenApiRoutes`), `src/openapi/helpers.ts` |
 
 Differences:
