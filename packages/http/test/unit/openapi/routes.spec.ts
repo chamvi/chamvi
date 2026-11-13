@@ -26,7 +26,8 @@ import type { App, IAppEvent } from 'routup';
 import { OPENAPI_DOCUMENT_PATH } from '../../../src/openapi/constants.ts';
 import { loadOpenApiDocument } from '../../../src/openapi/helpers.ts';
 import { routeLabel } from '../../../src/plugins/helpers.ts';
-import { createTestApp } from '../../utils/app.ts';
+import { createHttpApp } from '@chamvi/http';
+import { createTestApp, testAuth } from '../../utils/app.ts';
 import type { TestAppOverrides } from '../../utils/app.ts';
 
 const DIRECTORY = mkdtempSync(join(tmpdir(), 'chamvi-openapi-'));
@@ -402,8 +403,10 @@ describe('the default document', () => {
 
     it('is served by default (the test target builds it first)', async () => {
         const errors: unknown[] = [];
-        const { app } = createTestApp({
-            openapi: {},
+        // `createHttpApp` without `openapi` (the test app turns it off): the product default
+        const app = createHttpApp({
+            engine: createTestApp().engine,
+            auth: [testAuth],
             onError: (error) => {
                 errors.push(error);
             },
