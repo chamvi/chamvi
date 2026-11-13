@@ -31,7 +31,7 @@ A connection is one configured account of a provider, in three tiers: plain sett
 | `test-kit/src/repository-contract/connection.ts` | `describeConnectionContract` inside `describeRepositoryContract()` |
 | `chat-whatsapp/src/auth/` | `createStoreWhatsAppAuth()`, `WHATSAPP_CONNECTION_TYPE` |
 | `chat-whatsapp/src/module/` | `whatsappModule()`, the handle (`helpers.ts`: statuses `-` to `_`, `stopped` as `disconnected`) |
-| `http/src/connections/` | The `/connections` handle routes (`module.ts`), the configuration API (`config.ts`), `ConnectionView`, `ConnectionDetailView`, `ConnectionSettingsView` |
+| `http/src/connections/` | The controllers (`controller/`: `connection.ts`, `connection-type.ts`, `ui-page.ts`), `ConnectionService` (`service/connection.ts`, the handle routes), `ConnectionConfigService` (`service/config.ts`, the configuration API), `helpers/`, `streamConnection()` (`stream/module.ts`), `ConnectionView`, `ConnectionDetailView`, `ConnectionSettingsView` (`types.ts`) |
 | `app/src/keyring/` | `readKeyring(env)`, `ENV_ENCRYPTION_KEYS` |
 | `app/src/module/helpers.ts` | `readStoredConnections()`, `connectionIssuesOf()` (the `start --check` issues) |
 | `{tool-mail,tool-calendar,github,chat-discord}/src/module/` | The connection type of each (`type.ts`) over `readStoredConnections()`; `test` in `client/login.ts`, `app/verify.ts`, `discord/verify.ts` |
