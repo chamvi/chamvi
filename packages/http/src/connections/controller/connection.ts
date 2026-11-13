@@ -20,7 +20,7 @@ import {
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../../app/helpers.ts';
 import { usePrincipal } from '../../auth/helpers.ts';
-import { DProduces } from '../../decorators/index.ts';
+import { DProduces, DStatus } from '../../decorators/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
 import { streamConnection } from '../stream/module.ts';
 import type {
@@ -84,6 +84,7 @@ export class ConnectionController {
 
     /** `POST /connections/:name/reset`: starts the handle's reset (202). */
     @DPost('/:name/reset', [ForceLoggedInMiddleware])
+    @DStatus('202')
     async reset(
         @DPath('name') name: string,
         @DContext() event: IAppEvent,

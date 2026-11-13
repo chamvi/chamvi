@@ -9,8 +9,16 @@ import { existsSync, readFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { isObject } from 'smob';
 import { describe, expect, it } from 'vitest';
+import type { IConnectionHandle } from '@chamvi/core';
 import { parseCollectionQuery, parseKvListQuery } from '../../../src/agents/helpers.ts';
 import { parseRunListQuery } from '../../../src/runs/helpers.ts';
+import {
+    ADMIN_TOKEN,
+    approvalIdOf,
+    call,
+    createRunTestApp,
+    createTestApp,
+} from '../../utils/app.ts';
 
 type Schema = Record<string, any>;
 
@@ -70,6 +78,44 @@ const ROUTES: [string, string, string][] = [
 ];
 
 const PUBLIC_PATHS = new Set(['/healthz', '/readyz']);
+
+const SCHEMAS = '#/components/schemas/';
+
+/**
+ * The routes that answer a success status other than 200, `[path, method,
+ * status, body schema]`: the one list. The handler sets the status at
+ * runtime, `@DStatus` documents it; the drift check below sends a real
+ * request for each entry.
+ */
+const SUCCESS_STATUSES: [string, string, '201' | '202', Schema][] = [
+    ['/agents/{name}/runs', 'post', '202', { $ref: `${SCHEMAS}StartRunView` }],
+    ['/runs/{id}/cancel', 'post', '202', { $ref: `${SCHEMAS}CancelRunView` }],
+    ['/runs/{id}/approve', 'post', '202', { $ref: `${SCHEMAS}ApproveRunView` }],
+    ['/connections/{name}/reset', 'post', '202', { $ref: `${SCHEMAS}ConnectionView` }],
+    ['/connection-types/{type}/connections', 'post', '201', {
+        allOf: [
+            { $ref: `${SCHEMAS}ConnectionSettingsView` },
+            {
+                properties: { name: { type: 'string' } },
+                required: ['name'],
+                type: 'object',
+            },
+        ],
+    }],
+];
+
+/** The responses of the routes outside `SUCCESS_STATUSES` that document more than a 200 (and the default). */
+const OTHER_RESPONSES: Record<string, string[]> = { 'get /readyz': ['200', '503', 'default'] };
+
+/**
+ * Components no path reaches that stay on purpose, with the reason; every
+ * other component must be reachable from `paths`.
+ */
+const UNREFERENCED_SCHEMAS = new Set<string>([
+    // the fetch `Response` the SSE, download and readiness handlers return: trapi resolves a method's
+    // return type even where a handler response (`@DProduces`, `@DDescription`) replaces it
+    'Response',
+]);
 
 const BODY_ROUTES: [string, string][] = [
     ['/authorization/check', 'post'],
@@ -241,6 +287,32 @@ function responseSchema(doc: Document, operation: Operation, status: string): Sc
     return resolve(doc, schema as Schema);
 }
 
+/** Every component name a `$ref` in `value` reaches, transitively through the components. */
+function collectRefs(doc: Document, value: unknown, out: Set<string>): void {
+    if (Array.isArray(value)) {
+        for (const item of value) {
+            collectRefs(doc, item, out);
+        }
+
+        return;
+    }
+
+    if (!isObject(value)) {
+        return;
+    }
+
+    const name = refName(value as Schema);
+
+    if (name && !out.has(name)) {
+        out.add(name);
+        collectRefs(doc, doc.components.schemas[name], out);
+    }
+
+    for (const child of Object.values(value)) {
+        collectRefs(doc, child, out);
+    }
+}
+
 describe.skipIf(!document)('the generated openapi document', () => {
     const doc = document as Document;
 
@@ -314,6 +386,40 @@ describe.skipIf(!document)('the generated openapi document', () => {
                 expect(operation.security, `${method.toUpperCase()} ${path}`).toEqual([{ bearer: [] }]);
             }
         }
+    });
+
+    it('documents the real success status of the 201 and 202 routes, without a 200', () => {
+        for (const [path, method, status, schema] of SUCCESS_STATUSES) {
+            const operation = doc.paths[path]?.[method] as Operation;
+            const label = `${method.toUpperCase()} ${path}`;
+
+            expect(Object.keys(operation.responses).toSorted(), label).toEqual([status, 'default']);
+            expect(operation.responses[status]?.content, label).toEqual({ 'application/json': { schema } });
+            expect(operation.responses[status]?.description, label).toMatch(status === '201' ? /^Created/ : /^Accepted/);
+        }
+    });
+
+    it('documents a 200 on every other route', () => {
+        const special = new Set(SUCCESS_STATUSES.map(([path, method]) => `${method} ${path}`));
+
+        for (const [path, method, operation] of operations(doc)) {
+            const key = `${method} ${path}`;
+
+            if (!special.has(key)) {
+                expect(Object.keys(operation.responses).toSorted(), key).toEqual(OTHER_RESPONSES[key] ?? ['200', 'default']);
+            }
+        }
+    });
+
+    it('holds no schema that no path reaches', () => {
+        const reachable = new Set<string>();
+
+        collectRefs(doc, doc.paths, reachable);
+
+        const unreferenced = Object.keys(doc.components.schemas).filter((name) => !reachable.has(name));
+
+        expect(unreferenced.toSorted()).toEqual([...UNREFERENCED_SCHEMAS].toSorted());
+        expect([...reachable].filter((name) => !doc.components.schemas[name]), 'dangling refs').toEqual([]);
     });
 
     it('documents the readiness 200 and 503 bodies', () => {
@@ -411,4 +517,77 @@ describe.skipIf(!document)('the generated openapi document', () => {
         expect(schemaOf('sort')).toMatchObject({ type: 'string', enum: ['createdAt', '-createdAt'] });
         expect(schemaOf('filter[waiting]')).toMatchObject({ type: 'string', enum: ['approval', 'dispatch'] });
     });
+});
+
+/**
+ * The drift check: each `SUCCESS_STATUSES` entry answered by a real request
+ * through the test app, so the documented status and the one the handler
+ * sets cannot part. Entries without a probe here name the spec that sends it.
+ */
+describe('the documented success statuses', () => {
+    const probes: Record<string, () => Promise<Response>> = {
+        'post /agents/{name}/runs': async () => {
+            const { app } = createRunTestApp();
+
+            return call(app, 'POST', '/agents/echo/runs', { token: ADMIN_TOKEN });
+        },
+        'post /runs/{id}/cancel': async () => {
+            const { app } = createRunTestApp();
+            const started = await call(app, 'POST', '/agents/echo/runs', { token: ADMIN_TOKEN });
+            const { runId } = await started.json() as { runId: string };
+
+            return call(app, 'POST', `/runs/${runId}/cancel`, { token: ADMIN_TOKEN });
+        },
+        'post /runs/{id}/approve': async () => {
+            const {
+                app,
+                engine,
+                store,
+            } = createRunTestApp();
+            const started = await call(app, 'POST', '/agents/gate/runs', { token: ADMIN_TOKEN });
+            const { runId } = await started.json() as { runId: string };
+
+            await engine.start();
+            await engine.idle();
+
+            const response = await call(app, 'POST', `/runs/${runId}/approve`, {
+                token: ADMIN_TOKEN,
+                body: { approvalId: await approvalIdOf(store, runId), approved: false },
+            });
+
+            await engine.idle();
+            await engine.drain();
+
+            return response;
+        },
+        'post /connections/{name}/reset': async () => {
+            const handle: IConnectionHandle = {
+                name: 'alpha',
+                type: 'whatsapp',
+                status: () => 'pairing',
+                widgets: () => [],
+                subscribe: () => () => {},
+                actions: { reset: async () => undefined },
+            };
+            const { app } = createTestApp({ connections: () => [handle] });
+
+            return call(app, 'POST', '/connections/alpha/reset', { token: ADMIN_TOKEN });
+        },
+    };
+    // a create needs a keyring and a declared connection type: `test/unit/connections/config.spec.ts` asserts its 201
+    const elsewhere = new Set(['post /connection-types/{type}/connections']);
+
+    it('probes every entry or names the spec that does', () => {
+        const keys = SUCCESS_STATUSES.map(([path, method]) => `${method} ${path}`);
+
+        expect(keys.filter((key) => !probes[key] && !elsewhere.has(key))).toEqual([]);
+    });
+
+    for (const [path, method, status] of SUCCESS_STATUSES) {
+        const probe = probes[`${method} ${path}`];
+
+        it.skipIf(!probe)(`${method.toUpperCase()} ${path} answers ${status}`, async () => {
+            expect((await (probe as () => Promise<Response>)()).status).toBe(Number(status));
+        });
+    }
 });

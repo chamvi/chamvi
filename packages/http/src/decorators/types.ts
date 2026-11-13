@@ -10,3 +10,6 @@ export type QuerySchemaName = 'runs' | 'kv' | 'documents';
 
 /** The non-JSON response bodies the OpenAPI document describes: an SSE stream, a download. */
 export type ProducedMediaType = 'text/event-stream' | 'application/octet-stream';
+
+/** The success statuses other than 200 the OpenAPI document describes: created, accepted. */
+export type SuccessStatus = '201' | '202';

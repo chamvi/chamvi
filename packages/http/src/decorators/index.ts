@@ -7,4 +7,5 @@
 
 export * from './produces.ts';
 export * from './query-schema.ts';
+export * from './status.ts';
 export * from './types.ts';

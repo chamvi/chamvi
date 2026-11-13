@@ -4,7 +4,8 @@
  *
  * Nothing rewrites the document afterwards. The `@DQuerySchema` handler
  * contributes the query parameters of the three list routes, the
- * `@DProduces` handler the 200 of the SSE and download routes, the error
+ * `@DProduces` handler the 200 of the SSE and download routes, the
+ * `@DStatus` handler the 201 or 202 of the routes answering one, the error
  * response is declared document-wide, and the `ErrorResponse` component
  * rides `data.extra`. `test/unit/openapi/document.spec.ts` checks the result.
  */
@@ -143,6 +144,32 @@ const producesHandler = method({
     },
 });
 
+/** Per `@DStatus` status: the description of the response that carries the return type. */
+const SUCCESS_DESCRIPTIONS: Record<string, string> = {
+    '201': 'Created.',
+    '202': 'Accepted.',
+};
+
+const statusHandler = method({
+    match: { name: 'DStatus', on: 'method' },
+    apply: (ctx, draft) => {
+        const status = readString(ctx.argument(0));
+        const description = status ? SUCCESS_DESCRIPTIONS[status] : undefined;
+
+        if (!status || !description) {
+            throw new Error(`@DStatus on '${draft.name}' has an unknown or unresolvable argument.`);
+        }
+
+        // trapi documents the return type under this status and adds no 200
+        draft.successStatus = status;
+        draft.responses.push({
+            name: status,
+            status,
+            description,
+        });
+    },
+});
+
 const ERROR_SCHEMA = {
     type: 'object',
     description: 'The error body of every failing request; `code` carries the semantics, the status the severity.',
@@ -219,7 +246,7 @@ export default defineConfig({
         preset: {
             name: 'chamvi',
             extends: ['@routup/decorators/preset'],
-            methods: [querySchemaHandler, producesHandler],
+            methods: [querySchemaHandler, producesHandler, statusHandler],
         },
         tsconfig: 'tsconfig.json',
         // the cache key ignores this file, so an edit here would serve a stale document

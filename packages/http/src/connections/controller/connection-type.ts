@@ -17,6 +17,7 @@ import {
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
 import { usePrincipal } from '../../auth/helpers.ts';
+import { DStatus } from '../../decorators/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
 import type {
     ConnectionConfigControllerContext,
@@ -44,6 +45,7 @@ export class ConnectionTypeController {
 
     /** `POST /connection-types/:type/connections`: adds an account of the type (201). */
     @DPost('/:type/connections', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
+    @DStatus('201')
     async create(
         @DPath('type') type: string,
         @DBody() data: ConnectionCreateBody,

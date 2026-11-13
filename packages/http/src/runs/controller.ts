@@ -20,7 +20,7 @@ import {
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../app/helpers.ts';
 import { usePrincipal } from '../auth/helpers.ts';
-import { DProduces, DQuerySchema } from '../decorators/index.ts';
+import { DProduces, DQuerySchema, DStatus } from '../decorators/index.ts';
 import { ForceLoggedInMiddleware, JsonBodyMiddleware, RequiredJsonBodyMiddleware } from '../middleware/index.ts';
 import { contentDisposition, toBody } from './helpers.ts';
 import { streamRun } from './stream/module.ts';
@@ -48,6 +48,7 @@ export class RunController {
 
     /** `POST /agents/:name/runs`: starts a run through the agent's http subscription. */
     @DPost('/agents/:name/runs', [ForceLoggedInMiddleware, JsonBodyMiddleware])
+    @DStatus('202')
     async start(
         @DPath('name') name: string,
         @DContext() event: IAppEvent,
@@ -132,6 +133,7 @@ export class RunController {
 
     /** `POST /runs/:id/cancel`: cancels the run. */
     @DPost('/runs/:id/cancel', [ForceLoggedInMiddleware])
+    @DStatus('202')
     async cancel(
         @DPath('id') id: string,
         @DContext() event: IAppEvent,
@@ -145,6 +147,7 @@ export class RunController {
 
     /** `POST /runs/:id/approve`: answers the run's approval wait point. */
     @DPost('/runs/:id/approve', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
+    @DStatus('202')
     async approve(
         @DPath('id') id: string,
         @DBody() data: ApproveBody,
