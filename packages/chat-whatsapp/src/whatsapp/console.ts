@@ -12,6 +12,25 @@ const METHODS: readonly Method[] = ['log', 'info', 'warn', 'error', 'debug'];
 /** A stack frame from the libsignal package (a `libsignal` path segment, either separator). */
 const LIBSIGNAL_FRAME = /[\\/]libsignal[\\/]/;
 
+/** Frames read per console call: the guard's own, then the caller's. */
+const STACK_FRAMES = 10;
+
+/**
+ * The call stack as text, read with the guard's own frame limit: an
+ * application limit of 0 or 1 would hide the caller and let its line through.
+ */
+function callStack(): string {
+    const limit = Error.stackTraceLimit;
+
+    try {
+        Error.stackTraceLimit = STACK_FRAMES;
+
+        return new Error('stack').stack ?? '';
+    } finally {
+        Error.stackTraceLimit = limit;
+    }
+}
+
 let installs = 0;
 let originals: Partial<Record<Method, Console[Method]>> = {};
 
@@ -31,7 +50,7 @@ export function guardConsole(): () => void {
 
             originals[method] = original;
             console[method] = function guarded(this: Console, ...args: unknown[]) {
-                if (LIBSIGNAL_FRAME.test(new Error('stack').stack ?? '')) {
+                if (LIBSIGNAL_FRAME.test(callStack())) {
                     return;
                 }
 

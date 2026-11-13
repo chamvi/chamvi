@@ -99,6 +99,31 @@ describe('guardConsole', () => {
         }
     });
 
+    it.each([0, 1])('drops them when the application sets Error.stackTraceLimit to %d, and keeps that limit', (limit) => {
+        const before = Error.stackTraceLimit;
+
+        Error.stackTraceLimit = limit;
+
+        try {
+            install();
+
+            const record = new SessionRecord();
+            const session = fakeSession();
+
+            record.setSession(session);
+            record.closeSession(session);
+            record.openSession(session);
+            console.info('application line');
+
+            expect(spies.info).toHaveBeenCalledTimes(1);
+            expect(spies.info).toHaveBeenCalledWith('application line');
+            expect(spies.warn).not.toHaveBeenCalled();
+            expect(Error.stackTraceLimit).toBe(limit);
+        } finally {
+            Error.stackTraceLimit = before;
+        }
+    });
+
     it('lets the libsignal session logs through without the guard (the leak it closes)', () => {
         const record = new SessionRecord();
         const session = fakeSession();
