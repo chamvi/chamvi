@@ -8,7 +8,8 @@
 import { NotFoundError } from '@ebec/http';
 import { decorators } from '@routup/decorators';
 import { App, defineCoreHandler } from 'routup';
-import { registerAgentRoutes } from '../agents/module.ts';
+import { AgentController, ScheduleController } from '../agents/controller/index.ts';
+import { AgentService, AgentStateService } from '../agents/service/index.ts';
 import { AuthorizationController } from '../authorization/controller.ts';
 import { AuthorizationService } from '../authorization/service.ts';
 import { registerChannelRoutes } from '../channels/module.ts';
@@ -44,14 +45,18 @@ export function createHttpApp(options: HttpAppOptions): App {
 
         return event.next();
     }));
+
+    const agentService = new AgentService(ctx);
+
     app.use(decorators({
         controllers: [
             new HealthController({ service: new HealthService(ctx) }),
             new MeController(),
             new AuthorizationController({ service: new AuthorizationService({ clock: ctx.clock }) }),
+            new AgentController({ service: agentService, state: new AgentStateService(ctx) }),
+            new ScheduleController({ service: agentService }),
         ],
     }));
-    registerAgentRoutes(app, ctx);
     registerRunRoutes(app, ctx);
     registerChannelRoutes(app, ctx);
     registerConnectionRoutes(app, ctx);

@@ -320,3 +320,30 @@ describe('state collections', () => {
         expect((await call(app, 'GET', ISSUES, { token: tokenFor(Permission.STATE_READ) })).status).toBe(200);
     });
 });
+
+describe('state path parameters', () => {
+    it('decodes a percent-encoded key', async () => {
+        const { app } = setup();
+        const slash = await call(app, 'GET', '/agents/echo/state/kv/a%2Fb', { token: ADMIN_TOKEN });
+
+        expect(slash.status).toBe(200);
+        expect(await slash.json()).toEqual({ key: 'a/b', value: null });
+
+        const space = await call(app, 'GET', '/agents/echo/state/kv/%20', { token: ADMIN_TOKEN });
+
+        expect(space.status).toBe(200);
+        expect(await space.json()).toEqual({ key: ' ', value: null });
+    });
+
+    it('matches the agent name case-sensitively', async () => {
+        const { app } = setup();
+        const response = await call(app, 'GET', '/agents/ECHO/state/kv', { token: ADMIN_TOKEN });
+
+        expect(response.status).toBe(404);
+        expect(await response.json()).toEqual({
+            status: 404,
+            code: 'not_found',
+            message: 'Agent "ECHO" was not found.',
+        });
+    });
+});
