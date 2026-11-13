@@ -78,6 +78,7 @@ export async function mountView(view: Component, input: {
 
     return {
         root,
+        router,
         /** Answers the open confirmation dialog. */
         confirm: (value: boolean) => dialogs.settle(value),
         testId: (id: string) => root.querySelector<HTMLElement>(`[data-testid="${CSS.escape(id)}"]`),

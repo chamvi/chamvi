@@ -142,11 +142,17 @@ async function onCancel(): Promise<void> {
 
     cancelError.value = undefined;
 
+    const id = runId.value;
+    const agent = run.value?.agent ?? 'its agent';
+
     try {
         await cancel();
-        toast.add({ title: `Cancel requested · run ${shortId(runId.value)}` });
+        toast.add({ title: `Cancel requested · run ${shortId(id)}` });
     } catch (e) {
-        cancelError.value = refusalText(e, 'Cancelling this run', Permission.RUN_CANCEL, run.value?.agent ?? 'its agent');
+        // the view may show another run by now: its refusal belongs to the run it was asked for
+        if (runId.value === id) {
+            cancelError.value = refusalText(e, 'Cancelling this run', Permission.RUN_CANCEL, agent);
+        }
     }
 }
 </script>

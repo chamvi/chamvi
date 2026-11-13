@@ -231,6 +231,33 @@ describe('the run page: cancel', () => {
 
         expect(testId('cancel-error')?.textContent).toContain('needs chamvi_run_cancel for deploy');
     });
+
+    it('drops a refusal that arrives after the page moved on to another run', async () => {
+        let refuse: (() => void) | undefined;
+        const {
+            root,
+            router,
+            confirm,
+            testId,
+        } = await openRun([Permission.RUN_CANCEL], {
+            getRun: async (id: string) => ({ ...wireRun({ id, status: 'running' }), steps: [] }),
+            cancelRun: () => new Promise((_resolve, reject) => {
+                refuse = () => reject(refused(Permission.RUN_CANCEL));
+            }),
+        });
+
+        button(root, 'Cancel run')?.click();
+        await settle();
+        confirm(true);
+        await settle();
+
+        await router.push('/runs/r2');
+        await settle();
+        refuse?.();
+        await settle();
+
+        expect(testId('cancel-error')).toBeNull();
+    });
 });
 
 describe('the approvals inbox: approve and deny', () => {
