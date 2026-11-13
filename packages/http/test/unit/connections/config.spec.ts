@@ -1823,7 +1823,7 @@ describe('connection configuration', () => {
             expect(responses.map((response) => response.headers.get('cache-control'))).toEqual([NO_STORE, NO_STORE, NO_STORE]);
         });
 
-        it('is on every response of PUT /connections/:name/config, errors included', async () => {
+        it('is on every response the PUT /connections/:name/config method produces, errors included, not on a body refusal', async () => {
             const { app } = world({
                 declared: (definition) => [
                     declare(definition, 'mail-work'),
@@ -1841,6 +1841,11 @@ describe('connection configuration', () => {
 
             expect(responses.map((response) => response.status)).toEqual([200, 403, 409, 400]);
             expect(responses.map((response) => response.headers.get('cache-control'))).toEqual([NO_STORE, NO_STORE, NO_STORE, NO_STORE]);
+
+            const empty = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN });
+
+            expect(empty.status).toBe(400);
+            expect(empty.headers.get('cache-control')).toBeNull();
         });
 
         it('is not set on GET /connections and DELETE /connections/:name', async () => {
