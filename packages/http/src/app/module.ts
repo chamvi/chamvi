@@ -13,7 +13,8 @@ import { AgentService, AgentStateService } from '../agents/service/index.ts';
 import { AuthorizationController } from '../authorization/controller.ts';
 import { AuthorizationService } from '../authorization/service.ts';
 import { registerChannelRoutes } from '../channels/module.ts';
-import { registerConnectionRoutes } from '../connections/module.ts';
+import { ConnectionController, ConnectionTypeController, UiPageController } from '../connections/controller/index.ts';
+import { ConnectionConfigService, ConnectionService } from '../connections/service/index.ts';
 import { HealthController } from '../health/controller.ts';
 import { HealthService } from '../health/service.ts';
 import { registerMcpRoutes } from '../mcp/module.ts';
@@ -49,6 +50,7 @@ export function createHttpApp(options: HttpAppOptions): App {
 
     const agentService = new AgentService(ctx);
     const runService = new RunService(ctx);
+    const connectionConfigService = new ConnectionConfigService(ctx);
 
     app.use(decorators({
         controllers: [
@@ -58,10 +60,12 @@ export function createHttpApp(options: HttpAppOptions): App {
             new AgentController({ service: agentService, state: new AgentStateService(ctx) }),
             new ScheduleController({ service: agentService }),
             new RunController({ service: runService }),
+            new ConnectionController({ service: new ConnectionService(ctx), config: connectionConfigService }),
+            new ConnectionTypeController({ config: connectionConfigService }),
+            new UiPageController({ config: connectionConfigService }),
         ],
     }));
     registerChannelRoutes(app, ctx);
-    registerConnectionRoutes(app, ctx);
     registerRoutes(app, ctx);
 
     if (options.mcp !== false) {

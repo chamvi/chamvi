@@ -261,18 +261,13 @@ export async function readJsonBody(event: IAppEvent, limit: number): Promise<unk
 
 /**
  * Validates a JSON object body with a validup container. A missing body
- * reads as `{}` unless `required`; unknown keys are dropped.
+ * reads as `{}`; unknown keys are dropped.
  */
 export async function validateBody<T extends Record<string, any>>(
     container: Container<T>,
     body: unknown,
-    options: { required?: boolean } = {},
 ): Promise<T> {
     if (body === undefined) {
-        if (options.required) {
-            throw new BadRequestError({ message: 'The request needs a JSON body.' });
-        }
-
         body = {};
     }
 

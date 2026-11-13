@@ -173,10 +173,6 @@ describe('validateBody', () => {
         expect(await validateBody(container(), undefined)).toEqual({});
     });
 
-    it('rejects a missing body when required', async () => {
-        await expect(validateBody(container(), undefined, { required: true })).rejects.toThrow('The request needs a JSON body.');
-    });
-
     it('drops unknown keys', async () => {
         expect(await validateBody(container(), { a: 1, extra: 2 })).toEqual({ a: 1 });
     });
