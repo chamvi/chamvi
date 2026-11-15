@@ -6,14 +6,28 @@
  */
 
 /* eslint-disable max-classes-per-file */
+import type { IClock } from '@chamvi/core';
+import { 
+    ForceLoggedInMiddleware, 
+    RequiredJsonBodyMiddleware, 
+    assertGranted, 
+    usePrincipal, 
+} from '@chamvi/http';
+import type { Principal } from '@chamvi/http';
+import { ConflictError } from '@ebec/http';
 import {
+    DBody,
+    DContext,
     DController,
     DDelete,
     DGet,
     DPatch,
+    DPath,
     DPost,
     DPut,
+    DStatus,
 } from '@routup/decorators';
+import type { IAppEvent } from 'routup';
 
 /** `GET /notes`, `GET /notes/:id`, `POST /notes/:id/approve`. */
 @DController('/notes')
@@ -97,4 +111,70 @@ export function createTestController(
     DController(url)(TestController);
 
     return new TestController();
+}
+
+/** The permission `NoteService.guarded()` checks. */
+export const NOTE_PERMISSION = 'note_read';
+
+/** A fake service: the permission check lives here, not in the controller. */
+export class NoteService {
+    protected clock: IClock;
+
+    constructor(ctx: { clock: IClock }) {
+        this.clock = ctx.clock;
+    }
+
+    async guarded(principal: Principal): Promise<{ ok: true }> {
+        await assertGranted(principal, this.clock, NOTE_PERMISSION);
+
+        return { ok: true };
+    }
+}
+
+/**
+ * A controller as an app writes it, over the public helpers of
+ * `@chamvi/http`: `GET /notes/public` (no middleware), `GET /notes/guarded`
+ * (the service checks `note_read`), `GET /notes/stale` (409),
+ * `GET /notes/boom` (a plain Error), `GET /notes/:id` (logged in) and
+ * `POST /notes` (a required JSON body, 201). The static paths come first:
+ * routup matches in declaration order and `/:id` would take them.
+ */
+@DController('/notes')
+export class NoteController {
+    protected service: NoteService;
+
+    constructor(ctx: { service: NoteService }) {
+        this.service = ctx.service;
+    }
+
+    @DGet('/public')
+    async public(): Promise<{ public: true }> {
+        return { public: true };
+    }
+
+    @DGet('/guarded')
+    async guarded(@DContext() event: IAppEvent): Promise<{ ok: true }> {
+        return this.service.guarded(await usePrincipal(event));
+    }
+
+    @DGet('/stale')
+    async stale(): Promise<never> {
+        throw new ConflictError({ code: 'STALE_LOCK', message: 'x' });
+    }
+
+    @DGet('/boom')
+    async boom(): Promise<never> {
+        throw new Error('secret');
+    }
+
+    @DGet('/:id', [ForceLoggedInMiddleware])
+    async get(@DPath('id') id: string): Promise<{ id: string }> {
+        return { id };
+    }
+
+    @DPost('', [RequiredJsonBodyMiddleware])
+    @DStatus(201)
+    async create(@DBody() body: unknown): Promise<unknown> {
+        return body;
+    }
 }

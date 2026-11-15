@@ -6,8 +6,10 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { decorators } from '@routup/decorators';
+import type { App } from 'routup';
 import { RESERVED_ROUTE_SEGMENTS } from '../app/constants.ts';
-import type { HttpAppOptions, HttpRoute } from '../app/types.ts';
+import type { HttpAppOptions, HttpContext, HttpRoute } from '../app/types.ts';
 import { readMetricsPath } from '../plugins/helpers.ts';
 import { isAtOrUnder } from '../routes/helpers.ts';
 import {
@@ -91,6 +93,19 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
     }
 
     return result;
+}
+
+/**
+ * Mounts the contributed controllers on `app`, behind the plugins and the
+ * context handler and in front of the 404 and the error handler, as the
+ * built-in ones; nothing for an empty list.
+ */
+export function registerControllers(app: App, ctx: HttpContext): void {
+    if (ctx.controllers.length === 0) {
+        return;
+    }
+
+    app.use(decorators({ controllers: ctx.controllers }));
 }
 
 /**

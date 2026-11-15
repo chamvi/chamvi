@@ -15,6 +15,7 @@ import { AuthorizationService } from '../authorization/service.ts';
 import { registerChannelRoutes } from '../channels/module.ts';
 import { ConnectionController, ConnectionTypeController, UiPageController } from '../connections/controller/index.ts';
 import { ConnectionConfigService, ConnectionService } from '../connections/service/index.ts';
+import { registerControllers } from '../controllers/module.ts';
 import { HealthController } from '../health/controller.ts';
 import { HealthService } from '../health/service.ts';
 import { registerMcpRoutes } from '../mcp/module.ts';
@@ -67,6 +68,7 @@ export function createHttpApp(options: HttpAppOptions): App {
             new UiPageController({ config: connectionConfigService }),
         ],
     }));
+    registerControllers(app, ctx);
 
     if (options.openapi !== false) {
         registerOpenApiRoutes(app, ctx, options.openapi ?? {});
