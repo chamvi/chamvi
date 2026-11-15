@@ -15,3 +15,9 @@ export const OPENAPI_DOCUMENT_ROUTE = '/openapi.json';
 
 /** @internal Where the UI is mounted, under `basePath`. */
 export const OPENAPI_UI_PATH = '/docs';
+
+/** @internal The operation keys of an OpenAPI path item, lowercase as the documents write them. */
+export const OPENAPI_OPERATION_METHODS: readonly string[] = ['get', 'put', 'post', 'delete', 'options', 'head', 'patch', 'trace'];
+
+/** @internal The operation key OpenAPI 3.2 adds. */
+export const OPENAPI_QUERY_METHOD = 'query';

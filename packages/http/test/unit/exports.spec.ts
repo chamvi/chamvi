@@ -22,10 +22,12 @@ describe('public api', () => {
             ui?: boolean;
             documentPath?: string;
             swaggerUI?: typeof swaggerUI;
+            documents?: object[];
         }>();
         expectTypeOf<http.HttpAppOptions['openapi']>().toEqualTypeOf<false | http.OpenApiOptions | undefined>();
         expect(http).not.toHaveProperty('registerOpenApiRoutes');
         expect(http).not.toHaveProperty('loadOpenApiDocument');
+        expect(http).not.toHaveProperty('mergeOpenApiDocuments');
         expect(http).not.toHaveProperty('OPENAPI_DOCUMENT_PATH');
     });
 

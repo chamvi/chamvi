@@ -47,3 +47,26 @@ export function loadOpenApiDocument(path: string, basePath: string): Record<stri
     return { ...document, servers: [{ url: basePath || '/' }] };
 }
 
+
+function canonical(value: unknown): unknown {
+    if (Array.isArray(value)) {
+        return value.map((item) => canonical(item));
+    }
+
+    if (isObject(value)) {
+        const out: Record<string, unknown> = {};
+
+        for (const key of Object.keys(value).toSorted()) {
+            out[key] = canonical(value[key]);
+        }
+
+        return out;
+    }
+
+    return value;
+}
+
+/** The JSON of `value` with the keys of every object sorted, to compare two definitions. */
+export function canonicalJson(value: unknown): string {
+    return JSON.stringify(canonical(value)) ?? 'undefined';
+}

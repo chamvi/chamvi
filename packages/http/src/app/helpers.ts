@@ -29,6 +29,7 @@ import {
 } from './constants.ts';
 import { validateChannels } from '../channels/helpers.ts';
 import { validateControllers } from '../controllers/module.ts';
+import { mergeOpenApiDocuments } from '../openapi/merge.ts';
 import { boundIssues } from '../request/helpers.ts';
 import { validateChannelRateLimits } from '../plugins/channels.ts';
 import { readMetricsPath } from '../plugins/helpers.ts';
@@ -180,6 +181,23 @@ export function createLiveAgents(engine: IEngine, names?: readonly string[]): Ht
 }
 
 /** `options.agentIssues` as a fresh array, only of the named agents when `names` is given. */
+/**
+ * The contributed OpenAPI documents checked against each other, so a
+ * collision fails construction even when chamvi's own document is missing;
+ * `registerOpenApiRoutes()` merges them into it.
+ */
+function validateOpenApiDocuments(options: HttpAppOptions): void {
+    if (options.openapi === false || options.openapi?.documents === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(options.openapi.documents)) {
+        throw new InvalidAgentDefinitionError('openapi.documents must be an array of OpenAPI documents.');
+    }
+
+    mergeOpenApiDocuments(undefined, options.openapi.documents);
+}
+
 function readAgentIssues(options: HttpAppOptions): () => AgentIssue[] {
     const read = options.agentIssues;
 
@@ -226,6 +244,8 @@ export function buildContext(options: HttpAppOptions): HttpContext {
 
     const routes = validateRoutes(options);
     const controllerRoutes = validateControllers(options, routes);
+
+    validateOpenApiDocuments(options);
 
     return {
         engine: options.engine,
