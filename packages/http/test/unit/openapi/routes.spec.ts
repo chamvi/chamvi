@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createHash } from 'node:crypto';
 import {
     mkdtempSync,
     rmSync,
@@ -75,18 +74,29 @@ function setup(overrides: TestAppOverrides = {}) {
     return { app, errors };
 }
 
-/** The `var options = {...};` the UI shell inlines, parsed. */
-function inlinedOptions(html: string): Record<string, unknown> {
-    const match = /var options = (\{[\s\S]*?\});\n/.exec(html);
+/** The `var options = {...};` of the UI's generated `swagger-initializer.js`, parsed. */
+async function initializerOptions(app: App, path = '/docs'): Promise<Record<string, unknown>> {
+    const response = await get(app, `${path}/swagger-initializer.js`);
+    const match = /var options = (\{[\s\S]*?\});\n/.exec(await response.text());
 
+    expect(response.status).toBe(200);
     expect(match).not.toBeNull();
 
     return JSON.parse(match![1]!) as Record<string, unknown>;
 }
 
-function sha256(content: string): string {
-    return `'sha256-${createHash('sha256').update(content, 'utf8').digest('base64')}'`;
-}
+/** The policy of every file the UI answers: own files only, no inline code, no framing. */
+const POLICY = [
+    'default-src \'none\'',
+    'script-src \'self\'',
+    'style-src \'self\'',
+    'img-src \'self\' data:',
+    'font-src \'self\'',
+    'connect-src \'self\'',
+    'base-uri \'self\'',
+    'form-action \'self\'',
+    'frame-ancestors \'none\'',
+].join('; ');
 
 describe('GET /openapi.json', () => {
     it('serves the document without a token, its server the app root', async () => {
@@ -132,24 +142,50 @@ describe('GET /openapi.json', () => {
 });
 
 describe('GET /docs', () => {
-    it.each(['/docs', '/docs/'])('serves the UI shell at %s, inlining the served document', async (path) => {
+    it.each(['/docs', '/docs/', '/docs/index.html'])('serves the UI shell at %s, its initializer holding the served document', async (path) => {
         const { app } = setup();
         const response = await get(app, path);
 
         expect(response.status).toBe(200);
         expect(response.headers.get('content-type')).toBe('text/html; charset=utf-8');
+        expect(await response.text()).toContain('<script src="./swagger-initializer.js"></script>');
 
-        const options = inlinedOptions(await response.text());
+        const options = await initializerOptions(app);
         const served = await (await get(app, '/openapi.json')).json();
 
         expect(options.spec).toEqual(served);
+    });
+
+    it('generates an initializer of the document and the UI options only', async () => {
+        const { app } = setup();
+        const response = await get(app, '/docs/swagger-initializer.js');
+        const text = await response.text();
+
+        expect(response.headers.get('content-type')).toBe('text/javascript; charset=utf-8');
+        expect(Object.keys(await initializerOptions(app)).toSorted()).toEqual(['layout', 'spec', 'url', 'validatorUrl']);
+        // no file system path of the server, no petstore of swagger-ui-dist
+        expect(text).not.toContain(DIRECTORY);
+        expect(text).not.toContain(process.cwd());
+        expect(text).not.toMatch(/petstore/i);
+    });
+
+    it('escapes the document in the initializer', async () => {
+        const hostile = '</script><script>alert(1)</script><!-- $& $` $\' $$ \u2028';
+        const documentPath = fixture('hostile.json', JSON.stringify({ ...DOCUMENT, info: { ...DOCUMENT.info, description: hostile } }));
+        const { app } = setup({ openapi: { documentPath } });
+        const text = await (await get(app, '/docs/swagger-initializer.js')).text();
+
+        expect(text).not.toMatch(/<\/script|<script|<!--|\u2028/i);
+        expect(text).toContain('\\u003c/script\\u003e');
+        expect(((await initializerOptions(app)).spec as typeof DOCUMENT & { info: { description: string } }).info.description).toBe(hostile);
+        expect(await (await get(app, '/docs')).text()).not.toContain('alert');
     });
 
     it('under basePath, roots the page and its document at the base path', async () => {
         const { app } = setup({ basePath: '/api' });
         const html = await (await get(app, '/api/docs')).text();
 
-        const options = inlinedOptions(html);
+        const options = await initializerOptions(app, '/api/docs');
 
         expect(html).toContain('<base href="/api/docs/" />');
         expect(options.url).toBe('/api/openapi.json');
@@ -163,13 +199,16 @@ describe('GET /docs', () => {
     it.each([
         ['/DOCS', ''],
         ['/DoCs/', ''],
+        ['/api/DOCS', '/api'],
         ['/API/docs', '/api'],
-    ])('answers the shell only at its canonical path: %s is the JSON 404 and does not leak into <base href>', async (path, basePath) => {
+    ])('serves the shell at %s with that casing as <base href>, per request', async (path, basePath) => {
         const { app } = setup({ basePath });
         const other = await get(app, path);
 
-        expect(other.status).toBe(404);
-        expect(await other.json()).toMatchObject({ status: 404 });
+        expect(other.status).toBe(200);
+        expect(other.headers.get('content-security-policy')).toBe(POLICY);
+        expect(await other.text()).toContain(`<base href="${path.replace(/\/$/, '')}/" />`);
+        // the next canonical request gets its own base
         expect(await (await get(app, `${basePath}/docs`)).text()).toContain(`<base href="${basePath}/docs/" />`);
     });
 
@@ -180,13 +219,13 @@ describe('GET /docs', () => {
         const etag = first.headers.get('etag');
 
         await first.text();
-        expect(csp).toContain('sha256-');
+        expect(csp).toBe(POLICY);
         expect(etag).toBeTruthy();
 
         const second = await get(app, `${basePath}/docs`, { 'if-none-match': etag! });
 
         expect(second.status).toBe(304);
-        // a browser merges these headers into its stored shell: never a policy without the hashes
+        // a browser merges these headers into its stored shell
         expect(second.headers.get('content-security-policy')).toBe(csp);
 
         const third = await get(app, `${basePath}/docs/`);
@@ -194,7 +233,7 @@ describe('GET /docs', () => {
         expect(third.headers.get('content-security-policy')).toBe(csp);
     });
 
-    it.each(['POST', 'DELETE', 'PUT'])('answers %s below /docs with the JSON 404', async (method) => {
+    it.each(['POST', 'DELETE', 'PUT', 'OPTIONS'])('answers %s below /docs with the JSON 404', async (method) => {
         const { app } = setup();
 
         for (const path of ['/docs', '/docs/', '/docs/swagger-ui.css']) {
@@ -208,9 +247,8 @@ describe('GET /docs', () => {
 
         // the next shell still carries the full policy
         const shell = await get(app, '/docs');
-        const html = await shell.text();
 
-        expect(shell.headers.get('content-security-policy')).toContain(`script-src 'self' ${sha256(/<script>([\s\S]*?)<\/script>/.exec(html)![1]!)};`);
+        expect(shell.headers.get('content-security-policy')).toBe(POLICY);
     });
 
     it.each(['', '/api'])('sends the full policy on a HEAD before any GET, and the same on the GET and its 304 (basePath "%s")', async (basePath) => {
@@ -220,13 +258,10 @@ describe('GET /docs', () => {
         expect(head.status).toBe(200);
 
         const first = await get(app, `${basePath}/docs`);
-        const html = await first.text();
         const csp = first.headers.get('content-security-policy');
-        const script = /<script>([\s\S]*?)<\/script>/.exec(html)![1]!;
-        const style = /<style>([\s\S]*?)<\/style>/.exec(html)![1]!;
 
-        expect(csp).toContain(`script-src 'self' ${sha256(script)};`);
-        expect(csp).toContain(`style-src 'self' ${sha256(style)};`);
+        await first.text();
+        expect(csp).toBe(POLICY);
         // a HEAD before any GET already carries the policy of the shell a GET sends
         expect(head.headers.get('content-security-policy')).toBe(csp);
 
@@ -240,27 +275,23 @@ describe('GET /docs', () => {
         expect(later.headers.get('content-security-policy')).toBe(csp);
     });
 
-    it('omits the policy on a conditional answer before any full shell was sent', async () => {
+    it('sends the policy on a conditional answer before any full shell was sent', async () => {
         const { app } = setup();
         const etag = (await get(setup().app, '/docs')).headers.get('etag');
         const response = await get(app, '/docs', { 'if-none-match': etag! });
 
         expect(response.status).toBe(304);
-        // the stored shell (same etag, same body) keeps its own full policy
-        expect(response.headers.get('content-security-policy')).toBeNull();
-        expect((await get(app, '/docs')).headers.get('content-security-policy')).toContain('sha256-');
+        expect(response.headers.get('content-security-policy')).toBe(POLICY);
     });
 
-    it('sends a CSP that allows exactly the inline blocks of the page, and the static security headers', async () => {
+    it('has no inline code and sends a CSP of its own files only, and the static security headers', async () => {
         const { app } = setup();
         const response = await get(app, '/docs');
         const html = await response.text();
         const csp = response.headers.get('content-security-policy') ?? '';
-        const scripts = html.matchAll(/<script>([\s\S]*?)<\/script>/g).toArray().map((match) => match[1]!);
-        const styles = html.matchAll(/<style>([\s\S]*?)<\/style>/g).toArray().map((match) => match[1]!);
 
-        expect(scripts).toHaveLength(1);
-        expect(styles).toHaveLength(1);
+        expect(html).not.toMatch(/<script(?![^>]*\ssrc=)[^>]*>/);
+        expect(html).not.toMatch(/<style|\sstyle=/);
 
         const directives = Object.fromEntries(csp.split(';').map((part) => {
             const [name, ...values] = part.trim().split(/\s+/);
@@ -270,8 +301,8 @@ describe('GET /docs', () => {
 
         expect(directives).toEqual({
             'default-src': '\'none\'',
-            'script-src': `'self' ${sha256(scripts[0]!)}`,
-            'style-src': `'self' ${sha256(styles[0]!)}`,
+            'script-src': '\'self\'',
+            'style-src': '\'self\'',
             'img-src': '\'self\' data:',
             'font-src': '\'self\'',
             'connect-src': '\'self\'',
@@ -291,6 +322,8 @@ describe('GET /docs', () => {
         ['/docs/swagger-ui-bundle.js', '/javascript'],
         ['/docs/swagger-ui-standalone-preset.js', '/javascript'],
         ['/docs/favicon-32x32.png', 'image/png'],
+        ['/docs/index.css', 'text/css'],
+        ['/docs/swagger-initializer.js', '/javascript'],
     ])('serves the asset %s the page loads', async (path, type) => {
         const { app } = setup({ basePath: '/api' });
         const response = await get(app, `/api${path}`);
@@ -318,8 +351,6 @@ describe('GET /docs', () => {
     });
 
     it.each([
-        '/docs/index.html',
-        '/docs/swagger-initializer.js',
         '/docs/oauth2-redirect.html',
         '/docs/oauth2-redirect.js',
         '/docs/package.json',
@@ -331,6 +362,8 @@ describe('GET /docs', () => {
         '/docs/x',
         '/docs/a/swagger-ui.css',
         '/docs/SWAGGER-UI.CSS',
+        '/docs//',
+        '/docs/..%2fpackage.json',
     ])('answers %s, no file of the shell, with the JSON 404', async (path) => {
         const { app } = setup();
         const response = await get(app, path);

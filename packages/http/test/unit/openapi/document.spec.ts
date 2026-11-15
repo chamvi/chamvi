@@ -476,19 +476,6 @@ describe.skipIf(!document)('the generated openapi document', () => {
         expect(lastEventId?.description).toMatch(/wins over `after`/);
     });
 
-    it('can be inlined into the ui shell unescaped', () => {
-        // @routup/swagger-ui writes the document into a <script> with String.replace, unescaped
-        // (routup/plugins#855): nothing may close the script or open a comment, no replacement pattern expand
-        const content = JSON.stringify(doc);
-
-        expect(content).not.toMatch(/<\/script/i);
-        expect(content).not.toContain('<!--');
-
-        for (const pattern of ['$&', '$`', '$\'', '$$']) {
-            expect(content, pattern).not.toContain(pattern);
-        }
-    });
-
     it('speaks to API consumers in its descriptions', () => {
         const texts: string[] = [];
         const collect = (value: unknown): void => {

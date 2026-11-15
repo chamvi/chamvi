@@ -6,7 +6,6 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { NotFoundError } from '@ebec/http';
 import { swaggerUI } from '@routup/swagger-ui';
 import { App, defineCoreHandler } from 'routup';
 import type { HttpContext } from '../app/types.ts';
@@ -14,10 +13,10 @@ import { DOCUMENT_CACHE_CONTROL, STATIC_SECURITY_HEADERS } from '../static/const
 import {
     OPENAPI_DOCUMENT_PATH,
     OPENAPI_DOCUMENT_ROUTE,
-    OPENAPI_UI_ASSETS,
+    OPENAPI_UI_CSP,
     OPENAPI_UI_PATH,
 } from './constants.ts';
-import { buildOpenApiUiCsp, loadOpenApiDocument } from './helpers.ts';
+import { loadOpenApiDocument } from './helpers.ts';
 import type { OpenApiOptions } from './types.ts';
 
 /**
@@ -41,7 +40,7 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
 
     const content = JSON.stringify(document);
 
-    // outside the UI's mount, which answers every path below it with its HTML shell
+    // outside the UI's mount
     app.get(OPENAPI_DOCUMENT_ROUTE, defineCoreHandler((event) => {
         event.response.headers.set('content-type', 'application/json; charset=utf-8');
 
@@ -54,49 +53,19 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
     }
 
     const ui = new App();
-    const mount = `${ctx.basePath}${OPENAPI_UI_PATH}`;
-    // computed once from the first full shell (a 200 GET): the plugin compiles it once, so its hashes never change
-    let policy: string | undefined;
 
+    // the plugin answers GET and HEAD of its shell and files only, each with the policy (`csp`); everything
+    // else falls through to the JSON 404, which stays as on any other path
     ui.use(defineCoreHandler(async (event) => {
-        // only the canonical casing: the plugin compiles its `<base href>` from the first request's mount path
-        // (`/docs/` mounts as `/docs/`)
-        const rest = event.mountPath.replace(/\/$/, '') === mount ? event.path.slice(mount.length) : undefined;
-        const shell = rest === '' || rest === '/';
-        // the plugin answers every method, the catch-all's JSON 404 is what any other path gives a POST
-        const readable = event.method === 'GET' || event.method === 'HEAD';
-
-        if (!readable || rest === undefined || (!shell && !OPENAPI_UI_ASSETS.includes(rest.slice(1)))) {
-            throw new NotFoundError({ message: 'The requested route does not exist.' });
-        }
-
-        for (const [name, value] of Object.entries(STATIC_SECURITY_HEADERS)) {
-            event.response.headers.set(name, value);
-        }
-
         const response = await event.next();
 
-        if (!shell || !response) {
-            return response;
-        }
-
-        // a HEAD answer holds the same shell until the server adapter drops the body, so a HEAD before
-        // any GET carries the full policy too; an empty body (nothing to hash) never sets it
-        if (policy === undefined && response.status === 200) {
-            const html = await response.clone().text();
-
-            if (html !== '') {
-                policy = buildOpenApiUiCsp(html);
+        if (response?.headers.has('content-security-policy')) {
+            for (const [name, value] of Object.entries(STATIC_SECURITY_HEADERS)) {
+                response.headers.set(name, value);
             }
-        }
 
-        // a 304 carries the same full policy (a browser merges it into its stored shell); before any
-        // full shell none at all, so the stored one (same etag, same body) keeps its own
-        if (policy !== undefined) {
-            response.headers.set('content-security-policy', policy);
+            response.headers.set('cache-control', DOCUMENT_CACHE_CONTROL);
         }
-
-        response.headers.set('cache-control', DOCUMENT_CACHE_CONTROL);
 
         return response;
     }));
@@ -105,13 +74,14 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
 
     // the plugin reads its template and resolves swagger-ui-dist synchronously: a broken install costs the UI, not the app
     try {
-        // the parsed document, the same object the JSON route serves: the plugin inlines it into its shell
+        // the parsed document, the same object the JSON route serves: the plugin escapes it into its initializer
         factory(document, {
             url: `${ctx.basePath}${OPENAPI_DOCUMENT_ROUTE}`,
-            // no topbar (the shell hides it anyway): its logo carries an inline style the CSP refuses
+            // no topbar: its logo carries an inline style the CSP refuses
             layout: 'BaseLayout',
             // no badge from validator.swagger.io
             validatorUrl: null,
+            csp: OPENAPI_UI_CSP,
         }).install(ui);
     } catch (error) {
         const reason = Error.isError(error) ? error.message : String(error);
