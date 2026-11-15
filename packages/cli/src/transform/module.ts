@@ -26,8 +26,8 @@ export function isTypeScriptFile(file: string): boolean {
     return TYPESCRIPT_FILE_PATTERN.test(file);
 }
 
-async function register(cwd: string): Promise<void> {
-    const transform = await importTransform(cwd);
+async function register(cwd: string, from: string): Promise<void> {
+    const transform = await importTransform(from);
     const file = path.resolve(cwd, TSCONFIG_FILE);
     // without one, rolldown's defaults: what the build does
     const tsconfig = existsSync(file) ? file : false;
@@ -72,13 +72,17 @@ async function register(cwd: string): Promise<void> {
 /**
  * Registers, once per process, the synchronous `load` and `resolve` hooks
  * that transform TypeScript sources outside `node_modules` with rolldown's
- * `transformSync` (through the tsdown of `cwd`, with `cwd`'s
- * `tsconfig.json`, so legacy decorators load as `chamvi build` compiles
- * them), and enables source maps. A later call is a no-op, whatever its
- * `cwd`; a failed one (no tsdown) can be retried.
+ * `transformSync` (through the tsdown `chamvi build` imports, the one
+ * resolving from the CLI itself, with `cwd`'s `tsconfig.json`, so legacy
+ * decorators load as the build compiles them), and enables source maps. A
+ * later call is a no-op, whatever its `cwd`; a failed one (no tsdown) can be
+ * retried. `from` (internal, for the specs) is where tsdown resolves from.
  */
-export function registerTypeScriptHooks(options: TypeScriptHooksOptions): Promise<void> {
-    registration ??= register(options.cwd).catch((error: unknown) => {
+export function registerTypeScriptHooks(
+    options: TypeScriptHooksOptions,
+    from: string = import.meta.url,
+): Promise<void> {
+    registration ??= register(options.cwd, from).catch((error: unknown) => {
         registration = undefined;
 
         throw error;

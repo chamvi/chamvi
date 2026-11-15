@@ -167,8 +167,27 @@ describe('registerTypeScriptHooks', () => {
         }
     });
 
-    it('is a usage error when tsdown does not resolve from cwd', () => {
-        const report = run(scratch, ENTRY);
+    it('transforms with the tsdown the CLI resolves, not one under cwd', async () => {
+        // a decoy tsdown whose rolldown fails every transform, only under cwd
+        const cwd = path.join(scratch, 'decoy');
+        const tsdown = path.join(cwd, 'node_modules', 'tsdown');
+        const rolldown = path.join(tsdown, 'node_modules', 'rolldown');
+
+        await mkdir(rolldown, { recursive: true });
+        await writeFile(path.join(cwd, 'tsconfig.json'), await readFile(path.join(FIXTURE, 'tsconfig.json')));
+        await writeFile(path.join(tsdown, 'package.json'), '{ "name": "tsdown", "type": "module", "exports": { ".": "./index.js" } }\n');
+        await writeFile(path.join(tsdown, 'index.js'), 'export {};\n');
+        await writeFile(path.join(rolldown, 'package.json'), '{ "name": "rolldown", "type": "module", "exports": { "./utils": "./utils.js" } }\n');
+        await writeFile(path.join(rolldown, 'utils.js'), 'export function transformSync() { throw new Error(\'the decoy rolldown\'); }\n');
+
+        const report = run(cwd, ENTRY);
+
+        expect(report.error).toBeUndefined();
+        expect(report.probe?.url).toBe('/notes');
+    });
+
+    it('is a usage error when tsdown does not resolve', () => {
+        const report = run(FIXTURE, ENTRY, ['--from', scratch]);
 
         expect(report.error?.code).toBe('cli_usage');
         expect(report.error?.message).toMatch(/^The entry is TypeScript: install tsdown \^0\.23\.\d+ to load it\.$/);

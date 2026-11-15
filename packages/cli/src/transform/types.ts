@@ -6,7 +6,7 @@
  */
 
 export type TypeScriptHooksOptions = {
-    /** The working directory: tsdown resolves from it, and its `tsconfig.json` configures the transform. */
+    /** The working directory: its `tsconfig.json` configures the transform. */
     cwd: string;
 };
 

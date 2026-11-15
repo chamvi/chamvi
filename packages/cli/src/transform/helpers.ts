@@ -7,7 +7,6 @@
 
 import { Buffer } from 'node:buffer';
 import { createRequire } from 'node:module';
-import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ValidationError } from '@chamvi/app';
 import { TSDOWN_PACKAGE } from '../commands/constants.ts';
@@ -17,15 +16,16 @@ import { ROLLDOWN_UTILS, TSDOWN_RANGE } from './constants.ts';
 import type { TransformError, TransformSync } from './types.ts';
 
 /**
- * rolldown's `transformSync`, through the tsdown that resolves from `cwd`
- * (the rolldown `chamvi build` compiles with). No tsdown is a `cli_usage`
- * error.
+ * rolldown's `transformSync`, through the tsdown that resolves from `from`
+ * (a file URL or path; the CLI's own module, where `chamvi build` imports
+ * tsdown from, so dev transforms with the rolldown the build bundles with).
+ * No tsdown is a `cli_usage` error.
  */
-export async function importTransform(cwd: string): Promise<TransformSync> {
+export async function importTransform(from: string): Promise<TransformSync> {
     let tsdown: string;
 
     try {
-        tsdown = createRequire(path.resolve(cwd, 'package.json')).resolve(TSDOWN_PACKAGE);
+        tsdown = createRequire(from).resolve(TSDOWN_PACKAGE);
     } catch (error) {
         if (isTsdownMissing(error)) {
             throw createUsageError(`The entry is TypeScript: install ${TSDOWN_PACKAGE} ${TSDOWN_RANGE} to load it.`);

@@ -7,8 +7,9 @@
 
 /*
  * Run by the transform specs in a child `node` (the hooks must not leak into
- * the Vitest process): `node register-runner.ts <cwd> <entry> [--twice]`.
- * Registers the TypeScript hooks for `<cwd>` (twice with `--twice`), imports
+ * the Vitest process): `node register-runner.ts <cwd> <entry> [--twice]
+ * [--from <dir>]`. Registers the TypeScript hooks for `<cwd>` (twice with
+ * `--twice`; with tsdown resolved from `<dir>` with `--from`), imports
  * `<entry>` and prints one JSON line: how often `registerHooks` was called,
  * how often each URL was transformed, the probe of the decorated fixture's
  * exports, or the error.
@@ -16,6 +17,7 @@
 
 import nodeModule from 'node:module';
 import type { LoadHookSync, RegisterHooksOptions } from 'node:module';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { useDecoratorMeta } from '@routup/decorators';
 
@@ -96,10 +98,13 @@ function probe(exports: Record<string, unknown>): Record<string, unknown> {
 try {
     const { registerTypeScriptHooks } = await import('../../src/transform/index.ts');
 
-    await registerTypeScriptHooks({ cwd });
+    const at = flags.indexOf('--from');
+    const from = at === -1 ? undefined : pathToFileURL(path.join(flags[at + 1] ?? '', 'index.js')).href;
+
+    await registerTypeScriptHooks({ cwd }, from);
 
     if (flags.includes('--twice')) {
-        await registerTypeScriptHooks({ cwd });
+        await registerTypeScriptHooks({ cwd }, from);
     }
 
     const exports = await import(pathToFileURL(entry).href) as Record<string, unknown>;
