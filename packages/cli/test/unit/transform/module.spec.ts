@@ -109,6 +109,21 @@ describe('registerTypeScriptHooks', () => {
         expect(report.probe).toBeUndefined();
     });
 
+    it('finds the nearest tsconfig above the cwd, as tsdown does', async () => {
+        // one root tsconfig, the app in a subfolder without one
+        const root = path.join(scratch, 'mono');
+        const cwd = path.join(root, 'app');
+
+        await mkdir(cwd, { recursive: true });
+        await writeFile(path.join(root, 'tsconfig.json'), await readFile(path.join(FIXTURE, 'tsconfig.json')));
+
+        const report = run(cwd, ENTRY);
+
+        expect(report.error).toBeUndefined();
+        expect(report.probe?.url).toBe('/notes');
+        expect(report.probe?.columns).toEqual({ title: 'String' });
+    });
+
     it('follows a tsconfig that extends the one carrying the flags', () => {
         const report = run(path.join(FIXTURE, 'tsconfigs', 'extends'), ENTRY);
 
@@ -154,6 +169,23 @@ describe('registerTypeScriptHooks', () => {
         expect(report.transforms[pathToFileURL(file).href]).toBeUndefined();
     });
 
+    it('leaves the @oxc-project/runtime imports of a file under node_modules to its own copy', async () => {
+        // a dependency with a nested runtime copy, which the CLI's copy must not replace
+        const dir = path.join(scratch, 'node_modules', 'runtime-user');
+        const runtime = path.join(dir, 'node_modules', '@oxc-project', 'runtime');
+        const file = path.join(dir, 'index.mjs');
+
+        await mkdir(path.join(runtime, 'helpers'), { recursive: true });
+        await writeFile(path.join(runtime, 'package.json'), '{ "name": "@oxc-project/runtime", "type": "module", "exports": { "./helpers/*": "./helpers/*.js" } }\n');
+        await writeFile(path.join(runtime, 'helpers', 'decorate.js'), 'export default \'nested\';\n');
+        await writeFile(file, 'import decorate from \'@oxc-project/runtime/helpers/decorate\';\n\nexport const COLUMNS = { runtime: typeof decorate === \'string\' ? decorate : \'cli\' };\n');
+
+        const report = run(FIXTURE, file);
+
+        expect(report.error).toBeUndefined();
+        expect(report.probe?.columns).toEqual({ runtime: 'nested' });
+    });
+
     it('registers once per process and transforms each file once', () => {
         const report = run(FIXTURE, ENTRY, ['--twice']);
 
@@ -191,5 +223,46 @@ describe('registerTypeScriptHooks', () => {
 
         expect(report.error?.code).toBe('cli_usage');
         expect(report.error?.message).toMatch(/^The entry is TypeScript: install tsdown \^0\.23\.\d+ to load it\.$/);
+    });
+
+    /** A fake tsdown under `<dir>/node_modules`, with a nested rolldown of the given package.json, or none. */
+    async function fakeTsdown(dir: string, rolldown?: string): Promise<void> {
+        const tsdown = path.join(dir, 'node_modules', 'tsdown');
+
+        await mkdir(tsdown, { recursive: true });
+        await writeFile(path.join(tsdown, 'package.json'), '{ "name": "tsdown", "type": "module", "exports": { ".": "./index.js" } }\n');
+        await writeFile(path.join(tsdown, 'index.js'), 'export {};\n');
+
+        if (rolldown === undefined) {
+            return;
+        }
+
+        const nested = path.join(tsdown, 'node_modules', 'rolldown');
+
+        await mkdir(nested, { recursive: true });
+        await writeFile(path.join(nested, 'package.json'), rolldown);
+        await writeFile(path.join(nested, 'index.js'), 'export {};\n');
+    }
+
+    it('is a usage error when the rolldown of tsdown has no utils export', async () => {
+        const dir = path.join(scratch, 'old-rolldown');
+
+        await fakeTsdown(dir, '{ "name": "rolldown", "type": "module", "exports": { ".": "./index.js" } }\n');
+
+        const report = run(FIXTURE, ENTRY, ['--from', dir]);
+
+        expect(report.error?.code).toBe('cli_usage');
+        expect(report.error?.message).toMatch(/^The rolldown of tsdown exports no transformSync\(\): install tsdown \^0\.23\.\d+\.$/);
+    });
+
+    it('is a usage error when tsdown has no rolldown', async () => {
+        const dir = path.join(scratch, 'no-rolldown');
+
+        await fakeTsdown(dir);
+
+        const report = run(FIXTURE, ENTRY, ['--from', dir]);
+
+        expect(report.error?.code).toBe('cli_usage');
+        expect(report.error?.message).toMatch(/^The rolldown of tsdown exports no transformSync\(\): install tsdown \^0\.23\.\d+\.$/);
     });
 });

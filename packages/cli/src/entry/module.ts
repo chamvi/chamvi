@@ -114,10 +114,11 @@ export async function resolveEntry(input: ResolveEntryInput): Promise<string | u
 /**
  * Imports the entry (as a file URL) and returns its default export; a default
  * export that is no app is a `cli_usage` error. A TypeScript entry first
- * registers the TypeScript hooks (with `cwd`'s tsconfig), so decorated
- * sources load as `chamvi build` compiles them; a JavaScript entry (the
- * built `dist/index.mjs`) registers nothing and needs no tsdown. Errors of
- * the import itself (a module factory missing its env) pass through.
+ * registers the TypeScript hooks (with the tsconfig the build finds from
+ * `cwd`), so decorated sources load as `chamvi build` compiles them; a
+ * JavaScript entry (the built `dist/index.mjs`) registers nothing and needs
+ * no tsdown. Errors of the import itself (a module factory missing its env)
+ * pass through.
  */
 export async function loadApp(file: string, context: Pick<CliContext, 'cwd' | 'importModule'>): Promise<IApp> {
     if (isTypeScriptFile(file)) {

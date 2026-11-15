@@ -6,13 +6,21 @@
  */
 
 import { Buffer } from 'node:buffer';
+import { existsSync } from 'node:fs';
 import { createRequire } from 'node:module';
+import path from 'node:path';
 import { pathToFileURL } from 'node:url';
 import { ValidationError } from '@chamvi/app';
 import { TSDOWN_PACKAGE } from '../commands/constants.ts';
 import { isTsdownMissing } from '../commands/helpers.ts';
 import { createUsageError, isRecord } from '../run/helpers.ts';
-import { ROLLDOWN_UTILS, TSDOWN_RANGE } from './constants.ts';
+import {
+    NODE_MODULES_SEGMENT,
+    ROLLDOWN_UTILS,
+    ROLLDOWN_UTILS_MISSING_CODES,
+    TSCONFIG_FILE,
+    TSDOWN_RANGE,
+} from './constants.ts';
 import type { TransformError, TransformSync } from './types.ts';
 
 /**
@@ -34,14 +42,59 @@ export async function importTransform(from: string): Promise<TransformSync> {
         throw error;
     }
 
-    const utils: unknown = await import(pathToFileURL(createRequire(tsdown).resolve(ROLLDOWN_UTILS)).href);
+    const outdated = () => createUsageError(`The rolldown of ${TSDOWN_PACKAGE} exports no transformSync(): install ${TSDOWN_PACKAGE} ${TSDOWN_RANGE}.`);
+    let file: string;
+
+    try {
+        file = createRequire(tsdown).resolve(ROLLDOWN_UTILS);
+    } catch (error) {
+        const { code } = isRecord(error) ? error : {};
+
+        if (typeof code === 'string' && ROLLDOWN_UTILS_MISSING_CODES.includes(code)) {
+            throw outdated();
+        }
+
+        throw error;
+    }
+
+    const utils: unknown = await import(pathToFileURL(file).href);
     const transform = isRecord(utils) ? utils.transformSync : undefined;
 
     if (typeof transform !== 'function') {
-        throw createUsageError(`The rolldown of ${TSDOWN_PACKAGE} exports no transformSync(): install ${TSDOWN_PACKAGE} ${TSDOWN_RANGE}.`);
+        throw outdated();
     }
 
     return transform as TransformSync;
+}
+
+/**
+ * The nearest `tsconfig.json` at or above `cwd`, else `false` (rolldown's
+ * defaults): the lookup of tsdown's `findTsconfig()` for a build without a
+ * `tsconfig` option, so the transform reads the file `chamvi build` does.
+ */
+export function findTsconfig(cwd: string): string | false {
+    let dir = path.resolve(cwd);
+
+    for (;;) {
+        const file = path.join(dir, TSCONFIG_FILE);
+
+        if (existsSync(file)) {
+            return file;
+        }
+
+        const parent = path.dirname(dir);
+
+        if (parent === dir) {
+            return false;
+        }
+
+        dir = parent;
+    }
+}
+
+/** Whether `url` is a file the load hook transforms when TypeScript: a `file:` URL outside `node_modules`. */
+export function isAppFileUrl(url: string | undefined): boolean {
+    return url !== undefined && url.startsWith('file:') && !url.includes(NODE_MODULES_SEGMENT);
 }
 
 function formatError(filename: string, error: TransformError): string {

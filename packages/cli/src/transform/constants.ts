@@ -23,7 +23,13 @@ export const ROLLDOWN_UTILS = 'rolldown/utils';
 /** The helpers the transform output imports, resolved from the CLI's own dependency. */
 export const OXC_RUNTIME_PREFIX = '@oxc-project/runtime/';
 
-/** The tsconfig of the working directory, the one `chamvi build` (tsdown) reads. */
+/**
+ * The tsconfig file name: the nearest one at or above the working directory
+ * configures the transform, the file `chamvi build` (tsdown) finds.
+ */
 export const TSCONFIG_FILE = 'tsconfig.json';
+
+/** The codes of a `rolldown/utils` that does not resolve through tsdown. */
+export const ROLLDOWN_UTILS_MISSING_CODES: readonly string[] = ['ERR_PACKAGE_PATH_NOT_EXPORTED', 'MODULE_NOT_FOUND'];
 
 export const NODE_MODULES_SEGMENT = '/node_modules/';
