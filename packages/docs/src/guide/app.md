@@ -18,7 +18,7 @@ npm install --save-dev tsdown   # for chamvi build and a TypeScript entry
 - An entry whose default export is not an app (checked with `isApp()`, which also recognizes an app of another installed copy) makes the CLI exit 2.
 - `@chamvi/app` re-exports `@chamvi/core`, `@chamvi/access` (`Permission`, `can`, `canSome` and the binding types, see [Permissions and authup](/guide/permissions)) and the common part of `@chamvi/http` (the `Authenticator`, `Principal`, `HttpRoute*` and `StaticToken` types), so an agent repository imports one package.
 
-`dev` transforms the source with the engine and the `tsconfig.json` that `build` bundles with (tsdown), so both accept the same code; Node resolves the imports, so relative imports carry `.ts`. Decorators need `experimentalDecorators` in that `tsconfig.json`, see [TypeScript entries](/reference/cli#typescript-entries). The template `tsconfig.json`:
+`dev` transforms the source with the engine and the `tsconfig.json` that `build` bundles with (tsdown), so both compile the same syntax; Node resolves the imports, so relative imports carry `.ts` and tsconfig `paths` are not applied. Decorators need `experimentalDecorators` in that `tsconfig.json`, see [TypeScript entries](/reference/cli#typescript-entries). The template `tsconfig.json`:
 
 ```json
 {
