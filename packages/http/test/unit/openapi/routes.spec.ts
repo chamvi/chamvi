@@ -105,6 +105,8 @@ function expectUiHeaders(response: Response): void {
     expect(response.headers.get('referrer-policy')).toBe('no-referrer');
     expect(response.headers.get('x-frame-options')).toBe('DENY');
     expect(response.headers.get('cache-control')).toBe('no-cache');
+    // the initializer holds the document: no other origin may include it as a script
+    expect(response.headers.get('cross-origin-resource-policy')).toBe('same-origin');
 }
 
 describe('GET /openapi.json', () => {

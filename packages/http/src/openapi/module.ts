@@ -65,6 +65,8 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
             }
 
             response.headers.set('cache-control', DOCUMENT_CACHE_CONTROL);
+            // `swagger-initializer.js` holds the document: no other origin may include it with `<script src>`
+            response.headers.set('cross-origin-resource-policy', 'same-origin');
         }
 
         return response;

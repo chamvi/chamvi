@@ -19,8 +19,9 @@ export const OPENAPI_UI_PATH = '/docs';
 /**
  * @internal The Content-Security-Policy of every file the UI answers (the
  * plugin's `csp` option, also on a 304 and a HEAD): the shell has no inline
- * script or style, so its own files only. Stricter than the plugin's
- * recommended one: `default-src 'none'`, no `blob:`, no `frame-ancestors`.
+ * script or style, so its own files only. It sets `default-src 'none'` and
+ * `frame-ancestors 'none'` and allows no `blob:`, which the plugin's
+ * recommended policy does not do (routup/plugins#864).
  */
 export const OPENAPI_UI_CSP = [
     "default-src 'none'",
