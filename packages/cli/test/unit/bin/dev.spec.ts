@@ -38,6 +38,20 @@ describe('bin dev', () => {
         await app.remove();
     });
 
+    it('dev runs a decorated entry and restarts on a change', async () => {
+        await app.remove();
+        app = await copyFixtureApp('decorated');
+        cli = dev();
+        await waitForOk(`http://127.0.0.1:${port}/readyz`);
+        await cli.waitForOutput((output) => count(output, LISTENING) === 1);
+
+        await untilRestart(cli, 2, (i) => appendFile(path.join(app.cwd, 'src/controller.ts'), `\n// changed ${i}\n`));
+        await waitForOk(`http://127.0.0.1:${port}/readyz`);
+
+        process.kill(-cli.child.pid!, 'SIGINT');
+        expect((await cli.exited(15_000)).code).toBe(0);
+    });
+
     function dev(): CliProcess {
         // a group of its own, signalled like a terminal signals its foreground group
         return spawnCli(['dev'], {

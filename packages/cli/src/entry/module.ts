@@ -12,6 +12,7 @@ import { createApp, isApp } from '@chamvi/app';
 import type { IApp } from '@chamvi/app';
 import { createUsageError, isRecord } from '../run/helpers.ts';
 import type { CliContext } from '../run/types.ts';
+import { isTypeScriptFile, registerTypeScriptHooks } from '../transform/module.ts';
 import { BUILT_ENTRY, DEFAULT_APP_NOTICE, SOURCE_ENTRY } from './constants.ts';
 import type { ResolveEntryInput } from './types.ts';
 
@@ -112,11 +113,18 @@ export async function resolveEntry(input: ResolveEntryInput): Promise<string | u
 
 /**
  * Imports the entry (as a file URL) and returns its default export; a default
- * export that is no app is a `cli_usage` error. Errors of the import itself
- * (a module factory missing its env) pass through.
+ * export that is no app is a `cli_usage` error. A TypeScript entry first
+ * registers the TypeScript hooks (with `cwd`'s tsconfig), so decorated
+ * sources load as `chamvi build` compiles them; a JavaScript entry (the
+ * built `dist/index.mjs`) registers nothing and needs no tsdown. Errors of
+ * the import itself (a module factory missing its env) pass through.
  */
-export async function loadApp(file: string, importModule: CliContext['importModule']): Promise<IApp> {
-    const exports = await importModule(pathToFileURL(file).href);
+export async function loadApp(file: string, context: Pick<CliContext, 'cwd' | 'importModule'>): Promise<IApp> {
+    if (isTypeScriptFile(file)) {
+        await registerTypeScriptHooks({ cwd: context.cwd });
+    }
+
+    const exports = await context.importModule(pathToFileURL(file).href);
     const app = isRecord(exports) ? exports.default : undefined;
 
     if (!isApp(app)) {
@@ -133,11 +141,11 @@ export async function loadApp(file: string, importModule: CliContext['importModu
  */
 export async function loadEntryApp(
     entry: string | undefined,
-    context: Pick<CliContext, 'importModule' | 'stderr'>,
+    context: Pick<CliContext, 'cwd' | 'importModule' | 'stderr'>,
     notice: string = DEFAULT_APP_NOTICE,
 ): Promise<IApp> {
     if (entry !== undefined) {
-        return loadApp(entry, context.importModule);
+        return loadApp(entry, context);
     }
 
     context.stderr(notice);

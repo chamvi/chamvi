@@ -7,8 +7,9 @@
 
 import 'reflect-metadata';
 import { createApp } from '@chamvi/app';
+import { tick } from './agents.ts';
 
 export { NoteController } from './controller.ts';
 export { COLUMNS, Note, NoteStatus } from './entity.ts';
 
-export default createApp({});
+export default createApp({ agents: [tick] });
