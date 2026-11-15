@@ -14,7 +14,7 @@ Pinned to authup commit `052c85a85`; paths under `apps/server-core/src/`.
 
 | authup | chamvi (`packages/http/src/`) |
 |---|---|
-| `adapters/http/controllers/**/module.ts` (`@DController` classes, a `{ service }` constructor context, `@DBody`, `@DContext`, literal return types, `event.response.status = 201 \| 202`; chamvi uses `@DStatus(201 \| 202)` of `@routup/decorators` 5.1) | `<area>/controller.ts` or `<area>/controller/<name>.ts` (`agents`, `runs`, `connections`, `health`, `me`, `authorization`) |
+| `adapters/http/controllers/**/module.ts` (`@DController` classes, a `{ service }` constructor context, `@DBody`, `@DContext`, literal return types, `event.response.status = 201 \| 202`) | `<area>/controller.ts` or `<area>/controller/<name>.ts` (`agents`, `runs`, `connections`, `health`, `me`, `authorization`) |
 | `core/entities/*/service.ts` (permission checks, validation, repository calls) | `<area>/service.ts` or `<area>/service/<name>.ts`, an `I<Name>Service` in `<area>/types.ts` |
 | `adapters/http/middleware/built-in/loggedin/module.ts` (`ForceLoggedInMiddleware`) | `middleware/logged-in.ts` (same name), plus `middleware/json-body.ts` and `middleware/required-json-body.ts` |
 | `app/modules/http/modules/controller.ts` (`HTTPControllerModule.mount`: builds each controller with its services, one `router.use(decorators({ controllers }))`) | `app/module.ts` (`createHttpApp`) |
@@ -22,6 +22,7 @@ Pinned to authup commit `052c85a85`; paths under `apps/server-core/src/`.
 Differences:
 
 - Bodies: authup parses them with the `@routup/basic` body plugin (`adapters/http/middleware/built-in/basic.ts`). chamvi installs no body parser: its body middleware reads with chamvi's own `readJsonBody` (limits, 413 with drain, 415, 400) and hands it to `@routup/body`'s `setRequestBody`, so `@DBody()` returns that value.
+- Success status: authup sets `event.response.status = 201 | 202` in the method; chamvi declares `@DStatus(201 | 202)` of `@routup/decorators` 5.1, applied after the method returned.
 - Caller: authup services take an `ActorContext` (`buildActorContext(event)`); chamvi services take the `principal` (`usePrincipal(event)`) as an argument.
 - Responses: authup wraps records as `{ data, meta }`; chamvi keeps its own response shapes and adds no envelope.
 - Wiring: authup resolves repositories and services from an `IContainer` per controller; `@chamvi/http` has no DI container and builds the services from the `HttpContext` in `createHttpApp`.
