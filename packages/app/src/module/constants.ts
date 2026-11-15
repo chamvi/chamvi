@@ -13,10 +13,11 @@ function token<K extends keyof AppTokens>(key: K): TypedToken<AppTokens[K]> {
 }
 
 /**
- * The container keys modules share. `HTTP_ROUTES`, `AUTHENTICATORS`,
- * `CHANNELS`, `CONNECTIONS`, `CONNECTION_TYPES`, `UI_PAGES`, `LIFECYCLE_HOOKS`,
- * `AGENT_CHECKS` and `GIT_CREDENTIALS` are collections (`registerMany` in
- * `setup`, `resolveAll` in `onReady`); every other token holds one value.
+ * The container keys modules share. `HTTP_ROUTES`, `HTTP_CONTROLLERS`,
+ * `OPENAPI_DOCUMENTS`, `AUTHENTICATORS`, `CHANNELS`, `CONNECTIONS`,
+ * `CONNECTION_TYPES`, `UI_PAGES`, `LIFECYCLE_HOOKS`, `AGENT_CHECKS` and
+ * `GIT_CREDENTIALS` are collections (`registerMany` in `setup`, `resolveAll`
+ * in `onReady`); every other token holds one value.
  */
 export const AppToken = {
     CONTEXT: token('CONTEXT'),
@@ -30,6 +31,8 @@ export const AppToken = {
     SHUTDOWN: token('SHUTDOWN'),
     SERVER: token('SERVER'),
     HTTP_ROUTES: token('HTTP_ROUTES'),
+    HTTP_CONTROLLERS: token('HTTP_CONTROLLERS'),
+    OPENAPI_DOCUMENTS: token('OPENAPI_DOCUMENTS'),
     AUTHENTICATORS: token('AUTHENTICATORS'),
     CHANNELS: token('CHANNELS'),
     LIFECYCLE_HOOKS: token('LIFECYCLE_HOOKS'),

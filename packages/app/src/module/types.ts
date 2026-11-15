@@ -168,6 +168,19 @@ export type AppTokens = {
     SHUTDOWN: IShutdown;
     SERVER: Server;
     HTTP_ROUTES: HttpRoute;
+    /**
+     * A collection: instances of `@routup/decorators` controller classes the
+     * http app mounts after its own (start mode, a check too). Register a
+     * `useFactory` to build one from the container's values when the http
+     * module resolves the token, after every module's `setup`.
+     */
+    HTTP_CONTROLLERS: object;
+    /**
+     * A collection: OpenAPI documents of the contributed controllers, merged
+     * into the served `/openapi.json` after the `openapi.documents` option's;
+     * ignored with `httpModule({ openapi: false })`.
+     */
+    OPENAPI_DOCUMENTS: object;
     AUTHENTICATORS: AuthenticatorEntry;
     /** A collection: the channels modules contribute (`registerMany` in `setup`). */
     CHANNELS: IChannel<any, any>;
