@@ -6,8 +6,9 @@ import type { IContainer, IModule } from '@chamvi/app';
 import { NoteController } from './controller.ts';
 import { NoteService } from './service.ts';
 
-// written by `trapi generate` (trapi.config.ts), relative to the app's working directory
-const OPENAPI_DOCUMENT = 'dist/openapi.json';
+// written by `trapi generate` (trapi.config.ts) beside package.json; read relative to the
+// working directory, the app's root for `chamvi dev`, `chamvi start` and the image
+const OPENAPI_DOCUMENT = 'openapi.json';
 
 export function noteModule(): IModule {
     return {

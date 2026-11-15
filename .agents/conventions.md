@@ -118,9 +118,8 @@ Conventional Commits: `<type>(scope): <description>`, e.g. `feat(core): add run 
 
 ## CI/CD
 
-- `ci.yml`: on push and PR to `master`, one job on Node 26 (lint, build, typecheck, test, no version matrix) plus the Chromium e2e job.
 - `release.yml`: release-please on `master` opens one release PR for every package (`linked-versions`, the root package `chamvi-root` as component `root`, one tag `v<version>` without a component, `node-workspace` plugin); when merged, build and publish via `tada5hi/monoship@v2` with npm provenance.
-- Both reuse the composite actions in `.github/actions/{install,build}`; change Node setup or caching there.
+- `ci.yml` and `release.yml` reuse the composite actions in `.github/actions/{install,build}`; change Node setup or caching there.
 
 ## References
 
