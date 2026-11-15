@@ -21,6 +21,7 @@ import type { Options as RateLimitPluginOptions } from '@routup/rate-limit';
 import type { AppOptionsInput } from 'routup';
 import type { AgentIssue } from '../agents/types.ts';
 import type { Authenticator, Principal } from '../auth/types.ts';
+import type { ControllerRoute } from '../controllers/types.ts';
 import type { OpenApiOptions } from '../openapi/types.ts';
 import type { IShutdown } from '../shutdown/types.ts';
 import type { UiPage } from '../static/types.ts';
@@ -109,6 +110,18 @@ export type HttpAppOptions = {
     onError?: (error: unknown) => void;
     /** Extra routes other packages contribute (e.g. the dashboard), served under `basePath`. */
     routes?: HttpRoute[];
+    /**
+     * Controller instances an app contributes: objects whose class carries
+     * `@DController` of `@routup/decorators`, mounted after the built-in
+     * controllers and served under `basePath`. Each base path must be a
+     * static path outside the built-in routes and the metrics path, and no
+     * route may repeat another controller's or an extra route's, or lie under
+     * an extra prefix route of the same method; a breach throws
+     * InvalidAgentDefinitionError at construction. A method is not
+     * authenticated unless it uses `ForceLoggedInMiddleware` (or a body
+     * middleware) or its service authorizes. Default: none.
+     */
+    controllers?: object[];
     /**
      * Channels to serve at `POST /channels/<name>` and below (e.g. the
      * webhook and GitHub channels), unauthenticated: each checks its own
@@ -243,6 +256,10 @@ export type HttpContext = {
     closed: boolean;
     /** Extra routes, validated in `buildContext`. */
     routes: HttpRoute[];
+    /** Contributed controller instances, validated in `buildContext`. */
+    controllers: object[];
+    /** Every route of `controllers`, in mount order. */
+    controllerRoutes: ControllerRoute[];
     /** Mounted channels, validated in `buildContext`. */
     channels: IChannel[];
     /** The connection handles, read per request. */

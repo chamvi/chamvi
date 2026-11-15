@@ -22,6 +22,7 @@ import {
     isOperationalPath,
     isStreamRequest,
     isUnlimitedRoute,
+    readMetricsPath,
     routeLabel,
 } from './helpers.ts';
 import { matchesChannel } from './channels.ts';
@@ -40,9 +41,7 @@ export function installPlugins(app: App, options: HttpAppOptions): void {
         app.use(cors(options.cors));
     }
 
-    const metricsPath = options.metrics === false ?
-        undefined :
-        options.metrics?.metricsPath ?? DEFAULT_METRICS_PATH;
+    const metricsPath = readMetricsPath(options);
 
     const channelPolicies = Object.entries(options.channelRateLimits ?? {});
     const generalLimit = options.rateLimit;

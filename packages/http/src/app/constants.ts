@@ -35,6 +35,9 @@ export const DEFAULT_RATE_LIMIT_MAX = 300;
 /** The rate limit window. */
 export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 
+/** A static path: one or more `/<segment>` of word characters, `.`, `~` and `-`, no trailing slash. */
+export const STATIC_ROUTE_PATH = /^(?:\/[\w.~-]+)+$/;
+
 /** Where Prometheus scrapes, relative to `basePath`. */
 export const DEFAULT_METRICS_PATH = '/metrics';
 

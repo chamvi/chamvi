@@ -6,7 +6,15 @@
  */
 
 import type { IAppEvent } from 'routup';
-import type { HttpRoute } from '../app/types.ts';
+import { DEFAULT_METRICS_PATH } from '../app/constants.ts';
+import type { HttpAppOptions, HttpRoute } from '../app/types.ts';
+
+/** Where Prometheus scrapes, relative to `basePath`; `undefined` with `metrics: false`. */
+export function readMetricsPath(options: HttpAppOptions): string | undefined {
+    return options.metrics === false ?
+        undefined :
+        options.metrics?.metricsPath ?? DEFAULT_METRICS_PATH;
+}
 
 /**
  * `event.path` without the `basePath` prefix and trailing slashes,
