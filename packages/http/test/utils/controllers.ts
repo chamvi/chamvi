@@ -7,11 +7,11 @@
 
 /* eslint-disable max-classes-per-file */
 import type { IClock } from '@chamvi/core';
-import { 
-    ForceLoggedInMiddleware, 
-    RequiredJsonBodyMiddleware, 
-    assertGranted, 
-    usePrincipal, 
+import {
+    ForceLoggedInMiddleware,
+    RequiredJsonBodyMiddleware,
+    assertGranted,
+    usePrincipal,
 } from '@chamvi/http';
 import type { Principal } from '@chamvi/http';
 import { ConflictError } from '@ebec/http';

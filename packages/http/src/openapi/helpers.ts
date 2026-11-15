@@ -47,14 +47,14 @@ export function loadOpenApiDocument(path: string, basePath: string): Record<stri
     return { ...document, servers: [{ url: basePath || '/' }] };
 }
 
-
 function canonical(value: unknown): unknown {
     if (Array.isArray(value)) {
         return value.map((item) => canonical(item));
     }
 
     if (isObject(value)) {
-        const out: Record<string, unknown> = {};
+        // no prototype: a `__proto__` key stays an own key and is compared
+        const out: Record<string, unknown> = Object.create(null);
 
         for (const key of Object.keys(value).toSorted()) {
             out[key] = canonical(value[key]);

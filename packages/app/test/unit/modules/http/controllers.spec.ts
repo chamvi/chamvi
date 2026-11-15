@@ -324,6 +324,32 @@ describe('AppToken.OPENAPI_DOCUMENTS', () => {
         expect(document.paths['/memos']).toBeDefined();
     });
 
+    it('fails a check with the merge\'s error on a colliding contributed document', async () => {
+        const clock = new ControllableClock(START);
+        const app = createApp({
+            agents: [triage],
+            modules: [
+                configModule({ clock, logger: createRecordingLogger(clock) }),
+                storeModule({ store: createMemoryStore({ clock }) }),
+                httpModule({ openapi: { documents: [a] } }),
+                documents([], openApiDocument('/notes', 'otherNotes')),
+            ],
+        });
+
+        apps.push(app);
+
+        const error = await rejectionOf(app.check({
+            env: {
+                HOST: '127.0.0.1',
+                PORT: String(await freePort()),
+                CHAMVI_TOKENS: TOKENS,
+            },
+        }));
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(error.message).toBe('The OpenAPI path "GET /notes" is contributed twice.');
+    });
+
     it('ignores a contributed document with openapi: false', async () => {
         const { harness, url } = await build({ http: { openapi: false }, after: [documents([], b)] });
 

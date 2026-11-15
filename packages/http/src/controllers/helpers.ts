@@ -13,8 +13,8 @@ import { isObject } from 'smob';
 import { STATIC_ROUTE_PATH } from '../app/constants.ts';
 import type { ControllerRoute } from './types.ts';
 
-/** A path-to-regexp parameter (`:id`, `:"quoted name"`), not an escaped `\:`. */
-const PARAMETER = /(?<!\\):(?:"(?:[^"\\]|\\.)*"|[\p{ID_Start}$_][\p{ID_Continue}$]*)/gu;
+/** A path-to-regexp parameter or wildcard (`:id`, `*rest`, `:"quoted name"`), not an escaped `\:` or `\*`. */
+const NAMED_TOKEN = /(?<!\\)([:*])(?:"(?:[^"\\]|\\.)*"|[\p{ID_Start}$_][\p{ID_Continue}$]*)/gu;
 
 /**
  * The decorator metadata of a controller instance; anything else (no
@@ -70,9 +70,78 @@ export function toRouteMatcher(path: string): PathMatcher {
     return new PathMatcher(path, { end: true });
 }
 
-/** `path` lowercased, parameter names replaced by `:` (routup matches case-insensitively). */
+/** `path` lowercased, parameter names replaced by `:` and wildcard names by `*` (routup matches case-insensitively). */
 export function toRouteKey(path: string): string {
-    return path.replace(PARAMETER, ':').toLowerCase().replace(/\/+$/, '');
+    return path.replace(NAMED_TOKEN, '$1').toLowerCase().replace(/\/+$/, '');
+}
+
+/** The index of the `}` closing the `{` at `start`, skipping escaped characters and nested groups. */
+function findGroupEnd(path: string, start: number): number {
+    let depth = 0;
+
+    for (let index = start; index < path.length; index++) {
+        const char = path[index];
+
+        if (char === '\\') {
+            index++;
+        } else if (char === '{') {
+            depth++;
+        } else if (char === '}' && --depth === 0) {
+            return index;
+        }
+    }
+
+    return path.length;
+}
+
+/** Every path a pattern with optional groups (`{...}`) stands for: each group taken and left out. */
+function expandGroups(path: string): string[] {
+    for (let index = 0; index < path.length; index++) {
+        if (path[index] === '\\') {
+            index++;
+        } else if (path[index] === '{') {
+            const end = findGroupEnd(path, index);
+            const head = path.slice(0, index);
+            const inner = [...expandGroups(path.slice(index + 1, end)), ''];
+            const tails = expandGroups(path.slice(end + 1));
+
+            return inner.flatMap((middle) => tails.map((tail) => `${head}${middle}${tail}`));
+        }
+    }
+
+    return [path];
+}
+
+/**
+ * Whether some request path matches both the controller route `path` (a
+ * routup pattern) and the static `target` (`prefix`: also every path below
+ * it), compared segment by segment: a segment holding a parameter matches
+ * any single segment, one holding a wildcard the rest of the path.
+ */
+export function overlapsRoute(path: string, target: string, prefix: boolean): boolean {
+    const targetSegments = target.toLowerCase().split('/').filter(Boolean);
+
+    return expandGroups(path).some((variant) => {
+        const segments = variant.split('/').filter(Boolean);
+
+        for (const [index, expected] of targetSegments.entries()) {
+            const segment = segments[index];
+
+            if (segment === undefined) {
+                return false;
+            }
+
+            if (/(?<!\\)\*/.test(segment)) {
+                return true;
+            }
+
+            if (!/(?<!\\):/.test(segment) && segment.replace(/\\(.)/g, '$1').toLowerCase() !== expected) {
+                return false;
+            }
+        }
+
+        return prefix || segments.length === targetSegments.length;
+    });
 }
 
 /**

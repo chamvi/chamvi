@@ -7,7 +7,7 @@
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
-import { OPENAPI_OPERATION_METHODS, OPENAPI_QUERY_METHOD } from './constants.ts';
+import { OPENAPI_OPERATION_METHODS, OPENAPI_QUERY_METHOD, OPENAPI_RESERVED_KEYS } from './constants.ts';
 import { canonicalJson } from './helpers.ts';
 
 type JsonObject = Record<string, unknown>;
@@ -30,6 +30,31 @@ function operationMethods(base: JsonObject | undefined): ReadonlySet<string> {
     return methods;
 }
 
+/** The document's name in a refusal: chamvi's own (index -1) or a contributed one. */
+function documentName(index: number): string {
+    return index < 0 ?
+        'The OpenAPI document of @chamvi/http' :
+        `The OpenAPI document at index ${index} of openapi.documents`;
+}
+
+/** `path` with every parameter name blanked: `/n/{id}` and `/n/{noteId}` are one path. */
+function pathTemplateKey(path: string): string {
+    return path.replace(/\{[^}]*\}/g, '{}');
+}
+
+/** The own entries of `object`, refusing a key that would reach `Object.prototype` (named, never the content). */
+function entriesOf(object: JsonObject, index: number, what: string): [string, unknown][] {
+    const entries = Object.entries(object);
+
+    for (const [key] of entries) {
+        if (OPENAPI_RESERVED_KEYS.includes(key)) {
+            throw new InvalidAgentDefinitionError(`${documentName(index)} uses the reserved name "${key}" as ${what}.`);
+        }
+    }
+
+    return entries;
+}
+
 function objectField(document: JsonObject, index: number, key: string): JsonObject | undefined {
     const value = document[key];
 
@@ -38,7 +63,7 @@ function objectField(document: JsonObject, index: number, key: string): JsonObje
     }
 
     if (!isObject(value)) {
-        throw new InvalidAgentDefinitionError(`The OpenAPI document at index ${index} of openapi.documents has "${key}" that is no JSON object.`);
+        throw new InvalidAgentDefinitionError(`${documentName(index)} has "${key}" that is no JSON object.`);
     }
 
     return value;
@@ -54,22 +79,28 @@ function tagsField(document: JsonObject, index: number): JsonObject[] {
     const unnamed = !Array.isArray(value) || value.some((tag) => !isObject(tag) || typeof tag.name !== 'string');
 
     if (unnamed) {
-        throw new InvalidAgentDefinitionError(`The OpenAPI document at index ${index} of openapi.documents has "tags" ` +
-            'that is no array of tags with a name.');
+        throw new InvalidAgentDefinitionError(`${documentName(index)} has "tags" that is no array of tags with a name.`);
     }
 
     return value as JsonObject[];
 }
 
+/** A plain object of `map`'s entries, in order; every own key stays an own property. */
+function toObject<T>(map: Map<string, T>): Record<string, T> {
+    return Object.fromEntries(map);
+}
+
 /**
- * Builds the merge on copies: every path item, component group and the
- * tag list of the result is a new object or array, the entries in it are
- * the inputs' (never written to).
+ * Builds the merge in maps, never on plain objects a key could reach
+ * `Object.prototype` through; every path item, component group and the
+ * tag list of the result is new, the entries in it are the inputs' (never
+ * written to).
  */
 class OpenApiMerge {
-    readonly paths: Record<string, JsonObject> = {};
+    /** By path template with blanked parameter names: the path as first written and its fields. */
+    private readonly paths = new Map<string, { path: string, fields: Map<string, unknown> }>();
 
-    readonly components: Record<string, JsonObject> = {};
+    private readonly components = new Map<string, Map<string, unknown>>();
 
     readonly tags: JsonObject[] = [];
 
@@ -85,21 +116,29 @@ class OpenApiMerge {
         this.methods = operationMethods(base);
     }
 
+    get pathCount(): number {
+        return this.paths.size;
+    }
+
+    get componentCount(): number {
+        return this.components.size;
+    }
+
     add(document: JsonObject, index: number, origin: Origin): void {
-        for (const [path, item] of Object.entries(objectField(document, index, 'paths') ?? {})) {
+        for (const [path, item] of entriesOf(objectField(document, index, 'paths') ?? {}, index, 'a path')) {
             if (!isObject(item)) {
                 throw new InvalidAgentDefinitionError(`The OpenAPI path "${path}" of openapi.documents is no JSON object.`);
             }
 
-            this.addPathItem(path, item, origin);
+            this.addPathItem(path, entriesOf(item, index, 'a path-item field'), origin);
         }
 
-        for (const [group, entries] of Object.entries(objectField(document, index, 'components') ?? {})) {
+        for (const [group, entries] of entriesOf(objectField(document, index, 'components') ?? {}, index, 'a component group')) {
             if (!isObject(entries)) {
                 throw new InvalidAgentDefinitionError(`The OpenAPI component group "${group}" of openapi.documents is no JSON object.`);
             }
 
-            this.addComponents(group, entries, origin);
+            this.addComponents(group, entriesOf(entries, index, 'a component name'), origin);
         }
 
         for (const tag of tagsField(document, index)) {
@@ -113,15 +152,29 @@ class OpenApiMerge {
         }
     }
 
-    private addPathItem(path: string, item: JsonObject, origin: Origin): void {
-        const target = this.paths[path] ?? {};
+    /** The merged paths, each under the template first written. */
+    pathsObject(): JsonObject {
+        return Object.fromEntries(Array.from(this.paths.values(), ({ path, fields }) => [path, toObject(fields)]));
+    }
 
-        this.paths[path] = target;
+    componentsObject(): JsonObject {
+        return Object.fromEntries(Array.from(this.components, ([group, entries]) => [group, toObject(entries)]));
+    }
 
-        for (const [key, value] of Object.entries(item)) {
-            if (this.methods.has(key)) {
-                const operation = `${key.toUpperCase()} ${path}`;
-                const previous = this.operationOrigins.get(operation);
+    private addPathItem(path: string, entries: [string, unknown][], origin: Origin): void {
+        const template = pathTemplateKey(path);
+        const target = this.paths.get(template)?.fields ?? new Map<string, unknown>();
+
+        if (!this.paths.has(template)) {
+            this.paths.set(template, { path, fields: target });
+        }
+
+        for (const [key, value] of entries) {
+            const method = key.toLowerCase();
+
+            if (this.methods.has(method)) {
+                const previous = this.operationOrigins.get(`${method} ${template}`);
+                const operation = `${method.toUpperCase()} ${path}`;
 
                 if (previous === 'base') {
                     throw new InvalidAgentDefinitionError(`The OpenAPI path "${operation}" is already in ${BASE_NAME}.`);
@@ -131,37 +184,37 @@ class OpenApiMerge {
                     throw new InvalidAgentDefinitionError(`The OpenAPI path "${operation}" is contributed twice.`);
                 }
 
-                this.operationOrigins.set(operation, origin);
-                target[key] = value;
+                this.operationOrigins.set(`${method} ${template}`, origin);
+                target.set(method, value);
 
                 continue;
             }
 
-            if (!Object.hasOwn(target, key)) {
-                target[key] = value;
-            } else if (canonicalJson(target[key]) !== canonicalJson(value)) {
+            if (!target.has(key)) {
+                target.set(key, value);
+            } else if (canonicalJson(target.get(key)) !== canonicalJson(value)) {
                 throw new InvalidAgentDefinitionError(`The OpenAPI path "${path}" has a different "${key}" in two documents.`);
             }
         }
     }
 
-    private addComponents(group: string, entries: JsonObject, origin: Origin): void {
-        const target = this.components[group] ?? {};
+    private addComponents(group: string, entries: [string, unknown][], origin: Origin): void {
+        const target = this.components.get(group) ?? new Map<string, unknown>();
 
-        this.components[group] = target;
+        this.components.set(group, target);
 
-        for (const [name, definition] of Object.entries(entries)) {
+        for (const [name, definition] of entries) {
             const component = `${group}/${name}`;
             const previous = this.componentOrigins.get(component);
 
             if (previous === undefined) {
                 this.componentOrigins.set(component, origin);
-                target[name] = definition;
+                target.set(name, definition);
 
                 continue;
             }
 
-            if (canonicalJson(target[name]) === canonicalJson(definition)) {
+            if (canonicalJson(target.get(name)) === canonicalJson(definition)) {
                 continue;
             }
 
@@ -175,8 +228,11 @@ class OpenApiMerge {
 /**
  * `base` (chamvi's document) with the `paths`, `tags` and `components`
  * groups of the contributed `documents` merged in, as a new object; no
- * input is written to. Paths merge per path and method; a method already
- * there is refused. Another path-item field (`parameters`, `summary`, ...)
+ * input is written to. Paths merge per path template (parameter names
+ * blanked, the first template kept) and method (case-insensitive, written
+ * lowercase); a method already there is refused. A path, path-item field,
+ * component group or component name `__proto__`, `constructor` or
+ * `prototype` is refused. Another path-item field (`parameters`, `summary`, ...)
  * keeps its first value, a different one is refused. A component (any
  * group: `schemas`, `securitySchemes`, `parameters`, ...) of a name already
  * there is kept once when its definition is identical (canonical JSON) and
@@ -212,12 +268,12 @@ export function mergeOpenApiDocuments(
 
     const result: Record<string, unknown> = { ...base };
 
-    if (base.paths !== undefined || Object.keys(merge.paths).length > 0) {
-        result.paths = merge.paths;
+    if (base.paths !== undefined || merge.pathCount > 0) {
+        result.paths = merge.pathsObject();
     }
 
-    if (base.components !== undefined || Object.keys(merge.components).length > 0) {
-        result.components = merge.components;
+    if (base.components !== undefined || merge.componentCount > 0) {
+        result.components = merge.componentsObject();
     }
 
     if (base.tags !== undefined || merge.tags.length > 0) {

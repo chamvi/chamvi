@@ -86,7 +86,7 @@ describe('contributed controllers', () => {
         expect(() => createTestApp({ controllers: [new EmptyController()] })).not.toThrow();
     });
 
-    it('keys a route lowercased, parameter names replaced, trailing slash dropped', () => {
+    it('keys a route lowercased, parameter and wildcard names replaced, trailing slash dropped', () => {
         expect(readControllerRoutes(createTestController('/Notes', [['PUT', '/:noteId/'], ['DELETE', '/*rest']]))).toEqual([
             {
                 method: 'PUT',
@@ -96,7 +96,7 @@ describe('contributed controllers', () => {
             {
                 method: 'DELETE',
                 path: '/Notes/*rest',
-                key: '/notes/*rest',
+                key: '/notes/*',
             },
         ]);
     });
@@ -233,6 +233,11 @@ describe('contributed controllers', () => {
         expect(message(() => createTestApp({ controllers: [createTestController('/notes', [['GET', '/:id'], ['GET', '/:noteId']])] }))).toBe('Controller route "GET /notes/:noteId" is registered twice.');
     });
 
+    it('refuses two wildcards differing only in their names', () => {
+        expect(message(() => createTestApp({ controllers: [createTestController('/f', [['GET', '/*a'], ['GET', '/*b']])] })))
+            .toBe('Controller route "GET /f/*b" is registered twice.');
+    });
+
     it('refuses an array base path naming one path twice', () => {
         expect(() => createTestApp({ controllers: [createTestController(['/notes', '/Notes'], [['GET', '']])] })).toThrow(InvalidAgentDefinitionError);
     });
@@ -293,5 +298,80 @@ describe('contributed controllers', () => {
             routes: [route({ path: '/ui', prefix: true })],
             controllers: [createTestController('/uix', [['GET', '']])],
         })).not.toThrow();
+    });
+
+    describe('beside a prefix route', () => {
+        const assets = (overrides: Partial<HttpRoute> = {}) => route({
+            path: '/ui/assets',
+            prefix: true,
+            rateLimit: false,
+            ...overrides,
+        });
+
+        it('refuses a parameter route that takes requests below the prefix', () => {
+            expect(message(() => createTestApp({
+                routes: [assets()],
+                controllers: [createTestController('/ui', [['GET', '/:section/:file']])],
+            }))).toBe('Controller route "GET /ui/:section/:file" lies under the prefix route "/ui/assets".');
+        });
+
+        it('refuses a parameter route above the prefix route matching it', () => {
+            expect(message(() => createTestApp({
+                routes: [assets()],
+                controllers: [createTestController('/ui', [['GET', '/:section']])],
+            }))).toBe('Controller route "GET /ui/:section" lies under the prefix route "/ui/assets".');
+        });
+
+        it.each([
+            ['above the prefix', '/ui', '/*rest'],
+            ['at the prefix', '/ui/assets', '/*rest'],
+            ['after a parameter', '/ui', '/:section/*rest'],
+            ['inside an optional group', '/ui', '/:section{/*rest}'],
+            ['in a segment with static text', '/ui', '/a*rest'],
+        ])('refuses a wildcard %s', (_name, base, path) => {
+            expect(() => createTestApp({
+                routes: [assets()],
+                controllers: [createTestController(base, [['GET', path]])],
+            })).toThrow(InvalidAgentDefinitionError);
+        });
+
+        it('refuses an optional group reaching the prefix', () => {
+            expect(() => createTestApp({
+                routes: [assets()],
+                controllers: [createTestController('/ui', [['GET', '/:section{/x}/:file']])],
+            })).toThrow(InvalidAgentDefinitionError);
+        });
+
+        it.each([
+            ['another method', 'POST', '/ui', '/:section/:file'],
+            ['a disjoint static segment', 'GET', '/ui', '/styles/:file'],
+            ['a shorter route without a wildcard', 'GET', '/ui', ''],
+            ['a disjoint static base', 'GET', '/uix', '/:section/*rest'],
+        ])('accepts %s', (_name, method, base, path) => {
+            expect(() => createTestApp({
+                routes: [assets()],
+                controllers: [createTestController(base, [[method as 'GET', path]])],
+            })).not.toThrow();
+        });
+    });
+
+    describe('beside a static route', () => {
+        it('refuses a wildcard covering it', () => {
+            expect(message(() => createTestApp({
+                routes: [route({ path: '/ui/assets/app.js' })],
+                controllers: [createTestController('/ui', [['GET', '/*rest']])],
+            }))).toBe('Controller route "GET /ui/*rest" collides with the route "GET /ui/assets/app.js".');
+        });
+
+        it.each([
+            ['another method', 'POST', '/:section/:file'],
+            ['a different depth', 'GET', '/:section'],
+            ['a disjoint static segment', 'GET', '/styles/:file'],
+        ])('accepts %s', (_name, method, path) => {
+            expect(() => createTestApp({
+                routes: [route({ path: '/ui/assets/app.js' })],
+                controllers: [createTestController('/ui', [[method as 'GET', path]])],
+            })).not.toThrow();
+        });
     });
 });

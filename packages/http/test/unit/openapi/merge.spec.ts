@@ -55,10 +55,10 @@ function notesGet(): Record<string, unknown> {
             schemas: { Note: { type: 'object', properties: { id: { type: 'string' } } } },
             securitySchemes: {
                 apiKey: {
-                    type: 'apiKey', 
-                    in: 'header', 
-                    name: 'x-api-key', 
-                }, 
+                    type: 'apiKey',
+                    in: 'header',
+                    name: 'x-api-key',
+                },
             },
         },
     };
@@ -110,9 +110,9 @@ describe('mergeOpenApiDocuments', () => {
             securitySchemes: {
                 bearer: { type: 'http', scheme: 'bearer' },
                 apiKey: {
-                    type: 'apiKey', 
-                    in: 'header', 
-                    name: 'x-api-key', 
+                    type: 'apiKey',
+                    in: 'header',
+                    name: 'x-api-key',
                 },
             },
         });
@@ -120,10 +120,10 @@ describe('mergeOpenApiDocuments', () => {
 
     it('merges the other component groups like schemas', () => {
         const parameter = {
-            name: 'id', 
-            in: 'path', 
-            required: true, 
-            schema: { type: 'string' }, 
+            name: 'id',
+            in: 'path',
+            required: true,
+            schema: { type: 'string' },
         };
         const merged = mergeOpenApiDocuments(base(), [
             { components: { parameters: { id: parameter }, responses: { NotFound: { description: 'gone' } } } },
@@ -212,9 +212,9 @@ describe('mergeOpenApiDocuments', () => {
 
     it('keeps an identical path-item field once and refuses a different one', () => {
         const parameters = [{
-            name: 'id', 
-            in: 'path', 
-            required: true, 
+            name: 'id',
+            in: 'path',
+            required: true,
         }];
         const merged = mergeOpenApiDocuments(base(), [
             { paths: { '/notes/{id}': { parameters, get: OK } } },
@@ -222,20 +222,20 @@ describe('mergeOpenApiDocuments', () => {
                 paths: {
                     '/notes/{id}': {
                         parameters: [{
-                            required: true, 
-                            in: 'path', 
-                            name: 'id', 
+                            required: true,
+                            in: 'path',
+                            name: 'id',
                         }],
-                        delete: OK, 
-                    }, 
-                }, 
+                        delete: OK,
+                    },
+                },
             },
         ])!;
 
         expect((merged.paths as Record<string, unknown>)['/notes/{id}']).toEqual({
-            parameters, 
-            get: OK, 
-            delete: OK, 
+            parameters,
+            get: OK,
+            delete: OK,
         });
         expect(refusal(() => mergeOpenApiDocuments(base(), [
             { paths: { '/notes/{id}': { summary: 'A note.', get: OK } } },
@@ -272,6 +272,98 @@ describe('mergeOpenApiDocuments', () => {
 
     it('validates the documents against each other and returns undefined without a base', () => {
         expect(mergeOpenApiDocuments(undefined, [notesGet(), notesDelete()])).toBeUndefined();
+    });
+
+    it('names chamvi\'s own document in a refusal of its shape', () => {
+        expect(refusal(() => mergeOpenApiDocuments({ ...base(), paths: [] }, [])))
+            .toBe('The OpenAPI document of @chamvi/http has "paths" that is no JSON object.');
+    });
+
+    it('takes path templates differing only in parameter names as one path', () => {
+        expect(refusal(() => mergeOpenApiDocuments(base(), [
+            { paths: { '/n/{id}': { get: OK } } },
+            { paths: { '/n/{noteId}': { get: OK } } },
+        ]))).toBe('The OpenAPI path "GET /n/{noteId}" is contributed twice.');
+
+        const merged = mergeOpenApiDocuments(base(), [
+            { paths: { '/n/{id}': { get: OK } } },
+            { paths: { '/n/{noteId}': { delete: OK } } },
+        ])!;
+
+        expect(merged.paths).toEqual({ '/runs': { get: OK }, '/n/{id}': { get: OK, delete: OK } });
+    });
+
+    it('reads method keys case-insensitively', () => {
+        expect(refusal(() => mergeOpenApiDocuments(base(), [{ paths: { '/runs': { GET: OK } } }])))
+            .toBe('The OpenAPI path "GET /runs" is already in the document of @chamvi/http.');
+        expect(refusal(() => mergeOpenApiDocuments(undefined, [
+            { paths: { '/notes': { get: OK } } },
+            { paths: { '/notes': { Get: OK } } },
+        ]))).toBe('The OpenAPI path "GET /notes" is contributed twice.');
+
+        const merged = mergeOpenApiDocuments(base(), [{ paths: { '/notes': { PATCH: OK } } }])!;
+
+        expect((merged.paths as Record<string, unknown>)['/notes']).toEqual({ patch: OK });
+    });
+
+    describe('with reserved keys', () => {
+        const PROTOTYPE_KEYS = Object.getOwnPropertyNames(Object.prototype).toSorted();
+
+        function assertUnpolluted(): void {
+            const probe: Record<string, unknown> = {};
+
+            expect(probe.polluted).toBeUndefined();
+            expect(probe.x).toBeUndefined();
+            expect(probe.get).toBeUndefined();
+            expect((Object as unknown as Record<string, unknown>).polluted).toBeUndefined();
+            expect(Object.getOwnPropertyNames(Object.prototype).toSorted()).toEqual(PROTOTYPE_KEYS);
+            expect(Object.prototype.toString.call([])).toBe('[object Array]');
+        }
+
+        it.each([
+            ['a path', '{"paths":{"__proto__":{"polluted":true,"get":{}}}}', '__proto__', 'a path'],
+            ['a path constructor', '{"paths":{"constructor":{"polluted":true}}}', 'constructor', 'a path'],
+            ['a path-item field', '{"paths":{"/notes":{"__proto__":{"polluted":true}}}}', '__proto__', 'a path-item field'],
+            ['a component group', '{"components":{"__proto__":{"x":{"type":"string"}}}}', '__proto__', 'a component group'],
+            ['a component group toString', '{"components":{"toString":{"x":{"type":"string"}}}}', 'toString', undefined],
+            ['a component name', '{"components":{"schemas":{"__proto__":{"polluted":true}}}}', '__proto__', 'a component name'],
+            ['a component name prototype', '{"components":{"schemas":{"prototype":{"type":"string"}}}}', 'prototype', 'a component name'],
+        ])('refuses %s without touching Object.prototype, also without the base', (_name, json, key, where) => {
+            for (const run of [
+                () => mergeOpenApiDocuments(base(), [JSON.parse(json)]),
+                () => mergeOpenApiDocuments(undefined, [JSON.parse(json)]),
+            ]) {
+                if (where === undefined) {
+                    run();
+                } else {
+                    expect(refusal(run)).toBe(`The OpenAPI document at index 0 of openapi.documents uses the reserved name "${key}" as ${where}.`);
+                }
+
+                assertUnpolluted();
+            }
+        });
+
+        it('keeps a component group named like an Object.prototype method as an ordinary name', () => {
+            const merged = mergeOpenApiDocuments(base(), [JSON.parse('{"components":{"toString":{"x":{"type":"string"}}}}')])!;
+
+            expect((merged.components as Record<string, unknown>).toString).toEqual({ x: { type: 'string' } });
+            expect(Object.getPrototypeOf(merged.components)).toBe(Object.prototype);
+        });
+
+        it('compares definitions holding a __proto__ key by that key too', () => {
+            const one = JSON.parse('{"components":{"schemas":{"Note":{"type":"object","__proto__":{"a":1}}}}}');
+            const two = JSON.parse('{"components":{"schemas":{"Note":{"type":"object","__proto__":{"a":2}}}}}');
+
+            expect(refusal(() => mergeOpenApiDocuments(undefined, [one, two])))
+                .toBe('The OpenAPI component "schemas/Note" is contributed twice with different definitions.');
+            assertUnpolluted();
+        });
+
+        it('refuses a reserved key through createHttpApp', () => {
+            expect(() => createTestApp({ openapi: { documents: [JSON.parse('{"paths":{"__proto__":{"polluted":true}}}')] } }))
+                .toThrow(InvalidAgentDefinitionError);
+            assertUnpolluted();
+        });
     });
 
     it('mutates neither a contributed document nor the base', () => {

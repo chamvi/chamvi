@@ -21,3 +21,6 @@ export const OPENAPI_OPERATION_METHODS: readonly string[] = ['get', 'put', 'post
 
 /** @internal The operation key OpenAPI 3.2 adds. */
 export const OPENAPI_QUERY_METHOD = 'query';
+
+/** @internal Keys a merged document never takes as a name: they reach `Object.prototype` on a plain object. */
+export const OPENAPI_RESERVED_KEYS: readonly string[] = ['__proto__', 'constructor', 'prototype'];

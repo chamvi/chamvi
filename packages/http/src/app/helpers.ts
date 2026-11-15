@@ -180,7 +180,6 @@ export function createLiveAgents(engine: IEngine, names?: readonly string[]): Ht
     };
 }
 
-/** `options.agentIssues` as a fresh array, only of the named agents when `names` is given. */
 /**
  * The contributed OpenAPI documents checked against each other, so a
  * collision fails construction even when chamvi's own document is missing;
@@ -198,6 +197,7 @@ function validateOpenApiDocuments(options: HttpAppOptions): void {
     mergeOpenApiDocuments(undefined, options.openapi.documents);
 }
 
+/** `options.agentIssues` as a fresh array, only of the named agents when `names` is given. */
 function readAgentIssues(options: HttpAppOptions): () => AgentIssue[] {
     const read = options.agentIssues;
 

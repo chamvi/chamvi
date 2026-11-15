@@ -14,6 +14,7 @@ import { readMetricsPath } from '../plugins/helpers.ts';
 import { isAtOrUnder } from '../routes/helpers.ts';
 import {
     joinControllerPath,
+    overlapsRoute,
     readBasePaths,
     readControllerMeta,
     toRouteKey,
@@ -110,7 +111,8 @@ export function registerControllers(app: App, ctx: HttpContext): void {
 
 /**
  * Controllers are mounted before the extra routes: a controller route
- * matching an extra route's path, or at or under its prefix, would shadow it.
+ * matching an extra route's path, or some path at or under its prefix
+ * (segment by segment, see `overlapsRoute()`), would shadow it.
  */
 function assertNotShadowing(route: ControllerRoute, routes: HttpRoute[]): void {
     const matcher = toRouteMatcher(route.path);
@@ -121,7 +123,7 @@ function assertNotShadowing(route: ControllerRoute, routes: HttpRoute[]): void {
         }
 
         if (other.prefix) {
-            if (isAtOrUnder(route.key, other.path.toLowerCase()) || matcher.test(other.path)) {
+            if (overlapsRoute(route.path, other.path, true)) {
                 throw new InvalidAgentDefinitionError(`Controller route "${route.method} ${route.path}" lies under the prefix route "${other.path}".`);
             }
 
