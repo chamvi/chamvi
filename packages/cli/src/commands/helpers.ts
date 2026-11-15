@@ -12,7 +12,7 @@ import { fileURLToPath } from 'node:url';
 import { parseEnv } from 'node:util';
 import type { Env } from '@chamvi/app';
 import { isRecord } from '../run/helpers.ts';
-import { CLI_PACKAGE_NAME } from './constants.ts';
+import { CLI_PACKAGE_NAME, MODULE_NOT_FOUND_CODES, TSDOWN_PACKAGE } from './constants.ts';
 
 /**
  * The CLI's version: the nearest package.json named @chamvi/cli above this
@@ -63,4 +63,20 @@ export async function loadDotEnv(env: Env, file: string): Promise<void> {
             env[key] = value;
         }
     }
+}
+
+/**
+ * Whether the error is tsdown itself failing to resolve, by `import()` or
+ * `require.resolve()` (not a module tsdown imports).
+ */
+export function isTsdownMissing(error: unknown): boolean {
+    if (!(Error.isError(error))) {
+        return false;
+    }
+
+    const { code } = error as { code?: unknown };
+
+    return typeof code === 'string' &&
+        MODULE_NOT_FOUND_CODES.includes(code) &&
+        error.message.includes(`'${TSDOWN_PACKAGE}'`);
 }
