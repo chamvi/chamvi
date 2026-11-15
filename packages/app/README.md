@@ -35,9 +35,9 @@
 npm install @chamvi/app @chamvi/cli ai @ai-sdk/anthropic typeorm pg
 ```
 
-ESM only, Node.js `>=26.0.0`. `ai`, `typeorm` and `pg` are peer dependencies; the provider packages (`@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/openai-compatible`, `@ai-sdk/google`, `@ai-sdk/mistral`, `@ai-sdk/xai`) are optional peers: install the ones you use. The optional modules ship with the package they configure (`npm install @chamvi/github` for `@chamvi/github/module`, ...), which peers on `@chamvi/app`.
+ESM only, Node.js `>=26.0.0`. `ai`, `typeorm`, `pg` and `@routup/decorators` (`^5.2.0`, for [controllers](https://chamvi.dev/guide/controllers); npm 7 and later install it, with `--legacy-peer-deps` list it) are peer dependencies; the provider packages (`@ai-sdk/anthropic`, `@ai-sdk/openai`, `@ai-sdk/openai-compatible`, `@ai-sdk/google`, `@ai-sdk/mistral`, `@ai-sdk/xai`) are optional peers: install the ones you use. The optional modules ship with the package they configure (`npm install @chamvi/github` for `@chamvi/github/module`, ...), which peers on `@chamvi/app`.
 
-The main entry re-exports `@chamvi/core`, `@chamvi/access` (`Permission`, `can`, `canSome` and the binding types) and the common part of `@chamvi/http` (the `Authenticator`, `Principal`, `HttpRoute*` and `StaticToken` types), so an agent repository imports one package.
+The main entry re-exports `@chamvi/core`, `@chamvi/access` (`Permission`, `can`, `canSome` and the binding types) and the common part of `@chamvi/http` (the `Authenticator`, `Principal`, `HttpRoute*` and `StaticToken` types, the controller helpers `usePrincipal`, `authorizeRequest`, `assertGranted`, `toInvoker`, `ForceLoggedInMiddleware`, `JsonBodyMiddleware`, `RequiredJsonBodyMiddleware`), so an agent repository imports one package.
 
 ## Usage
 
@@ -293,7 +293,7 @@ const harness = await createModuleHarness({
 await harness.stop();
 ```
 
-- **Tokens** (`AppToken`): `CONTEXT`, `CONFIG`, `LOGGER`, `CLOCK`, `STORE`, `DATA_SOURCE`, `ENGINE`, `MODELS` (the engine module's model resolver, registered in `setup` in start and job mode and a check), `SHUTDOWN` and `SERVER` hold one value; `HTTP_ROUTES`, `AUTHENTICATORS` (`{ name, order, authenticator }`, lowest `order` first, `AUTHENTICATOR_ORDER`), `CHANNELS` (every `IChannel` the engine registers; names unique, those with an `in` are mounted at `/channels/<name>`), `LIFECYCLE_HOOKS` and `AGENT_CHECKS` are collections (`registerMany(token, { useValue })` in `setup`, `resolveAll` in `onReady`).
+- **Tokens** (`AppToken`): `CONTEXT`, `CONFIG`, `LOGGER`, `CLOCK`, `STORE`, `DATA_SOURCE`, `ENGINE`, `MODELS` (the engine module's model resolver, registered in `setup` in start and job mode and a check), `SHUTDOWN` and `SERVER` hold one value; `HTTP_ROUTES`, `HTTP_CONTROLLERS` (controller instances, usually a `useFactory` that the http module runs in its `onReady`, start mode and a check only; see [Controllers](https://chamvi.dev/guide/controllers)), `OPENAPI_DOCUMENTS` (their OpenAPI documents), `AUTHENTICATORS` (`{ name, order, authenticator }`, lowest `order` first, `AUTHENTICATOR_ORDER`), `CHANNELS` (every `IChannel` the engine registers; names unique, those with an `in` are mounted at `/channels/<name>`), `LIFECYCLE_HOOKS` and `AGENT_CHECKS` are collections (`registerMany(token, { useValue })` in `setup`, `resolveAll` in `onReady`).
 - **Order**: contributions need none, since every consumer builds in `onReady`. A module that resolves `ENGINE` or `SERVER` in `onReady` lists that module in `dependencies`; a dependency the app does not register, a cycle or a version mismatch is an `InvalidAgentDefinitionError` before any module set up.
 - **Modes**: `CONTEXT.mode` is `start` (everything), `job` (config, store, engine) or `migrate` (config and store only), so a module resolving `ENGINE` in `onReady` returns early in `migrate`.
 - **Hooks** (`LIFECYCLE_HOOKS`, `ILifecycleHook`): `engineCreated(engine)` before `engine.start()`, `started()` after `engine.start()` (channels started), before the server listens, `stopping()` first in the shutdown, before the drain stops the channels, `drained()` after the engine drained, before the store closes.

@@ -120,7 +120,7 @@ This is the "MCP in" half of the [OpenClaw](/deployment/openclaw) integration.
 
 A route can also answer headers and bytes: `headers` is set on the response (a `content-type` there wins over the body's default) and a `Uint8Array` body is sent as is (`application/octet-stream` unless `headers` names a type), with the CORS and rate limit headers kept. `prefix: true` makes the route serve its `path` and everything below `path/` for its method (a static file server, such as a dashboard's assets): the handler reads the rest as `request.subpath` (`''` for the path itself, else the raw, still percent-encoded rest with its case, never the query), and metrics label it `<path>/*`. A route of the same method at or under a prefix route, or a prefix route at or above the metrics path, is refused at construction. The route context carries the app's `basePath` to build links with.
 
-`@chamvi/ui` is such a route: `routes: uiRoutes()` serves the [dashboard](/guide/ui) at `/ui`.
+`@chamvi/ui` is such a route: `routes: uiRoutes()` serves the [dashboard](/guide/ui) at `/ui`. An app's own REST API with parameters, bodies and services is better served by [controllers](/guide/controllers) (`controllers`).
 
 ## Operations
 

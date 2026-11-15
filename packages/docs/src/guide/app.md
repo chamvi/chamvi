@@ -16,7 +16,7 @@ npm install --save-dev tsdown   # only for chamvi build
 - The entry is `src/index.ts`. `dev`, `build` and `start --dev` take `--entry`, else the `package.json` field `"chamvi": { "entry": "<path>" }`, else `src/index.ts`. The built commands (`start`, `run-job`, `migrate`) default to `dist/index.mjs` and never read that field. Without any entry file the commands run the default app, `createApp({})`, whose agents come from `./agents`: a folder of [agent folders](/guide/agent-folders) is a complete app.
 - `createApp()` is synchronous and side-effect free: no env read, no I/O, no provider import. Everything happens in `start()`, `runJob()` and `migrate()`, which the CLI calls.
 - An entry whose default export is not an app (checked with `isApp()`, which also recognizes an app of another installed copy) makes the CLI exit 2.
-- `@chamvi/app` re-exports `@chamvi/core`, `@chamvi/access` (`Permission`, `can`, `canSome` and the binding types, see [Permissions and authup](/guide/permissions)) and the common part of `@chamvi/http` (the `Authenticator`, `Principal`, `HttpRoute*` and `StaticToken` types), so an agent repository imports one package.
+- `@chamvi/app` re-exports `@chamvi/core`, `@chamvi/access` (`Permission`, `can`, `canSome` and the binding types, see [Permissions and authup](/guide/permissions)) and the common part of `@chamvi/http` (the `Authenticator`, `Principal`, `HttpRoute*` and `StaticToken` types, the [controller](/guide/controllers) helpers), so an agent repository imports one package.
 
 `dev` runs the source through Node's type stripping and `build` bundles it with tsdown, so the code has to suit both: relative imports carry `.ts` and there is no `enum`. The template `tsconfig.json`:
 
@@ -81,8 +81,8 @@ With `CHAMVI_PUBLIC_URL` set, the GitHub and OpenClaw modules link approvals to 
 
 orkos sets every module up in dependency order, then calls every `onReady`. chamvi splits the work along that line:
 
-- In **`setup`**, a module registers what it contributes on the container's collection tokens: `AppToken.HTTP_ROUTES`, `CHANNELS`, `AUTHENTICATORS` (with an `order`, lowest first), `LIFECYCLE_HOOKS` and `AGENT_CHECKS` (an `(agent) => void` that throws `InvalidAgentDefinitionError` for a folder agent the module could not serve, run before the agent is registered).
-- In **`onReady`**, the consumers build: the engine module collects the channels, the http module the routes, the authenticators and the channels it mounts.
+- In **`setup`**, a module registers what it contributes on the container's collection tokens: `AppToken.HTTP_ROUTES`, `HTTP_CONTROLLERS` and `OPENAPI_DOCUMENTS` ([Controllers](/guide/controllers)), `CHANNELS`, `AUTHENTICATORS` (with an `order`, lowest first), `LIFECYCLE_HOOKS` and `AGENT_CHECKS` (an `(agent) => void` that throws `InvalidAgentDefinitionError` for a folder agent the module could not serve, run before the agent is registered).
+- In **`onReady`**, the consumers build: the engine module collects the channels, the http module the routes, the controllers (their factories run here), the authenticators and the channels it mounts.
 
 So a contribution never depends on module order. A module that resolves `ENGINE` or `SERVER` in its own `onReady` lists that module in `dependencies`. Nothing starts in `onReady`: the engine and the http module register start steps, which the app runs (the engine with its channels, then the `started` hooks and listening) only once every module's `onReady` ran, user modules included. So a configuration error any of them finds starts nothing: no queued run of the shared store executes on a replica that then exits 2.
 
