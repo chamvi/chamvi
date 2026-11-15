@@ -15,22 +15,3 @@ export const OPENAPI_DOCUMENT_ROUTE = '/openapi.json';
 
 /** @internal Where the UI is mounted, under `basePath`. */
 export const OPENAPI_UI_PATH = '/docs';
-
-/**
- * @internal The Content-Security-Policy of every file the UI answers (the
- * plugin's `csp` option, also on a 304 and a HEAD): the shell has no inline
- * script or style, so its own files only. It sets `default-src 'none'` and
- * `frame-ancestors 'none'` and allows no `blob:`, which the plugin's
- * recommended policy does not do (routup/plugins#864).
- */
-export const OPENAPI_UI_CSP = [
-    "default-src 'none'",
-    "script-src 'self'",
-    "style-src 'self'",
-    "img-src 'self' data:",
-    "font-src 'self'",
-    "connect-src 'self'",
-    "base-uri 'self'",
-    "form-action 'self'",
-    "frame-ancestors 'none'",
-].join('; ');

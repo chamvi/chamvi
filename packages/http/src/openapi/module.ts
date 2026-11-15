@@ -9,11 +9,10 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { swaggerUI } from '@routup/swagger-ui';
 import { App, defineCoreHandler } from 'routup';
 import type { HttpContext } from '../app/types.ts';
-import { DOCUMENT_CACHE_CONTROL, STATIC_SECURITY_HEADERS } from '../static/constants.ts';
+import { DOCUMENT_CACHE_CONTROL } from '../static/constants.ts';
 import {
     OPENAPI_DOCUMENT_PATH,
     OPENAPI_DOCUMENT_ROUTE,
-    OPENAPI_UI_CSP,
     OPENAPI_UI_PATH,
 } from './constants.ts';
 import { loadOpenApiDocument } from './helpers.ts';
@@ -54,16 +53,13 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
 
     const ui = new App();
 
-    // the plugin answers GET and HEAD of its shell and files only, each with the policy (`csp`); everything
-    // else falls through to the JSON 404, which stays as on any other path
+    // the plugin answers GET and HEAD of its shell and files only, each with its recommended policy (`csp`)
+    // and `nosniff`, `no-referrer` and `x-frame-options: DENY` (`securityHeaders`); everything else falls
+    // through to the JSON 404, which stays as on any other path
     ui.use(defineCoreHandler(async (event) => {
         const response = await event.next();
 
         if (response?.headers.has('content-security-policy')) {
-            for (const [name, value] of Object.entries(STATIC_SECURITY_HEADERS)) {
-                response.headers.set(name, value);
-            }
-
             response.headers.set('cache-control', DOCUMENT_CACHE_CONTROL);
             // `swagger-initializer.js` holds the document: no other origin may include it with `<script src>`
             response.headers.set('cross-origin-resource-policy', 'same-origin');
@@ -83,7 +79,9 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
             layout: 'BaseLayout',
             // no badge from validator.swagger.io
             validatorUrl: null,
-            csp: OPENAPI_UI_CSP,
+            // own files only, no inline code, no framing; the document's server is relative, so nothing remote
+            csp: true,
+            securityHeaders: true,
         }).install(ui);
     } catch (error) {
         const reason = Error.isError(error) ? error.message : String(error);

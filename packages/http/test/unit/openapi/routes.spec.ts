@@ -85,12 +85,13 @@ async function initializerOptions(app: App, path = '/docs'): Promise<Record<stri
     return JSON.parse(match![1]!) as Record<string, unknown>;
 }
 
-/** The policy of every file the UI answers: own files only, no inline code, no framing. */
+/** The plugin's recommended policy, on every file the UI answers: own files only, no inline code, no framing. */
 const POLICY = [
     'default-src \'none\'',
     'script-src \'self\'',
     'style-src \'self\'',
-    'img-src \'self\' data:',
+    'img-src \'self\' data: blob:',
+    'media-src \'self\' blob:',
     'font-src \'self\'',
     'connect-src \'self\'',
     'base-uri \'self\'',
@@ -314,7 +315,8 @@ describe('GET /docs', () => {
             'default-src': '\'none\'',
             'script-src': '\'self\'',
             'style-src': '\'self\'',
-            'img-src': '\'self\' data:',
+            'img-src': '\'self\' data: blob:',
+            'media-src': '\'self\' blob:',
             'font-src': '\'self\'',
             'connect-src': '\'self\'',
             'base-uri': '\'self\'',
