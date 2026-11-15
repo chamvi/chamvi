@@ -14,13 +14,16 @@ import {
     DHeader,
     DPath,
     DPost,
+    DProduces,
+    DReturns,
     DSecurity,
+    DStatus,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../app/helpers.ts';
 import { usePrincipal } from '../auth/helpers.ts';
-import { DProduces, DQuerySchema, DStatus } from '../decorators/index.ts';
+import { DQuerySchema } from '../decorators/index.ts';
 import { ForceLoggedInMiddleware, JsonBodyMiddleware, RequiredJsonBodyMiddleware } from '../middleware/index.ts';
 import { contentDisposition, toBody } from './helpers.ts';
 import { streamRun } from './stream/module.ts';
@@ -48,7 +51,7 @@ export class RunController {
 
     /** Starts a run through the agent's http subscription. */
     @DPost('/agents/:name/runs', [ForceLoggedInMiddleware, JsonBodyMiddleware])
-    @DStatus('202')
+    @DStatus(202)
     async start(
         @DPath('name') name: string,
         @DContext() event: IAppEvent,
@@ -57,15 +60,11 @@ export class RunController {
         @DBody() data?: StartRunRequestBody,
         @DHeader('idempotency-key') idempotencyHeader?: string,
     ): Promise<StartRunView> {
-        const result = await this.service.start({
+        return this.service.start({
             agent: name,
             data,
             idempotencyHeader,
         }, await usePrincipal(event));
-
-        event.response.status = 202;
-
-        return result;
     }
 
     /**
@@ -91,7 +90,8 @@ export class RunController {
     /** The run's events as server-sent events, resumable after a step. */
     @DGet('/runs/:id/stream', [ForceLoggedInMiddleware])
     @DQuerySchema('stream')
-    @DProduces('text/event-stream', 'Server-sent events: the run\'s events, until the run settles.')
+    @DProduces('text/event-stream')
+    @DReturns(200, 'Server-sent events: the run\'s events, until the run settles.')
     async stream(
         @DPath('id') id: string,
         @DContext() event: IAppEvent,
@@ -112,7 +112,9 @@ export class RunController {
 
     /** The artifact's bytes as a download. */
     @DGet('/runs/:id/artifacts/:artifactId', [ForceLoggedInMiddleware])
-    @DProduces('application/octet-stream', 'The artifact\'s bytes as an attachment download; the actual `content-type` is the artifact\'s stored media type.')
+    // documents the bytes only: the returned `Response` keeps the artifact's own `content-type`
+    @DProduces('application/octet-stream')
+    @DReturns(200, 'The artifact\'s bytes as an attachment download; the actual `content-type` is the artifact\'s stored media type.')
     async artifact(
         @DPath('id') id: string,
         @DPath('artifactId') artifactId: string,
@@ -134,30 +136,22 @@ export class RunController {
 
     /** Cancels the run. */
     @DPost('/runs/:id/cancel', [ForceLoggedInMiddleware])
-    @DStatus('202')
+    @DStatus(202)
     async cancel(
         @DPath('id') id: string,
         @DContext() event: IAppEvent,
     ): Promise<CancelRunView> {
-        const result = await this.service.cancel(id, await usePrincipal(event));
-
-        event.response.status = 202;
-
-        return result;
+        return this.service.cancel(id, await usePrincipal(event));
     }
 
     /** Answers the run's approval wait point. */
     @DPost('/runs/:id/approve', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
-    @DStatus('202')
+    @DStatus(202)
     async approve(
         @DPath('id') id: string,
         @DBody() data: ApproveBody,
         @DContext() event: IAppEvent,
     ): Promise<ApproveRunView> {
-        const result = await this.service.approve(id, data, await usePrincipal(event));
-
-        event.response.status = 202;
-
-        return result;
+        return this.service.approve(id, data, await usePrincipal(event));
     }
 }

@@ -7,8 +7,8 @@
 
 import {
     DController,
-    DDescription,
     DGet,
+    DReturns,
     DTags,
 } from '@routup/decorators';
 import type {
@@ -37,8 +37,8 @@ export class HealthController {
     // the 503 is a raw `Response`, so routup's send path never gives it an etag and an `If-None-Match`
     // can never turn it into a 304
     @DGet('/readyz')
-    @DDescription<ReadinessReadyView>(200, 'The app takes traffic.')
-    @DDescription<ReadinessUnavailableView>(503, 'The app takes no traffic, and why.')
+    @DReturns<ReadinessReadyView>(200, 'The app takes traffic.')
+    @DReturns<ReadinessUnavailableView>(503, 'The app takes no traffic, and why.')
     async ready(): Promise<ReadinessReadyView | Response> {
         const view = await this.service.readiness();
 

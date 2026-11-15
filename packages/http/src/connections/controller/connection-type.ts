@@ -13,11 +13,11 @@ import {
     DPath,
     DPost,
     DSecurity,
+    DStatus,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
 import { usePrincipal } from '../../auth/helpers.ts';
-import { DStatus } from '../../decorators/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
 import type {
     ConnectionConfigControllerContext,
@@ -45,16 +45,12 @@ export class ConnectionTypeController {
 
     /** Adds an account of the type. */
     @DPost('/:type/connections', [ForceLoggedInMiddleware, RequiredJsonBodyMiddleware])
-    @DStatus('201')
+    @DStatus(201)
     async create(
         @DPath('type') type: string,
         @DBody() data: ConnectionCreateBody,
         @DContext() event: IAppEvent,
     ): Promise<ConnectionSettingsView & { name: string }> {
-        const result = await this.config.create(type, data, await usePrincipal(event));
-
-        event.response.status = 201;
-
-        return result;
+        return this.config.create(type, data, await usePrincipal(event));
     }
 }

@@ -2,13 +2,12 @@
  * The OpenAPI document of the REST API, generated from the controllers by
  * `trapi generate` (the last build step) into `dist/swagger.json`.
  *
- * Nothing rewrites the document afterwards. The `@DQuerySchema` handler
- * contributes the query parameters of the three list routes and the
- * stream's resume parameters, the
- * `@DProduces` handler the 200 of the SSE and download routes, the
- * `@DStatus` handler the 201 or 202 of the routes answering one, the error
- * response is declared document-wide, and the `ErrorResponse` component
- * rides `data.extra`. `test/unit/openapi/document.spec.ts` checks the result.
+ * Nothing rewrites the document afterwards. `@routup/decorators/preset`
+ * reads `@DStatus`, `@DProduces` and `@DReturns`; chamvi's `@DQuerySchema`
+ * handler contributes the query parameters of the three list routes and
+ * the stream's resume parameters, the error response is declared
+ * document-wide, and the `ErrorResponse` component rides `data.extra`.
+ * `test/unit/openapi/document.spec.ts` checks the result.
  */
 
 import { readFileSync } from 'node:fs';
@@ -20,7 +19,7 @@ import type {
     Type,
 } from '@trapi/core';
 import { defineConfig } from '@trapi/cli';
-import { method, readString } from '@trapi/core';
+import { method, readString, requireArgument } from '@trapi/core';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from './src/app/constants.ts';
 
 const PACKAGE = JSON.parse(readFileSync(new URL('package.json', import.meta.url), 'utf8')) as { version: string };
@@ -122,70 +121,23 @@ const QUERY_PARAMETERS: Record<string, () => Parameter[]> = {
     ],
 };
 
+const QUERY_SCHEMA_NAMES = Object.keys(QUERY_PARAMETERS).map((name) => `'${name}'`).join(', ');
+
 const querySchemaHandler = method({
     match: { name: 'DQuerySchema', on: 'method' },
     apply: (ctx, draft) => {
-        const name = readString(ctx.argument(0));
-        const build = name ? QUERY_PARAMETERS[name] : undefined;
+        // an unknown or unresolvable name fails generation with trapi's CORE_DECORATOR_ARGUMENT_INVALID
+        const build = requireArgument(ctx, 0, (argument) => {
+            const name = readString(argument);
+
+            return name !== undefined && Object.hasOwn(QUERY_PARAMETERS, name) ? QUERY_PARAMETERS[name] : undefined;
+        }, `one of ${QUERY_SCHEMA_NAMES}`);
 
         if (!build) {
-            throw new Error(`@DQuerySchema on '${draft.name}' has an unknown or unresolvable argument.`);
+            throw new Error(`@DQuerySchema on '${draft.name}' needs a name.`);
         }
 
         draft.parameters.push(...build());
-    },
-});
-
-/** Per `@DProduces` media type: the schema of the 200 body. */
-const PRODUCED_SCHEMAS: Record<string, Type> = {
-    'text/event-stream': STRING,
-    'application/octet-stream': { typeName: 'binary' },
-};
-
-const producesHandler = method({
-    match: { name: 'DProduces', on: 'method' },
-    apply: (ctx, draft) => {
-        const mediaType = readString(ctx.argument(0));
-        const description = readString(ctx.argument(1));
-        const schema = mediaType ? PRODUCED_SCHEMAS[mediaType] : undefined;
-
-        if (!mediaType || !schema || !description) {
-            throw new Error(`@DProduces on '${draft.name}' has an unknown or unresolvable argument.`);
-        }
-
-        draft.responses.push({
-            name: '200',
-            status: '200',
-            description,
-            produces: [mediaType],
-            schema,
-        });
-    },
-});
-
-/** Per `@DStatus` status: the description of the response that carries the return type. */
-const SUCCESS_DESCRIPTIONS: Record<string, string> = {
-    '201': 'Created.',
-    '202': 'Accepted.',
-};
-
-const statusHandler = method({
-    match: { name: 'DStatus', on: 'method' },
-    apply: (ctx, draft) => {
-        const status = readString(ctx.argument(0));
-        const description = status ? SUCCESS_DESCRIPTIONS[status] : undefined;
-
-        if (!status || !description) {
-            throw new Error(`@DStatus on '${draft.name}' has an unknown or unresolvable argument.`);
-        }
-
-        // trapi documents the return type under this status and adds no 200
-        draft.successStatus = status;
-        draft.responses.push({
-            name: status,
-            status,
-            description,
-        });
     },
 });
 
@@ -265,7 +217,7 @@ export default defineConfig({
         preset: {
             name: 'chamvi',
             extends: ['@routup/decorators/preset'],
-            methods: [querySchemaHandler, producesHandler, statusHandler],
+            methods: [querySchemaHandler],
         },
         tsconfig: 'tsconfig.json',
         // the cache key ignores this file, so an edit here would serve a stale document
