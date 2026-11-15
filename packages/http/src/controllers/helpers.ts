@@ -11,6 +11,7 @@ import type { DecoratorMeta } from '@routup/decorators';
 import { PathMatcher } from 'routup';
 import { isObject } from 'smob';
 import { STATIC_ROUTE_PATH } from '../app/constants.ts';
+import type { ControllerRoute } from './types.ts';
 
 /** A path-to-regexp parameter (`:id`, `:"quoted name"`), not an escaped `\:`. */
 const PARAMETER = /(?<!\\):(?:"(?:[^"\\]|\\.)*"|[\p{ID_Start}$_][\p{ID_Continue}$]*)/gu;
@@ -72,4 +73,23 @@ export function toRouteMatcher(path: string): PathMatcher {
 /** `path` lowercased, parameter names replaced by `:` (routup matches case-insensitively). */
 export function toRouteKey(path: string): string {
     return path.replace(PARAMETER, ':').toLowerCase().replace(/\/+$/, '');
+}
+
+/**
+ * Finds the contributed route of a request `path` (relative to `basePath`,
+ * as `routePath()` answers it) with routup's matchers, built once here:
+ * the first route in mount order, as routup answers with the first
+ * declared match. With `method`, only a route of that method (`HEAD` also
+ * a `GET` route, routup's fallback); without, a route of any method.
+ */
+export function createControllerRouteMatcher(
+    routes: readonly ControllerRoute[],
+): (path: string, method?: string) => ControllerRoute | undefined {
+    const matchers = routes.map((route) => ({ route, matcher: toRouteMatcher(route.path) }));
+
+    return (path, method) => matchers.find(({ route, matcher }) => (
+        method === undefined ||
+        route.method === method ||
+        (method === 'HEAD' && route.method === 'GET')
+    ) && matcher.test(path))?.route;
 }

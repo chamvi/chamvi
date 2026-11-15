@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import type { HttpRoute } from '@chamvi/http';
 import type { App, IAppEvent } from 'routup';
+import { createControllerRouteMatcher } from '../../../src/controllers/helpers.ts';
 import {
     isOperationalPath,
     isStreamRequest,
@@ -362,6 +363,44 @@ describe('route labels', () => {
         expect(label('/RUNS/abc')).toBe('/runs/:id');
         expect(label('/HEALTHZ')).toBe('/healthz');
         expect(label('/authorization/check')).toBe('/authorization/check');
+    });
+
+    describe('contributed controller routes', () => {
+        const matcher = createControllerRouteMatcher([
+            {
+                method: 'GET',
+                path: '/Hooks/:id',
+                key: '/hooks/:',
+            },
+            {
+                method: 'POST',
+                path: '/hooks/:id/approve',
+                key: '/hooks/:/approve',
+            },
+        ]);
+        const label = (method: string, path: string, routes: HttpRoute[] = []) => routeLabel({ method, path } as IAppEvent, '/api', '/metrics', routes, matcher);
+
+        it('labels a request by the declared path of its route', () => {
+            expect(label('GET', '/api/hooks/7')).toBe('/Hooks/:id');
+            expect(label('GET', '/API/HOOKS/7/')).toBe('/Hooks/:id');
+            expect(label('POST', '/api/hooks/7/approve')).toBe('/hooks/:id/approve');
+            expect(label('GET', '/api/hooks/7/x/y')).toBe('/_unmatched');
+            expect(label('GET', '/api/hooks')).toBe('/_unmatched');
+        });
+
+        it('checks the controller route of the method before the extra routes, the path alone after them', () => {
+            const routes = [{ ...extra('/hooks/x'), method: 'PUT' as const }];
+
+            expect(label('GET', '/api/hooks/x', routes)).toBe('/Hooks/:id');
+            expect(label('HEAD', '/api/hooks/x', routes)).toBe('/Hooks/:id');
+            expect(label('PUT', '/api/hooks/x', routes)).toBe('/hooks/x');
+            expect(label('DELETE', '/api/hooks/y', routes)).toBe('/Hooks/:id');
+        });
+
+        it('keeps the metrics path first and the built-in labels', () => {
+            expect(label('GET', '/api/metrics')).toBe('/metrics');
+            expect(label('GET', '/api/runs/7')).toBe('/runs/:id');
+        });
     });
 
     it('treats operational paths and the stream in any case', () => {

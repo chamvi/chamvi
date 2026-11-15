@@ -8,6 +8,7 @@
 import type { IAppEvent } from 'routup';
 import { DEFAULT_METRICS_PATH } from '../app/constants.ts';
 import type { HttpAppOptions, HttpRoute } from '../app/types.ts';
+import type { ControllerRoute } from '../controllers/types.ts';
 
 /** Where Prometheus scrapes, relative to `basePath`; `undefined` with `metrics: false`. */
 export function readMetricsPath(options: HttpAppOptions): string | undefined {
@@ -91,13 +92,18 @@ const UNMATCHED_ROUTE_LABEL = '/_unmatched';
 
 /**
  * The `path` label of a request: its route template (`/runs/:id`), so ids,
- * keys and unknown paths cannot mint a series each.
+ * keys and unknown paths cannot mint a series each. A contributed
+ * controller route of the request's method (`matchController`, from
+ * `createControllerRouteMatcher()`) is labelled by its declared path before
+ * the extra routes; after them, one of any method (`OPTIONS`, a method the
+ * path lacks), as the built-in routes are labelled for every method.
  */
 export function routeLabel(
     event: IAppEvent,
     basePath: string,
     metricsPath: string,
     extraRoutes: readonly HttpRoute[] = [],
+    matchController: (path: string, method?: string) => ControllerRoute | undefined = () => undefined,
 ): string {
     const path = routePath(event, basePath);
 
@@ -105,10 +111,22 @@ export function routeLabel(
         return metricsPath;
     }
 
+    const controller = matchController(path, event.method);
+
+    if (controller !== undefined) {
+        return controller.path;
+    }
+
     const extra = findRoute(extraRoutes, path);
 
     if (extra !== undefined) {
         return extra.prefix ? `${extra.path}/*` : extra.path;
+    }
+
+    const anyMethod = matchController(path);
+
+    if (anyMethod !== undefined) {
+        return anyMethod.path;
     }
 
     for (const [pattern, template] of ROUTE_TEMPLATES) {

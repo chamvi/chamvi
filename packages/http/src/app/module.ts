@@ -42,7 +42,7 @@ export function createHttpApp(options: HttpAppOptions): App {
         ...(options.trustProxy !== undefined ? { options: { trustProxy: options.trustProxy } } : {}),
     });
 
-    installPlugins(app, { ...options, basePath: ctx.basePath });
+    installPlugins(app, { ...options, basePath: ctx.basePath }, ctx.controllerRoutes);
     app.use(defineCoreHandler((event) => {
         assertNoNul(event);
         // the middleware classes of the controllers are built without arguments
