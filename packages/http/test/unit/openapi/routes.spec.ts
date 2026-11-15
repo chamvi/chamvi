@@ -98,6 +98,15 @@ const POLICY = [
     'frame-ancestors \'none\'',
 ].join('; ');
 
+/** What every answer of the UI carries, whatever the file. */
+function expectUiHeaders(response: Response): void {
+    expect(response.headers.get('content-security-policy')).toBe(POLICY);
+    expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+    expect(response.headers.get('referrer-policy')).toBe('no-referrer');
+    expect(response.headers.get('x-frame-options')).toBe('DENY');
+    expect(response.headers.get('cache-control')).toBe('no-cache');
+}
+
 describe('GET /openapi.json', () => {
     it('serves the document without a token, its server the app root', async () => {
         const { app, errors } = setup();
@@ -318,20 +327,43 @@ describe('GET /docs', () => {
     });
 
     it.each([
+        ['/docs', 'text/html'],
+        ['/docs/', 'text/html'],
+        ['/docs/index.html', 'text/html'],
+        ['/docs/swagger-initializer.js', '/javascript'],
+        ['/docs/index.css', 'text/css'],
         ['/docs/swagger-ui.css', 'text/css'],
         ['/docs/swagger-ui-bundle.js', '/javascript'],
         ['/docs/swagger-ui-standalone-preset.js', '/javascript'],
+        ['/docs/favicon-16x16.png', 'image/png'],
         ['/docs/favicon-32x32.png', 'image/png'],
-        ['/docs/index.css', 'text/css'],
-        ['/docs/swagger-initializer.js', '/javascript'],
-    ])('serves the asset %s the page loads', async (path, type) => {
+    ])('serves %s with the policy and the security headers', async (path, type) => {
         const { app } = setup({ basePath: '/api' });
         const response = await get(app, `/api${path}`);
 
         expect(response.status).toBe(200);
         expect(response.headers.get('content-type')).toContain(type);
-        expect(response.headers.get('x-content-type-options')).toBe('nosniff');
+        expectUiHeaders(response);
         await response.arrayBuffer();
+    });
+
+    it('keeps the policy and the security headers on a HEAD and a 304 of the initializer, which holds the document', async () => {
+        const { app } = setup();
+        const first = await get(app, '/docs/swagger-initializer.js');
+        const etag = first.headers.get('etag');
+
+        await first.text();
+        expect(etag).toBeTruthy();
+
+        const second = await get(app, '/docs/swagger-initializer.js', { 'if-none-match': etag! });
+
+        expect(second.status).toBe(304);
+        expectUiHeaders(second);
+
+        const head = await app.fetch(new Request('http://test/docs/swagger-initializer.js', { method: 'HEAD' }));
+
+        expect(head.status).toBe(200);
+        expectUiHeaders(head);
     });
 
     it('references only assets it serves', async () => {
