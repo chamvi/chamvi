@@ -56,6 +56,42 @@ describe('public api', () => {
         expect(http[name as keyof typeof http]).toBeTypeOf('function');
     });
 
+    it.each([
+        'assertGranted',
+        'authorizeRequest',
+        'toInvoker',
+        'usePrincipal',
+    ])('exports the request helper %s', (name) => {
+        expect(http).toHaveProperty(name);
+        expect(http[name as keyof typeof http]).toBeTypeOf('function');
+    });
+
+    it.each([
+        'ForceLoggedInMiddleware',
+        'JsonBodyMiddleware',
+        'RequiredJsonBodyMiddleware',
+    ])('exports the middleware class %s', (name) => {
+        const Middleware = http[name as keyof typeof http] as unknown as new () => { run: unknown };
+
+        expect(Middleware).toBeTypeOf('function');
+        expect(new Middleware().run).toBeTypeOf('function');
+    });
+
+    it.each([
+        'agentResource',
+        'authenticate',
+        'authorize',
+        'cacheJsonBody',
+        'forbidden',
+        'isGranted',
+        'isGrantedSome',
+        'isPrincipal',
+        'readBearerToken',
+        'resolvePrincipal',
+    ])('keeps %s internal', (name) => {
+        expect(http).not.toHaveProperty(name);
+    });
+
     it('exports the subscription builders and channel names', () => {
         expect(http.http.on).toBeTypeOf('function');
         expect(http.webhook.on).toBeTypeOf('function');
