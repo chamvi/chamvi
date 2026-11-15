@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import * as nodeModule from 'node:module';
 import { defineCommand } from 'citty';
 import type { CommandDef } from 'citty';
 import { MIGRATE_DEFAULT_APP_NOTICE } from '../entry/constants.ts';
@@ -25,6 +26,9 @@ export function createMigrateCommand(context: CliContext): CommandDef<typeof MIG
         args: MIGRATE_ARGS,
         async run({ args }) {
             assertKnownArgs(args, MIGRATE_ARGS);
+
+            // stack traces of the built entry point at its sources (dist/index.mjs.map)
+            (nodeModule as { setSourceMapsSupport?: (enabled: boolean) => void }).setSourceMapsSupport?.(true);
 
             const entry = await resolveEntry({
                 cwd: context.cwd,

@@ -157,3 +157,7 @@ Checked `00ec8afc` (2026-11-12): the template names no `AUTHUP_*` variable and n
 ## OpenAPI document and Swagger UI (unreleased)
 
 Checked against this file's contract map: `<basePath>/openapi.json` and `<basePath>/docs` are new routes of every app, served by default; no env, CLI or public API change, so no template change is required; the template's image build does run the postinstall analytics script of `@scarf/scarf` (a dependency of `swagger-ui-dist`) unless it sets `SCARF_ANALYTICS=false`. After the release the README may link `/docs` next to its curl flow; an app route at `/docs` or `/openapi.json` is refused at construction.
+
+## TypeScript entries in the CLI (#223, unreleased)
+
+Checked 2026-11-15 against this file's contract map, not a template checkout: no CLI argument, exit code, signal or env name changes, and the image's `start` on `dist/index.mjs` registers no TypeScript hooks, so the deleted tsdown stays unneeded at runtime. `chamvi dev` and any command given `src/index.ts` load it through tsdown's rolldown with the template's `tsconfig.json`, so tsdown must stay a devDependency there. Adopting decorators (`experimentalDecorators`, a controller) is a later template PR.

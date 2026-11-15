@@ -90,7 +90,7 @@ An agent repository that runs as a service (HTTP, cron, the store from `DATABASE
 
 ```bash
 npm install @chamvi/app @chamvi/cli ai @ai-sdk/anthropic typeorm pg
-npm install --save-dev tsdown   # only for chamvi build
+npm install --save-dev tsdown   # for chamvi build and a TypeScript entry
 ```
 
 `@chamvi/app` re-exports `@chamvi/core`, so the repository imports one package; the CLI needs Node.js 26.0.0 or newer. See [Apps & Modules](/guide/app).

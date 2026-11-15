@@ -16,7 +16,13 @@ import { copyFixtureApp } from '../../utils/app.ts';
 import type { TempApp } from '../../utils/app.ts';
 import { startEnv } from '../../utils/env.ts';
 import { freePort } from '../../utils/port.ts';
-import { spawnCli, waitForOk } from '../../utils/spawn.ts';
+import {
+    HOOKS_PROBE_LINE,
+    count,
+    hooksProbeEnv,
+    spawnCli,
+    waitForOk,
+} from '../../utils/spawn.ts';
 import type { CliProcess } from '../../utils/spawn.ts';
 
 describe('bin build', () => {
@@ -43,5 +49,18 @@ describe('bin build', () => {
         await waitForOk(`http://127.0.0.1:${port}/readyz`);
         cli.child.kill('SIGTERM');
         expect((await cli.exited(10_000)).code).toBe(0);
+    });
+
+    it('build a decorated entry, then start --check runs dist/index.mjs without the TypeScript hooks', async () => {
+        await app.remove();
+        app = await copyFixtureApp('decorated');
+
+        cli = spawnCli(['build'], { cwd: app.cwd });
+        expect((await cli.exited(60_000)).code, cli.stderr()).toBe(0);
+
+        cli = spawnCli(['start', '--check'], { cwd: app.cwd, env: { ...startEnv(await freePort()), ...hooksProbeEnv() } });
+        expect(await cli.exited(), cli.stderr()).toEqual({ code: 0, signal: null });
+        expect(cli.stdout()).toContain('chamvi: start check passed');
+        expect(count(cli.stderr(), HOOKS_PROBE_LINE)).toBe(0);
     });
 });

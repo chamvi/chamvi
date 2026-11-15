@@ -39,4 +39,5 @@ export const BUILD_OUTPUT_PATTERN = /\.mjs(?:\.map)?$/;
 /** The optional peer `chamvi build` drives. */
 export const TSDOWN_PACKAGE = 'tsdown';
 
-export const MODULE_NOT_FOUND_CODE = 'ERR_MODULE_NOT_FOUND';
+/** The codes of a module that does not resolve: `import()` and `require.resolve()`. */
+export const MODULE_NOT_FOUND_CODES: readonly string[] = ['ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND'];

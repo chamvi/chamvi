@@ -18,9 +18,9 @@ import {
     BUILD_OUTPUT_PATTERN,
     BUILD_OUT_DIR,
     ENTRY_ARG,
-    MODULE_NOT_FOUND_CODE,
     TSDOWN_PACKAGE,
 } from './constants.ts';
+import { isTsdownMissing } from './helpers.ts';
 
 const BUILD_ARGS = {
     'entry': ENTRY_ARG,
@@ -32,17 +32,6 @@ const BUILD_ARGS = {
 } as const;
 
 type TsdownBuild = (config: Record<string, unknown>) => Promise<unknown>;
-
-/** Whether the error is the import of tsdown itself failing to resolve (not a module tsdown imports). */
-function isTsdownMissing(error: unknown): boolean {
-    if (!(Error.isError(error))) {
-        return false;
-    }
-
-    const { code } = error as { code?: unknown };
-
-    return code === MODULE_NOT_FOUND_CODE && error.message.includes(`'${TSDOWN_PACKAGE}'`);
-}
 
 async function importTsdown(context: CliContext): Promise<TsdownBuild> {
     let exports: unknown;

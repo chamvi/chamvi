@@ -161,3 +161,7 @@ Checked `ce1ffc81` (2026-11-12): the chart names authup only in the Secrets tabl
 ## OpenAPI document and Swagger UI (unreleased)
 
 Checked against this file's contract map: `@chamvi/http` serves `GET <basePath>/openapi.json` and a Swagger UI under `<basePath>/docs` (unauthenticated, on by default). Both sit under `basePath`, so the Ingress prefix covers them and no chart value, template or probe changes.
+
+## TypeScript entries in the CLI (#223, unreleased)
+
+Checked 2026-11-15 against this file's contract map and `packages/cli/src/entry/module.ts`: the Deployment's `start` and the CronJob's `run-job` default to `dist/index.mjs`, a JavaScript entry that registers no TypeScript hooks and needs no tsdown; no CLI argument, exit code, signal, env name, route or image contract changes, so no chart change.

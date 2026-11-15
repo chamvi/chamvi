@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import * as nodeModule from 'node:module';
 import { TIMER_MAX_MS, envInteger } from '@chamvi/app';
 import { defineCommand } from 'citty';
 import type { CommandDef } from 'citty';
@@ -51,6 +52,10 @@ export function createRunJobCommand(context: CliContext): CommandDef<typeof RUN_
 
             const { env } = context;
             const forceExitMs = envInteger(env, FORCE_EXIT_VARIABLE, { default: FORCE_EXIT_MS, max: TIMER_MAX_MS });
+
+            // stack traces of the built entry point at its sources (dist/index.mjs.map)
+            (nodeModule as { setSourceMapsSupport?: (enabled: boolean) => void }).setSourceMapsSupport?.(true);
+
             const entry = await resolveEntry({
                 cwd: context.cwd,
                 entry: args.entry,
