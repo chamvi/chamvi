@@ -17,14 +17,20 @@ export const OPENAPI_DOCUMENT_ROUTE = '/openapi.json';
 export const OPENAPI_UI_PATH = '/docs';
 
 /**
- * @internal The files the UI shell loads (relative to `<basePath>/docs/`):
- * everything else of swagger-ui-dist (its petstore demo page, the OAuth
- * redirect page, maps, README) answers 404.
+ * @internal The Content-Security-Policy of every file the UI answers (the
+ * plugin's `csp` option, also on a 304 and a HEAD): the shell has no inline
+ * script or style, so its own files only. It sets `default-src 'none'` and
+ * `frame-ancestors 'none'` and allows no `blob:`, which the plugin's
+ * recommended policy does not do (routup/plugins#864).
  */
-export const OPENAPI_UI_ASSETS: readonly string[] = [
-    'favicon-16x16.png',
-    'favicon-32x32.png',
-    'swagger-ui-bundle.js',
-    'swagger-ui-standalone-preset.js',
-    'swagger-ui.css',
-];
+export const OPENAPI_UI_CSP = [
+    "default-src 'none'",
+    "script-src 'self'",
+    "style-src 'self'",
+    "img-src 'self' data:",
+    "font-src 'self'",
+    "connect-src 'self'",
+    "base-uri 'self'",
+    "form-action 'self'",
+    "frame-ancestors 'none'",
+].join('; ');

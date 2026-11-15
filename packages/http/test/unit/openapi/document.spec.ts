@@ -83,9 +83,9 @@ const SCHEMAS = '#/components/schemas/';
 
 /**
  * The routes that answer a success status other than 200, `[path, method,
- * status, body schema]`: the one list. The handler sets the status at
- * runtime, `@DStatus` documents it; the drift check below sends a real
- * request for each entry.
+ * status, body schema]`: the one list. `@DStatus` sets the status at
+ * runtime and documents it; the drift check below sends a real request for
+ * each entry.
  */
 const SUCCESS_STATUSES: [string, string, '201' | '202', Schema][] = [
     ['/agents/{name}/runs', 'post', '202', { $ref: `${SCHEMAS}StartRunView` }],
@@ -113,7 +113,7 @@ const OTHER_RESPONSES: Record<string, string[]> = { 'get /readyz': ['200', '503'
  */
 const UNREFERENCED_SCHEMAS = new Set<string>([
     // the fetch `Response` the SSE, download and readiness handlers return: trapi resolves a method's
-    // return type even where a handler response (`@DProduces`, `@DDescription`) replaces it
+    // return type even where the documented response (`@DProduces`, `@DReturns`) does not use it
     'Response',
 ]);
 
@@ -476,19 +476,6 @@ describe.skipIf(!document)('the generated openapi document', () => {
         expect(lastEventId?.description).toMatch(/wins over `after`/);
     });
 
-    it('can be inlined into the ui shell unescaped', () => {
-        // @routup/swagger-ui writes the document into a <script> with String.replace, unescaped
-        // (routup/plugins#855): nothing may close the script or open a comment, no replacement pattern expand
-        const content = JSON.stringify(doc);
-
-        expect(content).not.toMatch(/<\/script/i);
-        expect(content).not.toContain('<!--');
-
-        for (const pattern of ['$&', '$`', '$\'', '$$']) {
-            expect(content, pattern).not.toContain(pattern);
-        }
-    });
-
     it('speaks to API consumers in its descriptions', () => {
         const texts: string[] = [];
         const collect = (value: unknown): void => {
@@ -655,4 +642,21 @@ describe('the documented success statuses', () => {
             expect((await (probe as () => Promise<Response>)()).status).toBe(Number(status));
         });
     }
+
+    it('never puts the success status on an error answer', async () => {
+        const { app } = createRunTestApp();
+        const failures: [string, string, Record<string, unknown> | undefined][] = [
+            ['POST', '/agents/nope/runs', undefined],
+            ['POST', '/runs/missing/cancel', undefined],
+            ['POST', '/runs/missing/approve', { approvalId: 'x', approved: true }],
+            ['POST', '/connections/nope/reset', undefined],
+        ];
+
+        for (const [method, path, body] of failures) {
+            const response = await call(app, method, path, { token: ADMIN_TOKEN, body });
+
+            expect(response.status, path).toBe(404);
+            expect(await response.json(), path).toMatchObject({ status: 404 });
+        }
+    });
 });

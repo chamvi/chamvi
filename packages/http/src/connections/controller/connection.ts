@@ -13,14 +13,16 @@ import {
     DGet,
     DPath,
     DPost,
+    DProduces,
     DPut,
+    DReturns,
     DSecurity,
+    DStatus,
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
 import { useHttpContext } from '../../app/helpers.ts';
 import { usePrincipal } from '../../auth/helpers.ts';
-import { DProduces, DStatus } from '../../decorators/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
 import { streamConnection } from '../stream/module.ts';
 import type {
@@ -72,7 +74,8 @@ export class ConnectionController {
 
     /** The connection's status and widgets as server-sent events. */
     @DGet('/:name/events', [ForceLoggedInMiddleware])
-    @DProduces('text/event-stream', 'Server-sent events: the handle\'s status and widgets.')
+    @DProduces('text/event-stream')
+    @DReturns(200, 'Server-sent events: the handle\'s status and widgets.')
     async events(
         @DPath('name') name: string,
         @DContext() event: IAppEvent,
@@ -84,16 +87,12 @@ export class ConnectionController {
 
     /** Starts the connection's reset. */
     @DPost('/:name/reset', [ForceLoggedInMiddleware])
-    @DStatus('202')
+    @DStatus(202)
     async reset(
         @DPath('name') name: string,
         @DContext() event: IAppEvent,
     ): Promise<ConnectionView> {
-        const result = await this.service.reset(name, await usePrincipal(event));
-
-        event.response.status = 202;
-
-        return result;
+        return this.service.reset(name, await usePrincipal(event));
     }
 
     /** The stored settings and every field's source. */
