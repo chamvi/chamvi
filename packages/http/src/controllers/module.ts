@@ -12,7 +12,7 @@ import { RESERVED_ROUTE_SEGMENTS } from '../app/constants.ts';
 import type { HttpAppOptions, HttpContext, HttpRoute } from '../app/types.ts';
 import { readMetricsPath } from '../plugins/helpers.ts';
 import { isAtOrUnder } from '../routes/helpers.ts';
-import { hasRefusedMethodPath, readBasePaths, readControllerMeta } from './helpers.ts';
+import { readBasePaths, readControllerMeta } from './helpers.ts';
 
 /**
  * Base paths outside the built-in routes, not at or above the metrics path,
@@ -33,8 +33,7 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
     const metricsPath = readMetricsPath(options)?.toLowerCase();
 
     for (const controller of options.controllers) {
-        const meta = readControllerMeta(controller);
-        const bases = readBasePaths(meta);
+        const bases = readBasePaths(readControllerMeta(controller));
         const listed = new Set<string>();
 
         for (const base of bases) {
@@ -62,11 +61,7 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
         try {
             getControllerRoutes(controller);
         } catch (error) {
-            // routup exports no path error type: a method path its own matcher refuses tells one apart
-            if (!hasRefusedMethodPath(meta)) {
-                throw error;
-            }
-
+            // the listing only runs routup's registration, so any failure means the controller cannot be mounted
             const paths = bases.map((base) => `"${base}"`).join(', ');
             const cause = Error.isError(error) ? error.message : String(error);
 

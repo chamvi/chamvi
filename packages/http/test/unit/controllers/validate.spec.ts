@@ -215,17 +215,17 @@ describe('contributed controllers', () => {
             .toBe(`Controller path "${repeated}" is listed twice.`);
     });
 
-    it('lets an error other than a path error through unchanged', () => {
+    it('refuses a registration failure of any kind with the cause\'s message', () => {
         const controller = createTestController('/notes', [['GET', '/x']]);
-        const thrown = new TypeError('broken metadata');
 
         Object.defineProperty(useDecoratorMeta(controller).methods.route0, 'url', {
             get() {
-                throw thrown;
+                throw new TypeError('broken metadata');
             },
         });
 
-        expect(() => createTestApp({ controllers: [controller] })).toThrow(thrown);
+        expect(message(() => createTestApp({ controllers: [controller] })))
+            .toBe('Controller path "/notes" cannot be mounted: broken metadata');
     });
 
     it('answers a route repeated under other parameter names from the first controller', async () => {
