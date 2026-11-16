@@ -50,12 +50,12 @@ The app is built at construction, so a breach fails the start and `chamvi start 
 - Each `@DController` base path (a string or an array) is a static path starting with `/` (letters, digits, `_`, `.`, `~`, `-`; no parameters), whose first segment is not a built-in one (`agents`, `authorization`, `channels`, `connection-types`, `connections`, `docs`, `healthz`, `mcp`, `me`, `openapi.json`, `readyz`, `runs`, `schedules`, `ui-pages`), and which is neither the metrics path nor above it (with metrics on). Paths compare case-insensitively, as routup matches them.
 - A method path is empty or starts with `/`, and may carry routup parameters (`/:id`). `{/:id}` is refused, though routup would take it: declare `''` and `/:id` as two methods.
 - No route (method plus full path, compared case-insensitively, parameter names ignored) is declared twice across all controllers.
-- No route of the same method could take a request of an extra route (`HttpRoute`, such as the dashboard's): its path, or for a prefix route any path at or under it. Segments compare one by one (a quoted parameter name holding a `/` stays one segment): a segment with a parameter matches every segment its literal text before the first and after the last parameter fits (`/ui/styles-:id` never matches `/ui/assets`, `/ui/as:rest` does), and one with a wildcard the rest. So `/ui/:section/:file` is refused beside the prefix route `/ui/assets`: controllers are mounted first and would shadow it.
+- No extra route (`HttpRoute`, such as the dashboard's), of any method, lies at or under a base path, and no base path lies at or under an extra prefix route: controllers are mounted first and would shadow it. So `/notes` and `/notes-archive` stay apart, while an `HttpRoute` `POST /notes/hook` beside a `/notes` controller and a `/ui/notes` controller beside the prefix route `/ui` are refused.
 - The class must be decorated with `@DController` and contributed as an instance, not as the class.
 
 Routes match in declaration order, as routup answers with the first match: declare a static route (`/count`) before a parameter route of the same shape (`/:id`).
 
-A class-level middleware (`@DController('/notes', [ForceLoggedInMiddleware])`) runs for every request under the controller's base path, unmatched paths and an `HttpRoute` beneath it included: keep `ForceLoggedInMiddleware` on the methods unless the whole base path is the controller's.
+A class-level middleware (`@DController('/notes', [ForceLoggedInMiddleware])`) runs for every request under the controller's base path, unmatched paths included: keep `ForceLoggedInMiddleware` on the methods unless the whole base path is the controller's.
 
 ## Requests
 
