@@ -19,6 +19,7 @@ import {
     DEFAULT_MCP_MAX_WAIT_SECONDS,
     DEFAULT_MCP_NAME,
     DEFAULT_MCP_VERSION,
+    MCP_PATH,
 } from './constants.ts';
 import { readRequestExtra } from './helpers.ts';
 import { createRunToolSource, registerTools } from './tools.ts';
@@ -68,7 +69,7 @@ export function registerMcpRoutes(app: App, ctx: HttpContext, services: McpServi
     // ends run_<agent> waits on shutdown: the legacy stateless path is not torn down by handler.close()
     const closing = new AbortController();
 
-    app.use('/mcp', defineCoreHandler(async (event) => {
+    app.use(MCP_PATH, defineCoreHandler(async (event) => {
         const principal = await authenticate(event, ctx);
         const refused = refuseWhenClosed(event, ctx);
 

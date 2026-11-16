@@ -120,11 +120,11 @@ This is the "MCP in" half of the [OpenClaw](/deployment/openclaw) integration.
 
 A route can also answer headers and bytes: `headers` is set on the response (a `content-type` there wins over the body's default) and a `Uint8Array` body is sent as is (`application/octet-stream` unless `headers` names a type), with the CORS and rate limit headers kept. `prefix: true` makes the route serve its `path` and everything below `path/` for its method (a static file server, such as a dashboard's assets): the handler reads the rest as `request.subpath` (`''` for the path itself, else the raw, still percent-encoded rest with its case, never the query), and metrics label it `<path>/*`. A route of the same method at or under a prefix route, or a prefix route at or above the metrics path, is refused at construction. The route context carries the app's `basePath` to build links with.
 
-`@chamvi/ui` is such a route: `routes: uiRoutes()` serves the [dashboard](/guide/ui) at `/ui`.
+`@chamvi/ui` is such a route: `routes: uiRoutes()` serves the [dashboard](/guide/ui) at `/ui`. An app's own REST API with parameters, bodies and services is better served by [controllers](/guide/controllers) (`controllers`).
 
 ## Operations
 
-- `/metrics` is unauthenticated: keep it off the public ingress (a NetworkPolicy, or an internal listener) or set `metrics: false`. Each app has its own `prom-client` registry, labelled by route template (`/runs/:id`, `/runs/:id/artifacts/:artifactId`; unknown paths share `/_unmatched`); SSE streams and rate-limited requests are not timed.
+- `/metrics` is unauthenticated: keep it off the public ingress (a NetworkPolicy, or an internal listener) or set `metrics: false`. Each app has its own `prom-client` registry, labelled by the pattern of the route that served the request, without `basePath` (`/runs/:id`, `/runs/:id/artifacts/:artifactId`, `/channels/github/*`); a request no route served (an unknown path, a method the path does not serve, `OPTIONS`) shares `/_unmatched`; SSE streams and rate-limited requests are not timed.
 - The rate limit (300 requests per minute per client, health, metrics and CORS preflights excluded) keys on the socket address. Behind a reverse proxy set `trustProxy`, or every client shares the proxy's bucket; `X-Forwarded-For` is never trusted otherwise.
 - CORS is off unless `cors` is given.
 - `/readyz` fails while shutting down, while the engine drains and when the store does not answer within `readyTimeoutMs` (2 s).

@@ -21,12 +21,12 @@ import {
     expect,
     it,
 } from 'vitest';
-import type { App, IAppEvent } from 'routup';
+import type { App } from 'routup';
 import { OPENAPI_DOCUMENT_PATH } from '../../../src/openapi/constants.ts';
 import { loadOpenApiDocument } from '../../../src/openapi/helpers.ts';
-import { routeLabel } from '../../../src/plugins/helpers.ts';
 import { createHttpApp } from '@chamvi/http';
 import { createTestApp, testAuth } from '../../utils/app.ts';
+import { recordLabels, request } from '../../utils/metrics.ts';
 import type { TestAppOverrides } from '../../utils/app.ts';
 
 const DIRECTORY = mkdtempSync(join(tmpdir(), 'chamvi-openapi-'));
@@ -527,13 +527,14 @@ describe('plugins', () => {
         expect((await get(app, '/openapi.json')).status).toBe(429);
     });
 
-    it('labels both paths by their template', () => {
-        const label = (path: string) => routeLabel({ method: 'GET', path } as IAppEvent, '/api', '/metrics');
+    it('labels both paths by their template', async () => {
+        const recorder = recordLabels();
+        const { app } = setup({ basePath: '/api', metrics: recorder.metrics });
 
-        expect(label('/api/openapi.json')).toBe('/openapi.json');
-        expect(label('/api/docs')).toBe('/docs');
-        expect(label('/api/docs/')).toBe('/docs');
-        expect(label('/api/docs/swagger-ui.css')).toBe('/docs/*');
-        expect(label('/api/docs/a/b')).toBe('/docs/*');
+        for (const path of ['/api/openapi.json', '/api/docs', '/api/docs/', '/api/docs/swagger-ui.css', '/api/docs/a/b']) {
+            await request(app, 'GET', path);
+        }
+
+        expect(recorder.labels).toEqual(['/openapi.json', '/docs', '/docs', '/docs/*', '/docs/*']);
     });
 });

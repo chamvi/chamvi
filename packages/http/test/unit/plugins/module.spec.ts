@@ -12,7 +12,6 @@ import {
     isOperationalPath,
     isStreamRequest,
     isUnlimitedRoute,
-    routeLabel,
 } from '../../../src/plugins/helpers.ts';
 import {
     ADMIN_TOKEN,
@@ -20,6 +19,8 @@ import {
     createRunTestApp,
     createTestApp,
 } from '../../utils/app.ts';
+import type { CallOptions, TestAppOverrides } from '../../utils/app.ts';
+import { recordLabels, request } from '../../utils/metrics.ts';
 
 type RequestOptions = {
     method?: string;
@@ -119,7 +120,7 @@ describe('metrics', () => {
             '/_unmatched',
             '/agents/:name/state/kv',
             '/agents/:name/state/kv/:key',
-            '/channels/:name/*',
+            '/channels/webhook/*',
             '/me',
             '/runs/:id',
             '/runs/:id/approve',
@@ -296,22 +297,38 @@ describe('rate limit', () => {
 });
 
 describe('route labels', () => {
-    const extra = (path: string, prefix?: true): HttpRoute => ({
-        method: 'POST',
+    const extra = (path: string, prefix?: true, method: HttpRoute['method'] = 'POST'): HttpRoute => ({
+        method,
         path,
         ...(prefix ? { prefix } : {}),
         handler: async () => ({ status: 204 }),
     });
 
+    /** The `path` label of each request, sent in order to an app with the given options. */
+    async function labelsOf(
+        overrides: TestAppOverrides,
+        requests: ReadonlyArray<readonly [method: string, path: string, options?: CallOptions]>,
+    ): Promise<string[]> {
+        const recorder = recordLabels();
+        const { app } = createTestApp({ ...overrides, metrics: recorder.metrics });
+
+        for (const [method, path, options] of requests) {
+            await request(app, method, path, options);
+        }
+
+        return recorder.labels;
+    }
+
     it.each([
         ['outer first', ['/ui', '/ui/ext/mail']],
         ['inner first', ['/ui/ext/mail', '/ui']],
-    ])('labels a nested prefix route by the most specific one (%s)', (_order, paths) => {
+    ])('labels a nested prefix route by the most specific one (%s)', async (_order, paths) => {
         const routes = paths.map((path) => extra(path, true));
-        const label = (path: string) => routeLabel({ method: 'POST', path } as IAppEvent, '', '/metrics', routes);
 
-        expect(label('/ui/ext/mail/accounts')).toBe('/ui/ext/mail/*');
-        expect(label('/ui/agents')).toBe('/ui/*');
+        expect(await labelsOf({ routes }, [
+            ['POST', '/ui/ext/mail/accounts'],
+            ['POST', '/ui/agents'],
+        ])).toEqual(['/ui/ext/mail/*', '/ui/*']);
     });
 
     it.each([
@@ -330,38 +347,123 @@ describe('route labels', () => {
         expect(unlimited('/ui/ext/mail/x')).toBe(free === '/ui/ext/mail');
     });
 
-    it('labels an extra route by its path', () => {
-        const event = { method: 'POST', path: '/webhooks/github' } as IAppEvent;
-
-        expect(routeLabel(event, '', '/metrics', [extra('/webhooks/github')])).toBe('/webhooks/github');
-        expect(routeLabel(event, '', '/metrics', [])).toBe('/_unmatched');
+    it('labels an extra route by its path, a path no route serves /_unmatched', async () => {
+        expect(await labelsOf({ routes: [extra('/webhooks/github')] }, [['POST', '/webhooks/github']])).toEqual(['/webhooks/github']);
+        expect(await labelsOf({}, [['POST', '/webhooks/github']])).toEqual(['/_unmatched']);
     });
 
-    it('labels an extra route under basePath', () => {
-        const event = { method: 'POST', path: '/api/webhooks/github' } as IAppEvent;
-
-        expect(routeLabel(event, '/api', '/metrics', [extra('/webhooks/github')])).toBe('/webhooks/github');
+    it('labels an extra route under basePath', async () => {
+        expect(await labelsOf({ basePath: '/api', routes: [extra('/webhooks/github')] }, [['POST', '/api/webhooks/github']])).toEqual(['/webhooks/github']);
     });
 
-    it('labels a prefix route <path>/*', () => {
-        const label = (path: string) => routeLabel({ method: 'GET', path } as IAppEvent, '/api', '/metrics', [extra('/ui', true)]);
-
-        expect(label('/api/ui')).toBe('/ui/*');
-        expect(label('/api/ui/')).toBe('/ui/*');
-        expect(label('/api/UI/assets/app-1.js')).toBe('/ui/*');
-        expect(label('/api/uix')).toBe('/_unmatched');
+    it('labels a prefix route <path>/*', async () => {
+        expect(await labelsOf({ basePath: '/api', routes: [extra('/ui', true, 'GET')] }, [
+            ['GET', '/api/ui'],
+            ['GET', '/api/ui/'],
+            ['GET', '/api/UI/assets/app-1.js'],
+            ['GET', '/api/uix'],
+        ])).toEqual(['/ui/*', '/ui/*', '/ui/*', '/_unmatched']);
         // a plain route matches its path only
-        expect(routeLabel({ method: 'GET', path: '/api/ui/x' } as IAppEvent, '/api', '/metrics', [extra('/ui')])).toBe('/_unmatched');
+        expect(await labelsOf({ basePath: '/api', routes: [extra('/ui', undefined, 'GET')] }, [['GET', '/api/ui/x']])).toEqual(['/_unmatched']);
     });
 
-    it('labels a path in another case like routup matches it', () => {
-        const label = (path: string, basePath = '', routes: HttpRoute[] = []) => routeLabel({ method: 'POST', path } as IAppEvent, basePath, '/metrics', routes);
+    it('labels a path in another case like routup matches it', async () => {
+        expect(await labelsOf({ routes: [extra('/webhooks/github')] }, [
+            ['POST', '/Webhooks/GitHub'],
+            ['GET', '/RUNS/abc', { token: ADMIN_TOKEN }],
+            ['GET', '/HEALTHZ'],
+            ['POST', '/authorization/check', { token: ADMIN_TOKEN, body: { permissions: [] } }],
+        ])).toEqual(['/webhooks/github', '/runs/:id', '/healthz', '/authorization/check']);
+        expect(await labelsOf({ basePath: '/api', routes: [extra('/webhooks/github')] }, [['POST', '/API/webhooks/github']])).toEqual(['/webhooks/github']);
+    });
 
-        expect(label('/Webhooks/GitHub', '', [extra('/webhooks/github')])).toBe('/webhooks/github');
-        expect(label('/API/webhooks/github', '/api', [extra('/webhooks/github')])).toBe('/webhooks/github');
-        expect(label('/RUNS/abc')).toBe('/runs/:id');
-        expect(label('/HEALTHZ')).toBe('/healthz');
-        expect(label('/authorization/check')).toBe('/authorization/check');
+    it('labels a channel route per channel, its subpaths included', async () => {
+        expect(await labelsOf({ basePath: '/api' }, [
+            ['POST', '/api/channels/webhook'],
+            ['POST', '/api/channels/webhook/'],
+            ['POST', '/api/channels/webhook/hooked/x/y'],
+            ['POST', '/api/channels/other/x'],
+        ])).toEqual(['/channels/webhook/*', '/channels/webhook/*', '/channels/webhook/*', '/_unmatched']);
+    });
+
+    it('labels the method-less mounts by a fixed label', async () => {
+        expect(await labelsOf({ basePath: '/api' }, [
+            ['POST', '/api/mcp'],
+            ['GET', '/api/mcp'],
+            ['GET', '/api/mcp/x'],
+            ['GET', '/api/docs'],
+            ['GET', '/api/docs/'],
+            ['GET', '/api/docs/a/b'],
+        ])).toEqual(['/mcp', '/mcp', '/_unmatched', '/docs', '/docs', '/docs/*']);
+    });
+
+    it('labels a method no route of the path is bound to, and OPTIONS, /_unmatched', async () => {
+        expect(await labelsOf({ routes: [extra('/hooks/x')] }, [
+            ['DELETE', '/runs/abc', { token: ADMIN_TOKEN }],
+            ['POST', '/healthz'],
+            ['GET', '/hooks/x'],
+            ['GET', '/channels/webhook'],
+            ['OPTIONS', '/runs/abc'],
+            ['HEAD', '/runs/abc', { token: ADMIN_TOKEN }],
+        ])).toEqual(['/_unmatched', '/_unmatched', '/_unmatched', '/_unmatched', '/_unmatched', '/runs/:id']);
+    });
+
+    it('labels a request refused by a route\'s middleware and a route that throws by that route', async () => {
+        expect(await labelsOf({
+            basePath: '/api',
+            routes: [{
+                method: 'GET',
+                path: '/boom',
+                handler: async () => {
+                    throw new Error('boom');
+                },
+            }],
+        }, [
+            ['GET', '/api/agents'],
+            ['GET', '/api/runs/abc'],
+            ['GET', '/api/boom'],
+        ])).toEqual(['/agents', '/runs/:id', '/boom']);
+    });
+
+    it('labels the run stream by its route when it is timed', async () => {
+        const recorder = recordLabels(() => false);
+        const { app, engine } = createRunTestApp({ basePath: '/api', metrics: recorder.metrics });
+        const { runId } = await engine.dispatch({
+            agent: 'echo',
+            trigger: 'http',
+            channel: 'http',
+            payload: {},
+        });
+        const controller = new AbortController();
+        const stream = await call(app, 'GET', `/api/runs/${runId}/stream`, { token: ADMIN_TOKEN, signal: controller.signal });
+
+        expect(stream.status).toBe(200);
+        await stream.body?.cancel();
+        controller.abort();
+
+        expect(recorder.labels).toEqual(['/runs/:id/stream']);
+    });
+
+    it('keeps the metrics path first', async () => {
+        const recorder = recordLabels();
+        const { app } = createTestApp({ basePath: '/api', metrics: { ...recorder.metrics, metricsPath: '/Stats' } });
+
+        await request(app, 'GET', '/api/stats');
+        await request(app, 'GET', '/api/Stats');
+
+        expect(recorder.labels).toEqual(['/Stats', '/Stats']);
+    });
+
+    it('never labels a request by its raw path', async () => {
+        const labels = await labelsOf({ basePath: '/api' }, [
+            ['GET', '/api/nope/x7'],
+            ['GET', '/api/docs/x7'],
+            ['POST', '/api/channels/x7'],
+            ['GET', '/api/runs/x7', { token: ADMIN_TOKEN }],
+            ['GET', '/x7'],
+        ]);
+
+        expect(labels.some((label) => label.includes('x7'))).toBe(false);
     });
 
     it('treats operational paths and the stream in any case', () => {

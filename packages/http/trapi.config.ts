@@ -230,7 +230,8 @@ export default defineConfig({
             version: PACKAGE.version,
             description: [
                 'The REST API of a chamvi app: health, runs, agents and their state, connections.',
-                'The MCP endpoint, the channel routes (`/channels/...`) and routes an app adds are outside this document.',
+                'The MCP endpoint and the channel routes (`/channels/...`) are outside this document;',
+                'routes an app adds appear when the app contributes an OpenAPI document of them.',
             ].join(' '),
             operationIdStrategy: 'path',
             responses: [DEFAULT_RESPONSE],

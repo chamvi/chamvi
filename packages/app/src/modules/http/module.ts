@@ -32,7 +32,10 @@ import type { HttpModuleOptions } from './types.ts';
  * `http` or `mcp` channel taint its runs) and the folder agents'
  * MCP tool check (`AGENT_CHECKS`, unless `mcp: false`); `onReady` builds the
  * graceful shutdown (`SHUTDOWN`) and the routup app from every
- * `AUTHENTICATORS`, `HTTP_ROUTES`, `CONNECTIONS`, `CONNECTION_TYPES` and `UI_PAGES` contribution, mounting every
+ * `AUTHENTICATORS`, `HTTP_ROUTES`, `HTTP_CONTROLLERS` (after the
+ * `controllers` option's), `OPENAPI_DOCUMENTS` (after the
+ * `openapi.documents` option's; none with `openapi: false`), `CONNECTIONS`,
+ * `CONNECTION_TYPES` and `UI_PAGES` contribution, mounting every
  * contributed channel with an `in` at `/channels/<name>`, then registers the
  * `serve` start step: the app runs the start steps (the engine with its
  * channels, then this one: the `started` hooks, listening, `SERVER`) only
@@ -147,6 +150,14 @@ export class HttpModule implements IModule {
             shutdown,
             basePath: config.http.basePath,
             routes: container.resolveAll(AppToken.HTTP_ROUTES),
+            // the factories run here, after every module's setup; the option's controllers mount first
+            controllers: [...(this.options.controllers ?? []), ...container.resolveAll(AppToken.HTTP_CONTROLLERS)],
+            openapi: this.options.openapi === false ?
+                false :
+                {
+                    ...this.options.openapi,
+                    documents: [...(this.options.openapi?.documents ?? []), ...container.resolveAll(AppToken.OPENAPI_DOCUMENTS)],
+                },
             // every contributed channel the http app can serve; the engine holds the same instances
             channels: container.resolveAll(AppToken.CHANNELS).filter((channel) => typeof channel.in === 'function'),
             connections: () => connections,

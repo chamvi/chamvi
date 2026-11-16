@@ -20,16 +20,20 @@ import { isValidupError } from 'validup';
 import {
     DEFAULT_BODY_LIMIT,
     DEFAULT_MAX_OPEN_STREAMS,
-    DEFAULT_METRICS_PATH,
     DEFAULT_READY_TIMEOUT_MS,
     DEFAULT_STREAM_POLL_MS,
     HTTP_CONTEXT,
     RESERVED_ROUTE_SEGMENTS,
+    STATIC_ROUTE_PATH,
     STREAM_RETRY_AFTER_SECONDS,
 } from './constants.ts';
 import { validateChannels } from '../channels/helpers.ts';
+import { validateControllers } from '../controllers/module.ts';
+import { mergeOpenApiDocuments } from '../openapi/merge.ts';
 import { boundIssues } from '../request/helpers.ts';
 import { validateChannelRateLimits } from '../plugins/channels.ts';
+import { readMetricsPath } from '../plugins/helpers.ts';
+import { isAtOrUnder } from '../routes/helpers.ts';
 import type { AgentIssue } from '../agents/types.ts';
 import type {
     HttpAgents,
@@ -59,8 +63,6 @@ const CORE_STATUS: Record<string, number> = {
 
 const APP_ERROR_CODE = 'APP_ERROR';
 
-const STATIC_ROUTE_PATH = /^(?:\/[\w.~-]+)+$/;
-
 /**
  * `basePath` without trailing slashes (`'/'` is no prefix at all), so every
  * reader (route matching, subpaths, limiter skips, metric labels, hook
@@ -82,9 +84,7 @@ export function normalizeBasePath(basePath: string | undefined): string {
  */
 function validateRoutes(options: HttpAppOptions): HttpRoute[] {
     const routes = [...(options.routes ?? [])];
-    const metricsPath = options.metrics === false ?
-        undefined :
-        options.metrics?.metricsPath ?? DEFAULT_METRICS_PATH;
+    const metricsPath = readMetricsPath(options);
     const seen = new Set<string>();
 
     for (const route of routes) {
@@ -131,11 +131,6 @@ function validateRoutes(options: HttpAppOptions): HttpRoute[] {
     }
 
     return routes;
-}
-
-/** `path` equals `prefix` or lies below `prefix/`. */
-function isAtOrUnder(path: string, prefix: string): boolean {
-    return path === prefix || path.startsWith(`${prefix}/`);
 }
 
 /**
@@ -185,6 +180,23 @@ export function createLiveAgents(engine: IEngine, names?: readonly string[]): Ht
     };
 }
 
+/**
+ * The contributed OpenAPI documents checked against each other, so a
+ * collision fails construction even when chamvi's own document is missing;
+ * `registerOpenApiRoutes()` merges them into it.
+ */
+function validateOpenApiDocuments(options: HttpAppOptions): void {
+    if (options.openapi === false || options.openapi?.documents === undefined) {
+        return;
+    }
+
+    if (!Array.isArray(options.openapi.documents)) {
+        throw new InvalidAgentDefinitionError('openapi.documents must be an array of OpenAPI documents.');
+    }
+
+    mergeOpenApiDocuments(undefined, options.openapi.documents);
+}
+
 /** `options.agentIssues` as a fresh array, only of the named agents when `names` is given. */
 function readAgentIssues(options: HttpAppOptions): () => AgentIssue[] {
     const read = options.agentIssues;
@@ -230,6 +242,11 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         throw new InvalidAgentDefinitionError('uiPages must be a function returning the pages.');
     }
 
+    const routes = validateRoutes(options);
+
+    validateControllers(options, routes);
+    validateOpenApiDocuments(options);
+
     return {
         engine: options.engine,
         store: options.engine.store,
@@ -246,7 +263,8 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         shutdown: options.shutdown,
         closers: new Set(),
         closed: false,
-        routes: validateRoutes(options),
+        routes,
+        controllers: [...(options.controllers ?? [])],
         channels,
         connections: options.connections ?? (() => []),
         connectionTypes: options.connectionTypes ?? (() => []),

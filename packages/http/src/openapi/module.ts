@@ -16,6 +16,7 @@ import {
     OPENAPI_UI_PATH,
 } from './constants.ts';
 import { loadOpenApiDocument } from './helpers.ts';
+import { mergeOpenApiDocuments } from './merge.ts';
 import type { OpenApiOptions } from './types.ts';
 
 /**
@@ -23,7 +24,8 @@ import type { OpenApiOptions } from './types.ts';
  * `<basePath>/docs`, both unauthenticated. The document is read once; when
  * it is missing or not a JSON object nothing is mounted, and when the UI
  * cannot be mounted only the document is served; either way `onError` gets
- * one report: documentation is no precondition for serving the API.
+ * one report: documentation is no precondition for serving the API. The
+ * contributed `documents` are merged in first; a collision throws.
  */
 export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenApiOptions): void {
     const path = options.documentPath ?? OPENAPI_DOCUMENT_PATH;
@@ -37,7 +39,11 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
         return;
     }
 
-    const content = JSON.stringify(document);
+    // a collision with chamvi's own document throws: construction fails
+    const served = options.documents && options.documents.length > 0 ?
+        mergeOpenApiDocuments(document, options.documents)! :
+        document;
+    const content = JSON.stringify(served);
 
     // outside the UI's mount
     app.get(OPENAPI_DOCUMENT_ROUTE, defineCoreHandler((event) => {
@@ -73,7 +79,7 @@ export function registerOpenApiRoutes(app: App, ctx: HttpContext, options: OpenA
     // the plugin reads its template and resolves swagger-ui-dist synchronously: a broken install costs the UI, not the app
     try {
         // the parsed document, the same object the JSON route serves: the plugin escapes it into its initializer
-        factory(document, {
+        factory(served, {
             url: `${ctx.basePath}${OPENAPI_DOCUMENT_ROUTE}`,
             // no topbar: its logo carries an inline style the CSP refuses
             layout: 'BaseLayout',

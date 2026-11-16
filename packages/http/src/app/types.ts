@@ -110,6 +110,18 @@ export type HttpAppOptions = {
     /** Extra routes other packages contribute (e.g. the dashboard), served under `basePath`. */
     routes?: HttpRoute[];
     /**
+     * Controller instances an app contributes: objects whose class carries
+     * `@DController` of `@routup/decorators`, mounted after the built-in
+     * controllers and served under `basePath`. Each base path must be a
+     * static path outside the built-in routes and the metrics path, and no
+     * route may repeat another controller's or an extra route's, or lie under
+     * an extra prefix route of the same method; a breach throws
+     * InvalidAgentDefinitionError at construction. A method is not
+     * authenticated unless it uses `ForceLoggedInMiddleware` (or a body
+     * middleware) or its service authorizes. Default: none.
+     */
+    controllers?: object[];
+    /**
      * Channels to serve at `POST /channels/<name>` and below (e.g. the
      * webhook and GitHub channels), unauthenticated: each checks its own
      * credentials. Each needs an `in` and must be the object the engine holds
@@ -243,6 +255,8 @@ export type HttpContext = {
     closed: boolean;
     /** Extra routes, validated in `buildContext`. */
     routes: HttpRoute[];
+    /** Contributed controller instances, validated in `buildContext`. */
+    controllers: object[];
     /** Mounted channels, validated in `buildContext`. */
     channels: IChannel[];
     /** The connection handles, read per request. */

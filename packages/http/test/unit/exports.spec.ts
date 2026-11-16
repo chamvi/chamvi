@@ -22,10 +22,12 @@ describe('public api', () => {
             ui?: boolean;
             documentPath?: string;
             swaggerUI?: typeof swaggerUI;
+            documents?: object[];
         }>();
         expectTypeOf<http.HttpAppOptions['openapi']>().toEqualTypeOf<false | http.OpenApiOptions | undefined>();
         expect(http).not.toHaveProperty('registerOpenApiRoutes');
         expect(http).not.toHaveProperty('loadOpenApiDocument');
+        expect(http).not.toHaveProperty('mergeOpenApiDocuments');
         expect(http).not.toHaveProperty('OPENAPI_DOCUMENT_PATH');
     });
 
@@ -54,6 +56,42 @@ describe('public api', () => {
     ])('exports %s', (name) => {
         expect(http).toHaveProperty(name);
         expect(http[name as keyof typeof http]).toBeTypeOf('function');
+    });
+
+    it.each([
+        'assertGranted',
+        'authorizeRequest',
+        'toInvoker',
+        'usePrincipal',
+    ])('exports the request helper %s', (name) => {
+        expect(http).toHaveProperty(name);
+        expect(http[name as keyof typeof http]).toBeTypeOf('function');
+    });
+
+    it.each([
+        'ForceLoggedInMiddleware',
+        'JsonBodyMiddleware',
+        'RequiredJsonBodyMiddleware',
+    ])('exports the middleware class %s', (name) => {
+        const Middleware = http[name as keyof typeof http] as unknown as new () => { run: unknown };
+
+        expect(Middleware).toBeTypeOf('function');
+        expect(new Middleware().run).toBeTypeOf('function');
+    });
+
+    it.each([
+        'agentResource',
+        'authenticate',
+        'authorize',
+        'cacheJsonBody',
+        'forbidden',
+        'isGranted',
+        'isGrantedSome',
+        'isPrincipal',
+        'readBearerToken',
+        'resolvePrincipal',
+    ])('keeps %s internal', (name) => {
+        expect(http).not.toHaveProperty(name);
     });
 
     it('exports the subscription builders and channel names', () => {

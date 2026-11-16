@@ -6,6 +6,12 @@
  */
 
 export * from './authup/index.ts';
+export {
+    assertGranted,
+    authorizeRequest,
+    toInvoker,
+    usePrincipal,
+} from './helpers.ts';
 export * from './oidc/index.ts';
 export * from './static-tokens/index.ts';
 export type * from './types.ts';

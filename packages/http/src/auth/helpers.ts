@@ -160,7 +160,10 @@ export function authenticate(event: IAppEvent, ctx: HttpContext): Promise<Princi
     return pending;
 }
 
-/** The principal of a request inside `createHttpApp`: `authenticate` with the event's context. */
+/**
+ * The principal of a request inside `createHttpApp`: `authenticate` with the
+ * event's context, memoized per request; a 401 without one.
+ */
 export function usePrincipal(event: IAppEvent): Promise<Principal> {
     return authenticate(event, useHttpContext(event));
 }
@@ -202,6 +205,20 @@ export async function authorize(
     }
 
     return principal;
+}
+
+/**
+ * `authorize` with the context `createHttpApp` put on the event, for a
+ * controller or service: the principal (401 without one), then 403 unless it
+ * holds `permission` (when given) for the resource `attributes`, or without
+ * attributes for some resource. The chain runs once per request.
+ */
+export function authorizeRequest(
+    event: IAppEvent,
+    permission?: string,
+    attributes?: Record<string, unknown>,
+): Promise<Principal> {
+    return authorize(event, useHttpContext(event), permission, attributes);
 }
 
 /** The 403 of a permission the principal does not hold. */

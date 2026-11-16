@@ -6,7 +6,17 @@
  */
 
 import type { IAppEvent } from 'routup';
-import type { HttpRoute } from '../app/types.ts';
+import { DEFAULT_METRICS_PATH, REST_ROUTE_SUFFIX } from '../app/constants.ts';
+import type { HttpAppOptions, HttpRoute } from '../app/types.ts';
+import { MCP_PATH } from '../mcp/constants.ts';
+import { OPENAPI_UI_PATH } from '../openapi/constants.ts';
+
+/** Where Prometheus scrapes, relative to `basePath`; `undefined` with `metrics: false`. */
+export function readMetricsPath(options: HttpAppOptions): string | undefined {
+    return options.metrics === false ?
+        undefined :
+        options.metrics?.metricsPath ?? DEFAULT_METRICS_PATH;
+}
 
 /**
  * `event.path` without the `basePath` prefix and trailing slashes,
@@ -54,60 +64,41 @@ export function isUnlimitedRoute(event: IAppEvent, basePath: string, routes: rea
     return route?.rateLimit === false;
 }
 
-/** The routes of the app as metric labels, matched against the path without `basePath`; keep in step with the controllers. */
-const ROUTE_TEMPLATES: Array<[RegExp, string]> = [
-    [/^\/(?:healthz|readyz|agents|schedules|runs|mcp|me|connections|connection-types|ui-pages|openapi\.json|docs)$/, ''],
-    [/^\/docs\/.+$/, '/docs/*'],
-    [/^\/authorization\/check$/, '/authorization/check'],
-    [/^\/runs\/[^/]+$/, '/runs/:id'],
-    [/^\/runs\/[^/]+\/stream$/, '/runs/:id/stream'],
-    [/^\/runs\/[^/]+\/cancel$/, '/runs/:id/cancel'],
-    [/^\/runs\/[^/]+\/approve$/, '/runs/:id/approve'],
-    [/^\/runs\/[^/]+\/artifacts$/, '/runs/:id/artifacts'],
-    [/^\/runs\/[^/]+\/artifacts\/[^/]+$/, '/runs/:id/artifacts/:artifactId'],
-    [/^\/agents\/[^/]+\/runs$/, '/agents/:name/runs'],
-    [/^\/agents\/[^/]+\/state\/kv$/, '/agents/:name/state/kv'],
-    [/^\/agents\/[^/]+\/state\/kv\/[^/]+$/, '/agents/:name/state/kv/:key'],
-    [/^\/agents\/[^/]+\/state\/collections\/[^/]+$/, '/agents/:name/state/collections/:collection'],
-    [/^\/channels\/[^/]+(?:\/.*)?$/, '/channels/:name/*'],
-    [/^\/connections\/[^/]+$/, '/connections/:name'],
-    [/^\/connections\/[^/]+\/events$/, '/connections/:name/events'],
-    [/^\/connections\/[^/]+\/reset$/, '/connections/:name/reset'],
-    [/^\/connections\/[^/]+\/config$/, '/connections/:name/config'],
-    [/^\/connections\/[^/]+\/test$/, '/connections/:name/test'],
-    [/^\/connection-types\/[^/]+\/connections$/, '/connection-types/:type/connections'],
-];
-
-/** Every request that matches no route shares this label. */
+/** Every request that no route chamvi labels answered shares this label. */
 const UNMATCHED_ROUTE_LABEL = '/_unmatched';
 
+/** The method-less mounts by their path without `basePath`: no route is dispatched there. */
+function mountLabel(path: string): string {
+    if (path === MCP_PATH || path === OPENAPI_UI_PATH) {
+        return path;
+    }
+
+    return path.startsWith(`${OPENAPI_UI_PATH}/`) ? `${OPENAPI_UI_PATH}/*` : UNMATCHED_ROUTE_LABEL;
+}
+
 /**
- * The `path` label of a request: its route template (`/runs/:id`), so ids,
- * keys and unknown paths cannot mint a series each.
+ * The `path` label of a request, read after its handlers ran: the metrics
+ * path, else the pattern of the route routup dispatched (`event.route`)
+ * without `basePath` and with a rest group as `/*` (`/runs/:id`,
+ * `/channels/github/*`), else a fixed label of a method-less mount. Never
+ * the request path: ids, keys and unknown paths cannot mint a series each.
  */
-export function routeLabel(
-    event: IAppEvent,
-    basePath: string,
-    metricsPath: string,
-    extraRoutes: readonly HttpRoute[] = [],
-): string {
+export function routeLabel(event: IAppEvent, basePath: string, metricsPath: string): string {
     const path = routePath(event, basePath);
 
     if (path === metricsPath.toLowerCase()) {
         return metricsPath;
     }
 
-    const extra = findRoute(extraRoutes, path);
-
-    if (extra !== undefined) {
-        return extra.prefix ? `${extra.path}/*` : extra.path;
+    if (event.route === undefined) {
+        return mountLabel(path);
     }
 
-    for (const [pattern, template] of ROUTE_TEMPLATES) {
-        if (pattern.test(path)) {
-            return template || path;
-        }
-    }
+    const pattern = basePath && event.route.path.startsWith(basePath) ?
+        event.route.path.slice(basePath.length) || '/' :
+        event.route.path;
 
-    return UNMATCHED_ROUTE_LABEL;
+    return pattern.endsWith(REST_ROUTE_SUFFIX) ?
+        `${pattern.slice(0, -REST_ROUTE_SUFFIX.length)}/*` :
+        pattern;
 }

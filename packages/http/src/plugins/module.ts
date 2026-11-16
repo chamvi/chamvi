@@ -22,6 +22,7 @@ import {
     isOperationalPath,
     isStreamRequest,
     isUnlimitedRoute,
+    readMetricsPath,
     routeLabel,
 } from './helpers.ts';
 import { matchesChannel } from './channels.ts';
@@ -40,9 +41,7 @@ export function installPlugins(app: App, options: HttpAppOptions): void {
         app.use(cors(options.cors));
     }
 
-    const metricsPath = options.metrics === false ?
-        undefined :
-        options.metrics?.metricsPath ?? DEFAULT_METRICS_PATH;
+    const metricsPath = readMetricsPath(options);
 
     const channelPolicies = Object.entries(options.channelRateLimits ?? {});
     const generalLimit = options.rateLimit;
@@ -82,14 +81,16 @@ export function installPlugins(app: App, options: HttpAppOptions): void {
         }));
     }
 
-    if (options.metrics !== false) {
-        app.use(prometheus({
-            metricsPath,
-            // the global default registry throws on a second app in one process
-            registry: new Registry(),
-            skip: (event) => isStreamRequest(event, basePath),
-            normalizePath: (_path, event) => routeLabel(event, basePath, metricsPath ?? DEFAULT_METRICS_PATH, routes),
-            ...options.metrics,
-        }));
+    if (options.metrics === false) {
+        return;
     }
+
+    app.use(prometheus({
+        metricsPath,
+        // the global default registry throws on a second app in one process
+        registry: new Registry(),
+        skip: (event) => isStreamRequest(event, basePath),
+        normalizePath: (_path, event) => routeLabel(event, basePath, metricsPath ?? DEFAULT_METRICS_PATH),
+        ...options.metrics,
+    }));
 }

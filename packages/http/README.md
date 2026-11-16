@@ -26,6 +26,7 @@
 - [Authenticators](#authenticators)
 - [Channels](#channels)
 - [MCP tools](#mcp-tools)
+- [Controllers](#controllers)
 - [Operations](#operations)
 - [Shutdown](#shutdown)
 - [Options](#options)
@@ -38,7 +39,7 @@
 npm install @chamvi/http @chamvi/core --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `@chamvi/core` is a peer dependency; [routup](https://www.npmjs.com/package/routup) v6, the [MCP TypeScript SDK](https://www.npmjs.com/package/@modelcontextprotocol/server) v2, [vouchly](https://www.npmjs.com/package/vouchly) and the authup server adapter are installed with the package.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `@routup/decorators` (`^5.2.0`) are peer dependencies (npm 7 and later and pnpm 8 and later install them; with npm's `--legacy-peer-deps`, Yarn Berry or pnpm before 8 list both, otherwise the app fails at startup with a module-not-found error); [routup](https://www.npmjs.com/package/routup) v6, the [MCP TypeScript SDK](https://www.npmjs.com/package/@modelcontextprotocol/server) v2, [vouchly](https://www.npmjs.com/package/vouchly) and the authup server adapter are installed with the package.
 
 ## Usage
 
@@ -227,9 +228,13 @@ Agents subscribe to channels (`defineModelAgent({ channels: [...] })`, see `@cha
 - Idempotency keys are scoped per agent, channel and principal: an MCP start dedupes under `<agent>:mcp:<kind>:<id>`, a REST start under `<agent>:http:<kind>:<id>` (the principal's `kind` and `id`, URI-encoded), so one key used over both transports, or by two principals, creates two runs. Webhook starts carry no invoker and dedupe under `<agent>:webhook`.
 - `get_run` and `list_runs` follow the REST read rule; denied permissions and unknown runs come back as tool errors (`isError`).
 
+## Controllers
+
+`controllers` takes instances of an app's own [`@routup/decorators`](https://www.npmjs.com/package/@routup/decorators) classes, mounted after the built-in controllers and served under `basePath` behind the rate limiter, the body limits and the JSON error renderer. A controller holds no permission check or validation: its service does, with the request helpers `usePrincipal`, `authorizeRequest`, `assertGranted`, `toInvoker` and the middlewares `ForceLoggedInMiddleware`, `JsonBodyMiddleware`, `RequiredJsonBodyMiddleware`. A method is unauthenticated unless it uses one of the middlewares or its service authorizes. Base paths follow the extra routes' rule (static, outside the built-in segments and the metrics path); a route declared twice, an extra route at or under a base path, or a base path at or under an extra prefix route throws `InvalidAgentDefinitionError` at construction. Routes match in declaration order, are always rate limited and labelled by their declared pattern (`/notes/:id`) in the metrics. `openapi.documents` merges the app's own trapi documents into `/openapi.json`. See [Controllers](https://chamvi.dev/guide/controllers).
+
 ## Operations
 
-- **`/metrics`** is unauthenticated (scrapers rarely send bearer tokens): keep it off the public ingress (a NetworkPolicy, or a separate internal listener), or disable it with `metrics: false`. Each app gets its own `prom-client` `Registry`; the `path` label is the route template (`/runs/:id`, `/channels/:name/*`; an unknown path is `/_unmatched`), so ids and probes do not mint series. SSE streams and rate-limited requests are not timed. `metrics.normalizePath` overrides the label.
+- **`/metrics`** is unauthenticated (scrapers rarely send bearer tokens): keep it off the public ingress (a NetworkPolicy, or a separate internal listener), or disable it with `metrics: false`. Each app gets its own `prom-client` `Registry`; the `path` label is the pattern of the route that served the request, without `basePath` (`/runs/:id`, `/channels/github/*`; an unknown path, a method the path does not serve and `OPTIONS` are `/_unmatched`), so ids and probes do not mint series. SSE streams and rate-limited requests are not timed. `metrics.normalizePath` overrides the label.
 - **Rate limit**: 300 requests per minute per client address by default, `/healthz`, `/readyz`, `/metrics` and CORS preflights excluded. The key is the socket address unless `trustProxy` is set: behind a reverse proxy, set it (e.g. `'loopback'` or a hop count) or every client shares the proxy's bucket; `X-Forwarded-For` is never trusted otherwise. Without a socket address (in-process `app.fetch`, unix sockets) all clients share one bucket.
 - **CORS** is off unless `cors` is given (`@routup/cors` options).
 - **Readiness** fails while shutting down, while the engine drains, or when the store does not answer within `readyTimeoutMs`.
@@ -273,13 +278,14 @@ process.once('SIGTERM', () => {
 | `stream.pollMs` | `number` | `2_000` | Repository poll of SSE streams |
 | `stream.maxOpen` | `number` | `1_000` | Open SSE streams plus waiting MCP `run_<agent>` calls per app; a positive integer, else `createHttpApp` throws `InvalidAgentDefinitionError` |
 | `mcp` | `false \| { name?, version?, maxWaitSeconds? }` | `chamvi`, `0.0.0`, `60` | MCP server info and wait cap; `false` mounts nothing |
-| `openapi` | `false \| { ui? }` | document and UI | `GET /openapi.json` and the Swagger UI at `/docs`; `ui: false` serves the document only, `false` neither. A missing or unreadable built document serves neither and is reported once to `onError` |
+| `openapi` | `false \| { ui?, documents? }` | document and UI | `GET /openapi.json` and the Swagger UI at `/docs`; `ui: false` serves the document only, `false` neither. `documents`: the app's own OpenAPI documents, merged in (a colliding path, method or component throws `InvalidAgentDefinitionError`). A missing or unreadable built document serves neither and is reported once to `onError` |
 | `cors` | `false \| CorsOptions` | off | `@routup/cors` options |
 | `rateLimit` | `false \| Partial<RateLimitOptions>` | 300 per minute | `@routup/rate-limit` options |
 | `metrics` | `false \| Partial<PrometheusOptions>` | `/metrics` | `@routup/prometheus` options |
 | `readyTimeoutMs` | `number` | `2_000` | How long `/readyz` waits for the store |
 | `onError` | `(error) => void` | `console.error` | 5xx causes and background failures |
 | `channels` | `IChannel[]` | none | Channels served at `POST /channels/<name>` and below (see [Channels](#channels)); each needs an `in` and must be the object the engine holds under its name |
+| `controllers` | `object[]` | none | Instances of `@routup/decorators` controller classes (see [Controllers](#controllers)) |
 | `routes` | `HttpRoute[]` | none | Extra routes other packages contribute (e.g. `@chamvi/ui`'s dashboard), served under `basePath` without `auth` unless the handler calls `request.authorize(permission?)` (401/403 like the built-in routes); static paths, never under a built-in route's first segment or the metrics path (case-insensitive), `rateLimit: false` skips the limiter; `prefix: true` also serves every path below `path/` (the rest as `request.subpath`, raw and case kept; metrics label `<path>/*`; no other route of that method at or under it, never at or above the metrics path); a result may carry `headers` and a `Uint8Array` body (sent as is, `application/octet-stream` by default); the route context has `basePath` |
 
 `createShutdown(options)`:
@@ -301,6 +307,8 @@ process.once('SIGTERM', () => {
 | `createShutdown` | function | The graceful shutdown helper |
 | `staticTokens`, `authup`, `oidc` | function | Authenticators |
 | `httpChannel`, `mcpChannel`, `webhookChannel` | function | The channels REST, MCP and generic webhooks dispatch as |
+| `usePrincipal`, `authorizeRequest`, `assertGranted`, `toInvoker` | function | Request helpers for [controllers](#controllers) |
+| `ForceLoggedInMiddleware`, `JsonBodyMiddleware`, `RequiredJsonBodyMiddleware` | class | Method middlewares for controllers |
 | `http`, `webhook` | constant | Subscription builders: `http.on({ schema? })`, `webhook.on(path, options?)` |
 | `HTTP_CHANNEL_NAME`, `MCP_CHANNEL_NAME`, `WEBHOOK_CHANNEL_NAME` | constant | `http`, `mcp`, `webhook` |
 | `DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS`, `DEFAULT_SHUTDOWN_CLOSE_TIMEOUT_MS` | constant | `30_000`, `5_000` |

@@ -18,7 +18,14 @@ export { cron } from '@chamvi/channel-cron';
 export type { CronSubscriptionOptions, OverlapPolicy } from '@chamvi/channel-cron';
 
 export {
+    ForceLoggedInMiddleware,
+    JsonBodyMiddleware,
+    RequiredJsonBodyMiddleware,
+    assertGranted,
+    authorizeRequest,
     http,
+    toInvoker,
+    usePrincipal,
     webhook,
 // eslint-disable-next-line @tada5hi/no-reexport-shims -- Published HTTP API belongs in the public facade.
 } from '@chamvi/http';

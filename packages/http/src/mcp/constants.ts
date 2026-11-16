@@ -6,6 +6,9 @@
  */
 
 /** Server name the MCP endpoint reports by default. */
+/** Where the MCP endpoint is mounted, relative to `basePath`. */
+export const MCP_PATH = '/mcp';
+
 export const DEFAULT_MCP_NAME = 'chamvi';
 
 /** Server version the MCP endpoint reports by default. */

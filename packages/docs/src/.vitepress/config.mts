@@ -148,6 +148,7 @@ export default defineConfig({
                         { text: 'Cancel, Drain & Recovery', link: '/guide/recovery' },
                         { text: 'Cron Scheduling', link: '/guide/scheduler' },
                         { text: 'HTTP API & MCP', link: '/guide/http' },
+                        { text: 'Controllers', link: '/guide/controllers' },
                         { text: 'Permissions & authup', link: '/guide/permissions' },
                         { text: 'Dashboard', link: '/guide/ui' },
                         { text: 'Errors', link: '/guide/errors' },

@@ -19,3 +19,8 @@ export function routeSubpath(pathname: string, basePath: string, path: string): 
 
     return pathname.slice(prefix.length);
 }
+
+/** `path` equals `prefix` or lies below `prefix/`. */
+export function isAtOrUnder(path: string, prefix: string): boolean {
+    return path === prefix || path.startsWith(`${prefix}/`);
+}

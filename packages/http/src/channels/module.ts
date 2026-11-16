@@ -8,6 +8,7 @@
 import { isHTTPError } from '@ebec/http';
 import { defineCoreHandler } from 'routup';
 import type { App } from 'routup';
+import { REST_ROUTE_SUFFIX } from '../app/constants.ts';
 import type { HttpContext } from '../app/types.ts';
 import { routeSubpath } from '../routes/helpers.ts';
 import { CHANNELS_SEGMENT } from './constants.ts';
@@ -41,7 +42,7 @@ export function registerChannelRoutes(app: App, ctx: HttpContext): void {
             }
         });
 
-        app.post(path, handler);
-        app.post(`${path}{/*rest}`, handler);
+        // one route for the bare path and every subpath: one metric label per channel
+        app.post(`${path}${REST_ROUTE_SUFFIX}`, handler);
     }
 }
