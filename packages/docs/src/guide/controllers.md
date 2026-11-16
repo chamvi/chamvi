@@ -12,11 +12,11 @@ npm install @routup/decorators
 
 The controller reads the request (path, query, body, the principal) and calls one service method. It holds no permission check and no validation: its service does, as chamvi's own controllers and services split the work. The service checks with `assertGranted(principal, clock, permission, attributes?)`, which throws 403 when the principal lacks the permission:
 
-<<< @/snippets/controllers/service.ts#service
+<<< @/snippets/controllers/core/note/service.ts#service
 
 `"*"` in `CHAMVI_TOKENS` grants every chamvi permission, not an app's own names: grant `note_read` and `note_write` as [bindings](/guide/permissions) (a token's list, or authup).
 
-<<< @/snippets/controllers/controller.ts#controller
+<<< @/snippets/controllers/adapters/http/controllers/note.ts#controller
 
 The decorators come from `@routup/decorators`; the request helpers come from `@chamvi/app` (and `@chamvi/http`):
 
@@ -35,13 +35,13 @@ The decorators come from `@routup/decorators`; the request helpers come from `@c
 
 A module registers a factory on `AppToken.HTTP_CONTROLLERS` in `setup`:
 
-<<< @/snippets/controllers/module.ts#module
+<<< @/snippets/controllers/app/modules/note.ts#module
 
 The factory runs once, when the http module resolves the token in its `onReady`, after every module's `setup`, so it can resolve anything another module registered (`CLOCK`, `ENGINE`, `LOGGER`, your own tokens). It runs only in start mode, a [check](/guide/models#check-before-you-deploy) (`chamvi start --check`) included; `runJob()` and `migrate()` never build a controller. `httpModule({ controllers })` takes instances directly and mounts them before the token's; without `@chamvi/app`, pass them to `createHttpApp({ controllers: [new NoteController({ service })] })`.
 
 A suggested layout, which follows authup and which chamvi does not enforce: the domain in `src/core/<entity>/service.ts`, the controller in `src/adapters/http/controllers/<entity>.ts` and the module in `src/app/modules/<entity>.ts`. An app keeps its own data source for its own tables; chamvi's store takes no contributed entities.
 
-`chamvi build` compiles the decorators with the app's `tsconfig.json`. Running a decorated entry from source (`chamvi dev`, `chamvi start --entry src/index.ts`) needs the CLI of the next release.
+`chamvi build` compiles the decorators with the app's `tsconfig.json`. `chamvi dev` and `chamvi start --entry src/index.ts` run a decorated entry from source through the CLI's [TypeScript entries](/reference/cli#typescript-entries) hooks: they need `"experimentalDecorators": true` in the `tsconfig.json` the build finds (the nearest one at or above the working directory), `"type": "module"` in the app's `package.json`, and tsdown installed.
 
 ## Paths
 
@@ -50,7 +50,7 @@ The app is built at construction, so a breach fails the start and `chamvi start 
 - Each `@DController` base path (a string or an array) is a static path starting with `/` (letters, digits, `_`, `.`, `~`, `-`; no parameters), whose first segment is not a built-in one (`agents`, `authorization`, `channels`, `connection-types`, `connections`, `docs`, `healthz`, `mcp`, `me`, `openapi.json`, `readyz`, `runs`, `schedules`, `ui-pages`), and which is neither the metrics path nor above it (with metrics on). Paths compare case-insensitively, as routup matches them.
 - A method path is empty or starts with `/`, and may carry routup parameters (`/:id`). `{/:id}` is refused, though routup would take it: declare `''` and `/:id` as two methods.
 - No route (method plus full path, compared case-insensitively, parameter names ignored) is declared twice across all controllers.
-- No route of the same method could take a request of an extra route (`HttpRoute`, such as the dashboard's): its path, or for a prefix route any path at or under it. Segments compare one by one, a parameter matching any segment and a wildcard the rest, so `/ui/:section/:file` is refused beside the prefix route `/ui/assets`: controllers are mounted first and would shadow it.
+- No route of the same method could take a request of an extra route (`HttpRoute`, such as the dashboard's): its path, or for a prefix route any path at or under it. Segments compare one by one (a quoted parameter name holding a `/` stays one segment): a segment with a parameter matches every segment its literal text before the first and after the last parameter fits (`/ui/styles-:id` never matches `/ui/assets`, `/ui/as:rest` does), and one with a wildcard the rest. So `/ui/:section/:file` is refused beside the prefix route `/ui/assets`: controllers are mounted first and would shadow it.
 - The class must be decorated with `@DController` and contributed as an instance, not as the class.
 
 Routes match in declaration order, as routup answers with the first match: declare a static route (`/count`) before a parameter route of the same shape (`/:id`).
@@ -72,9 +72,9 @@ chamvi's `/openapi.json` and `/docs` describe its own routes. An app adds its co
 The document goes to `openapi.json` beside `package.json`, never into `dist`: `chamvi build` refuses an out dir holding a file it did not write. Run `trapi generate` in the image build too and copy `openapi.json` into the final image beside `dist` (the module reads it relative to the working directory, the app's root). Contribute the parsed document through `AppToken.OPENAPI_DOCUMENTS`, as the module above does, or through `httpModule({ openapi: { documents } })` (`createHttpApp({ openapi: { documents } })`); the option's documents merge first. With `openapi: false` both are ignored.
 
 - `paths`, `tags` and `components` (every group: `schemas`, `securitySchemes`, ...) are merged into chamvi's document; `info`, `servers` and every other top-level key stay chamvi's.
-- Paths merge per path and method. Paths that differ only in parameter names (`/notes/{id}`, `/notes/{noteId}`) are one path, kept under the first template, and method keys compare case-insensitively. A method already in chamvi's document or in another contributed one is refused, as is a different path-level field (`parameters`, `summary`, ...) for the same path.
+- Paths merge per path and method, method keys compared case-insensitively; the methods of OpenAPI 3.2's `additionalOperations` (`COPY`, ...) merge the same way, kept as written, and one that has a fixed field (`POST`, `query`) is refused. A method already in chamvi's document or in another contributed one is refused, as is a different path-level field (`parameters`, `summary`, ...) for the same path. Paths that differ only in parameter names (`/notes/{id}`, `/notes/{noteId}`) are refused: use one template, with the same parameter names, for every operation on it.
 - A contributed document's top-level `security` is not applied: each operation carries its own.
-- A path, path-level field, component group or component name `__proto__`, `constructor` or `prototype` is refused.
+- A path, path-level field, `additionalOperations` method, component group or component name `__proto__`, `constructor` or `prototype` is refused.
 - A component name that exists with a different definition is refused; an identical one is kept once. Tags merge by name, and the first description wins.
 
 A refusal is an `InvalidAgentDefinitionError` at construction, so it also fails `chamvi start --check`. The contributed documents are checked against each other even when chamvi's own document is missing.

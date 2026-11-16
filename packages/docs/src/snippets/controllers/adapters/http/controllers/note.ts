@@ -11,7 +11,7 @@ import {
     DStatus,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
-import type { Note, NoteService } from './service.ts';
+import type { Note, NoteService } from '../../../core/note/service.ts';
 
 @DController('/notes')
 export class NoteController {

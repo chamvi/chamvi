@@ -3,8 +3,8 @@
 import { existsSync, readFileSync } from 'node:fs';
 import { AppToken } from '@chamvi/app';
 import type { IContainer, IModule } from '@chamvi/app';
-import { NoteController } from './controller.ts';
-import { NoteService } from './service.ts';
+import { NoteController } from '../../adapters/http/controllers/note.ts';
+import { NoteService } from '../../core/note/service.ts';
 
 // written by `trapi generate` (trapi.config.ts) beside package.json; read relative to the
 // working directory, the app's root for `chamvi dev`, `chamvi start` and the image
