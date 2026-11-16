@@ -8,6 +8,8 @@
 import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { HttpRoute } from '@chamvi/http';
+import { decorators } from '@routup/decorators';
+import { App } from 'routup';
 import { readControllerRoutes } from '../../../src/controllers/module.ts';
 import { createTestApp } from '../../utils/app.ts';
 import {
@@ -99,6 +101,21 @@ describe('contributed controllers', () => {
                 key: '/notes/*',
             },
         ]);
+    });
+
+    it('reads the paths and methods routup mounts, in its order', () => {
+        // without method middlewares: routup lists those as routes of the method's path too
+        const controllers = [
+            createTestController('/Notes', [['GET', ''], ['PUT', '/:noteId/'], ['DELETE', '/*rest'], ['POST', '//y/']]),
+            new AliasedController(),
+        ];
+        const app = new App();
+
+        app.use(decorators({ controllers }));
+
+        expect(controllers.flatMap((controller) => readControllerRoutes(controller))
+            .map(({ method, path }) => ({ method, path })))
+            .toEqual(app.routes.map(({ method, path }) => ({ method, path })));
     });
 
     it('refuses controllers that are not an array', () => {
@@ -207,6 +224,7 @@ describe('contributed controllers', () => {
         ['with an unclosed brace', '/x{'],
         ['with a question mark', '/:id?'],
         ['with a parenthesis', '/(x)'],
+        ['with an optional group without a leading slash', '{/:id}'],
     ])('refuses a method path %s', (_name, path) => {
         expect(message(() => createTestApp({ controllers: [createTestController('/notes', [['GET', path]])] })))
             .toBe(`Controller method path "${path}" of "GET /notes" must be a path routup accepts, starting with "/".`);
@@ -251,152 +269,78 @@ describe('contributed controllers', () => {
         })).not.toThrow();
     });
 
-    it('refuses a controller route equal to an HttpRoute of the same method', () => {
-        expect(message(() => createTestApp({
-            routes: [route({ path: '/extra' })],
-            controllers: [createTestController('/Extra', [['GET', '']])],
-        }))).toBe('Controller route "GET /Extra" collides with the route "GET /extra".');
-    });
-
-    it('refuses a controller route whose pattern matches an HttpRoute of the same method', () => {
-        expect(() => createTestApp({
-            routes: [route({ path: '/extra/x' })],
-            controllers: [createTestController('/extra', [['GET', '/:id']])],
-        })).toThrow(InvalidAgentDefinitionError);
-    });
-
-    it('accepts the path of an HttpRoute under another method', () => {
-        expect(() => createTestApp({
-            routes: [route({ path: '/extra' })],
-            controllers: [createTestController('/extra', [['POST', '']])],
-        })).not.toThrow();
-    });
-
-    it('refuses a controller route under a prefix route of the same method', () => {
-        expect(message(() => createTestApp({
-            routes: [route({ path: '/ui', prefix: true })],
-            controllers: [createTestController('/ui', [['GET', '/notes']])],
-        }))).toBe('Controller route "GET /ui/notes" lies under the prefix route "/ui".');
-    });
-
-    it('refuses a controller route at a prefix route of the same method', () => {
-        expect(() => createTestApp({
-            routes: [route({ path: '/ui', prefix: true })],
-            controllers: [createTestController('/UI', [['GET', '']])],
-        })).toThrow(InvalidAgentDefinitionError);
-    });
-
-    it('accepts a controller route under a prefix route of another method', () => {
-        expect(() => createTestApp({
-            routes: [route({ path: '/ui', prefix: true })],
-            controllers: [createTestController('/ui', [['POST', '/notes']])],
-        })).not.toThrow();
-    });
-
-    it('accepts a controller beside a prefix route', () => {
-        expect(() => createTestApp({
-            routes: [route({ path: '/ui', prefix: true })],
-            controllers: [createTestController('/uix', [['GET', '']])],
-        })).not.toThrow();
-    });
-
-    describe('beside a prefix route', () => {
-        const assets = (overrides: Partial<HttpRoute> = {}) => route({
-            path: '/ui/assets',
-            prefix: true,
-            rateLimit: false,
-            ...overrides,
-        });
-
-        it('refuses a parameter route that takes requests below the prefix', () => {
-            expect(message(() => createTestApp({
-                routes: [assets()],
-                controllers: [createTestController('/ui', [['GET', '/:section/:file']])],
-            }))).toBe('Controller route "GET /ui/:section/:file" lies under the prefix route "/ui/assets".');
-        });
-
-        it('refuses a parameter route above the prefix route matching it', () => {
-            expect(message(() => createTestApp({
-                routes: [assets()],
-                controllers: [createTestController('/ui', [['GET', '/:section']])],
-            }))).toBe('Controller route "GET /ui/:section" lies under the prefix route "/ui/assets".');
-        });
-
+    describe('beside an HttpRoute', () => {
         it.each([
-            ['above the prefix', '/ui', '/*rest'],
-            ['at the prefix', '/ui/assets', '/*rest'],
-            ['after a parameter', '/ui', '/:section/*rest'],
-            ['inside an optional group', '/ui', '/:section{/*rest}'],
-            ['in a segment with static text', '/ui', '/a*rest'],
-        ])('refuses a wildcard %s', (_name, base, path) => {
+            ['equal to the base path', 'GET', '/notes'],
+            ['equal to the base path, in another case', 'GET', '/Notes'],
+            ['below the base path', 'GET', '/notes/x'],
+            ['below the base path, under another method', 'POST', '/notes/hook'],
+        ])('refuses a route %s', (_name, method, path) => {
+            expect(message(() => createTestApp({
+                routes: [route({ method: method as 'GET', path })],
+                controllers: [new NotesController()],
+            }))).toBe(`Route "${method} ${path}" lies under the controller path "/notes".`);
+        });
+
+        it('refuses a prefix route below the base path', () => {
+            expect(message(() => createTestApp({
+                routes: [route({ path: '/ui/assets', prefix: true })],
+                controllers: [createTestController('/ui', [['GET', '/styles/:file']])],
+            }))).toBe('Route "GET /ui/assets" lies under the controller path "/ui".');
+        });
+
+        it('refuses a route below a controller without methods', () => {
             expect(() => createTestApp({
-                routes: [assets()],
-                controllers: [createTestController(base, [['GET', path]])],
+                routes: [route({ path: '/empty/x' })],
+                controllers: [new EmptyController()],
             })).toThrow(InvalidAgentDefinitionError);
         });
 
-        it('splits segments only on a slash outside a quoted parameter name', () => {
-            // routup matches `/ui/:"section/name"/:file` against `/ui/assets/scripts`
+        it('refuses a route below the second base path of an array', () => {
             expect(message(() => createTestApp({
-                routes: [assets({ path: '/ui/assets/scripts' })],
-                controllers: [createTestController('/ui', [['GET', '/:"section/name"/:file']])],
-            }))).toBe('Controller route "GET /ui/:"section/name"/:file" lies under the prefix route "/ui/assets/scripts".');
-        });
-
-        // routup (path-to-regexp) matches `/ui/as:rest` against `/ui/assets` (rest "sets")
-        // and `/ui/:"x"sets` (x "as"), never `/ui/styles-:id` or `/ui/:a-sets`
-        it.each([
-            ['static text before it', '/as:rest'],
-            ['a single letter of static text before it', '/a:rest'],
-            ['static text after it', '/:"x"sets'],
-            ['a quoted name holding a colon', '/:"a:b"'],
-        ])('refuses a parameter segment with %s that can match the prefix', (_name, path) => {
-            expect(() => createTestApp({
-                routes: [assets()],
-                controllers: [createTestController('/ui', [['GET', `${path}/:file`]])],
-            })).toThrow(InvalidAgentDefinitionError);
-        });
-
-        it('refuses an optional group reaching the prefix', () => {
-            expect(() => createTestApp({
-                routes: [assets()],
-                controllers: [createTestController('/ui', [['GET', '/:section{/x}/:file']])],
-            })).toThrow(InvalidAgentDefinitionError);
+                routes: [route({ path: '/memos/x' })],
+                controllers: [new AliasedController()],
+            }))).toBe('Route "GET /memos/x" lies under the controller path "/memos".');
         });
 
         it.each([
-            ['another method', 'POST', '/ui', '/:section/:file'],
-            ['a disjoint static segment', 'GET', '/ui', '/styles/:file'],
-            ['a shorter route without a wildcard', 'GET', '/ui', ''],
-            ['a disjoint static base', 'GET', '/uix', '/:section/*rest'],
-            ['a parameter after disjoint static text', 'GET', '/ui', '/styles-:id'],
-            ['a parameter after disjoint static text, below the prefix', 'GET', '/ui', '/styles-:id/:file'],
-            ['a parameter before disjoint static text', 'GET', '/ui', '/:a-sets/:file'],
-            ['a wildcard after disjoint static text', 'GET', '/ui', '/styles*rest'],
-        ])('accepts %s', (_name, method, base, path) => {
+            ['above the base path', '/ui'],
+            ['above the base path, under another method', '/UI'],
+        ])('refuses a prefix route %s', (_name, path) => {
+            expect(message(() => createTestApp({
+                routes: [route({
+                    method: 'POST', 
+                    path, 
+                    prefix: true, 
+                })],
+                controllers: [createTestController('/ui/notes', [['GET', '']])],
+            }))).toBe(`Controller path "/ui/notes" lies under the prefix route "${path}".`);
+        });
+
+        it('refuses a prefix route equal to the base path', () => {
+            expect(message(() => createTestApp({
+                routes: [route({ path: '/ui', prefix: true })],
+                controllers: [createTestController('/UI', [['GET', '']])],
+            }))).toBe('Route "GET /ui" lies under the controller path "/UI".');
+        });
+
+        it.each([
+            ['a sibling path', '/notes-archive', false],
+            ['a sibling prefix route', '/notes-archive', true],
+            ['a route above the base path', '/ui', false],
+            ['a route ending in the base path', '/b/notes', false],
+            ['a prefix route ending in the base path', '/b/notes', true],
+        ])('accepts %s', (_name, path, prefix) => {
             expect(() => createTestApp({
-                routes: [assets()],
-                controllers: [createTestController(base, [[method as 'GET', path]])],
+                routes: [route({ path, ...(prefix && { prefix: true }) })],
+                controllers: [new NotesController(), createTestController('/ui/notes', [['GET', '/*rest']])],
             })).not.toThrow();
         });
-    });
 
-    describe('beside a static route', () => {
-        it('refuses a wildcard covering it', () => {
-            expect(message(() => createTestApp({
-                routes: [route({ path: '/ui/assets/app.js' })],
-                controllers: [createTestController('/ui', [['GET', '/*rest']])],
-            }))).toBe('Controller route "GET /ui/*rest" collides with the route "GET /ui/assets/app.js".');
-        });
-
-        it.each([
-            ['another method', 'POST', '/:section/:file'],
-            ['a different depth', 'GET', '/:section'],
-            ['a disjoint static segment', 'GET', '/styles/:file'],
-        ])('accepts %s', (_name, method, path) => {
+        it('accepts a controller on /a beside a route on /b/a', () => {
             expect(() => createTestApp({
-                routes: [route({ path: '/ui/assets/app.js' })],
-                controllers: [createTestController('/ui', [[method as 'GET', path]])],
+                routes: [route({ path: '/b/a' })],
+                controllers: [createTestController('/a', [['GET', '/*rest']])],
             })).not.toThrow();
         });
     });

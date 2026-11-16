@@ -14,11 +14,9 @@ import { readMetricsPath } from '../plugins/helpers.ts';
 import { isAtOrUnder } from '../routes/helpers.ts';
 import {
     joinControllerPath,
-    overlapsRoute,
     readBasePaths,
     readControllerMeta,
     toRouteKey,
-    toRouteMatcher,
 } from './helpers.ts';
 import type { ControllerRoute } from './types.ts';
 
@@ -48,9 +46,9 @@ export function readControllerRoutes(controller: object): ControllerRoute[] {
 }
 
 /**
- * Base paths outside the built-in routes and not at or above the metrics
- * path; routes unique by method and key across every controller, matching
- * no extra route of the same method and not at or under its prefix route.
+ * Base paths outside the built-in routes, not at or above the metrics path,
+ * with no extra route at or under them and not at or under an extra prefix
+ * route; routes unique by method and key across every controller.
  */
 export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]): ControllerRoute[] {
     if (options.controllers === undefined) {
@@ -78,6 +76,8 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
             if (metricsPath !== undefined && isAtOrUnder(metricsPath, path)) {
                 throw new InvalidAgentDefinitionError(`Controller path "${base}" covers the metrics path.`);
             }
+
+            assertApart(base, routes);
         }
 
         for (const route of readControllerRoutes(controller)) {
@@ -88,7 +88,6 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
             }
 
             seen.add(id);
-            assertNotShadowing(route, routes);
             result.push(route);
         }
     }
@@ -110,28 +109,23 @@ export function registerControllers(app: App, ctx: HttpContext): void {
 }
 
 /**
- * Controllers are mounted before the extra routes: a controller route
- * matching an extra route's path, or some path at or under its prefix
- * (segment by segment, see `overlapsRoute()`), would shadow it.
+ * Controllers are mounted before the extra routes and every path both
+ * could answer lies at or under one of their static paths: an extra route
+ * at or under `base`, or a prefix route at or above it, is refused, for
+ * any method (compared case-insensitively, as routup matches).
  */
-function assertNotShadowing(route: ControllerRoute, routes: HttpRoute[]): void {
-    const matcher = toRouteMatcher(route.path);
+function assertApart(base: string, routes: HttpRoute[]): void {
+    const path = base.toLowerCase();
 
-    for (const other of routes) {
-        if (other.method !== route.method) {
-            continue;
+    for (const route of routes) {
+        const other = route.path.toLowerCase();
+
+        if (isAtOrUnder(other, path)) {
+            throw new InvalidAgentDefinitionError(`Route "${route.method} ${route.path}" lies under the controller path "${base}".`);
         }
 
-        if (other.prefix) {
-            if (overlapsRoute(route.path, other.path, true)) {
-                throw new InvalidAgentDefinitionError(`Controller route "${route.method} ${route.path}" lies under the prefix route "${other.path}".`);
-            }
-
-            continue;
-        }
-
-        if (matcher.test(other.path)) {
-            throw new InvalidAgentDefinitionError(`Controller route "${route.method} ${route.path}" collides with the route "${other.method} ${other.path}".`);
+        if (route.prefix && isAtOrUnder(path, other)) {
+            throw new InvalidAgentDefinitionError(`Controller path "${base}" lies under the prefix route "${route.path}".`);
         }
     }
 }
