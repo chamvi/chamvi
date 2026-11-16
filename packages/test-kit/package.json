@@ -52,7 +52,7 @@
     "license": "Apache-2.0",
     "devDependencies": {
         "@chamvi/core": "^0.8.0",
-        "ai": "^7.0.165"
+        "ai": "^7.0.172"
     },
     "peerDependencies": {
         "@chamvi/core": "^0.8.0",

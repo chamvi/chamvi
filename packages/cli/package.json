@@ -61,7 +61,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "@oxc-project/runtime": "^0.157.0",
+        "@oxc-project/runtime": "^0.158.0",
         "citty": "^0.2.2"
     },
     "devDependencies": {
@@ -70,7 +70,7 @@
         "@chamvi/test-kit": "^0.8.0",
         "@routup/decorators": "^5.1.0",
         "@swc/core": "^1.16.22",
-        "ai": "^7.0.165",
+        "ai": "^7.0.172",
         "reflect-metadata": "^0.2.2",
         "tsdown": "^0.23.7",
         "unplugin-swc": "^2.0.0"
