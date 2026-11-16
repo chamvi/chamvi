@@ -192,16 +192,16 @@ describe('AppToken.HTTP_CONTROLLERS', () => {
         expect(await (await fetch(url('/notes/now'), { headers: authorization })).json()).toEqual({ now: START.toISOString() });
     });
 
-    it('refuses a contributed controller whose route the option\'s controller has', async () => {
-        const { harness } = await build({
-            http: { controllers: [new NoteController({ clock: new ControllableClock(START) })] },
+    it('answers a route the option\'s and a contributed controller share from the option\'s', async () => {
+        const earlier = new Date(0);
+        const { harness, url } = await build({
+            http: { controllers: [new NoteController({ clock: new ControllableClock(earlier) })] },
             after: [noteControllers([])],
         });
 
-        const error = await rejectionOf(harness.setup());
+        await harness.setup();
 
-        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(error.message).toBe('Controller route "GET /notes/now" is registered twice.');
+        expect(await (await fetch(url('/notes/now'), { headers: authorization })).json()).toEqual({ now: earlier.toISOString() });
     });
 
     it.each(['job', 'migrate'] as const)('never runs the factory in %s mode', async (mode) => {

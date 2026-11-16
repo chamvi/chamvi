@@ -8,10 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { HttpRoute } from '@chamvi/http';
-import { decorators } from '@routup/decorators';
-import { App } from 'routup';
-import { readControllerRoutes } from '../../../src/controllers/module.ts';
-import { createTestApp } from '../../utils/app.ts';
+import { call, createTestApp } from '../../utils/app.ts';
 import {
     AliasedController,
     BaselessController,
@@ -43,79 +40,16 @@ function message(fn: () => unknown): string {
 }
 
 describe('contributed controllers', () => {
-    it('reads one route per method under the base path', () => {
-        expect(readControllerRoutes(new NotesController())).toEqual([
-            {
-                method: 'GET',
-                path: '/notes',
-                key: '/notes',
-            },
-            {
-                method: 'GET',
-                path: '/notes/:id',
-                key: '/notes/:',
-            },
-            {
-                method: 'POST',
-                path: '/notes/:id/approve',
-                key: '/notes/:/approve',
-            },
-        ]);
-    });
-
     it('accepts a valid controller', () => {
         expect(() => createTestApp({ controllers: [new NotesController()] })).not.toThrow();
     });
 
-    it('reads every base path of an array', () => {
-        expect(readControllerRoutes(new AliasedController())).toEqual([
-            {
-                method: 'GET',
-                path: '/notes',
-                key: '/notes',
-            },
-            {
-                method: 'GET',
-                path: '/memos',
-                key: '/memos',
-            },
-        ]);
+    it('accepts a controller under two base paths', () => {
         expect(() => createTestApp({ controllers: [new AliasedController()] })).not.toThrow();
     });
 
     it('accepts a controller without methods', () => {
-        expect(readControllerRoutes(new EmptyController())).toEqual([]);
         expect(() => createTestApp({ controllers: [new EmptyController()] })).not.toThrow();
-    });
-
-    it('keys a route lowercased, parameter and wildcard names replaced, trailing slash dropped', () => {
-        expect(readControllerRoutes(createTestController('/Notes', [['PUT', '/:noteId/'], ['DELETE', '/*rest']]))).toEqual([
-            {
-                method: 'PUT',
-                path: '/Notes/:noteId',
-                key: '/notes/:',
-            },
-            {
-                method: 'DELETE',
-                path: '/Notes/*rest',
-                key: '/notes/*',
-            },
-        ]);
-    });
-
-    it('reads the paths and methods routup mounts, in its order', () => {
-        // without method middlewares: routup lists those as routes of the method's path too
-        const controllers = [
-            createTestController('/Notes', [['GET', ''], ['PUT', '/:noteId/'], ['DELETE', '/*rest'], ['POST', '//y/']]),
-            new AliasedController(),
-        ];
-        const app = new App();
-
-        app.use(decorators({ controllers }));
-
-        expect(controllers.flatMap((controller) => readControllerRoutes(controller))
-            .map(({ method, path }) => ({ method, path })))
-            .toEqual(app.routes.map(({ method, path }) => ({ method, path })));
     });
 
     it('refuses controllers that are not an array', () => {
@@ -218,46 +152,65 @@ describe('contributed controllers', () => {
     });
 
     it.each([
-        ['without a leading slash', 'x'],
         ['with a parameter without a name', '/:'],
         ['with an unnamed wildcard', '/*'],
         ['with an unclosed brace', '/x{'],
         ['with a question mark', '/:id?'],
         ['with a parenthesis', '/(x)'],
-        ['with an optional group without a leading slash', '{/:id}'],
+        ['starting with an optional group', '{/:id}'],
+        ['starting with a slash and an optional group', '/{/:id}'],
     ])('refuses a method path %s', (_name, path) => {
         expect(message(() => createTestApp({ controllers: [createTestController('/notes', [['GET', path]])] })))
-            .toBe(`Controller method path "${path}" of "GET /notes" must be a path routup accepts, starting with "/".`);
+            .toMatch(/^Controller path "\/notes" cannot be mounted: ./);
+    });
+
+    it('names every base path of a refused controller', () => {
+        expect(message(() => createTestApp({ controllers: [createTestController(['/notes', '/memos'], [['GET', '/:']])] })))
+            .toMatch(/^Controller paths "\/notes", "\/memos" cannot be mounted: ./);
     });
 
     it.each([
         ['a named wildcard', '/*rest'],
         ['an optional group', '/x{/y}'],
         ['a trailing slash', '/:id/'],
+        ['no leading slash', ':id'],
     ])('accepts a method path with %s', (_name, path) => {
         expect(() => createTestApp({ controllers: [createTestController('/notes', [['GET', path]])] })).not.toThrow();
     });
 
-    it('refuses the same method and key across two controllers', () => {
-        expect(message(() => createTestApp({
+    it('serves a method path without a leading slash under the base path', async () => {
+        const { app } = createTestApp({ controllers: [createTestController('/notes', [['GET', ':id']])] });
+        const response = await call(app, 'GET', '/notes/7');
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ method: 'GET', path: ':id' });
+    });
+
+    it('accepts the same method and path in two controllers', () => {
+        expect(() => createTestApp({
+            controllers: [
+                createTestController('/notes', [['GET', '/:id']]),
+                createTestController('/notes', [['GET', '/:id']]),
+            ],
+        })).not.toThrow();
+    });
+
+    it('accepts the same route within one controller and under one path twice', () => {
+        expect(() => createTestApp({ controllers: [createTestController('/notes', [['GET', '/:id'], ['GET', '/:noteId']])] })).not.toThrow();
+        expect(() => createTestApp({ controllers: [createTestController(['/notes', '/Notes'], [['GET', '']])] })).not.toThrow();
+    });
+
+    it('answers a route repeated under other parameter names from the first controller', async () => {
+        const { app } = createTestApp({
             controllers: [
                 createTestController('/Notes', [['GET', '/:id']]),
                 createTestController('/notes', [['GET', '/:noteId/']]),
             ],
-        }))).toBe('Controller route "GET /notes/:noteId" is registered twice.');
-    });
+        });
+        const response = await call(app, 'GET', '/notes/7');
 
-    it('refuses the same method and key within one controller', () => {
-        expect(message(() => createTestApp({ controllers: [createTestController('/notes', [['GET', '/:id'], ['GET', '/:noteId']])] }))).toBe('Controller route "GET /notes/:noteId" is registered twice.');
-    });
-
-    it('refuses two wildcards differing only in their names', () => {
-        expect(message(() => createTestApp({ controllers: [createTestController('/f', [['GET', '/*a'], ['GET', '/*b']])] })))
-            .toBe('Controller route "GET /f/*b" is registered twice.');
-    });
-
-    it('refuses an array base path naming one path twice', () => {
-        expect(() => createTestApp({ controllers: [createTestController(['/notes', '/Notes'], [['GET', '']])] })).toThrow(InvalidAgentDefinitionError);
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({ method: 'GET', path: '/:id' });
     });
 
     it('accepts one path under two methods', () => {
