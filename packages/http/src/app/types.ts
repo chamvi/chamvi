@@ -21,7 +21,6 @@ import type { Options as RateLimitPluginOptions } from '@routup/rate-limit';
 import type { AppOptionsInput } from 'routup';
 import type { AgentIssue } from '../agents/types.ts';
 import type { Authenticator, Principal } from '../auth/types.ts';
-import type { ControllerRoute } from '../controllers/types.ts';
 import type { OpenApiOptions } from '../openapi/types.ts';
 import type { IShutdown } from '../shutdown/types.ts';
 import type { UiPage } from '../static/types.ts';
@@ -258,8 +257,6 @@ export type HttpContext = {
     routes: HttpRoute[];
     /** Contributed controller instances, validated in `buildContext`. */
     controllers: object[];
-    /** Every route of `controllers`, in mount order. */
-    controllerRoutes: ControllerRoute[];
     /** Mounted channels, validated in `buildContext`. */
     channels: IChannel[];
     /** The connection handles, read per request. */

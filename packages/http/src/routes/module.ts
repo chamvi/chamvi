@@ -8,6 +8,7 @@
 import { isObject } from 'smob';
 import { defineCoreHandler } from 'routup';
 import type { App, IAppEvent } from 'routup';
+import { REST_ROUTE_SUFFIX } from '../app/constants.ts';
 import type {
     HttpContext,
     HttpRoute,
@@ -72,29 +73,28 @@ export function registerRoutes(app: App, ctx: HttpContext): void {
 
     for (const route of ordered) {
         const handler = defineCoreHandler(async (event) => respond(event, await route.handler(toRouteRequest(event, ctx, route), routeCtx)));
-        const paths = route.prefix ? [route.path, `${route.path}{/*rest}`] : [route.path];
+        // a prefix route is one route for its path and everything below: one metric label
+        const path = route.prefix ? `${route.path}${REST_ROUTE_SUFFIX}` : route.path;
 
-        for (const path of paths) {
-            switch (route.method) {
-                case 'GET':
-                    app.get(path, handler);
+        switch (route.method) {
+            case 'GET':
+                app.get(path, handler);
 
-                    break;
-                case 'PUT':
-                    app.put(path, handler);
+                break;
+            case 'PUT':
+                app.put(path, handler);
 
-                    break;
-                case 'PATCH':
-                    app.patch(path, handler);
+                break;
+            case 'PATCH':
+                app.patch(path, handler);
 
-                    break;
-                case 'DELETE':
-                    app.delete(path, handler);
+                break;
+            case 'DELETE':
+                app.delete(path, handler);
 
-                    break;
-                default:
-                    app.post(path, handler);
-            }
+                break;
+            default:
+                app.post(path, handler);
         }
     }
 }

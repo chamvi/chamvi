@@ -20,7 +20,7 @@ import type {
 } from '@chamvi/core';
 import type { IShutdown } from '@chamvi/http';
 import type { IAppEvent } from 'routup';
-import { isStreamRequest, routeLabel } from '../../../src/plugins/helpers.ts';
+import { isStreamRequest } from '../../../src/plugins/helpers.ts';
 import {
     ADMIN_TOKEN,
     call,
@@ -29,6 +29,7 @@ import {
     restricted,
     tokenFor,
 } from '../../utils/app.ts';
+import { recordLabels, request } from '../../utils/metrics.ts';
 import { SseReader } from '../../utils/sse.ts';
 
 const QR = '2@SECRET-QR-REFERENCE,xyz';
@@ -495,18 +496,39 @@ describe('connection routes', () => {
         expect(fake.reset).not.toHaveBeenCalled();
     });
 
-    it('labels the connection routes in metrics and keeps their stream out of the timings', () => {
-        const event = (method: string, path: string) => ({ method, path }) as IAppEvent;
+    it('labels the connection routes in metrics and keeps their stream out of the timings', async () => {
+        // timed here, the stream included
+        const recorder = recordLabels(() => false);
+        const { app } = world([fakeHandle('alpha')], { metrics: recorder.metrics });
+        const controller = new AbortController();
+        const events = await stream(app, 'alpha', ADMIN_TOKEN, controller.signal);
 
-        expect(routeLabel(event('GET', '/connections'), '', '/metrics')).toBe('/connections');
-        expect(routeLabel(event('GET', '/connections/alpha'), '', '/metrics')).toBe('/connections/:name');
-        expect(routeLabel(event('GET', '/connections/alpha/events'), '', '/metrics')).toBe('/connections/:name/events');
-        expect(routeLabel(event('POST', '/connections/alpha/reset'), '', '/metrics')).toBe('/connections/:name/reset');
-        expect(routeLabel(event('GET', '/connections/alpha/config'), '', '/metrics')).toBe('/connections/:name/config');
-        expect(routeLabel(event('POST', '/connections/alpha/test'), '', '/metrics')).toBe('/connections/:name/test');
-        expect(routeLabel(event('POST', '/connection-types/mail/connections'), '', '/metrics')).toBe('/connection-types/:type/connections');
-        expect(routeLabel(event('GET', '/ui-pages'), '', '/metrics')).toBe('/ui-pages');
-        expect(isStreamRequest(event('GET', '/connections/alpha/events'), '')).toBe(true);
+        await events.body?.cancel();
+        controller.abort();
+
+        for (const [method, path] of [
+            ['GET', '/connections'],
+            ['GET', '/connections/alpha'],
+            ['POST', '/connections/alpha/reset'],
+            ['GET', '/connections/alpha/config'],
+            ['POST', '/connections/alpha/test'],
+            ['POST', '/connection-types/mail/connections'],
+            ['GET', '/ui-pages'],
+        ] as const) {
+            await request(app, method, path, { token: ADMIN_TOKEN });
+        }
+
+        expect(recorder.labels).toEqual([
+            '/connections/:name/events',
+            '/connections',
+            '/connections/:name',
+            '/connections/:name/reset',
+            '/connections/:name/config',
+            '/connections/:name/test',
+            '/connection-types/:type/connections',
+            '/ui-pages',
+        ]);
+        expect(isStreamRequest({ method: 'GET', path: '/connections/alpha/events' } as IAppEvent, '')).toBe(true);
     });
 
     it('reserves the connections segment for the built-in routes', () => {

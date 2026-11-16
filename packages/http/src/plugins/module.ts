@@ -18,8 +18,6 @@ import {
     DEFAULT_RATE_LIMIT_WINDOW_MS,
 } from '../app/constants.ts';
 import type { HttpAppOptions } from '../app/types.ts';
-import { createControllerRouteMatcher } from '../controllers/helpers.ts';
-import type { ControllerRoute } from '../controllers/types.ts';
 import {
     isOperationalPath,
     isStreamRequest,
@@ -33,14 +31,9 @@ import { matchesChannel } from './channels.ts';
  * CORS (only when configured), a rate limit keyed by the client address
  * as the App's `trustProxy` resolves it (never a raw `X-Forwarded-For`),
  * and Prometheus at `/metrics` with a registry of its own, labelled by
- * route template (`controllerRoutes`: the validated routes of the
- * contributed controllers). Installed before any route.
+ * route template. Installed before any route.
  */
-export function installPlugins(
-    app: App,
-    options: HttpAppOptions,
-    controllerRoutes: readonly ControllerRoute[] = [],
-): void {
+export function installPlugins(app: App, options: HttpAppOptions): void {
     const basePath = options.basePath ?? '';
     const routes = options.routes ?? [];
 
@@ -92,15 +85,12 @@ export function installPlugins(
         return;
     }
 
-    // routup's matchers, built once for every request
-    const matchController = createControllerRouteMatcher(controllerRoutes);
-
     app.use(prometheus({
         metricsPath,
         // the global default registry throws on a second app in one process
         registry: new Registry(),
         skip: (event) => isStreamRequest(event, basePath),
-        normalizePath: (_path, event) => routeLabel(event, basePath, metricsPath ?? DEFAULT_METRICS_PATH, routes, matchController),
+        normalizePath: (_path, event) => routeLabel(event, basePath, metricsPath ?? DEFAULT_METRICS_PATH),
         ...options.metrics,
     }));
 }

@@ -61,7 +61,7 @@ A class-level middleware (`@DController('/notes', [ForceLoggedInMiddleware])`) r
 
 - **Rate limit:** contributed routes are always limited by the app's limiter (`rateLimit`, 300 per minute per client by default). A caller that must not be limited, a webhook sender that never retries for example, stays an [`HttpRoute`](/guide/http#extra-routes) with `rateLimit: false`, or becomes a [channel](/guide/channels).
 - **Errors:** throw `@ebec/http` errors (`NotFoundError`, `ConflictError`, ...), or classes of your own that extend them with their own `code`; they render as `{ status, code, message, issues? }` with the code lowercased. A validup error renders as 400 `validation_error` with its issues, and a core error (`ValidationError`, `RunNotFoundError`, ...) as in every other route. Anything else is a 500 `Internal Server Error` whose cause goes to `onError`, never to the client. There is no seam to map other errors: catch and rethrow in the service.
-- **Metrics:** the `path` label of a contributed route is its declared pattern (`/notes/:id`), never the request path.
+- **Metrics:** the `path` label of a contributed route is the pattern of the route that served the request (`/notes/:id`, without `basePath`), never the request path; a method the controller does not declare for the path, and an `OPTIONS` request, are labelled `/_unmatched`.
 
 ## OpenAPI document
 

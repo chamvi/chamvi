@@ -9,20 +9,10 @@ import { describe, expect, it } from 'vitest';
 import type { App } from 'routup';
 import { createTestApp } from '../../utils/app.ts';
 import { NotesController, createTestController } from '../../utils/controllers.ts';
+import { pathLabels } from '../../utils/metrics.ts';
 
 function send(app: App, path: string, method = 'GET'): Promise<Response> {
     return app.fetch(new Request(`http://test${path}`, { method }));
-}
-
-async function pathLabels(app: App, metricsPath = '/metrics'): Promise<string[]> {
-    const text = await (await send(app, metricsPath)).text();
-    const labels = new Set<string>();
-
-    for (const match of text.matchAll(/path="([^"]*)"/g)) {
-        labels.add(match[1]!);
-    }
-
-    return [...labels].sort();
 }
 
 describe('metrics labels of contributed controllers', () => {
@@ -66,7 +56,7 @@ describe('metrics labels of contributed controllers', () => {
         expect(await pathLabels(app)).toEqual([label]);
     });
 
-    it('labels HEAD and OPTIONS by the route of the path, as the built-in routes', async () => {
+    it('labels HEAD by the GET route of the path, OPTIONS /_unmatched, as the built-in routes', async () => {
         const { app } = createTestApp({ metrics: undefined, controllers: [new NotesController()] });
 
         await send(app, '/notes/7', 'HEAD');
@@ -75,6 +65,6 @@ describe('metrics labels of contributed controllers', () => {
         await send(app, '/runs/9', 'HEAD');
         await send(app, '/runs/9', 'OPTIONS');
 
-        expect(await pathLabels(app)).toEqual(['/notes/:id', '/notes/:id/approve', '/runs/:id']);
+        expect(await pathLabels(app)).toEqual(['/_unmatched', '/notes/:id', '/runs/:id']);
     });
 });

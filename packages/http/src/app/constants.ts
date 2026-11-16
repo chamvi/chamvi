@@ -38,6 +38,12 @@ export const DEFAULT_RATE_LIMIT_WINDOW_MS = 60_000;
 /** A static path: one or more `/<segment>` of word characters, `.`, `~` and `-`, no trailing slash. */
 export const STATIC_ROUTE_PATH = /^(?:\/[\w.~-]+)+$/;
 
+/**
+ * The optional rest group of a route that serves a path and everything
+ * below it (`<path>{/*rest}` matches `<path>`, `<path>/` and `<path>/a/b`).
+ */
+export const REST_ROUTE_SUFFIX = '{/*rest}';
+
 /** Where Prometheus scrapes, relative to `basePath`. */
 export const DEFAULT_METRICS_PATH = '/metrics';
 

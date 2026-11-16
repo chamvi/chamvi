@@ -243,8 +243,8 @@ export function buildContext(options: HttpAppOptions): HttpContext {
     }
 
     const routes = validateRoutes(options);
-    const controllerRoutes = validateControllers(options, routes);
 
+    validateControllers(options, routes);
     validateOpenApiDocuments(options);
 
     return {
@@ -265,7 +265,6 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         closed: false,
         routes,
         controllers: [...(options.controllers ?? [])],
-        controllerRoutes,
         channels,
         connections: options.connections ?? (() => []),
         connectionTypes: options.connectionTypes ?? (() => []),
