@@ -61,7 +61,7 @@
     "license": "Apache-2.0",
     "dependencies": {
         "hapic": "^3.0.2",
-        "mdream": "^2.0.3",
+        "mdream": "^2.1.0",
         "smob": "^1.6.2"
     },
     "devDependencies": {

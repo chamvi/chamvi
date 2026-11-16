@@ -61,7 +61,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "@oxc-project/runtime": "^0.157.0",
+        "@oxc-project/runtime": "^0.158.0",
         "citty": "^0.2.2"
     },
     "devDependencies": {

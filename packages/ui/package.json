@@ -81,7 +81,7 @@
         "@ilingo/vue": "^6.1.2",
         "@playwright/test": "^1.65.0",
         "@validup/vue": "^2.0.1",
-        "@vitejs/plugin-vue": "^6.0.10",
+        "@vitejs/plugin-vue": "^6.0.11",
         "@vuecs/button": "^1.4.3",
         "@vuecs/core": "^3.6.1",
         "@vuecs/countdown": "^2.1.2",

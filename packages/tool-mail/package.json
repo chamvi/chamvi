@@ -57,7 +57,7 @@
     "dependencies": {
         "fflate": "0.8.3",
         "imapflow": "2.11.0",
-        "postal-mime": "4.2.0",
+        "postal-mime": "4.2.1",
         "smob": "^1.6.2",
         "unpdf": "2.1.0"
     },
