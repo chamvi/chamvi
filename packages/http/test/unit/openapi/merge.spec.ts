@@ -279,18 +279,49 @@ describe('mergeOpenApiDocuments', () => {
             .toBe('The OpenAPI document of @chamvi/http has "paths" that is no JSON object.');
     });
 
-    it('takes path templates differing only in parameter names as one path', () => {
-        expect(refusal(() => mergeOpenApiDocuments(base(), [
-            { paths: { '/n/{id}': { get: OK } } },
-            { paths: { '/n/{noteId}': { get: OK } } },
-        ]))).toBe('The OpenAPI path "GET /n/{noteId}" is contributed twice.');
+    describe('with path templates of one shape', () => {
+        function idParameter(name: string): Record<string, unknown> {
+            return {
+                name,
+                in: 'path',
+                required: true,
+                schema: { type: 'string' },
+            };
+        }
 
-        const merged = mergeOpenApiDocuments(base(), [
-            { paths: { '/n/{id}': { get: OK } } },
-            { paths: { '/n/{noteId}': { delete: OK } } },
-        ])!;
+        function notesById(name: string, method: string): Record<string, unknown> {
+            return {
+                openapi: '3.2.0',
+                info: { title: `notes-${method}`, version: '0.1.0' },
+                paths: { [`/notes/{${name}}`]: { [method]: { ...OK, parameters: [idParameter(name)] } } },
+            };
+        }
 
-        expect(merged.paths).toEqual({ '/runs': { get: OK }, '/n/{id}': { get: OK, delete: OK } });
+        it('merges identical templates per method', () => {
+            const merged = mergeOpenApiDocuments(base(), [notesById('id', 'get'), notesById('id', 'delete')])!;
+
+            expect(merged.paths).toEqual({
+                '/runs': { get: OK },
+                '/notes/{id}': {
+                    get: { ...OK, parameters: [idParameter('id')] },
+                    delete: { ...OK, parameters: [idParameter('id')] },
+                },
+            });
+        });
+
+        it('refuses other parameter names between contributed documents, also without the base', () => {
+            const message = 'The OpenAPI path "/notes/{noteId}" has the shape of "/notes/{id}" with other parameter names: use one template.';
+
+            expect(refusal(() => mergeOpenApiDocuments(base(), [notesById('id', 'get'), notesById('noteId', 'delete')]))).toBe(message);
+            expect(refusal(() => mergeOpenApiDocuments(undefined, [notesById('id', 'get'), notesById('noteId', 'delete')]))).toBe(message);
+        });
+
+        it('refuses other parameter names than a path of chamvi\'s document', () => {
+            const withRun = { ...base(), paths: { '/runs/{id}': { get: { ...OK, parameters: [idParameter('id')] } } } };
+
+            expect(refusal(() => mergeOpenApiDocuments(withRun, [{ paths: { '/runs/{runId}': { patch: { ...OK, parameters: [idParameter('runId')] } } } }])))
+                .toBe('The OpenAPI path "/runs/{runId}" has the shape of "/runs/{id}" with other parameter names: use one template.');
+        });
     });
 
     it('reads method keys case-insensitively', () => {
@@ -304,6 +335,54 @@ describe('mergeOpenApiDocuments', () => {
         const merged = mergeOpenApiDocuments(base(), [{ paths: { '/notes': { PATCH: OK } } }])!;
 
         expect((merged.paths as Record<string, unknown>)['/notes']).toEqual({ patch: OK });
+    });
+
+    describe('with additionalOperations', () => {
+        function extra(method: string, path = '/notes'): Record<string, unknown> {
+            return { paths: { [path]: { additionalOperations: { [method]: OK } } } };
+        }
+
+        it('merges them per method, keeping the capitalization as written', () => {
+            const merged = mergeOpenApiDocuments(base(), [extra('COPY'), extra('MOVE'), { paths: { '/notes': { get: OK } } }])!;
+
+            expect((merged.paths as Record<string, unknown>)['/notes']).toEqual({ additionalOperations: { COPY: OK, MOVE: OK }, get: OK });
+        });
+
+        it('refuses a method contributed twice, compared case-insensitively, also without the base', () => {
+            expect(refusal(() => mergeOpenApiDocuments(base(), [extra('COPY'), extra('COPY')])))
+                .toBe('The OpenAPI path "COPY /notes" is contributed twice.');
+            expect(refusal(() => mergeOpenApiDocuments(undefined, [extra('COPY'), extra('copy')])))
+                .toBe('The OpenAPI path "COPY /notes" is contributed twice.');
+            expect(refusal(() => mergeOpenApiDocuments(undefined, [{ paths: { '/notes': { additionalOperations: { COPY: OK, Copy: OK } } } }])))
+                .toBe('The OpenAPI path "COPY /notes" is contributed twice.');
+        });
+
+        it('refuses a method already in chamvi\'s document', () => {
+            const withCopy = { ...base(), paths: { '/runs': { get: OK, additionalOperations: { COPY: OK } } } };
+
+            expect(refusal(() => mergeOpenApiDocuments(withCopy, [extra('COPY', '/runs')])))
+                .toBe('The OpenAPI path "COPY /runs" is already in the document of @chamvi/http.');
+        });
+
+        it('refuses a method that has a fixed field, as OpenAPI 3.2 requires', () => {
+            expect(refusal(() => mergeOpenApiDocuments(base(), [extra('POST')])))
+                .toBe('The OpenAPI path "/notes" has "POST" in additionalOperations: use its fixed field "post".');
+            expect(refusal(() => mergeOpenApiDocuments(undefined, [extra('Query')])))
+                .toBe('The OpenAPI path "/notes" has "Query" in additionalOperations: use its fixed field "query".');
+        });
+
+        it('refuses additionalOperations that is no JSON object', () => {
+            expect(refusal(() => mergeOpenApiDocuments(base(), [{ paths: { '/notes': { additionalOperations: [] } } }])))
+                .toBe('The OpenAPI path "/notes" has "additionalOperations" that is no JSON object.');
+        });
+
+        it.each(['__proto__', 'constructor', 'prototype'])('refuses the method name %s without touching Object.prototype', (key) => {
+            const json = `{"paths":{"/notes":{"additionalOperations":{"${key}":{"polluted":true}}}}}`;
+
+            expect(refusal(() => mergeOpenApiDocuments(base(), [JSON.parse(json)])))
+                .toBe(`The OpenAPI document at index 0 of openapi.documents uses the reserved name "${key}" as an additional operation.`);
+            expect(({} as Record<string, unknown>).polluted).toBeUndefined();
+        });
     });
 
     describe('with reserved keys', () => {

@@ -7,7 +7,12 @@
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
-import { OPENAPI_OPERATION_METHODS, OPENAPI_QUERY_METHOD, OPENAPI_RESERVED_KEYS } from './constants.ts';
+import {
+    OPENAPI_ADDITIONAL_OPERATIONS,
+    OPENAPI_OPERATION_METHODS,
+    OPENAPI_QUERY_METHOD,
+    OPENAPI_RESERVED_KEYS,
+} from './constants.ts';
 import { canonicalJson } from './helpers.ts';
 
 type JsonObject = Record<string, unknown>;
@@ -97,8 +102,11 @@ function toObject<T>(map: Map<string, T>): Record<string, T> {
  * written to).
  */
 class OpenApiMerge {
-    /** By path template with blanked parameter names: the path as first written and its fields. */
-    private readonly paths = new Map<string, { path: string, fields: Map<string, unknown> }>();
+    /** By path as written: its fields (`additionalOperations` a map). */
+    private readonly paths = new Map<string, Map<string, unknown>>();
+
+    /** By path template with blanked parameter names: the path of that shape merged first. */
+    private readonly templates = new Map<string, string>();
 
     private readonly components = new Map<string, Map<string, unknown>>();
 
@@ -130,7 +138,7 @@ class OpenApiMerge {
                 throw new InvalidAgentDefinitionError(`The OpenAPI path "${path}" of openapi.documents is no JSON object.`);
             }
 
-            this.addPathItem(path, entriesOf(item, index, 'a path-item field'), origin);
+            this.addPathItem(path, entriesOf(item, index, 'a path-item field'), index, origin);
         }
 
         for (const [group, entries] of entriesOf(objectField(document, index, 'components') ?? {}, index, 'a component group')) {
@@ -152,40 +160,48 @@ class OpenApiMerge {
         }
     }
 
-    /** The merged paths, each under the template first written. */
+    /** The merged paths, `additionalOperations` as a plain object again. */
     pathsObject(): JsonObject {
-        return Object.fromEntries(Array.from(this.paths.values(), ({ path, fields }) => [path, toObject(fields)]));
+        return Object.fromEntries(Array.from(this.paths, ([path, fields]) => [
+            path,
+            Object.fromEntries(Array.from(fields, ([key, value]) => [key, value instanceof Map ? toObject(value) : value])),
+        ]));
     }
 
     componentsObject(): JsonObject {
         return Object.fromEntries(Array.from(this.components, ([group, entries]) => [group, toObject(entries)]));
     }
 
-    private addPathItem(path: string, entries: [string, unknown][], origin: Origin): void {
+    private addPathItem(path: string, entries: [string, unknown][], index: number, origin: Origin): void {
         const template = pathTemplateKey(path);
-        const target = this.paths.get(template)?.fields ?? new Map<string, unknown>();
+        const first = this.templates.get(template);
 
-        if (!this.paths.has(template)) {
-            this.paths.set(template, { path, fields: target });
+        // one shape under two parameter names would leave an operation with a
+        // path parameter its template does not declare: an invalid document
+        if (first !== undefined && first !== path) {
+            throw new InvalidAgentDefinitionError(`The OpenAPI path "${path}" has the shape of "${first}" with other parameter names: use one template.`);
+        }
+
+        let target = this.paths.get(path);
+
+        if (!target) {
+            target = new Map<string, unknown>();
+            this.templates.set(template, path);
+            this.paths.set(path, target);
         }
 
         for (const [key, value] of entries) {
             const method = key.toLowerCase();
 
             if (this.methods.has(method)) {
-                const previous = this.operationOrigins.get(`${method} ${template}`);
-                const operation = `${method.toUpperCase()} ${path}`;
-
-                if (previous === 'base') {
-                    throw new InvalidAgentDefinitionError(`The OpenAPI path "${operation}" is already in ${BASE_NAME}.`);
-                }
-
-                if (previous === 'contributed') {
-                    throw new InvalidAgentDefinitionError(`The OpenAPI path "${operation}" is contributed twice.`);
-                }
-
-                this.operationOrigins.set(`${method} ${template}`, origin);
+                this.claimOperation(path, method, origin);
                 target.set(method, value);
+
+                continue;
+            }
+
+            if (key === OPENAPI_ADDITIONAL_OPERATIONS) {
+                this.addAdditionalOperations(path, target, value, index, origin);
 
                 continue;
             }
@@ -196,6 +212,49 @@ class OpenApiMerge {
                 throw new InvalidAgentDefinitionError(`The OpenAPI path "${path}" has a different "${key}" in two documents.`);
             }
         }
+    }
+
+    /** OpenAPI 3.2's map of further methods: merged per method like the fixed ones, the keys as written. */
+    private addAdditionalOperations(path: string, target: Map<string, unknown>, value: unknown, index: number, origin: Origin): void {
+        if (!isObject(value)) {
+            throw new InvalidAgentDefinitionError(`The OpenAPI path "${path}" has "${OPENAPI_ADDITIONAL_OPERATIONS}" that is no JSON object.`);
+        }
+
+        let operations = target.get(OPENAPI_ADDITIONAL_OPERATIONS) as Map<string, unknown> | undefined;
+
+        if (!operations) {
+            operations = new Map<string, unknown>();
+            target.set(OPENAPI_ADDITIONAL_OPERATIONS, operations);
+        }
+
+        for (const [key, operation] of entriesOf(value, index, 'an additional operation')) {
+            const method = key.toLowerCase();
+
+            // the map MUST NOT hold a method that has a fixed field (OpenAPI 3.2, Path Item Object)
+            if (this.methods.has(method)) {
+                throw new InvalidAgentDefinitionError(`The OpenAPI path "${path}" has "${key}" in ${OPENAPI_ADDITIONAL_OPERATIONS}: use its fixed field "${method}".`);
+            }
+
+            this.claimOperation(path, method, origin);
+            operations.set(key, operation);
+        }
+    }
+
+    /** Records `method` (lowercase) on `path`, refusing one already there. */
+    private claimOperation(path: string, method: string, origin: Origin): void {
+        const id = `${method} ${path}`;
+        const previous = this.operationOrigins.get(id);
+        const operation = `${method.toUpperCase()} ${path}`;
+
+        if (previous === 'base') {
+            throw new InvalidAgentDefinitionError(`The OpenAPI path "${operation}" is already in ${BASE_NAME}.`);
+        }
+
+        if (previous === 'contributed') {
+            throw new InvalidAgentDefinitionError(`The OpenAPI path "${operation}" is contributed twice.`);
+        }
+
+        this.operationOrigins.set(id, origin);
     }
 
     private addComponents(group: string, entries: [string, unknown][], origin: Origin): void {
@@ -228,11 +287,13 @@ class OpenApiMerge {
 /**
  * `base` (chamvi's document) with the `paths`, `tags` and `components`
  * groups of the contributed `documents` merged in, as a new object; no
- * input is written to. Paths merge per path template (parameter names
- * blanked, the first template kept) and method (case-insensitive, written
- * lowercase); a method already there is refused. A path, path-item field,
- * component group or component name `__proto__`, `constructor` or
- * `prototype` is refused. Another path-item field (`parameters`, `summary`, ...)
+ * input is written to. Paths merge per path and method (case-insensitive,
+ * written lowercase), the methods of `additionalOperations` too (compared
+ * case-insensitively, written as given; one with a fixed field refused); a
+ * method already there is refused, as is a path of the shape of another
+ * with other parameter names (`/n/{id}`, `/n/{noteId}`). A path, path-item
+ * field, additional operation, component group or component name
+ * `__proto__`, `constructor` or `prototype` is refused. Another path-item field (`parameters`, `summary`, ...)
  * keeps its first value, a different one is refused. A component (any
  * group: `schemas`, `securitySchemes`, `parameters`, ...) of a name already
  * there is kept once when its definition is identical (canonical JSON) and

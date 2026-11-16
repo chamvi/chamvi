@@ -24,3 +24,6 @@ export const OPENAPI_QUERY_METHOD = 'query';
 
 /** @internal Keys a merged document never takes as a name: they reach `Object.prototype` on a plain object. */
 export const OPENAPI_RESERVED_KEYS: readonly string[] = ['__proto__', 'constructor', 'prototype'];
+
+/** @internal The OpenAPI 3.2 path-item field mapping further methods (as sent) to operations. */
+export const OPENAPI_ADDITIONAL_OPERATIONS = 'additionalOperations';
