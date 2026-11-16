@@ -60,7 +60,7 @@ The default app has no dashboard. Add an entry that includes `uiModule()` (`npm 
 
 <<< @/snippets/first-agent/index.ts#dashboard
 
-`chamvi dev` runs `src/index.ts` directly; for `chamvi start`, build it first: `chamvi build` writes `dist/index.mjs` and needs `tsdown` (`npm install --save-dev tsdown`, an optional peer of `@chamvi/cli`). The dashboard is at `/ui`; sign in with a token from `CHAMVI_TOKENS` (or the dev token). See [Dashboard](/guide/ui).
+`chamvi dev` runs `src/index.ts` directly; for `chamvi start`, build it first: `chamvi build` writes `dist/index.mjs`. Both need `tsdown` (`npm install --save-dev tsdown`, an optional peer of `@chamvi/cli`), which also transforms the TypeScript entry `chamvi dev` loads; the built entry `chamvi start` runs needs no tsdown. The dashboard is at `/ui`; sign in with a token from `CHAMVI_TOKENS` (or the dev token). See [Dashboard](/guide/ui).
 
 ## 6. Editing a folder cancels its runs
 

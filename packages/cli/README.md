@@ -20,7 +20,7 @@
 
 ```bash
 npm install @chamvi/app @chamvi/cli ai
-npm install --save-dev tsdown   # only for chamvi build
+npm install --save-dev tsdown   # for chamvi build and a TypeScript entry
 ```
 
 ## Usage
@@ -47,7 +47,7 @@ export default createApp({ agents: [echo] });
 }
 ```
 
-Relative imports carry `.ts` and there is no `enum`, so `chamvi dev` (Node's type stripping) and `chamvi build` (tsdown) accept the same code. The template `tsconfig.json`:
+`chamvi dev` transforms the sources with the engine and the `tsconfig.json` that `chamvi build` (tsdown) bundles with, so both compile the same syntax (see [TypeScript entries](#typescript-entries)); Node resolves the imports, so relative imports carry `.ts` and tsconfig `paths` are not applied. The template `tsconfig.json`:
 
 ```json
 {
@@ -78,9 +78,21 @@ Relative imports carry `.ts` and there is no `enum`, so `chamvi dev` (Node's typ
 | `run-job` | `<agent>`, `[subscriptionId]`, `--entry` | Fires one cron subscription once and waits for its run (a Kubernetes CronJob; no channel is started); `subscriptionId` defaults to the agent's only cron subscription |
 | `migrate` | `--entry` | Migrates the Postgres store (`DATABASE_URL` required) |
 
-The entry is `--entry`, else for the source commands (`dev`, `build`, `start --dev`) the `package.json` field `"chamvi": { "entry": "<path>" }`, else `src/index.ts`. The built commands (`start`, `run-job`, `migrate`) never read that field and default to `dist/index.mjs`, so an image built from a repository that sets it still starts; a `.ts` entry runs through type stripping too. With none of them (no `--entry`, no `chamvi.entry`, no default file), `dev`, `start`, `run-job` and `migrate` run the default app, `createApp({})` configured by env alone, with its agents from `./agents` (or `CHAMVI_AGENTS_DIR`), and say so on stderr; `build` exits 2 (nothing to build). A missing `dist/index.mjs` beside a `src/index.ts` still exits 2 with the build hint.
+The entry is `--entry`, else for the source commands (`dev`, `build`, `start --dev`) the `package.json` field `"chamvi": { "entry": "<path>" }`, else `src/index.ts`. The built commands (`start`, `run-job`, `migrate`) never read that field and default to `dist/index.mjs`, so an image built from a repository that sets it still starts; a `.ts` entry passed to them loads through the [TypeScript hooks](#typescript-entries) too. With none of them (no `--entry`, no `chamvi.entry`, no default file), `dev`, `start`, `run-job` and `migrate` run the default app, `createApp({})` configured by env alone, with its agents from `./agents` (or `CHAMVI_AGENTS_DIR`), and say so on stderr; `build` exits 2 (nothing to build). A missing `dist/index.mjs` beside a `src/index.ts` still exits 2 with the build hint.
 
 `chamvi dev` runs `start --dev`: the source entry, `.env` from the working directory (never overriding a set variable), in-memory repositories from `createMemoryStore()` unless `DATABASE_URL` is set and, without another authenticator, one random `*` token, logged with a warning, and shorter timeouts (`CHAMVI_DRAIN_TIMEOUT_MS` 5000, `CHAMVI_FORCE_EXIT_MS` 15000).
+
+## TypeScript entries
+
+`dev` (through `start --dev`), `start` (also with `--check`), `run-job` and `migrate` load a TypeScript entry (`.ts`, `.mts`, `.cts`) through a `module.registerHooks()` pair registered once per process before the import: every TypeScript file outside `node_modules` the entry loads is transformed with rolldown's `transformSync`, taken from the tsdown `chamvi build` uses, with an inline source map. A JavaScript entry (the built `dist/index.mjs`) registers nothing and needs no tsdown.
+
+- The transform reads the nearest `tsconfig.json` at or above the working directory, the file `chamvi build` (tsdown) finds; without one, rolldown's defaults apply (no decorators). Restart `chamvi dev` after changing it: `node --watch` does not follow the tsconfig.
+- The app's `package.json` needs `"type": "module"` (or the file the extension `.mts`) for syntax Node cannot strip (an `enum`, a decorator): otherwise Node strips the file itself before the transform and fails with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` (`TypeScript enum is not supported in strip-only mode`). The template's `erasableSyntaxOnly` makes the typecheck reject an `enum`: remove that setting to use one.
+- Node resolves every import, so tsconfig `paths` are not applied (an alias import fails with `ERR_MODULE_NOT_FOUND`); use relative imports or `package.json` `imports`.
+- Decorators (a `@routup/decorators` controller) need `"experimentalDecorators": true`; without it the import fails with `SyntaxError: Unexpected token 'export'` and no file name (a built `dist/index.mjs` fails the same way at start). `"emitDecoratorMetadata": true` with `import 'reflect-metadata'` as the entry's first import is the app's choice (TypeORM entities that omit their column types need it).
+- tsdown must be installed to load a TypeScript entry: without it the command exits 2 (`The entry is TypeScript: install tsdown ^0.23.4 to load it.`). A built entry needs nothing.
+- Files of an agents folder (`CHAMVI_AGENTS_DIR`) are loaded by jiti and cannot use decorators.
+- `@oxc-project/runtime`, the helpers the transformed code imports, is a dependency of the CLI.
 
 ## Exit codes
 

@@ -14,21 +14,37 @@ import {
 import { tmpdir } from 'node:os';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { ChamviError, InvalidAgentDefinitionError, isApp } from '@chamvi/app';
+import {
+    ChamviError,
+    InvalidAgentDefinitionError,
+    createApp,
+    isApp,
+} from '@chamvi/app';
 import {
     afterEach,
     beforeEach,
     describe,
     expect,
     it,
+    vi,
 } from 'vitest';
 import { DEFAULT_APP_NOTICE } from '../../../src/entry/constants.ts';
 import { loadApp, loadEntryApp, resolveEntry } from '../../../src/entry/module.ts';
 import { CLI_USAGE_ERROR_CODE, EXIT_CODE } from '../../../src/run/constants.ts';
 import { exitCodeOf } from '../../../src/run/helpers.ts';
+import type { TypeScriptHooksOptions } from '../../../src/transform/types.ts';
+
+// a fake registration: the hooks stay out of this process (the bin specs register the real ones)
+const registerTypeScriptHooks = vi.hoisted(() => vi.fn<(options: TypeScriptHooksOptions) => Promise<void>>(async () => {}));
+
+vi.mock('../../../src/transform/module.ts', async (importOriginal) => ({
+    ...await importOriginal<Record<string, unknown>>(),
+    registerTypeScriptHooks,
+}));
 
 const fixtures = fileURLToPath(new URL('../../fixtures/', import.meta.url));
 const importModule = (specifier: string) => import(specifier);
+const context = { cwd: fixtures, importModule };
 
 async function rejectionOf(promise: Promise<unknown>): Promise<unknown> {
     try {
@@ -149,8 +165,57 @@ describe('resolveEntry', () => {
 });
 
 describe('loadApp', () => {
+    beforeEach(() => {
+        registerTypeScriptHooks.mockClear();
+    });
+
+    it('registers the TypeScript hooks for the cwd before importing a TypeScript entry', async () => {
+        const calls: string[] = [];
+
+        registerTypeScriptHooks.mockImplementationOnce(async ({ cwd }) => {
+            calls.push(`register ${cwd}`);
+        });
+
+        await loadApp(path.join(fixtures, 'app/src/index.ts'), {
+            cwd: '/project',
+            importModule: (specifier) => {
+                calls.push('import');
+
+                return import(specifier);
+            },
+        });
+        expect(calls).toEqual(['register /project', 'import']);
+    });
+
+    it('registers nothing for a JavaScript entry', async () => {
+        const app = await loadApp('/project/dist/index.mjs', {
+            cwd: '/project',
+            importModule: async () => ({ default: createApp({}) }),
+        });
+
+        expect(isApp(app)).toBe(true);
+        expect(registerTypeScriptHooks).not.toHaveBeenCalled();
+    });
+
+    it('imports nothing when the registration fails (no tsdown)', async () => {
+        const failure = new ChamviError({ message: 'no tsdown', code: CLI_USAGE_ERROR_CODE });
+        const imported: string[] = [];
+
+        registerTypeScriptHooks.mockRejectedValueOnce(failure);
+
+        await expect(loadApp(path.join(fixtures, 'app/src/index.ts'), {
+            cwd: '/project',
+            importModule: async (specifier) => {
+                imported.push(specifier);
+
+                return {};
+            },
+        })).rejects.toBe(failure);
+        expect(imported).toEqual([]);
+    });
+
     it('loads the default export of the fixture app', async () => {
-        const app = await loadApp(path.join(fixtures, 'app/src/index.ts'), importModule);
+        const app = await loadApp(path.join(fixtures, 'app/src/index.ts'), context);
 
         expect(isApp(app)).toBe(true);
         expect(app.agents.map((agent) => agent.name)).toEqual(['echo']);
@@ -158,7 +223,7 @@ describe('loadApp', () => {
 
     it('refuses an entry whose default export is no app', async () => {
         const entry = path.join(fixtures, 'broken/not-an-app.ts');
-        const error = await rejectionOf(loadApp(entry, importModule));
+        const error = await rejectionOf(loadApp(entry, context));
 
         expect((error as ChamviError).code).toBe(CLI_USAGE_ERROR_CODE);
         expect((error as Error).message).toContain(`${entry} must \`export default createApp`);
@@ -166,7 +231,7 @@ describe('loadApp', () => {
     });
 
     it('passes a configuration error of the entry import through', async () => {
-        const error = await rejectionOf(loadApp(path.join(fixtures, 'broken/throws-config.ts'), importModule));
+        const error = await rejectionOf(loadApp(path.join(fixtures, 'broken/throws-config.ts'), context));
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
         expect(exitCodeOf(error)).toBe(EXIT_CODE.USAGE);
@@ -175,10 +240,13 @@ describe('loadApp', () => {
     it('imports through a file URL', async () => {
         const specifiers: string[] = [];
 
-        await loadApp(path.join(fixtures, 'app/src/index.ts'), (specifier) => {
-            specifiers.push(specifier);
+        await loadApp(path.join(fixtures, 'app/src/index.ts'), {
+            cwd: fixtures,
+            importModule: (specifier) => {
+                specifiers.push(specifier);
 
-            return import(specifier);
+                return import(specifier);
+            },
         });
         expect(specifiers[0]).toMatch(/^file:\/\/.*\/fixtures\/app\/src\/index\.ts$/);
     });
@@ -188,6 +256,7 @@ describe('loadEntryApp', () => {
     it('loads the entry when there is one, writing nothing', async () => {
         const written: string[] = [];
         const app = await loadEntryApp(path.join(fixtures, 'app/src/index.ts'), {
+            cwd: fixtures,
             importModule,
             stderr: (text) => {
                 written.push(text);
@@ -201,6 +270,7 @@ describe('loadEntryApp', () => {
     it('without an entry builds the default app and says so', async () => {
         const written: string[] = [];
         const app = await loadEntryApp(undefined, {
+            cwd: fixtures,
             importModule: () => Promise.reject(new Error('no import expected')),
             stderr: (text) => {
                 written.push(text);

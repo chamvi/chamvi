@@ -4,10 +4,10 @@ The `chamvi` bin: argv, entry loading, signals and exit codes for an app built w
 
 ```bash
 npm install @chamvi/app @chamvi/cli ai
-npm install --save-dev tsdown   # only for chamvi build
+npm install --save-dev tsdown   # for chamvi build and a TypeScript entry
 ```
 
-Node.js `>=26.0.0` (type stripping, so `dev` and a `.ts` entry run without a build step). `@chamvi/app` is a required peer dependency (one copy), `tsdown` an optional one, imported by `build` only.
+Node.js `>=26.0.0`. `@chamvi/app` is a required peer dependency (one copy), `tsdown` an optional one, imported by `build` and by every command loading a [TypeScript entry](#typescript-entries).
 
 `package.json` scripts of an agent repository:
 
@@ -34,9 +34,30 @@ Node.js `>=26.0.0` (type stripping, so `dev` and a `.ts` entry run without a bui
 | `run-job` | `<agent>`, `[subscriptionId]`, `--entry` | `app.runJob({ agent, subscription })`, prints `<agent>: <status> (run <id>)` (also after a signal); `subscriptionId` defaults to the agent's only cron subscription | 0 completed, waiting, skipped, queued behind an approval or interrupted by a signal; 1 failed or cancelled (also when a signal came meanwhile), an error or a failed stop; 2 usage |
 | `migrate` | `--entry` | `app.migrate()` | 0, 1, 2 (`DATABASE_URL` unset is 2) |
 
-**Entry:** `--entry <path>` (a bare `--entry` or `--no-entry` exits 2), else the command's default. The source commands (`dev`, `build`, `start --dev`) read `package.json` `"chamvi": { "entry": "<path>" }`, then fall back to `src/index.ts`. The built commands (`start`, `run-job`, `migrate`) never read that field and default to `dist/index.mjs`, so an image built from a repository that sets it still starts; a missing one beside a `src/index.ts` exits 2 with "run `chamvi build` or pass `--entry src/index.ts`". With none of them (no `--entry`, no `chamvi.entry`, no default file), `dev`, `start`, `run-job` and `migrate` run the default app, `createApp({})` configured by env alone, with its agents from `./agents` (or `CHAMVI_AGENTS_DIR`) and the packages of `CHAMVI_AGENTS` or `chamvi.json`, and say so on stderr; `build` exits 2 (nothing to build). The entry is loaded with `import()`; a default export that is not an app exits 2 with `<entry> must export default createApp({...})`.
+**Entry:** `--entry <path>` (a bare `--entry` or `--no-entry` exits 2), else the command's default. The source commands (`dev`, `build`, `start --dev`) read `package.json` `"chamvi": { "entry": "<path>" }`, then fall back to `src/index.ts`. The built commands (`start`, `run-job`, `migrate`) never read that field and default to `dist/index.mjs`, so an image built from a repository that sets it still starts; a missing one beside a `src/index.ts` exits 2 with "run `chamvi build` or pass `--entry src/index.ts`". With none of them (no `--entry`, no `chamvi.entry`, no default file), `dev`, `start`, `run-job` and `migrate` run the default app, `createApp({})` configured by env alone, with its agents from `./agents` (or `CHAMVI_AGENTS_DIR`) and the packages of `CHAMVI_AGENTS` or `chamvi.json`, and say so on stderr; `build` exits 2 (nothing to build). The entry is loaded with `import()` (a TypeScript one through the [hooks below](#typescript-entries)); a default export that is not an app exits 2 with `<entry> must export default createApp({...})`.
 
 **`start --dev`** (what `dev` runs): the source entry, `<cwd>/.env` (only the keys the env lacks, through `node:util` `parseEnv`; loaded before the entry is imported, so the optional module factories see them), in-memory repositories from `createMemoryStore()` unless `DATABASE_URL` is set and, without any authenticator, one random `*` token with id `dev`, logged once with a warning; `CHAMVI_DRAIN_TIMEOUT_MS` defaults to 5000 and `CHAMVI_FORCE_EXIT_MS` to 15000.
+
+## TypeScript entries
+
+`dev` (through `start --dev`), `start` (also with `--check`), `run-job` and `migrate` load a TypeScript entry (`.ts`, `.mts`, `.cts`) through a `module.registerHooks()` pair the CLI registers once per process before the import: every TypeScript file outside `node_modules` the entry loads is transformed with rolldown's `transformSync`, taken from the tsdown `chamvi build` uses, with an inline source map, so a stack trace names the TypeScript line. Node still resolves every import (relative imports carry `.ts`), and `node --watch` restarts on a change to any of them. A JavaScript entry, such as the built `dist/index.mjs` an image runs, registers nothing and needs no tsdown.
+
+- The transform reads the nearest `tsconfig.json` at or above the working directory (its `extends` followed), the file `chamvi build` (tsdown) finds, so `dev`, `start --check` and `build` compile the same code alike. Without one, rolldown's defaults apply (no decorators), as in the build. `node --watch` does not follow the tsconfig: restart `chamvi dev` after changing it.
+- The app's `package.json` needs `"type": "module"` (or the file the extension `.mts`) for syntax Node cannot strip, such as an `enum` or a decorator: otherwise Node strips the file itself before the transform sees it and fails with `ERR_UNSUPPORTED_TYPESCRIPT_SYNTAX` (`TypeScript enum is not supported in strip-only mode`), while the build accepts it. The template's `erasableSyntaxOnly` makes the typecheck reject an `enum`: remove that setting to use one.
+- Since Node resolves every import, tsconfig `paths` are not applied: an alias import fails with `ERR_MODULE_NOT_FOUND`, although the build resolves it. Use relative imports or `package.json` `imports`.
+- Decorators (a `@routup/decorators` controller, a TypeORM entity) need `"experimentalDecorators": true`. Without it the import fails with `SyntaxError: Unexpected token 'export'` and no file name; `chamvi build` succeeds, and the built `dist/index.mjs` then fails the same way at start. `"emitDecoratorMetadata": true` together with `import 'reflect-metadata'` as the entry's first import is the app's choice: TypeORM entities that omit their column types need it.
+- tsdown must be installed to load a TypeScript entry; without it the command exits 2 with `The entry is TypeScript: install tsdown ^0.23.4 to load it.` A built entry needs nothing.
+- Files of an [agents folder](/guide/agent-folders) (`CHAMVI_AGENTS_DIR`) are loaded by jiti, not by these hooks, and cannot use decorators.
+- `@oxc-project/runtime`, the helpers the transformed code imports, is a dependency of `@chamvi/cli`.
+
+```json
+{
+    "compilerOptions": {
+        "experimentalDecorators": true,
+        "emitDecoratorMetadata": true
+    }
+}
+```
 
 ## Exit codes
 

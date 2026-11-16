@@ -6,6 +6,9 @@
  */
 
 import { readFileSync } from 'node:fs';
+import { readFile, writeFile } from 'node:fs/promises';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
 import {
     afterEach,
     beforeEach,
@@ -14,11 +17,14 @@ import {
     it,
 } from 'vitest';
 import { SIGNAL_REPEAT_MS } from '../../../src/signals/constants.ts';
+import { copyFixtureApp, fixtureDir } from '../../utils/app.ts';
 import { TOKEN, startEnv } from '../../utils/env.ts';
 import { freePort } from '../../utils/port.ts';
 import {
+    HOOKS_PROBE_LINE,
     count,
     fixtureEntry,
+    hooksProbeEnv,
     spawnCli,
     waitForOk,
 } from '../../utils/spawn.ts';
@@ -158,5 +164,57 @@ describe('bin start', () => {
         expect(await cli.exited(10_000)).toEqual({ code: 1, signal: null });
         expect(Date.now() - started).toBeGreaterThanOrEqual(400);
         expect(cli.stderr()).toContain('forced exit');
+    });
+});
+
+describe('bin start --check, TypeScript entries', () => {
+    let cli: CliProcess | undefined;
+    let port: number;
+
+    beforeEach(async () => {
+        port = await freePort();
+    });
+
+    afterEach(() => {
+        cli?.kill();
+        cli = undefined;
+    });
+
+    it('loads a decorated entry through the TypeScript hooks', async () => {
+        cli = spawnCli(['start', '--check', '--entry', 'src/index.ts'], {
+            cwd: fixtureDir('decorated'),
+            env: { ...startEnv(port), ...hooksProbeEnv() },
+        });
+        expect(await cli.exited(), cli.stderr()).toEqual({ code: 0, signal: null });
+        expect(cli.stdout()).toContain('chamvi: start check passed');
+        expect(count(cli.stderr(), HOOKS_PROBE_LINE)).toBe(1);
+    });
+
+    it('fails a syntax error in a file the entry imports with its file and line', async () => {
+        const app = await copyFixtureApp('decorated');
+
+        try {
+            const file = path.join(app.cwd, 'src', 'controller.ts');
+            const lines = (await readFile(file, 'utf8')).split('\n');
+            const line = lines.findIndex((text) => text.includes('return [];')) + 1;
+
+            expect(line).toBeGreaterThan(0);
+            lines[line - 1] = lines[line - 1]!.replace('return [];', 'return [;');
+            await writeFile(file, lines.join('\n'));
+
+            cli = spawnCli(['start', '--check', '--entry', 'src/index.ts'], { cwd: app.cwd, env: startEnv(port) });
+            expect((await cli.exited()).code, cli.stderr()).toBe(1);
+            expect(cli.stderr()).toContain(`controller.ts:${line}:`);
+        } finally {
+            await app.remove();
+        }
+    });
+
+    it('reports the configuration error of an entry the hooks load', async () => {
+        const entry = fileURLToPath(new URL('../../fixtures/broken/throws-config.ts', import.meta.url));
+
+        cli = spawnCli(['start', '--check', '--entry', entry], { env: startEnv(port) });
+        expect((await cli.exited()).code).toBe(2);
+        expect(cli.stderr()).toContain('GITHUB_INSTALLATION_ID');
     });
 });

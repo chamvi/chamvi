@@ -7,13 +7,21 @@
 
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import type { Env } from '@chamvi/app';
 
 /** The built bin; the bin specs need `npx nx run @chamvi/cli:build` first. */
 export const CLI_BIN = fileURLToPath(new URL('../../dist/cli.mjs', import.meta.url));
 
 export const fixtureEntry = (name: string) => fileURLToPath(new URL(`../fixtures/${name}/src/index.ts`, import.meta.url));
+
+/** What test/utils/hooks-probe.ts writes to stderr per `registerHooks` call. */
+export const HOOKS_PROBE_LINE = 'chamvi-test: registerHooks';
+
+/** The env preloading test/utils/hooks-probe.ts into a spawned bin. */
+export function hooksProbeEnv(): Env {
+    return { NODE_OPTIONS: `--import=${pathToFileURL(fileURLToPath(new URL('./hooks-probe.ts', import.meta.url))).href}` };
+}
 
 export type Exit = { code: number | null; signal: NodeJS.Signals | null };
 

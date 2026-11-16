@@ -1,0 +1,10 @@
+{
+    "name": "fixture-decorated",
+    "type": "module",
+    "private": true,
+    "dependencies": {
+        "@chamvi/app": "*",
+        "@routup/decorators": "*",
+        "reflect-metadata": "*"
+    }
+}

@@ -4,7 +4,7 @@ An agent repository is one entry file: `export default createApp({ agents, modul
 
 ```bash
 npm install @chamvi/app @chamvi/cli ai @ai-sdk/anthropic typeorm pg
-npm install --save-dev tsdown   # only for chamvi build
+npm install --save-dev tsdown   # for chamvi build and a TypeScript entry
 ```
 
 `@chamvi/app` is a library without process concerns: it registers no signal handlers, never calls `process.exit` and reads no argv. Everything about the process lives in the CLI.
@@ -18,7 +18,7 @@ npm install --save-dev tsdown   # only for chamvi build
 - An entry whose default export is not an app (checked with `isApp()`, which also recognizes an app of another installed copy) makes the CLI exit 2.
 - `@chamvi/app` re-exports `@chamvi/core`, `@chamvi/access` (`Permission`, `can`, `canSome` and the binding types, see [Permissions and authup](/guide/permissions)) and the common part of `@chamvi/http` (the `Authenticator`, `Principal`, `HttpRoute*` and `StaticToken` types, the [controller](/guide/controllers) helpers), so an agent repository imports one package.
 
-`dev` runs the source through Node's type stripping and `build` bundles it with tsdown, so the code has to suit both: relative imports carry `.ts` and there is no `enum`. The template `tsconfig.json`:
+`dev` transforms the source with the engine and the `tsconfig.json` that `build` bundles with (tsdown), so both compile the same syntax; Node resolves the imports, so relative imports carry `.ts` and tsconfig `paths` are not applied. Decorators need `experimentalDecorators` in that `tsconfig.json`, see [TypeScript entries](/reference/cli#typescript-entries). The template `tsconfig.json`:
 
 ```json
 {
