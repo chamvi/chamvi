@@ -75,7 +75,7 @@
         "@rapiq/parser-simple": "^2.4.0",
         "@routup/body": "^4.1.0",
         "@routup/cors": "^2.0.1",
-        "@routup/prometheus": "^4.0.1",
+        "@routup/prometheus": "^4.1.0",
         "@routup/rate-limit": "^4.0.2",
         "@routup/swagger-ui": "^5.1.0",
         "@standard-schema/spec": "^1.1.0",
