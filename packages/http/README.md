@@ -39,7 +39,7 @@
 npm install @chamvi/http @chamvi/core --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `@routup/decorators` (`^5.2.0`) are peer dependencies (npm 7 and later and pnpm 8 and later install them; with npm's `--legacy-peer-deps`, Yarn Berry or pnpm before 8 list both, otherwise the app fails at startup with a module-not-found error); [routup](https://www.npmjs.com/package/routup) v6, the [MCP TypeScript SDK](https://www.npmjs.com/package/@modelcontextprotocol/server) v2, [vouchly](https://www.npmjs.com/package/vouchly) and the authup server adapter are installed with the package.
+ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `@routup/decorators` (`^5.3.0`) are peer dependencies (npm 7 and later and pnpm 8 and later install them; with npm's `--legacy-peer-deps`, Yarn Berry or pnpm before 8 list both, otherwise the app fails at startup with a module-not-found error); [routup](https://www.npmjs.com/package/routup) v6, the [MCP TypeScript SDK](https://www.npmjs.com/package/@modelcontextprotocol/server) v2, [vouchly](https://www.npmjs.com/package/vouchly) and the authup server adapter are installed with the package.
 
 ## Usage
 

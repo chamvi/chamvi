@@ -6,7 +6,7 @@ An app adds REST routes of its own with [`@routup/decorators`](https://www.npmjs
 npm install @routup/decorators
 ```
 
-`@routup/decorators` (`^5.2.0`) is a peer dependency of `@chamvi/http` and `@chamvi/app`: the app's decorators write the metadata chamvi reads, so npm must resolve one copy. npm 7 and later and pnpm 8 and later install it by themselves; a package manager that does not install peers (npm with `--legacy-peer-deps`, Yarn Berry, pnpm before 8) needs it in the app's `package.json`, otherwise the app fails at startup with a module-not-found error. Decorators need `experimentalDecorators: true` in the app's `tsconfig.json`.
+`@routup/decorators` (`^5.3.0`) is a peer dependency of `@chamvi/http` and `@chamvi/app`: the app's decorators write the metadata chamvi reads, so npm must resolve one copy. npm 7 and later and pnpm 8 and later install it by themselves; a package manager that does not install peers (npm with `--legacy-peer-deps`, Yarn Berry, pnpm before 8) needs it in the app's `package.json`, otherwise the app fails at startup with a module-not-found error. Decorators need `experimentalDecorators: true` in the app's `tsconfig.json`.
 
 ## A controller over a service
 
