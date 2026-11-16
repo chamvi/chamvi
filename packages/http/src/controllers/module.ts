@@ -6,53 +6,24 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { decorators } from '@routup/decorators';
+import { decorators, getControllerRoutes } from '@routup/decorators';
 import type { App } from 'routup';
 import { RESERVED_ROUTE_SEGMENTS } from '../app/constants.ts';
 import type { HttpAppOptions, HttpContext, HttpRoute } from '../app/types.ts';
 import { readMetricsPath } from '../plugins/helpers.ts';
 import { isAtOrUnder } from '../routes/helpers.ts';
-import {
-    joinControllerPath,
-    readBasePaths,
-    readControllerMeta,
-    toRouteKey,
-} from './helpers.ts';
-import type { ControllerRoute } from './types.ts';
-
-/**
- * One route per base path and method of a controller instance, in that
- * order; a controller that is no decorated instance, or a base or method
- * path routup cannot serve, throws InvalidAgentDefinitionError.
- */
-export function readControllerRoutes(controller: object): ControllerRoute[] {
-    const meta = readControllerMeta(controller);
-    const routes: ControllerRoute[] = [];
-
-    for (const base of readBasePaths(meta)) {
-        for (const options of Object.values(meta.methods)) {
-            const method = options.method.toUpperCase();
-            const path = joinControllerPath(method, base, options.url);
-
-            routes.push({
-                method,
-                path,
-                key: toRouteKey(path),
-            });
-        }
-    }
-
-    return routes;
-}
+import { readBasePaths, readControllerMeta } from './helpers.ts';
 
 /**
  * Base paths outside the built-in routes, not at or above the metrics path,
- * with no extra route at or under them and not at or under an extra prefix
- * route; routes unique by method and key across every controller.
+ * listed once per controller, with no extra route at or under them and not
+ * at or under an extra prefix route; method paths routup can parse (listing
+ * them runs routup's own registration), so an unservable path fails here
+ * and not at mount.
  */
-export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]): ControllerRoute[] {
+export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]): void {
     if (options.controllers === undefined) {
-        return [];
+        return;
     }
 
     if (!Array.isArray(options.controllers)) {
@@ -60,14 +31,21 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
     }
 
     const metricsPath = readMetricsPath(options)?.toLowerCase();
-    const seen = new Set<string>();
-    const result: ControllerRoute[] = [];
 
     for (const controller of options.controllers) {
-        for (const base of readBasePaths(readControllerMeta(controller))) {
+        const bases = readBasePaths(readControllerMeta(controller));
+        const listed = new Set<string>();
+
+        for (const base of bases) {
             // routup matches paths case-insensitively
             const path = base.toLowerCase();
             const segment = path.split('/')[1] ?? '';
+
+            if (listed.has(path)) {
+                throw new InvalidAgentDefinitionError(`Controller path "${base}" is listed twice.`);
+            }
+
+            listed.add(path);
 
             if (RESERVED_ROUTE_SEGMENTS.includes(segment) || path === metricsPath) {
                 throw new InvalidAgentDefinitionError(`Controller path "${base}" collides with a built-in route.`);
@@ -80,19 +58,16 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
             assertApart(base, routes);
         }
 
-        for (const route of readControllerRoutes(controller)) {
-            const id = `${route.method} ${route.key}`;
+        try {
+            getControllerRoutes(controller);
+        } catch (error) {
+            // the listing only runs routup's registration, so any failure means the controller cannot be mounted
+            const paths = bases.map((base) => `"${base}"`).join(', ');
+            const cause = Error.isError(error) ? error.message : String(error);
 
-            if (seen.has(id)) {
-                throw new InvalidAgentDefinitionError(`Controller route "${route.method} ${route.path}" is registered twice.`);
-            }
-
-            seen.add(id);
-            result.push(route);
+            throw new InvalidAgentDefinitionError(`Controller path${bases.length === 1 ? '' : 's'} ${paths} cannot be mounted: ${cause}`);
         }
     }
-
-    return result;
 }
 
 /**

@@ -113,10 +113,11 @@ export type HttpAppOptions = {
      * Controller instances an app contributes: objects whose class carries
      * `@DController` of `@routup/decorators`, mounted after the built-in
      * controllers and served under `basePath`. Each base path must be a
-     * static path outside the built-in routes and the metrics path, and no
-     * route may repeat another controller's or an extra route's, or lie under
-     * an extra prefix route of the same method; a breach throws
-     * InvalidAgentDefinitionError at construction. A method is not
+     * static path outside the built-in routes and the metrics path, listed
+     * once per controller, with no extra route at or under it and not at or
+     * under an extra prefix route (any method), and each method path one
+     * routup parses; a breach throws InvalidAgentDefinitionError at
+     * construction. A repeated route is answered by the first. A method is not
      * authenticated unless it uses `ForceLoggedInMiddleware` (or a body
      * middleware) or its service authorizes. Default: none.
      */

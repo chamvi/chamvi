@@ -6,7 +6,7 @@ An app adds REST routes of its own with [`@routup/decorators`](https://www.npmjs
 npm install @routup/decorators
 ```
 
-`@routup/decorators` (`^5.2.0`) is a peer dependency of `@chamvi/http` and `@chamvi/app`: the app's decorators write the metadata chamvi reads, so npm must resolve one copy. npm 7 and later and pnpm 8 and later install it by themselves; a package manager that does not install peers (npm with `--legacy-peer-deps`, Yarn Berry, pnpm before 8) needs it in the app's `package.json`, otherwise the app fails at startup with a module-not-found error. Decorators need `experimentalDecorators: true` in the app's `tsconfig.json`.
+`@routup/decorators` (`^5.3.0`) is a peer dependency of `@chamvi/http` and `@chamvi/app`: the app's decorators write the metadata chamvi reads, so npm must resolve one copy. npm 7 and later and pnpm 8 and later install it by themselves; a package manager that does not install peers (npm with `--legacy-peer-deps`, Yarn Berry, pnpm before 8) needs it in the app's `package.json`, otherwise the app fails at startup with a module-not-found error. Decorators need `experimentalDecorators: true` in the app's `tsconfig.json`.
 
 ## A controller over a service
 
@@ -48,12 +48,12 @@ A suggested layout, which follows authup and which chamvi does not enforce: the 
 The app is built at construction, so a breach fails the start and `chamvi start --check` with `InvalidAgentDefinitionError`:
 
 - Each `@DController` base path (a string or an array) is a static path starting with `/` (letters, digits, `_`, `.`, `~`, `-`; no parameters), whose first segment is not a built-in one (`agents`, `authorization`, `channels`, `connection-types`, `connections`, `docs`, `healthz`, `mcp`, `me`, `openapi.json`, `readyz`, `runs`, `schedules`, `ui-pages`), and which is neither the metrics path nor above it (with metrics on). Paths compare case-insensitively, as routup matches them.
-- A method path is empty or starts with `/`, and may carry routup parameters (`/:id`). `{/:id}` is refused, though routup would take it: declare `''` and `/:id` as two methods.
-- No route (method plus full path, compared case-insensitively, parameter names ignored) is declared twice across all controllers.
+- A controller lists each base path once (compared case-insensitively); two controllers may share one.
+- A method path is `''` (the base path itself) or a path that routup joins under the base path with a slash, so `:id` and `/:id` both mean `/notes/:id`. A method path routup cannot parse is refused.
 - No extra route (`HttpRoute`, such as the dashboard's), of any method, lies at or under a base path, and no base path lies at or under an extra prefix route: controllers are mounted first and would shadow it. So `/notes` and `/notes-archive` stay apart, while an `HttpRoute` `POST /notes/hook` beside a `/notes` controller and a `/ui/notes` controller beside the prefix route `/ui` are refused.
 - The class must be decorated with `@DController` and contributed as an instance, not as the class.
 
-Routes match in declaration order, as routup answers with the first match: declare a static route (`/count`) before a parameter route of the same shape (`/:id`).
+Routes match in declaration order, as routup answers with the first match: declare a static route (`/count`) before a parameter route of the same shape (`/:id`). A route declared twice, in one controller or across several, is answered by the first; a later one runs only when the first hands over with `event.next()`. Document such a route once: the [OpenAPI merge](#openapi-document) refuses the same operation from two contributed documents.
 
 A class-level middleware (`@DController('/notes', [ForceLoggedInMiddleware])`) runs for every request under the controller's base path, unmatched paths included: keep `ForceLoggedInMiddleware` on the methods unless the whole base path is the controller's.
 
