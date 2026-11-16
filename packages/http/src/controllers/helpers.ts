@@ -8,6 +8,7 @@
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { hasDecoratorMeta, useDecoratorMeta } from '@routup/decorators';
 import type { DecoratorMeta } from '@routup/decorators';
+import { PathMatcher } from 'routup';
 import { isObject } from 'smob';
 import { STATIC_ROUTE_PATH } from '../app/constants.ts';
 
@@ -35,4 +36,20 @@ export function readBasePaths(meta: DecoratorMeta): string[] {
     }
 
     return urls;
+}
+
+/**
+ * Whether routup's matcher refuses a method path of `meta`. Each path is
+ * read before the matcher runs, so only the matcher's own throw counts.
+ */
+export function hasRefusedMethodPath(meta: DecoratorMeta): boolean {
+    return Object.values(meta.methods).some((method) => !parsesPath(method.url));
+}
+
+function parsesPath(path: string): boolean {
+    try {
+        return new PathMatcher(path, { end: true }) instanceof PathMatcher;
+    } catch {
+        return false;
+    }
 }

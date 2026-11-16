@@ -8,6 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type { HttpRoute } from '@chamvi/http';
+import { useDecoratorMeta } from '@routup/decorators';
 import { call, createTestApp } from '../../utils/app.ts';
 import {
     AliasedController,
@@ -157,8 +158,6 @@ describe('contributed controllers', () => {
         ['with an unclosed brace', '/x{', '/x{'],
         ['with a question mark', '/:id?', '/:id?'],
         ['with a parenthesis', '/(x)', '/(x)'],
-        ['starting with an optional group', '{/:id}', 'optional group'],
-        ['starting with a slash and an optional group', '/{/:id}', 'optional group'],
     ])('refuses a method path %s, naming the cause', (_name, path, cause) => {
         const text = message(() => createTestApp({ controllers: [createTestController('/notes', [['GET', path]])] }));
         const prefix = 'Controller path "/notes" cannot be mounted: ';
@@ -177,6 +176,8 @@ describe('contributed controllers', () => {
         ['an optional group', '/x{/y}'],
         ['a trailing slash', '/:id/'],
         ['no leading slash', ':id'],
+        ['a leading optional group', '{/:id}'],
+        ['a slash and a leading optional group', '/{/:id}'],
     ])('accepts a method path with %s', (_name, path) => {
         expect(() => createTestApp({ controllers: [createTestController('/notes', [['GET', path]])] })).not.toThrow();
     });
@@ -198,9 +199,33 @@ describe('contributed controllers', () => {
         })).not.toThrow();
     });
 
-    it('accepts the same route within one controller and under one path twice', () => {
+    it('accepts the same route twice within one controller', () => {
         expect(() => createTestApp({ controllers: [createTestController('/notes', [['GET', '/:id'], ['GET', '/:noteId']])] })).not.toThrow();
-        expect(() => createTestApp({ controllers: [createTestController(['/notes', '/Notes'], [['GET', '']])] })).not.toThrow();
+    });
+
+    it('accepts one base path in two controllers', () => {
+        expect(() => createTestApp({ controllers: [createTestController('/notes', [['GET', '']]), createTestController('/Notes', [['POST', '']])] })).not.toThrow();
+    });
+
+    it.each([
+        [['/notes', '/notes'], '/notes'],
+        [['/notes', '/Notes'], '/Notes'],
+    ])('refuses the base paths %j of one controller', (urls, repeated) => {
+        expect(message(() => createTestApp({ controllers: [createTestController(urls, [['GET', '']])] })))
+            .toBe(`Controller path "${repeated}" is listed twice.`);
+    });
+
+    it('lets an error other than a path error through unchanged', () => {
+        const controller = createTestController('/notes', [['GET', '/x']]);
+        const thrown = new TypeError('broken metadata');
+
+        Object.defineProperty(useDecoratorMeta(controller).methods.route0, 'url', {
+            get() {
+                throw thrown;
+            },
+        });
+
+        expect(() => createTestApp({ controllers: [controller] })).toThrow(thrown);
     });
 
     it('answers a route repeated under other parameter names from the first controller', async () => {

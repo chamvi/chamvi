@@ -12,13 +12,14 @@ import { RESERVED_ROUTE_SEGMENTS } from '../app/constants.ts';
 import type { HttpAppOptions, HttpContext, HttpRoute } from '../app/types.ts';
 import { readMetricsPath } from '../plugins/helpers.ts';
 import { isAtOrUnder } from '../routes/helpers.ts';
-import { readBasePaths, readControllerMeta } from './helpers.ts';
+import { hasRefusedMethodPath, readBasePaths, readControllerMeta } from './helpers.ts';
 
 /**
  * Base paths outside the built-in routes, not at or above the metrics path,
- * with no extra route at or under them and not at or under an extra prefix
- * route; method paths routup can mount (listing them runs routup's own
- * registration), so an unservable path fails here and not at mount.
+ * listed once per controller, with no extra route at or under them and not
+ * at or under an extra prefix route; method paths routup can parse (listing
+ * them runs routup's own registration), so an unservable path fails here
+ * and not at mount.
  */
 export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]): void {
     if (options.controllers === undefined) {
@@ -32,12 +33,20 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
     const metricsPath = readMetricsPath(options)?.toLowerCase();
 
     for (const controller of options.controllers) {
-        const bases = readBasePaths(readControllerMeta(controller));
+        const meta = readControllerMeta(controller);
+        const bases = readBasePaths(meta);
+        const listed = new Set<string>();
 
         for (const base of bases) {
             // routup matches paths case-insensitively
             const path = base.toLowerCase();
             const segment = path.split('/')[1] ?? '';
+
+            if (listed.has(path)) {
+                throw new InvalidAgentDefinitionError(`Controller path "${base}" is listed twice.`);
+            }
+
+            listed.add(path);
 
             if (RESERVED_ROUTE_SEGMENTS.includes(segment) || path === metricsPath) {
                 throw new InvalidAgentDefinitionError(`Controller path "${base}" collides with a built-in route.`);
@@ -53,6 +62,11 @@ export function validateControllers(options: HttpAppOptions, routes: HttpRoute[]
         try {
             getControllerRoutes(controller);
         } catch (error) {
+            // routup exports no path error type: a method path its own matcher refuses tells one apart
+            if (!hasRefusedMethodPath(meta)) {
+                throw error;
+            }
+
             const paths = bases.map((base) => `"${base}"`).join(', ');
             const cause = Error.isError(error) ? error.message : String(error);
 

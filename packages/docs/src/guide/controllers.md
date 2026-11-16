@@ -48,7 +48,8 @@ A suggested layout, which follows authup and which chamvi does not enforce: the 
 The app is built at construction, so a breach fails the start and `chamvi start --check` with `InvalidAgentDefinitionError`:
 
 - Each `@DController` base path (a string or an array) is a static path starting with `/` (letters, digits, `_`, `.`, `~`, `-`; no parameters), whose first segment is not a built-in one (`agents`, `authorization`, `channels`, `connection-types`, `connections`, `docs`, `healthz`, `mcp`, `me`, `openapi.json`, `readyz`, `runs`, `schedules`, `ui-pages`), and which is neither the metrics path nor above it (with metrics on). Paths compare case-insensitively, as routup matches them.
-- A method path is mounted under the base path as `@routup/decorators` mounts it: empty (the base path itself), with or without a leading `/` (`:id` and `/:id` both mean `/notes/:id`), with routup parameters. A path routup cannot parse is refused, and so is one starting with an optional group that begins with a slash (`{/:id}`, `/{/:id}`): declare `''` and `/:id` as two methods.
+- A controller lists each base path once (compared case-insensitively); two controllers may share one.
+- A method path is `''` (the base path itself) or a path that routup joins under the base path with a slash, so `:id` and `/:id` both mean `/notes/:id`. A method path routup cannot parse is refused.
 - No extra route (`HttpRoute`, such as the dashboard's), of any method, lies at or under a base path, and no base path lies at or under an extra prefix route: controllers are mounted first and would shadow it. So `/notes` and `/notes-archive` stay apart, while an `HttpRoute` `POST /notes/hook` beside a `/notes` controller and a `/ui/notes` controller beside the prefix route `/ui` are refused.
 - The class must be decorated with `@DController` and contributed as an instance, not as the class.
 
