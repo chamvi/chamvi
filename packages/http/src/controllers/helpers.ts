@@ -113,16 +113,66 @@ function expandGroups(path: string): string[] {
 }
 
 /**
+ * The segments of a pattern: split on `/` outside a quoted parameter name
+ * (`:"section/name"` is one token) and outside an escape; an escaped `\/`
+ * matches a `/` of the request, so it splits too.
+ */
+const PATTERN_SEGMENT = /(?:\\[^/]|[:*]"(?:[^"\\]|\\.)*"|[^/\\])+/g;
+
+/** `text` without its escapes, lowercased as routup matches. */
+function toLiteral(text: string): string {
+    return text.replace(/\\(.)/g, '$1').toLowerCase();
+}
+
+/**
+ * Whether the pattern `segment` can match the request segment `expected`:
+ * `true` for a wildcard reaching the rest of the path, `false` when it
+ * cannot match, `undefined` when it matches this one segment. Literal text
+ * before the first token and after the last one must fit; text between two
+ * tokens is not compared (conservative: an overlap is assumed).
+ */
+function matchSegment(segment: string, expected: string): boolean | undefined {
+    const tokens = Array.from(segment.matchAll(NAMED_TOKEN));
+    const [first] = tokens;
+    const last = tokens.at(-1);
+
+    if (!first || !last) {
+        return toLiteral(segment) === expected ? undefined : false;
+    }
+
+    const lead = toLiteral(segment.slice(0, first.index));
+
+    if (!expected.startsWith(lead)) {
+        return false;
+    }
+
+    const wildcard = tokens.some((token) => token[1] === '*');
+
+    if (wildcard) {
+        return true;
+    }
+
+    const trail = toLiteral(segment.slice(last.index + last[0].length));
+
+    // every parameter takes at least one character
+    if (!expected.endsWith(trail) || expected.length < lead.length + trail.length + 1) {
+        return false;
+    }
+
+    return undefined;
+}
+
+/**
  * Whether some request path matches both the controller route `path` (a
  * routup pattern) and the static `target` (`prefix`: also every path below
- * it), compared segment by segment: a segment holding a parameter matches
- * any single segment, one holding a wildcard the rest of the path.
+ * it), compared segment by segment: a segment holding a parameter matches a
+ * segment its literal text fits, one holding a wildcard the rest of the path.
  */
 export function overlapsRoute(path: string, target: string, prefix: boolean): boolean {
     const targetSegments = target.toLowerCase().split('/').filter(Boolean);
 
     return expandGroups(path).some((variant) => {
-        const segments = variant.split('/').filter(Boolean);
+        const segments = variant.match(PATTERN_SEGMENT) ?? [];
 
         for (const [index, expected] of targetSegments.entries()) {
             const segment = segments[index];
@@ -131,12 +181,10 @@ export function overlapsRoute(path: string, target: string, prefix: boolean): bo
                 return false;
             }
 
-            if (/(?<!\\)\*/.test(segment)) {
-                return true;
-            }
+            const match = matchSegment(segment, expected);
 
-            if (!/(?<!\\):/.test(segment) && segment.replace(/\\(.)/g, '$1').toLowerCase() !== expected) {
-                return false;
+            if (match !== undefined) {
+                return match;
             }
         }
 

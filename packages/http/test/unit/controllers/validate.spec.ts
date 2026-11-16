@@ -335,6 +335,28 @@ describe('contributed controllers', () => {
             })).toThrow(InvalidAgentDefinitionError);
         });
 
+        it('splits segments only on a slash outside a quoted parameter name', () => {
+            // routup matches `/ui/:"section/name"/:file` against `/ui/assets/scripts`
+            expect(message(() => createTestApp({
+                routes: [assets({ path: '/ui/assets/scripts' })],
+                controllers: [createTestController('/ui', [['GET', '/:"section/name"/:file']])],
+            }))).toBe('Controller route "GET /ui/:"section/name"/:file" lies under the prefix route "/ui/assets/scripts".');
+        });
+
+        // routup (path-to-regexp) matches `/ui/as:rest` against `/ui/assets` (rest "sets")
+        // and `/ui/:"x"sets` (x "as"), never `/ui/styles-:id` or `/ui/:a-sets`
+        it.each([
+            ['static text before it', '/as:rest'],
+            ['a single letter of static text before it', '/a:rest'],
+            ['static text after it', '/:"x"sets'],
+            ['a quoted name holding a colon', '/:"a:b"'],
+        ])('refuses a parameter segment with %s that can match the prefix', (_name, path) => {
+            expect(() => createTestApp({
+                routes: [assets()],
+                controllers: [createTestController('/ui', [['GET', `${path}/:file`]])],
+            })).toThrow(InvalidAgentDefinitionError);
+        });
+
         it('refuses an optional group reaching the prefix', () => {
             expect(() => createTestApp({
                 routes: [assets()],
@@ -347,6 +369,10 @@ describe('contributed controllers', () => {
             ['a disjoint static segment', 'GET', '/ui', '/styles/:file'],
             ['a shorter route without a wildcard', 'GET', '/ui', ''],
             ['a disjoint static base', 'GET', '/uix', '/:section/*rest'],
+            ['a parameter after disjoint static text', 'GET', '/ui', '/styles-:id'],
+            ['a parameter after disjoint static text, below the prefix', 'GET', '/ui', '/styles-:id/:file'],
+            ['a parameter before disjoint static text', 'GET', '/ui', '/:a-sets/:file'],
+            ['a wildcard after disjoint static text', 'GET', '/ui', '/styles*rest'],
         ])('accepts %s', (_name, method, base, path) => {
             expect(() => createTestApp({
                 routes: [assets()],
