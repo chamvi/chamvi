@@ -152,16 +152,19 @@ describe('contributed controllers', () => {
     });
 
     it.each([
-        ['with a parameter without a name', '/:'],
-        ['with an unnamed wildcard', '/*'],
-        ['with an unclosed brace', '/x{'],
-        ['with a question mark', '/:id?'],
-        ['with a parenthesis', '/(x)'],
-        ['starting with an optional group', '{/:id}'],
-        ['starting with a slash and an optional group', '/{/:id}'],
-    ])('refuses a method path %s', (_name, path) => {
-        expect(message(() => createTestApp({ controllers: [createTestController('/notes', [['GET', path]])] })))
-            .toMatch(/^Controller path "\/notes" cannot be mounted: ./);
+        ['with a parameter without a name', '/:', '/:'],
+        ['with an unnamed wildcard', '/*', '/*'],
+        ['with an unclosed brace', '/x{', '/x{'],
+        ['with a question mark', '/:id?', '/:id?'],
+        ['with a parenthesis', '/(x)', '/(x)'],
+        ['starting with an optional group', '{/:id}', 'optional group'],
+        ['starting with a slash and an optional group', '/{/:id}', 'optional group'],
+    ])('refuses a method path %s, naming the cause', (_name, path, cause) => {
+        const text = message(() => createTestApp({ controllers: [createTestController('/notes', [['GET', path]])] }));
+        const prefix = 'Controller path "/notes" cannot be mounted: ';
+
+        expect(text.startsWith(prefix)).toBe(true);
+        expect(text.slice(prefix.length)).toContain(cause);
     });
 
     it('names every base path of a refused controller', () => {

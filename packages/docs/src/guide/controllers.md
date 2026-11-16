@@ -52,7 +52,7 @@ The app is built at construction, so a breach fails the start and `chamvi start 
 - No extra route (`HttpRoute`, such as the dashboard's), of any method, lies at or under a base path, and no base path lies at or under an extra prefix route: controllers are mounted first and would shadow it. So `/notes` and `/notes-archive` stay apart, while an `HttpRoute` `POST /notes/hook` beside a `/notes` controller and a `/ui/notes` controller beside the prefix route `/ui` are refused.
 - The class must be decorated with `@DController` and contributed as an instance, not as the class.
 
-Routes match in declaration order, as routup answers with the first match: declare a static route (`/count`) before a parameter route of the same shape (`/:id`). A route declared twice, in one controller or across several, is answered by the first; a later one runs only when the first hands over with `event.next()`.
+Routes match in declaration order, as routup answers with the first match: declare a static route (`/count`) before a parameter route of the same shape (`/:id`). A route declared twice, in one controller or across several, is answered by the first; a later one runs only when the first hands over with `event.next()`. Document such a route once: the [OpenAPI merge](#openapi-document) refuses the same operation from two contributed documents.
 
 A class-level middleware (`@DController('/notes', [ForceLoggedInMiddleware])`) runs for every request under the controller's base path, unmatched paths included: keep `ForceLoggedInMiddleware` on the methods unless the whole base path is the controller's.
 
