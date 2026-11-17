@@ -50,7 +50,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "cron-parser": "^5.10.4",
+        "cron-parser": "^5.10.5",
         "hubwire": "^0.2.2",
         "smob": "^1.6.2"
     },
@@ -58,7 +58,7 @@
         "@chamvi/core": "^0.8.0",
         "@chamvi/test-kit": "^0.8.0",
         "@hubwire/test": "^0.1.2",
-        "ai": "^7.0.165",
+        "ai": "^7.0.173",
         "zod": "^4.6.7"
     },
     "peerDependencies": {
