@@ -17,4 +17,4 @@ export {
     DEFAULT_APPROVAL_TIMEOUT_MS,
 } from './constants.ts';
 export { approve, outboundApproved } from './request.ts';
-export type { ApprovalDecision, ApprovalOption, ApprovalRequestInput } from './types.ts';
+export type { ApprovalDecision, ApprovalRequestInput } from './types.ts';

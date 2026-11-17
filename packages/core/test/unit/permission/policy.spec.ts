@@ -9,7 +9,8 @@ import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
 import type { PermissionBinding } from '@chamvi/access';
 import { requireToolPermission } from '@chamvi/core';
-import type { Invoker, RunContext } from '@chamvi/core';
+import type { RunContext } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 
 const NOW = new Date(2026, 10, 11, 10, 0);
 

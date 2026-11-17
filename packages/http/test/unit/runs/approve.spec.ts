@@ -29,7 +29,7 @@ async function pausedGate(overrides: TestAppOverrides = {}, agent = 'gate') {
     await ctx.engine.start();
     await ctx.engine.idle();
 
-    const run = await ctx.store.runs.findOne(runId);
+    const run = await ctx.store.runService.findOne(runId);
 
     expect(run?.status).toBe('waiting');
 
@@ -58,7 +58,7 @@ describe('POST /runs/:id/approve', () => {
         expect(response.status).toBe(202);
         expect(await response.json()).toEqual({ runId, status: 'queued' });
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
 
         const detail = await (await call(app, 'GET', `/runs/${runId}`, { token: approver })).json() as {
             steps: Array<{ kind: string; output: unknown }>;
@@ -93,10 +93,10 @@ describe('POST /runs/:id/approve', () => {
         expect(response.status).toBe(202);
         await engine.idle();
 
-        const steps = await store.steps.find(runId);
+        const steps = await store.stepService.find(runId);
 
         expect(steps.find((step) => step.kind === 'wait')?.output).toMatchObject({ approved: false, reason: 'not now' });
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         await engine.drain();
     });
 
@@ -114,7 +114,7 @@ describe('POST /runs/:id/approve', () => {
 
         expect(response.status).toBe(409);
         expect((await response.json()).code).toBe('invalid_run_state');
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
         await engine.drain();
     });
 
@@ -123,7 +123,7 @@ describe('POST /runs/:id/approve', () => {
         const at = new Date(0);
         const waitId = '0:call-1:w0';
 
-        await store.runs.insert({
+        await store.runService.create({
             id: 'parent',
             agent: 'gate',
             status: 'waiting',
@@ -155,7 +155,7 @@ describe('POST /runs/:id/approve', () => {
 
         expect(response.status).toBe(409);
         expect((await response.json()).code).toBe('invalid_run_state');
-        expect((await store.runs.findOne('parent'))?.status).toBe('waiting');
+        expect((await store.runService.findOne('parent'))?.status).toBe('waiting');
     });
 
     it('409 for a run that is not waiting', async () => {
@@ -233,7 +233,7 @@ describe('POST /runs/:id/approve', () => {
 
         expect(response.status).toBe(403);
         expect((await response.json()).message).toBe('Missing permission "chamvi_agent_approve".');
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
         await engine.drain();
     });
 
@@ -246,7 +246,7 @@ describe('POST /runs/:id/approve', () => {
         });
 
         expect(refused.status).toBe(403);
-        expect((await gate.store.runs.findOne(gate.runId))?.status).toBe('waiting');
+        expect((await gate.store.runService.findOne(gate.runId))?.status).toBe('waiting');
         await gate.engine.drain();
 
         const choose = await pausedGate({}, 'choose');
@@ -307,7 +307,7 @@ describe('POST /runs/:id/approve', () => {
         const response = await call(app, 'POST', `/runs/${runId}/approve`, { token: ADMIN_TOKEN, body });
 
         expect(response.status).toBe(400);
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
         await engine.drain();
     });
 
@@ -339,7 +339,7 @@ describe('POST /runs/:id/approve', () => {
         expect(response.status).toBe(202);
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
 
@@ -374,7 +374,7 @@ describe('POST /runs/:id/approve', () => {
 
         expect(response.status).toBe(400);
         expect((await response.json()).code).toBe('validation_error');
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
         await engine.drain();
     });
 
@@ -407,7 +407,7 @@ describe('POST /runs/:id/approve', () => {
 
         expect(json.code).toBe('validation_error');
         expect(JSON.stringify(json.issues)).toContain('selected');
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
         await engine.drain();
     });
 });

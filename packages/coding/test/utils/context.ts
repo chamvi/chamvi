@@ -6,8 +6,10 @@
  */
 
 import type { ToolSet } from 'ai';
-import { createAgentState, createMemoryStore } from '@chamvi/core';
-import type { Artifact, IRunArtifacts, ToolContext } from '@chamvi/core';
+import { createAgentState } from '@chamvi/core';
+import type { IRunArtifacts, ToolContext } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
+import type { Artifact } from '@chamvi/store';
 
 /** In-memory run artifacts (`read_file` stores the images it shows), ids `artifact-<n>`. */
 export function createArtifacts(runId = 'r1'): IRunArtifacts {
@@ -56,7 +58,7 @@ export function toolContext(
             },
             signal,
         },
-        state: createAgentState('coder', undefined, createMemoryStore().state),
+        state: createAgentState('coder', undefined, createTestEngine({ agents: [] }).stateService),
         artifacts,
     };
 }

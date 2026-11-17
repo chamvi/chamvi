@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock, ILockRepository } from '@chamvi/core';
+import type { IClock, LockService } from '@chamvi/core';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
 import type { KnowledgeErrorContext } from '../knowledge/types.ts';
 import type { IKnowledgeRepository, KnowledgeChunkInput } from '../repository/types.ts';
@@ -51,7 +51,7 @@ export type CollectionLoopInput = {
     /** The collection (the lock `knowledge:<name>`, the error context). */
     name: string;
     repository: IKnowledgeRepository;
-    locks: ILockRepository;
+    locks: Pick<LockService, 'acquire' | 'release'>;
     owner: string;
     clock: IClock;
     signal: AbortSignal;

@@ -15,7 +15,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     agent,
     agentChannel,
     defineModelAgent,
@@ -28,15 +27,14 @@ import type {
     DispatchInput,
     DispatchToInput,
     IEngine,
-    IStore,
-    Invoker,
-    Run,
 } from '@chamvi/core';
+import type { Invoker, Run } from '@chamvi/store';
 import { Permission } from '@chamvi/access';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -103,7 +101,7 @@ function setup(options: {
     reporterChannels?: ChannelSubscription<any>[];
 }) {
     const clock = new ControllableClock(START);
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const auditor = defineModelAgent({
         name: 'auditor',
         instructions: 'You audit.',
@@ -118,8 +116,8 @@ function setup(options: {
         channels: options.reporterChannels ?? [agent.on({ role: 'draft', from: ['auditor'] })],
     });
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [auditor, reporter],
         channels: [agentChannel()],
@@ -131,9 +129,9 @@ function setup(options: {
     engines.push(engine);
 
     return {
-        engine, 
-        errors, 
-        store, 
+        engine,
+        errors,
+        store,
     };
 }
 
@@ -153,14 +151,14 @@ async function runAuditor(engine: IEngine, extra: { invoker?: Invoker } = {}) {
     return runId;
 }
 
-async function dispatched(store: IStore): Promise<Run[]> {
-    const { data } = await store.runs.find({});
+async function dispatched(store: TestServices): Promise<Run[]> {
+    const { data } = await store.runService.find({});
 
     return data.filter((run) => run.trigger.channel === 'agent');
 }
 
-async function toolSteps(store: IStore, runId: string) {
-    return (await store.steps.find(runId)).filter((step) => step.kind === 'tool');
+async function toolSteps(store: TestServices, runId: string) {
+    return (await store.stepService.find(runId)).filter((step) => step.kind === 'tool');
 }
 
 const draft = {
@@ -194,7 +192,7 @@ describe('dispatchTo()', () => {
         const [step] = await toolSteps(store, parentId);
 
         expect(step?.output).toEqual({ runId: child!.id, deduplicated: false });
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:reporter:draft`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:reporter:draft`)).toMatchObject({ result: { count: 1 } });
     });
 
     it('dispatchTo refuses a caller not in from', async () => {
@@ -210,8 +208,8 @@ describe('dispatchTo()', () => {
             message: 'Agent "reporter" role "draft" accepts no dispatches from agent "auditor".',
         });
         expect(await dispatched(store)).toHaveLength(0);
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:reporter:draft`)).toBeUndefined();
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:reporter:draft`)).toBeUndefined();
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('a role without from refuses another agent', async () => {
@@ -263,7 +261,7 @@ describe('dispatchTo()', () => {
             { runId: all[0]!.id, deduplicated: false },
         ]);
         expect(all[0]!.trigger.idempotencyKey).toMatch(/^dispatch:/);
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:auditor:default`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:auditor:default`)).toMatchObject({ result: { count: 1 } });
     });
 
     it('dispatchTo refuses an invoker whose chamvi_agent_run policy names another agent', async () => {
@@ -284,7 +282,7 @@ describe('dispatchTo()', () => {
             message: 'The run\'s invoker may not run agent "reporter" (chamvi_agent_run).',
         });
         expect(await dispatched(store)).toHaveLength(0);
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:reporter:draft`)).toBeUndefined();
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:reporter:draft`)).toBeUndefined();
     });
 
     it('dispatchTo passes an invoker whose chamvi_agent_run policy names the target and keeps it unchanged', async () => {
@@ -331,9 +329,9 @@ describe('dispatchTo()', () => {
         const { engine, store } = setup({
             auditor: [turn(call(draft, 'c1')), text('done')],
             reporterChannels: [agent.on({
-                role: 'draft', 
-                from: ['auditor'], 
-                schema, 
+                role: 'draft',
+                from: ['auditor'],
+                schema,
             })],
         });
 
@@ -375,9 +373,9 @@ describe('dispatchTo()', () => {
 
     it('dispatchTo refuses a run stored with old string permissions without throwing', async () => {
         const {
-            engine, 
-            errors, 
-            store, 
+            engine,
+            errors,
+            store,
         } = setup({ auditor: [turn(call(draft, 'c1')), text('done')] });
 
         // a run queued before the upgrade: intake refuses this shape, the store still holds it
@@ -387,20 +385,20 @@ describe('dispatchTo()', () => {
             channel: 'test',
             payload: {},
             invoker: {
-                id: 'u1', 
-                kind: 'user', 
-                bindings: [], 
+                id: 'u1',
+                kind: 'user',
+                bindings: [],
             },
         });
-        const stored = await store.runs.findOne(parentId);
+        const stored = await store.runService.findOne(parentId);
 
-        await store.runs.update(parentId, {
+        await store.runService.update(parentId, {
             trigger: {
                 ...stored!.trigger,
                 invoker: {
-                    id: 'u1', 
-                    kind: 'user', 
-                    bindings: ['agent:reporter:run', '*'] as never, 
+                    id: 'u1',
+                    kind: 'user',
+                    bindings: ['agent:reporter:run', '*'] as never,
                 },
             },
         });
@@ -415,7 +413,7 @@ describe('dispatchTo()', () => {
             message: 'The run\'s invoker may not run agent "reporter" (chamvi_agent_run).',
         });
         expect(await dispatched(store)).toHaveLength(0);
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
         expect(errors).toEqual([]);
     });
 
@@ -441,9 +439,9 @@ describe('dispatchTo()', () => {
                 bindings: [],
             },
         });
-        const stored = await store.runs.findOne(parentId);
+        const stored = await store.runService.findOne(parentId);
 
-        await store.runs.update(parentId, {
+        await store.runService.update(parentId, {
             trigger: {
                 ...stored!.trigger,
                 invoker: {
@@ -513,9 +511,9 @@ describe('dispatchTo()', () => {
             execute: async (_input, { context }) => dispatchTo(context, { payload: 1 } as unknown as DispatchToInput),
         });
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
-        const engine = new Engine({
-            store,
+        const store = createTestServices({ clock });
+        const engine = createTestEngine({
+            services: store,
             clock,
             agents: [defineModelAgent({
                 name: 'auditor',

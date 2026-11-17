@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { fireCronSubscription } from '../tick/index.ts';
 import { isJobSettled, isQueuedBehindApproval, resolveCronSubscription } from './helpers.ts';
 import type { RunJobOptions, RunJobResult } from './types.ts';
@@ -40,7 +40,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
         drainTimeoutMs = 30_000,
         signal,
     } = opts;
-    const { clock, store } = engine;
+    const { clock, runService } = engine;
     const subscription = resolveCronSubscription(engine, agent, opts.subscription);
 
     // a stop that arrived before the job must not recover and execute the store's queued runs
@@ -105,7 +105,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
 
                 /** Settles on `candidate` (the job's run) when it, or a descendant, ends the wait. */
                 const probe = async (candidate: Run): Promise<boolean> => {
-                    const found = await isJobSettled(store.runs, candidate);
+                    const found = await isJobSettled(runService, candidate);
 
                     if (found && !settled) {
                         done(candidate, found);
@@ -148,7 +148,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
                         return;
                     }
 
-                    if (candidate && await isQueuedBehindApproval(store.runs, candidate)) {
+                    if (candidate && await isQueuedBehindApproval(runService, candidate)) {
                         done(candidate);
 
                         return;

@@ -45,25 +45,28 @@ flow:
 packages:
     eyebrow: Packages
     title: Small today, planned in the open.
-    lead: The engine, the cron, HTTP, GitHub and OpenClaw channels, the MCP API, the dashboard, the TypeORM store, sandboxes, the app and CLI and the test helpers ship now. The rest is designed milestone by milestone.
+    lead: The engine, the cron, HTTP, GitHub and OpenClaw channels, the MCP API, the dashboard, the memory and PostgreSQL repositories, sandboxes, the app and CLI and the test helpers ship now. The rest is designed milestone by milestone.
     shipped:
         -   name: '@chamvi/core'
-            body: Agents, the channel contract, the run engine, checkpoints, budgets, effect tools, durable approvals, agent hooks, agent state and the in-memory store.
+            body: Agents, the channel contract, the run engine, checkpoints, budgets, effect tools, durable approvals, agent hooks, agent state and the services that hold every storage rule.
             link: /reference/
         -   name: '@chamvi/test-kit'
-            body: ControllableClock and the store contract suite every storage backend must pass.
+            body: ControllableClock, an engine on memory repositories and the port suites every storage backend must pass.
             link: /reference/test-kit
         -   name: '@chamvi/channel-cron'
             body: The cron channel. Fires cron.on() subscriptions once per tick across replicas, with overlap policies, timezones and one-shot jobs.
             link: /reference/channel-cron
+        -   name: '@chamvi/store + @chamvi/store-memory'
+            body: The repository ports and storage errors the services build on, and their memory repositories for development and tests.
+            link: /repositories/
         -   name: '@chamvi/store-db'
-            body: TypeORM store (PostgreSQL) for durable runs across replicas, passing the store contract suite.
+            body: The PostgreSQL repositories for durable runs across replicas, passing the port suites, and the database layer of an app's own tables.
             link: /repositories/database
         -   name: '@chamvi/http'
             body: REST, server-sent events, an MCP endpoint, the webhook channel and the /channels mount, with bearer, authup and OIDC authentication.
             link: /guide/http
         -   name: '@chamvi/app + @chamvi/cli'
-            body: One createApp() default export booted from env, and the chamvi bin with dev, build, start, run-job and migrate.
+            body: One createApp() default export booted from env, a database module for the app's own tables, and the chamvi bin with dev, build, start, run-job, migrate and migration.
             link: /guide/app
         -   name: '@chamvi/ui'
             body: A dashboard with an agents overview, runs started from the agent page, live steps, an approvals inbox, agent state and schedules, served by uiRoutes().
@@ -88,7 +91,7 @@ packages:
 cta:
     title: Start with one agent.
     lead: Define an agent, dispatch a run and watch it settle. In-memory repositories need no database, so the quick start runs in a single file.
-    command: npm install @chamvi/core ai zod
+    command: npm install @chamvi/core @chamvi/store-memory ai zod
     actions:
         -   text: Quick start
             link: /getting-started/quick-start

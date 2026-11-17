@@ -12,7 +12,7 @@ import {
     watch,
 } from 'vue';
 import type { Ref } from 'vue';
-import type { RunStatusLiteral } from '@chamvi/core';
+import type { RunStatusLiteral } from '@chamvi/store';
 import type {
     ApiError,
     IApiClient,
@@ -20,7 +20,7 @@ import type {
     RunPage,
     RunWire,
 } from '@chamvi/ui-kit';
-import { asApiError, createPoller, retryDelayOf  } from '@chamvi/ui-kit';
+import { asApiError, createPoller, retryDelayOf } from '@chamvi/ui-kit';
 import { ACTIVITY_LIMIT } from '../agents/constants.ts';
 import { summarizeActivity } from '../agents/helpers.ts';
 import type { Activity } from '../agents/types.ts';

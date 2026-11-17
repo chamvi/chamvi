@@ -7,7 +7,7 @@
 
 import type { ITokenVerifier } from '@authup/server-adapter-kit';
 import { staticKeys } from 'vouchly';
-import type { OidcIssuer as Issuer, Principal  } from '@chamvi/http';
+import type { OidcIssuer as Issuer, Principal } from '@chamvi/http';
 import {
     beforeAll,
     describe,
@@ -23,7 +23,7 @@ import {
     staticTokens,
     webhook,
 } from '@chamvi/http';
-import type { Run, Step } from '@chamvi/core';
+import type { Run, Step } from '@chamvi/store';
 import {
     ADMIN_TOKEN,
     READER_TOKEN,
@@ -228,7 +228,7 @@ describe('acceptance flows', () => {
 
         expect(await last.json()).toMatchObject({ deduplicated: true });
 
-        const { data, total } = await store.runs.find({ agent: 'intake' });
+        const { data, total } = await store.runService.find({ agent: 'intake' });
 
         expect(total).toBe(1);
         expect(data[0]?.status).toBe('completed');

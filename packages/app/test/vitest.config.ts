@@ -5,6 +5,7 @@ import { defineConfig } from 'vitest/config';
 export default defineConfig({
     plugins: [
         swc.vite({
+            exclude: ['**/node_modules/**', '**/test/fixtures/database/**'],
             jsc: {
                 parser: {
                     syntax: 'typescript',
@@ -16,13 +17,28 @@ export default defineConfig({
                 },
             },
         }),
+        // an app's entities: date columns without a type take it from the decorator metadata
+        swc.vite({
+            include: ['**/test/fixtures/database/**/*.ts'],
+            jsc: {
+                parser: {
+                    syntax: 'typescript',
+                    decorators: true,
+                },
+                transform: {
+                    legacyDecorator: true,
+                    decoratorMetadata: true,
+                },
+            },
+        }),
     ],
     resolve: {
         // the sources, not dist
         alias: [
             { find: /^@chamvi\/access$/, replacement: fileURLToPath(new URL('../../access/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/core$/, replacement: fileURLToPath(new URL('../../core/src/index.ts', import.meta.url)) },
-            { find: /^@chamvi\/core\/conversation\/persistence$/, replacement: fileURLToPath(new URL('../../core/src/conversation/persistence/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/store$/, replacement: fileURLToPath(new URL('../../store/src/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/store-memory$/, replacement: fileURLToPath(new URL('../../store-memory/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/http$/, replacement: fileURLToPath(new URL('../../http/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/channel-cron$/, replacement: fileURLToPath(new URL('../../channel-cron/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/store-db$/, replacement: fileURLToPath(new URL('../../store-db/src/index.ts', import.meta.url)) },

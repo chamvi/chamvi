@@ -14,7 +14,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     agent,
@@ -26,15 +25,15 @@ import {
 import type {
     ChannelSubscription,
     IEngine,
-    IStore,
-    Run,
     ToolContext,
 } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import type { Run } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';
 import { treeModel } from '../../utils/dispatch.ts';
 import type { ChildTurn, ParentTurn } from '../../utils/dispatch.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet, TestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -80,10 +79,10 @@ function lead(options: {
     });
 }
 
-function setup(agents: ReturnType<typeof defineModelAgent>[], store?: IStore) {
+function setup(agents: ReturnType<typeof defineModelAgent>[], store?: TestServiceSet) {
     const clock = new ControllableClock(START);
-    const engine = new Engine({
-        store: store ?? createMemoryStore({ clock }),
+    const engine = createTestEngine({
+        services: store ?? createTestServices({ clock }),
         clock,
         agents,
         channels: [agentChannel()],
@@ -110,14 +109,14 @@ async function startParent(engine: IEngine, agentName = 'lead'): Promise<string>
     return runId;
 }
 
-async function children(store: IStore, parentId: string): Promise<Run[]> {
-    const { data } = await store.runs.find({ parentRunId: parentId });
+async function children(store: TestServices, parentId: string): Promise<Run[]> {
+    const { data } = await store.runService.find({ parentRunId: parentId });
 
     return data;
 }
 
-async function toolSteps(store: IStore, runId: string) {
-    return (await store.steps.find(runId)).filter((step) => step.kind === 'tool');
+async function toolSteps(store: TestServices, runId: string) {
+    return (await store.stepService.find(runId)).filter((step) => step.kind === 'tool');
 }
 
 function errorOf(step: { error?: unknown } | undefined) {
@@ -128,7 +127,7 @@ describe('dispatchTools()', () => {
     it('gives an agent a working dispatch_<role> tool', async () => {
         const engine = setup([lead({ parent: [turn(call('dispatch_pr', { pr: 'o/r#1' })), text('done')] })]);
         const parentId = await startParent(engine);
-        const [child, ...rest] = await children(engine.store, parentId);
+        const [child, ...rest] = await children(engine, parentId);
 
         expect(rest).toHaveLength(0);
         expect(child?.parentRunId).toBe(parentId);
@@ -136,10 +135,10 @@ describe('dispatchTools()', () => {
         expect(child?.trigger.trigger).toBe('pr');
         expect(child?.trigger.payload).toEqual({ pr: 'o/r#1' });
 
-        const [step] = await toolSteps(engine.store, parentId);
+        const [step] = await toolSteps(engine, parentId);
 
         expect(step?.output).toEqual({ runId: child!.id, deduplicated: false });
-        expect((await engine.store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await engine.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('a tainted parent\'s dispatch_<role> child carries the taint', async () => {
@@ -159,8 +158,8 @@ describe('dispatchTools()', () => {
             },
         })]);
         const parentId = await startParent(engine);
-        const parent = await engine.store.runs.findOne(parentId);
-        const [child, ...rest] = await children(engine.store, parentId);
+        const parent = await engine.runService.findOne(parentId);
+        const [child, ...rest] = await children(engine, parentId);
 
         expect(parent?.taint?.source).toBe('tool:read');
         expect(rest).toHaveLength(0);
@@ -176,11 +175,11 @@ describe('dispatchTools()', () => {
 
         await engine.idle();
 
-        const kids = await children(engine.store, parentId);
+        const kids = await children(engine, parentId);
 
         expect(kids).toHaveLength(1);
 
-        const [step] = await toolSteps(engine.store, parentId);
+        const [step] = await toolSteps(engine, parentId);
 
         expect(step?.output).toEqual({
             runId: kids[0]!.id,
@@ -189,7 +188,7 @@ describe('dispatchTools()', () => {
             status: 'completed',
             output: 'done',
         });
-        expect((await engine.store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await engine.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('describes the role, and the wait', async () => {
@@ -228,7 +227,7 @@ describe('dispatchTools()', () => {
             tools: { ...dispatchTools({ agents: [{ agent: 'reporter', roles: ['draft'] }] }) },
         }), reporter]);
         const parentId = await startParent(engine);
-        const [child] = await children(engine.store, parentId);
+        const [child] = await children(engine, parentId);
 
         expect(child?.agent).toBe('reporter');
         expect(child?.trigger.payload).toBe('x');
@@ -246,9 +245,9 @@ describe('dispatchTools()', () => {
             tools: { ...dispatchTools({ agents: [{ agent: 'reporter', roles: ['draft'] }] }) },
         }), reporter]);
         const parentId = await startParent(engine);
-        const [step] = await toolSteps(engine.store, parentId);
+        const [step] = await toolSteps(engine, parentId);
 
-        expect(await children(engine.store, parentId)).toHaveLength(0);
+        expect(await children(engine, parentId)).toHaveLength(0);
         expect(errorOf(step)?.message).toContain('accepts no dispatches');
     });
 
@@ -258,10 +257,10 @@ describe('dispatchTools()', () => {
             tools: { ...dispatchTools({ agents: [{ agent: 'ghost', roles: ['draft'] }] }) },
         })]);
         const parentId = await startParent(engine);
-        const [step] = await toolSteps(engine.store, parentId);
+        const [step] = await toolSteps(engine, parentId);
 
         expect(errorOf(step)?.code).toBe('validation_error');
-        expect((await engine.store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await engine.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('parses a transforming role schema exactly once', async () => {
@@ -270,7 +269,7 @@ describe('dispatchTools()', () => {
             channels: [agent.on({ role: 'pr', schema: z.object({ n: z.string().transform(Number) }) })],
         })]);
         const parentId = await startParent(engine);
-        const [child] = await children(engine.store, parentId);
+        const [child] = await children(engine, parentId);
 
         expect(child?.trigger.payload).toEqual({ n: 7 });
     });
@@ -281,7 +280,7 @@ describe('dispatchTools()', () => {
             channels: [agent.on({ role: 'pr', schema: z.string() })],
         })]);
         const parentId = await startParent(engine);
-        const [child] = await children(engine.store, parentId);
+        const [child] = await children(engine, parentId);
 
         expect(child?.trigger.payload).toBe('o/r#2');
     });
@@ -290,7 +289,7 @@ describe('dispatchTools()', () => {
         // the original runs first, so its converted schema is cached before the replacement binds
         const engine = setup([lead({ parent: [turn(call('dispatch_pr', { pr: 'o/r#1' })), text('done')] })]);
         const firstId = await startParent(engine);
-        const [first] = await children(engine.store, firstId);
+        const [first] = await children(engine, firstId);
 
         expect(first?.trigger.payload).toEqual({ pr: 'o/r#1' });
 
@@ -304,8 +303,8 @@ describe('dispatchTools()', () => {
         }));
 
         const parentId = await startParent(engine);
-        const steps = await toolSteps(engine.store, parentId);
-        const kids = await children(engine.store, parentId);
+        const steps = await toolSteps(engine, parentId);
+        const kids = await children(engine, parentId);
 
         expect(steps).toHaveLength(2);
         expect(errorOf(steps[0])?.message).toContain('Invalid input for tool dispatch_pr');
@@ -322,7 +321,7 @@ describe('dispatchTools()', () => {
             tools: () => ({ ...dispatchTools({ roles: ['pr'] }) }),
         })]);
         const parentId = await startParent(engine);
-        const [child] = await children(engine.store, parentId);
+        const [child] = await children(engine, parentId);
 
         expect(child?.address).toBe('o/r#3');
     });
@@ -365,7 +364,7 @@ describe('dispatchTools()', () => {
             tools: () => ({ state_notes_list: placeholder, other: defineTool({ inputSchema: z.object({}), execute: async () => 'x' }) }),
         })]);
         const parentId = await startParent(engine);
-        const run = await engine.store.runs.findOne(parentId);
+        const run = await engine.runService.findOne(parentId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({
@@ -383,7 +382,7 @@ describe('dispatchTools()', () => {
             tools: () => ({ ...dispatchTools({ roles: ['nope'] }) }),
         })]);
         const parentId = await startParent(engine);
-        const run = await engine.store.runs.findOne(parentId);
+        const run = await engine.runService.findOne(parentId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({

@@ -48,6 +48,8 @@ export type TestDataSourceOptions = {
     driverSchema?: string;
     /** TypeORM's migrationsTableName option. */
     migrationsTableName?: string;
+    /** The server encoding of the database (default the server's, UTF8); created from template0 with the C locale. */
+    encoding?: string;
 };
 
 export async function createTestDataSource(opts: TestDataSourceOptions = {}): Promise<DataSource> {
@@ -57,16 +59,32 @@ export async function createTestDataSource(opts: TestDataSourceOptions = {}): Pr
 
     const database = `chamvi_test_${randomUUID().replaceAll('-', '')}`;
 
-    await createDatabase({
-        options: {
+    if (opts.encoding) {
+        const admin = new DataSource({
             type: 'postgres',
             ...postgres,
-            database,
-        },
-        initialDatabase: 'postgres',
-        ifNotExist: false,
-        synchronize: false,
-    });
+            database: 'postgres',
+        });
+
+        await admin.initialize();
+
+        try {
+            await admin.query(`CREATE DATABASE "${database}" ENCODING '${opts.encoding}' LC_COLLATE 'C' LC_CTYPE 'C' TEMPLATE template0`);
+        } finally {
+            await admin.destroy();
+        }
+    } else {
+        await createDatabase({
+            options: {
+                type: 'postgres',
+                ...postgres,
+                database,
+            },
+            initialDatabase: 'postgres',
+            ifNotExist: false,
+            synchronize: false,
+        });
+    }
 
     const dataSource = new DataSource({
         type: 'postgres',
@@ -99,4 +117,28 @@ export async function truncateRepository(dataSource: DataSource): Promise<void> 
     const tables = Object.values(TableName).map((name) => `"${name}"`).join(', ');
 
     await dataSource.query(`TRUNCATE ${tables} RESTART IDENTITY`);
+}
+
+/** How often `untilLockWait` asks before it gives up. */
+const LOCK_WAIT_POLLS = 10_000;
+
+/**
+ * Resolves once `count` statements of this data source's database wait
+ * for a lock (a row lock another transaction holds): the deterministic
+ * order a spec needs between a statement it issued and a commit it then
+ * lets happen. Asks `pg_stat_activity` until it sees the waits.
+ */
+export async function untilLockWait(dataSource: DataSource, count = 1): Promise<void> {
+    for (let poll = 0; poll < LOCK_WAIT_POLLS; poll++) {
+        const [{ waiting }] = await dataSource.query(
+            `SELECT count(*)::int AS waiting FROM pg_stat_activity
+             WHERE datname = current_database() AND wait_event_type = 'Lock' AND pid <> pg_backend_pid()`,
+        );
+
+        if (waiting >= count) {
+            return;
+        }
+    }
+
+    throw new Error('No statement started waiting for a lock.');
 }

@@ -6,9 +6,10 @@
  */
 
 import { afterEach, expect, it } from 'vitest';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
-import type { IChannel } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
+import type { Engine, IChannel } from '@chamvi/core';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: Engine[] = [];
 
@@ -26,8 +27,8 @@ function setup() {
             await gate.promise;
         },
     };
-    const engine = new Engine({
-        store: createMemoryStore(),
+    const engine = createTestEngine({
+        services: createTestServices(),
         channels: [slow],
         agents: [defineModelAgent({
             name: 'test',

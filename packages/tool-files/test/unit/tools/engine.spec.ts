@@ -12,15 +12,14 @@ import {
     it,
 } from 'vitest';
 import { jsonSchema } from 'ai';
+import type { Engine } from '@chamvi/core';
 import {
-    Engine,
     approve,
-    createMemoryStore,
     defineModelAgent,
     defineSimpleAgent,
     defineTool,
 } from '@chamvi/core';
-import { mockModel } from '@chamvi/test-kit';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 import { FILES_MAX_BYTES, fileTools } from '@chamvi/tool-files';
 import type { ListArtifactsResult, ProcessFilesInput, ProcessFilesResult } from '@chamvi/tool-files';
 
@@ -93,9 +92,7 @@ describe('engine artifact processing', () => {
         command,
         transformed,
     }) => {
-        const store = createMemoryStore();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [defineSimpleAgent({
                 name: 'files',
                 tools: fileTools({ maxBytes }),
@@ -125,7 +122,7 @@ describe('engine artifact processing', () => {
 
         await engine.idle();
 
-        const run = (await store.runs.findOne(runId))!;
+        const run = (await engine.runService.findOne(runId))!;
 
         expect(run).toMatchObject({ status: 'completed', taint: { source: 'tool:list_artifacts' } });
 
@@ -134,12 +131,11 @@ describe('engine artifact processing', () => {
         expect(result.exitCode).toBe(0);
         expect(result.artifacts).toHaveLength(1);
         expect(result.artifacts[0]).toMatchObject({ filename: 'out', size });
-        expect(await store.artifacts.read(result.artifacts[0]!.id)).toEqual(bytes((transformed ? 'b' : 'a').repeat(size)));
-        expect(await store.artifacts.find(runId)).toHaveLength(2);
+        expect(await engine.artifactService.read(result.artifacts[0]!.id)).toEqual(bytes((transformed ? 'b' : 'a').repeat(size)));
+        expect(await engine.artifactService.find(runId)).toHaveLength(2);
     });
 
     it.each(['first', 'second'])('keeps earlier artifacts when later model steps reuse a call ID: %s', async (second) => {
-        const store = createMemoryStore();
         const model = mockModel([
             ...['first', second].map((value) => ({
                 parts: [{
@@ -151,8 +147,7 @@ describe('engine artifact processing', () => {
             })),
             { parts: [{ type: 'text', text: 'Done.' }] },
         ]);
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [defineModelAgent({
                 name: 'files',
                 instructions: 'Transform files.',
@@ -162,22 +157,20 @@ describe('engine artifact processing', () => {
         });
         const runId = await start(engine);
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await engine.runService.findOne(runId))?.status).toBe('completed');
 
-        const steps = (await store.steps.find(runId)).filter((step) => step.kind === 'tool' && step.name === 'process_files');
+        const steps = (await engine.stepService.find(runId)).filter((step) => step.kind === 'tool' && step.name === 'process_files');
         const results = steps.map((step) => step.output as ProcessFilesResult);
 
         expect(results).toHaveLength(2);
         expect(results[0]!.artifacts[0]!.id).not.toBe(results[1]!.artifacts[0]!.id);
-        expect(await store.artifacts.read(results[0]!.artifacts[0]!.id)).toEqual(bytes('first'));
-        expect(await store.artifacts.read(results[1]!.artifacts[0]!.id)).toEqual(bytes(second));
-        expect(await store.artifacts.find(runId)).toHaveLength(3);
+        expect(await engine.artifactService.read(results[0]!.artifacts[0]!.id)).toEqual(bytes('first'));
+        expect(await engine.artifactService.read(results[1]!.artifacts[0]!.id)).toEqual(bytes(second));
+        expect(await engine.artifactService.find(runId)).toHaveLength(3);
     });
 
     it('taints catalog reads at the execution boundary', async () => {
-        const store = createMemoryStore();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [defineSimpleAgent({
                 name: 'files',
                 tools: fileTools(),
@@ -186,15 +179,13 @@ describe('engine artifact processing', () => {
         });
         const runId = await start(engine);
 
-        expect(await store.runs.findOne(runId)).toMatchObject({ status: 'completed', taint: { source: 'tool:list_artifacts' } });
-        expect((await store.runs.findOne(runId))!.output).toMatchObject({ artifacts: [{ runId, filename: 'in.json' }] });
+        expect(await engine.runService.findOne(runId)).toMatchObject({ status: 'completed', taint: { source: 'tool:list_artifacts' } });
+        expect((await engine.runService.findOne(runId))!.output).toMatchObject({ artifacts: [{ runId, filename: 'in.json' }] });
     });
 
     it('preserves same-call IDs and distinct-call artifacts across simple-agent approval replay', async () => {
-        const store = createMemoryStore();
         let calls = 0;
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [defineSimpleAgent({
                 name: 'files',
                 tools: fileTools(),
@@ -211,12 +202,12 @@ describe('engine artifact processing', () => {
             })],
         });
         const runId = await start(engine);
-        const waiting = (await store.runs.findOne(runId))!;
+        const waiting = (await engine.runService.findOne(runId))!;
 
         expect(waiting).toMatchObject({ status: 'waiting', taint: { source: 'tool:process_files' } });
         expect(waiting.waiting?.kind).toBe('approval');
 
-        const before = await store.artifacts.find(runId);
+        const before = await engine.artifactService.find(runId);
 
         expect(before).toHaveLength(3);
         expect(before.filter((item) => item.filename === 'result.json')).toHaveLength(2);
@@ -228,17 +219,16 @@ describe('engine artifact processing', () => {
         await engine.approve(runId, { approvalId: waiting.waiting.approvalId, approved: true });
         await engine.idle();
         expect(calls).toBe(2);
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
-        expect((await store.artifacts.find(runId)).map((item) => item.id)).toEqual(before.map((item) => item.id));
+        expect((await engine.runService.findOne(runId))?.status).toBe('completed');
+        expect((await engine.artifactService.find(runId)).map((item) => item.id)).toEqual(before.map((item) => item.id));
 
-        const result = (await store.runs.findOne(runId))!.output as { first: ProcessFilesResult; second: ProcessFilesResult };
+        const result = (await engine.runService.findOne(runId))!.output as { first: ProcessFilesResult; second: ProcessFilesResult };
 
-        expect(new TextDecoder().decode(await store.artifacts.read(result.first.artifacts[0]!.id))).toBe('first\n');
-        expect(new TextDecoder().decode(await store.artifacts.read(result.second.artifacts[0]!.id))).toBe('second\n');
+        expect(new TextDecoder().decode(await engine.artifactService.read(result.first.artifacts[0]!.id))).toBe('first\n');
+        expect(new TextDecoder().decode(await engine.artifactService.read(result.second.artifacts[0]!.id))).toBe('second\n');
     });
 
     it('discovers attachment IDs through a model catalog call and retains completed processing across engine restart', async () => {
-        const store = createMemoryStore();
         const input: ProcessFilesInput = {
             command: 'jq ".value * 2" in.json > result.json',
             inputs: [{ artifactId: '', path: 'in.json' }],
@@ -320,25 +310,28 @@ describe('engine artifact processing', () => {
                 },
             },
         });
-        const first = new Engine({ store, agents: [agent] });
+        const first = createTestEngine({ agents: [agent] });
         const runId = await start(first);
-        const waiting = (await store.runs.findOne(runId))!;
+        const waiting = (await first.runService.findOne(runId))!;
 
         expect(waiting.status).toBe('waiting');
         expect(waiting.taint?.source).toBe('tool:list_artifacts');
 
-        const artifacts = await store.artifacts.find(runId);
+        const artifacts = await first.artifactService.find(runId);
 
         expect(artifacts).toHaveLength(2);
         expect(input.inputs![0]!.artifactId).toBe(artifacts.find((item) => item.filename === 'in.json')!.id);
 
         const result = artifacts.find((item) => item.filename === 'result.json')!;
 
-        expect(new TextDecoder().decode(await store.artifacts.read(result.id))).toBe('42\n');
-        expect(JSON.stringify((await store.checkpoints.findOne(runId))?.messages)).toContain(result.id);
+        expect(new TextDecoder().decode(await first.artifactService.read(result.id))).toBe('42\n');
+        expect(JSON.stringify((await first.checkpointService.findOne(runId))?.messages)).toContain(result.id);
         await first.stop();
 
-        const resumed = new Engine({ store, agents: [agent] });
+        const resumed = createTestEngine({
+            replicaOf: first,
+            agents: [agent],
+        });
 
         engines.push(resumed);
         await resumed.start();
@@ -349,13 +342,12 @@ describe('engine artifact processing', () => {
 
         await resumed.approve(runId, { approvalId: waiting.waiting.approvalId, approved: true });
         await resumed.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await first.runService.findOne(runId))?.status).toBe('completed');
         expect(processingCalls).toBe(1);
-        expect((await store.artifacts.find(runId)).map((item) => item.id)).toEqual(artifacts.map((item) => item.id));
+        expect((await first.artifactService.find(runId)).map((item) => item.id)).toEqual(artifacts.map((item) => item.id));
     });
 
     it('keeps a suspended model call artifact ID across engine restart and replay', async () => {
-        const store = createMemoryStore();
         let processingCalls = 0;
         const agent = defineModelAgent({
             name: 'files',
@@ -383,16 +375,19 @@ describe('engine artifact processing', () => {
                 },
             },
         });
-        const first = new Engine({ store, agents: [agent] });
+        const first = createTestEngine({ agents: [agent] });
         const runId = await start(first);
-        const waiting = (await store.runs.findOne(runId))!;
-        const before = await store.artifacts.find(runId);
+        const waiting = (await first.runService.findOne(runId))!;
+        const before = await first.artifactService.find(runId);
 
         expect(waiting.status).toBe('waiting');
         expect(before).toHaveLength(2);
         await first.stop();
 
-        const resumed = new Engine({ store, agents: [agent] });
+        const resumed = createTestEngine({
+            replicaOf: first,
+            agents: [agent],
+        });
 
         engines.push(resumed);
         await resumed.start();
@@ -403,20 +398,18 @@ describe('engine artifact processing', () => {
 
         await resumed.approve(runId, { approvalId: waiting.waiting.approvalId, approved: true });
         await resumed.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await first.runService.findOne(runId))?.status).toBe('completed');
         expect(processingCalls).toBe(2);
-        expect((await store.artifacts.find(runId)).map((item) => item.id)).toEqual(before.map((item) => item.id));
+        expect((await first.artifactService.find(runId)).map((item) => item.id)).toEqual(before.map((item) => item.id));
 
         const report = before.find((item) => item.filename === 'result.json')!;
 
-        expect(await store.artifacts.read(report.id)).toEqual(bytes('report'));
+        expect(await first.artifactService.read(report.id)).toEqual(bytes('report'));
     });
 
     it('rejects another run artifact through the real execution boundary', async () => {
-        const store = createMemoryStore();
         let foreignId = '';
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [defineSimpleAgent({
                 name: 'files',
                 tools: fileTools(),
@@ -425,7 +418,7 @@ describe('engine artifact processing', () => {
         });
 
         engines.push(engine);
-        await store.artifacts.insert({
+        await engine.artifactService.create({
             id: 'foreign-file',
             runId: 'foreign',
             agent: 'files',
@@ -439,11 +432,11 @@ describe('engine artifact processing', () => {
         const { runId } = await engine.dispatch(request);
 
         await engine.idle();
-        expect(await store.runs.findOne(runId)).toMatchObject({
+        expect(await engine.runService.findOne(runId)).toMatchObject({
             status: 'failed',
             error: { code: 'validation_error' },
             taint: { source: 'tool:process_files' },
         });
-        expect(await store.artifacts.find(runId)).toEqual([]);
+        expect(await engine.artifactService.find(runId)).toEqual([]);
     });
 });

@@ -13,7 +13,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     agent,
     agentChannel,
     approve,
@@ -28,11 +27,9 @@ import type {
     DispatchOutcome,
     IChannel,
     IEngine,
-    IStore,
-    Run,
 } from '@chamvi/core';
-import { MemoryRunRepository, createMemoryStore } from '../../../src/repository/index.ts';
-import type { RunFindOptions } from '../../../src/repository/types.ts';
+import type { Run } from '@chamvi/store';
+import type { RunFindOptions } from '../../../src/run/types.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import {
     gate,
@@ -42,7 +39,9 @@ import {
 } from '../../utils/dispatch.ts';
 import type { ChildTurn, ParentTurn } from '../../utils/dispatch.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
-import { createMemoryStoreWithRuns } from '../../utils/store.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet, TestServices } from '../../utils/engine.ts';
+import { RunService } from '../../../src/run/index.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -107,7 +106,7 @@ afterEach(() => {
 });
 
 type Options = {
-    store?: IStore;
+    store?: TestServiceSet;
     clock?: ControllableClock;
     channels?: IChannel[];
     worker?: ChildTurn;
@@ -117,7 +116,7 @@ type Options = {
 
 function build(parent: ParentTurn[], child: ChildTurn = answer, options: Options = {}) {
     const clock = options.clock ?? new ControllableClock(START);
-    const store = options.store ?? createMemoryStore({ clock });
+    const store = options.store ?? createTestServices({ clock });
     const errors: unknown[] = [];
     const lead = defineModelAgent({
         name: 'lead',
@@ -144,8 +143,8 @@ function build(parent: ParentTurn[], child: ChildTurn = answer, options: Options
         model: treeModel([...options.p2 ?? [], ...done()], answer),
         tools: { share },
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [lead, worker, p1, p2],
         channels: [agentChannel(), ...options.channels ?? []],
@@ -176,21 +175,21 @@ async function root(engine: IEngine, name = 'lead', channel = 'test'): Promise<s
     return runId;
 }
 
-async function children(store: IStore, parentId: string): Promise<Run[]> {
-    const { data } = await store.runs.find({ parentRunId: parentId });
+async function children(store: TestServices, parentId: string): Promise<Run[]> {
+    const { data } = await store.runService.find({ parentRunId: parentId });
 
     return data;
 }
 
-async function stepsOf(store: IStore, runId: string, kind: 'tool' | 'wait') {
-    return (await store.steps.find(runId)).filter((step) => step.kind === kind);
+async function stepsOf(store: TestServices, runId: string, kind: 'tool' | 'wait') {
+    return (await store.stepService.find(runId)).filter((step) => step.kind === kind);
 }
 
 /** A run repository whose next `find({ ids })` that reads only settled runs fails (a lost push). */
-class LosingRuns extends MemoryRunRepository {
+class LosingRuns extends RunService {
     armed = false;
 
-    override async find(options: RunFindOptions) {
+    override async find(options: RunFindOptions = {}) {
         const result = await super.find(options);
         const settled = result.data.length > 0 &&
             result.data.every((run) => ['completed', 'failed', 'cancelled'].includes(run.status));
@@ -208,8 +207,8 @@ class LosingRuns extends MemoryRunRepository {
 describe('dispatch wait heal', () => {
     it('tick answers a parent whose push was lost', async () => {
         const clock = new ControllableClock(START);
-        const runs = new LosingRuns({ clock });
-        const store = createMemoryStoreWithRuns(runs, { clock });
+        const store = createTestServices({ clock, runService: (ctx) => new LosingRuns(ctx) });
+        const runs = store.runService as LosingRuns;
         const hold = gate();
         const { engine, errors } = build([turn(call('fan', { payloads: ['a'] }, 'c1'))], async (payload, options) => {
             await hold.wait();
@@ -233,13 +232,13 @@ describe('dispatch wait heal', () => {
 
         expect(runs.armed).toBe(false);
         expect(errors.map((e) => (e as Error).message)).toContain('lost push');
-        expect((await store.runs.findOne(parentId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(parentId))?.status).toBe('waiting');
         expect(await stepsOf(store, parentId, 'wait')).toHaveLength(0);
 
         await engine.tick();
         await engine.idle();
 
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
         expect(await stepsOf(store, parentId, 'wait')).toHaveLength(1);
     });
 
@@ -270,7 +269,7 @@ describe('dispatch wait heal', () => {
 
         await engine.idle();
 
-        const parked = await store.runs.findOne(parentId);
+        const parked = await store.runService.findOne(parentId);
 
         expect(parked?.waiting?.kind).toBe('dispatch');
 
@@ -279,7 +278,7 @@ describe('dispatch wait heal', () => {
         await engine.tick();
         await engine.idle();
 
-        const still = await store.runs.findOne(parentId);
+        const still = await store.runService.findOne(parentId);
 
         expect(still?.status).toBe('waiting');
         expect(still?.waiting).toEqual(parked?.waiting);
@@ -287,15 +286,15 @@ describe('dispatch wait heal', () => {
         expect(await stepsOf(store, parentId, 'wait')).toHaveLength(0);
 
         // only the child's approval is answerable
-        const waiting = (await store.runs.findOne(child.id))?.waiting;
+        const waiting = (await store.runService.findOne(child.id))?.waiting;
 
         expect(waiting?.kind).toBe('approval');
 
         await engine.approve(child.id, { approvalId: waiting!.id, approved: true });
         await engine.idle();
 
-        expect((await store.runs.findOne(child.id))?.status).toBe('completed');
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(child.id))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
         expect(await stepsOf(store, parentId, 'wait')).toHaveLength(1);
     });
 
@@ -335,12 +334,12 @@ describe('dispatch wait heal', () => {
         await engine.idle();
 
         // the push reached p1 (the owner) only
-        expect((await store.runs.findOne(p2))?.status).toBe('waiting');
+        expect((await store.runService.findOne(p2))?.status).toBe('waiting');
 
         await engine.tick();
         await engine.idle();
 
-        expect((await store.runs.findOne(p2))?.status).toBe('completed');
+        expect((await store.runService.findOne(p2))?.status).toBe('completed');
 
         const [step] = await stepsOf(store, p2, 'tool');
 
@@ -395,7 +394,7 @@ describe('dispatch wait heal', () => {
         });
         expect(outcome.error?.code).toBe('Timeout');
 
-        const kept = await store.runs.findOne(child!.id);
+        const kept = await store.runService.findOne(child!.id);
 
         expect(['queued', 'running']).toContain(kept?.status);
         expect(kept?.cancelRequested).toBeUndefined();
@@ -403,7 +402,7 @@ describe('dispatch wait heal', () => {
 
     it('drain and recover keep the parent parked', async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const a = build([turn(call('fan', { payloads: ['a', 'b'] }, 'c1'))], hang, { store, clock });
 
         await a.engine.start();
@@ -429,7 +428,7 @@ describe('dispatch wait heal', () => {
         clock.advance(1_000);
         await draining;
 
-        expect((await store.runs.findOne(parentId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(parentId))?.status).toBe('waiting');
         expect((await children(store, parentId)).map((r) => r.status)).toEqual(['interrupted', 'interrupted']);
 
         const b = build([], answer, { store, clock });
@@ -437,14 +436,14 @@ describe('dispatch wait heal', () => {
         await b.engine.start();
         await b.engine.idle();
 
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
         expect(await stepsOf(store, parentId, 'wait')).toHaveLength(1);
         expect((await children(store, parentId)).map((r) => r.status)).toEqual(['completed', 'completed']);
     });
 
     it('the child settles on one engine and the parent on another resumes once', async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const child: ChildTurn = (payload, options) => (promptHas(options, 'ok-approved') ?
             answer(payload, options) :
             turn(call('ask', {}, 'k1')));
@@ -469,10 +468,10 @@ describe('dispatch wait heal', () => {
 
         await a.engine.idle();
 
-        expect((await store.runs.findOne(parentId))?.waiting?.kind).toBe('dispatch');
+        expect((await store.runService.findOne(parentId))?.waiting?.kind).toBe('dispatch');
 
         // B answers the child: B executes it, and its settle answers the parent A paused
-        const approvalId = (await store.runs.findOne(waitingChild.id))!.waiting!.id;
+        const approvalId = (await store.runService.findOne(waitingChild.id))!.waiting!.id;
         const completed = nextRun(b.engine, (run) => run.id === parentId && run.status === 'completed');
 
         await b.engine.approve(waitingChild.id, { approvalId, approved: true });
@@ -486,6 +485,6 @@ describe('dispatch wait heal', () => {
         expect((step?.output as DispatchOutcome[])[0]).toMatchObject({ status: 'completed', output: 'out-a' });
         expect(await stepsOf(store, parentId, 'wait')).toHaveLength(1);
         expect(resumedOn).toEqual(['b:ask', 'b:fan']);
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
     });
 });

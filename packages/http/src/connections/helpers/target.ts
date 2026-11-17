@@ -5,12 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    Connection,
-    DeclaredConnection,
-    IConnectionTypeProvider,
-} from '@chamvi/core';
-import type { ConfigTarget, ConnectionServiceContext } from '../types.ts';
+import type { DeclaredConnection, IConnectionTypeProvider } from '@chamvi/core';
+import type { Connection } from '@chamvi/store';
+import type { ConfigTarget, ConnectionHttpServiceContext } from '../types.ts';
 
 export function accountOf(name: string, type: string): string | undefined {
     return name.startsWith(`${type}-`) ? name.slice(type.length + 1) : undefined;
@@ -24,7 +21,7 @@ export function accountOf(name: string, type: string): string | undefined {
  * Connections with no row by nature (env, module) are not deletable, so a
  * missing row says nothing.
  */
-export function isDeleted(ctx: ConnectionServiceContext, declared: DeclaredConnection, row: Pick<Connection, 'createdAt'> | undefined): boolean {
+export function isDeleted(ctx: ConnectionHttpServiceContext, declared: DeclaredConnection, row: Pick<Connection, 'createdAt'> | undefined): boolean {
     if (ctx.connectionConfigs === undefined || !declared.deletable) {
         return false;
     }
@@ -35,16 +32,16 @@ export function isDeleted(ctx: ConnectionServiceContext, declared: DeclaredConne
 }
 
 /** Whether the last start loaded `name`: the process holds it until a restart, whatever the store says now. */
-export function isLoaded(ctx: ConnectionServiceContext, name: string): boolean {
+export function isLoaded(ctx: ConnectionHttpServiceContext, name: string): boolean {
     return ctx.connectionTypes().some((provider) => provider.connections().some((connection) => connection.name === name));
 }
 
-export async function findDeclared(ctx: ConnectionServiceContext, name: string): Promise<ConfigTarget | undefined> {
+export async function findDeclared(ctx: ConnectionHttpServiceContext, name: string): Promise<ConfigTarget | undefined> {
     for (const provider of ctx.connectionTypes()) {
         const declared = provider.connections().find((connection) => connection.name === name);
 
         if (declared) {
-            const row = declared.deletable ? await ctx.store.connections?.findOne(name) : undefined;
+            const row = declared.deletable ? await ctx.connectionService?.findOne(name) : undefined;
 
             return isDeleted(ctx, declared, row) ?
                 undefined :
@@ -59,28 +56,28 @@ export async function findDeclared(ctx: ConnectionServiceContext, name: string):
     return undefined;
 }
 
-export function creatableProvider(ctx: ConnectionServiceContext, type: string): IConnectionTypeProvider | undefined {
+export function creatableProvider(ctx: ConnectionHttpServiceContext, type: string): IConnectionTypeProvider | undefined {
     return ctx.connectionTypes().find((provider) => provider.definition.type === type && provider.creatable());
 }
 
 /** The declared connection, else a stored account of a creatable type (created after the start). */
-export async function findTarget(ctx: ConnectionServiceContext, name: string): Promise<ConfigTarget | undefined> {
+export async function findTarget(ctx: ConnectionHttpServiceContext, name: string): Promise<ConfigTarget | undefined> {
     const declared = await findDeclared(ctx, name);
 
     if (declared) {
         return declared;
     }
 
-    const row = ctx.connectionConfigs ? await ctx.store.connections?.findOne(name) : undefined;
+    const row = ctx.connectionConfigs ? await ctx.connectionService?.findOne(name) : undefined;
     const provider = row && creatableProvider(ctx, row.type);
 
     return provider ? { name, definition: provider.definition } : undefined;
 }
 
-export function isEditable(ctx: ConnectionServiceContext, target: ConfigTarget): boolean {
+export function isEditable(ctx: ConnectionHttpServiceContext, target: ConfigTarget): boolean {
     return ctx.connectionConfigs !== undefined && (target.declared?.editable ?? true);
 }
 
-export function isDeletable(ctx: ConnectionServiceContext, target: ConfigTarget): boolean {
+export function isDeletable(ctx: ConnectionHttpServiceContext, target: ConfigTarget): boolean {
     return ctx.connectionConfigs !== undefined && (target.declared?.deletable ?? target.definition.multiple);
 }

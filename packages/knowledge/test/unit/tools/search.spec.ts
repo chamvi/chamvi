@@ -15,12 +15,10 @@ import {
 } from 'vitest';
 import {
     ContextNotProvidedError,
-    Engine,
     InvalidAgentDefinitionError,
     ValidationError,
-    createMemoryStore,
 } from '@chamvi/core';
-import { mockEmbeddingModel } from '@chamvi/test-kit';
+import { createTestEngine, mockEmbeddingModel } from '@chamvi/test-kit';
 import type { MockEmbeddingModel } from '@chamvi/test-kit';
 import type { IKnowledge, KnowledgeSearchResult } from '@chamvi/knowledge';
 import {
@@ -511,7 +509,7 @@ describe('the knowledge context', () => {
 
     it('is provided once per engine', async () => {
         const fixture = await setup({ index: false });
-        const engine = new Engine({ store: createMemoryStore(), agents: [] });
+        const engine = createTestEngine({ agents: [] });
 
         provideKnowledgeContext(engine, fixture.knowledge);
         expect(() => provideKnowledgeContext(engine, fixture.knowledge)).toThrow(InvalidAgentDefinitionError);

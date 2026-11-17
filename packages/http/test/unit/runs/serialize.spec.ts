@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { Permission, allPermissions } from '@chamvi/access';
-import type { Run, Step } from '@chamvi/core';
+import type { Run, Step } from '@chamvi/store';
 import { serializeRun, serializeStep } from '../../../src/runs/helpers.ts';
 import type { HttpAgents } from '../../../src/app/types.ts';
 

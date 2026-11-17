@@ -13,27 +13,29 @@ import {
     it,
 } from 'vitest';
 import {
+    ConnectionService,
     InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
-    createMemoryStore,
     defineModelAgent,
+    systemClock,
 } from '@chamvi/core';
+import { MemoryConnectionRepository, MemoryRegistry } from '@chamvi/store-memory';
 import type {
     Agent,
     DeclaredConnection,
     IConnectionTypeProvider,
-    IStore,
 } from '@chamvi/core';
-import { mockModel } from '@chamvi/test-kit';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 import {
     AppToken,
+    ModuleName,
     configModule,
     createLogger,
     engineModule,
-    storeModule,
 } from '@chamvi/app';
-import { createModuleHarness } from '@chamvi/app/testing';
+import type { IModule } from '@chamvi/app';
+import { createModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
 import { mailTools } from '@chamvi/tool-mail';
 import type { MailAccountView } from '@chamvi/tool-mail';
@@ -52,6 +54,44 @@ import {
     fakeOptions,
     untagged,
 } from '../../utils/mail.ts';
+
+/**
+ * The registry the app's memory repositories share with the spec, whether
+ * the app keeps connections (`connections: false` keeps none) and a
+ * connection service on that registry, to seed and read the rows the app sees.
+ */
+function storeOf(options: { connections?: boolean } = {}) {
+    const registry = new MemoryRegistry();
+    const connectionRepository = new MemoryConnectionRepository({ registry });
+
+    return {
+        registry,
+        connections: options.connections !== false,
+        connectionRepository,
+        connectionService: new ConnectionService({ repository: connectionRepository, clock: systemClock }),
+    };
+}
+
+type TestStore = ReturnType<typeof storeOf>;
+
+/**
+ * A module replacing the store module, as a third-party store would: the
+ * memory store on the spec's registry with the spec's connection
+ * repository (whose methods a spec replaces), or none.
+ */
+function storeModuleOf(store: TestStore): IModule {
+    return {
+        name: ModuleName.STORE,
+        dependencies: [ModuleName.CONFIG],
+        async setup(container) {
+            await memoryStoreModule({ registry: store.registry, connections: false }).setup(container);
+
+            if (store.connections) {
+                container.register(AppToken.CONNECTION_REPOSITORY, { useValue: store.connectionRepository });
+            }
+        },
+    };
+}
 
 const STORED_PASSWORD = 'stored-secret-password';
 
@@ -86,8 +126,12 @@ function behindSchemaError(): Error {
     return Object.assign(new Error('relation "connection" does not exist'), { driverError: { code: '42P01' } });
 }
 
-function configsOf(store: IStore) {
-    return createConnectionConfigStore({ store, keyring: () => keyring });
+function configsOf(store: TestStore) {
+    return createConnectionConfigStore({
+        connectionService: store.connectionService,
+        lockService: createTestEngine({ agents: [] }).lockService,
+        keyring: () => keyring,
+    });
 }
 
 function envAccount(port: number, extra: Record<string, unknown> = {}) {
@@ -108,7 +152,7 @@ function envOf(account: Record<string, unknown>): Record<string, string> {
     };
 }
 
-async function seed(store: IStore, account: string, port: number, extra: Record<string, unknown> = {}): Promise<void> {
+async function seed(store: TestStore, account: string, port: number, extra: Record<string, unknown> = {}): Promise<void> {
     await configsOf(store).create(`mail-${account}`, MAIL_CONNECTION_TYPE, {
         settings: {
             address: `${account}@y.test`,
@@ -141,15 +185,15 @@ function accountsAgent(): Agent {
 }
 
 type HarnessInput = Omit<ModuleHarnessOptions, 'modules'> & {
-    store: IStore;
+    store: TestStore;
     options: ToolMailModuleOptions;
 };
 
 async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
     const {
-        store, 
-        options, 
-        ...rest 
+        store,
+        options,
+        ...rest
     } = input;
     const harness = await createModuleHarness({
         keyring,
@@ -163,7 +207,7 @@ async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
                     },
                 }),
             }),
-            storeModule({ store }),
+            storeModuleOf(store),
             engineModule(),
             toolMailModule(options),
         ],
@@ -205,30 +249,31 @@ async function runAccounts(harness: ModuleHarness) {
 
     await engine.idle();
 
-    const run = await engine.store.runs.findOne(runId);
-    const step = (await engine.store.steps.find(runId))
+    const run = await engine.runService.findOne(runId);
+    const step = (await engine.stepService.find(runId))
         .find((entry) => entry.kind === 'tool' && entry.name === 'mail_accounts');
 
     return { run, step };
 }
 
-/** Every call of a connections repository method, by name. */
-function spyConnections(store: IStore): string[] {
+/** Every call of a connection repository method (and its entries' and secrets'), by name: `find*` reads, the rest writes. */
+function spyConnections(store: TestStore): string[] {
     const calls: string[] = [];
-    const { connections } = store;
+    const { connectionRepository } = store;
 
-    if (!connections) {
-        throw new Error('expected a connections repository');
+    if (!connectionRepository) {
+        throw new Error('expected a connection repository');
     }
 
-    for (const key of Object.getOwnPropertyNames(Object.getPrototypeOf(connections))) {
-        const method = (connections as unknown as Record<string, unknown>)[key];
+    for (const repository of [connectionRepository, connectionRepository.entries, connectionRepository.secrets] as object[]) {
+        for (const key of ['findMany', 'findOneById', 'findOneBy', 'findManyBy', 'save', 'upsert', 'remove', 'removeMany']) {
+            const method = (repository as Record<string, (...args: unknown[]) => unknown>)[key]!;
 
-        if (key !== 'constructor' && typeof method === 'function') {
-            (connections as unknown as Record<string, unknown>)[key] = (...args: unknown[]) => {
+            // an own property: the copies a transaction binds take it along
+            (repository as Record<string, unknown>)[key] = function spied(this: unknown, ...args: unknown[]) {
                 calls.push(key);
 
-                return Reflect.apply(method, connections, args);
+                return Reflect.apply(method, this, args);
             };
         }
     }
@@ -240,7 +285,7 @@ const logins = (server: FakeImap) => untagged(server.commands).filter((command) 
 
 describe('toolMailModule() configuration', () => {
     it('declares the mail connection type', async () => {
-        const harness = await harnessOf({ store: createMemoryStore(), options: { env: {} } });
+        const harness = await harnessOf({ store: storeOf(), options: { env: {} } });
         const { definition } = providerOf(harness);
 
         expect(definition.type).toBe('mail');
@@ -253,7 +298,7 @@ describe('toolMailModule() configuration', () => {
 
     it('loads env accounts and stored accounts together, env winning per field', async () => {
         const server = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await seed(store, 'home', server.port);
         // the same account as the env one: the env wins, the store fills what the env leaves open
@@ -296,7 +341,7 @@ describe('toolMailModule() configuration', () => {
 
     it('an env-declared account is listed locked and not deletable', async () => {
         const server = await fake();
-        const harness = await harnessOf({ store: createMemoryStore(), options: { env: envOf(envAccount(server.port)) } });
+        const harness = await harnessOf({ store: storeOf(), options: { env: envOf(envAccount(server.port)) } });
         const work = connectionOf(harness, 'mail-work');
 
         expect(work.account).toBe('work');
@@ -311,7 +356,7 @@ describe('toolMailModule() configuration', () => {
 
     it('a stored account is listed under its account id, named mail-<id>', async () => {
         const server = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await seed(store, 'home', server.port);
 
@@ -329,7 +374,7 @@ describe('toolMailModule() configuration', () => {
 
     it('a stored account ignores the variables named after it, with a warning', async () => {
         const server = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await seed(store, 'home', server.port);
 
@@ -352,7 +397,7 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('a stored account missing a required field is listed incomplete and not used', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await configsOf(store).create('mail-home', MAIL_CONNECTION_TYPE, { settings: { host: '127.0.0.1' } });
 
@@ -371,7 +416,7 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('a stored account with a value the client refuses is listed incomplete and not used', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await seed(store, 'home', 70_000);
 
@@ -389,7 +434,7 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('a stored account without its password stays incomplete whatever its variables hold: the app starts', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await configsOf(store).create('mail-home', MAIL_CONNECTION_TYPE, { settings: { address: 'home@y.test', host: '127.0.0.1' } });
 
@@ -402,7 +447,7 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('ignores a row of the type that is no account name', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await configsOf(store).create('other', MAIL_CONNECTION_TYPE, { settings: { host: 'x.test' } });
 
@@ -415,7 +460,7 @@ describe('toolMailModule() configuration', () => {
         const server = await fake();
         const id = `a${'-b'.repeat(31)}`;
         const harness = await harnessOf({
-            store: createMemoryStore(),
+            store: storeOf(),
             agents: [accountsAgent()],
             options: {
                 env: {
@@ -434,7 +479,7 @@ describe('toolMailModule() configuration', () => {
 
     it('explicit accounts pin the set: store unread, creatable() false', async () => {
         const server = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await seed(store, 'home', server.port);
 
@@ -462,7 +507,7 @@ describe('toolMailModule() configuration', () => {
 
     it('zero accounts keep the context provided and tools return a not-configured tool error, the run does not fail', async () => {
         const harness = await harnessOf({
-            store: createMemoryStore(),
+            store: storeOf(),
             agents: [accountsAgent()],
             options: { env: {} },
         });
@@ -478,9 +523,7 @@ describe('toolMailModule() configuration', () => {
 
     it('a store without connections stays env-only: nothing creatable, the configs token untouched', async () => {
         const server = await fake();
-        const store: IStore = createMemoryStore();
-
-        delete store.connections;
+        const store = storeOf({ connections: false });
 
         const harness = await harnessOf({ store, options: { env: envOf(envAccount(server.port)) } });
         const work = connectionOf(harness, 'mail-work');
@@ -492,7 +535,7 @@ describe('toolMailModule() configuration', () => {
 
     it('migrate mode reads nothing', async () => {
         const server = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await seed(store, 'home', server.port);
 
@@ -511,7 +554,7 @@ describe('toolMailModule() configuration', () => {
 
     it('a check reads and writes nothing to the store', async () => {
         const server = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await seed(store, 'home', server.port);
 
@@ -523,8 +566,8 @@ describe('toolMailModule() configuration', () => {
         });
 
         // the read half: the stored account is seen
-        expect(calls).toContain('find');
-        expect(calls).toContain('findConfig');
+        expect(calls).toContain('findMany');
+        expect(calls).toContain('findManyBy');
         expect(providerOf(harness).connections().map((entry) => entry.name).sort()).toEqual(['mail-home', 'mail-work']);
         // the write half: only reads reached the repository, and no server was contacted
         expect(calls.filter((name) => !name.startsWith('find'))).toEqual([]);
@@ -532,7 +575,7 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('a check lists an incomplete stored account as incomplete', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await configsOf(store).create('mail-home', MAIL_CONNECTION_TYPE, { settings: { host: '127.0.0.1' } });
 
@@ -547,9 +590,9 @@ describe('toolMailModule() configuration', () => {
 
     it('a check on a store behind its migrations warns and continues env-only', async () => {
         const server = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
-        store.connections!.find = async () => {
+        store.connectionRepository!.findMany = async () => {
             throw behindSchemaError();
         };
 
@@ -564,9 +607,9 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('a check on a behind store still fails a declared account with no password in env', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
-        store.connections!.find = async () => {
+        store.connectionRepository!.findMany = async () => {
             throw behindSchemaError();
         };
 
@@ -578,7 +621,7 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('an unreadable stored account fails the start naming the connection', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await seed(store, 'home', 1);
 
@@ -590,7 +633,7 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('an invalid stored value on a declared account is dropped and the account listed incomplete', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await configsOf(store).create('mail-work', MAIL_CONNECTION_TYPE, {
             settings: { port: 70_000, user: 'stored-user' },
@@ -619,9 +662,9 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('a check still fails on a read error that is not a behind schema', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
-        store.connections!.find = async () => {
+        store.connectionRepository!.findMany = async () => {
             throw new Error('boom');
         };
 
@@ -633,9 +676,9 @@ describe('toolMailModule() configuration', () => {
     });
 
     it('a start fails on a behind schema: only a check tolerates it', async () => {
-        const store = createMemoryStore();
+        const store = storeOf();
 
-        store.connections!.find = async () => {
+        store.connectionRepository!.findMany = async () => {
             throw behindSchemaError();
         };
 
@@ -644,7 +687,7 @@ describe('toolMailModule() configuration', () => {
 
     it('a declared account takes a password missing from env from the store', async () => {
         const server = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await configsOf(store).create('mail-work', MAIL_CONNECTION_TYPE, { secrets: { set: { password: STORED_PASSWORD } } });
 
@@ -669,13 +712,11 @@ describe('toolMailModule() configuration', () => {
         const env = { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(1)]) };
 
         expect(() => toolMailModule({ env })).not.toThrow();
-        await expect(harnessOf({ store: createMemoryStore(), options: { env } })).rejects.toThrow(/CHAMVI_MAIL_WORK_PASSWORD/);
+        await expect(harnessOf({ store: storeOf(), options: { env } })).rejects.toThrow(/CHAMVI_MAIL_WORK_PASSWORD/);
     });
 
     it('a store without connections fails a declared account missing its password', async () => {
-        const store: IStore = createMemoryStore();
-
-        delete store.connections;
+        const store = storeOf({ connections: false });
 
         await expect(harnessOf({
             store,
@@ -690,7 +731,7 @@ describe('toolMailModule() configuration', () => {
 
     it('never places a stored password in a listed source or error', async () => {
         const server = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
         await seed(store, 'home', server.port);
 

@@ -21,9 +21,8 @@ import {
 import type {
     Agent,
     IEngine,
-    IStore,
-    Run,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { CHAT_INTAKE_FAILED_ERROR_CODE, chatAddress } from '@chamvi/chat';
 import type { ChatChannel } from '@chamvi/chat';
 import { mockModel, textModel } from '@chamvi/test-kit';
@@ -57,35 +56,20 @@ async function started(input: IntakeFixtureInput): Promise<IntakeFixture> {
     return fixture;
 }
 
-/** runs.insert fails once for the agent named, every other repository call goes through */
-function failInsertOnce(agent: string, inserts: string[]) {
-    return (memory: IStore): IStore => {
-        let failed = false;
+/** The run service's create fails once for the agent named, every other call goes through */
+function failInsertOnce(agent: string, inserts: string[]): IntakeFixtureInput['create'] {
+    let failed = false;
 
-        return {
-            ...memory,
-            runs: new Proxy(memory.runs, {
-                get(target, key, receiver) {
-                    if (key === 'insert') {
-                        return async (run: Run) => {
-                            inserts.push(run.agent);
+    return (create) => async (run: Run) => {
+        inserts.push(run.agent);
 
-                            if (run.agent === agent && !failed) {
-                                failed = true;
+        if (run.agent === agent && !failed) {
+            failed = true;
 
-                                throw new Error('store write failed');
-                            }
+            throw new Error('store write failed');
+        }
 
-                            return target.insert(run);
-                        };
-                    }
-
-                    const value: unknown = Reflect.get(target, key, receiver);
-
-                    return typeof value === 'function' ? value.bind(target) : value;
-                },
-            }),
-        };
+        return create(run);
     };
 }
 
@@ -125,7 +109,7 @@ describe('chat intake on an engine', () => {
         const inserts: string[] = [];
         const fixture = await started({
             agents: (channel) => [plain(channel, 'alpha'), plain(channel, 'beta')],
-            store: failInsertOnce('beta', inserts),
+            create: failInsertOnce('beta', inserts),
             patch: {
                 resolveInvoker: () => ({
                     id: 'owner',
@@ -168,7 +152,7 @@ describe('chat intake on an engine', () => {
         const inserts: string[] = [];
         const fixture = await started({
             agents: (channel) => [plain(channel, 'alpha'), plain(channel, 'beta')],
-            store: failInsertOnce('beta', inserts),
+            create: failInsertOnce('beta', inserts),
         });
         const delivery = fixture.adapter.deliver(createTextMessage({ id: 'm-1' }));
 

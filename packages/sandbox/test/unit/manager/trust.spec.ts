@@ -9,16 +9,16 @@ import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import type { Tool, ToolSet } from 'ai';
 import {
-    Engine,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type { ApprovalWaitPoint, Run, ToolTrust } from '@chamvi/core';
+import type { ToolTrust } from '@chamvi/core';
+import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { toolContext } from '../../utils/context.ts';
 import { mockModel } from '../../utils/model.ts';
 import { createFakeProvider } from '../../utils/provider.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 /** The run's approval wait point; throws when it waits on none. */
 function approvalOf(run: Pick<Run, 'waiting'> | undefined): ApprovalWaitPoint {
@@ -78,7 +78,6 @@ describe('workspace tool trust classification', () => {
                 },
             });
             const manager = createWorkspaceManager({ provider, gcIntervalMs: 0 });
-            const store = createMemoryStore();
             const call = (toolName: string, input: unknown = {}) => ({
                 parts: [{
                     type: 'tool-call' as const,
@@ -121,7 +120,7 @@ describe('workspace tool trust classification', () => {
                     }),
                 },
             });
-            const engine = new Engine({ store, agents: [agent] });
+            const engine = createTestEngine({ agents: [agent] });
 
             manager.attach(engine);
 
@@ -137,7 +136,7 @@ describe('workspace tool trust classification', () => {
 
                 await engine.idle();
 
-                const run = await store.runs.findOne(runId);
+                const run = await engine.runService.findOne(runId);
 
                 expect(run?.taint).toEqual({ at: expect.any(Date), source: `tool:${name}` });
                 expect(run?.status).toBe('completed');
@@ -171,7 +170,6 @@ describe('workspace tool trust classification', () => {
             },
         });
         const manager = createWorkspaceManager({ provider, push: { mode: 'auto', allowBranch: () => true } });
-        const store = createMemoryStore();
         const model = mockModel([
             {
                 parts: [{
@@ -221,7 +219,7 @@ describe('workspace tool trust classification', () => {
                 }),
             },
         });
-        const engine = new Engine({ store, agents: [agent] });
+        const engine = createTestEngine({ agents: [agent] });
 
         manager.attach(engine);
 
@@ -237,7 +235,7 @@ describe('workspace tool trust classification', () => {
 
             await engine.idle();
 
-            const run = await store.runs.findOne(runId);
+            const run = await engine.runService.findOne(runId);
 
             expect(run?.taint).toEqual({ at: expect.any(Date), source: 'tool:git_push' });
             expect(run?.status).toBe('completed');
@@ -262,7 +260,6 @@ describe('workspace tool trust classification', () => {
             },
         });
         const manager = createWorkspaceManager({ provider, push: { mode: 'auto', allowBranch: () => true } });
-        const store = createMemoryStore();
         const agent = defineModelAgent({
             name: 'test',
             instructions: 'test',
@@ -300,7 +297,7 @@ describe('workspace tool trust classification', () => {
                 }),
             },
         });
-        const engine = new Engine({ store, agents: [agent] });
+        const engine = createTestEngine({ agents: [agent] });
 
         manager.attach(engine);
 
@@ -316,7 +313,7 @@ describe('workspace tool trust classification', () => {
 
             await engine.idle();
 
-            const run = await store.runs.findOne(runId);
+            const run = await engine.runService.findOne(runId);
 
             expect(run?.taint).toEqual({ at: expect.any(Date), source: 'tool:read_untrusted' });
             expect(run?.status).toBe('completed');
@@ -351,7 +348,6 @@ describe('workspace tool trust classification', () => {
                 repositoryInstructions: false,
                 gcIntervalMs: 0,
             });
-            const store = createMemoryStore();
             const call = (toolName: string, input: unknown = {}) => ({
                 parts: [{
                     type: 'tool-call' as const,
@@ -359,8 +355,7 @@ describe('workspace tool trust classification', () => {
                     input,
                 }],
             });
-            const engine = new Engine({
-                store,
+            const engine = createTestEngine({
                 agents: [defineModelAgent({
                     name: 'test',
                     instructions: 'test',
@@ -396,7 +391,7 @@ describe('workspace tool trust classification', () => {
 
                 await engine.idle();
 
-                expect((await store.runs.findOne(runId))?.status).toBe('completed');
+                expect((await engine.runService.findOne(runId))?.status).toBe('completed');
                 expect(network).toBe(allowed ? 1 : 0);
             } finally {
                 engine.stop();
@@ -415,7 +410,6 @@ describe('workspace tool trust classification', () => {
                 },
             });
             const manager = createWorkspaceManager({ provider, gcIntervalMs: 0 });
-            const store = createMemoryStore();
             const call = (toolName: string, input: unknown = {}) => ({
                 parts: [{
                     type: 'tool-call' as const,
@@ -424,8 +418,7 @@ describe('workspace tool trust classification', () => {
                     input,
                 }],
             });
-            const engine = new Engine({
-                store,
+            const engine = createTestEngine({
                 agents: [defineModelAgent({
                     name: 'test',
                     instructions: 'test',
@@ -452,7 +445,7 @@ describe('workspace tool trust classification', () => {
 
                 await engine.idle();
 
-                const waiting = await store.runs.findOne(runId);
+                const waiting = await engine.runService.findOne(runId);
 
                 expect(waiting?.status).toBe('waiting');
                 expect(waiting?.taint?.source).toBe('tool:create_workspace');
@@ -466,7 +459,7 @@ describe('workspace tool trust classification', () => {
                 await engine.approve(runId, { approvalId: waiting.waiting.approvalId, approved });
                 await engine.idle();
 
-                expect((await store.runs.findOne(runId))?.status).toBe('completed');
+                expect((await engine.runService.findOne(runId))?.status).toBe('completed');
                 expect(network).toBe(approved ? 1 : 0);
             } finally {
                 engine.stop();
@@ -504,7 +497,6 @@ describe('workspace tool trust classification', () => {
             gcIntervalMs: 0,
             push: { mode: 'approve', allowBranch: () => true },
         });
-        const store = createMemoryStore();
         const call = (toolName: string, input: unknown = {}) => ({
             parts: [{
                 type: 'tool-call' as const,
@@ -513,8 +505,7 @@ describe('workspace tool trust classification', () => {
                 input,
             }],
         });
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [defineModelAgent({
                 name: 'test',
                 instructions: 'test',
@@ -542,7 +533,7 @@ describe('workspace tool trust classification', () => {
 
             await engine.idle();
 
-            const gate = await store.runs.findOne(runId);
+            const gate = await engine.runService.findOne(runId);
 
             expect(gate?.status).toBe('waiting');
             expect(gate?.waiting?.id).toMatch(/^bound:/);
@@ -556,8 +547,8 @@ describe('workspace tool trust classification', () => {
             await engine.approve(runId, { approvalId: gate!.waiting!.id, approved: true });
             await engine.idle();
 
-            const run = await store.runs.findOne(runId);
-            const waits = (await store.steps.find(runId)).filter((step) => step.kind === 'wait');
+            const run = await engine.runService.findOne(runId);
+            const waits = (await engine.stepService.find(runId)).filter((step) => step.kind === 'wait');
 
             expect(run?.status).toBe('completed');
             expect(waits).toHaveLength(1);
@@ -593,11 +584,10 @@ describe('workspace tool trust classification', () => {
             },
         });
         const manager = createWorkspaceManager({
-            provider, 
-            gcIntervalMs: 0, 
-            push: options.push, 
+            provider,
+            gcIntervalMs: 0,
+            push: options.push,
         });
-        const store = createMemoryStore();
         const call = (toolName: string, input: unknown = {}) => ({
             parts: [{
                 type: 'tool-call' as const,
@@ -606,8 +596,7 @@ describe('workspace tool trust classification', () => {
                 input,
             }],
         });
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [defineModelAgent({
                 name: 'test',
                 instructions: 'test',
@@ -634,7 +623,7 @@ describe('workspace tool trust classification', () => {
 
             await engine.idle();
 
-            const gate = await store.runs.findOne(runId);
+            const gate = await engine.runService.findOne(runId);
             const before = { pushed: pushed.length, remote: remote.length };
 
             expect(gate?.status).toBe('waiting');
@@ -647,7 +636,7 @@ describe('workspace tool trust classification', () => {
                 before,
                 pushed,
                 remote,
-                run: await store.runs.findOne(runId),
+                run: await engine.runService.findOne(runId),
             };
         } finally {
             engine.stop();
@@ -732,7 +721,6 @@ describe('workspace tool trust classification', () => {
             gcIntervalMs: 0,
             push,
         });
-        const store = createMemoryStore();
         const call = (toolName: string, input: unknown = {}) => ({
             parts: [{
                 type: 'tool-call' as const,
@@ -741,8 +729,7 @@ describe('workspace tool trust classification', () => {
                 input,
             }],
         });
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             channels: [{
                 name: 'ops',
                 out: async (message) => {
@@ -776,7 +763,6 @@ describe('workspace tool trust classification', () => {
         return {
             engine,
             manager,
-            store,
             runId,
             sent,
             pushes: () => pushes,
@@ -787,8 +773,8 @@ describe('workspace tool trust classification', () => {
         const t = await taintedPush({ mode: 'approve', allowBranch: () => false });
 
         try {
-            const run = await t.store.runs.findOne(t.runId);
-            const steps = await t.store.steps.find(t.runId);
+            const run = await t.engine.runService.findOne(t.runId);
+            const steps = await t.engine.stepService.find(t.runId);
 
             expect(run?.status).toBe('completed');
             expect(steps.filter((step) => step.kind === 'wait')).toHaveLength(0);
@@ -808,7 +794,7 @@ describe('workspace tool trust classification', () => {
         });
 
         try {
-            const gate = await t.store.runs.findOne(t.runId);
+            const gate = await t.engine.runService.findOne(t.runId);
 
             expect(gate?.waiting?.id).toMatch(/^bound:/);
             expect(approvalOf(gate).channel).toBeUndefined();
@@ -816,7 +802,7 @@ describe('workspace tool trust classification', () => {
             await t.engine.approve(t.runId, { approvalId: gate!.waiting!.id, approved: true });
             await t.engine.idle();
 
-            expect((await t.store.runs.findOne(t.runId))?.status).toBe('completed');
+            expect((await t.engine.runService.findOne(t.runId))?.status).toBe('completed');
             expect(t.sent).toEqual([]);
             expect(t.pushes()).toBe(1);
         } finally {

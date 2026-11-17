@@ -12,25 +12,24 @@ import {
     it,
 } from 'vitest';
 import {
-    Engine,
-    RunStatus,
     SandboxError,
     approve,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
 import type {
     AgentHooks,
     IEngine,
-    Run,
     RunEvent,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/model.ts';
 import type { MockResponse } from '../../utils/model.ts';
 import { createFakeProvider } from '../../utils/provider.ts';
 import type { FakeProvider } from '../../utils/provider.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 const engines: IEngine[] = [];
 
@@ -76,7 +75,6 @@ function gateHooks(gate: string | undefined): AgentHooks | undefined {
 
 async function run(s: Setup) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
     const provider = s.provider ?? createFakeProvider({ clock });
     const errors: unknown[] = [];
     const manager = createWorkspaceManager({
@@ -94,8 +92,7 @@ async function run(s: Setup) {
         tools: manager.tools(),
         hooks: gateHooks(s.gate),
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: [agent],
         clock,
         onError: () => {},
@@ -119,7 +116,7 @@ async function run(s: Setup) {
         manager,
         errors,
         runId,
-        run: await store.runs.findOne(runId),
+        run: await engine.runService.findOne(runId),
     };
 }
 

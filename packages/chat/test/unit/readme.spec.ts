@@ -45,7 +45,7 @@ describe('README example', () => {
     it('imports only the public entries and never a test helper', () => {
         const imports = read('../fixtures/readme-example.ts').matchAll(/from '([^']+)'/g).map((m) => m[1]).toArray();
 
-        expect(imports.sort()).toEqual(['@chamvi/chat', '@chamvi/core', '@chamvi/core', 'ai', 'chat', 'chat', 'zod']);
+        expect(imports.sort()).toEqual(['@chamvi/chat', '@chamvi/core', '@chamvi/core', '@chamvi/store-memory', 'ai', 'chat', 'chat', 'zod']);
     });
 
     it('initializes nothing before the engine starts, and serves the adapter\'s webhooks', () => {
@@ -89,7 +89,7 @@ describe('README example', () => {
         await adapter.deliver(createTextMessage({ id: 'm-2', text: 'hi there' }));
         await engine.idle();
 
-        const { data: runs } = await engine.store.runs.find({});
+        const { data: runs } = await engine.runService.find({});
 
         expect(runs).toHaveLength(1);
         expect(runs[0]?.status).toBe('completed');

@@ -11,14 +11,12 @@ import {
     it,
 } from 'vitest';
 import {
-    Engine,
     InvalidAgentDefinitionError,
     ValidationError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import type { ChannelContext, ChannelRequest, IChannel } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import {
     createHttpApp,
     http,
@@ -55,8 +53,7 @@ function recordingChannel(name: string, seen: Seen[]): IChannel {
 
 function setup(channels: IChannel<any, any>[], mounted: IChannel<any, any>[] = channels, basePath?: string) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const engine = new Engine({
-        store: createMemoryStore({ clock }),
+    const engine = createTestEngine({
         agents: [defineModelAgent({
             name: 'echo',
             model: textModel(),

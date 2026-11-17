@@ -5,6 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { StoreErrorCode } from '@chamvi/store';
+
 /** Where `createHttpApp` puts the HttpContext in `event.store`, for the middleware classes; internal. */
 export const HTTP_CONTEXT: unique symbol = Symbol('chamvi:http-context');
 
@@ -64,3 +66,21 @@ export const RESERVED_ROUTE_SEGMENTS: readonly string[] = [
     'schedules',
     'ui-pages',
 ];
+
+/** `@chamvi/store-db`'s DatabaseUnavailableError, mapped by its code: http does not depend on the database package. */
+export const DATABASE_UNAVAILABLE_CODE = 'database_unavailable';
+
+/**
+ * The storage errors (`@chamvi/store`, and the database's unavailability)
+ * by code: each answers with its status and this fixed message, never the
+ * error's own, which names the entity, an operation or a driver code.
+ */
+export const STORAGE_ERRORS: Readonly<Record<string, { status: number; message: string }>> = {
+    [StoreErrorCode.ENTITY_NOT_FOUND]: { status: 404, message: 'The requested record was not found.' },
+    [StoreErrorCode.ENTITY_CONFLICT]: { status: 409, message: 'The record conflicts with a stored record.' },
+    [StoreErrorCode.ENTITY_RELATION_INVALID]: { status: 400, message: 'The record references a record that does not exist.' },
+    [StoreErrorCode.ENTITY_INVALID]: { status: 400, message: 'The record holds a value that is not valid.' },
+    [StoreErrorCode.ENTITY_QUERY_INVALID]: { status: 400, message: 'The request is not a valid query.' },
+    [StoreErrorCode.ENTITY_DEADLOCK]: { status: 409, message: 'The write conflicted with a concurrent write; retry the request.' },
+    [DATABASE_UNAVAILABLE_CODE]: { status: 503, message: 'The database is unavailable; retry the request.' },
+};

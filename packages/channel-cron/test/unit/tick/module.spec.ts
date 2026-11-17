@@ -6,11 +6,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ChannelSubscription } from '@chamvi/core';
+import type { ChannelSubscription, IEngine } from '@chamvi/core';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import {
@@ -19,7 +17,7 @@ import {
     fireCronSubscription,
     readCronOptions,
 } from '@chamvi/channel-cron';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { textModel } from '../../utils/model.ts';
 
 const T = new Date('2026-03-01T08:00:00.000Z');
@@ -27,15 +25,13 @@ const T_ISO = '2026-03-01T08:00:00.000Z';
 
 function setup(subscription: ChannelSubscription = cron.on('*/5 * * * *')) {
     const clock = new ControllableClock(T);
-    const store = createMemoryStore({ clock });
     const agent = defineModelAgent({
         name: 'sweep',
         model: textModel(),
         instructions: 'x',
         channels: [subscription],
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: [agent],
         channels: [cronChannel(), cronChannel({ name: 'cron-eu' })],
         clock,
@@ -49,19 +45,19 @@ function setup(subscription: ChannelSubscription = cron.on('*/5 * * * *')) {
 
     return {
         clock,
-        store,
+        storage: engine,
         agent,
         engine,
         fire,
     };
 }
 
-async function runOf(store: ReturnType<typeof createMemoryStore>, result: Awaited<ReturnType<typeof fireCronSubscription>>) {
+async function runOf(storage: IEngine, result: Awaited<ReturnType<typeof fireCronSubscription>>) {
     if (!result.dispatched) {
         throw new Error('not dispatched');
     }
 
-    const run = await store.runs.findOne(result.runId);
+    const run = await storage.runService.findOne(result.runId);
 
     if (!run) {
         throw new Error('run missing');
@@ -72,13 +68,13 @@ async function runOf(store: ReturnType<typeof createMemoryStore>, result: Awaite
 
 describe('fireCronSubscription', () => {
     it('dispatches with the tick envelope', async () => {
-        const { store, fire } = setup();
+        const { storage, fire } = setup();
 
         const result = await fire();
 
         expect(result).toMatchObject({ dispatched: true, deduplicated: false });
 
-        const run = await runOf(store, result);
+        const run = await runOf(storage, result);
 
         expect(run.trigger).toMatchObject({
             agent: 'sweep',
@@ -92,21 +88,21 @@ describe('fireCronSubscription', () => {
     });
 
     it('uses the subscription payload when set', async () => {
-        const { store, fire } = setup(cron.on('0 * * * *', { payload: { full: true } }));
+        const { storage, fire } = setup(cron.on('0 * * * *', { payload: { full: true } }));
 
-        const run = await runOf(store, await fire());
+        const run = await runOf(storage, await fire());
 
         expect(run.trigger.payload).toEqual({ full: true });
         expect(run.trigger.idempotencyKey).toBe(`cron:0 * * * *@${T_ISO}`);
     });
 
     it('derives the concurrency key from the payload', async () => {
-        const { store, fire } = setup({
+        const { storage, fire } = setup({
             ...cron.on('0 * * * *', { payload: { repo: 'a/b' } }),
             concurrencyKey: (p) => (p as { repo: string }).repo,
         });
 
-        const run = await runOf(store, await fire());
+        const run = await runOf(storage, await fire());
 
         expect(run.concurrencyKey).toBe('a/b');
     });
@@ -114,18 +110,18 @@ describe('fireCronSubscription', () => {
     it('allow sets no concurrency key', async () => {
         const allow = setup(cron.on('0 * * * *', { overlap: 'allow' }));
 
-        expect((await runOf(allow.store, await allow.fire())).concurrencyKey).toBeUndefined();
+        expect((await runOf(allow.storage, await allow.fire())).concurrencyKey).toBeUndefined();
 
         const queueOne = setup(cron.on('0 * * * *', { overlap: 'queue-one' }));
 
-        expect((await runOf(queueOne.store, await queueOne.fire())).concurrencyKey).toBe('cron:0 * * * *');
+        expect((await runOf(queueOne.storage, await queueOne.fire())).concurrencyKey).toBe('cron:0 * * * *');
     });
 
     it('dispatches through the subscription\'s channel', async () => {
         const eu = cronChannel({ name: 'cron-eu' }).on('0 * * * *');
-        const { store, fire } = setup(eu);
+        const { storage, fire } = setup(eu);
 
-        const run = await runOf(store, await fire());
+        const run = await runOf(storage, await fire());
 
         expect(run.trigger.channel).toBe('cron-eu');
     });
@@ -151,7 +147,7 @@ describe('fireCronSubscription', () => {
     });
 
     it('ignores the subscription\'s own idempotencyKey', async () => {
-        const { store, fire } = setup({
+        const { storage, fire } = setup({
             ...cron.on('*/5 * * * *', { overlap: 'allow' }),
             idempotencyKey: () => 'fixed',
         });
@@ -159,11 +155,11 @@ describe('fireCronSubscription', () => {
         await fire(T);
         await fire(new Date(T.getTime() + 300_000));
 
-        expect((await store.runs.find({ agent: 'sweep' })).total).toBe(2);
+        expect((await storage.runService.find({ agent: 'sweep' })).total).toBe(2);
     });
 
     it('a second firing of the same tick is deduplicated', async () => {
-        const { store, fire } = setup(cron.on('*/5 * * * *', { overlap: 'allow' }));
+        const { storage, fire } = setup(cron.on('*/5 * * * *', { overlap: 'allow' }));
 
         const first = await fire();
         const second = await fire();
@@ -173,7 +169,7 @@ describe('fireCronSubscription', () => {
             deduplicated: true,
             runId: first.dispatched ? first.runId : undefined,
         });
-        expect((await store.runs.find({ agent: 'sweep' })).total).toBe(1);
+        expect((await storage.runService.find({ agent: 'sweep' })).total).toBe(1);
     });
 });
 

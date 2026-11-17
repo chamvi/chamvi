@@ -7,8 +7,8 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import { createFileAgent } from '../fixtures/readme-example.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -20,8 +20,7 @@ describe('README example', () => {
     });
 
     it('transforms an attachment and reads the selected output through run artifacts without a model', async () => {
-        const store = createMemoryStore();
-        const engine = new Engine({ store, agents: [createFileAgent()] });
+        const engine = createTestEngine({ agents: [createFileAgent()] });
 
         try {
             await engine.start();
@@ -40,7 +39,7 @@ describe('README example', () => {
 
             await engine.idle();
 
-            const artifacts = await store.artifacts.find(runId);
+            const artifacts = await engine.artifactService.find(runId);
             const report = artifacts.find((artifact) => artifact.filename === 'report.json');
 
             expect(report).toMatchObject({
@@ -48,13 +47,13 @@ describe('README example', () => {
                 mediaType: 'application/json',
                 size: 3,
             });
-            expect(await store.runs.findOne(runId)).toMatchObject({
+            expect(await engine.runService.findOne(runId)).toMatchObject({
                 status: 'completed',
                 output: { artifact: { id: report!.id, filename: 'report.json' }, text: '42\n' },
                 taint: { source: 'tool:list_artifacts' },
             });
             expect(artifacts).toHaveLength(2);
-            expect(new TextDecoder().decode(await store.artifacts.read(report!.id))).toBe('42\n');
+            expect(new TextDecoder().decode(await engine.artifactService.read(report!.id))).toBe('42\n');
         } finally {
             await engine.stop();
         }

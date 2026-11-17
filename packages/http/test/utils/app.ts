@@ -7,21 +7,18 @@
 
 import { z } from 'zod';
 import {
-    Engine,
     approve,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
     Agent,
-    ApprovalWaitPoint,
     ChannelSubscription,
     IChannel,
-    IStore,
-    Run,
+    RunService,
 } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import type { ApprovalWaitPoint, Run } from '@chamvi/store';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import {
     createHttpApp,
     http,
@@ -60,7 +57,6 @@ export const testAuth = staticTokens({
 export type TestAppOverrides = Partial<Omit<HttpAppOptions, 'agents'>> & {
     /** Engine construction, ignored when `engine` is given. */
     agents?: Agent[];
-    store?: IStore;
     clock?: ControllableClock;
     /** Channels the engine holds besides `http`, `mcp`, `webhook` and the `cron` stub. */
     engineChannels?: IChannel<any, any>[];
@@ -69,7 +65,6 @@ export type TestAppOverrides = Partial<Omit<HttpAppOptions, 'agents'>> & {
 export function createTestApp(overrides: TestAppOverrides = {}) {
     const {
         agents: agentsOverride,
-        store: storeOverride,
         clock: clockOverride,
         engineChannels = [],
         engine: engineOverride,
@@ -81,8 +76,7 @@ export function createTestApp(overrides: TestAppOverrides = {}) {
         new ControllableClock(new Date(1_000_000));
     const channels = testChannels();
     const hooks = channels.find((channel) => channel.name === 'webhook')!;
-    const engine = engineOverride ?? new Engine({
-        store: storeOverride ?? createMemoryStore({ clock }),
+    const engine = engineOverride ?? createTestEngine({
         agents: agentsOverride ?? [
             defineModelAgent({
                 name: 'echo',
@@ -110,7 +104,15 @@ export function createTestApp(overrides: TestAppOverrides = {}) {
     return {
         app,
         engine,
-        store: engine.store,
+        // the engine's services, as tests read them
+        store: {
+            runService: engine.runService,
+            stepService: engine.stepService,
+            checkpointService: engine.checkpointService,
+            effectService: engine.effectService,
+            artifactService: engine.artifactService,
+            stateService: engine.stateService,
+        },
         clock,
         agents: engine.listAgents(),
     };
@@ -261,8 +263,8 @@ export function approvalWaitOf(run: Pick<Run, 'id' | 'waiting'> | undefined): Ap
 }
 
 /** The approval id the run's current wait point waits on. */
-export async function approvalIdOf(store: IStore, runId: string): Promise<string> {
-    return approvalWaitOf(await store.runs.findOne(runId)).approvalId;
+export async function approvalIdOf(store: { runService: RunService }, runId: string): Promise<string> {
+    return approvalWaitOf(await store.runService.findOne(runId)).approvalId;
 }
 
 /**

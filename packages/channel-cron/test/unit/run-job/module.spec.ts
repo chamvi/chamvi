@@ -17,16 +17,13 @@ import type {
     ChannelSubscription,
     IChannel,
     ModelAgentDefinition,
-    Run,
-    WaitPoint,
 } from '@chamvi/core';
+import type { Run, WaitPoint } from '@chamvi/store';
 import {
-    Engine,
     InvalidAgentDefinitionError,
     agentChannel,
     agent as agentSubscriber,
     approve,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
     dispatchTo,
@@ -38,7 +35,7 @@ import {
     fireCronSubscription,
     runJob,
 } from '@chamvi/channel-cron';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { isJobSettled, isQueuedBehindApproval } from '../../../src/run-job/helpers.ts';
 import { approvalModel, failingModel, textModel } from '../../utils/model.ts';
 
@@ -72,7 +69,6 @@ function setup(
     extra: Partial<ModelAgentDefinition> = {},
 ) {
     const clock = new ControllableClock(T);
-    const store = createMemoryStore({ clock });
     const channel = cronChannel();
     const agent = defineModelAgent({
         name: 'sweep',
@@ -82,8 +78,7 @@ function setup(
         ...extra,
     });
     const channels = [channel, http];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: [agent],
         channels,
         clock,
@@ -91,7 +86,6 @@ function setup(
 
     return {
         clock,
-        store,
         agent,
         channel,
         channels,
@@ -102,7 +96,6 @@ function setup(
 /** `sweep` (cron) whose `delegate` dispatches one `worker` run and waits on it. */
 function delegating(worker: ReturnType<typeof defineModelAgent>) {
     const clock = new ControllableClock(T);
-    const store = createMemoryStore({ clock });
     const sweep = defineModelAgent({
         name: 'sweep',
         model: approvalModel('delegate'),
@@ -120,8 +113,7 @@ function delegating(worker: ReturnType<typeof defineModelAgent>) {
             }),
         }),
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: [sweep, worker],
         channels: [cronChannel(), agentChannel()],
         clock,
@@ -129,7 +121,6 @@ function delegating(worker: ReturnType<typeof defineModelAgent>) {
 
     return {
         clock,
-        store,
         agent: sweep,
         engine,
     };
@@ -174,7 +165,6 @@ describe('runJob through dispatched runs', () => {
         const { worker, release } = blockingWorker();
         const {
             clock,
-            store,
             agent,
             engine,
         } = delegating(worker);
@@ -187,9 +177,9 @@ describe('runJob through dispatched runs', () => {
             result = r;
         });
 
-        await vi.waitFor(async () => expect((await store.runs.find({ agent: 'sweep', status: ['waiting'] })).total).toBe(1));
+        await vi.waitFor(async () => expect((await engine.runService.find({ agent: 'sweep', status: ['waiting'] })).total).toBe(1));
 
-        const [sweep] = (await store.runs.find({ agent: 'sweep' })).data;
+        const [sweep] = (await engine.runService.find({ agent: 'sweep' })).data;
 
         expect(sweep?.waiting?.kind).toBe('dispatch');
         clock.advance(5_000);
@@ -209,14 +199,13 @@ describe('runJob through dispatched runs', () => {
 
     it('returns waiting when a descendant waits on an approval', async () => {
         const {
-            store,
             agent,
             engine,
         } = delegating(approvingWorker());
 
         const result = await runJob({ engine, agent });
-        const [sweep] = (await store.runs.find({ agent: 'sweep' })).data;
-        const [child] = (await store.runs.find({ agent: 'worker' })).data;
+        const [sweep] = (await engine.runService.find({ agent: 'sweep' })).data;
+        const [child] = (await engine.runService.find({ agent: 'worker' })).data;
 
         expect(child?.parentRunId).toBe(sweep!.id);
         expect(child?.waiting?.kind).toBe('approval');
@@ -230,22 +219,21 @@ describe('runJob through dispatched runs', () => {
 
     it('returns queued behind a run of its key whose descendant waits on an approval', async () => {
         const clock = new ControllableClock(T);
-        const store = createMemoryStore({ clock });
+        const engine = createTestEngine({ agents: [], clock });
 
-        await store.runs.insert(buildRun('a', 'waiting', { concurrencyKey: 'k', waiting: dispatchWait }));
-        await store.runs.insert(buildRun('child', 'waiting', { parentRunId: 'a', waiting: approvalWait }));
+        await engine.runService.create(buildRun('a', 'waiting', { concurrencyKey: 'k', waiting: dispatchWait }));
+        await engine.runService.create(buildRun('child', 'waiting', { parentRunId: 'a', waiting: approvalWait }));
 
         const queued = buildRun('b', 'queued', { concurrencyKey: 'k' });
 
-        await store.runs.insert(queued);
-        expect(await isQueuedBehindApproval(store.runs, queued)).toBe(true);
+        await engine.runService.create(queued);
+        expect(await isQueuedBehindApproval(engine.runService, queued)).toBe(true);
     });
 });
 
 describe('runJob', () => {
     it('returns 0 for a completed run', async () => {
         const {
-            store,
             agent,
             engine,
         } = setup(textModel());
@@ -257,7 +245,7 @@ describe('runJob', () => {
 
         expect(result).toMatchObject({ status: 'completed', exitCode: 0 });
 
-        const run = await store.runs.findOne(result.runId as string);
+        const run = await engine.runService.findOne(result.runId as string);
 
         expect(run?.trigger.idempotencyKey).toMatch(/@2026-03-01T08:00:00\.000Z$/);
     });
@@ -265,7 +253,6 @@ describe('runJob', () => {
     it('takes scheduledAt from the engine clock', async () => {
         const {
             clock,
-            store,
             agent,
             engine,
         } = setup(textModel());
@@ -274,7 +261,7 @@ describe('runJob', () => {
 
         const result = await runJob({ engine, agent });
 
-        const run = await store.runs.findOne(result.runId as string);
+        const run = await engine.runService.findOne(result.runId as string);
 
         expect(run?.trigger.payload).toEqual({ scheduledAt: '2026-03-01T08:07:00.000Z' });
     });
@@ -295,7 +282,6 @@ describe('runJob', () => {
 
     it('returns when the run waits for an approval', async () => {
         const {
-            store,
             agent,
             engine,
         } = setup(approvalModel('deploy'), undefined, gated());
@@ -306,7 +292,7 @@ describe('runJob', () => {
         });
 
         expect(result).toMatchObject({ status: 'waiting', exitCode: 0 });
-        expect((await store.runs.findOne(result.runId as string))?.status).toBe('waiting');
+        expect((await engine.runService.findOne(result.runId as string))?.status).toBe('waiting');
     });
 
     it('skips under the overlap policy, still running the engine once', async () => {
@@ -341,7 +327,6 @@ describe('runJob', () => {
     it('recovers a run left running by a killed job pod when it skips', async () => {
         const {
             clock,
-            store,
             agent,
             engine,
             channels,
@@ -355,12 +340,12 @@ describe('runJob', () => {
         });
         const { runId } = tick as { runId: string };
 
-        expect(await store.runs.claim(runId, 'pod-1', 60_000)).toBe(true);
-        await store.runs.update(runId, { status: 'running' });
+        expect(await engine.runService.claim(runId, 'pod-1', 60_000)).toBe(true);
+        await engine.runService.update(runId, { status: 'running' });
         clock.advance(15 * 60_000);
 
-        const pod2 = new Engine({
-            store,
+        const pod2 = createTestEngine({
+            replicaOf: engine,
             agents: [agent],
             channels,
             clock,
@@ -372,13 +357,12 @@ describe('runJob', () => {
         });
 
         expect(result).toEqual({ status: 'skipped', exitCode: 0 });
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await engine.runService.findOne(runId))?.status).toBe('completed');
     });
 
     it('times out an expired approval left by an earlier job when it skips', async () => {
         const {
             clock,
-            store,
             agent,
             engine,
             channels,
@@ -391,8 +375,8 @@ describe('runJob', () => {
         expect(first.status).toBe('waiting');
         clock.advance(25 * 60 * 60_000);
 
-        const pod2 = new Engine({
-            store,
+        const pod2 = createTestEngine({
+            replicaOf: engine,
             agents: [agent],
             channels,
             clock,
@@ -403,13 +387,12 @@ describe('runJob', () => {
         });
 
         expect(second).toEqual({ status: 'skipped', exitCode: 0 });
-        expect((await store.runs.findOne(first.runId as string))?.status).toBe('completed');
+        expect((await engine.runService.findOne(first.runId as string))?.status).toBe('completed');
     });
 
     it('returns queued when its run waits behind a run paused for an approval', async () => {
         const {
             clock,
-            store,
             agent,
             engine,
             channels,
@@ -422,8 +405,8 @@ describe('runJob', () => {
         expect(first.status).toBe('waiting');
         clock.advance(300_000);
 
-        const pod2 = new Engine({
-            store,
+        const pod2 = createTestEngine({
+            replicaOf: engine,
             agents: [agent],
             channels,
             clock,
@@ -436,28 +419,28 @@ describe('runJob', () => {
 
         expect(second).toMatchObject({ status: 'queued', exitCode: 0 });
         expect(second.runId).not.toBe(first.runId);
-        expect((await store.runs.findOne(second.runId as string))?.status).toBe('queued');
-        expect((await store.runs.findOne(first.runId as string))?.status).toBe('waiting');
+        expect((await engine.runService.findOne(second.runId as string))?.status).toBe('queued');
+        expect((await engine.runService.findOne(first.runId as string))?.status).toBe('waiting');
         expect(drain).toHaveBeenCalledTimes(1);
     });
 
     it('resolves a run finished by another replica', async () => {
         const {
             clock,
-            store,
+            engine,
             agent,
             channels,
         } = setup(textModel());
-        const a = new Engine({
-            store,
+        const a = createTestEngine({
+            replicaOf: engine,
             agents: [agent],
             channels,
             clock,
             owner: 'a',
             concurrencyMaxRuns: 0,
         });
-        const b = new Engine({
-            store,
+        const b = createTestEngine({
+            replicaOf: engine,
             agents: [agent],
             channels,
             clock,
@@ -470,7 +453,7 @@ describe('runJob', () => {
             pollMs: 1_000,
         });
 
-        await vi.waitFor(async () => expect((await store.runs.find({ agent: 'sweep' })).total).toBe(1));
+        await vi.waitFor(async () => expect((await engine.runService.find({ agent: 'sweep' })).total).toBe(1));
         await b.start();
         await b.idle();
         clock.advance(1_000);
@@ -482,7 +465,6 @@ describe('runJob', () => {
     it('stops polling once it returned', async () => {
         const {
             clock,
-            store,
             agent,
             engine,
         } = setup(textModel());
@@ -493,7 +475,7 @@ describe('runJob', () => {
         getRun.mockImplementationOnce(async (id) => {
             await gate;
 
-            return store.runs.findOne(id);
+            return engine.runService.findOne(id);
         });
 
         const job = runJob({
@@ -573,7 +555,7 @@ describe('runJob', () => {
 
         const result = await runJob({ ...several, subscription: 'cron:0 * * * *' });
 
-        const run = await several.store.runs.findOne(result.runId as string);
+        const run = await several.engine.runService.findOne(result.runId as string);
 
         expect(run?.trigger.trigger).toBe('cron:0 * * * *');
         expect(run?.trigger.channel).toBe('cron');
@@ -581,7 +563,6 @@ describe('runJob', () => {
 
     it('fires a subscription of another cron channel', async () => {
         const clock = new ControllableClock(T);
-        const store = createMemoryStore({ clock });
         const eu = cronChannel({ name: 'cron-eu' });
         const agent = defineModelAgent({
             name: 'sweep',
@@ -589,8 +570,7 @@ describe('runJob', () => {
             instructions: 'x',
             channels: [eu.on('*/5 * * * *')],
         });
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [agent],
             channels: [eu],
             clock,
@@ -598,7 +578,7 @@ describe('runJob', () => {
 
         const result = await runJob({ engine, agent });
 
-        expect((await store.runs.findOne(result.runId as string))?.trigger.channel).toBe('cron-eu');
+        expect((await engine.runService.findOne(result.runId as string))?.trigger.channel).toBe('cron-eu');
     });
 
     it('never starts channels', async () => {
@@ -671,7 +651,7 @@ const approvalWait: WaitPoint = {
 
 describe('isJobSettled', () => {
     it('returns the run when it is terminal or waits on an approval', async () => {
-        const store = createMemoryStore({ clock: new ControllableClock(T) });
+        const engine = createTestEngine({ agents: [], clock: new ControllableClock(T) });
 
         for (const run of [
             buildRun('r', 'completed'),
@@ -679,56 +659,56 @@ describe('isJobSettled', () => {
             buildRun('r', 'cancelled'),
             buildRun('r', 'waiting', { waiting: approvalWait }),
         ]) {
-            expect(await isJobSettled(store.runs, run)).toBe(run);
+            expect(await isJobSettled(engine.runService, run)).toBe(run);
         }
     });
 
     it('is false for a dispatch wait alone, a running and a queued run', async () => {
-        const store = createMemoryStore({ clock: new ControllableClock(T) });
+        const engine = createTestEngine({ agents: [], clock: new ControllableClock(T) });
 
         const root = buildRun('r', 'waiting', { waiting: dispatchWait });
 
-        await store.runs.insert(root);
-        await store.runs.insert(buildRun('child', 'running', { parentRunId: 'r' }));
-        expect(await isJobSettled(store.runs, root)).toBe(false);
-        expect(await isJobSettled(store.runs, buildRun('r', 'running'))).toBe(false);
-        expect(await isJobSettled(store.runs, buildRun('r', 'queued'))).toBe(false);
+        await engine.runService.create(root);
+        await engine.runService.create(buildRun('child', 'running', { parentRunId: 'r' }));
+        expect(await isJobSettled(engine.runService, root)).toBe(false);
+        expect(await isJobSettled(engine.runService, buildRun('r', 'running'))).toBe(false);
+        expect(await isJobSettled(engine.runService, buildRun('r', 'queued'))).toBe(false);
     });
 
     it('returns a grandchild waiting on an approval', async () => {
-        const store = createMemoryStore({ clock: new ControllableClock(T) });
+        const engine = createTestEngine({ agents: [], clock: new ControllableClock(T) });
 
         const root = buildRun('r', 'waiting', { waiting: dispatchWait });
 
-        await store.runs.insert(root);
-        await store.runs.insert(buildRun('child', 'waiting', { parentRunId: 'r', waiting: dispatchWait }));
-        await store.runs.insert(buildRun('done', 'completed', { parentRunId: 'r' }));
-        await store.runs.insert(buildRun('grandchild', 'waiting', { parentRunId: 'child', waiting: approvalWait }));
+        await engine.runService.create(root);
+        await engine.runService.create(buildRun('child', 'waiting', { parentRunId: 'r', waiting: dispatchWait }));
+        await engine.runService.create(buildRun('done', 'completed', { parentRunId: 'r' }));
+        await engine.runService.create(buildRun('grandchild', 'waiting', { parentRunId: 'child', waiting: approvalWait }));
 
-        const found = await isJobSettled(store.runs, root);
+        const found = await isJobSettled(engine.runService, root);
 
         expect(found && found.id).toBe('grandchild');
     });
     it('follows the runs of the wait point, also one another run dispatched', async () => {
-        const store = createMemoryStore({ clock: new ControllableClock(T) });
+        const engine = createTestEngine({ agents: [], clock: new ControllableClock(T) });
         const root = buildRun('r', 'waiting', { waiting: { ...dispatchWait, runIds: ['shared'] } });
 
-        await store.runs.insert(root);
-        await store.runs.insert(buildRun('other', 'running'));
-        await store.runs.insert(buildRun('shared', 'waiting', { parentRunId: 'other', waiting: approvalWait }));
+        await engine.runService.create(root);
+        await engine.runService.create(buildRun('other', 'running'));
+        await engine.runService.create(buildRun('shared', 'waiting', { parentRunId: 'other', waiting: approvalWait }));
 
-        const found = await isJobSettled(store.runs, root);
+        const found = await isJobSettled(engine.runService, root);
 
         expect(found && found.id).toBe('shared');
     });
 
     it('ends on wait points that name each other', async () => {
-        const store = createMemoryStore({ clock: new ControllableClock(T) });
+        const engine = createTestEngine({ agents: [], clock: new ControllableClock(T) });
         const root = buildRun('r', 'waiting', { waiting: { ...dispatchWait, runIds: ['x', 'x'] } });
 
-        await store.runs.insert(root);
-        await store.runs.insert(buildRun('other', 'running'));
-        await store.runs.insert(buildRun('x', 'waiting', {
+        await engine.runService.create(root);
+        await engine.runService.create(buildRun('other', 'running'));
+        await engine.runService.create(buildRun('x', 'waiting', {
             parentRunId: 'other',
             waiting: {
                 ...dispatchWait,
@@ -737,23 +717,23 @@ describe('isJobSettled', () => {
             },
         }));
 
-        expect(await isJobSettled(store.runs, root)).toBe(false);
+        expect(await isJobSettled(engine.runService, root)).toBe(false);
     });
 });
 
 describe('isQueuedBehindApproval', () => {
     it('a queued run behind a dispatch-waiting run of its key is not behind an approval', async () => {
         const clock = new ControllableClock(T);
-        const store = createMemoryStore({ clock });
+        const engine = createTestEngine({ agents: [], clock });
 
-        await store.runs.insert(buildRun('a', 'waiting', { concurrencyKey: 'k', waiting: dispatchWait }));
+        await engine.runService.create(buildRun('a', 'waiting', { concurrencyKey: 'k', waiting: dispatchWait }));
 
         const queued = buildRun('b', 'queued', { concurrencyKey: 'k' });
 
-        await store.runs.insert(queued);
-        expect(await isQueuedBehindApproval(store.runs, queued)).toBe(false);
+        await engine.runService.create(queued);
+        expect(await isQueuedBehindApproval(engine.runService, queued)).toBe(false);
 
-        await store.runs.insert(buildRun('c', 'waiting', { concurrencyKey: 'k', waiting: approvalWait }));
-        expect(await isQueuedBehindApproval(store.runs, queued)).toBe(true);
+        await engine.runService.create(buildRun('c', 'waiting', { concurrencyKey: 'k', waiting: approvalWait }));
+        expect(await isQueuedBehindApproval(engine.runService, queued)).toBe(true);
     });
 });

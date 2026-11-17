@@ -8,14 +8,14 @@
 import { ChamviError, ErrorCode } from '@chamvi/core';
 import type { ConnectionTypeDefinition, ConnectionValues } from '@chamvi/core';
 import { TEST_MESSAGE_MAX_LENGTH, TEST_TIMEOUT_MS } from '../constants.ts';
-import type { ConnectionServiceContext } from '../types.ts';
+import type { ConnectionHttpServiceContext } from '../types.ts';
 
 /**
  * Runs a test within TEST_TIMEOUT_MS on the clock: the test's signal aborts,
  * and a test that ignores it still ends here.
  */
 export async function runTest(
-    ctx: ConnectionServiceContext,
+    ctx: ConnectionHttpServiceContext,
     test: NonNullable<ConnectionTypeDefinition['test']>,
     values: ConnectionValues,
     outer: AbortSignal,

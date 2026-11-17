@@ -6,7 +6,7 @@
  */
 
 import { cron } from '@chamvi/channel-cron';
-import { InvalidAgentDefinitionError, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type { Agent, IChannel } from '@chamvi/core';
 import { http, webhook } from '@chamvi/http';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
@@ -33,6 +33,7 @@ import { buildHarness } from '../../utils/harness.ts';
 import type { Harness } from '../../utils/harness.ts';
 import { createRecordingLogger } from '../../utils/logger.ts';
 import { freePort } from '../../utils/port.ts';
+import { createTestStore, storeModuleOf } from '../../utils/store.ts';
 
 let harnesses: Harness[] = [];
 let apps: IApp[] = [];
@@ -237,7 +238,7 @@ describe('channels', () => {
             })],
             modules: [
                 configModule({ clock, logger: createRecordingLogger(clock) }),
-                storeModule({ store: createMemoryStore({ clock }) }),
+                storeModuleOf(createTestStore({ clock })),
                 contributing('spy', spyChannel('spy', events)),
             ],
         });

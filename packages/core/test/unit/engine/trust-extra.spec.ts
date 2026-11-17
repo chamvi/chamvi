@@ -15,27 +15,22 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
-    MemoryConversationRepository,
     agent,
     agentChannel,
-    createMemoryStore,
     defineEffectTool,
     defineModelAgent,
     defineTool,
     dispatch,
 } from '@chamvi/core';
-import type {
-    ModelAgentDefinition,
-    RunTaint,
-    ToolContext,
-} from '@chamvi/core';
+import type { Engine, ModelAgentDefinition, ToolContext } from '@chamvi/core';
+import type { RunTaint } from '@chamvi/store';
 import { createRunArtifacts } from '../../../src/artifact/module.ts';
 import { systemClock } from '../../../src/clock/index.ts';
 import { wrapToolsForRun } from '../../../src/effect/wrap.ts';
 import { createAgentState } from '../../../src/state/module.ts';
 import { bindTrust } from '../../../src/trust/module.ts';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: Engine[] = [];
 const call = (toolName: string, input = {}) => ({
@@ -59,9 +54,9 @@ afterEach(async () => {
     vi.restoreAllMocks();
 });
 
-function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>, store = createMemoryStore()) {
-    const engine = new Engine({
-        store,
+function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>, store = createTestServices()) {
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
@@ -75,7 +70,7 @@ function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>, 
 }
 
 it.each(['generator', 'iterable factory'] as const)('persists taint before a streaming %s yields its first SDK-visible value', async (kind) => {
-    const store = createMemoryStore();
+    const store = createTestServices();
     const context: ToolContext = {
         run: {
             runId: 'stream-test',
@@ -94,8 +89,8 @@ it.each(['generator', 'iterable factory'] as const)('persists taint before a str
                 throw new Error('No channel');
             },
         },
-        state: createAgentState('test', undefined, store.state),
-        artifacts: createRunArtifacts(store.artifacts, { id: 'stream-test', agent: 'test' }, systemClock),
+        state: createAgentState('test', undefined, store.stateService),
+        artifacts: createRunArtifacts(store.artifactService, { id: 'stream-test', agent: 'test' }, systemClock),
     };
     const writing = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
@@ -120,7 +115,7 @@ it.each(['generator', 'iterable factory'] as const)('persists taint before a str
         trust: { taint: true },
         execute: kind === 'generator' ? chunks : () => chunks(),
     });
-    const wrapped = wrapToolsForRun({ reader }, context, store.effects);
+    const wrapped = wrapToolsForRun({ reader }, context, store.effectService);
     const result = wrapped.reader!.execute!({}, {
         toolCallId: 'read',
         messages: [],
@@ -163,7 +158,7 @@ it.each(['generator', 'iterable factory'] as const)('persists taint before a str
 it('taints a streaming Engine reader before its result hook and denies the next outbound call', async () => {
     const observed: Array<RunTaint | undefined> = [];
     const send = vi.fn(async () => 'sent');
-    const store = createMemoryStore();
+    const store = createTestServices();
     const { engine } = setup({
         trust: { onTainted: 'deny' },
         model: mockModel([call('reader'), call('send'), done]),
@@ -185,7 +180,7 @@ it('taints a streaming Engine reader before its result hook and denies the next 
         hooks: {
             afterToolExecution: async ({ toolName }, context) => {
                 if (toolName === 'reader') {
-                    observed.push((await store.runs.findOne(context.run.runId))?.taint);
+                    observed.push((await store.runService.findOne(context.run.runId))?.taint);
                 }
             },
         },
@@ -200,18 +195,18 @@ it('taints a streaming Engine reader before its result hook and denies the next 
     expect(observed).toHaveLength(1);
     expect(observed.every((taint) => taint?.source === 'tool:reader')).toBe(true);
     expect(send).not.toHaveBeenCalled();
-    expect((await store.steps.find(runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
-    expect((await store.runs.findOne(runId))?.status).toBe('completed');
+    expect((await store.stepService.find(runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
+    expect((await store.runService.findOne(runId))?.status).toBe('completed');
 });
 
 it.each(['cached', 'reconciled'] as const)('taints %s untrusted effect results even when execute is skipped', async (kind) => {
-    const store = createMemoryStore();
+    const store = createTestServices();
     const execute = vi.fn(async () => 'fresh external text');
     const reconcile = vi.fn(async () => 'recovered external text');
     const send = vi.fn(async () => 'sent');
 
     if (kind === 'cached') {
-        await store.effects.save('external-read', 'cached external text');
+        await store.effectService.save('external-read', 'cached external text');
     }
 
     const { engine } = setup({
@@ -241,22 +236,22 @@ it.each(['cached', 'reconciled'] as const)('taints %s untrusted effect results e
 
     expect(execute).not.toHaveBeenCalled();
     expect(reconcile).toHaveBeenCalledTimes(kind === 'cached' ? 0 : 1);
-    expect((await store.runs.findOne(runId))?.taint).toMatchObject({ source: 'tool:reader' });
+    expect((await store.runService.findOne(runId))?.taint).toMatchObject({ source: 'tool:reader' });
     expect(send).not.toHaveBeenCalled();
-    expect((await store.steps.find(runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
-    expect((await store.runs.findOne(runId))?.status).toBe('completed');
+    expect((await store.stepService.find(runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
+    expect((await store.runService.findOne(runId))?.status).toBe('completed');
 });
 
 it('shares the first taint persistence across parallel readers and retains its source', async () => {
-    const store = createMemoryStore();
+    const store = createTestServices();
     const writing = Promise.withResolvers<void>();
     const bothClassified = Promise.withResolvers<void>();
     const release = Promise.withResolvers<void>();
     const taints: RunTaint[] = [];
-    const update = store.runs.update.bind(store.runs);
+    const update = store.runService.update.bind(store.runService);
     let classifications = 0;
 
-    vi.spyOn(store.runs, 'update').mockImplementation(async (id, patch, options) => {
+    vi.spyOn(store.runService, 'update').mockImplementation(async (id, patch, options) => {
         if (patch.taint) {
             taints.push(patch.taint);
             writing.resolve();
@@ -308,7 +303,7 @@ it('shares the first taint persistence across parallel readers and retains its s
 
     try {
         expect(taints).toHaveLength(1);
-        expect((await store.runs.findOne(runId))?.taint).toBeUndefined();
+        expect((await store.runService.findOne(runId))?.taint).toBeUndefined();
     } finally {
         release.resolve();
     }
@@ -317,9 +312,9 @@ it('shares the first taint persistence across parallel readers and retains its s
 
     expect(taints).toHaveLength(1);
     expect(taints[0]?.source).toBe('tool:first');
-    expect((await store.runs.findOne(runId))?.taint).toEqual(taints[0]);
+    expect((await store.runService.findOne(runId))?.taint).toEqual(taints[0]);
     expect(send).not.toHaveBeenCalled();
-    expect((await store.runs.findOne(runId))?.status).toBe('completed');
+    expect((await store.runService.findOne(runId))?.status).toBe('completed');
 });
 
 it('applies agent trust overrides to foreign tools without replacing their own context', async () => {
@@ -359,17 +354,17 @@ it('applies agent trust overrides to foreign tools without replacing their own c
 
     expect(seen).toHaveLength(1);
     expect(seen[0]).toEqual(context);
-    expect((await store.runs.findOne(runId))?.taint).toMatchObject({ source: 'tool:foreign' });
+    expect((await store.runService.findOne(runId))?.taint).toMatchObject({ source: 'tool:foreign' });
     expect(send).not.toHaveBeenCalled();
-    expect((await store.steps.find(runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
-    expect((await store.runs.findOne(runId))?.status).toBe('completed');
+    expect((await store.stepService.find(runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
+    expect((await store.runService.findOne(runId))?.status).toBe('completed');
 });
 
 it('inherits a tainted parent into a dispatched run and blocks child outbound effects', async () => {
     const parentModel = mockModel([call('reader'), call('fan'), done]);
     const childModel = mockModel([call('send'), done]);
     const send = vi.fn(async () => 'sent');
-    const store = createMemoryStore();
+    const store = createTestServices();
     const tester = defineModelAgent({
         name: 'test',
         instructions: 'test',
@@ -398,8 +393,8 @@ it('inherits a tainted parent into a dispatched run and blocks child outbound ef
             }),
         },
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [tester],
         channels: [agentChannel()],
     });
@@ -411,8 +406,8 @@ it('inherits a tainted parent into a dispatched run and blocks child outbound ef
 
     await engine.idle();
 
-    const parent = await store.runs.findOne(runId);
-    const { data } = await store.runs.find({ agent: 'test' });
+    const parent = await store.runService.findOne(runId);
+    const { data } = await store.runService.find({ agent: 'test' });
     const children = data.filter((run) => run.trigger.parent?.runId === runId);
 
     expect(children).toHaveLength(1);
@@ -420,18 +415,17 @@ it('inherits a tainted parent into a dispatched run and blocks child outbound ef
     expect(children[0]?.taint).toEqual(parent?.taint);
     expect(children[0]?.status).toBe('completed');
     expect(send).not.toHaveBeenCalled();
-    expect((await store.steps.find(children[0]!.id)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
+    expect((await store.stepService.find(children[0]!.id)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
 });
 
 it('taints conversation recall before the next model call and gates outbound tools', async () => {
-    const store = createMemoryStore();
-    const conversations = new MemoryConversationRepository();
+    const store = createTestServices();
     const send = vi.fn(async () => 'sent');
     const script = mockModel([done, call('send'), done]);
     const taintsAtModel: Array<RunTaint | undefined> = [];
     const model = new MockLanguageModelV4({
         doStream: async (options) => {
-            const { data } = await store.runs.find({ agent: 'test' });
+            const { data } = await store.runService.find({ agent: 'test' });
 
             taintsAtModel.push(data.find((run) => run.status === 'running')?.taint);
 
@@ -439,8 +433,8 @@ it('taints conversation recall before the next model call and gates outbound too
         },
     });
     const channel = { name: 'chat' };
-    const engine = new Engine({
-        store: { ...store, conversations },
+    const engine = createTestEngine({
+        services: store,
         channels: [channel],
         conversations: { authorize: () => true },
         agents: [defineModelAgent({
@@ -479,19 +473,19 @@ it('taints conversation recall before the next model call and gates outbound too
 
     await engine.idle();
 
-    expect((await store.runs.findOne(first.runId))?.taint).toBeUndefined();
+    expect((await store.runService.findOne(first.runId))?.taint).toBeUndefined();
 
     const second = await dispatch('current user message');
 
     await engine.idle();
 
-    expect((await store.runs.findOne(second.runId))?.taint).toMatchObject({ source: 'conversation:recall' });
+    expect((await store.runService.findOne(second.runId))?.taint).toMatchObject({ source: 'conversation:recall' });
     expect(taintsAtModel[0]).toBeUndefined();
     expect(taintsAtModel.slice(1)).toEqual([
         expect.objectContaining({ source: 'conversation:recall' }),
         expect.objectContaining({ source: 'conversation:recall' }),
     ]);
     expect(send).not.toHaveBeenCalled();
-    expect((await store.steps.find(second.runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
-    expect((await store.runs.findOne(second.runId))?.status).toBe('completed');
+    expect((await store.stepService.find(second.runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
+    expect((await store.runService.findOne(second.runId))?.status).toBe('completed');
 });

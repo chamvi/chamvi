@@ -19,7 +19,6 @@ import {
     InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
-    createMemoryStore,
     resolveConnection,
 } from '@chamvi/core';
 import type {
@@ -28,7 +27,7 @@ import type {
     IConnectionConfigStore,
     IConnectionTypeProvider,
 } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { ConnectionConfigService } from '../../../src/connections/service/index.ts';
 import type { IConnectionConfigService } from '../../../src/connections/types.ts';
 import { principalOf } from '../../utils/principal.ts';
@@ -81,7 +80,9 @@ type SetupOptions = {
 
 function setup(options: SetupOptions = {}) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const engine = createTestEngine({ agents: [], clock });
+    const connectionService = engine.connectionService!;
+    const { lockService } = engine;
     const definition = options.definition ?? mailDefinition();
     const declared = options.declared?.(definition) ?? [];
     const provider: IConnectionTypeProvider = {
@@ -91,7 +92,8 @@ function setup(options: SetupOptions = {}) {
     };
     const key = randomBytes(32);
     const real = createConnectionConfigStore({
-        store,
+        connectionService,
+        lockService,
         clock,
         keyring: options.keyring ?? (() => createKeyring([{ id: 'k1', key }])),
     });
@@ -101,7 +103,7 @@ function setup(options: SetupOptions = {}) {
         connections: () => [],
         connectionTypes: () => [provider],
         connectionConfigs: configs,
-        store,
+        connectionService,
         clock,
         onError: () => undefined,
         uiPages: () => [{

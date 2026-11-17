@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { eq, inArray } from '@rapiq/core';
 import { describe, expect, it } from 'vitest';
 import { parseRunListQuery } from '../../../src/runs/helpers.ts';
 
@@ -13,39 +14,39 @@ const parse = (query: string) => parseRunListQuery(new URLSearchParams(query));
 describe('parseRunListQuery', () => {
     it('defaults the page', () => {
         expect(parse('')).toEqual({
+            filters: [],
             limit: 50,
             offset: 0,
-            order: 'asc',
+            sorts: {},
         });
     });
 
-    it('defaults order to asc', () => {
-        expect(parse('sort=createdAt').order).toBe('asc');
+    it('keeps sort=createdAt ascending', () => {
+        expect(parse('sort=createdAt').sorts).toEqual({ createdAt: 'ASC' });
     });
 
-    it('reads sort=-createdAt as order desc', () => {
-        expect(parse('sort=-createdAt').order).toBe('desc');
+    it('reads sort=-createdAt as createdAt descending', () => {
+        expect(parse('sort=-createdAt').sorts).toEqual({ createdAt: 'DESC' });
     });
 
     it('reads agent, status and the page', () => {
         expect(parse('filter[agent]=echo&filter[status]=queued,running&page[limit]=5&page[offset]=2&sort=createdAt')).toEqual({
+            filters: [eq('agent', 'echo'), inArray('status', ['queued', 'running'])],
             agent: 'echo',
-            status: ['queued', 'running'],
             limit: 5,
             offset: 2,
-            order: 'asc',
+            sorts: { createdAt: 'ASC' },
         });
-        expect(parse('filter[status]=queued').status).toEqual(['queued']);
+        expect(parse('filter[status]=queued').filters).toEqual([inArray('status', ['queued'])]);
     });
 
     it('parses filter[parent]', () => {
         expect(parse('filter[parent]=run-1&filter[agent]=echo&filter[status]=completed')).toEqual({
-            parent: 'run-1',
+            filters: [eq('parentRunId', 'run-1'), eq('agent', 'echo'), inArray('status', ['completed'])],
             agent: 'echo',
-            status: ['completed'],
             limit: 50,
             offset: 0,
-            order: 'asc',
+            sorts: {},
         });
     });
 

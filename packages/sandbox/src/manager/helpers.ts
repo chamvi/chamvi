@@ -10,10 +10,10 @@ import type { JSONSchema7 } from 'ai';
 import {
     ChamviError,
     InvalidAgentDefinitionError,
-    RunStatus,
     SandboxError,
     ValidationError,
 } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
 import { isObject } from 'smob';
 import { assertSandboxEnv, resolveLimits } from '../limits/module.ts';
 import { assertDeployment, assertImageOption } from '../provider/module.ts';

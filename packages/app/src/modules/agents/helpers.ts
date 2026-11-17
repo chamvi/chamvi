@@ -62,7 +62,7 @@ export function nextRetryDelay(previous: number | undefined, pollMs: number): nu
  * `keep` gets the agent name and the stored marker.
  */
 export async function removeOrphanAgents(engine: IEngine, keep: (name: string, marker: string) => boolean): Promise<void> {
-    for (const marker of await engine.store.agentRevisions.find()) {
+    for (const marker of await engine.agentRevisionService.find()) {
         if (!keep(marker.agent, marker.hash)) {
             await engine.removeAgent(marker.agent);
         }

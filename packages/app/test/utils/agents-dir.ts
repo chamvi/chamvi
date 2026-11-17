@@ -6,12 +6,14 @@
  */
 
 import {
-    Engine,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
-import type { Agent, IStore } from '@chamvi/core';
-import { ControllableClock, mockModel, textModel } from '@chamvi/test-kit';
+import type { Agent } from '@chamvi/core';
+import {
+    ControllableClock,
+    mockModel,
+    textModel,
+} from '@chamvi/test-kit';
 import { customProvider } from 'ai';
 import type { AppMode, IModule  } from '@chamvi/app';
 import {
@@ -20,12 +22,13 @@ import {
     configModule,
     engineModule,
     runHooks,
-    storeModule,
 } from '@chamvi/app';
 import { hangingModel } from './app.ts';
 import { buildHarness } from './harness.ts';
 import type { Harness } from './harness.ts';
 import { createRecordingLogger } from './logger.ts';
+import { createTestStore, engineOver, storeModuleOf } from './store.ts';
+import type { TestStore } from './store.ts';
 
 export const START = new Date('2026-10-22T00:00:00Z');
 export const POLL_MS = 1_000;
@@ -67,9 +70,8 @@ export function agentInCode(name: string): Agent {
 }
 
 /** A queued run of `name`, dispatched through an engine that never starts. */
-export async function queueRun(store: IStore, clock: ControllableClock, name: string): Promise<string> {
-    const engine = new Engine({
-        store,
+export async function queueRun(store: TestStore, clock: ControllableClock, name: string): Promise<string> {
+    const engine = engineOver(store, {
         clock,
         agents: [agentInCode(name)],
     });
@@ -98,7 +100,7 @@ export type AgentsDirHarnessOptions = {
     job?: { agent: string };
     /** Check mode (`IApp.check()`): mode stays `start`. */
     check?: boolean;
-    store?: IStore;
+    store?: TestStore;
     clock?: ControllableClock;
     agents?: Agent[];
     env?: Record<string, string>;
@@ -110,7 +112,7 @@ export type AgentsDirHarnessOptions = {
 export function buildAgentsDirHarness(options: AgentsDirHarnessOptions) {
     const clock = options.clock ?? new ControllableClock(START);
     const logger = createRecordingLogger(clock);
-    const store = options.store ?? createMemoryStore({ clock });
+    const store = options.store ?? createTestStore({ clock });
     const module = new AgentsModule({
         ...(options.cwd !== undefined && { cwd: options.cwd }),
         ...(options.importer !== undefined && { importer: options.importer }),
@@ -130,7 +132,7 @@ export function buildAgentsDirHarness(options: AgentsDirHarnessOptions) {
         models: { test: provider() },
         modules: [
             configModule({ clock, logger }),
-            storeModule({ store }),
+            storeModuleOf(store),
             engineModule(),
             module,
             ...options.modules ?? [],

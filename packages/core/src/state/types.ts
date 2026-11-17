@@ -6,6 +6,7 @@
  */
 
 import type { StandardSchemaV1 } from '@standard-schema/spec';
+import type { IStateDocumentRepository, IStateRepository } from '@chamvi/store';
 
 export type StateSchema = Record<string, StandardSchemaV1>;
 export type Infer<T extends StandardSchemaV1> = StandardSchemaV1.InferOutput<T>;
@@ -20,3 +21,20 @@ export interface IAgentState<S extends StateSchema = StateSchema> {
         remove(id: string): Promise<void>;
     };
 }
+
+export type StateServiceContext = {
+    /** The key-value port. */
+    repository: IStateRepository;
+    /** The document port. */
+    documentRepository: IStateDocumentRepository;
+};
+
+export type StateFindOptions = { limit?: number; offset?: number };
+
+export type StateDocumentFindOptions = { where?: Record<string, unknown>; limit?: number };
+
+/** One key of an agent's state. */
+export type StateEntryValue = { key: string; value: unknown };
+
+/** One document of a collection: its id and the document. */
+export type StateDocumentValue = { id: string; doc: unknown };

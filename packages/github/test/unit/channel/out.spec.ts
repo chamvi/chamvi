@@ -14,11 +14,12 @@ import {
 import {
     ChamviError,
     InvalidAgentDefinitionError,
-    MemoryLockRepository,
     ValidationError,
 } from '@chamvi/core';
-import type { ChannelMessage, TriggerEnvelope } from '@chamvi/core';
+import type { ChannelMessage } from '@chamvi/core';
+import type { TriggerEnvelope } from '@chamvi/store';
 import { GITHUB_CHANNEL_TIMEOUT_MS, githubChannel } from '@chamvi/github';
+import { createTestEngine } from '@chamvi/test-kit';
 import type { GithubAppOptions, GithubChannelOptions } from '@chamvi/github';
 import { renderComment } from '../../../src/channel/helpers.ts';
 import {
@@ -43,11 +44,13 @@ function setup(
         app: fixture.gh,
         mention: 'owner',
         clock: fixture.clock,
+        // each channel coordinates through its own lock service unless a case shares one
+        locks: createTestEngine({ agents: [], clock: fixture.clock }).lockService,
         ...patch,
         ...overrides,
     });
     const channel = peer();
-    const send = (
+    const send = async (
         message: ChannelMessage = defaultMessage,
         address = ADDRESS,
         trigger: TriggerEnvelope = githubTrigger(),
@@ -541,7 +544,7 @@ describe('githubChannel persistent comments', () => {
     });
 
     it('lets a send wait for a busy slot with shared locks, then update the winner\'s comment', async () => {
-        const locks = new MemoryLockRepository();
+        const locks = createTestEngine({ agents: [] }).lockService;
         const {
             send,
             fake,
@@ -591,7 +594,7 @@ describe('githubChannel persistent comments', () => {
     });
 
     it('fails as busy when the slot stays locked for the whole timeout', async () => {
-        const locks = new MemoryLockRepository();
+        const locks = createTestEngine({ agents: [] }).lockService;
         const acquire = vi.spyOn(locks, 'acquire').mockResolvedValue(false);
         const {
             send,
@@ -698,7 +701,7 @@ describe('githubChannel persistent comments', () => {
     });
 
     it.each(['abort', 'timeout'])('rejects promptly on %s while acquiring, and releases a late acquisition without writing', async (mode) => {
-        const locks = new MemoryLockRepository();
+        const locks = createTestEngine({ agents: [] }).lockService;
         const release = vi.spyOn(locks, 'release');
         const acquire = Promise.withResolvers<boolean>();
 
@@ -753,7 +756,6 @@ describe('githubChannel persistent comments', () => {
 
                     throw new Error('lock store unavailable');
                 },
-                renew: async () => false,
                 release: async () => {},
             },
         });
@@ -762,7 +764,7 @@ describe('githubChannel persistent comments', () => {
     });
 
     it('resolves a delivered comment while the release stays pending, never as a timeout', async () => {
-        const locks = new MemoryLockRepository();
+        const locks = createTestEngine({ agents: [] }).lockService;
         const entered = Promise.withResolvers<void>();
 
         vi.spyOn(locks, 'release').mockImplementation(() => {
@@ -786,8 +788,115 @@ describe('githubChannel persistent comments', () => {
         expect(onError).not.toHaveBeenCalled();
     });
 
+    it('sends twice to one slot without settling in between, both delivered and no clock advanced', async () => {
+        const {
+            channel,
+            fake,
+            patches,
+        } = setupPersistent();
+        const out = (body: string, runId: string) => channel.out!({
+            ...STATUS_APPROVAL,
+            body,
+            runId,
+        }, ADDRESS, { signal: new AbortController().signal, trigger: githubTrigger() });
+
+        // the second send starts while the first one's release is still pending: it waits for it, not for a backoff
+        await out('First run', 'r1');
+        await out('Second run', 'r2');
+
+        expect(fake.comments.get(ADDRESS)).toHaveLength(1);
+        expect(patches()).toHaveLength(1);
+        expect(fake.comments.get(ADDRESS)?.[0]?.body).toContain('Second run');
+    });
+
+    it('a release that never answers holds its slot no longer than the lease: the next send then delivers', async () => {
+        const {
+            peer,
+            fake,
+            clock,
+            patches,
+        } = setupPersistent();
+        // the leases run on the channel's clock, so the one the hanging release left can expire
+        const locks = createTestEngine({ agents: [], clock }).lockService;
+        const entered = Promise.withResolvers<void>();
+
+        vi.spyOn(locks, 'release').mockImplementationOnce(() => {
+            entered.resolve();
+
+            return new Promise(() => {});
+        });
+
+        const onError = vi.fn();
+        const channel = peer({ locks, onError });
+        const out = (runId: string, body: string) => channel.out!({
+            ...STATUS_APPROVAL,
+            runId,
+            body,
+        }, ADDRESS, { signal: new AbortController().signal, trigger: githubTrigger() });
+
+        await out('r1', 'First run');
+        await entered.promise;
+        // the lease the hanging release left (twice the timeout) ends
+        clock.advance(GITHUB_CHANNEL_TIMEOUT_MS * 2);
+
+        let settled = false;
+        // the outcome, never a rejection left unhandled while the clock is driven
+        const second = out('r2', 'Second run').then(() => undefined, (error: unknown) => error).finally(() => {
+            settled = true;
+        });
+
+        await driveUntil(clock, () => settled);
+        expect(await second).toBeUndefined();
+        expect(patches()).toHaveLength(1);
+        expect(fake.comments.get(ADDRESS)?.[0]?.body).toContain('Second run');
+        expect(onError).not.toHaveBeenCalled();
+    });
+
+    it('a send to one slot is not held by the pending release of another slot', async () => {
+        const locks = createTestEngine({ agents: [] }).lockService;
+
+        vi.spyOn(locks, 'release').mockImplementationOnce(() => new Promise(() => {}));
+
+        const { channel, fake } = setupPersistent({ locks });
+        const out = (slot: string) => channel.out!({ ...STATUS_APPROVAL, slot }, ADDRESS, {
+            signal: new AbortController().signal,
+            trigger: githubTrigger(),
+        });
+
+        await out('a');
+        // slot a's release never settles; slot b goes ahead without the clock moving
+        await out('b');
+
+        expect(fake.comments.get(ADDRESS)).toHaveLength(2);
+    });
+
+    it('a release that rejects after it landed does not hold the next send of the slot', async () => {
+        const locks = createTestEngine({ agents: [] }).lockService;
+        const release = locks.release.bind(locks);
+        const failure = new Error('lock store answered late');
+
+        vi.spyOn(locks, 'release').mockImplementationOnce(async (key, owner) => {
+            await release(key, owner);
+
+            throw failure;
+        });
+
+        const onError = vi.fn();
+        const { channel, fake } = setupPersistent({ locks, onError });
+        const out = (runId: string) => channel.out!({ ...STATUS_APPROVAL, runId }, ADDRESS, {
+            signal: new AbortController().signal,
+            trigger: githubTrigger(),
+        });
+
+        await out('r1');
+        await out('r2');
+
+        expect(onError).toHaveBeenCalledWith(failure);
+        expect(fake.comments.get(ADDRESS)).toHaveLength(1);
+    });
+
     it('reports a rejected release to onError and still resolves the delivered comment', async () => {
-        const locks = new MemoryLockRepository();
+        const locks = createTestEngine({ agents: [] }).lockService;
         const failure = new Error('lock store unavailable');
 
         vi.spyOn(locks, 'release').mockRejectedValueOnce(failure);
@@ -801,7 +910,7 @@ describe('githubChannel persistent comments', () => {
     });
 
     it('contains a release that throws synchronously and an onError that throws', async () => {
-        const locks = new MemoryLockRepository();
+        const locks = createTestEngine({ agents: [] }).lockService;
         const failure = new Error('lock store broke');
 
         vi.spyOn(locks, 'release').mockImplementationOnce(() => {
@@ -831,7 +940,7 @@ describe('githubChannel persistent comments', () => {
     });
 
     it('releases when abort races the successful acquisition callback', async () => {
-        const locks = new MemoryLockRepository();
+        const locks = createTestEngine({ agents: [] }).lockService;
         const acquire = Promise.withResolvers<boolean>();
         const release = vi.spyOn(locks, 'release');
         const acquireLock = vi.spyOn(locks, 'acquire').mockImplementationOnce(() => acquire.promise);
@@ -1159,6 +1268,7 @@ describe('github channel out', () => {
             app: gh,
             name: 'github-ent',
             clock,
+            locks: createTestEngine({ agents: [], clock }).lockService,
         });
 
         await channel.out!(APPROVAL, ADDRESS, {

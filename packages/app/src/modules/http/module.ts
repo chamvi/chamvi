@@ -162,8 +162,8 @@ export class HttpModule implements IModule {
             channels: container.resolveAll(AppToken.CHANNELS).filter((channel) => typeof channel.in === 'function'),
             connections: () => connections,
             connectionTypes: () => connectionTypes,
-            // a store without connections (a custom one) stays env-only: the token would throw
-            ...(engine.store.connections && { connectionConfigs: container.resolve(AppToken.CONNECTION_CONFIGS) }),
+            // a store without connections (a custom one) stays env-only: the engine has no connection service
+            ...(engine.connectionService && { connectionConfigs: container.resolve(AppToken.CONNECTION_CONFIGS) }),
             uiPages: () => uiPages,
             ...(container.has(AppToken.AGENT_ISSUES) && { agentIssues: container.resolve(AppToken.AGENT_ISSUES) }),
             onError: (error) => logger.error('http error', error),

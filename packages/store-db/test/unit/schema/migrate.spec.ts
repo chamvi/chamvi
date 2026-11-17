@@ -13,17 +13,18 @@ import {
     expect,
     it,
 } from 'vitest';
-import { createDatabaseStore } from '@chamvi/store-db';
 import { testUuid } from '@chamvi/test-kit';
 import { TableName } from '../../../src/entities/constants.ts';
 import { STORE_MIGRATIONS, migrateStore, pendingMigrations } from '../../../src/schema/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { TestDataSourceOptions } from '../../utils/database.ts';
+import { createTestServices } from '../../utils/store.ts';
 
 const BASELINE = 'UuidBaseline1794096000000';
 const CONNECTION_CONFIG = 'ConnectionConfig1794230765000';
 const RUN_AGENT_REVISION = 'RunAgentRevision1794484800000';
+const ITEM_BYTES = 'ConversationItemBytes1794873600000';
 
 /** The unique key that carries each table's natural identity, as Postgres lists the columns. */
 const NATURAL_KEYS: [string, string][] = [
@@ -64,6 +65,24 @@ describePostgres('schema', () => {
         return rows.length;
     };
 
+    const itemColumns = async (ds: DataSource) => {
+        const rows: { column_name: string }[] = await ds.query(
+            'SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1',
+            [TableName.CONVERSATION_ITEMS],
+        );
+
+        return rows.map((row) => row.column_name);
+    };
+
+    /** Undo the migrations after the released baseline (v0.8.0): the schema a deployment upgrades from. */
+    const toReleasedBaseline = async (ds: DataSource) => {
+        for (let undone = 0; undone < STORE_MIGRATIONS.length - 1; undone++) {
+            await ds.undoLastMigration({ transaction: 'each' });
+        }
+
+        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG, RUN_AGENT_REVISION, ITEM_BYTES]);
+    };
+
     afterEach(async () => {
         await Promise.all(dataSources.map((ds) => ds.destroy()));
         dataSources.length = 0;
@@ -73,6 +92,192 @@ describePostgres('schema', () => {
         const ds = await create();
 
         await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
+    });
+
+    it('stores a conversation item\'s byte length in a NOT NULL integer column without a default', async () => {
+        const ds = await create();
+        const rows: {
+            data_type: string,
+            is_nullable: string,
+            column_default: string | null
+        }[] = await ds.query(
+            'SELECT data_type, is_nullable, column_default FROM information_schema.columns WHERE table_name = $1 AND column_name = $2',
+            [TableName.CONVERSATION_ITEMS, 'bytes'],
+        );
+
+        expect(rows).toEqual([{
+            data_type: 'integer',
+            is_nullable: 'NO',
+            column_default: null,
+        }]);
+    });
+
+    it('upgrades existing conversation items from the released baseline with their byte length', async () => {
+        const ds = await create();
+        const scopeId = testUuid('scope');
+        const runId = testUuid('run');
+        // every shape the service stores: a user input, emits with and without effect key and target, pending, sent and unknown
+        const items = [
+            {
+                key: 'user:a',
+                role: 'user',
+                text: 'plain ascii',
+                status: 'sent',
+            },
+            {
+                key: 'assistant:a:0',
+                role: 'assistant',
+                text: 'é中€ß',
+                status: 'sent',
+                effect: 'e0',
+                channel: 'chat',
+                address: 'room',
+            },
+            {
+                key: 'assistant:a:1',
+                role: 'assistant',
+                text: '😀🎉 and 𝄞',
+                status: 'unknown',
+                effect: 'e1',
+                channel: 'chat',
+                address: '',
+            },
+            {
+                key: 'assistant:a:2',
+                role: 'assistant',
+                text: 'mixed é 😀 x',
+                status: 'pending',
+            },
+            {
+                key: 'user:b',
+                role: 'user',
+                text: 'x'.repeat(70_000),
+                status: 'sent',
+            },
+            {
+                key: 'user:c',
+                role: 'user',
+                text: '中'.repeat(30_000),
+                status: 'sent',
+            },
+        ];
+
+        await toReleasedBaseline(ds);
+        await ds.query(
+            `INSERT INTO "${TableName.RUNS}" (id, agent, status, trigger, usage, created_at, updated_at)
+             VALUES ($1, 'helper', 'running', $2, $3, now(), now())`,
+            [runId, JSON.stringify({
+                id: 't',
+                agent: 'helper',
+                trigger: 'message',
+                channel: 'chat',
+                payload: {},
+                receivedAt: new Date().toISOString(),
+            }), JSON.stringify({ inputTokens: 0, outputTokens: 0 })],
+        );
+        await ds.query(
+            `INSERT INTO "${TableName.CONVERSATIONS}" (id, key, agent, channel, account, chat, audience, generation)
+             VALUES ($1, $2, 'helper', 'chat', 'main', 'room', 'direct', 0)`,
+            [scopeId, 'f'.repeat(64)],
+        );
+
+        for (const item of items) {
+            await ds.query(
+                `INSERT INTO "${TableName.CONVERSATION_ITEMS}"
+                 (scope_id, generation, key, run_id, created_at, role, text, status, effect_key, target_channel, target_address)
+                 VALUES ($1, 0, $2, $3, now(), $4, $5, $6, $7, $8, $9)`,
+                [scopeId, item.key, runId, item.role, item.text, item.status, item.effect ?? null, item.channel ?? null, item.address ?? null],
+            );
+        }
+
+        await migrateStore(ds);
+
+        const rows: {
+            key: string,
+            text: string,
+            bytes: number
+        }[] = await ds.query(
+            `SELECT key, text, bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY id`,
+        );
+
+        expect(rows.map((row) => row.key)).toEqual(items.map((item) => item.key));
+
+        for (const row of rows) {
+            expect(row.bytes, row.key).toBe(Buffer.byteLength(row.text, 'utf8'));
+        }
+
+        expect(rows.map((row) => row.bytes)).toEqual([11, 10, 17, 15, 70_000, 90_000]);
+        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
+
+        // rollback and reapply keep the backfilled lengths
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await itemColumns(ds)).not.toContain('bytes');
+        await migrateStore(ds);
+        expect((await ds.query(`SELECT bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY id`)).map((row: { bytes: number }) => row.bytes))
+            .toEqual([11, 10, 17, 15, 70_000, 90_000]);
+
+        const store = createTestServices({ dataSource: ds });
+        const scope = {
+            id: scopeId,
+            generation: 0,
+            identity: {
+                agent: 'helper',
+                channel: 'chat',
+                account: 'main',
+                chat: 'room',
+                audience: 'direct',
+            },
+        };
+
+        expect((await store.conversationService.findItems(scope, { limit: 10, offset: 0 })).total).toBe(items.length);
+    });
+
+    it('the byte length backfill counts UTF-8 bytes on a LATIN1 database too', async () => {
+        const ds = await create({ encoding: 'LATIN1' });
+        const scopeId = testUuid('scope');
+        const runId = testUuid('run');
+        // every character LATIN1 holds above ASCII is one byte there and two in UTF-8
+        const texts = ['plain ascii', 'é', 'Grüße aus Köln', 'ÿ±µ×÷ ©®°', 'ä'.repeat(70_000)];
+
+        expect((await ds.query('SHOW server_encoding'))[0].server_encoding).toBe('LATIN1');
+
+        // the step before the backfill
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await pendingMigrations(ds)).toEqual([ITEM_BYTES]);
+
+        await ds.query(
+            `INSERT INTO "${TableName.RUNS}" (id, agent, status, trigger, usage, created_at, updated_at)
+             VALUES ($1, 'helper', 'running', $2, $3, now(), now())`,
+            [runId, JSON.stringify({
+                id: 't',
+                agent: 'helper',
+                trigger: 'message',
+                channel: 'chat',
+                payload: {},
+                receivedAt: new Date().toISOString(),
+            }), JSON.stringify({ inputTokens: 0, outputTokens: 0 })],
+        );
+        await ds.query(
+            `INSERT INTO "${TableName.CONVERSATIONS}" (id, key, agent, channel, account, chat, audience, generation)
+             VALUES ($1, $2, 'helper', 'chat', 'main', 'room', 'direct', 0)`,
+            [scopeId, 'f'.repeat(64)],
+        );
+
+        for (const [index, text] of texts.entries()) {
+            await ds.query(
+                `INSERT INTO "${TableName.CONVERSATION_ITEMS}" (scope_id, generation, key, run_id, created_at, role, text, status)
+                 VALUES ($1, 0, $2, $3, now(), 'user', $4, 'sent')`,
+                [scopeId, `user:${index}`, runId, text],
+            );
+        }
+
+        await migrateStore(ds);
+
+        const rows: { text: string; bytes: number }[] = await ds.query(`SELECT text, bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY id`);
+
+        expect(rows.map((row) => row.text)).toEqual(texts);
+        expect(rows.map((row) => row.bytes)).toEqual(texts.map((text) => Buffer.byteLength(text, 'utf8')));
+        expect(rows.map((row) => row.bytes)).toEqual([11, 2, 17, 17, 140_000]);
     });
 
     it('every text column of a unique index orders by code point', async () => {
@@ -92,15 +297,20 @@ describePostgres('schema', () => {
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
-        expect(await pendingMigrations(ds)).toEqual([RUN_AGENT_REVISION]);
+        expect(await itemColumns(ds)).not.toContain('bytes');
+        expect(await pendingMigrations(ds)).toEqual([ITEM_BYTES]);
+
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
+        expect(await pendingMigrations(ds)).toEqual([RUN_AGENT_REVISION, ITEM_BYTES]);
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 1);
-        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG, RUN_AGENT_REVISION]);
+        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG, RUN_AGENT_REVISION, ITEM_BYTES]);
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(0);
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG, RUN_AGENT_REVISION]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG, RUN_AGENT_REVISION, ITEM_BYTES]);
 
         await migrateStore(ds);
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
@@ -223,8 +433,7 @@ describePostgres('schema', () => {
         const ds = await create();
         const connectionId = testUuid('connection');
 
-        await ds.undoLastMigration({ transaction: 'each' });
-        await ds.undoLastMigration({ transaction: 'each' });
+        await toReleasedBaseline(ds);
         await ds.query(
             `INSERT INTO "${TableName.CONNECTIONS}" (id, name, type, key_id, wrapped_key, created_at, updated_at)
              VALUES ($1, 'wa', 'whatsapp', 'k1', $2, now(), now())`,
@@ -237,25 +446,23 @@ describePostgres('schema', () => {
 
         await migrateStore(ds);
 
-        const store = createDatabaseStore({ dataSource: ds });
+        const store = createTestServices({ dataSource: ds });
 
-        expect(await store.connections.findConfig('wa')).toEqual({
+        expect(await store.connectionService.findConfig('wa')).toEqual({
             keyId: 'k1',
             wrappedKey: new Uint8Array([1]),
             settings: {},
             secrets: new Map(),
             revision: 0,
         });
-        expect(Array.from((await store.connections.findEntry('wa', 'creds'))!)).toEqual([2]);
+        expect(Array.from((await store.connectionService.findEntry('wa', 'creds'))!)).toEqual([2]);
     });
 
     it('upgrades existing runs from the released baseline without a revision, and they still start', async () => {
         const ds = await create();
         const runId = testUuid('legacy-run');
 
-        await ds.undoLastMigration({ transaction: 'each' });
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG, RUN_AGENT_REVISION]);
+        await toReleasedBaseline(ds);
         await ds.query(
             `INSERT INTO "${TableName.RUNS}" (id, agent, status, trigger, usage, created_at, updated_at)
              VALUES ($1, 'triage', 'queued', $2, $3, now(), now())`,
@@ -282,12 +489,20 @@ describePostgres('schema', () => {
 
         expect(row?.agent_revision).toBeNull();
 
-        const store = createDatabaseStore({ dataSource: ds });
+        const store = createTestServices({ dataSource: ds });
 
-        expect(await store.runs.findOneOrFail(runId)).not.toHaveProperty('agentRevision');
+        expect(await store.runService.findOneOrFail(runId)).not.toHaveProperty('agentRevision');
 
         const engine = new Engine({
-            store,
+            runService: store.runService,
+            stepService: store.stepService,
+            checkpointService: store.checkpointService,
+            effectService: store.effectService,
+            artifactService: store.artifactService,
+            stateService: store.stateService,
+            agentRevisionService: store.agentRevisionService,
+            lockService: store.lockService,
+            idempotencyService: store.idempotencyService,
             agents: [],
             onError: () => {},
         });
@@ -301,7 +516,7 @@ describePostgres('schema', () => {
         try {
             await engine.start({ channels: false });
             await engine.idle();
-            expect((await store.runs.findOneOrFail(runId)).status).toBe('completed');
+            expect((await store.runService.findOneOrFail(runId)).status).toBe('completed');
         } finally {
             engine.stop();
         }
@@ -319,10 +534,25 @@ describePostgres('schema', () => {
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
     });
 
+    it('migrateStore resolves with the names of the migrations it ran, none on a second call', async () => {
+        const ds = await create({ migrate: false });
+
+        expect(await migrateStore(ds)).toEqual(STORE_MIGRATIONS.map((migration) => migration.name));
+        expect(await migrateStore(ds)).toEqual([]);
+    });
+
+    it('two concurrent migrateStore calls report each migration once between them', async () => {
+        const ds = await create({ migrate: false });
+
+        const [first, second] = await Promise.all([migrateStore(ds), migrateStore(ds)]);
+
+        expect([...first, ...second]).toEqual(STORE_MIGRATIONS.map((migration) => migration.name));
+    });
+
     it('pendingMigrations lists every migration on an empty database and none after migrateStore', async () => {
         const ds = await create({ migrate: false });
 
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG, RUN_AGENT_REVISION]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG, RUN_AGENT_REVISION, ITEM_BYTES]);
         await migrateStore(ds);
         expect(await pendingMigrations(ds)).toEqual([]);
     });
@@ -350,6 +580,8 @@ describePostgres('schema', () => {
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
         await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
+        await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length - 1);
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'other')).toBe(0);
@@ -369,7 +601,7 @@ describePostgres('schema', () => {
 
         const single = await create({ migrate: false, max: 1 });
 
-        await expect(within(migrateStore(single))).resolves.toBeUndefined();
+        await expect(within(migrateStore(single))).resolves.toEqual(STORE_MIGRATIONS.map((migration) => migration.name));
 
         const pair = await create({ migrate: false, max: 2 });
 

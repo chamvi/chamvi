@@ -112,7 +112,7 @@ describe('package agent skill preparation', () => {
         expect(attempts).toBe(1);
         expect(setup.engine().getAgent('plain')).toBeDefined();
         expect(setup.engine().getAgent('skilled')).toBeUndefined();
-        expect(await setup.store.agentRevisions.findOne('skilled')).toBeUndefined();
+        expect(await setup.store.agentRevisionService.findOne('skilled')).toBeUndefined();
         expect(setup.issues()).toEqual([expect.objectContaining({
             agent: 'skilled',
             message: 'skilled (skilled): skill source unavailable',
@@ -141,7 +141,7 @@ describe('package agent skill preparation', () => {
 
         expect(attempts).toBe(4);
         expect(setup.engine().getAgent('skilled')).toBeDefined();
-        expect((await setup.store.agentRevisions.findOne('skilled'))?.hash).toBe('skilled@1.0.0');
+        expect((await setup.store.agentRevisionService.findOne('skilled'))?.hash).toBe('skilled@1.0.0');
         expect(setup.issues()).toEqual([]);
 
         await setup.poll();

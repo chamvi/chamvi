@@ -1,10 +1,11 @@
 # Installation
 
 ```bash
-npm install @chamvi/core ai
+npm install @chamvi/core @chamvi/store-memory ai
 ```
 
 - **Runtime:** Node.js 26.0.0 or newer. The package is ESM only.
+- **Storage:** the engine takes a service per aggregate, each over a repository; `@chamvi/store-memory` keeps them in the process (development and tests), `@chamvi/store-db` in PostgreSQL (below). `@chamvi/app` builds them for you.
 - **AI SDK:** `ai@^7` (the Vercel AI SDK) is a peer dependency. Install the provider package of your model as well, for example `@ai-sdk/anthropic` or `@ai-sdk/openai`.
 - **Schemas:** tool input schemas are whatever the AI SDK accepts. The examples in these docs use [zod](https://zod.dev). State collections take any [Standard Schema](https://standardschema.dev).
 
@@ -12,9 +13,9 @@ npm install @chamvi/core ai
 npm install @ai-sdk/anthropic zod
 ```
 
-## TypeORM store
+## Database store
 
-For durable runs and more than one replica, add the TypeORM store with `typeorm` and the `pg` driver (PostgreSQL):
+For durable runs and more than one replica, add the PostgreSQL repositories with `typeorm` and the `pg` driver:
 
 ```bash
 npm install @chamvi/store-db typeorm pg
@@ -24,13 +25,13 @@ See [database store](/repositories/database).
 
 ## Testing helpers
 
-`@chamvi/test-kit` exports the store contract suite and a controllable clock. `@chamvi/core` and `vitest` are its peer dependencies:
+`@chamvi/test-kit` exports an engine on memory repositories, the repository port suites and a controllable clock. `@chamvi/core` and `vitest` are its peer dependencies:
 
 ```bash
 npm install --save-dev @chamvi/test-kit vitest
 ```
 
-See [Writing a Repository](/repositories/writing-a-repository) and the [test-kit reference](/reference/test-kit).
+See [Testing](/guide/testing) and the [test-kit reference](/reference/test-kit).
 
 ## Workspaces and coding tools
 

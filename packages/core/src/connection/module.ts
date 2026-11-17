@@ -15,25 +15,28 @@ import {
 } from './helpers.ts';
 import { ConnectionSession } from './session.ts';
 import type {
-    Connection,
     ConnectionOpenOptionsInput,
     ConnectionVaultOptions,
     IConnectionSession,
     IConnectionVault,
 } from './types.ts';
+import type { Connection } from '@chamvi/store';
 import { assertConnection, assertConnectionName } from './validate.ts';
 
 /**
- * A connection vault over a store with `connections` and a keyring. Throws
- * InvalidAgentDefinitionError when the store has no connections repository.
+ * A connection vault over the connection service and a keyring. Throws
+ * InvalidAgentDefinitionError without a connection service.
  */
 export function createConnectionVault(options: ConnectionVaultOptions): IConnectionVault {
-    const { store, keyring } = options;
+    const {
+        connectionService: connections,
+        keyring,
+        lockService,
+    } = options;
     const clock = options.clock ?? systemClock;
-    const { connections } = store;
 
     if (!connections) {
-        throw new InvalidAgentDefinitionError('A connection vault needs a store with a connections repository.');
+        throw new InvalidAgentDefinitionError('A connection vault needs a connection service.');
     }
 
     return {
@@ -52,7 +55,7 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
 
             signal?.throwIfAborted();
 
-            if (!await store.locks.acquire(lock, owner, leaseTtlMs)) {
+            if (!await lockService.acquire(lock, owner, leaseTtlMs)) {
                 throw new ConnectionHeldError(name);
             }
 
@@ -88,7 +91,7 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
                     connection = await connections.findOne(name);
 
                     if (!connection) {
-                        await connections.insert(create());
+                        await connections.create(create());
                     }
                 }
 
@@ -104,7 +107,7 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
                 // the initialization may have outlasted the lease: confirm it before handing out the session
                 const confirmed = clock.now().getTime();
 
-                if (!await store.locks.renew(lock, owner, leaseTtlMs)) {
+                if (!await lockService.renew(lock, owner, leaseTtlMs)) {
                     throw new LeaseLostError({ lock });
                 }
 
@@ -122,11 +125,11 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
                     leaseTtlMs,
                     expiresAt: confirmed + leaseTtlMs,
                     connections,
-                    locks: store.locks,
+                    lockService,
                     clock,
                 }, dataKey);
             } catch (error) {
-                await store.locks.release(lock, owner).catch(() => undefined);
+                await lockService.release(lock, owner).catch(() => undefined);
 
                 throw error;
             }

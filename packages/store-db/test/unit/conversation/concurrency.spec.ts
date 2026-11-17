@@ -12,11 +12,17 @@ import {
     expect,
     it,
 } from 'vitest';
-import { DEFAULT_CONVERSATION_LIMITS } from '@chamvi/core';
-import type { ConversationIdentity } from '@chamvi/core';
+import {
+    DEFAULT_CONVERSATION_LIMITS,
+    RunService,
+    systemClock,
+} from '@chamvi/core';
+import type { ConversationService } from '@chamvi/core';
+import type { ConversationIdentity } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '@chamvi/store-db';
-import { SeededConversationRepository } from '../../utils/conversation.ts';
+import { turnsOf } from '../../../../core/test/fixtures/conversation-service.ts';
+import { conversationServiceOf, seedRun } from '../../utils/conversation.ts';
 import { ConversationEntity, ConversationOperationEntity } from '../../../src/entities/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
@@ -33,8 +39,8 @@ const IDENTITY: ConversationIdentity = {
 describePostgres('conversation transactions across connections', () => {
     let dataSource: DataSource;
     let peer: DataSource;
-    let first: SeededConversationRepository;
-    let second: SeededConversationRepository;
+    let first: ConversationService;
+    let second: ConversationService;
 
     beforeEach(async () => {
         dataSource = await createTestDataSource();
@@ -43,8 +49,9 @@ describePostgres('conversation transactions across connections', () => {
 
         const clock = new ControllableClock(new Date('2026-10-28T00:00:00.000Z'));
 
-        first = new SeededConversationRepository({ dataSource, clock });
-        second = new SeededConversationRepository({ dataSource: peer, clock });
+        // each service on its own pool; a turn's run is stored first, as the engine creates it
+        first = turnsOf({ service: conversationServiceOf(dataSource, clock), seedRun: (id) => seedRun(dataSource, id) });
+        second = turnsOf({ service: conversationServiceOf(peer, clock), seedRun: (id) => seedRun(peer, id) });
     });
 
     afterEach(async () => {
@@ -63,6 +70,10 @@ describePostgres('conversation transactions across connections', () => {
         expect(scopes[0]).toEqual(scopes[1]);
 
         const scope = scopes[0]!;
+
+        await seedRun(dataSource, testUuid('run-a'));
+        await seedRun(dataSource, testUuid('run-b'));
+
         const results = await Promise.all([
             first.beginTurn(scope, testUuid('run-a'), 'first', DEFAULT_CONVERSATION_LIMITS),
             second.beginTurn(scope, testUuid('run-b'), 'second', DEFAULT_CONVERSATION_LIMITS),
@@ -227,10 +238,10 @@ describePostgres('conversation transactions across connections', () => {
 
     it('deletion_cascades_owned_rows_not_runs', async () => {
         const scope = await first.resolve(IDENTITY);
-        const audit = new DatabaseRunRepository({ dataSource });
+        const audit = new RunService({ repository: new DatabaseRunRepository(dataSource), clock: systemClock });
         const now = new Date();
 
-        await audit.insert({
+        await audit.create({
             id: testUuid('retained'),
             agent: 'helper',
             status: 'queued',

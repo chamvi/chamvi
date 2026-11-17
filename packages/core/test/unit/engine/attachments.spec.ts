@@ -17,7 +17,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     ErrorCode,
     InvalidRunStateError,
     ValidationError,
@@ -28,14 +27,15 @@ import {
 import type {
     IEngine,
     IRunArtifacts,
-    IStore,
     ModelAgentDefinition,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
-import { MemoryArtifactRepository, createMemoryStore } from '../../../src/repository/index.ts';
+import { ArtifactService } from '../../../src/artifact/index.ts';
 import { gateTool, recordApprovals } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -54,10 +54,10 @@ const PNG = new Uint8Array([137, 80, 78, 71]);
 
 function setup(
     responses: MockResponse[],
-    opts: { store?: IStore; definition?: Partial<ModelAgentDefinition> } = {},
+    opts: { store?: TestServiceSet; definition?: Partial<ModelAgentDefinition> } = {},
 ) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = opts.store ?? createMemoryStore({ clock });
+    const store = opts.store ?? createTestServices({ clock });
     const model = mockModel(responses);
     const agent = defineModelAgent({
         name: 'vision',
@@ -66,8 +66,8 @@ function setup(
         ...opts.definition,
     });
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [agent],
         clock,
         onError: (error) => {
@@ -152,8 +152,8 @@ describe('attachments at dispatch', () => {
                 { mediaType: 'text/plain', data: new Uint8Array([104, 105]) },
             ],
         }));
-        const run = (await ctx.store.runs.findOne(runId))!;
-        const listed = await ctx.store.artifacts.find(runId);
+        const run = (await ctx.store.runService.findOne(runId))!;
+        const listed = await ctx.store.artifactService.find(runId);
 
         expect(listed).toEqual(run.trigger.attachments);
         expect(run.trigger.attachments?.[0]).toEqual({
@@ -166,7 +166,7 @@ describe('attachments at dispatch', () => {
             createdAt: run.createdAt,
         });
         expect(run.trigger.attachments?.[1]?.filename).toBeUndefined();
-        expect(Array.from((await ctx.store.artifacts.read(run.trigger.attachments![0]!.id))!)).toEqual(Array.from(PNG));
+        expect(Array.from((await ctx.store.artifactService.read(run.trigger.attachments![0]!.id))!)).toEqual(Array.from(PNG));
         expect(run.trigger).not.toHaveProperty('attachments.0.data');
     });
 
@@ -178,7 +178,7 @@ describe('attachments at dispatch', () => {
             data: new Uint8Array([i]),
         }));
         const { runId } = await ctx.engine.dispatch(env({ attachments }));
-        const listed = await ctx.store.artifacts.find(runId);
+        const listed = await ctx.store.artifactService.find(runId);
 
         expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
     });
@@ -191,7 +191,7 @@ describe('attachments at dispatch', () => {
             data: new Uint8Array([1]),
         }));
         const { runId } = await ctx.engine.dispatch(env({ attachments }));
-        const listed = await ctx.store.artifacts.find(runId);
+        const listed = await ctx.store.artifactService.find(runId);
 
         expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
     });
@@ -204,7 +204,7 @@ describe('attachments at dispatch', () => {
             data: new Uint8Array([i]),
         }));
         const { runId } = await ctx.engine.dispatch(env({ attachments }));
-        const listed = await ctx.store.artifacts.find(runId);
+        const listed = await ctx.store.artifactService.find(runId);
 
         expect(runId).toMatch(UUID_V7);
         expect(listed.map((a) => a.filename)).toEqual(attachments.map((a) => a.filename));
@@ -216,16 +216,16 @@ describe('attachments at dispatch', () => {
 
     it('leaves no extra artifacts when two healers of one key race', async () => {
         /** A store whose artifact writes take a round trip, like a database. */
-        class SlowArtifactRepository extends MemoryArtifactRepository {
-            override async insert(...args: Parameters<MemoryArtifactRepository['insert']>): Promise<boolean> {
+        class SlowArtifactService extends ArtifactService {
+            override async create(...args: Parameters<ArtifactService['create']>): Promise<boolean> {
                 await new Promise<void>((resolve) => {
                     setImmediate(resolve);
                 });
 
-                return super.insert(...args);
+                return super.create(...args);
             }
         }
-        const ctx = setup([text('ok')], { store: { ...createMemoryStore(), artifacts: new SlowArtifactRepository() } });
+        const ctx = setup([text('ok')], { store: createTestServices({ artifactService: (context) => new SlowArtifactService(context) }) });
         const attachment = (text: string) => ({
             mediaType: 'text/plain',
             filename: `${text}.txt`,
@@ -239,14 +239,14 @@ describe('attachments at dispatch', () => {
         expect(a.runId).toBe(b.runId);
         expect([a.deduplicated, b.deduplicated].sort()).toEqual([false, true]);
 
-        const run = (await ctx.store.runs.findOne(a.runId))!;
-        const listed = await ctx.store.artifacts.find(a.runId);
+        const run = (await ctx.store.runService.findOne(a.runId))!;
+        const listed = await ctx.store.artifactService.find(a.runId);
 
         expect(listed).toHaveLength(1);
         // the run names the artifact that was stored: metadata and bytes agree
         expect(run.trigger.attachments).toEqual(listed);
 
-        const bytes = await ctx.store.artifacts.read(listed[0]!.id);
+        const bytes = await ctx.store.artifactService.read(listed[0]!.id);
 
         expect(new TextDecoder().decode(bytes)).toBe(listed[0]!.filename!.replace('.txt', ''));
     });
@@ -255,8 +255,8 @@ describe('attachments at dispatch', () => {
         const ctx = setup([text('ok')]);
         const { runId } = await ctx.engine.dispatch(env({ attachments: [] }));
 
-        expect((await ctx.store.runs.findOne(runId))?.trigger).not.toHaveProperty('attachments');
-        expect(await ctx.store.artifacts.find(runId)).toEqual([]);
+        expect((await ctx.store.runService.findOne(runId))?.trigger).not.toHaveProperty('attachments');
+        expect(await ctx.store.artifactService.find(runId)).toEqual([]);
     });
 
     it('stores nothing for a deduplicated dispatch', async () => {
@@ -271,7 +271,7 @@ describe('attachments at dispatch', () => {
         }));
 
         expect(second).toEqual({ runId: first.runId, deduplicated: true });
-        expect(await ctx.store.artifacts.find(first.runId)).toHaveLength(1);
+        expect(await ctx.store.artifactService.find(first.runId)).toHaveLength(1);
     });
 
     it.each([
@@ -287,9 +287,9 @@ describe('attachments at dispatch', () => {
     ])('rejects %s with a ValidationError before any store write', async (_, attachment) => {
         const ctx = setup([text('ok')]);
         const writes = [
-            vi.spyOn(ctx.store.idempotency, 'claim'),
-            vi.spyOn(ctx.store.runs, 'insert'),
-            vi.spyOn(ctx.store.artifacts, 'insert'),
+            vi.spyOn(ctx.store.idempotencyService, 'claim'),
+            vi.spyOn(ctx.store.runService, 'create'),
+            vi.spyOn(ctx.store.artifactService, 'create'),
         ];
         const promise = ctx.engine.dispatch(env({
             idempotencyKey: 'k',
@@ -303,7 +303,7 @@ describe('attachments at dispatch', () => {
             expect(write).not.toHaveBeenCalled();
         }
 
-        expect((await ctx.store.runs.find({})).total).toBe(0);
+        expect((await ctx.store.runService.find({})).total).toBe(0);
     });
 });
 
@@ -323,7 +323,7 @@ describe('attachments in the model prompt', () => {
 
         await ctx.engine.idle();
 
-        const run = (await ctx.store.runs.findOne(runId))!;
+        const run = (await ctx.store.runService.findOne(runId))!;
 
         expect(run.status).toBe('completed');
 
@@ -334,7 +334,7 @@ describe('attachments in the model prompt', () => {
         expect(part).toMatchObject({ mediaType: 'image/png', filename: 'shot.png' });
         expect(bytesOf(part!)).toEqual(Array.from(PNG));
 
-        const checkpoint = (await ctx.store.checkpoints.findOne(runId))!;
+        const checkpoint = (await ctx.store.checkpointService.findOne(runId))!;
         const content = userContentOf(checkpoint.messages);
 
         expect(content[0]).toMatchObject({ type: 'text' });
@@ -356,7 +356,7 @@ describe('attachments in the model prompt', () => {
 
         await ctx.engine.idle();
 
-        const checkpoint = (await ctx.store.checkpoints.findOne(runId))!;
+        const checkpoint = (await ctx.store.checkpointService.findOne(runId))!;
 
         expect(typeof checkpoint.messages[0]!.content).toBe('string');
     });
@@ -387,29 +387,29 @@ describe('attachments in the model prompt', () => {
         const { runId } = await ctx.engine.dispatch(env({ attachments: [{ mediaType: 'image/png', data: PNG }] }));
 
         await ctx.engine.idle();
-        expect((await ctx.store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await ctx.store.runService.findOne(runId))?.status).toBe('waiting');
 
         await ctx.engine.approve(ctx.notifier.calls[0]!.runId, { approvalId: ctx.notifier.calls[0]!.approvalId, approved: true });
         await ctx.engine.idle();
 
-        expect((await ctx.store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
 
         const [part] = filePartsOf(ctx.model, 1);
 
         expect(bytesOf(part!)).toEqual(Array.from(PNG));
 
-        const checkpoint = (await ctx.store.checkpoints.findOne(runId))!;
+        const checkpoint = (await ctx.store.checkpointService.findOne(runId))!;
 
         expect(userContentOf(checkpoint.messages)[1]!.data).toMatch(/^chamvi-artifact:/);
     });
 
     it('fails the run with ARTIFACT_NOT_FOUND when an attachment is gone', async () => {
-        class LossyRepository extends MemoryArtifactRepository {
+        class LossyArtifactService extends ArtifactService {
             override async read(): Promise<Uint8Array | undefined> {
                 return undefined;
             }
         }
-        const ctx = setup([text('never')], { store: { ...createMemoryStore(), artifacts: new LossyRepository() } });
+        const ctx = setup([text('never')], { store: createTestServices({ artifactService: (context) => new LossyArtifactService(context) }) });
 
         await ctx.engine.start();
 
@@ -417,7 +417,7 @@ describe('attachments in the model prompt', () => {
 
         await ctx.engine.idle();
 
-        const run = (await ctx.store.runs.findOne(runId))!;
+        const run = (await ctx.store.runService.findOne(runId))!;
 
         expect(run.status).toBe('failed');
         expect(run.error?.code).toBe(ErrorCode.ARTIFACT_NOT_FOUND);
@@ -468,8 +468,8 @@ describe('tool artifacts', () => {
         const b = await ctx.engine.dispatch(env());
 
         await ctx.engine.idle();
-        expect((await ctx.store.runs.findOne(a.runId))?.status).toBe('completed');
-        expect((await ctx.store.runs.findOne(b.runId))?.status).toBe('completed');
+        expect((await ctx.store.runService.findOne(a.runId))?.status).toBe('completed');
+        expect((await ctx.store.runService.findOne(b.runId))?.status).toBe('completed');
 
         const [ofA, ofB] = scoped;
         const listed = await ofA!.list();
@@ -558,7 +558,7 @@ describe('artifacts in tool results', () => {
 
         await ctx.engine.idle();
 
-        expect((await ctx.store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
 
         const [first] = toolFilesOf(ctx.model, 1);
 
@@ -573,12 +573,12 @@ describe('artifacts in tool results', () => {
             expect(bytesOf(part)).toEqual(Array.from(PNG));
         }
 
-        const checkpoint = JSON.stringify((await ctx.store.checkpoints.findOne(runId))!.messages);
+        const checkpoint = JSON.stringify((await ctx.store.checkpointService.findOne(runId))!.messages);
 
         expect(checkpoint).toMatch(/"data":"chamvi-artifact:[0-9a-f-]+"/);
         expect(checkpoint).not.toContain(Buffer.from(PNG).toString('base64'));
 
-        const steps = await ctx.store.steps.find(runId);
+        const steps = await ctx.store.stepService.find(runId);
 
         expect(steps.filter((s) => s.kind === 'tool').map((s) => Object.keys(s.output as object))).toEqual([
             ['artifactId', 'mediaType'],
@@ -619,12 +619,12 @@ describe('artifacts in tool results', () => {
         const { runId } = await ctx.engine.dispatch(env());
 
         await ctx.engine.idle();
-        expect((await ctx.store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await ctx.store.runService.findOne(runId))?.status).toBe('waiting');
 
         await ctx.engine.approve(runId, { approvalId: ctx.notifier.calls[0]!.approvalId, approved: true });
         await ctx.engine.idle();
 
-        expect((await ctx.store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await ctx.store.runService.findOne(runId))?.status).toBe('completed');
 
         const [part] = toolFilesOf(ctx.model, 2);
 

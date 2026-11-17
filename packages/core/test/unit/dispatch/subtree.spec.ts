@@ -14,7 +14,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     agent,
     agentChannel,
     defineModelAgent,
@@ -22,9 +21,8 @@ import {
     dispatch,
     waitForDispatch,
 } from '@chamvi/core';
-import type { IEngine, IStore } from '@chamvi/core';
-import { MemoryRunRepository, createMemoryStore } from '../../../src/repository/index.ts';
-import type { RunFindOptions } from '../../../src/repository/types.ts';
+import type { IEngine } from '@chamvi/core';
+import type { RunFindOptions } from '../../../src/run/types.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import {
     gate,
@@ -34,7 +32,9 @@ import {
 } from '../../utils/dispatch.ts';
 import type { ChildTurn, ParentTurn } from '../../utils/dispatch.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
-import { createMemoryStoreWithRuns } from '../../utils/store.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
+import { RunService } from '../../../src/run/index.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -68,12 +68,12 @@ afterEach(() => {
 });
 
 function build(parent: ParentTurn[], child: ChildTurn, options: {
-    store?: IStore;
+    store?: TestServiceSet;
     clock?: ControllableClock;
     maxSubtreeTokens?: number
 } = {}) {
     const clock = options.clock ?? new ControllableClock(START);
-    const store = options.store ?? createMemoryStore({ clock });
+    const store = options.store ?? createTestServices({ clock });
     const errors: unknown[] = [];
     const lead = defineModelAgent({
         name: 'lead',
@@ -83,8 +83,8 @@ function build(parent: ParentTurn[], child: ChildTurn, options: {
         tools: { fan },
         ...(options.maxSubtreeTokens !== undefined ? { budget: { maxSubtreeTokens: options.maxSubtreeTokens } } : {}),
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [lead],
         channels: [agentChannel()],
@@ -134,8 +134,8 @@ describe('subtree usage', () => {
 
         await engine.idle();
 
-        const parent = await store.runs.findOne(parentId);
-        const { data } = await store.runs.find({ parentRunId: parentId });
+        const parent = await store.runService.findOne(parentId);
+        const { data } = await store.runService.find({ parentRunId: parentId });
         const a = data.find((r) => r.trigger.payload === 'a')!;
         const b = data.find((r) => r.trigger.payload === 'b')!;
 
@@ -179,31 +179,31 @@ describe('subtree usage', () => {
 
         await paused;
 
-        const waited = await store.runs.findOneOrFail(parentId);
+        const waited = await store.runService.findOneOrFail(parentId);
 
         clock.advance(1_000);
         holdA.open();
         await vi.waitFor(async () => {
-            expect((await store.runs.findOneOrFail(parentId)).subtreeUsage).toEqual({ inputTokens: 1, outputTokens: 1 });
+            expect((await store.runService.findOneOrFail(parentId)).subtreeUsage).toEqual({ inputTokens: 1, outputTokens: 1 });
         });
-        expect((await store.runs.findOneOrFail(parentId)).updatedAt).toEqual(waited.updatedAt);
+        expect((await store.runService.findOneOrFail(parentId)).updatedAt).toEqual(waited.updatedAt);
 
         clock.advance(1_000);
         holdB.open();
         await engine.idle();
 
-        const wait = (await store.steps.find(parentId)).find((s) => s.kind === 'wait');
+        const wait = (await store.stepService.find(parentId)).find((s) => s.kind === 'wait');
 
-        expect((await store.runs.findOneOrFail(parentId)).status).toBe('completed');
+        expect((await store.runService.findOneOrFail(parentId)).status).toBe('completed');
         expect(wait?.startedAt).toEqual(waited.updatedAt);
     });
 
     it('no double count after a lost push and tick heal', async () => {
         const clock = new ControllableClock(START);
-        const runs = new (class extends MemoryRunRepository {
+        class LosingFind extends RunService {
             armed = false;
 
-            override async find(options: RunFindOptions) {
+            override async find(options: RunFindOptions = {}) {
                 const result = await super.find(options);
                 const settled = result.data.length > 0 && result.data.every((r) => r.status === 'completed');
 
@@ -216,8 +216,9 @@ describe('subtree usage', () => {
 
                 return result;
             }
-        })({ clock });
-        const store = createMemoryStoreWithRuns(runs, { clock });
+        }
+        const store = createTestServices({ clock, runService: (ctx) => new LosingFind(ctx) });
+        const runs = store.runService as LosingFind;
         const hold = gate();
         const { engine } = build([turn({ inputTokens: 0, outputTokens: 0 }, call('fan', { payloads: ['a'] }, 'c1'))], async () => {
             await hold.wait();
@@ -232,17 +233,17 @@ describe('subtree usage', () => {
         hold.open();
         await engine.idle();
 
-        expect((await store.runs.findOne(parentId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(parentId))?.status).toBe('waiting');
 
         await engine.tick();
         await engine.idle();
         await engine.tick();
 
-        const parent = await store.runs.findOne(parentId);
+        const parent = await store.runService.findOne(parentId);
 
         expect(parent?.status).toBe('completed');
         expect(parent?.subtreeUsage).toEqual({ inputTokens: 7, outputTokens: 3 });
-        expect((await store.steps.find(parentId)).filter((s) => s.kind === 'wait')).toHaveLength(1);
+        expect((await store.stepService.find(parentId)).filter((s) => s.kind === 'wait')).toHaveLength(1);
     });
 
     it('a dispatch is refused once an ancestor\'s subtree budget is reached', async () => {
@@ -254,8 +255,8 @@ describe('subtree usage', () => {
 
         await engine.idle();
 
-        const parent = await store.runs.findOne(parentId);
-        const tools = (await store.steps.find(parentId)).filter((s) => s.kind === 'tool');
+        const parent = await store.runService.findOne(parentId);
+        const tools = (await store.stepService.find(parentId)).filter((s) => s.kind === 'tool');
 
         expect(parent?.status).toBe('completed');
         expect(parent?.subtreeUsage).toEqual({ inputTokens: 20, outputTokens: 10 });
@@ -263,18 +264,18 @@ describe('subtree usage', () => {
             code: 'BudgetExceeded',
             message: `Run ${parentId} reached its subtree token budget of 30 tokens.`,
         });
-        expect((await store.runs.find({ parentRunId: parentId })).data).toHaveLength(1);
+        expect((await store.runService.find({ parentRunId: parentId })).data).toHaveLength(1);
     });
 
     it('interleaved sibling settles leave the correct total', async () => {
         const clock = new ControllableClock(START);
         const reached = Promise.withResolvers<void>();
         const release = gate();
-        const store = createMemoryStore({ clock });
-        const find = store.runs.find.bind(store.runs);
+        const store = createTestServices({ clock });
+        const find = store.runService.find.bind(store.runService);
         let stallFor: string | undefined;
 
-        store.runs.find = async (options) => {
+        store.runService.find = async (options = {}) => {
             const result = await find(options);
 
             // the first recompute reads the children, then stalls until the sibling's settle wrote
@@ -306,23 +307,23 @@ describe('subtree usage', () => {
 
         holdB.open();
         await completed;
-        expect((await store.runs.findOneOrFail(parentId)).subtreeUsage).toEqual({ inputTokens: 2, outputTokens: 2 });
+        expect((await store.runService.findOneOrFail(parentId)).subtreeUsage).toEqual({ inputTokens: 2, outputTokens: 2 });
 
         // the stalled recompute writes its stale read last
         release.open();
         await engine.idle();
 
-        expect((await store.runs.findOneOrFail(parentId)).subtreeUsage).toEqual({ inputTokens: 2, outputTokens: 2 });
+        expect((await store.runService.findOneOrFail(parentId)).subtreeUsage).toEqual({ inputTokens: 2, outputTokens: 2 });
     });
 
     it('a stale stored subtree total does not bypass the budget', async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
-        const update = store.runs.update.bind(store.runs);
+        const store = createTestServices({ clock });
+        const update = store.runService.update.bind(store.runService);
 
         // every subtree recompute is lost: the stored total stays empty
-        store.runs.update = async (id, patch, options) => (patch.subtreeUsage !== undefined ?
-            store.runs.findOneOrFail(id) :
+        store.runService.update = async (id, patch, options) => (patch.subtreeUsage !== undefined ?
+            store.runService.findOneOrFail(id) :
             update(id, patch, options));
 
         const { engine } = build([
@@ -337,14 +338,14 @@ describe('subtree usage', () => {
 
         await engine.idle();
 
-        const parent = await store.runs.findOne(parentId);
-        const tools = (await store.steps.find(parentId)).filter((s) => s.kind === 'tool');
+        const parent = await store.runService.findOne(parentId);
+        const tools = (await store.stepService.find(parentId)).filter((s) => s.kind === 'tool');
 
         expect(parent?.subtreeUsage).toBeUndefined();
         expect(tools[1]?.error).toEqual({
             code: 'BudgetExceeded',
             message: `Run ${parentId} reached its subtree token budget of 30 tokens.`,
         });
-        expect((await store.runs.find({ parentRunId: parentId })).data).toHaveLength(1);
+        expect((await store.runService.find({ parentRunId: parentId })).data).toHaveLength(1);
     });
 });

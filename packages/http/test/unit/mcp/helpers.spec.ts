@@ -10,16 +10,15 @@ import { z } from 'zod';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import {
     DISPATCH_DEPTH_MAX,
-    Engine,
-    createMemoryStore,
 } from '@chamvi/core';
-import type { Run, WaitPoint } from '@chamvi/core';
+import type { Run, WaitPoint } from '@chamvi/store';
 import {
     findWaitingApproval,
     isWaitOver,
     toJsonSchema,
     toRunToolResult,
 } from '../../../src/mcp/helpers.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 function plainSchema(jsonSchema?: unknown): StandardSchemaV1 {
     return {
@@ -190,9 +189,7 @@ describe('toRunToolResult', () => {
 
 describe('findWaitingApproval', () => {
     function engineOver(runs: Run[]) {
-        const store = createMemoryStore();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [],
             onError: () => {},
         });
@@ -200,7 +197,7 @@ describe('findWaitingApproval', () => {
         return {
             engine,
             // parents first: a child's insert needs its parent stored
-            ready: runs.reduce<Promise<unknown>>((prev, run) => prev.then(() => store.runs.insert(run)), Promise.resolve()),
+            ready: runs.reduce<Promise<unknown>>((prev, run) => prev.then(() => engine.runService.create(run)), Promise.resolve()),
         };
     }
 

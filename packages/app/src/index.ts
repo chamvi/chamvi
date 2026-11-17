@@ -12,6 +12,8 @@ export * from '@chamvi/access';
 // The public facade intentionally aggregates published package APIs for agent repositories.
 // eslint-disable-next-line @tada5hi/no-reexport-shims
 export * from '@chamvi/core';
+// eslint-disable-next-line @tada5hi/no-reexport-shims -- The stored record types belong in the public facade beside core.
+export * from '@chamvi/store';
 // eslint-disable-next-line @tada5hi/no-reexport-shims -- Published cron API belongs in the public facade.
 export { cron } from '@chamvi/channel-cron';
 // eslint-disable-next-line @tada5hi/no-reexport-shims -- Preserve the published cron types in the public facade.
@@ -23,7 +25,10 @@ export {
     RequiredJsonBodyMiddleware,
     assertGranted,
     authorizeRequest,
+    decodeQuery,
+    defineSchema,
     http,
+    scopeQuery,
     toInvoker,
     usePrincipal,
     webhook,
@@ -37,6 +42,12 @@ export type {
     HttpRouteRequest,
     HttpRouteResult,
     HttpSubscriptionOptions,
+    ListFilterOperator,
+    ListSchema,
+    ListSchemaEntity,
+    ListSchemaKey,
+    ListSchemaOptions,
+    ListSortDirection,
     Principal,
     StaticToken,
     UiPage,
@@ -52,6 +63,7 @@ export * from './module/index.ts';
 export * from './modules/agents/index.ts';
 export * from './modules/config/index.ts';
 export * from './modules/console-channel/index.ts';
+export * from './modules/database/index.ts';
 export * from './modules/engine/index.ts';
 export * from './modules/http/index.ts';
 export * from './modules/scheduler/index.ts';

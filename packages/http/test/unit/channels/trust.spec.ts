@@ -7,19 +7,16 @@
 
 import { expect, it } from 'vitest';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import type { IChannel } from '@chamvi/core';
 import { http, httpChannel, mcpChannel } from '@chamvi/http';
 import { textModel } from '../../utils/model.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 async function taintOf(channel: IChannel) {
-    const store = createMemoryStore();
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         channels: channel.name === 'http' ? [channel] : [httpChannel(), channel],
         agents: [defineModelAgent({
             name: 'echo',
@@ -36,7 +33,7 @@ async function taintOf(channel: IChannel) {
         payload: {},
     });
 
-    return (await store.runs.findOne(runId))?.taint;
+    return (await engine.runService.findOne(runId))?.taint;
 }
 
 it('keeps the http and mcp channels trusted by default', async () => {

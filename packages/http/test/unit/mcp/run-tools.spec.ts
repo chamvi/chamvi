@@ -14,9 +14,7 @@ import {
 import { Permission } from '@chamvi/access';
 import { z } from 'zod';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
     defineSimpleAgent,
 } from '@chamvi/core';
@@ -31,6 +29,7 @@ import {
 } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
 import { callTool, connectMcp, textOf } from '../../utils/mcp.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 type TreeNode = { name: string; children: TreeNode[] };
 
@@ -206,7 +205,7 @@ describe('mcp run_<agent>', () => {
             status: 'queued',
             deduplicated: false,
         });
-        expect((await store.runs.findOne(content.runId))?.trigger).toMatchObject({
+        expect((await store.runService.findOne(content.runId))?.trigger).toMatchObject({
             agent: 'echo',
             trigger: 'http',
             channel: 'mcp',
@@ -228,7 +227,7 @@ describe('mcp run_<agent>', () => {
         });
 
         await call(app, 'POST', '/agents/echo/runs', { token: ADMIN_TOKEN, body: { idempotencyKey: 'k-1' } });
-        expect((await store.runs.find({ agent: 'echo' })).total).toBe(2);
+        expect((await store.runService.find({ agent: 'echo' })).total).toBe(2);
         await client.close();
     });
 
@@ -239,7 +238,7 @@ describe('mcp run_<agent>', () => {
 
         expect(result.isError).toBe(true);
         expect(textOf(result)).toContain('payload');
-        expect((await store.runs.find({ agent: 'typed' })).total).toBe(0);
+        expect((await store.runService.find({ agent: 'typed' })).total).toBe(0);
         await client.close();
     });
 
@@ -249,7 +248,7 @@ describe('mcp run_<agent>', () => {
         const result = await callTool(client, 'run_echo', { extra: 1 });
 
         expect(result.isError).toBe(true);
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
         await client.close();
     });
 
@@ -276,7 +275,7 @@ describe('mcp run_<agent>', () => {
 
         const { runId } = result.structuredContent as { runId: string };
 
-        expect((await store.runs.findOne(runId))?.trigger.payload).toEqual(payload);
+        expect((await store.runService.findOne(runId))?.trigger.payload).toEqual(payload);
 
         const invalid = await callTool(client, 'run_tree', { payload: { root: { name: 'a', children: [{ name: 1 }] }, alias: payload.alias } });
 
@@ -329,8 +328,7 @@ describe('mcp run_<agent>', () => {
             instructions: 'Long.',
             channels: [http.on()],
         });
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
             agents: [],
             channels: [httpChannel()],
         });
@@ -420,7 +418,7 @@ describe('mcp run_<agent>', () => {
 
         expect(result.isError).toBe(true);
         expect(textOf(result)).toContain('was replaced');
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
         await client.close();
     });
 
@@ -499,7 +497,7 @@ describe('mcp approve_run on a dispatch wait', () => {
         const at = new Date(0);
         const waitId = '0:call-1:w0';
 
-        await store.runs.insert({
+        await store.runService.create({
             id: 'parent',
             agent: 'gate',
             status: 'waiting',
@@ -532,7 +530,7 @@ describe('mcp approve_run on a dispatch wait', () => {
         });
 
         expect(result.isError).toBe(true);
-        expect((await store.runs.findOne('parent'))?.status).toBe('waiting');
+        expect((await store.runService.findOne('parent'))?.status).toBe('waiting');
         await client.close();
     });
 });

@@ -11,13 +11,13 @@ import {
     it,
     vi,
 } from 'vitest';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { SkillRuntime } from '../../../src/runtime/module.ts';
 import { skillRuntimeProvider } from '../../../src/runtime/provider.ts';
 import type { ISkillRuntimeProvider, SkillInput } from '@chamvi/core';
 import type { Skill } from '@chamvi/skills';
 import { defineSkill, defineSkillSource } from '@chamvi/skills';
-import { mockModel } from '@chamvi/test-kit';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 
 const skill = (overrides: Partial<Skill> = {}): Skill & SkillInput => defineSkill({
     name: 'common',
@@ -51,8 +51,7 @@ function engine() {
         snapshot: (inputs) => inputs,
         create: () => runtime,
     };
-    const e = new Engine({
-        store: createMemoryStore(),
+    const e = createTestEngine({
         agents: [],
         model: mockModel([]),
         skills: [{ ...defineSkillSource({ skills: [], load: async () => [] }), runtime: provider }],

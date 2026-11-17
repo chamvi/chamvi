@@ -17,18 +17,18 @@ import type {
     QueueEntry,
     StateAdapter,
 } from 'chat';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type {
     Agent,
     ConversationAccess,
+    Engine,
     IChannel,
-    IStore,
-    Run,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import type { ChatApprovalRef, ChatChannel } from '@chamvi/chat';
 import { createDiscordChat } from '@chamvi/chat-discord';
 import type { DiscordChatOptions, DiscordChatSetup } from '@chamvi/chat-discord';
-import { ControllableClock, textModel } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine, textModel } from '@chamvi/test-kit';
 import type { DiscordClient, DiscordClientFactory, DiscordInboundMessage } from '../../src/discord/types.ts';
 
 export const ACCOUNT = 'support';
@@ -453,7 +453,6 @@ export type DiscordFixture = {
     fetch: FakeFetch;
     clock: ControllableClock;
     engine: Engine;
-    store: IStore;
     errors: unknown[];
     access: ConversationAccess[];
     /** how often the token provider was called */
@@ -509,9 +508,7 @@ export function createDiscordFixture(input: DiscordFixtureInput = {}): DiscordFi
         ...input.patch,
     });
     const { channel } = setup;
-    const memory = createMemoryStore({ clock });
-    const engine = new Engine({
-        store: memory,
+    const engine = createTestEngine({
         agents: input.agents ? input.agents(channel, setup) : [defineModelAgent({
             name: 'assistant',
             model: textModel(),
@@ -539,11 +536,10 @@ export function createDiscordFixture(input: DiscordFixtureInput = {}): DiscordFi
         fetch: fakeFetch,
         clock,
         engine,
-        store: memory,
         errors,
         access,
         tokenReads,
-        runs: async () => (await memory.runs.find({})).data,
+        runs: async () => (await engine.runService.find({})).data,
         ready() {
             const client = clients.last();
 

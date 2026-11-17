@@ -10,8 +10,9 @@ import { isValidupError } from 'validup';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import { Permission } from '@chamvi/access';
-import { createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { StateService, defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
+import { MemoryRegistry, MemoryStateDocumentRepository, MemoryStateRepository } from '@chamvi/store-memory';
 import { ControllableClock } from '@chamvi/test-kit';
 import { http } from '@chamvi/http';
 import { AgentStateService } from '../../../src/agents/service/index.ts';
@@ -36,7 +37,13 @@ async function renderError(error: unknown): Promise<unknown> {
 
 function setup() {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const registry = new MemoryRegistry();
+    const store = {
+        stateService: new StateService({
+            repository: new MemoryStateRepository({ registry }),
+            documentRepository: new MemoryStateDocumentRepository({ registry }),
+        }),
+    };
     const agents: Agent[] = [
         ...inventoryAgents(),
         defineModelAgent({
@@ -54,7 +61,7 @@ function setup() {
             list: () => [...agents],
             names: () => agents.map((agent) => agent.name),
         },
-        store,
+        stateService: store.stateService,
         clock,
     });
 
@@ -118,8 +125,8 @@ describe('AgentStateService', () => {
     it('lists the documents of a declared collection', async () => {
         const { service, store } = setup();
 
-        await store.state.upsertDocument('intake', 'issues', 'i1', { title: 'a', status: 'open' });
-        await store.state.upsertDocument('intake', 'issues', 'i2', { title: 'b', status: 'closed' });
+        await store.stateService.upsertDocument('intake', 'issues', 'i1', { title: 'a', status: 'open' });
+        await store.stateService.upsertDocument('intake', 'issues', 'i2', { title: 'b', status: 'closed' });
 
         expect(await service.documents('intake', 'issues', new URLSearchParams('filter[status]=open'), reader)).toEqual({
             data: [{

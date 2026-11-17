@@ -93,7 +93,7 @@ channel.on(options?), channel.to({ adapter, threadId }): string;
 
 ### Memory and trust
 
-An agent with `conversation` is bound to `{ account, chat, audience }`: audience `direct:<author>` for a direct chat, `group:<channel>` for a group (one memory per group). It needs `IStore.conversations` and the engine's `conversations: { authorize }`; see [Conversation Memory](/guide/conversations). Runs are tainted by default, so `guardWhenTainted` tools ask for approval; replies to the source chat and the `defaultAddress` are exempt from the outbound gate (see [untrusted content](/guide/tools#untrusted-content-and-outbound-tools)).
+An agent with `conversation` is bound to `{ account, chat, audience }`: audience `direct:<author>` for a direct chat, `group:<channel>` for a group (one memory per group). It needs the engine's `conversationService` and `conversations: { authorize }`; see [Conversation Memory](/guide/conversations). Runs are tainted by default, so `guardWhenTainted` tools ask for approval; replies to the source chat and the `defaultAddress` are exempt from the outbound gate (see [untrusted content](/guide/tools#untrusted-content-and-outbound-tools)).
 
 <<< @/snippets/chat.ts#agent
 

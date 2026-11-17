@@ -12,8 +12,8 @@ import {
     it,
     vi,
 } from 'vitest';
-import { Engine, InvalidAgentDefinitionError, createMemoryStore } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { createShutdown } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -159,7 +159,7 @@ describe('stream.maxOpen', () => {
         const { app, store } = createRunTestApp({ stream: { maxOpen: 1 } });
         const runId = await start(app);
 
-        await store.runs.update(runId, { status: 'failed' });
+        await store.runService.update(runId, { status: 'failed' });
 
         const reader = await open(app, runId);
 
@@ -174,7 +174,7 @@ describe('stream.maxOpen', () => {
         const ctx = createRunTestApp({ stream: { maxOpen: 1 }, onError: () => {} });
         const runId = await start(ctx.app);
 
-        vi.spyOn(ctx.store.steps, 'find').mockRejectedValueOnce(new Error('store down'));
+        vi.spyOn(ctx.store.stepService, 'find').mockRejectedValueOnce(new Error('store down'));
         expect((await streamStatus(ctx.app, runId)).status).toBe(500);
 
         await expectExactlyOneFreeSlot(ctx.app, runId);
@@ -185,7 +185,7 @@ describe('stream.maxOpen', () => {
         const runId = await start(ctx.app);
         const reader = await open(ctx.app, runId);
 
-        vi.spyOn(ctx.store.runs, 'findOne').mockRejectedValueOnce(new Error('store down'));
+        vi.spyOn(ctx.store.runService, 'findOne').mockRejectedValueOnce(new Error('store down'));
         ctx.clock.advance(2_000);
         await reader.rest();
 
@@ -194,10 +194,8 @@ describe('stream.maxOpen', () => {
 
     it('frees the slots on shutdown', async () => {
         const clock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock });
         const agents = createRunAgents();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents,
             clock,
             channels: testChannels(),
@@ -238,7 +236,7 @@ describe('stream.maxOpen', () => {
                 deduplicated: false,
             });
 
-            const dispatched = await store.runs.findOne(result.structuredContent!.runId as string);
+            const dispatched = await store.runService.findOne(result.structuredContent!.runId as string);
 
             expect(dispatched?.status).toBe('queued');
 
@@ -254,7 +252,7 @@ describe('stream.maxOpen', () => {
 
             await until(() => subscribe.mock.calls.length > 0);
 
-            const [run] = (await setup.store.runs.find({ agent: 'echo' })).data;
+            const [run] = (await setup.store.runService.find({ agent: 'echo' })).data;
 
             expect((await streamStatus(setup.app, run!.id)).status).toBe(503);
 
@@ -289,7 +287,7 @@ describe('stream.maxOpen', () => {
             void callTool(client, 'run_echo', { waitSeconds: 30 }).catch(() => undefined);
             await until(() => subscribe.mock.calls.length > 0);
 
-            const [run] = (await setup.store.runs.find({ agent: 'echo' })).data;
+            const [run] = (await setup.store.runService.find({ agent: 'echo' })).data;
 
             controller.abort();
             await until(async () => {
@@ -308,10 +306,10 @@ describe('stream.maxOpen', () => {
         it('free the slot when the wait fails', async () => {
             const setup = createRunTestApp({ stream: { maxOpen: 1 }, onError: () => {} });
             const client = await connectMcp(setup.app, ADMIN_TOKEN);
-            const getRun = setup.store.runs.findOne.bind(setup.store.runs);
+            const getRun = setup.store.runService.findOne.bind(setup.store.runService);
             let failed = false;
 
-            vi.spyOn(setup.store.runs, 'findOne').mockImplementation(async (id) => {
+            vi.spyOn(setup.store.runService, 'findOne').mockImplementation(async (id) => {
                 if (!failed) {
                     failed = true;
 
@@ -325,7 +323,7 @@ describe('stream.maxOpen', () => {
 
             expect(result.isError).toBe(true);
 
-            const [run] = (await setup.store.runs.find({ agent: 'echo' })).data;
+            const [run] = (await setup.store.runService.find({ agent: 'echo' })).data;
 
             await expectExactlyOneFreeSlot(setup.app, run!.id);
             await client.close();

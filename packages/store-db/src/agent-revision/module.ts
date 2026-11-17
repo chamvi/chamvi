@@ -5,66 +5,28 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RepositoryNotFoundError } from '@chamvi/core';
-import type { AgentRevision, IAgentRevisionRepository } from '@chamvi/core';
-import type { DataSource, Repository } from 'typeorm';
-import { uuidv7 } from 'uuidv7';
+import type { DataSource, EntityManager } from 'typeorm';
+import type { AgentRevisionRecord, IAgentRevisionRepository } from '@chamvi/store';
 import { AgentRevisionEntity } from '../entities/index.ts';
-import { asValues, toAgentRevision } from '../repository/helpers.ts';
+import { EntityRepositoryAdapter } from '../entity/module.ts';
 
-export class DatabaseAgentRevisionRepository implements IAgentRevisionRepository {
-    protected dataSource: DataSource;
-
-    constructor(opts: { dataSource: DataSource }) {
-        this.dataSource = opts.dataSource;
+/**
+ * Agent revision markers in `chamvi_agent_revisions` (`agent`
+ * `COLLATE "C"`), stored as given; `upsert` replaces by `agent`.
+ */
+export class DatabaseAgentRevisionRepository
+    extends EntityRepositoryAdapter<AgentRevisionRecord, AgentRevisionEntity>
+    implements IAgentRevisionRepository {
+    constructor(source: DataSource | EntityManager) {
+        super(source.getRepository(AgentRevisionEntity), {
+            entity: 'agent_revision',
+            alias: 'agentRevision',
+            target: AgentRevisionEntity,
+            upsertKey: ['agent'],
+        });
     }
 
-    protected get agentRevisions(): Repository<AgentRevisionEntity> {
-        return this.dataSource.getRepository(AgentRevisionEntity);
-    }
-
-    async findOne(agent: string): Promise<AgentRevision | undefined> {
-        const entity = await this.agentRevisions.findOneBy({ agent });
-
-        return entity ? toAgentRevision(entity) : undefined;
-    }
-
-    async findOneOrFail(agent: string): Promise<AgentRevision> {
-        const result = await this.findOne(agent);
-
-        if (result === undefined) {
-            throw new RepositoryNotFoundError('agent revisions');
-        }
-
-        return result;
-    }
-
-    async save(revision: AgentRevision): Promise<void> {
-        await this.agentRevisions.upsert(asValues<AgentRevisionEntity>({
-            id: uuidv7(),
-            agent: revision.agent,
-            hash: revision.hash,
-            changedAt: revision.changedAt,
-        }), ['agent']);
-    }
-
-    async delete(agent: string): Promise<void> {
-        await this.agentRevisions.delete({ agent });
-    }
-
-    async find(): Promise<AgentRevision[]> {
-        const entities = await this.agentRevisions.find({ order: { agent: 'ASC' } });
-
-        return entities.map((entity) => toAgentRevision(entity));
-    }
-
-    async findOrFail(): Promise<AgentRevision[]> {
-        const result = await this.find();
-
-        if (result.length === 0) {
-            throw new RepositoryNotFoundError('agent revisions');
-        }
-
-        return result;
+    withManager(manager: EntityManager): this {
+        return new DatabaseAgentRevisionRepository(manager) as this;
     }
 }

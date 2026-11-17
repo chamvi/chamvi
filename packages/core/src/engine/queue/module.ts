@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunStatus } from '../../run/constants.ts';
-import type { Run } from '../../run/types.ts';
+import { RunStatus } from '@chamvi/store';
+import type { Run } from '@chamvi/store';
 import { admitRun } from './admission.ts';
 import { groupKey } from './helpers.ts';
 import type { RunQueueOptions } from './types.ts';
@@ -146,9 +146,9 @@ export class RunQueue {
             return;
         }
 
-        const { store } = this.opts;
+        const { runService } = this.opts;
         const listed = this.opts.beforeList?.();
-        const { data: queued } = await store.runs.find({ status: [RunStatus.QUEUED] });
+        const { data: queued } = await runService.find({ status: [RunStatus.QUEUED] });
 
         listed?.(queued);
 
@@ -176,7 +176,7 @@ export class RunQueue {
             // Admission crosses store awaits; a stop or canceled startup may invalidate it before launch.
             if (this.halted || (mayStart && !mayStart(started))) {
                 try {
-                    const queued = await store.runs.update(started.id, {
+                    const queued = await runService.update(started.id, {
                         status: RunStatus.QUEUED,
                         claim: undefined,
                         startedAt: undefined,
@@ -197,7 +197,7 @@ export class RunQueue {
 
     protected async tryStart(run: Run): Promise<Run | undefined> {
         const {
-            store,
+            lockService,
             owner,
             claimTtlMs,
         } = this.opts;
@@ -210,14 +210,14 @@ export class RunQueue {
         // The lock TTL is claimTtlMs: a transition slower than that lets a second replica in.
         const lockKey = `concurrency:${run.agent}:${run.concurrencyKey}`;
 
-        if (!await store.locks.acquire(lockKey, owner, claimTtlMs)) {
+        if (!await lockService.acquire(lockKey, owner, claimTtlMs)) {
             return undefined;
         }
 
         try {
             return await this.transition(run, groupKey(run));
         } finally {
-            await store.locks.release(lockKey, owner).catch((error: unknown) => {
+            await lockService.release(lockKey, owner).catch((error: unknown) => {
                 try {
                     this.opts.onError(error, run);
                 } catch {
@@ -229,7 +229,7 @@ export class RunQueue {
 
     protected async transition(run: Run, group: string | undefined): Promise<Run | undefined> {
         const {
-            store,
+            runService,
             clock,
             owner,
             claimTtlMs,
@@ -245,7 +245,7 @@ export class RunQueue {
                 return undefined;
             }
 
-            const { total } = await store.runs.find({
+            const { total } = await runService.find({
                 agent: run.agent,
                 // an interrupted run is unfinished and keeps its key until recovery requeues it
                 status: [RunStatus.RUNNING, RunStatus.WAITING, RunStatus.INTERRUPTED],
@@ -258,7 +258,7 @@ export class RunQueue {
             }
         }
 
-        if (!await store.runs.claim(run.id, owner, claimTtlMs)) {
+        if (!await runService.claim(run.id, owner, claimTtlMs)) {
             return undefined;
         }
 
@@ -268,7 +268,7 @@ export class RunQueue {
         try {
             const now = clock.now();
 
-            return await store.runs.update(run.id, {
+            return await runService.update(run.id, {
                 status: RunStatus.RUNNING,
                 startedAt: now,
                 updatedAt: now,
@@ -301,7 +301,7 @@ export class RunQueue {
 
     protected keepClaim(runId: string): { stop(): void } {
         const {
-            store,
+            runService,
             clock,
             owner,
             claimTtlMs,
@@ -310,7 +310,7 @@ export class RunQueue {
         let timer: { clear(): void } | undefined;
         const schedule = () => {
             timer = clock.setTimeout(() => {
-                store.runs.renewClaim(runId, owner, claimTtlMs).then(
+                runService.renewClaim(runId, owner, claimTtlMs).then(
                     (ok) => {
                         if (stopped) {
                             return;

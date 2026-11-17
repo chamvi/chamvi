@@ -157,11 +157,11 @@ export async function readStoredConnections(
     type: string,
     options: ReadStoredConnectionsOptions = {},
 ): Promise<StoredConnection[]> {
-    const { connections } = container.resolve(AppToken.STORE);
-
-    if (!connections) {
+    if (!container.has(AppToken.CONNECTION_SERVICE)) {
         return [];
     }
+
+    const connections = container.resolve(AppToken.CONNECTION_SERVICE);
 
     const stored: StoredConnection[] = [];
 

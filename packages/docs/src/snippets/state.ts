@@ -2,11 +2,12 @@ import { tool } from 'ai';
 import type { LanguageModel } from 'ai';
 import { z } from 'zod';
 import {
+    StateService,
     ValidationError,
     createAgentState,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
+import { MemoryRegistry, MemoryStateDocumentRepository, MemoryStateRepository } from '@chamvi/store-memory';
 
 // #region schema
 const loop = z.object({
@@ -42,8 +43,13 @@ export function createDigest(model: LanguageModel) {
 
 export async function stateOutsideARun() {
     // #region direct
-    const store = createMemoryStore();
-    const state = createAgentState('digest', { loops: loop }, store.state);
+    // the state service of an engine (`engine.stateService`), here on memory repositories
+    const registry = new MemoryRegistry();
+    const service = new StateService({
+        repository: new MemoryStateRepository({ registry }),
+        documentRepository: new MemoryStateDocumentRepository({ registry }),
+    });
+    const state = createAgentState('digest', { loops: loop }, service);
 
     await state.set('lastUid', 1042);
     await state.get<number>('lastUid'); // 1042
@@ -58,7 +64,11 @@ export async function stateOutsideARun() {
 }
 
 export async function invalidDocument() {
-    const state = createAgentState('digest', { loops: loop }, createMemoryStore().state);
+    const registry = new MemoryRegistry();
+    const state = createAgentState('digest', { loops: loop }, new StateService({
+        repository: new MemoryStateRepository({ registry }),
+        documentRepository: new MemoryStateDocumentRepository({ registry }),
+    }));
 
     // #region invalid
     try {

@@ -224,9 +224,10 @@ describe('reportingModule', () => {
 });
 
 describe('module constants', () => {
-    it('names the aggregate store token chamvi.store', () => {
-        expect(AppToken.STORE.name).toBe('chamvi.store');
-        expect(AppToken).not.toHaveProperty('REPOSITORIES');
+    it('has no token of a store aggregate: a token per repository and per service', () => {
+        expect(Object.keys(AppToken).filter((key) => /^(STORE|REPOSITORIES|SERVICES)$/.test(key))).toEqual([]);
+        expect(AppToken.RUN_REPOSITORY.name).toBe('chamvi.run-repository');
+        expect(AppToken.RUN_SERVICE.name).toBe('chamvi.run-service');
     });
 
     it('names every token chamvi.<token>', () => {

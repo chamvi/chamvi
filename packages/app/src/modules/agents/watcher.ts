@@ -214,7 +214,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
             return;
         }
 
-        const markers = new Map((await engine.store.agentRevisions.find()).map((marker) => [marker.agent, marker.hash]));
+        const markers = new Map((await engine.agentRevisionService.find()).map((marker) => [marker.agent, marker.hash]));
 
         for (const [name, hash] of applied) {
             if (seen.get(name) !== hash) {

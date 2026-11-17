@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { DataSource } from 'typeorm';
+import type { DataSource, QueryDeepPartialEntity } from 'typeorm';
 import {
     afterAll,
     beforeAll,
@@ -16,12 +16,17 @@ import {
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '@chamvi/store-db';
 import { RunEntity } from '../../../src/entities/index.ts';
-import { asValues } from '../../../src/repository/helpers.ts';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
+import { RunService } from '@chamvi/core';
+
+/** The entity values of a raw insert (TypeORM's deep partial rejects the unknown of jsonb properties). */
+function asValues(values: Partial<RunEntity>): QueryDeepPartialEntity<RunEntity> {
+    return values as QueryDeepPartialEntity<RunEntity>;
+}
 
 describePostgres('DatabaseRunRepository legacy envelopes', () => {
     let dataSource: DataSource;
-    let store: DatabaseRunRepository;
+    let store: RunService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();
@@ -29,7 +34,7 @@ describePostgres('DatabaseRunRepository legacy envelopes', () => {
 
     beforeEach(async () => {
         await truncateRepository(dataSource);
-        store = new DatabaseRunRepository({ dataSource, clock: new ControllableClock(new Date(10_000)) });
+        store = new RunService({ repository: new DatabaseRunRepository(dataSource), clock: new ControllableClock(new Date(10_000)) });
     });
 
     afterAll(async () => {
@@ -42,7 +47,7 @@ describePostgres('DatabaseRunRepository legacy envelopes', () => {
         await dataSource.getRepository(RunEntity)
             .createQueryBuilder()
             .insert()
-            .values(asValues<RunEntity>({
+            .values(asValues({
                 id: testUuid('legacy'),
                 agent: 'a',
                 status: 'queued',

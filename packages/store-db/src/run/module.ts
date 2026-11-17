@@ -5,278 +5,57 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    InvalidRunStateError,
-    RepositoryNotFoundError,
-    RunNotFoundError,
-    systemClock,
-    waitIdOf,
-} from '@chamvi/core';
+import type { IQuery } from '@rapiq/core';
+import type { DataSource, EntityManager } from 'typeorm';
 import type {
-    IClock,
+    EntityFindManyResult,
     IRunRepository,
     Run,
-    RunFindOptions,
-    RunUpdateOptions,
-} from '@chamvi/core';
-import {
-    In,
-    IsNull,
-    JsonContains,
-    LessThanOrEqual,
-    MoreThan,
-    Not,
-} from 'typeorm';
-import type { DataSource, FindOptionsWhere, Repository } from 'typeorm';
-import { RunEntity } from '../entities/index.ts';
-import {
-    isUuid,
-    toEntity,
-    toRun,
-    toRunInsertValues,
-    toRunValues,
-    withRunReference,
-} from '../repository/helpers.ts';
-import type { DatabaseStoreOptions } from '../repository/types.ts';
+    WaitPoint,
+} from '@chamvi/store';
+import { ConversationEntity, RunEntity, StepEntity } from '../entities/index.ts';
+import { EntityRepositoryAdapter } from '../entity/module.ts';
+import { fromRunEntity, toRunEntity } from './helpers.ts';
 
-export class DatabaseRunRepository implements IRunRepository {
-    protected dataSource: DataSource;
-
-    protected clock: IClock;
-
-    constructor(opts: DatabaseStoreOptions) {
-        this.dataSource = opts.dataSource;
-        this.clock = opts.clock ?? systemClock;
-    }
-
-    protected now(): Date {
-        return this.clock.now();
-    }
-
-    protected get runs(): Repository<RunEntity> {
-        return this.dataSource.getRepository(RunEntity);
-    }
-
-    async insert(run: Run): Promise<boolean> {
-        const write = async () => {
-            const result = await this.runs.createQueryBuilder()
-                .insert()
-                .values(toRunInsertValues(run))
-                .orIgnore()
-                .returning(['id'])
-                .updateEntity(false)
-                .execute();
-
-            return result.raw.length === 1;
-        };
-        const parentRunId = run.trigger.parent?.runId;
-
-        // orIgnore() suppresses only the id conflict: a missing parent still violates the self reference
-        return parentRunId === undefined ? write() : withRunReference(this.dataSource, parentRunId, write);
-    }
-
-    async findOne(id: string): Promise<Run | undefined> {
-        if (!isUuid(id)) {
-            return undefined;
-        }
-
-        const entity = await this.runs.findOneBy({ id });
-
-        return entity ? toRun(entity) : undefined;
-    }
-
-    async findOneOrFail(id: string): Promise<Run> {
-        const result = await this.findOne(id);
-
-        if (result === undefined) {
-            throw new RunNotFoundError(id);
-        }
-
-        return result;
-    }
-
-    async update(
-        id: string,
-        patch: Partial<Run>,
-        opts: RunUpdateOptions = {},
-    ): Promise<Run> {
-        if (!isUuid(id)) {
-            throw new RunNotFoundError(id);
-        }
-
-        const where: FindOptionsWhere<RunEntity> = { id };
-
-        if (opts.expectStatus) {
-            where.status = In(opts.expectStatus);
-        }
-
-        if (opts.expectOwner !== undefined) {
-            where.claimOwner = opts.expectOwner;
-        }
-
-        const values: Partial<Run> = { ...patch, updatedAt: patch.updatedAt ?? (opts.keepUpdatedAt ? undefined : this.now()) };
-
-        if (!values.updatedAt) {
-            // keepUpdatedAt: leave the column out (an undefined value would write null)
-            delete values.updatedAt;
-        }
-
-        const query = this.runs.createQueryBuilder()
-            .update()
-            .set(toRunValues(values))
-            .where(where);
-
-        if (opts.expectWaitId !== undefined) {
-            // the ORM has no jsonb field operator; a wait point stored without id matches by approvalId
-            query.andWhere('COALESCE("waiting"->>\'id\', "waiting"->>\'approvalId\') = :waitId', { waitId: opts.expectWaitId });
-        }
-
-        const result = await query
-            .returning('*')
-            .updateEntity(false)
-            .execute();
-
-        if (result.raw.length === 1) {
-            return toRun(toEntity(this.dataSource, RunEntity, result.raw[0]));
-        }
-
-        const current = await this.runs.findOneBy({ id });
-
-        if (!current) {
-            throw new RunNotFoundError(id);
-        }
-
-        if (opts.expectStatus && !opts.expectStatus.includes(current.status)) {
-            throw new InvalidRunStateError(
-                `Run "${id}" is "${current.status}", expected one of: ${opts.expectStatus.join(', ')}.`,
-            );
-        }
-
-        if (opts.expectOwner !== undefined && current.claimOwner !== opts.expectOwner) {
-            throw new InvalidRunStateError(
-                `Run "${id}" is not claimed by "${opts.expectOwner}" (claim: ${current.claimOwner ?? 'none'}).`,
-            );
-        }
-
-        if (opts.expectWaitId !== undefined) {
-            const waitId = waitIdOf(toRun(current).waiting);
-
-            if (waitId !== opts.expectWaitId) {
-                throw new InvalidRunStateError(
-                    `Run "${id}" does not wait on "${opts.expectWaitId}" (wait: ${waitId ?? 'none'}).`,
-                );
-            }
-        }
-
-        throw new InvalidRunStateError(`Run "${id}" changed concurrently.`);
-    }
-
-    async find(q: RunFindOptions): Promise<{ data: Run[]; total: number }> {
-        const where: FindOptionsWhere<RunEntity> = {};
-
-        const agents = q.agent === undefined ? q.agents : [q.agent].filter((agent) => q.agents?.includes(agent) ?? true);
-
-        if (agents !== undefined && agents.length === 0) {
-            // no agent left to match
-            return { data: [], total: 0 };
-        }
-
-        if (agents !== undefined) {
-            where.agent = agents.length === 1 ? agents[0] : In([...agents]);
-        }
-
-        if (q.status !== undefined) {
-            where.status = In(q.status);
-        }
-
-        if (q.concurrencyKey !== undefined) {
-            where.concurrencyKey = q.concurrencyKey;
-        }
-
-        if (q.ids !== undefined) {
-            where.id = In(q.ids.filter((id) => isUuid(id)));
-        }
-
-        const parents = (q.parentRunId === undefined ? q.parentRunIds : [q.parentRunId].filter((id) => q.parentRunIds?.includes(id) ?? true))
-            ?.filter((id) => isUuid(id));
-
-        if (parents !== undefined && (parents.length === 0 || q.hasParent === false)) {
-            // no parent run left to match, or a parent run and none: matches nothing
-            return { data: [], total: 0 };
-        }
-
-        if (parents !== undefined) {
-            where.parentRunId = In(parents);
-        } else if (q.hasParent !== undefined) {
-            // the indexed parent_run_id column
-            where.parentRunId = q.hasParent ? Not(IsNull()) : IsNull();
-        }
-
-        if (q.waitKind !== undefined) {
-            // jsonb containment (`@>`) on the wait point's kind
-            where.waiting = JsonContains({ kind: q.waitKind });
-        }
-
-        if (q.limit === 0) {
-            // take: 0 means no limit to TypeORM
-            return { data: [], total: await this.runs.countBy(where) };
-        }
-
-        const direction = q.order === 'desc' ? 'DESC' : 'ASC';
-        const [entities, total] = await this.runs.findAndCount({
-            where,
-            order: { createdAt: direction, id: direction },
-            skip: q.offset,
-            take: q.limit,
+/**
+ * Runs in `chamvi_runs`, stored as given. A single-row read in a
+ * transaction locks the row `FOR NO KEY UPDATE`: the inserts of rows that
+ * reference a run (steps, checkpoints, child runs) take `FOR KEY SHARE`
+ * on it, which `FOR UPDATE` would block behind every run update.
+ */
+export class DatabaseRunRepository extends EntityRepositoryAdapter<Run, RunEntity> implements IRunRepository {
+    constructor(source: DataSource | EntityManager) {
+        super(source.getRepository(RunEntity), {
+            entity: 'run',
+            alias: 'run',
+            target: RunEntity,
+            lock: 'no-key-update',
+            toEntity: toRunEntity,
+            fromEntity: fromRunEntity,
+            fields: {
+                'claim.owner': 'claimOwner',
+                'claim.expiresAt': 'claimExpiresAt',
+                'conversation.scope.id': 'conversationScopeId',
+                'conversation.scope.generation': 'conversationGeneration',
+                'conversation.text': 'conversationText',
+            },
+            related: [
+                { target: ConversationEntity, entity: 'conversation' },
+                { target: StepEntity, entity: 'step' },
+            ],
         });
-
-        return { data: entities.map((entity) => toRun(entity)), total };
     }
 
-    async findOrFail(q: RunFindOptions): Promise<{ data: Run[]; total: number }> {
-        const result = await this.find(q);
-
-        if (result.data.length === 0) {
-            throw new RepositoryNotFoundError('runs');
-        }
-
-        return result;
+    withManager(manager: EntityManager): this {
+        return new DatabaseRunRepository(manager) as this;
     }
 
-    async claim(id: string, owner: string, ttlMs: number): Promise<boolean> {
-        if (!isUuid(id)) {
-            return false;
-        }
+    async findByWaitKind(kind: WaitPoint['kind'], query: IQuery): Promise<EntityFindManyResult<Run>> {
+        const column = this.metadata.findColumnWithPropertyName('waiting')!.databaseName;
 
-        const now = this.now();
-        const result = await this.runs.createQueryBuilder()
-            .update()
-            .set({ claimOwner: owner, claimExpiresAt: new Date(now.getTime() + ttlMs) })
-            .where([
-                { id, claimOwner: IsNull() },
-                { id, claimExpiresAt: LessThanOrEqual(now) },
-            ])
-            .execute();
-
-        return result.affected === 1;
-    }
-
-    async renewClaim(id: string, owner: string, ttlMs: number): Promise<boolean> {
-        if (!isUuid(id)) {
-            return false;
-        }
-
-        const now = this.now();
-        const result = await this.runs.createQueryBuilder()
-            .update()
-            .set({ claimExpiresAt: new Date(now.getTime() + ttlMs) })
-            .where({
-                id,
-                claimOwner: owner,
-                claimExpiresAt: MoreThan(now),
-            })
-            .execute();
-
-        return result.affected === 1;
+        // a jsonb path: rapiq's TypeORM adapter cannot address one
+        return this.findManyWhere(query, (queryBuilder, alias) => {
+            queryBuilder.andWhere(`(${queryBuilder.escape(alias)}.${queryBuilder.escape(column)} ->> 'kind' = :waitKind)`, { waitKind: kind });
+        });
     }
 }

@@ -37,7 +37,7 @@ export class HealthService implements IHealthService {
         const timeout = new Promise<boolean>((resolve) => {
             timer = this.ctx.clock.setTimeout(() => resolve(false), this.ctx.readyTimeoutMs);
         });
-        const probe = this.ctx.store.runs.findOne(READINESS_PROBE_RUN_ID).then(() => true, () => false);
+        const probe = this.ctx.runService.findOne(READINESS_PROBE_RUN_ID).then(() => true, () => false);
 
         try {
             return await Promise.race([probe, timeout]);

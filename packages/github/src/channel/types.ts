@@ -9,7 +9,7 @@ import type {
     ChannelRequest,
     IChannel,
     IClock,
-    IStore,
+    LockService,
 } from '@chamvi/core';
 import type { IGithubApp } from '../app/types.ts';
 import type { GithubSubscriber } from '../subscription/types.ts';
@@ -26,8 +26,8 @@ export type GithubChannelOptions = {
     app: IGithubApp;
     /** The channel name; default `'github'`. A second instance needs its own. */
     name?: string;
-    /** Persistent-comment coordination; defaults to local memory. Share across replicas. */
-    locks?: IStore['locks'];
+    /** Persistent-comment coordination: the engine's lock service (`engine.lockService`), shared across replicas. */
+    locks: Pick<LockService, 'acquire' | 'release'>;
     /** Logins mentioned at the top of every comment (without `@`). */
     mention?: string | readonly string[];
     /**
@@ -62,7 +62,7 @@ export type CommentTarget = {
 export type ResolvedGithubChannelOptions = {
     app: IGithubApp;
     name: string;
-    locks: IStore['locks'];
+    locks: Pick<LockService, 'acquire' | 'release'>;
     mentions: string[];
     approvalUrl?: (ref: GithubApprovalRef) => string;
     timeoutMs: number;

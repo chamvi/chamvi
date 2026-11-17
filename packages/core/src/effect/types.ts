@@ -6,13 +6,14 @@
  */
 
 import type { Tool, ToolExecutionOptions } from 'ai';
+import type { IEffectRepository } from '@chamvi/store';
 import type { AgentHooks } from '../agent/types.ts';
 import type { IRunArtifacts } from '../artifact/types.ts';
 import type { SuspendRequest } from '../engine/execute/types.ts';
-import type { IEffectRepository } from '../repository/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { AgentTrust, ToolContext } from '../tool/types.ts';
 import type { EFFECT, EFFECT_HOOKS } from './constants.ts';
+import type { EffectService } from './service.ts';
 
 export type EffectHooks = {
     effectKey?: (input: any, ctx: ToolContext, options: ToolExecutionOptions<any>) => string;
@@ -46,7 +47,7 @@ export type ToolCallFrame = {
     /** Set when the outbound gate asked and approved this call: `outboundApproved()` reads it. */
     outboundApproved?: boolean;
     /** Where approve() reads the recorded decisions. */
-    effects: IEffectRepository;
+    effects: Pick<EffectService, 'findOne' | 'save'>;
     /** The run's artifacts, where approve() checks the artifact ids a request names. */
     artifacts?: IRunArtifacts;
     /** Set by the approve() or waitForDispatch() that suspended the call; the wrapper answers it with a placeholder. */
@@ -85,4 +86,13 @@ export type WrapToolsOptions = {
      * its signal) can no longer dispatch, wait, approve or emit.
      */
     ended?: () => boolean;
+};
+
+export type EffectServiceContext = {
+    repository: IEffectRepository;
+};
+
+/** The result recorded under an effect key. */
+export type EffectResult = {
+    result: unknown;
 };

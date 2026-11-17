@@ -14,13 +14,14 @@ import {
     it,
 } from 'vitest';
 import {
+    ConnectionService,
     createConnectionConfigStore,
     createKeyring,
-    createMemoryStore,
     defineModelAgent,
+    systemClock,
 } from '@chamvi/core';
-import type { IStore } from '@chamvi/core';
-import { mockModel } from '@chamvi/test-kit';
+import { MemoryConnectionRepository, MemoryRegistry } from '@chamvi/store-memory';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 import {
     AppToken,
     configModule,
@@ -28,15 +29,32 @@ import {
     engineModule,
     httpModule,
     staticTokensModule,
-    storeModule,
 } from '@chamvi/app';
-import { createModuleHarness } from '@chamvi/app/testing';
+import { createModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness } from '@chamvi/app/testing';
 import { mailTools } from '@chamvi/tool-mail';
 import { MAIL_CONNECTION_TYPE, toolMailModule } from '@chamvi/tool-mail/module';
 import { createFakeImap } from '../../utils/imap.ts';
 import type { FakeImap } from '../../utils/imap.ts';
 import { fakeOptions } from '../../utils/mail.ts';
+
+/**
+ * The registry the app's memory repositories share with the spec, whether
+ * the app keeps connections (`connections: false` keeps none) and a
+ * connection service on that registry, to seed and read the rows the app sees.
+ */
+function storeOf(options: { connections?: boolean } = {}) {
+    const registry = new MemoryRegistry();
+    const connectionRepository = new MemoryConnectionRepository({ registry });
+
+    return {
+        registry,
+        connections: options.connections !== false,
+        connectionService: new ConnectionService({ repository: connectionRepository, clock: systemClock }),
+    };
+}
+
+type TestStore = ReturnType<typeof storeOf>;
 
 const TOKEN = 'a-static-token-of-length';
 const LEFTOVER = 'leftover-env-password';
@@ -90,7 +108,7 @@ type Served = {
 };
 
 /** One start of the app over `store`, the mail module reading `env`. */
-async function serve(store: IStore, env: Record<string, string>): Promise<Served> {
+async function serve(store: TestStore, env: Record<string, string>): Promise<Served> {
     const port = await freePort();
     const harness = await createModuleHarness({
         env: {
@@ -128,7 +146,7 @@ async function serve(store: IStore, env: Record<string, string>): Promise<Served
                     },
                 }),
             }),
-            storeModule({ store }),
+            memoryStoreModule({ registry: store.registry, connections: store.connections }),
             staticTokensModule(),
             engineModule(),
             httpModule({
@@ -190,7 +208,7 @@ const wireOf = (server: FakeImap) => server.commands.join('\n');
 describe('a mail account that exists only in the store (#197)', () => {
     it('never sends a leftover env secret to its host: after a restart the test and the tools log in with the stored values', async () => {
         const host = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
         const first = await serve(store, LEFTOVER_ENV);
 
         await createWork(first, host.port);
@@ -214,10 +232,14 @@ describe('a mail account that exists only in the store (#197)', () => {
     it('never sends it without a restart either: deleted, added again with another host and tested', async () => {
         const original = await fake();
         const host = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
 
         // the row of an account whose password the environment used to provide
-        await createConnectionConfigStore({ store, keyring: () => keyring }).create('mail-work', MAIL_CONNECTION_TYPE, {
+        await createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => keyring,
+        }).create('mail-work', MAIL_CONNECTION_TYPE, {
             settings: {
                 address: 'bob@y.test',
                 host: '127.0.0.1',
@@ -243,7 +265,7 @@ describe('a mail account that exists only in the store (#197)', () => {
 
     it('warns at the start naming each ignored variable, never a value', async () => {
         const host = await fake();
-        const store = createMemoryStore();
+        const store = storeOf();
         const first = await serve(store, {});
 
         await createWork(first, host.port);

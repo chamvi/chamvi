@@ -6,8 +6,9 @@
  */
 
 import type { ToolSet } from 'ai';
-import { createAgentState, createMemoryStore } from '@chamvi/core';
+import { createAgentState } from '@chamvi/core';
 import type { IRunArtifacts, ToolContext } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 
 const NO_ARTIFACTS: IRunArtifacts = {
     put: async () => {
@@ -35,7 +36,7 @@ export function toolContext(runId: string, signal: AbortSignal = new AbortContro
             },
             signal,
         },
-        state: createAgentState('researcher', undefined, createMemoryStore().state),
+        state: createAgentState('researcher', undefined, createTestEngine({ agents: [] }).stateService),
         artifacts: NO_ARTIFACTS,
     };
 }

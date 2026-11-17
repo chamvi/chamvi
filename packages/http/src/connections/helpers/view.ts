@@ -8,7 +8,7 @@
 import type { IConnectionHandle, IConnectionTypeProvider } from '@chamvi/core';
 import type {
     ConfigTarget,
-    ConnectionServiceContext,
+    ConnectionHttpServiceContext,
     ConnectionSettingsFieldView,
     ConnectionSettingsView,
     ConnectionTypeView,
@@ -32,7 +32,7 @@ export function serializeConnection(handle: IConnectionHandle): ConnectionView {
 }
 
 /** Read from the store on every call: a provider's snapshot is the state of the last start. */
-export async function buildSettingsView(ctx: ConnectionServiceContext, target: ConfigTarget): Promise<ConnectionSettingsView> {
+export async function buildSettingsView(ctx: ConnectionHttpServiceContext, target: ConfigTarget): Promise<ConnectionSettingsView> {
     const {
         definition,
         declared,
@@ -41,7 +41,7 @@ export async function buildSettingsView(ctx: ConnectionServiceContext, target: C
     const stored = await ctx.connectionConfigs?.describe(name);
     const loadedCreatedAt = declared?.loadedCreatedAt;
     // a delete and create again restarts the revision count: only the row's age tells them apart
-    const row = loadedCreatedAt ? await ctx.store.connections?.findOne(name) : undefined;
+    const row = loadedCreatedAt ? await ctx.connectionService?.findOne(name) : undefined;
     const recreated = row !== undefined && row.createdAt.getTime() !== loadedCreatedAt?.getTime();
     const fields: ConnectionSettingsFieldView[] = [];
     const settings: [string, unknown][] = [];
@@ -88,7 +88,7 @@ export async function buildSettingsView(ctx: ConnectionServiceContext, target: C
     };
 }
 
-export function serializeType(ctx: ConnectionServiceContext, provider: IConnectionTypeProvider): ConnectionTypeView {
+export function serializeType(ctx: ConnectionHttpServiceContext, provider: IConnectionTypeProvider): ConnectionTypeView {
     const { definition } = provider;
 
     return {
@@ -111,7 +111,7 @@ export function serializeType(ctx: ConnectionServiceContext, provider: IConnecti
 }
 
 /** What a listing shows of a connection's configuration: read from the store, as the form does. */
-export async function configurationOf(ctx: ConnectionServiceContext, target: ConfigTarget): Promise<Pick<ConnectionView, 'state' | 'missing' | 'reason' | 'editable' | 'deletable'>> {
+export async function configurationOf(ctx: ConnectionHttpServiceContext, target: ConfigTarget): Promise<Pick<ConnectionView, 'state' | 'missing' | 'reason' | 'editable' | 'deletable'>> {
     const {
         state,
         missing,
@@ -133,10 +133,10 @@ export async function configurationOf(ctx: ConnectionServiceContext, target: Con
  * The handles, the declared connections (a handle's status joins its
  * declaration) and the accounts created after the start, unfiltered.
  */
-export async function listConnections(ctx: ConnectionServiceContext): Promise<ConnectionView[]> {
+export async function listConnections(ctx: ConnectionHttpServiceContext): Promise<ConnectionView[]> {
     const views = new Map<string, ConnectionView>(ctx.connections().map((handle) => [handle.name, serializeConnection(handle)]));
     const declared = new Set<string>();
-    const rows = ctx.connectionConfigs && ctx.connectionTypes().length > 0 ? await ctx.store.connections?.find() ?? [] : [];
+    const rows = ctx.connectionConfigs && ctx.connectionTypes().length > 0 ? await ctx.connectionService?.find() ?? [] : [];
     const rowsByName = new Map(rows.map((row) => [row.name, row]));
 
     for (const provider of ctx.connectionTypes()) {

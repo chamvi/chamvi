@@ -15,7 +15,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     ValidationError,
     defineModelAgent,
     requireToolPermission,
@@ -23,16 +22,16 @@ import {
 import type {
     AgentDefinition,
     IEngine,
-    Invoker,
     RunContext,
 } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 import { Permission, allPermissions, can } from '@chamvi/access';
 import type { PermissionBinding } from '@chamvi/access';
 import { ControllableClock } from '../../utils/clock.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { gateTool, recordApprovals } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -74,7 +73,7 @@ type Setup = {
 
 function setup(s: Setup) {
     const clock = new ControllableClock(s.now ?? new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const agent = defineModelAgent({
         name: 'release',
         instructions: 'You release.',
@@ -85,8 +84,8 @@ function setup(s: Setup) {
         hooks: s.hooks,
     });
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [agent],
         clock,
         claimTtlMs: 30,
@@ -131,7 +130,7 @@ describe('invoker', () => {
         invoker.bindings[0]!.policies!.length = 0;
         invoker.name = 'Mallory';
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.trigger.invoker).toEqual(alice);
     });
@@ -145,14 +144,14 @@ describe('invoker', () => {
         };
         const { runId } = await engine.dispatch(env({ ...alice, identity }));
 
-        expect((await store.runs.findOne(runId))?.trigger.invoker).toEqual({ ...alice, identity });
+        expect((await store.runService.findOne(runId))?.trigger.invoker).toEqual({ ...alice, identity });
     });
 
     it('keeps only the invoker fields', async () => {
         const { engine, store } = setup({ model: mockModel([]) });
         const { runId } = await engine.dispatch(env({ ...alice, token: 'secret-bearer' }));
 
-        expect((await store.runs.findOne(runId))?.trigger.invoker).toEqual(alice);
+        expect((await store.runService.findOne(runId))?.trigger.invoker).toEqual(alice);
     });
 
     it.each([
@@ -175,13 +174,13 @@ describe('invoker', () => {
         const { engine, store } = setup({ model: mockModel([]) });
 
         await expect(engine.dispatch(env(invoker, 'key-1'))).rejects.toBeInstanceOf(ValidationError);
-        expect((await store.runs.find({})).data).toHaveLength(0);
+        expect((await store.runService.find({})).data).toHaveLength(0);
 
         // the idempotency key was not claimed either
         const { runId, deduplicated } = await engine.dispatch(env(alice, 'key-1'));
 
         expect(deduplicated).toBe(false);
-        expect((await store.runs.findOne(runId))?.trigger.invoker).toEqual(alice);
+        expect((await store.runService.findOne(runId))?.trigger.invoker).toEqual(alice);
     });
 
     it('keeps the authorization through the store round trip, and a snapshot grant decides', async () => {
@@ -210,7 +209,7 @@ describe('invoker', () => {
             },
         };
         const { runId } = await engine.dispatch(env(invoker));
-        const stored = (await store.runs.findOne(runId))?.trigger.invoker;
+        const stored = (await store.runService.findOne(runId))?.trigger.invoker;
 
         expect(stored).toEqual(invoker);
         expect(await can(stored!, Permission.RUN_READ)).toBe(true);
@@ -223,7 +222,7 @@ describe('invoker', () => {
         const second = await engine.dispatch(env({ ...alice, bindings: [] }, 'same'));
 
         expect(second).toEqual({ runId: first.runId, deduplicated: true });
-        expect((await store.runs.findOne(first.runId))?.trigger.invoker).toEqual(alice);
+        expect((await store.runService.findOne(first.runId))?.trigger.invoker).toEqual(alice);
     });
 
     it('gives two invokers with the same key a run each', async () => {
@@ -238,8 +237,8 @@ describe('invoker', () => {
 
         expect(second.deduplicated).toBe(false);
         expect(second.runId).not.toBe(first.runId);
-        expect((await store.runs.findOne(first.runId))?.trigger.invoker).toEqual(alice);
-        expect((await store.runs.findOne(second.runId))?.trigger.invoker).toEqual(bob);
+        expect((await store.runService.findOne(first.runId))?.trigger.invoker).toEqual(alice);
+        expect((await store.runService.findOne(second.runId))?.trigger.invoker).toEqual(bob);
     });
 
     it('keeps an invoker id apart from another kind and from a run without an invoker', async () => {
@@ -272,9 +271,9 @@ describe('invoker', () => {
     it('claims the key under <agent>:<source>:<kind>:<id>, each part URI-encoded', async () => {
         const { engine, store } = setup({ model: mockModel([]) });
         const scopes: string[] = [];
-        const claimKey = store.idempotency.claim.bind(store.idempotency);
+        const claimKey = store.idempotencyService.claim.bind(store.idempotencyService);
 
-        store.idempotency.claim = (scope, ...rest) => {
+        store.idempotencyService.claim = (scope, ...rest) => {
             scopes.push(scope);
 
             return claimKey(scope, ...rest);
@@ -317,7 +316,7 @@ describe('invoker', () => {
         const { runId } = await engine.dispatch(env(alice));
 
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(seen).toEqual([alice, alice]);
     });
 });
@@ -386,9 +385,9 @@ describe('tool policy', () => {
 
         // a run queued before the upgrade: intake refuses this shape, the store still holds it
         const { runId } = await engine.dispatch(env(alice));
-        const stored = await store.runs.findOne(runId);
+        const stored = await store.runService.findOne(runId);
 
-        await store.runs.update(runId, {
+        await store.runService.update(runId, {
             trigger: {
                 ...stored!.trigger,
                 invoker: { ...alice, bindings: ['tool:release:deploy', '*', 'agent:release:run'] as never },
@@ -398,11 +397,11 @@ describe('tool policy', () => {
         await engine.start();
         await engine.idle();
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(toolNames(model, 0)).toEqual([]);
         expect(executed).toBe(0);
 
-        const step = (await store.steps.find(runId)).find((s) => s.kind === 'tool');
+        const step = (await store.stepService.find(runId)).find((s) => s.kind === 'tool');
 
         expect(step).toMatchObject({ name: 'deploy', error: { code: 'tool_not_allowed' } });
         expect(errors).toEqual([]);
@@ -446,10 +445,10 @@ describe('tool policy', () => {
         const { runId } = await engine.dispatch(env(alice));
 
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(executed).toBe(0);
 
-        const step = (await store.steps.find(runId)).find((s) => s.kind === 'tool');
+        const step = (await store.stepService.find(runId)).find((s) => s.kind === 'tool');
 
         expect(step).toMatchObject({ name: 'deploy', error: { code: 'tool_not_allowed' } });
     });
@@ -469,7 +468,7 @@ describe('tool policy', () => {
         const { runId } = await engine.dispatch(env(alice));
 
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('failed');
+        expect((await store.runService.findOne(runId))?.status).toBe('failed');
         expect(model.doStreamCalls).toHaveLength(0);
     });
 
@@ -504,7 +503,7 @@ describe('tool policy', () => {
 
         await engine.idle();
         expect(executed).toBe(0);
-        expect(await store.runs.findOne(runId)).toMatchObject({ status: 'failed', error: { code: 'FatalToolError' } });
+        expect(await store.runService.findOne(runId)).toMatchObject({ status: 'failed', error: { code: 'FatalToolError' } });
     });
 
     it('passes the engine clock time to the policy', async () => {
@@ -570,7 +569,7 @@ describe('tool policy', () => {
         const { runId } = await engine.dispatch(env(office));
 
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
         expect(toolNames(model, 0)).toEqual(['deploy']);
 
         // the window closes while the run waits
@@ -578,10 +577,10 @@ describe('tool policy', () => {
         await engine.approve(notifier.calls[0]!.runId, { approvalId: notifier.calls[0]!.approvalId, approved: true });
         await engine.idle();
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(deployed).toBe(0);
 
-        const step = (await store.steps.find(runId)).find((s) => s.kind === 'tool');
+        const step = (await store.stepService.find(runId)).find((s) => s.kind === 'tool');
 
         expect(step).toMatchObject({ name: 'deploy', error: { code: 'tool_not_allowed' } });
     });
@@ -637,7 +636,7 @@ describe('tool policy', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toBe('could not deploy');
@@ -680,12 +679,12 @@ describe('tool policy', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(executed).toBe(0);
 
-        const step = (await store.steps.find(runId)).find((s) => s.kind === 'tool');
+        const step = (await store.stepService.find(runId)).find((s) => s.kind === 'tool');
 
         expect(step?.name).toBe(toolName);
 
@@ -727,7 +726,7 @@ describe('tool policy', () => {
         const { runId } = await engine.dispatch(env(alice));
 
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
 
         const approver: Invoker = {
             id: 'u-bob',
@@ -742,7 +741,7 @@ describe('tool policy', () => {
         });
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.trigger.invoker).toEqual(alice);
@@ -750,7 +749,7 @@ describe('tool policy', () => {
         expect(toolNames(model, 0)).toEqual(['deploy']);
         expect(toolNames(model, 1)).toEqual(toolNames(model, 0));
 
-        const wait = (await store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await store.stepService.find(runId)).find((s) => s.kind === 'wait');
 
         expect(wait?.output).toEqual({
             approvalId: expect.any(String),
@@ -790,12 +789,12 @@ describe('tool policy', () => {
         const { runId } = await engine.dispatch(env(alice));
 
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
         engine.stop();
 
         // redeployed with a tighter policy: deploy is refused now
-        const tightened = new Engine({
-            store,
+        const tightened = createTestEngine({
+            services: store,
             agents: [defineModelAgent({
                 name: 'release',
                 instructions: 'You release.',
@@ -814,7 +813,7 @@ describe('tool policy', () => {
         await tightened.approve(notifier.calls[0]!.runId, { approvalId: notifier.calls[0]!.approvalId, approved: true });
         await tightened.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toBe('could not deploy');
@@ -856,14 +855,14 @@ describe('tool policy', () => {
                 bindings: [],
             },
         })).rejects.toBeInstanceOf(ValidationError);
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
-        expect((await store.steps.find(runId)).some((s) => s.kind === 'wait')).toBe(false);
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
+        expect((await store.stepService.find(runId)).some((s) => s.kind === 'wait')).toBe(false);
 
         // without an approver the wait step has none
         await engine.approve(runId, { approvalId, approved: true });
         await engine.idle();
 
-        const wait = (await store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await store.stepService.find(runId)).find((s) => s.kind === 'wait');
 
         expect(wait?.output).not.toHaveProperty('approver');
     });

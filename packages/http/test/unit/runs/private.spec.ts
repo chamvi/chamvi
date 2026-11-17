@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
-import type { IStore } from '@chamvi/core';
+import type { RunService } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -61,7 +61,7 @@ async function setup() {
     await ctx.engine.start();
     await ctx.engine.idle();
 
-    const [artifact] = await ctx.store.artifacts.find(alfred.runId);
+    const [artifact] = await ctx.store.artifactService.find(alfred.runId);
 
     return {
         ...ctx,
@@ -72,10 +72,10 @@ async function setup() {
 }
 
 /** A completed run of `ghost`, an agent the app does not hold. */
-async function insertGhostRun(store: IStore): Promise<string> {
+async function insertGhostRun(store: { runService: RunService }): Promise<string> {
     const at = new Date(2_000_000);
 
-    await store.runs.insert({
+    await store.runService.create({
         id: 'ghost-run',
         agent: 'ghost',
         status: 'completed',

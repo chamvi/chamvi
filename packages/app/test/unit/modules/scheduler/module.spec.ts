@@ -87,7 +87,7 @@ async function setup(options: { mode?: AppMode; env?: Record<string, string> } =
 }
 
 async function runs(harness: Harness) {
-    return (await harness.container.resolve(AppToken.STORE).runs.find({ agent: 'sweep' })).data;
+    return (await harness.container.resolve(AppToken.RUN_SERVICE).find({ agent: 'sweep' })).data;
 }
 
 describe('schedulerModule', () => {
@@ -130,13 +130,13 @@ describe('schedulerModule', () => {
 
     it('teardown stops it', async () => {
         const harness = await setup();
-        const store = harness.container.resolve(AppToken.STORE);
+        const runService = harness.container.resolve(AppToken.RUN_SERVICE);
 
         await vi.advanceTimersByTimeAsync(30_000);
         expect(await runs(harness)).toHaveLength(1);
 
         await settle(harness.stop());
         await vi.advanceTimersByTimeAsync(180_000);
-        expect((await store.runs.find({ agent: 'sweep' })).data).toHaveLength(1);
+        expect((await runService.find({ agent: 'sweep' })).data).toHaveLength(1);
     });
 });

@@ -82,7 +82,7 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
             return loaded.formerRevision;
         }
 
-        const marker = await engine.store.agentRevisions.findOne(name);
+        const marker = await engine.agentRevisionService.findOne(name);
 
         return marker !== undefined && isDevMarkerOf(marker.hash, loaded.revision) ? marker.hash : undefined;
     };

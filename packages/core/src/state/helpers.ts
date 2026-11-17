@@ -8,6 +8,8 @@
 import { randomUUID } from 'node:crypto';
 import { flattenIssueItems } from '@ebec/core';
 import type { Issue } from '@ebec/core';
+import { isFilter } from '@rapiq/core';
+import type { ICondition, IFilters, IQuery } from '@rapiq/core';
 import type { StandardJSONSchemaV1 } from '@standard-schema/spec';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
 import type { JSONSchema7 } from 'ai';
@@ -70,3 +72,31 @@ export function docJsonSchema(schema: StateSchema[string]): JSONSchema7 {
  * always applied.
  */
 export const perCallKey = (tool: string) => (_input: unknown, ctx: ToolContext) => `${ctx.run.runId}:${tool}:${randomUUID()}`;
+
+/** The conditions of a query's filters that are joined with `and` at the top. */
+export function topLevelConditions(filters: IFilters): ICondition[] {
+    return filters.operator === 'and' ? [...filters.value] : [filters];
+}
+
+/**
+ * A document listing's `where`: each top-level `eq` filter, given once, as
+ * a document key and its value. Any other condition, a repeated key and
+ * any sort is a ValidationError.
+ */
+export function readDocumentWhere(query: IQuery): Record<string, unknown> {
+    const where: Record<string, unknown> = {};
+
+    if (query.sorts.value.length > 0) {
+        throw new ValidationError('A document listing is ordered by document id: it takes no sort.');
+    }
+
+    for (const condition of topLevelConditions(query.filters)) {
+        if (!isFilter(condition) || condition.operator !== 'eq' || Object.hasOwn(where, condition.field)) {
+            throw new ValidationError('A document listing takes top-level equality filters, each key once.');
+        }
+
+        where[condition.field] = condition.value;
+    }
+
+    return where;
+}

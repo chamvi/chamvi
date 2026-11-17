@@ -12,6 +12,7 @@ import { createBuildCommand } from './build.ts';
 import { createDevCommand } from './dev.ts';
 import { readVersion } from './helpers.ts';
 import { createMigrateCommand } from './migrate.ts';
+import { createMigrationCommand } from './migration.ts';
 import { createRunJobCommand } from './run-job.ts';
 import { createStartCommand } from './start.ts';
 
@@ -24,7 +25,7 @@ export function createMainCommand(context: CliContext): CommandDef {
         meta: {
             name: 'chamvi',
             version: readVersion(),
-            description: 'Run a chamvi app: dev, build, start, run-job, migrate',
+            description: 'Run a chamvi app: dev, build, start, run-job, migrate, migration',
         },
         subCommands: {
             dev: createDevCommand(context),
@@ -32,6 +33,7 @@ export function createMainCommand(context: CliContext): CommandDef {
             start: createStartCommand(context),
             'run-job': createRunJobCommand(context),
             migrate: createMigrateCommand(context),
+            migration: createMigrationCommand(context),
         },
     });
 }

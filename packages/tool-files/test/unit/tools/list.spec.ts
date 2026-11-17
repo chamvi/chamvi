@@ -11,13 +11,14 @@ import {
     it,
     vi,
 } from 'vitest';
-import { ValidationError, createMemoryStore } from '@chamvi/core';
+import { ValidationError } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import { fileTools } from '@chamvi/tool-files';
 import { listTool, toolContext } from '../../utils/context.ts';
 
 describe('list_artifacts', () => {
     it('pages only the current run metadata, never loading file bytes', async () => {
-        const store = createMemoryStore();
+        const store = createTestEngine({ agents: [] });
         const ctx = toolContext('catalog', undefined, store);
 
         await toolContext('foreign', undefined, store).artifacts.put({ mediaType: 'text/plain', data: new Uint8Array([99]) });
@@ -31,7 +32,7 @@ describe('list_artifacts', () => {
             });
         }
 
-        const read = vi.spyOn(store.artifacts, 'read');
+        const read = vi.spyOn(store.artifactService, 'read');
         const first = await listTool(fileTools(), {}, ctx);
 
         expect(first.artifacts).toHaveLength(16);

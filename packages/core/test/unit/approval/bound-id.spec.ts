@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { SuspendSignal, requestApproval } from '../../../src/approval/request.ts';
 import { runToolCall } from '../../../src/effect/frame.ts';
 import type { ToolCallFrame } from '../../../src/effect/types.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import { createTestServices } from '../../utils/engine.ts';
 
 function frame(overrides: Partial<ToolCallFrame> = {}): ToolCallFrame {
     return {
@@ -18,7 +18,7 @@ function frame(overrides: Partial<ToolCallFrame> = {}): ToolCallFrame {
         toolName: 'send',
         stepIndex: 2,
         approvals: 0,
-        effects: createMemoryStore().effects,
+        effects: createTestServices().effectService,
         ...overrides,
     };
 }

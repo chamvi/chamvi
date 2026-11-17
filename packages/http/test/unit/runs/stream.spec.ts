@@ -13,9 +13,8 @@ import {
     vi,
 } from 'vitest';
 import { Permission } from '@chamvi/access';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { createShutdown } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -54,7 +53,7 @@ async function completedRun() {
     await ctx.engine.start();
     await ctx.engine.idle();
 
-    const steps = await ctx.store.steps.find(runId);
+    const steps = await ctx.store.stepService.find(runId);
 
     expect(steps.length).toBeGreaterThan(0);
 
@@ -255,15 +254,14 @@ describe('GET /runs/:id/stream', () => {
 
     it('sees a run executing on another replica through the store poll', async () => {
         const clock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock });
         const agents = createRunAgents();
-        const { app } = createRunTestApp({
+        const { app, engine } = createRunTestApp({
             clock,
-            store,
             agents,
         });
-        const other = new Engine({
-            store,
+        // a replica: the same store and services as the app's engine
+        const other = createTestEngine({
+            replicaOf: engine,
             agents,
             clock,
             channels: testChannels(),
@@ -282,7 +280,7 @@ describe('GET /runs/:id/stream', () => {
         const events = await reader.rest();
 
         expect(statusOf(events[0]!)).toBe('completed');
-        expect(stepIds(events)).toEqual((await store.steps.find(runId)).map((s) => String(s.index)));
+        expect(stepIds(events)).toEqual((await engine.stepService.find(runId)).map((s) => String(s.index)));
         expect(reader.done).toBe(true);
         await other.drain();
     });
@@ -308,7 +306,7 @@ describe('GET /runs/:id/stream', () => {
             store,
         } = createRunTestApp();
         const runId = await start(app);
-        const listSteps = vi.spyOn(store.steps, 'find');
+        const listSteps = vi.spyOn(store.stepService, 'find');
         const reader = new SseReader(await call(app, 'GET', `/runs/${runId}/stream`, { token: READER_TOKEN }));
 
         await reader.next(1);
@@ -320,9 +318,9 @@ describe('GET /runs/:id/stream', () => {
 
         expect(listSteps).toHaveBeenCalledTimes(1);
 
-        const run = (await store.runs.findOne(runId))!;
+        const run = (await store.runService.findOne(runId))!;
 
-        await store.runs.update(runId, { updatedAt: new Date(run.updatedAt.getTime() + 1) });
+        await store.runService.update(runId, { updatedAt: new Date(run.updatedAt.getTime() + 1) });
         clock.advance(2_000);
         await reader.next(1);
         expect(listSteps).toHaveBeenCalledTimes(2);
@@ -338,7 +336,7 @@ describe('GET /runs/:id/stream', () => {
         await reader.next(1);
         await reader.reader.cancel();
 
-        const getRun = vi.spyOn(ctx.store.runs, 'findOne');
+        const getRun = vi.spyOn(ctx.store.runService, 'findOne');
 
         ctx.clock.advance(2_000);
         await flush();
@@ -371,7 +369,7 @@ describe('GET /runs/:id/stream', () => {
             expect(unsubscribe).toHaveBeenCalledTimes(1);
         }
 
-        const getRun = vi.spyOn(ctx.store.runs, 'findOne');
+        const getRun = vi.spyOn(ctx.store.runService, 'findOne');
 
         ctx.clock.advance(2_000);
         await flush();
@@ -382,7 +380,7 @@ describe('GET /runs/:id/stream', () => {
         const { app, store } = createRunTestApp();
         const runId = await start(app);
 
-        await store.runs.update(runId, { status });
+        await store.runService.update(runId, { status });
 
         const events = await readEvents(await call(app, 'GET', `/runs/${runId}/stream`, { token: READER_TOKEN }));
 
@@ -400,7 +398,7 @@ describe('GET /runs/:id/stream', () => {
 
         const failure = new Error('store down');
 
-        vi.spyOn(ctx.store.runs, 'findOne').mockRejectedValue(failure);
+        vi.spyOn(ctx.store.runService, 'findOne').mockRejectedValue(failure);
         ctx.clock.advance(2_000);
         expect(await reader.rest()).toEqual([]);
         expect(onError).toHaveBeenCalledTimes(1);
@@ -418,7 +416,7 @@ describe('GET /runs/:id/stream', () => {
         const unsubscribes = spyOnSubscriptions(ctx.engine);
         const failure = new Error('store down');
 
-        vi.spyOn(ctx.store.steps, 'find').mockRejectedValueOnce(failure);
+        vi.spyOn(ctx.store.stepService, 'find').mockRejectedValueOnce(failure);
 
         const response = await call(ctx.app, 'GET', `/runs/${runId}/stream`, { token: READER_TOKEN });
 
@@ -434,9 +432,9 @@ describe('GET /runs/:id/stream', () => {
     it('answers 404 when the run is gone before the snapshot', async () => {
         const ctx = createRunTestApp();
         const runId = await start(ctx.app);
-        const run = await ctx.store.runs.findOne(runId);
+        const run = await ctx.store.runService.findOne(runId);
 
-        vi.spyOn(ctx.store.runs, 'findOne').mockResolvedValueOnce(run).mockResolvedValueOnce(undefined);
+        vi.spyOn(ctx.store.runService, 'findOne').mockResolvedValueOnce(run).mockResolvedValueOnce(undefined);
 
         const response = await call(ctx.app, 'GET', `/runs/${runId}/stream`, { token: READER_TOKEN });
 
@@ -461,10 +459,8 @@ describe('GET /runs/:id/stream', () => {
 
     it('ends open streams on shutdown', async () => {
         const clock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock });
         const agents = createRunAgents();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents,
             clock,
             channels: testChannels(),

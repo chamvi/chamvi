@@ -14,10 +14,8 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     agent,
     agentChannel,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
     dispatchTo,
@@ -25,7 +23,7 @@ import {
 } from '@chamvi/core';
 import type { Agent, IEngine } from '@chamvi/core';
 import { http } from '@chamvi/http';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { buildContext } from '../../../src/app/helpers.ts';
 import { waitForRun } from '../../../src/mcp/helpers.ts';
 import {
@@ -143,9 +141,9 @@ describe('mcp run_<agent> through dispatched runs', () => {
             result = r;
         });
 
-        await until(async () => (await setup.store.runs.find({ agent: 'lead', status: ['waiting'] })).total === 1);
+        await until(async () => (await setup.store.runService.find({ agent: 'lead', status: ['waiting'] })).total === 1);
 
-        const [lead] = (await setup.store.runs.find({ agent: 'lead' })).data;
+        const [lead] = (await setup.store.runService.find({ agent: 'lead' })).data;
 
         expect(lead?.waiting?.kind).toBe('dispatch');
         setup.clock.advance(5_000);
@@ -171,8 +169,8 @@ describe('mcp run_<agent> through dispatched runs', () => {
 
         const client = await connectMcp(setup.app, ADMIN_TOKEN);
         const result = await callTool(client, 'run_lead', { waitSeconds: 30 });
-        const [lead] = (await setup.store.runs.find({ agent: 'lead' })).data;
-        const [child] = (await setup.store.runs.find({ agent: 'worker' })).data;
+        const [lead] = (await setup.store.runService.find({ agent: 'lead' })).data;
+        const [child] = (await setup.store.runService.find({ agent: 'worker' })).data;
 
         expect(child?.parentRunId).toBe(lead!.id);
         expect(result.structuredContent).toMatchObject({
@@ -264,7 +262,7 @@ describe('mcp run_<agent> with waitSeconds', () => {
             waiting: { artifacts?: string[]; options?: Array<{ artifacts?: string[] }> }
         });
 
-        const id = async (key: string) => (await setup.engine.store.artifacts.findOneByKey(runId, `tool:${key}`))!.id;
+        const id = async (key: string) => (await setup.engine.artifactService.findOneByKey(runId, `tool:${key}`))!.id;
 
         expect(waiting.artifacts).toEqual([await id('overview')]);
         expect(waiting.options?.[0]?.artifacts).toEqual([await id('button/diff')]);
@@ -309,15 +307,14 @@ describe('mcp run_<agent> with waitSeconds', () => {
 
     it('sees a run executing on another replica through the store poll', async () => {
         const clock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock });
         const agents = createRunAgents();
         const setup = createRunTestApp({
             clock,
-            store,
             agents,
         });
-        const other = new Engine({
-            store,
+        // a replica: the same store and services as the app's engine
+        const other = createTestEngine({
+            replicaOf: setup.engine,
             agents,
             clock,
             channels: testChannels(),
@@ -348,12 +345,12 @@ describe('mcp run_<agent> with waitSeconds', () => {
         void callTool(client, 'run_echo', { waitSeconds: 30 }).catch(() => undefined);
         await until(() => subscriptions.length > 0);
 
-        const [run] = (await setup.store.runs.find({ agent: 'echo' })).data;
+        const [run] = (await setup.store.runService.find({ agent: 'echo' })).data;
 
         controller.abort();
         await until(() => subscriptions.every((unsubscribe) => unsubscribe.mock.calls.length > 0));
 
-        const getRun = vi.spyOn(setup.store.runs, 'findOne');
+        const getRun = vi.spyOn(setup.store.runService, 'findOne');
 
         await flush();
 
@@ -369,10 +366,8 @@ describe('mcp run_<agent> with waitSeconds', () => {
 describe('waitForRun', () => {
     function context() {
         const clock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock });
         const agents = createRunAgents();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents,
             clock,
             channels: testChannels(),
@@ -383,7 +378,10 @@ describe('waitForRun', () => {
         return {
             ctx,
             engine,
-            store,
+            store: {
+                runService: engine.runService,
+                stepService: engine.stepService,
+            },
             clock,
         };
     }
@@ -414,7 +412,7 @@ describe('waitForRun', () => {
             expect(unsubscribe).toHaveBeenCalledTimes(1);
         }
 
-        const getRun = vi.spyOn(store.runs, 'findOne');
+        const getRun = vi.spyOn(store.runService, 'findOne');
 
         clock.advance(60_000);
         await flush();
@@ -440,7 +438,7 @@ describe('waitForRun', () => {
 
         const failure = new Error('store down');
 
-        vi.spyOn(store.runs, 'findOne').mockRejectedValue(failure);
+        vi.spyOn(store.runService, 'findOne').mockRejectedValue(failure);
         clock.advance(1_000);
         await expect(pending).rejects.toBe(failure);
     });
@@ -459,7 +457,7 @@ describe('waitForRun', () => {
             payload: {},
         });
 
-        await store.runs.update(runId, {
+        await store.runService.update(runId, {
             status: 'waiting',
             waiting: {
                 kind: 'dispatch',
@@ -483,7 +481,7 @@ describe('waitForRun', () => {
         await flush();
         expect(settled).toBe(false);
 
-        await store.runs.update(runId, { status: 'completed', waiting: undefined });
+        await store.runService.update(runId, { status: 'completed', waiting: undefined });
         clock.advance(1_000);
 
         expect((await pending).status).toBe('completed');
@@ -501,7 +499,7 @@ describe('waitForRun', () => {
 
         const failure = new Error('store down');
 
-        vi.spyOn(setup.store.runs, 'findOne').mockRejectedValue(failure);
+        vi.spyOn(setup.store.runService, 'findOne').mockRejectedValue(failure);
         setup.clock.advance(1_000);
 
         const result = await pending;

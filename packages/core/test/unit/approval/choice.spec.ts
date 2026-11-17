@@ -15,7 +15,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     InvalidRunStateError,
     ValidationError,
     approve,
@@ -24,17 +23,18 @@ import {
 } from '@chamvi/core';
 import type {
     ApprovalDecision,
-    ApprovalOption,
     ChannelMessage,
     IChannel,
     IEngine,
 } from '@chamvi/core';
+import type { ApprovalOption } from '@chamvi/store';
 import { toApprovalDecision } from '../../../src/approval/helpers.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const START = 1_000_000;
 
@@ -70,7 +70,7 @@ const OPTIONS: ApprovalOption[] = [
 
 function setup(model: LanguageModel, channels: IChannel[] = []) {
     const clock = new ControllableClock(new Date(START));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const decisions: ApprovalDecision[] = [];
     const errors: unknown[] = [];
     const pick = defineTool({
@@ -86,8 +86,8 @@ function setup(model: LanguageModel, channels: IChannel[] = []) {
             return decision.approved ? `picked ${(decision.selected ?? []).join(',')}` : 'denied';
         },
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'release',
             instructions: 'You release.',
@@ -113,7 +113,7 @@ function setup(model: LanguageModel, channels: IChannel[] = []) {
     };
 }
 
-async function dispatch(engine: IEngine, store: ReturnType<typeof createMemoryStore>) {
+async function dispatch(engine: IEngine, store: TestServiceSet) {
     await engine.start();
 
     const { runId } = await engine.dispatch({
@@ -125,7 +125,7 @@ async function dispatch(engine: IEngine, store: ReturnType<typeof createMemorySt
 
     await engine.idle();
 
-    const run = await store.runs.findOne(runId);
+    const run = await store.runService.findOne(runId);
 
     return { runId, run };
 }
@@ -225,7 +225,7 @@ describe('approve() with options', () => {
         expect(run?.status).toBe('completed');
         expect(run?.waiting).toBeUndefined();
 
-        const tools = (await store.steps.find(runId)).filter((s) => s.kind === 'tool');
+        const tools = (await store.stepService.find(runId)).filter((s) => s.kind === 'tool');
 
         expect(tools[0]).toMatchObject({ name: 'pick', error: { code: 'validation_error' } });
     });
@@ -289,9 +289,9 @@ describe('answering an approval with options', () => {
         });
         await engine.idle();
         expect(decisions).toEqual([{ approved: true, selected: ['a', 'c'] }]);
-        expect(await store.runs.findOne(runId)).toMatchObject({ status: 'completed' });
+        expect(await store.runService.findOne(runId)).toMatchObject({ status: 'completed' });
 
-        const wait = (await store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await store.stepService.find(runId)).find((s) => s.kind === 'wait');
 
         expect(wait?.input).toEqual({
             toolCallId: 'c1',
@@ -353,7 +353,7 @@ describe('answering an approval with options', () => {
             selected: selected as string[],
         })).rejects.toThrow(ValidationError);
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('waiting');
         expect(run?.waiting).toEqual(waiting);
@@ -388,11 +388,11 @@ describe('answering an approval with options', () => {
         await engine.idle();
         expect(decisions).toEqual([{ approved: false, reason: 'none' }]);
 
-        const effect = await store.effects.findOne(`approval:${runId}:${waiting.approvalId}`);
+        const effect = await store.effectService.findOne(`approval:${runId}:${waiting.approvalId}`);
 
         expect(effect?.result).toEqual({ approved: false, reason: 'none' });
 
-        const wait = (await store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await store.stepService.find(runId)).find((s) => s.kind === 'wait');
 
         expect(Object.keys(wait?.output as object)).not.toContain('selected');
     });
@@ -411,7 +411,7 @@ describe('answering an approval with options', () => {
         await engine.idle();
         expect(decisions).toEqual([{ approved: false, reason: 'approval timed out' }]);
 
-        const wait = (await store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await store.stepService.find(runId)).find((s) => s.kind === 'wait');
 
         expect(wait?.input).toMatchObject({ options: OPTIONS });
     });
@@ -429,7 +429,7 @@ describe('answering an approval with options', () => {
         await engine.idle();
         expect(decisions).toEqual([{ approved: true }]);
 
-        const wait = (await store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await store.stepService.find(runId)).find((s) => s.kind === 'wait');
 
         expect(wait?.input).toEqual({ toolCallId: 'c1', title: 'Deploy?' });
         expect(Object.keys(wait?.output as object)).not.toContain('selected');
@@ -455,7 +455,7 @@ describe('answering an approval with options', () => {
         };
 
         // a row the code before options wrote: no options or multiple keys
-        await store.runs.insert({
+        await store.runService.create({
             id: runId,
             agent: 'release',
             status: 'waiting',
@@ -473,7 +473,7 @@ describe('answering an approval with options', () => {
             createdAt: now,
             updatedAt: now,
         });
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             runId,
             stepIndex: 0,
             messages: [
@@ -496,9 +496,9 @@ describe('answering an approval with options', () => {
         await engine.idle();
         expect(decisions).toEqual([{ approved: true }]);
         expect(Object.keys(decisions[0]!)).not.toContain('selected');
-        expect(await store.runs.findOne(runId)).toMatchObject({ status: 'completed' });
+        expect(await store.runService.findOne(runId)).toMatchObject({ status: 'completed' });
 
-        const wait = (await store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await store.stepService.find(runId)).find((s) => s.kind === 'wait');
 
         expect(wait?.output).toMatchObject({ approvalId: '0:c1:0', approved: true });
         expect(Object.keys(wait?.output as object)).not.toContain('selected');
@@ -588,12 +588,12 @@ describe('replaying an answered approval with options', () => {
     async function replay(first: unknown, second: unknown, answer: { approved: boolean; selected?: string[] }) {
         const clock = new ControllableClock(new Date(START));
         const frozen = new ControllableClock(new Date(START));
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const decisions: ApprovalDecision[] = [];
         const { promise: gate, resolve: release } = Promise.withResolvers<void>();
         const make = (model: LanguageModel, engineClock: ControllableClock) => {
-            const engine = new Engine({
-                store,
+            const engine = createTestEngine({
+                services: store,
                 clock: engineClock,
                 claimTtlMs: 30,
                 agents: [defineModelAgent({
@@ -645,7 +645,7 @@ describe('replaying an answered approval with options', () => {
 
         await stale.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         if (!run?.waiting) {
             throw new Error('not waiting');
@@ -686,7 +686,7 @@ describe('replaying an answered approval with options', () => {
             { approved: true, selected: ['a', 'c'] },
             { approved: true, selected: ['a', 'c'] },
         ]);
-        expect(await store.runs.findOne(runId)).toMatchObject({ status: 'completed' });
+        expect(await store.runService.findOne(runId)).toMatchObject({ status: 'completed' });
         expect(toApprovalDecision({ approved: true, selected: ['a', 'c'] })).toEqual({ approved: true, selected: ['a', 'c'] });
     });
 

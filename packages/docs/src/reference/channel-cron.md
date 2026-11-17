@@ -19,7 +19,7 @@ const SCHEDULE_LOCK_TTL_MS: 600_000;
 
 <<< ../../../channel-cron/src/channel/types.ts{ts}
 
-`engine.start()` starts the channel: it schedules the cron subscriptions **of this channel** (`subscription.channel === name`) of `engine.listAgents()` and locks over `engine.store`. The subscription of an agent without a revision (one passed in code) the scheduler cannot use (expression, timezone) fails `engine.start()` with `InvalidAgentDefinitionError`; a folder agent's (one the engine holds at a revision) goes to `onError` instead and leaves that agent unscheduled. An invalid `name` (the agent-name rule), an empty `owner` or a `lockTtlMs` that is no positive integer throws `InvalidAgentDefinitionError` when `cronChannel()` is called.
+`engine.start()` starts the channel: it schedules the cron subscriptions **of this channel** (`subscription.channel === name`) of `engine.listAgents()` and locks through `engine.lockService`. The subscription of an agent without a revision (one passed in code) the scheduler cannot use (expression, timezone) fails `engine.start()` with `InvalidAgentDefinitionError`; a folder agent's (one the engine holds at a revision) goes to `onError` instead and leaves that agent unscheduled. An invalid `name` (the agent-name rule), an empty `owner` or a `lockTtlMs` that is no positive integer throws `InvalidAgentDefinitionError` when `cronChannel()` is called.
 
 It follows the engine's `agents.changed` events: an added agent is scheduled, a replaced one rescheduled, a removed one unscheduled. A replacement whose cron subscription hubwire cannot schedule goes to `onError` and leaves that agent unscheduled. `stop()` (called first by `engine.drain()` and `engine.stop()`) stops following and waits for the ticks in flight, also of replaced and removed agents.
 
@@ -54,9 +54,9 @@ Starts the engine with `start({ channels: false })`. It does not return while th
 ```ts
 function fireCronSubscription(ctx: CronTickContext): Promise<CronTickResult>;
 function readCronOptions(agent: Agent, subscription: ChannelSubscription): CronOptions;
-function createRepositoryScheduleLock(store: ILockRepository, owner: string): IScheduleLock;
+function createRepositoryScheduleLock(locks: Pick<LockService, 'acquire'>, owner: string): IScheduleLock;
 ```
 
-`fireCronSubscription` is one tick (overlap check and dispatch, through the conversation channel's intake for a subscription with `conversation`) for an explicit `scheduledAt`; the channel and `runJob` both call it. `createRepositoryScheduleLock` adapts core's `ILockRepository` to hubwire's `IScheduleLock`.
+`fireCronSubscription` is one tick (overlap check and dispatch, through the conversation channel's intake for a subscription with `conversation`) for an explicit `scheduledAt`; the channel and `runJob` both call it. `createRepositoryScheduleLock` adapts core's `LockService` to hubwire's `IScheduleLock`.
 
 <<< ../../../channel-cron/src/tick/types.ts{ts}

@@ -12,7 +12,7 @@ import {
     it,
 } from 'vitest';
 import type { Tool, ToolSet } from 'ai';
-import type { Artifact } from '@chamvi/core';
+import type { Artifact } from '@chamvi/store';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import * as files from '@chamvi/tool-files';
 import type {

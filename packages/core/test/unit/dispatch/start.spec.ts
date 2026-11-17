@@ -18,7 +18,6 @@ import { z } from 'zod';
 import { allPermissions } from '@chamvi/access';
 import {
     ContextNotProvidedError,
-    Engine,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     ValidationError,
@@ -33,17 +32,17 @@ import type {
     ChannelSubscription,
     DispatchInput,
     IEngine,
-    IStore,
-    Invoker,
-    Run,
     ToolContext,
 } from '@chamvi/core';
+import type { Invoker, Run } from '@chamvi/store';
 import { stableHash } from '../../../src/effect/helpers.ts';
-import { MemoryEffectRepository, createMemoryStore } from '../../../src/repository/index.ts';
+import { EffectService } from '../../../src/effect/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet, TestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 9, 27, 6));
 
@@ -96,7 +95,7 @@ afterEach(() => {
     engines.length = 0;
 });
 
-class LossyRepository extends MemoryEffectRepository {
+class LossyEffectService extends EffectService {
     lose = false;
 
     override async findOne(key: string) {
@@ -109,15 +108,15 @@ class LossyRepository extends MemoryEffectRepository {
 }
 
 /** A store answering one read of a dispatch record late and stale, as a busy pool would: after the record landed, as missing. */
-function laggingRepository(): IStore {
-    const store = createMemoryStore({ clock: new ControllableClock(START) });
-    const read = store.effects.findOne.bind(store.effects);
+function laggingRepository(): TestServiceSet {
+    const store = createTestServices({ clock: new ControllableClock(START) });
+    const read = store.effectService.findOne.bind(store.effectService);
     const tick = () => new Promise((resolve) => {
         setImmediate(resolve);
     });
     let reads = 0;
 
-    store.effects.findOne = async (key: string) => {
+    store.effectService.findOne = async (key: string) => {
         if (!key.includes(':dispatch:')) {
             return read(key);
         }
@@ -149,10 +148,10 @@ function setup(options: {
     channels?: ChannelSubscription<any>[];
     model?: MockLanguageModelV4;
     tools?: ToolSet;
-    store?: IStore;
+    store?: TestServiceSet;
 }) {
     const clock = new ControllableClock(START);
-    const store = options.store ?? createMemoryStore({ clock });
+    const store = options.store ?? createTestServices({ clock });
     const errors: unknown[] = [];
     const maintainer = defineModelAgent({
         name: 'maintainer',
@@ -161,8 +160,8 @@ function setup(options: {
         channels: options.channels ?? (options.subscription === false ? [] : [options.subscription ?? agent.on()]),
         tools: options.tools ?? { fan },
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [maintainer],
         channels: [agentChannel()],
@@ -197,14 +196,14 @@ async function dispatchParent(engine: IEngine, extra: { invoker?: Invoker } = {}
     return runId;
 }
 
-async function children(store: IStore): Promise<Run[]> {
-    const { data } = await store.runs.find({ agent: 'maintainer' });
+async function children(store: TestServices): Promise<Run[]> {
+    const { data } = await store.runService.find({ agent: 'maintainer' });
 
     return data.filter((run) => run.trigger.channel === 'agent');
 }
 
-async function toolSteps(store: IStore, runId: string) {
-    return (await store.steps.find(runId)).filter((step) => step.kind === 'tool');
+async function toolSteps(store: TestServices, runId: string) {
+    return (await store.stepService.find(runId)).filter((step) => step.kind === 'tool');
 }
 
 const pr = {
@@ -244,7 +243,7 @@ describe('dispatch()', () => {
         const [step] = await toolSteps(store, parentId);
 
         expect(step?.output).toEqual({ runId: child!.id, deduplicated: false });
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it("inherits the parent's invoker", async () => {
@@ -263,7 +262,7 @@ describe('dispatch()', () => {
     });
 
     it('a second parent with the same key gets the existing child', async () => {
-        const store = createMemoryStore({ clock: new ControllableClock(START) });
+        const store = createTestServices({ clock: new ControllableClock(START) });
         const first = setup({ parent: [turn(call(pr)), text('done')], store });
 
         await dispatchParent(first.engine);
@@ -278,7 +277,7 @@ describe('dispatch()', () => {
         const [step] = await toolSteps(store, secondId);
 
         expect(step?.output).toEqual({ runId: all[0]!.id, deduplicated: true });
-        expect(await store.effects.findOne(`dispatch-count:${secondId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${secondId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
     });
 
     it('the result is recorded', async () => {
@@ -294,7 +293,7 @@ describe('dispatch()', () => {
             address: pr.address,
         })}`;
 
-        expect(await store.effects.findOne(key)).toEqual({ result: { runId: child!.id, deduplicated: false } });
+        expect(await store.effectService.findOne(key)).toEqual({ result: { runId: child!.id, deduplicated: false } });
     });
 
     it('a recorded call returns the record and starts nothing', async () => {
@@ -310,13 +309,13 @@ describe('dispatch()', () => {
             { runId: all[0]!.id, deduplicated: false },
             { runId: all[0]!.id, deduplicated: false },
         ]);
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
     });
 
     it('a lost record still yields one child', async () => {
-        const store = { ...createMemoryStore({ clock: new ControllableClock(START) }), effects: new LossyRepository() };
+        const store = createTestServices({ clock: new ControllableClock(START), effectService: (ctx) => new LossyEffectService(ctx) });
 
-        store.effects.lose = true;
+        (store.effectService as LossyEffectService).lose = true;
 
         const { engine } = setup({ parent: [turn(call(pr, 'c1')), turn(call(pr, 'c2')), text('done')], store });
         const parentId = await dispatchParent(engine);
@@ -335,7 +334,7 @@ describe('dispatch()', () => {
         const parentId = await dispatchParent(engine);
 
         expect(await children(store)).toHaveLength(1);
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
     });
 
     it('identical calls in one step share one dispatch on a store with latency', async () => {
@@ -352,13 +351,13 @@ describe('dispatch()', () => {
             { runId: all[0]!.id, deduplicated: false },
             { runId: all[0]!.id, deduplicated: false },
         ]);
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
     });
 
     it('a call whose record was lost redoes its dispatch at the limit', async () => {
-        const store = { ...createMemoryStore({ clock: new ControllableClock(START) }), effects: new LossyRepository() };
+        const store = createTestServices({ clock: new ControllableClock(START), effectService: (ctx) => new LossyEffectService(ctx) });
 
-        store.effects.lose = true;
+        (store.effectService as LossyEffectService).lose = true;
 
         const { engine } = setup({
             parent: [turn(call(pr, 'c1')), turn(call(pr, 'c2')), text('done')],
@@ -376,7 +375,7 @@ describe('dispatch()', () => {
             { runId: all[0]!.id, deduplicated: false },
             { runId: all[0]!.id, deduplicated: true },
         ]);
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
     });
 
     it('ignores what tool code wrote to ctx.run', async () => {
@@ -469,7 +468,7 @@ describe('dispatch()', () => {
     });
 
     it('without a key the default key is run-scoped', async () => {
-        const store = createMemoryStore({ clock: new ControllableClock(START) });
+        const store = createTestServices({ clock: new ControllableClock(START) });
         const first = setup({ parent: [turn(call({ payload: { pr: 'o/r#5' } })), text('done')], store });
         const firstId = await dispatchParent(first.engine);
 
@@ -563,9 +562,9 @@ describe('dispatch()', () => {
     });
 
     it('a lost record redoes a deduplicating dispatch with the address of the hook', async () => {
-        const store = { ...createMemoryStore({ clock: new ControllableClock(START) }), effects: new LossyRepository() };
+        const store = createTestServices({ clock: new ControllableClock(START), effectService: (ctx) => new LossyEffectService(ctx) });
 
-        store.effects.lose = true;
+        (store.effectService as LossyEffectService).lose = true;
 
         const subscription = agent.on<{ pr: string }>({ address: (p) => p.pr });
         const { engine } = setup({
@@ -617,12 +616,12 @@ describe('dispatch()', () => {
             tools: { fan, gate },
         });
         const parentId = await dispatchParent(engine);
-        const paused = await store.runs.findOne(parentId);
+        const paused = await store.runService.findOne(parentId);
 
         expect(paused?.status).toBe('waiting');
         await engine.approve(parentId, { approvalId: approvalWait(paused)!.approvalId, approved: true });
         await engine.idle();
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
         expect(await children(store)).toHaveLength(3);
 
         const steps = (await toolSteps(store, parentId)).filter((s) => s.name === 'fan');
@@ -832,7 +831,7 @@ describe('dispatch() roles and depth', () => {
         });
         const { engine, store } = setup({ parent: [turn(call({}, 'c1', 'gated')), text('done')], tools: { gated } });
         const parentId = await dispatchParent(engine);
-        const paused = await store.runs.findOne(parentId);
+        const paused = await store.runService.findOne(parentId);
 
         expect(paused?.status).toBe('waiting');
         await engine.approve(parentId, { approvalId: approvalWait(paused)!.approvalId, approved: true });
@@ -840,13 +839,13 @@ describe('dispatch() roles and depth', () => {
 
         const all = await children(store);
 
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
         expect(all).toHaveLength(1);
         expect(results).toEqual([
             { runId: all[0]!.id, deduplicated: false },
             { runId: all[0]!.id, deduplicated: false },
         ]);
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:maintainer:default`)).toMatchObject({ result: { count: 1 } });
     });
 
     it('maxPerRun counts per role', async () => {
@@ -870,12 +869,12 @@ describe('dispatch() roles and depth', () => {
             code: 'validation_error',
             message: `Run ${parentId} reached its 1 dispatches of agent "maintainer" role "a" (agent.on({ maxPerRun })).`,
         });
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:maintainer:a`)).toMatchObject({ result: { count: 1 } });
-        expect(await store.effects.findOne(`dispatch-count:${parentId}:maintainer:b`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:maintainer:a`)).toMatchObject({ result: { count: 1 } });
+        expect(await store.effectService.findOne(`dispatch-count:${parentId}:maintainer:b`)).toMatchObject({ result: { count: 1 } });
     });
 
     it('records every child, deduplicated or not, under dispatch-children', async () => {
-        const store = createMemoryStore({ clock: new ControllableClock(START) });
+        const store = createTestServices({ clock: new ControllableClock(START) });
         const first = setup({ parent: [turn(call(pr)), text('done')], store });
 
         await dispatchParent(first.engine);
@@ -886,7 +885,7 @@ describe('dispatch() roles and depth', () => {
         const all = await children(store);
 
         expect(all).toHaveLength(1);
-        expect(await store.effects.findOne(`dispatch-children:${secondId}`)).toEqual({ result: { runIds: [all[0]!.id] } });
+        expect(await store.effectService.findOne(`dispatch-children:${secondId}`)).toEqual({ result: { runIds: [all[0]!.id] } });
     });
 
     it('the default key covers the role', async () => {
@@ -951,8 +950,8 @@ describe('dispatch() roles and depth', () => {
             code: 'validation_error',
             message: `The dispatch deduplicated into run ${level1!.id}, the calling run or a run up its lineage, which it could never wait on.`,
         });
-        expect(await store.effects.findOne(`dispatch-children:${level1!.id}`)).toBeUndefined();
-        expect((await store.runs.findOne(level1!.id))?.status).toBe('completed');
+        expect(await store.effectService.findOne(`dispatch-children:${level1!.id}`)).toBeUndefined();
+        expect((await store.runService.findOne(level1!.id))?.status).toBe('completed');
     });
 
     it('refuses a key that deduplicates into a run up the lineage', async () => {
@@ -981,7 +980,7 @@ describe('dispatch() roles and depth', () => {
             code: 'validation_error',
             message: `The dispatch deduplicated into run ${level1.id}, the calling run or a run up its lineage, which it could never wait on.`,
         });
-        expect(await store.effects.findOne(`dispatch-children:${level2.id}`)).toBeUndefined();
+        expect(await store.effectService.findOne(`dispatch-children:${level2.id}`)).toBeUndefined();
     });
 
     it.each([5, ''])('refuses a role that is no non-empty string (%j)', async (role) => {
@@ -1020,7 +1019,7 @@ describe('dispatch lineage', () => {
             parent,
             parentRunId: 'x',
         } as never);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run!.trigger.parent).toBeUndefined();
         expect(run!.parentRunId).toBeUndefined();
@@ -1029,9 +1028,9 @@ describe('dispatch lineage', () => {
     it('lineage is not forgeable through ChannelContext.dispatch()', async () => {
         const channel = { name: 'test' };
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
-        const engine = new Engine({
-            store,
+        const store = createTestServices({ clock });
+        const engine = createTestEngine({
+            services: store,
             clock,
             agents: [defineModelAgent({
                 name: 'maintainer',
@@ -1051,7 +1050,7 @@ describe('dispatch lineage', () => {
             parent,
             parentRunId: 'x',
         } as never);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run!.trigger.parent).toBeUndefined();
         expect(run!.parentRunId).toBeUndefined();

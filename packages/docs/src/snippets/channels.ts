@@ -3,12 +3,21 @@ import type { LanguageModel } from 'ai';
 import { z } from 'zod';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 import {
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    EffectService,
     Engine,
+    IdempotencyService,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
     ValidationError,
     consoleChannel,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
+    systemClock,
 } from '@chamvi/core';
 import type {
     ChannelContext,
@@ -25,6 +34,19 @@ import {
     webhookChannel,
 } from '@chamvi/http';
 import type { Authenticator } from '@chamvi/http';
+import {
+    MemoryAgentRevisionRepository,
+    MemoryArtifactRepository,
+    MemoryCheckpointRepository,
+    MemoryEffectRepository,
+    MemoryIdempotencyRepository,
+    MemoryLockRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+    MemoryStateDocumentRepository,
+    MemoryStateRepository,
+    MemoryStepRepository,
+} from '@chamvi/store-memory';
 
 export async function dispatchExamples(model: LanguageModel, auth: Authenticator) {
     // #region subscriptions
@@ -39,8 +61,23 @@ export async function dispatchExamples(model: LanguageModel, auth: Authenticator
         ],
     });
 
+    // runs, steps, checkpoints, effects, artifacts and state in memory, gone with the process: @chamvi/app keeps them in PostgreSQL
+    const registry = new MemoryRegistry();
+    const runs = new MemoryRunRepository({ registry });
+    const locks = new MemoryLockRepository({ registry });
     const engine = new Engine({
-        store: createMemoryStore(),
+        runService: new RunService({ repository: runs, clock: systemClock }),
+        stepService: new StepService({ repository: new MemoryStepRepository({ registry }) }),
+        checkpointService: new CheckpointService({ repository: new MemoryCheckpointRepository({ registry }) }),
+        effectService: new EffectService({ repository: new MemoryEffectRepository({ registry }) }),
+        agentRevisionService: new AgentRevisionService({ repository: new MemoryAgentRevisionRepository({ registry }) }),
+        artifactService: new ArtifactService({ repository: new MemoryArtifactRepository({ registry }) }),
+        stateService: new StateService({
+            repository: new MemoryStateRepository({ registry }),
+            documentRepository: new MemoryStateDocumentRepository({ registry }),
+        }),
+        lockService: new LockService({ repository: locks, clock: systemClock }),
+        idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock: systemClock }),
         agents: [triage],
         // every subscribed channel must be registered (InvalidAgentDefinitionError otherwise)
         channels: [httpChannel(), webhookChannel({ auth }), cronChannel()],
@@ -110,8 +147,24 @@ export const resolve = defineTool({
 });
 
 export function createEngine(model: LanguageModel) {
+    // runs, steps, checkpoints, effects, artifacts and state in memory, gone with the process: @chamvi/app keeps them in PostgreSQL
+    const registry = new MemoryRegistry();
+    const runs = new MemoryRunRepository({ registry });
+    const locks = new MemoryLockRepository({ registry });
+
     return new Engine({
-        store: createMemoryStore(),
+        runService: new RunService({ repository: runs, clock: systemClock }),
+        stepService: new StepService({ repository: new MemoryStepRepository({ registry }) }),
+        checkpointService: new CheckpointService({ repository: new MemoryCheckpointRepository({ registry }) }),
+        effectService: new EffectService({ repository: new MemoryEffectRepository({ registry }) }),
+        agentRevisionService: new AgentRevisionService({ repository: new MemoryAgentRevisionRepository({ registry }) }),
+        artifactService: new ArtifactService({ repository: new MemoryArtifactRepository({ registry }) }),
+        stateService: new StateService({
+            repository: new MemoryStateRepository({ registry }),
+            documentRepository: new MemoryStateDocumentRepository({ registry }),
+        }),
+        lockService: new LockService({ repository: locks, clock: systemClock }),
+        idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock: systemClock }),
         agents: [defineModelAgent({
             name: 'fixer',
             model,

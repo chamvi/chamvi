@@ -27,9 +27,9 @@ import type {
     IChannel,
     IEngine,
     ModelAgentDefinition,
-    Run,
 } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import type { Run } from '@chamvi/store';
+import { createTestServices, servicesOf } from '../../utils/engine.ts';
 
 const model = {} as LanguageModel;
 
@@ -76,7 +76,7 @@ afterEach(() => {
 
 function make(opts: Partial<EngineOptions> = {}) {
     const engine = new GatedEngine({
-        store: createMemoryStore(),
+        ...servicesOf(createTestServices()),
         agents: [agent],
         onError: () => {},
         ...opts,

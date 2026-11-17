@@ -16,7 +16,6 @@ import {
 import { z } from 'zod';
 import {
     ChannelNotFoundError,
-    Engine,
     InvalidRunStateError,
     consoleChannel,
     defineModelAgent,
@@ -33,10 +32,11 @@ import type {
 } from '@chamvi/core';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { stableHash } from '../../../src/effect/helpers.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 type Sent = {
     message: ChannelMessage;
@@ -100,17 +100,17 @@ function setup(
     model: LanguageModel,
     tools: AgentDefinition['tools'],
     opts: {
-        store?: ReturnType<typeof createMemoryStore>;
+        store?: TestServiceSet;
         clock?: ControllableClock;
         channels?: IChannel[]
     } = {},
 ) {
     const clock = opts.clock ?? new ControllableClock(new Date(1_000_000));
-    const store = opts.store ?? createMemoryStore({ clock });
+    const store = opts.store ?? createTestServices({ clock });
     const slack = recorder('slack');
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'ops',
             instructions: 'You operate.',
@@ -137,7 +137,7 @@ function setup(
 }
 
 async function run(
-    ctx: { engine: IEngine; store: ReturnType<typeof createMemoryStore> },
+    ctx: { engine: IEngine; store: TestServiceSet },
     envelope: { channel?: string; address?: string } = {},
 ) {
     await ctx.engine.start();
@@ -154,8 +154,8 @@ async function run(
 
     return {
         runId,
-        run: await ctx.store.runs.findOne(runId),
-        steps: await ctx.store.steps.find(runId),
+        run: await ctx.store.runService.findOne(runId),
+        steps: await ctx.store.stepService.find(runId),
     };
 }
 
@@ -227,7 +227,7 @@ describe('channel outbound', () => {
 
     it('identical emits in one step and after a recovery reach out once', async () => {
         const storeClock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock: storeClock });
+        const store = createTestServices({ clock: storeClock });
         const slack = recorder('slack');
         const parallel: MockResponse = {
             parts: [
@@ -290,7 +290,7 @@ describe('channel outbound', () => {
         });
 
         await b.engine.start();
-        await vi.waitFor(async () => expect((await store.runs.findOne(runId))?.status).toBe('completed'));
+        await vi.waitFor(async () => expect((await store.runService.findOne(runId))?.status).toBe('completed'));
         expect(slack.calls).toHaveLength(1);
     });
 
@@ -352,8 +352,8 @@ describe('channel outbound', () => {
             }),
         };
         const ctx = setup(mockModel([call('notify', { body: 'b' }), text('done')]), tools);
-        const findEffect = vi.spyOn(ctx.store.effects, 'findOne');
-        const saveEffect = vi.spyOn(ctx.store.effects, 'save');
+        const findEffect = vi.spyOn(ctx.store.effectService, 'findOne');
+        const saveEffect = vi.spyOn(ctx.store.effectService, 'save');
         const { run: stored, steps } = await run(ctx);
 
         expect(steps.find((step) => step.kind === 'tool')?.error).toBeUndefined();

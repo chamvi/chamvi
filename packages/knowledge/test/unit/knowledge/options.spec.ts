@@ -10,9 +10,8 @@ import {
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     ValidationError,
-    createMemoryStore,
 } from '@chamvi/core';
-import { mockEmbeddingModel } from '@chamvi/test-kit';
+import { createTestEngine, mockEmbeddingModel } from '@chamvi/test-kit';
 import { describe, expect, it } from 'vitest';
 import type { KnowledgeCollection, KnowledgeOptions } from '@chamvi/knowledge';
 import {
@@ -33,7 +32,7 @@ const source = defineKnowledgeSource({
 function base(options: Partial<KnowledgeOptions> = {}): KnowledgeOptions {
     return {
         repository: createMemoryKnowledgeRepository(),
-        locks: createMemoryStore().locks,
+        locks: createTestEngine({ agents: [] }).lockService,
         ...options,
     };
 }

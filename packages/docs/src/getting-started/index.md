@@ -59,10 +59,10 @@ Each of these is a better fit in some setups: if you already run Inngest or Trig
 - [`defineModelAgent()`](/guide/agents) with [channel subscriptions](/guide/channels) and agent hooks
 - the [`Engine`](/reference/#runengine): dispatch, scheduling, execution, checkpoints, budgets, durable [approvals](/guide/approvals), cancel, drain and recovery
 - [effect tools](/guide/effect-tools) and [agent state](/guide/state)
-- the [store contract](/repositories/) and [`createMemoryStore()`](/repositories/memory)
+- the services that hold every storage rule, over the [repository ports](/repositories/) of `@chamvi/store`
 - the [`IChannel`](/guide/channels) contract, `ToolContext.channels` and `consoleChannel()`
 
-`@chamvi/test-kit` adds the store contract suite and a controllable clock for tests.
+`@chamvi/store-memory` holds the [memory repositories](/repositories/memory) for development and tests, `@chamvi/store-db` the [PostgreSQL ones](/repositories/database). `@chamvi/test-kit` adds an engine on memory repositories, the repository port suites and a controllable clock for tests.
 
 The engine starts runs only through `engine.dispatch()`, which channels call: [`@chamvi/channel-cron`](/guide/scheduler) fires cron subscriptions; [`@chamvi/http`](/guide/http) serves REST, MCP and webhooks; [`@chamvi/github`](/deployment/github-app) takes GitHub deliveries.
 

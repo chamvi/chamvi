@@ -6,1020 +6,574 @@
  */
 
 import {
+    and,
+    defineQuery,
+    eq,
+    lt,
+} from '@rapiq/core';
+import {
+    beforeEach,
     describe,
     expect,
     it,
-    vi,
 } from 'vitest';
-import type { IConversationRepository, ResolvedConversationLimits } from '@chamvi/core';
-import { ControllableClock } from '../clock/index.ts';
-import { testUuid } from '../repository-contract/helpers.ts';
-import {
-    LIMITS,
-    completeTurn,
-    makeEmit,
-    makeIdentity,
-    makeRemove,
-    makeSet,
-} from './helpers.ts';
+import { CONVERSATION_ITEM_STORED_ORDER, EntityConflictError } from '@chamvi/store';
+import type {
+    CheckpointRecord,
+    ConversationItemRecord,
+    ConversationNoteRecord,
+    ConversationOperationRecord,
+    ConversationRecord,
+    ICheckpointRepository,
+    IConversationRepository,
+    IRunRepository,
+} from '@chamvi/store';
+import { makeRun, testUuid } from '../fixture/helpers.ts';
+import type { ConversationRepositoryContractInput } from './types.ts';
 
-const STATE = { code: 'invalid_run_state' };
-const INVALID = { code: 'validation_error' };
+const KEY = 'a'.repeat(64);
+
+function conversationOf(label: string, overrides: Partial<ConversationRecord> = {}): ConversationRecord {
+    return {
+        id: testUuid(label),
+        key: KEY,
+        identity: {
+            agent: 'helper',
+            channel: 'chat',
+            account: 'main',
+            chat: 'room',
+            audience: 'direct',
+        },
+        generation: 0,
+        ...overrides,
+    };
+}
+
+function itemOf(scopeId: string, runId: string, key: string, overrides: Partial<Omit<ConversationItemRecord, 'id'>> = {}): Omit<ConversationItemRecord, 'id'> {
+    return {
+        scopeId,
+        generation: 0,
+        key,
+        role: 'user',
+        text: `text of ${key}`,
+        // stored as given: a repository computes nothing (the service stamps the text's byte length)
+        bytes: 1000 + key.length,
+        runId,
+        createdAt: new Date(1_000),
+        status: 'sent',
+        ...overrides,
+    };
+}
+
+function noteOf(label: string, scopeId: string, runId: string, key: string, overrides: Partial<ConversationNoteRecord> = {}): ConversationNoteRecord {
+    return {
+        id: testUuid(label),
+        scopeId,
+        generation: 0,
+        key,
+        text: `note ${key}`,
+        createdAt: new Date(1_000),
+        updatedAt: new Date(1_000),
+        source: {
+            runId,
+            toolCallId: 'call-1',
+            stepIndex: 0,
+        },
+        ...overrides,
+    };
+}
+
+function operationOf(
+    label: string,
+    scopeId: string,
+    runId: string,
+    operationId: string,
+    overrides: Partial<ConversationOperationRecord> = {},
+): ConversationOperationRecord {
+    return {
+        id: testUuid(label),
+        scopeId,
+        generation: 0,
+        operationId,
+        runId,
+        inputHash: 'hash',
+        kind: 'set',
+        key: 'name',
+        createdAt: new Date(1_000),
+        ...overrides,
+    };
+}
 
 /**
- * Shared behavioural contract for every IConversationRepository implementation.
- *
- * @param create Factory for a fresh, empty store. It MUST take every date and
- *               expiry decision from the given clock (e.g.
- *               `(clock) => new MemoryConversationRepository({ clock })`).
+ * The storage behaviour of an `IConversationRepository`: conversations
+ * stored as given (`key` unique, `activeRunId` referencing a run), their
+ * items, notes and operations as child repositories (unique natural
+ * keys, references to the conversation and to a run, item storage keys
+ * in the order items are stored), the children bound to the root's
+ * transaction and rolled back with it, runs and checkpoints referencing a
+ * conversation, a conversation row lock that holds off another
+ * transaction's locked read but not the inserts of rows referencing it,
+ * copies, and concurrent first saves.
  */
-export function describeConversationRepositoryContract(
-    create: (clock: ControllableClock) => IConversationRepository | Promise<IConversationRepository>,
-): void {
-    const setup = async () => {
-        const clock = new ControllableClock(new Date('2026-01-01T00:00:00.000Z'));
-        const store = await create(clock);
-        const identity = makeIdentity();
-        const scope = await store.resolve(identity);
+export function describeConversationRepositoryContract(input: ConversationRepositoryContractInput): void {
+    describe(`conversation repository contract: ${input.name}`, () => {
+        let conversations: IConversationRepository;
+        let runs: IRunRepository;
+        let checkpoints: ICheckpointRepository;
 
-        return {
-            clock,
-            store,
-            identity,
-            scope,
+        beforeEach(async () => {
+            ({
+                repository: conversations,
+                runs,
+                checkpoints,
+            } = await input.create());
+        });
+
+        const insert = (value: ConversationRecord) => conversations.save(conversations.create(value));
+        const insertRun = async (label: string) => {
+            await runs.save(runs.create(makeRun(testUuid(label))));
+
+            return testUuid(label);
         };
-    };
+        const insertItem = (value: Omit<ConversationItemRecord, 'id'>) => conversations.items.save(conversations.items.create(value as ConversationItemRecord));
 
-    describe('conversation repository contract', () => {
-        it('OrFail queries reject absent identities, notes and empty pages without creating them', async () => {
-            const {
-                store,
-                identity,
-                scope,
-            } = await setup();
+        it('stores a conversation as given, reads it back by key and by id, and resolves from save what the next read returns', async () => {
+            const saved = await insert(conversationOf('c1'));
 
-            await expect(store.findOneOrFail(makeIdentity('missing'))).rejects.toMatchObject({ code: 'repository_not_found' });
-            expect(await store.findOne(makeIdentity('missing'))).toBeUndefined();
-            expect(await store.findOneOrFail(identity)).toEqual(scope);
-            await expect(store.findOneNoteOrFail(scope, 'missing')).rejects.toMatchObject({ code: 'repository_not_found' });
-            await expect(store.findItemsOrFail(scope, { limit: 10, offset: 0 })).rejects.toMatchObject({ code: 'repository_not_found' });
-            await expect(store.findNotesOrFail(scope, { limit: 10, offset: 0 })).rejects.toMatchObject({ code: 'repository_not_found' });
-            await store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'name', 'Ada'));
-            await expect(store.findItemsOrFail(scope, { limit: 10, offset: 1 })).rejects.toMatchObject({ code: 'repository_not_found' });
-            await expect(store.findItemsOrFail(scope, { limit: 0, offset: 0 })).rejects.toMatchObject(INVALID);
-            await expect(store.findNotesOrFail(scope, { limit: 10, offset: 1 })).rejects.toMatchObject({ code: 'repository_not_found' });
-            expect(await store.findNotes(scope, { limit: 10, offset: 1 })).toEqual({ data: [], total: 1 });
-            await expect(store.findItemsOrFail(scope, { limit: -1, offset: 0 })).rejects.toMatchObject(INVALID);
+            expect(saved).toStrictEqual(conversationOf('c1'));
+            expect(await conversations.findOneBy({ key: KEY })).toStrictEqual(saved);
+            expect(await conversations.findOneById(testUuid('c1'))).toStrictEqual(saved);
+            expect(await conversations.findOneBy({ key: 'b'.repeat(64) })).toBeNull();
+            expect(await conversations.findOneById('not-a-uuid')).toBeNull();
         });
 
-        it('OrFail queries preserve copies, expiry and generation fences', async () => {
-            const {
-                store,
-                identity,
-                scope,
-                clock,
-            } = await setup();
+        it('save of a read conversation writes the turn and its snapshot, then clears them, each save resolving the next read', async () => {
+            const runId = await insertRun('run-a');
 
-            await store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'name', 'Ada', { expiresAt: new Date(clock.now().getTime() + 1_000) }));
+            await insert(conversationOf('c1'));
 
-            const found = await store.findOneOrFail(identity);
-
-            found.identity.chat = 'changed';
-            expect(await store.findOneOrFail(identity)).toEqual(scope);
-
-            const note = await store.findOneNoteOrFail(scope, 'name');
-
-            expect(note.text).toBe('Ada');
-            note.text = 'changed';
-            expect((await store.findOneNoteOrFail(scope, 'name')).text).toBe('Ada');
-            expect((await store.findItemsOrFail(scope, { limit: 10, offset: 0 })).data.map((item) => item.text)).toEqual(['hello']);
-            expect((await store.findNotesOrFail(scope, { limit: 10, offset: 0 })).data.map((item) => item.text)).toEqual(['Ada']);
-            clock.advance(1_000);
-            await expect(store.findOneNoteOrFail(scope, 'name')).rejects.toMatchObject({ code: 'repository_not_found' });
-            await store.endTurn(scope, testUuid('run-a'), []);
-
-            const next = await store.reset(identity, { keepNotes: false });
-
-            await expect(store.findItemsOrFail(next, { limit: 10, offset: 0 })).rejects.toMatchObject({ code: 'repository_not_found' });
-            await expect(store.findNotesOrFail(scope, { limit: 10, offset: 0 })).rejects.toMatchObject({ code: 'repository_not_found' });
-        });
-
-        it('resolve creates generation 0 once and findOne reads without creating', async () => {
-            const {
-                store,
-                identity,
-                scope,
-            } = await setup();
-
-            expect(scope.generation).toBe(0);
-            expect(scope.id).toMatch(/^(?:[0-9a-f]{64}|[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12})$/);
-            expect(scope.identity).toEqual(identity);
-            expect(await store.resolve({ ...identity })).toEqual(scope);
-            expect(await store.findOne(identity)).toEqual(scope);
-            expect(await store.findOne(makeIdentity('unknown'))).toBeUndefined();
-            expect(await store.findOne(makeIdentity('unknown'))).toBeUndefined();
-            await expect(store.resolve(makeIdentity(''))).rejects.toMatchObject(INVALID);
-        });
-
-        it('activeRun is read-only, generation fenced and cleared by endTurn', async () => {
-            const {
-                store,
-                scope,
-                identity,
-            } = await setup();
-
-            expect(await store.activeRun(scope)).toBeUndefined();
-            await store.beginTurn(scope, testUuid('run'), 'hello', LIMITS);
-            expect(await store.activeRun(scope)).toBe(testUuid('run'));
-            await store.endTurn(scope, testUuid('run'), []);
-            expect(await store.activeRun(scope)).toBeUndefined();
-            await store.reset(identity, { keepNotes: false });
-            expect(await store.activeRun(scope)).toBeUndefined();
-        });
-
-        it('rejects unsupported Unicode in stored opaque strings without changing state', async () => {
-            const {
-                store,
-                scope,
-                clock,
-            } = await setup();
-
-            await expect(store.beginTurn(scope, 'run\ud800', 'hello', LIMITS)).rejects.toMatchObject(INVALID);
-            await store.beginTurn(scope, testUuid('run'), 'hello', LIMITS);
-
-            const item = makeEmit(clock, testUuid('run'), 0, 'reply');
-
-            for (const changed of [
-                { ...item, id: 'bad\ud800' },
-                { ...item, effectKey: 'bad\ud800' },
-                { ...item, target: { channel: 'bad\ud800', address: 'chat' } },
-                { ...item, target: { channel: 'chat', address: 'bad\0' } },
-                { ...item, target: { channel: 'chat', address: 'bad\ud800' } },
-            ]) {
-                await expect(store.prepareEmit(scope, changed)).rejects.toMatchObject(INVALID);
-            }
-
-            const operation = makeSet(testUuid('run'), 'note', 'value');
-
-            for (const changed of [
-                { ...operation, id: 'bad\ud800' },
-                { ...operation, inputHash: 'bad\ud800' },
-                { ...operation, source: { ...operation.source, toolCallId: 'bad\ud800' } },
-            ]) {
-                await expect(store.applyNote(scope, changed)).rejects.toMatchObject(INVALID);
-            }
-
-            expect((await store.findItems(scope, { limit: 100, offset: 0 })).total).toBe(1);
-            expect((await store.findNotes(scope, { limit: 100, offset: 0 })).total).toBe(0);
-        });
-
-        it('begin_is_atomic_across_callers', async () => {
-            const { store, scope } = await setup();
-            const results = await Promise.all(
-                Array.from({ length: 10 }, (_, i) => store.beginTurn(scope, testUuid(`run-${i}`), `hello ${i}`, LIMITS)),
-            );
-            const ready = results.filter((r) => r.kind === 'ready');
-
-            expect(ready).toHaveLength(1);
-
-            const winner = ready[0]!.kind === 'ready' ? ready[0]!.snapshot.runId : '';
-
-            expect(results.filter((r) => r.kind === 'busy')).toHaveLength(9);
-
-            for (const result of results) {
-                if (result.kind === 'busy') {
-                    expect(result.runId).toBe(winner);
-                }
-            }
-
-            const items = await store.findItems(scope, { limit: 100, offset: 0 });
-
-            expect(items.total).toBe(1);
-            expect(items.data[0]).toMatchObject({
-                id: `user:${winner}`,
-                role: 'user',
-                status: 'sent',
-            });
-        });
-
-        it('same_run_reuses_snapshot', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-
-            await completeTurn(store, clock, scope, testUuid('run-0'), 'earlier', ['reply']);
-
-            const first = await store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-
-            clock.advance(5000);
-            await store.prepareEmit(scope, makeEmit(clock, testUuid('run-a'), 0, 'not yet sent'));
-
-            const second = await store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-
-            expect(first.kind).toBe('ready');
-            expect(second).toEqual(first);
-
-            const items = await store.findItems(scope, { limit: 100, offset: 0 });
-
-            expect(items.data.filter((item) => item.id === `user:${testUuid('run-a')}`)).toHaveLength(1);
-            expect(items.total).toBe(4);
-        });
-
-        it('active_snapshot_survives_stricter_limits_on_resume', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-
-            await completeTurn(store, clock, scope, testUuid('run-0'), 'earlier', ['reply']);
-
-            const first = await store.beginTurn(scope, testUuid('run-a'), 'accepted text', LIMITS);
-
-            expect(first.kind).toBe('ready');
-            clock.advance(5000);
-
-            const stricter = {
-                ...LIMITS,
-                maxItemBytes: 4,
-                maxHistoryBytes: 4,
-                retentionMs: 1,
+            const read = (await conversations.findOneById(testUuid('c1')))!;
+            const snapshot = {
+                messages: [{ role: 'user' as const, content: 'hello' }, { role: 'assistant' as const, content: 'hi' }],
+                itemIds: ['user:a', 'assistant:a:0'],
+                noteKeys: ['name'],
+                createdAt: new Date(2_000),
+                omitted: 3,
             };
+            const held = await conversations.save(conversations.merge(read, {
+                activeRunId: runId,
+                snapshot,
+                generation: 2,
+            }));
 
-            await expect(store.beginTurn(scope, testUuid('run-a'), 'accepted text', stricter)).resolves.toEqual(first);
-            await store.endTurn(scope, testUuid('run-a'), []);
-            await expect(store.beginTurn(scope, testUuid('run-b'), 'new oversized input', stricter)).rejects.toMatchObject(INVALID);
+            expect(held).toStrictEqual(conversationOf('c1', {
+                activeRunId: runId,
+                snapshot,
+                generation: 2,
+            }));
+            expect(await conversations.findOneById(testUuid('c1'))).toStrictEqual(held);
+
+            const cleared = await conversations.save(conversations.merge(held, { activeRunId: undefined, snapshot: undefined }));
+            const next = await conversations.findOneById(testUuid('c1'));
+
+            expect(next).toStrictEqual(conversationOf('c1', { generation: 2 }));
+            expect({ ...cleared }).toEqual(next);
         });
 
-        it('ended_turn_does_not_reclaim_its_retained_input', async () => {
-            const { store, scope } = await setup();
+        it('a created conversation whose key is stored is EntityConflictError and leaves the stored row', async () => {
+            await insert(conversationOf('c1'));
 
-            await store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-            await store.endTurn(scope, testUuid('run-a'), []);
-            await expect(store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS)).rejects.toMatchObject({ code: 'invalid_run_state' });
-            expect((await store.findItems(scope, { limit: 10, offset: 0 })).total).toBe(1);
-            expect((await store.beginTurn(scope, testUuid('run-b'), 'next', LIMITS)).kind).toBe('ready');
+            await expect(insert(conversationOf('c2', { generation: 5 }))).rejects.toBeInstanceOf(EntityConflictError);
+            expect(await conversations.findOneBy({ key: KEY })).toStrictEqual(conversationOf('c1'));
+            expect(await conversations.findOneById(testUuid('c2'))).toBeNull();
         });
 
-        it('busy_does_not_append_input', async () => {
-            const { store, scope } = await setup();
+        it('an active run that does not exist is EntityRelationError naming the run, and nothing is stored', async () => {
+            await insert(conversationOf('c1'));
 
-            await store.beginTurn(scope, testUuid('run-a'), 'first', LIMITS);
-            expect(await store.beginTurn(scope, testUuid('run-b'), 'second', LIMITS)).toEqual({ kind: 'busy', runId: testUuid('run-a') });
+            const read = (await conversations.findOneById(testUuid('c1')))!;
 
-            let items = await store.findItems(scope, { limit: 100, offset: 0 });
-
-            expect(items.data.map((item) => item.id)).toEqual([`user:${testUuid('run-a')}`]);
-
-            await store.endTurn(scope, testUuid('run-a'), []);
-            expect((await store.beginTurn(scope, testUuid('run-b'), 'second', LIMITS)).kind).toBe('ready');
-            // a settled owner retrying with its snapshot never takes the scope back from the active one
-            expect(await store.beginTurn(scope, testUuid('run-a'), 'first', LIMITS)).toEqual({ kind: 'busy', runId: testUuid('run-b') });
-            items = await store.findItems(scope, { limit: 100, offset: 0 });
-            expect(items.data.map((item) => item.id)).toEqual([`user:${testUuid('run-a')}`, `user:${testUuid('run-b')}`]);
+            await expect(conversations.save(conversations.merge(read, { activeRunId: testUuid('missing') })))
+                .rejects.toMatchObject({
+                    code: 'entity_relation_invalid',
+                    entity: 'conversation',
+                    relation: 'run',
+                });
+            expect(await conversations.findOneById(testUuid('c1'))).toStrictEqual(conversationOf('c1'));
         });
 
-        it('end_is_owner_guarded', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
+        it('items get storage keys in the order they are stored; a sort by CONVERSATION_ITEM_STORED_ORDER is the transcript order', async () => {
+            const runId = await insertRun('run-a');
 
-            await store.beginTurn(scope, testUuid('run-a'), 'first', LIMITS);
+            await insert(conversationOf('c1'));
 
-            const confirmed = makeEmit(clock, testUuid('run-a'), 0, 'confirmed');
-            const lost = makeEmit(clock, testUuid('run-a'), 1, 'uncertain');
+            const scopeId = testUuid('c1');
+            const first = await insertItem(itemOf(scopeId, runId, 'user:a'));
+            const second = await insertItem(itemOf(scopeId, runId, 'assistant:a:0', {
+                role: 'assistant',
+                status: 'pending',
+                effectKey: 'effect',
+                target: { channel: 'chat', address: 'room' },
+            }));
+            const third = await insertItem(itemOf(scopeId, runId, 'assistant:a:1', { role: 'assistant', status: 'unknown' }));
 
-            await store.prepareEmit(scope, confirmed);
-            await store.prepareEmit(scope, lost);
+            expect(Number.isSafeInteger(first.id)).toBe(true);
+            expect(first.id).toBeLessThan(second.id);
+            expect(second.id).toBeLessThan(third.id);
+            expect(second).toStrictEqual({
+                ...itemOf(scopeId, runId, 'assistant:a:0', {
+                    role: 'assistant',
+                    status: 'pending',
+                    effectKey: 'effect',
+                    target: { channel: 'chat', address: 'room' },
+                }),
+                id: second.id,
+            });
 
-            await store.endTurn(scope, testUuid('run-b'), [confirmed.id, lost.id]);
-            expect(await store.beginTurn(scope, testUuid('run-c'), 'third', LIMITS)).toEqual({ kind: 'busy', runId: testUuid('run-a') });
-            expect((await store.pendingEmits(scope, testUuid('run-a'))).map((item) => item.id)).toEqual([confirmed.id, lost.id]);
+            const ascending = await conversations.items.findMany(defineQuery({
+                filters: and(eq('scopeId', scopeId), eq('generation', 0)),
+                sorts: { [CONVERSATION_ITEM_STORED_ORDER]: 'ASC' },
+            }));
 
-            await store.endTurn(scope, testUuid('run-a'), [confirmed.id]);
+            expect(ascending.data).toStrictEqual([first, second, third]);
 
-            const items = await store.findItems(scope, { limit: 100, offset: 0 });
+            const older = await conversations.items.findMany(defineQuery({
+                filters: and(eq('scopeId', scopeId), lt(CONVERSATION_ITEM_STORED_ORDER, third.id)),
+                sorts: { [CONVERSATION_ITEM_STORED_ORDER]: 'DESC' },
+                pagination: { limit: 1 },
+            }));
 
-            expect(items.data.map((item) => [item.id, item.status])).toEqual([
-                [`user:${testUuid('run-a')}`, 'sent'],
-                [confirmed.id, 'sent'],
-                [lost.id, 'unknown'],
-            ]);
-            expect(await store.pendingEmits(scope, testUuid('run-a'))).toEqual([]);
+            expect(older.data.map((item) => item.key)).toEqual(['assistant:a:0']);
+            expect(older.meta.total).toBe(2);
 
-            // a repeated end is a no-op, and unknown is terminal
-            await store.endTurn(scope, testUuid('run-a'), [lost.id]);
-            expect((await store.beginTurn(scope, testUuid('run-c'), 'third', LIMITS)).kind).toBe('ready');
-            await store.endTurn(scope, testUuid('run-c'), [lost.id]);
+            // the sizes of the sent items, newest first, without their text
+            const sizes = await conversations.items.findMany(defineQuery({
+                fields: [CONVERSATION_ITEM_STORED_ORDER, 'bytes'],
+                filters: and(eq('scopeId', scopeId), eq('generation', 0), eq('status', 'sent')),
+                sorts: { [CONVERSATION_ITEM_STORED_ORDER]: 'DESC' },
+                pagination: { limit: 10 },
+            }));
 
-            const after = await store.findItems(scope, { limit: 100, offset: 0 });
+            expect(sizes.data).toStrictEqual([{ id: first.id, bytes: first.bytes }]);
+            expect(first.bytes).toBe(1000 + 'user:a'.length);
 
-            expect(after.data.find((item) => item.id === lost.id)?.status).toBe('unknown');
+            expect(await conversations.items.findOneBy({
+                scopeId,
+                generation: 0,
+                key: 'user:a',
+            })).toStrictEqual(first);
         });
 
-        it('two_scope_identities_isolate', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-            const other = await store.resolve(makeIdentity('chat-1', { audience: 'group' }));
+        it('an item, note or operation of a stored natural key is EntityConflictError; another generation may hold it', async () => {
+            const runId = await insertRun('run-a');
 
-            expect(other.id).not.toBe(scope.id);
+            await insert(conversationOf('c1'));
 
-            expect((await store.beginTurn(scope, testUuid('run-a'), 'mine', LIMITS)).kind).toBe('ready');
-            expect((await store.beginTurn(other, testUuid('run-b'), 'theirs', LIMITS)).kind).toBe('ready');
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'name', 'Ada'));
-            await store.prepareEmit(scope, makeEmit(clock, testUuid('run-a'), 0, 'hi Ada'));
-            await expect(store.applyNote(other, makeSet(testUuid('run-a'), 'name', 'Eve'))).rejects.toMatchObject(STATE);
-            await expect(store.prepareEmit(other, makeEmit(clock, testUuid('run-a'), 1, 'x'))).rejects.toMatchObject(STATE);
+            const scopeId = testUuid('c1');
 
-            expect((await store.findItems(other, { limit: 100, offset: 0 })).data.map((i) => i.id)).toEqual([`user:${testUuid('run-b')}`]);
-            expect((await store.findNotes(other, { limit: 100, offset: 0 })).total).toBe(0);
-            expect(await store.findOneNote(other, 'name')).toBeUndefined();
-            expect((await store.findOneNote(scope, 'name'))?.text).toBe('Ada');
+            await insertItem(itemOf(scopeId, runId, 'user:a'));
+            await expect(insertItem(itemOf(scopeId, runId, 'user:a', { text: 'other' }))).rejects.toBeInstanceOf(EntityConflictError);
+            await insertItem(itemOf(scopeId, runId, 'user:a', { generation: 1 }));
+
+            await conversations.notes.save(conversations.notes.create(noteOf('n1', scopeId, runId, 'name')));
+            await expect(conversations.notes.save(conversations.notes.create(noteOf('n2', scopeId, runId, 'name'))))
+                .rejects.toBeInstanceOf(EntityConflictError);
+            await conversations.notes.save(conversations.notes.create(noteOf('n3', scopeId, runId, 'name', { generation: 1 })));
+
+            await conversations.operations.save(conversations.operations.create(operationOf('o1', scopeId, runId, 'op')));
+            await expect(conversations.operations.save(conversations.operations.create(operationOf('o2', scopeId, runId, 'op'))))
+                .rejects.toBeInstanceOf(EntityConflictError);
+            await conversations.operations.save(conversations.operations.create(operationOf('o3', scopeId, runId, 'op', { generation: 1 })));
+
+            expect((await conversations.items.findManyBy({ scopeId })).map((item) => [item.key, item.generation])).toEqual([['user:a', 0], ['user:a', 1]]);
+            expect((await conversations.notes.findManyBy({ scopeId })).map((note) => note.id)).toEqual([testUuid('n1'), testUuid('n3')]);
+            expect((await conversations.operations.findManyBy({ scopeId })).map((operation) => operation.id)).toEqual([testUuid('o1'), testUuid('o3')]);
         });
 
-        it('reset_races_begin', async () => {
-            for (const order of ['begin-first', 'reset-first'] as const) {
-                const {
-                    store,
-                    identity,
-                    scope,
-                } = await setup();
-                const begin = () => store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-                const reset = () => store.reset(identity, { keepNotes: false });
-                let beginResult: PromiseSettledResult<Awaited<ReturnType<typeof begin>>>;
-                let resetResult: PromiseSettledResult<unknown>;
+        it('a child of a missing conversation or run is EntityRelationError naming both, and nothing is stored', async () => {
+            const runId = await insertRun('run-a');
 
-                if (order === 'begin-first') {
-                    [beginResult, resetResult] = await Promise.allSettled([begin(), reset()]);
-                } else {
-                    [resetResult, beginResult] = await Promise.allSettled([reset(), begin()]);
-                }
+            await insert(conversationOf('c1'));
 
-                const ready = beginResult.status === 'fulfilled' && beginResult.value.kind === 'ready';
+            const scopeId = testUuid('c1');
+            const missing = testUuid('missing');
 
-                expect(ready !== (resetResult.status === 'fulfilled')).toBe(true);
+            await expect(insertItem(itemOf(missing, runId, 'user:a')))
+                .rejects.toMatchObject({ entity: 'conversation_item', relation: 'conversation' });
+            await expect(insertItem(itemOf(scopeId, missing, 'user:a')))
+                .rejects.toMatchObject({ entity: 'conversation_item', relation: 'run' });
+            await expect(conversations.notes.save(conversations.notes.create(noteOf('n1', missing, runId, 'name'))))
+                .rejects.toMatchObject({ entity: 'conversation_note', relation: 'conversation' });
+            await expect(conversations.notes.save(conversations.notes.create(noteOf('n1', scopeId, missing, 'name'))))
+                .rejects.toMatchObject({ entity: 'conversation_note', relation: 'run' });
+            await expect(conversations.operations.save(conversations.operations.create(operationOf('o1', missing, runId, 'op'))))
+                .rejects.toMatchObject({ entity: 'conversation_operation', relation: 'conversation' });
+            await expect(conversations.operations.save(conversations.operations.create(operationOf('o1', scopeId, missing, 'op'))))
+                .rejects.toMatchObject({ entity: 'conversation_operation', relation: 'run' });
 
-                if (!ready) {
-                    expect(beginResult).toMatchObject({ status: 'fulfilled', value: { kind: 'stale' } });
-                }
+            expect(await conversations.items.findManyBy({ scopeId })).toEqual([]);
+            expect(await conversations.notes.findManyBy({ scopeId })).toEqual([]);
+            expect(await conversations.operations.findManyBy({ scopeId })).toEqual([]);
+        });
+
+        it('runs and checkpoints reference a conversation: a missing one is EntityRelationError naming it; a referenced conversation is not removed', async () => {
+            await insert(conversationOf('c1'));
+
+            const scope = {
+                id: testUuid('c1'),
+                generation: 0,
+                identity: conversationOf('c1').identity,
+            };
+            const missing = { ...scope, id: testUuid('missing') };
+
+            await expect(runs.save(runs.create(makeRun(testUuid('run-x'), { conversation: { scope: missing, text: 'hi' } }))))
+                .rejects.toMatchObject({ entity: 'run', relation: 'conversation' });
+            await expect(runs.save(runs.create(makeRun(testUuid('run-y'), { conversation: { scope: { ...scope, id: KEY }, text: 'hi' } }))))
+                .rejects.toMatchObject({ entity: 'run', relation: 'conversation' });
+            expect(await runs.findOneById(testUuid('run-x'))).toBeNull();
+
+            await runs.save(runs.create(makeRun(testUuid('run-a'), { conversation: { scope, text: 'hi' } })));
+
+            const checkpoint = (scopeId: string): CheckpointRecord => ({
+                id: testUuid('cp'),
+                runId: testUuid('run-a'),
+                stepIndex: 0,
+                messages: [],
+                conversation: { scopeId, generation: 0 },
+                createdAt: new Date(1_000),
+            });
+
+            await expect(checkpoints.save(checkpoints.create(checkpoint(testUuid('missing')))))
+                .rejects.toMatchObject({ entity: 'checkpoint', relation: 'conversation' });
+            await checkpoints.save(checkpoints.create(checkpoint(testUuid('c1'))));
+
+            const read = (await conversations.findOneById(testUuid('c1')))!;
+
+            await expect(conversations.remove(read)).rejects.toMatchObject({ code: 'entity_relation_invalid', relation: 'conversation' });
+            expect(await conversations.findOneById(testUuid('c1'))).toStrictEqual(conversationOf('c1'));
+        });
+
+        it('a conversation its children reference is not removed: EntityRelationError naming the child', async () => {
+            const runId = await insertRun('run-a');
+
+            await insert(conversationOf('c1'));
+            await insertItem(itemOf(testUuid('c1'), runId, 'user:a'));
+
+            await expect(conversations.remove((await conversations.findOneById(testUuid('c1')))!))
+                .rejects.toMatchObject({ entity: 'conversation_item', relation: 'conversation' });
+            expect(await conversations.findOneById(testUuid('c1'))).not.toBeNull();
+        });
+
+        it('notes and operations store as given; a note sorts by key in code-point order', async () => {
+            const runId = await insertRun('run-a');
+
+            await insert(conversationOf('c1'));
+
+            const scopeId = testUuid('c1');
+            const expiring = noteOf('n1', scopeId, runId, 'b', { expiresAt: new Date(5_000) });
+            const saved = await conversations.notes.save(conversations.notes.create(expiring));
+
+            expect(saved).toStrictEqual(expiring);
+            expect(await conversations.notes.findOneById(testUuid('n1'))).toStrictEqual(expiring);
+
+            for (const [index, key] of ['a-b', 'a', 'a0'].entries()) {
+                await conversations.notes.save(conversations.notes.create(noteOf(`k${index}`, scopeId, runId, key)));
             }
+
+            const { data } = await conversations.notes.findMany(defineQuery({ filters: eq('scopeId', scopeId), sorts: { key: 'ASC' } }));
+
+            expect(data.map((note) => note.key)).toEqual(['a', 'a-b', 'a0', 'b']);
+
+            const removal = operationOf('o1', scopeId, runId, 'op-remove', { kind: 'remove', removed: false });
+            const set = operationOf('o2', scopeId, runId, 'op-set');
+
+            expect(await conversations.operations.save(conversations.operations.create(removal))).toStrictEqual(removal);
+            expect(await conversations.operations.save(conversations.operations.create(set))).toStrictEqual(set);
+            expect(await conversations.operations.findOneBy({
+                scopeId,
+                generation: 0,
+                operationId: 'op-remove',
+            })).toStrictEqual(removal);
+            expect(await conversations.operations.findOneById(testUuid('o2'))).toStrictEqual(set);
+
+            const read = (await conversations.notes.findOneById(testUuid('n1')))!;
+            const changed = await conversations.notes.save(conversations.notes.merge(read, { text: 'changed', expiresAt: undefined }));
+
+            expect(await conversations.notes.findOneById(testUuid('n1'))).toStrictEqual(noteOf('n1', scopeId, runId, 'b', { text: 'changed' }));
+            expect({ ...changed }).toEqual(noteOf('n1', scopeId, runId, 'b', { text: 'changed' }));
         });
 
-        it('delete_leaves_generation_tombstone', async () => {
-            const {
-                store,
-                clock,
-                identity,
-                scope,
-            } = await setup();
+        it('upsertMany replaces items by storage key and resolves the next reads; removeManyBy removes by scope or by a list of keys', async () => {
+            const runId = await insertRun('run-a');
 
-            await store.beginTurn(scope, testUuid('run-a'), 'remember me', LIMITS);
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'name', 'Ada'));
-            await store.prepareEmit(scope, makeEmit(clock, testUuid('run-a'), 0, 'ok'));
-            await store.endTurn(scope, testUuid('run-a'), [`assistant:${testUuid('run-a')}:0`]);
+            await insert(conversationOf('c1'));
 
-            await store.delete(identity);
+            const scopeId = testUuid('c1');
+            const stored: ConversationItemRecord[] = [];
 
-            const current = await store.findOne(identity);
+            for (let index = 0; index < 5; index++) {
+                stored.push(await insertItem(itemOf(scopeId, runId, `k${index}`, { status: 'pending' })));
+            }
 
-            expect(current?.id).toBe(scope.id);
-            expect(current?.generation).toBeGreaterThan(scope.generation);
-            expect(await store.resolve(identity)).toEqual(current);
+            const replaced = await conversations.items.upsertMany(stored.slice(0, 3).map((item) => ({ ...item, status: 'sent' as const })));
 
-            expect(await store.beginTurn(scope, testUuid('run-b'), 'old queued work', LIMITS)).toEqual({ kind: 'stale' });
-            await expect(store.prepareEmit(scope, makeEmit(clock, testUuid('run-b'), 0, 'x'))).rejects.toMatchObject(STATE);
-            await expect(store.applyNote(scope, makeSet(testUuid('run-b'), 'k', 'v'))).rejects.toMatchObject(STATE);
-            expect((await store.findItems(scope, { limit: 100, offset: 0 })).total).toBe(0);
-            expect((await store.findItems(current!, { limit: 100, offset: 0 })).total).toBe(0);
-            expect((await store.findNotes(current!, { limit: 100, offset: 0 })).total).toBe(0);
-            expect(await store.findOneNote(current!, 'name')).toBeUndefined();
+            expect(replaced).toStrictEqual(stored.slice(0, 3).map((item) => ({ ...item, status: 'sent' })));
+            expect(await conversations.items.findManyBy({ scopeId, status: 'sent' })).toStrictEqual(replaced);
 
-            const ready = await store.beginTurn(current!, testUuid('run-c'), 'fresh', LIMITS);
+            expect(await conversations.items.removeManyBy({ id: [stored[0]!.id, stored[4]!.id] })).toBe(2);
+            expect((await conversations.items.findManyBy({ scopeId })).map((item) => item.key)).toEqual(['k1', 'k2', 'k3']);
+            expect(await conversations.items.removeManyBy({ scopeId })).toBe(3);
+            expect(await conversations.items.findManyBy({ scopeId })).toEqual([]);
+        });
 
-            expect(ready).toMatchObject({
-                kind: 'ready',
-                snapshot: {
-                    messages: [],
-                    itemIds: [],
-                    noteKeys: [],
+        it('binds the children to the transaction: their writes stay unseen outside until the commit and commit with it', async () => {
+            const runId = await insertRun('run-a');
+            const { promise: held, resolve: release } = Promise.withResolvers<void>();
+            const { promise: ready, resolve: written } = Promise.withResolvers<void>();
+
+            const committing = conversations.transaction(async (repository) => {
+                // children referencing a conversation the same transaction stores
+                await repository.save(repository.create(conversationOf('c1')));
+                await repository.items.save(repository.items.create(itemOf(testUuid('c1'), runId, 'user:a') as ConversationItemRecord));
+                await repository.notes.save(repository.notes.create(noteOf('n1', testUuid('c1'), runId, 'name')));
+                await repository.operations.save(repository.operations.create(operationOf('o1', testUuid('c1'), runId, 'op')));
+                expect(await repository.items.findManyBy({ scopeId: testUuid('c1') })).toHaveLength(1);
+                written();
+                await held;
+            });
+
+            await ready;
+            expect(await conversations.items.findManyBy({ scopeId: testUuid('c1') })).toEqual([]);
+            expect(await conversations.notes.findManyBy({ scopeId: testUuid('c1') })).toEqual([]);
+            release();
+            await committing;
+            expect(await conversations.items.findManyBy({ scopeId: testUuid('c1') })).toHaveLength(1);
+            expect(await conversations.notes.findManyBy({ scopeId: testUuid('c1') })).toHaveLength(1);
+            expect(await conversations.operations.findManyBy({ scopeId: testUuid('c1') })).toHaveLength(1);
+        });
+
+        it('a rejected transaction restores the conversation and its children', async () => {
+            const runId = await insertRun('run-a');
+
+            await insert(conversationOf('c1'));
+            await insertItem(itemOf(testUuid('c1'), runId, 'user:a'));
+
+            await expect(conversations.transaction(async (repository) => {
+                const read = (await repository.findOneById(testUuid('c1')))!;
+
+                await repository.save(repository.merge(read, { generation: 1, activeRunId: runId }));
+                await repository.items.removeManyBy({ scopeId: testUuid('c1') });
+                await repository.notes.save(repository.notes.create(noteOf('n1', testUuid('c1'), runId, 'name')));
+                await repository.operations.save(repository.operations.create(operationOf('o1', testUuid('c1'), runId, 'op')));
+
+                throw new TypeError('rolled back');
+            })).rejects.toThrow('rolled back');
+
+            expect(await conversations.findOneById(testUuid('c1'))).toStrictEqual(conversationOf('c1'));
+            expect(await conversations.items.findManyBy({ scopeId: testUuid('c1') })).toHaveLength(1);
+            expect(await conversations.notes.findManyBy({ scopeId: testUuid('c1') })).toEqual([]);
+            expect(await conversations.operations.findManyBy({ scopeId: testUuid('c1') })).toEqual([]);
+        });
+
+        it('a child repository used after its transaction ended is refused with a storage error and writes nothing', async () => {
+            const runId = await insertRun('run-a');
+            let escaped!: IConversationRepository;
+
+            await insert(conversationOf('c1'));
+            await conversations.transaction(async (repository) => {
+                escaped = repository;
+            });
+
+            await expect(escaped.items.save(escaped.items.create(itemOf(testUuid('c1'), runId, 'user:a') as ConversationItemRecord)))
+                .rejects.toMatchObject({ code: expect.stringMatching(/^(entity_deadlock|database_unavailable)$/) });
+            await expect(escaped.notes.removeManyBy({ scopeId: testUuid('c1') }))
+                .rejects.toMatchObject({ code: expect.stringMatching(/^(entity_deadlock|database_unavailable)$/) });
+            expect(await conversations.items.findManyBy({ scopeId: testUuid('c1') })).toEqual([]);
+        });
+
+        it('a locked read of a conversation holds off another transaction\'s locked read until it ends, never the insert of a row referencing it', async () => {
+            const runId = await insertRun('run-a');
+
+            await insert(conversationOf('c1'));
+
+            const order: string[] = [];
+            const { promise: held, resolve: release } = Promise.withResolvers<void>();
+            const { promise: lockedOnce, resolve: locked } = Promise.withResolvers<void>();
+
+            const first = conversations.transaction(async (repository) => {
+                await repository.findOneById(testUuid('c1'));
+                locked();
+                await held;
+
+                const read = (await repository.findOneById(testUuid('c1')))!;
+
+                await repository.save(repository.merge(read, { generation: 1 }));
+                order.push('first');
+            });
+
+            await lockedOnce;
+
+            // an item and a run referencing the locked conversation are inserted while it is held
+            await insertItem(itemOf(testUuid('c1'), runId, 'user:a'));
+            await runs.save(runs.create(makeRun(testUuid('run-b'), {
+                conversation: {
+                    scope: {
+                        id: testUuid('c1'),
+                        generation: 0,
+                        identity: conversationOf('c1').identity,
+                    },
+                    text: 'hi',
                 },
+            })));
+            order.push('inserted');
+
+            const second = conversations.transaction(async (repository) => {
+                const read = (await repository.findOneById(testUuid('c1')))!;
+
+                order.push(`second saw ${read.generation}`);
             });
 
-            // deleting an identity never seen is a no-op that creates nothing
-            await store.delete(makeIdentity('never'));
-            expect(await store.findOne(makeIdentity('never'))).toBeUndefined();
+            await input.untilBlocked();
+            release();
+            await Promise.all([first, second]);
+
+            expect(order).toEqual(['inserted', 'first', 'second saw 1']);
         });
 
-        it('reset_rejects_array_options_without_advancing_generation', async () => {
-            const {
-                store,
-                identity,
-                scope,
-            } = await setup();
+        it('copies values in and out', async () => {
+            const runId = await insertRun('run-a');
+            const value = conversationOf('c1');
 
-            await expect(store.reset(identity, Object.assign([], { keepNotes: true }))).rejects.toMatchObject(INVALID);
-            expect(await store.findOne(identity)).toEqual(scope);
-        });
+            await insert(value);
+            value.identity.chat = 'mutated';
 
-        it('reset_refuses_active', async () => {
-            const {
-                store,
-                identity,
-                scope,
-            } = await setup();
+            const read = (await conversations.findOneById(testUuid('c1')))!;
 
-            await store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'name', 'Ada'));
-            await expect(store.reset(identity, { keepNotes: false })).rejects.toMatchObject(STATE);
-            await expect(store.delete(identity)).rejects.toMatchObject(STATE);
-            expect(await store.findOne(identity)).toEqual(scope);
-            await store.endTurn(scope, testUuid('run-a'), []);
+            read.identity.chat = 'changed';
+            expect((await conversations.findOneById(testUuid('c1')))!.identity.chat).toBe('room');
 
-            const dropped = await store.reset(identity, { keepNotes: false });
+            const item = itemOf(testUuid('c1'), runId, 'assistant:a:0', { role: 'assistant', target: { channel: 'chat', address: 'room' } });
+            const stored = await insertItem(item);
 
-            expect(dropped.generation).toBeGreaterThan(scope.generation);
-            expect((await store.findNotes(dropped, { limit: 100, offset: 0 })).total).toBe(0);
-            expect(await store.beginTurn(scope, testUuid('run-b'), 'old', LIMITS)).toEqual({ kind: 'stale' });
-
-            const second = await setup();
-
-            await second.store.beginTurn(second.scope, testUuid('run-a'), 'hello', LIMITS);
-            await second.store.applyNote(second.scope, makeSet(testUuid('run-a'), 'name', 'Ada', { inputHash: 'h1' }));
-            await second.store.endTurn(second.scope, testUuid('run-a'), []);
-
-            const kept = await second.store.reset(second.identity, { keepNotes: true });
-
-            expect((await second.store.findNotes(kept, { limit: 100, offset: 0 })).data.map((n) => [n.key, n.text]))
-                .toEqual([['name', 'Ada']]);
-            // the old generation's operation record grants no replay in the new one
-            expect((await second.store.beginTurn(kept, testUuid('run-a'), 'again', LIMITS)).kind).toBe('ready');
-
-            const result = await second.store.applyNote(kept, makeSet(testUuid('run-a'), 'name', 'Grace', { inputHash: 'h2' }));
-
-            expect(result).toMatchObject({ kind: 'set', key: 'name' });
-            expect((await second.store.findOneNote(kept, 'name'))?.text).toBe('Grace');
-            // old transcript items are not part of the new generation
-            expect((await second.store.findItems(kept, { limit: 100, offset: 0 })).data.map((i) => i.id))
-                .toEqual([`user:${testUuid('run-a')}`]);
-        });
-
-        it('notes_replay_once_hash_collision_refused', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-
-            await store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-
-            const set = makeSet(testUuid('run-a'), 'name', 'Ada');
-            const created = await store.applyNote(scope, set);
-
-            expect(created).toEqual({
-                kind: 'set',
-                key: 'name',
-                updatedAt: clock.now(),
-            });
-            expect(created).not.toHaveProperty('text');
-
-            const createdAt = created.kind === 'set' ? created.updatedAt : undefined;
-
-            clock.advance(1000);
-            expect(await store.applyNote(scope, set)).toEqual(created);
-
-            const note = await store.findOneNote(scope, 'name');
-
-            expect(note).toMatchObject({
-                text: 'Ada',
-                updatedAt: createdAt,
-                source: set.source,
-            });
-            await expect(store.applyNote(scope, {
-                ...set,
-                inputHash: 'other',
-                text: 'Eve',
-            }))
-                .rejects.toMatchObject(INVALID);
-            expect((await store.findOneNote(scope, 'name'))?.text).toBe('Ada');
-
-            const update = makeSet(testUuid('run-a'), 'name', 'Grace', { toolCallId: 'call-2', stepIndex: 1 });
-            const updated = await store.applyNote(scope, update);
-
-            expect(updated).toEqual({
-                kind: 'set',
-                key: 'name',
-                updatedAt: clock.now(),
-            });
-            expect(await store.findOneNote(scope, 'name')).toMatchObject({
-                text: 'Grace',
-                createdAt,
-                updatedAt: clock.now(),
-            });
-
-            const remove = makeRemove(testUuid('run-a'), 'name');
-
-            expect(await store.applyNote(scope, remove)).toEqual({
-                kind: 'remove',
-                key: 'name',
-                removed: true,
-            });
-            expect(await store.applyNote(scope, remove)).toEqual({
-                kind: 'remove',
-                key: 'name',
-                removed: true,
-            });
-            expect(await store.applyNote(scope, makeRemove(testUuid('run-a'), 'name', 'call-3')))
-                .toEqual({
-                    kind: 'remove',
-                    key: 'name',
-                    removed: false,
-                });
-            expect(await store.findOneNote(scope, 'name')).toBeUndefined();
-
-            // no write and no replay without the run's active ownership
-            await expect(store.applyNote(scope, makeSet(testUuid('run-b'), 'k', 'v'))).rejects.toMatchObject(STATE);
-            await store.endTurn(scope, testUuid('run-a'), []);
-            await expect(store.applyNote(scope, set)).rejects.toMatchObject(STATE);
-            expect(await store.findOneNote(scope, 'name')).toBeUndefined();
-        });
-
-        it('note operations are bounded and validated', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-
-            await store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-
-            for (let i = 0; i < 100; i++) {
-                await store.applyNote(scope, makeSet(testUuid('run-a'), `k${i}`, 'v'));
-            }
-
-            await expect(store.applyNote(scope, makeSet(testUuid('run-a'), 'k100', 'v'))).rejects.toMatchObject(INVALID);
-            expect((await store.findNotes(scope, { limit: 200, offset: 0 })).total).toBe(100);
-            // updating an existing note at the cap is fine
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'k0', 'w', { toolCallId: 'again' }));
-            await expect(store.applyNote(scope, makeSet(testUuid('run-a'), '', 'v'))).rejects.toMatchObject(INVALID);
-            await expect(store.applyNote(scope, makeSet(testUuid('run-a'), 'k'.repeat(129), 'v'))).rejects.toMatchObject(INVALID);
-            await expect(store.applyNote(scope, makeSet(testUuid('run-a'), 'a\nb', 'v'))).rejects.toMatchObject(INVALID);
-            await expect(store.applyNote(scope, makeSet(testUuid('run-a'), 'k0', 'é'.repeat(1025), { toolCallId: 'long' })))
-                .rejects.toMatchObject(INVALID);
-            await expect(store.applyNote(scope, makeSet(testUuid('run-a'), 'k0', 'v', { toolCallId: 'past', expiresAt: clock.now() })))
-                .rejects.toMatchObject(INVALID);
-            // a refused operation records nothing: the same id applies once valid
-            expect(await store.applyNote(scope, makeSet(testUuid('run-a'), 'k0', 'w', { toolCallId: 'long' })))
-                .toMatchObject({ kind: 'set', key: 'k0' });
-
-            const page = await store.findNotes(scope, { limit: 2, offset: 1 });
-
-            expect(page.total).toBe(100);
-            expect(page.data.map((n) => n.key)).toEqual(['k1', 'k10']);
-        });
-
-        it('pending_send_not_recalled', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-
-            await store.beginTurn(scope, testUuid('run-a'), 'question', LIMITS);
-
-            const sent = makeEmit(clock, testUuid('run-a'), 0, 'sent answer');
-            const uncertain = makeEmit(clock, testUuid('run-a'), 1, 'uncertain answer');
-
-            await store.prepareEmit(scope, sent);
-            await store.prepareEmit(scope, sent);
-            await store.prepareEmit(scope, uncertain);
-            await expect(store.prepareEmit(scope, { ...sent, text: 'changed' })).rejects.toMatchObject(INVALID);
-            await expect(store.prepareEmit(scope, { ...sent, target: { channel: 'openclaw', address: 'x' } }))
-                .rejects.toMatchObject(INVALID);
-            await expect(store.prepareEmit(scope, { ...sent, effectKey: 'other' })).rejects.toMatchObject(INVALID);
-            await expect(store.prepareEmit(scope, { ...sent, runId: testUuid('run-b') })).rejects.toMatchObject(STATE);
-            await store.confirmEmit(scope, sent.id);
-            await store.confirmEmit(scope, sent.id);
-            await expect(store.confirmEmit(scope, 'assistant:none')).rejects.toMatchObject(STATE);
-
-            const before = await store.beginTurn(scope, testUuid('run-x'), 'busy', LIMITS);
-
-            expect(before.kind).toBe('busy');
-            expect((await store.pendingEmits(scope, testUuid('run-a'))).map((item) => item.id)).toEqual([uncertain.id]);
-            await store.endTurn(scope, testUuid('run-a'), []);
-            await expect(store.confirmEmit(scope, uncertain.id)).rejects.toMatchObject(STATE);
-
-            const next = await store.beginTurn(scope, testUuid('run-b'), 'follow-up', LIMITS);
-
-            if (next.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(next.snapshot.itemIds).toEqual([`user:${testUuid('run-a')}`, sent.id]);
-            expect(next.snapshot.messages).toEqual([
-                { role: 'user', content: 'question' },
-                { role: 'assistant', content: 'sent answer' },
-            ]);
-
-            const items = await store.findItems(scope, { limit: 100, offset: 0 });
-
-            expect(items.data.find((item) => item.id === uncertain.id)?.status).toBe('unknown');
-            expect(items.data.filter((item) => item.id === sent.id)).toHaveLength(1);
-        });
-
-        it('expired_notes_ignored_at_exact_time', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-
-            await store.beginTurn(scope, testUuid('run-a'), 'hello', LIMITS);
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'temp', 'short-lived', { expiresAt: new Date(clock.now().getTime() + 1000) }));
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'keep', 'forever'));
-            await store.endTurn(scope, testUuid('run-a'), []);
-
-            clock.advance(999);
-            expect((await store.findOneNote(scope, 'temp'))?.text).toBe('short-lived');
-
-            const held = await store.beginTurn(scope, testUuid('run-b'), 'still there?', LIMITS);
-
-            if (held.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(held.snapshot.noteKeys).toEqual(['keep', 'temp']);
-
-            clock.advance(1);
-            expect(await store.findOneNote(scope, 'temp')).toBeUndefined();
-            expect((await store.findNotes(scope, { limit: 100, offset: 0 })).data.map((n) => n.key)).toEqual(['keep']);
-            // the snapshot taken earlier is immutable
-            expect(await store.beginTurn(scope, testUuid('run-b'), 'still there?', LIMITS)).toEqual(held);
-            await store.endTurn(scope, testUuid('run-b'), []);
-
-            const next = await store.beginTurn(scope, testUuid('run-c'), 'gone?', LIMITS);
-
-            if (next.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(next.snapshot.noteKeys).toEqual(['keep']);
-            expect(JSON.stringify(next.snapshot.messages)).not.toContain('short-lived');
-        });
-
-        it('expires transcript items at exactly createdAt + retentionMs', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-            const limits: ResolvedConversationLimits = { ...LIMITS, retentionMs: 10_000 };
-
-            await completeTurn(store, clock, scope, testUuid('run-a'), 'old', ['old reply'], limits);
-            clock.advance(9999);
-            await completeTurn(store, clock, scope, testUuid('run-b'), 'recent', [], limits);
-
-            const recalled = await store.beginTurn(scope, testUuid('run-c'), 'now', limits);
-
-            if (recalled.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(recalled.snapshot.itemIds).toEqual([`user:${testUuid('run-a')}`, `assistant:${testUuid('run-a')}:0`, `user:${testUuid('run-b')}`]);
-            await store.endTurn(scope, testUuid('run-c'), []);
-
-            clock.advance(1);
-
-            const trimmed = await store.beginTurn(scope, testUuid('run-d'), 'later', limits);
-
-            if (trimmed.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(trimmed.snapshot.itemIds).toEqual([`user:${testUuid('run-b')}`, `user:${testUuid('run-c')}`]);
-            expect((await store.findItems(scope, { limit: 100, offset: 0 })).data.map((i) => i.id))
-                .toEqual([`user:${testUuid('run-b')}`, `user:${testUuid('run-c')}`, `user:${testUuid('run-d')}`]);
-        });
-
-        it('trim_inactive_via_prune', async () => {
-            const {
-                store,
-                clock,
-                identity,
-                scope,
-            } = await setup();
-            const limits: ResolvedConversationLimits = { ...LIMITS, retentionMs: 10_000 };
-
-            await completeTurn(store, clock, scope, testUuid('run-a'), 'old', ['old reply'], limits);
-            await store.beginTurn(scope, testUuid('run-b'), 'active', limits);
-            await store.applyNote(scope, makeSet(testUuid('run-b'), 'temp', 't', { expiresAt: new Date(clock.now().getTime() + 5) }));
-
-            const other = await store.resolve(makeIdentity('chat-2'));
-
-            await completeTurn(store, clock, other, testUuid('run-o'), 'other', [], limits);
-            await store.reset(makeIdentity('chat-2'), { keepNotes: true });
-            // reset is no erasure: the old generation keeps its records until retention removes them
-            expect((await store.findItems(other, { limit: 100, offset: 0 })).total).toBe(1);
-
-            clock.advance(10_000);
-            await store.prune(limits);
-
-            const items = await store.findItems(scope, { limit: 100, offset: 0 });
-
-            // the active turn keeps its input
-            expect(items.data.map((item) => item.id)).toEqual([`user:${testUuid('run-b')}`]);
-            expect((await store.findItems(other, { limit: 100, offset: 0 })).total).toBe(0);
-            expect(await store.findOne(identity)).toEqual(scope);
-            // the active turn's snapshot survives the prune
-            expect((await store.beginTurn(scope, testUuid('run-b'), 'active', limits)).kind).toBe('ready');
-            expect((await store.findNotes(scope, { limit: 100, offset: 0 })).total).toBe(0);
-
-            // maxStoredItems keeps the newest records of a generation
-            await store.endTurn(scope, testUuid('run-b'), []);
-
-            const capped: ResolvedConversationLimits = { ...limits, maxStoredItems: 3 };
-
-            for (const run of [testUuid('run-c'), testUuid('run-d'), testUuid('run-e')]) {
-                await completeTurn(store, clock, scope, run, run, [`${run} reply`], limits);
-            }
-
-            await store.prune(capped);
-            expect((await store.findItems(scope, { limit: 100, offset: 0 })).data.map((i) => i.id))
-                .toEqual([`assistant:${testUuid('run-d')}:0`, `user:${testUuid('run-e')}`, `assistant:${testUuid('run-e')}:0`]);
-            // begin trims too, never dropping the new input
-            await completeTurn(store, clock, scope, testUuid('run-f'), 'f', ['f reply'], capped);
-            expect((await store.findItems(scope, { limit: 100, offset: 0 })).data.map((i) => i.id))
-                .toEqual([`user:${testUuid('run-e')}`, `assistant:${testUuid('run-e')}:0`, `user:${testUuid('run-f')}`, `assistant:${testUuid('run-f')}:0`]);
-        });
-
-        it('prunes note operation records only for settled runs past retention', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-            const limits: ResolvedConversationLimits = { ...LIMITS, retentionMs: 10_000 };
-
-            await store.beginTurn(scope, testUuid('run-a'), 'hello', limits);
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'name', 'Ada'));
-            await store.endTurn(scope, testUuid('run-a'), []);
-            await store.beginTurn(scope, testUuid('run-b'), 'hello', limits);
-            await store.applyNote(scope, makeSet(testUuid('run-b'), 'city', 'Rome'));
-
-            const young = vi.fn<(runId: string) => Promise<boolean>>(async () => true);
-
-            await store.prune(limits, { isSettled: young });
-            expect(young).not.toHaveBeenCalled();
-
-            clock.advance(10_000);
-
-            const failing = vi.fn<(runId: string) => Promise<boolean>>(async () => {
-                throw new TypeError('lookup failed');
-            });
-
-            await expect(store.prune(limits, { isSettled: failing })).rejects.toThrow('lookup failed');
-            // the active run is never asked
-            expect(failing.mock.calls.map(([runId]) => runId)).toEqual([testUuid('run-a')]);
-
-            const settled = vi.fn<(runId: string) => Promise<boolean>>(async () => true);
-
-            await store.prune(limits, { isSettled: settled });
-            expect(settled.mock.calls.map(([runId]) => runId)).toEqual([testUuid('run-a')]);
-
-            const again = vi.fn<(runId: string) => Promise<boolean>>(async () => true);
-
-            await store.prune(limits, { isSettled: again });
-            expect(again).not.toHaveBeenCalled();
-            // live notes are not operation records and stay
-            expect((await store.findOneNote(scope, 'name'))?.text).toBe('Ada');
-            // the active run's record still replays
-            expect(await store.applyNote(scope, makeSet(testUuid('run-b'), 'city', 'Rome')))
-                .toMatchObject({ kind: 'set', key: 'city' });
-        });
-
-        it('copy_in_out', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-            const identity = makeIdentity('copy');
-            const resolved = await store.resolve(identity);
-
-            identity.chat = 'mutated';
-            resolved.identity.chat = 'mutated';
-            resolved.generation = 7;
-            expect(await store.findOne(makeIdentity('copy'))).toMatchObject({ generation: 0, identity: { chat: 'copy' } });
-
-            await completeTurn(store, clock, scope, testUuid('run-a'), 'hello', ['hi']);
-
-            const begun = await store.beginTurn(scope, testUuid('run-b'), 'again', LIMITS);
-
-            if (begun.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            begun.snapshot.messages.push({ role: 'user', content: 'injected' });
-            begun.snapshot.itemIds.length = 0;
-            begun.snapshot.createdAt.setTime(0);
-
-            const admitted = await store.findItems(scope, { limit: 100, offset: 0 });
-
-            expect(admitted.data.find((item) => item.id === `user:${testUuid('run-b')}`)?.createdAt).toEqual(clock.now());
-
-            const replay = await store.beginTurn(scope, testUuid('run-b'), 'again', LIMITS);
-
-            if (replay.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(replay.snapshot.messages).toHaveLength(2);
-            expect(replay.snapshot.itemIds).toEqual([`user:${testUuid('run-a')}`, `assistant:${testUuid('run-a')}:0`]);
-            expect(replay.snapshot.createdAt).toEqual(clock.now());
-
-            const item = makeEmit(clock, testUuid('run-b'), 0, 'original');
-
-            await store.prepareEmit(scope, item);
-            item.text = 'mutated';
             item.target!.address = 'mutated';
-
-            const listed = await store.findItems(scope, { limit: 100, offset: 0 });
-            const stored = listed.data.find((i) => i.id === `assistant:${testUuid('run-b')}:0`)!;
-
-            expect(stored).toMatchObject({ text: 'original', target: { address: 'chat-1' } });
-            expect(stored.createdAt).toBeInstanceOf(Date);
-            stored.text = 'mutated';
-            listed.data.length = 0;
-            expect((await store.pendingEmits(scope, testUuid('run-b')))[0]?.text).toBe('original');
-
-            const op = makeSet(testUuid('run-b'), 'name', 'Ada');
-            const result = await store.applyNote(scope, op);
-
-            op.key = 'other';
-
-            if (result.kind === 'set') {
-                result.updatedAt.setTime(0);
-            }
-
-            const note = (await store.findOneNote(scope, 'name'))!;
-
-            expect(note.updatedAt).toEqual(clock.now());
-            note.text = 'mutated';
-            note.source.runId = 'mutated';
-            expect(await store.findOneNote(scope, 'name')).toMatchObject({ text: 'Ada', source: { runId: testUuid('run-b') } });
-            expect(await store.applyNote(scope, makeSet(testUuid('run-b'), 'name', 'Ada')))
-                .toEqual({
-                    kind: 'set',
-                    key: 'name',
-                    updatedAt: clock.now(),
-                });
+            stored.text = 'changed';
+            expect((await conversations.items.findOneBy({ id: stored.id }))?.target?.address).toBe('room');
+            expect((await conversations.items.findOneBy({ key: 'assistant:a:0' }))?.text).toBe('text of assistant:a:0');
         });
 
-        it('unicode_budget_whole_items', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-            // an item may be larger than the history budget: it is skipped whole and counted
-            const limits: ResolvedConversationLimits = {
-                ...LIMITS,
-                maxHistoryBytes: 12,
-                maxItemBytes: 64,
-            };
+        it('concurrent first saves of one key: exactly one is stored, the others are EntityConflictError', async () => {
+            const results = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => conversations.transaction(
+                (repository) => repository.save(repository.create(conversationOf(`c${i}`, { generation: i }))),
+            )));
+            const stored = results.filter((result) => result.status === 'fulfilled');
 
-            await completeTurn(store, clock, scope, testUuid('run-a'), 'ééé', [], limits);
-            await completeTurn(store, clock, scope, testUuid('run-b'), '😀😀😀😀', [], limits);
-            await completeTurn(store, clock, scope, testUuid('run-c'), '€€', [], limits);
+            expect(stored).toHaveLength(1);
+            expect(results.filter((result) => result.status === 'rejected')
+                .every((result) => (result as PromiseRejectedResult).reason instanceof EntityConflictError)).toBe(true);
 
-            const begun = await store.beginTurn(scope, testUuid('run-d'), 'next', limits);
+            const row = (await conversations.findOneBy({ key: KEY }))!;
 
-            if (begun.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(begun.snapshot.itemIds).toEqual([`user:${testUuid('run-a')}`, `user:${testUuid('run-c')}`]);
-            expect(begun.snapshot.omitted).toBe(1);
-            expect(begun.snapshot.messages).toEqual([
-                { role: 'user', content: 'ééé' },
-                { role: 'user', content: '€€' },
-            ]);
-            await store.endTurn(scope, testUuid('run-d'), []);
-
-            const one: ResolvedConversationLimits = { ...limits, maxItems: 1 };
-            const counted = await store.beginTurn(scope, testUuid('run-e'), 'count', one);
-
-            if (counted.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(counted.snapshot.itemIds).toEqual([`user:${testUuid('run-d')}`]);
-            expect(counted.snapshot.omitted).toBe(3);
-            await store.endTurn(scope, testUuid('run-e'), []);
-
-            await expect(store.beginTurn(scope, testUuid('run-f'), 'é'.repeat(33), limits)).rejects.toMatchObject(INVALID);
-            expect((await store.findItems(scope, { limit: 100, offset: 0 })).data.some((i) => i.runId === testUuid('run-f')))
-                .toBe(false);
-            expect((await store.beginTurn(scope, testUuid('run-g'), 'free?', limits)).kind).toBe('ready');
-        });
-
-        it('selects notes latest updated first within budget and renders them by key', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-            const limits: ResolvedConversationLimits = { ...LIMITS, maxNotesBytes: 10 };
-
-            await store.beginTurn(scope, testUuid('run-a'), 'hello', limits);
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'b', 'bbbb'));
-            clock.advance(1);
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'a', 'aaaa'));
-            clock.advance(1);
-            await store.applyNote(scope, makeSet(testUuid('run-a'), 'c', 'cccc'));
-            await store.endTurn(scope, testUuid('run-a'), []);
-
-            const begun = await store.beginTurn(scope, testUuid('run-b'), 'question', limits);
-
-            if (begun.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(begun.snapshot.noteKeys).toEqual(['a', 'c']);
-
-            const [notes, ...rest] = begun.snapshot.messages;
-
-            expect(notes?.role).toBe('user');
-
-            const content = String(notes?.content);
-
-            expect(content).toContain('aaaa');
-            expect(content).not.toContain('bbbb');
-            expect(content.indexOf('aaaa')).toBeLessThan(content.indexOf('cccc'));
-            expect(rest).toEqual([{ role: 'user', content: 'hello' }]);
-            expect(begun.snapshot.itemIds).toEqual([`user:${testUuid('run-a')}`]);
-        });
-
-        it('no_current_user_duplicate', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-
-            await completeTurn(store, clock, scope, testUuid('run-a'), 'first', ['r1']);
-
-            const begun = await store.beginTurn(scope, testUuid('run-b'), 'second', LIMITS);
-
-            if (begun.kind !== 'ready') {
-                throw new TypeError('expected ready');
-            }
-
-            expect(begun.snapshot).toMatchObject({
-                runId: testUuid('run-b'),
-                scope,
-                omitted: 0,
-            });
-            expect(begun.snapshot.messages).toEqual([
-                { role: 'user', content: 'first' },
-                { role: 'assistant', content: 'r1' },
-            ]);
-            expect(begun.snapshot.itemIds).not.toContain(`user:${testUuid('run-b')}`);
-            await store.beginTurn(scope, testUuid('run-b'), 'second', LIMITS);
-
-            const items = await store.findItems(scope, { limit: 100, offset: 0 });
-
-            expect(items.data.filter((item) => item.id === `user:${testUuid('run-b')}`)).toHaveLength(1);
-            expect(items.data.find((item) => item.id === `user:${testUuid('run-b')}`)).toMatchObject({
-                role: 'user',
-                text: 'second',
-                runId: testUuid('run-b'),
-                status: 'sent',
-            });
-        });
-
-        it('lists items chronologically with paging', async () => {
-            const {
-                store,
-                clock,
-                scope,
-            } = await setup();
-
-            await completeTurn(store, clock, scope, testUuid('run-a'), 'a', ['a1', 'a2']);
-
-            const page = await store.findItems(scope, { limit: 2, offset: 1 });
-
-            expect(page.total).toBe(3);
-            expect(page.data.map((item) => item.id)).toEqual([`assistant:${testUuid('run-a')}:0`, `assistant:${testUuid('run-a')}:1`]);
-            await expect(store.findItems(scope, { limit: -1, offset: 0 })).rejects.toMatchObject(INVALID);
+            expect(row).toStrictEqual((stored[0] as PromiseFulfilledResult<ConversationRecord>).value);
         });
     });
 }

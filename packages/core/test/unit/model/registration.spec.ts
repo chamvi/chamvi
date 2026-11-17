@@ -13,7 +13,6 @@ import {
 } from 'vitest';
 import type { LanguageModel } from 'ai';
 import {
-    Engine,
     InvalidAgentDefinitionError,
     checkAgentModel,
     defineModelAgent,
@@ -21,14 +20,14 @@ import {
 import type {
     Agent,
     AgentChange,
-    EngineOptions,
     IEngine,
     IModelResolver,
     ModelAgent,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestEngineOptions } from '../../utils/engine.ts';
 
 const NO_MODEL = 'Agent "triage" has no model and the engine sets no default (EngineOptions.model; CHAMVI_MODEL in @chamvi/app).';
 const SHAPE = 'Agent "triage": model must be a "<provider>/<model>" string or a LanguageModel object.';
@@ -72,11 +71,11 @@ afterEach(() => {
     engines.length = 0;
 });
 
-function make(opts: Partial<EngineOptions> = {}) {
+function make(opts: Partial<TestEngineOptions> = {}) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
-    const engine = new Engine({
-        store,
+    const store = createTestServices({ clock });
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [],
         onError: () => {},
@@ -168,8 +167,8 @@ describe('model registration', () => {
         await expect(engine.putAgent(withModel('bad/model'), { revision: 'h1' })).rejects.toThrow(InvalidAgentDefinitionError);
         await expect(engine.putAgent(withModel(undefined))).rejects.toThrow(NO_MODEL);
 
-        expect(await store.agentRevisions.find()).toEqual([]);
-        expect((await store.runs.findOne(runId))?.status).toBe('queued');
+        expect(await store.agentRevisionService.find()).toEqual([]);
+        expect((await store.runService.findOne(runId))?.status).toBe('queued');
         expect(changes).toEqual([]);
         expect(engine.getAgent('triage')?.definition.model).toBe('good/model');
     });

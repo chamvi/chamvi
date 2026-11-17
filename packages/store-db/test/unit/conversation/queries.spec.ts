@@ -5,22 +5,27 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { DataSource } from 'typeorm';
+import { In } from 'typeorm';
+import type { DataSource, EntitySubscriberInterface } from 'typeorm';
 import {
     afterEach,
     expect,
     it,
     vi,
 } from 'vitest';
-import { DEFAULT_CONVERSATION_LIMITS, RunNotFoundError } from '@chamvi/core';
+import { CONVERSATION_LIMITS_MAX, DEFAULT_CONVERSATION_LIMITS, RunNotFoundError } from '@chamvi/core';
+import type { ConversationScope } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
-import { DatabaseConversationRepository } from '@chamvi/store-db';
 import { ConversationItemEntity, ConversationNoteEntity } from '../../../src/entities/index.ts';
-import { asValues } from '../../../src/repository/helpers.ts';
-import { seedRun } from '../../utils/conversation.ts';
+import { conversationServiceOf, seedRun } from '../../utils/conversation.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
 const UUID_V7 = /^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/;
+
+/** Whether a statement reads the text column of conversation items. */
+const readsItemText = (query: string) => query.startsWith('SELECT') &&
+    query.includes('chamvi_conversation_items') &&
+    /\."text" AS/.test(query);
 
 describePostgres('conversation query bounds', () => {
     let dataSource: DataSource;
@@ -37,7 +42,7 @@ describePostgres('conversation query bounds', () => {
         dataSource = await createTestDataSource();
 
         const clock = new ControllableClock(new Date('2026-10-28T00:00:00.000Z'));
-        const store = new DatabaseConversationRepository({ dataSource, clock });
+        const store = conversationServiceOf(dataSource, clock);
         const scope = await store.resolve({
             agent: 'helper',
             channel: 'chat',
@@ -56,7 +61,20 @@ describePostgres('conversation query bounds', () => {
         };
     }
 
-    it('recalls older fitting records beyond a page without loading the whole transcript', async () => {
+    /** `count` sent items of the run in the scope, of `sizeOf(index)` ASCII bytes each, oldest first. */
+    async function seedItems(scope: ConversationScope, runId: string, count: number, sizeOf: (index: number) => number) {
+        const sizes = Array.from({ length: count }, (_value, index) => sizeOf(index));
+
+        await dataSource.query(
+            `INSERT INTO chamvi_conversation_items (scope_id, generation, key, run_id, created_at, role, text, bytes, status)
+             SELECT $1, $2, 'item-' || i, $3, now(), 'assistant', repeat(chr((97 + i % 26)::int), size), size, 'sent'
+             FROM unnest($4::int[]) WITH ORDINALITY AS seeded(size, i)
+             ORDER BY i`,
+            [scope.id, scope.generation, runId, sizes],
+        );
+    }
+
+    it('recalls older fitting records beyond a page, reading the text of the recalled records only', async () => {
         const {
             clock,
             store,
@@ -74,16 +92,18 @@ describePostgres('conversation query bounds', () => {
             createdAt: clock.now(),
             role: 'assistant' as const,
             text: index === 0 ? 'é' : 'éé',
+            bytes: index === 0 ? 2 : 4,
             status: 'sent' as const,
         }));
 
-        await dataSource.getRepository(ConversationItemEntity).insert(rows.map((row) => asValues<ConversationItemEntity>(row)));
-        await dataSource.getRepository(ConversationItemEntity).insert(asValues<ConversationItemEntity>({
+        await dataSource.getRepository(ConversationItemEntity).insert(rows);
+        await dataSource.getRepository(ConversationItemEntity).insert({
             ...rows[0]!,
             key: 'unknown',
             text: 'u',
+            bytes: 1,
             status: 'unknown',
-        }));
+        });
 
         const queries = vi.spyOn(dataSource.logger, 'logQuery');
         const result = await store.beginTurn(scope, testUuid('next'), 'now', {
@@ -105,18 +125,77 @@ describePostgres('conversation query bounds', () => {
         ]);
         expect(result.snapshot.omitted).toBe(249);
 
-        const textReads = queries.mock.calls.map(([query]) => query)
-            .filter((query) => query.startsWith('SELECT') && query.includes('chamvi_conversation_items') && query.includes('"text"'));
+        const calls = queries.mock.calls.filter(([query]) => query.startsWith('SELECT') && query.includes('chamvi_conversation_items'));
+        const sizeReads = calls.filter(([query]) => !readsItemText(query));
+        const textReads = calls.filter(([query]) => readsItemText(query));
 
-        expect(textReads.length).toBeGreaterThan(0);
-
-        for (const query of textReads) {
+        // the sizes are read in bounded pages; the text of the two recalled records in one read, and the "turn ended" lookup
+        for (const [query] of sizeReads.filter(([query]) => !query.startsWith('SELECT COUNT'))) {
             const limit = /LIMIT (\d+)/.exec(query);
 
             expect(limit, query).not.toBeNull();
-            expect(Number(limit![1])).toBeLessThanOrEqual(100);
+            expect(Number(limit![1])).toBeLessThanOrEqual(CONVERSATION_LIMITS_MAX.maxStoredItems);
         }
+
+        expect(textReads).toHaveLength(2);
+        expect(textReads.some(([, parameters]) => parameters?.includes(`user:${testUuid('next')}`))).toBe(true);
+
+        const ids = (await dataSource.getRepository(ConversationItemEntity).findBy({ scopeId: scope.id, key: In(['item-0', 'item-249']) }))
+            .map((row) => row.id);
+
+        // the selected read names the scope, the generation and the recalled ids, nothing else
+        expect(textReads.some(([, parameters]) => {
+            const values = (parameters ?? []).map(String);
+
+            return ids.every((id) => values.includes(id)) && values.length === ids.length + 2;
+        })).toBe(true);
     });
+
+    // statements of the turn: 13, of which 3 read sizes (two pages and one count) and 1 the selected text,
+    // plus 5 for trimming the one item beyond maxStoredItems (the seeded items, the setup's input and this turn's)
+    it.each([
+        ['999 large items at the default limits', 999, 16_000, DEFAULT_CONVERSATION_LIMITS, 18],
+        ['9,999 items at the highest limits', 9999, 2000, { ...CONVERSATION_LIMITS_MAX, retentionMs: DEFAULT_CONVERSATION_LIMITS.retentionMs }, 18],
+    ] as const)('the recall reads the text of the selected items only: %s', async (_name, count, size, limits, maxStatements) => {
+        const { store, scope } = await setup();
+        const loaded: string[] = [];
+        let loadedBytes = 0;
+        const subscriber: EntitySubscriberInterface<ConversationItemEntity> = {
+            listenTo: () => ConversationItemEntity,
+            afterLoad(entity) {
+                if (!(typeof entity.text === 'string')) {
+                    return;
+                }
+
+                loaded.push(entity.key);
+                loadedBytes += Buffer.byteLength(entity.text, 'utf8');
+            },
+        };
+
+        await store.endTurn(scope, testUuid('writer'), []);
+        await seedItems(scope, testUuid('writer'), count, (index) => size + (index % 97));
+        await seedRun(dataSource, testUuid('next'));
+        (dataSource.subscribers as EntitySubscriberInterface[]).push(subscriber);
+
+        const queries = vi.spyOn(dataSource.logger, 'logQuery');
+        const result = await store.beginTurn(scope, testUuid('next'), 'now', limits);
+
+        if (result.kind !== 'ready') {
+            throw new Error('expected ready');
+        }
+
+        const statements = queries.mock.calls.map(([query]) => query);
+        const textReads = statements.filter((query) => readsItemText(query));
+        const recalled = result.snapshot.messages.reduce((sum, message) => sum + Buffer.byteLength(message.content as string, 'utf8'), 0);
+
+        expect(result.snapshot.itemIds.length).toBeGreaterThan(0);
+        expect(result.snapshot.omitted).toBe(count + 1 - result.snapshot.itemIds.length);
+        // no text of an item the recall did not select: the "turn ended" lookup (no row) and one read of the selected
+        expect([...loaded].sort()).toEqual([...result.snapshot.itemIds].sort());
+        expect(loadedBytes).toBe(recalled);
+        expect(textReads).toHaveLength(2);
+        expect(statements.length).toBeLessThanOrEqual(maxStatements);
+    }, 120_000);
 
     it.each(['age', 'count'] as const)('trims by %s without fetching discarded text', async (mode) => {
         const {
@@ -127,15 +206,16 @@ describePostgres('conversation query bounds', () => {
 
         await store.endTurn(scope, testUuid('writer'), []);
 
-        const rows = Array.from({ length: 205 }, (_value, index) => asValues<ConversationItemEntity>({
+        const rows = Array.from({ length: 205 }, (_value, index) => ({
             scopeId: scope.id,
             generation: scope.generation,
             key: `item-${index}`,
             runId: testUuid('writer'),
             createdAt: clock.now(),
-            role: 'user',
+            role: 'user' as const,
             text: 'discarded text',
-            status: 'sent',
+            bytes: 14,
+            status: 'sent' as const,
         }));
 
         await dataSource.getRepository(ConversationItemEntity).insert(rows);
@@ -159,7 +239,7 @@ describePostgres('conversation query bounds', () => {
         expect(remaining.total).toBe(mode === 'age' ? 0 : 5);
     });
 
-    it('keeps live note metadata on reset with one generation update and drops expired notes', async () => {
+    it('keeps live notes on reset in one write of the notes and drops expired notes', async () => {
         const {
             clock,
             store,
@@ -192,9 +272,10 @@ describePostgres('conversation query bounds', () => {
         const writes = queries.mock.calls.map(([query]) => query)
             .filter((query) => query.includes('chamvi_conversation_notes'));
 
-        expect(writes.filter((query) => query.startsWith('UPDATE'))).toHaveLength(1);
-        expect(writes.some((query) => query.startsWith('INSERT'))).toBe(false);
-        expect(writes.some((query) => query.startsWith('SELECT') && query.includes('"text"'))).toBe(false);
+        // the notes (at most CONVERSATION_NOTES_MAX live ones) are read once and written back in one statement
+        expect(writes.filter((query) => query.startsWith('INSERT'))).toHaveLength(1);
+        expect(writes.filter((query) => query.startsWith('DELETE'))).toHaveLength(1);
+        expect(writes.filter((query) => query.startsWith('UPDATE'))).toHaveLength(0);
         expect(await store.findOneNote(next, 'keep')).toEqual(note);
         expect(await store.findOneNote(next, 'expired')).toBeUndefined();
         expect(await store.findNotes(scope, { limit: 10, offset: 0 })).toEqual({ data: [], total: 0 });
@@ -238,13 +319,16 @@ describePostgres('conversation query bounds', () => {
         expect(await store.findNotes(absent, page)).toEqual({ data: [], total: 0 });
         expect(await store.findOneNote(absent, 'key')).toBeUndefined();
         expect(await store.beginTurn(absent, writer, 'input', DEFAULT_CONVERSATION_LIMITS)).toEqual({ kind: 'stale' });
-        await expect(store.beginTurn(scope, 'not-a-uuid', 'input', DEFAULT_CONVERSATION_LIMITS))
-            .rejects.toBeInstanceOf(RunNotFoundError);
+        // the turn is held: a malformed run is busy, as any other run, before anything is written
+        expect(await store.beginTurn(scope, 'not-a-uuid', 'input', DEFAULT_CONVERSATION_LIMITS)).toEqual({ kind: 'busy', runId: writer });
         await expect(store.prepareEmit(absent, item)).rejects.toMatchObject({ code: 'invalid_run_state' });
         await expect(store.confirmEmit(absent, 'emit')).rejects.toMatchObject({ code: 'invalid_run_state' });
         await expect(store.endTurn(absent, writer, [])).resolves.toBeUndefined();
         await expect(store.endTurn(scope, 'not-a-uuid', [])).resolves.toBeUndefined();
         expect(await store.activeRun(scope)).toBe(writer);
+        await store.endTurn(scope, writer, []);
+        await expect(store.beginTurn(scope, 'not-a-uuid', 'input', DEFAULT_CONVERSATION_LIMITS))
+            .rejects.toBeInstanceOf(RunNotFoundError);
     });
 
     it('a reset keeps the scope id', async () => {

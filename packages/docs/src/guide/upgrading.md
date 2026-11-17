@@ -4,7 +4,7 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 ## Upgrading to 0.9
 
-Connections can be configured in the dashboard, on a page per provider ([Connection pages](/guide/ui#connection-pages)). An env-only deployment keeps working: no existing variable changed, and `CHAMVI_ENCRYPTION_KEYS` is needed once the dashboard saves a connection, also one with plain settings only, since every stored connection has its own data key. The migration `ConnectionConfig1794230765000` adds the settings and secrets tables and runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`). The migration `RunAgentRevision1794484800000` adds the nullable column `chamvi_runs.agent_revision`, the agent revision a permission-checked run is bound to; existing runs keep it empty and run as before. `POST /agents/:name/runs` and webhooks answer 409 `agent_replaced` when the agent is being replaced at the dispatch; nothing is written, and the caller can retry. Every app serves its OpenAPI document at `<basePath>/openapi.json` and a Swagger UI at `<basePath>/docs`, unauthenticated, by default ([OpenAPI document](/reference/http#openapi-document); `httpModule({ openapi: false })` turns both off). `@chamvi/http` now installs `swagger-ui-dist`, whose dependency `@scarf/scarf` runs a postinstall analytics script unless `SCARF_ANALYTICS=false` is set where `npm install` runs (an image build, CI).
+Connections can be configured in the dashboard, on a page per provider ([Connection pages](/guide/ui#connection-pages)). An env-only deployment keeps working: no existing variable changed, and `CHAMVI_ENCRYPTION_KEYS` is needed once the dashboard saves a connection, also one with plain settings only, since every stored connection has its own data key. The migration `ConnectionConfig1794230765000` adds the settings and secrets tables and runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`). The migration `RunAgentRevision1794484800000` adds the nullable column `chamvi_runs.agent_revision`, the agent revision a permission-checked run is bound to; existing runs keep it empty and run as before. The migration `ConversationItemBytes1794873600000` adds the column `chamvi_conversation_items.bytes` (integer, `NOT NULL`, no default), the UTF-8 byte length of an item's text, and fills it for every stored item in the same migration (one `UPDATE` computing `octet_length(text)`, then `SET NOT NULL`). The migration runs in one transaction that holds an exclusive lock on the conversation items table until it commits: conversation turns and every read of the items table (the recall, the conversation API) wait for it, other tables are not locked. The migration sets no `lock_timeout`: its `ALTER TABLE` first waits for every transaction that touched the items table (an old replica, an open `psql` session), and every later query of the table queues behind it. It takes about 12 µs a stored item (measured: 500,000 items of 1 KB in 6 s; TOASTed text is not read), so run it at a start or with `chamvi migrate` before the app serves. Stop every replica of the previous version before migrating: once the column is `NOT NULL`, an old process fails every item insert (the `agent-app` chart's `Recreate` strategy does this; suspend run-job CronJobs too). `POST /agents/:name/runs` and webhooks answer 409 `agent_replaced` when the agent is being replaced at the dispatch; nothing is written, and the caller can retry. Every app serves its OpenAPI document at `<basePath>/openapi.json` and a Swagger UI at `<basePath>/docs`, unauthenticated, by default ([OpenAPI document](/reference/http#openapi-document); `httpModule({ openapi: false })` turns both off). `@chamvi/http` now installs `swagger-ui-dist`, whose dependency `@scarf/scarf` runs a postinstall analytics script unless `SCARF_ANALYTICS=false` is set where `npm install` runs (an image build, CI).
 
 ### Breaking changes
 
@@ -16,7 +16,8 @@ Connections can be configured in the dashboard, on a page per provider ([Connect
 | Permissions | Dynamic strings (`agent:<name>:run`, `run:read`, `connection:<name>:write`, `tool:<agent>:<tool>`, `*`) | Static names (`chamvi_agent_run`, ...) granted as authup permission bindings, a policy narrowing a grant to an agent or a connection. `CHAMVI_TOKENS` takes `"*"` or a list of bindings. See [Permissions and authup](/guide/permissions#upgrading) |
 | `authup()` options (`@chamvi/http`) | `{ verifier }` | `{ verifier, catalog, realm }`; `authupModule()`'s client also needs `permission_read` (realm scope `ownOrNull` or wider) |
 | `hasPermission`, `matchesPermission`, `toolPermission` (`@chamvi/core`), `agentPermission` (`@chamvi/http`, `@chamvi/app`) | String matching | `can()` and `canSome()` of `@chamvi/access` (re-exported by `@chamvi/app`) |
-| `/knowledge` routes (`@chamvi/knowledge`) | `knowledge:read`, `knowledge:write` | `chamvi_knowledge_read`, `chamvi_knowledge_write` (covered by `"*"`), checked with `{ "name": "<collection>" }` when the path names one collection |
+| `/knowledge` routes and `KNOWLEDGE_READ_PERMISSION`, `KNOWLEDGE_WRITE_PERMISSION` (`@chamvi/knowledge`) | `knowledge:read`, `knowledge:write` | `chamvi_knowledge_read`, `chamvi_knowledge_write` (covered by `"*"`), checked with `{ "name": "<collection>" }` when the path names one collection; the two constants hold the new names |
+| `Permission` and `connectionPermission()` (`@chamvi/http`) | `Permission` held `ALL` (`*`), `RUN_READ`, `RUN_CANCEL`, `STATE_READ` and `STATE_WRITE` as strings (`run:read`, ...); `connectionPermission(name, action)` built `connection:<name>:<action>` | Both removed from `@chamvi/http`. `Permission` of `@chamvi/access` (re-exported by `@chamvi/app`) holds the static names (`Permission.RUN_READ` is `chamvi_run_read`, `Permission.CONNECTION_WRITE` is `chamvi_connection_write`, ...); check a connection with `await can(principal, Permission.CONNECTION_WRITE, { attributes: { name } })` |
 | `GET /me` and the dashboard's permission gates (`@chamvi/http`, `@chamvi/ui-kit`) | `/me` answered `bindings` and `authorization`, which a client evaluated with `@chamvi/access`; ui-kit exported `canAddAccount`, `canReadConnection`, `canWriteConnection`, `useResolved`, `ResolvedOptions` and `ConnectionRef`, `AccountsColumn` took a `principal` prop, and `visibleUiPages` was async | `/me` answers `{ id, kind, name?, identity? }` only. Ask `POST /authorization/check` with `{ names? }` for `{ permissions }`, the names the caller may attempt (an upper bound, the route decides per resource). In ui-kit read `session.permissions` and `session.allowed(name)`; `visibleUiPages(pages, connections, allowed)` is synchronous; pass `AccountsColumn` `can-create` (`session.allowed('chamvi_connection_create')`) in place of `principal` |
 | `toolPolicy` | `(toolName, { run }) => boolean` | `(toolName, { run, now }) => boolean \| Promise<boolean>` (a synchronous policy keeps working) |
 | Skill discovery in a `prepareSkills()`/`gitSkills()` source (`@chamvi/skills`) | The whole repository tree was searched, so a vendored copy of a selected skill made it ambiguous | The standard locations are searched (root, `skills/`, agent skill folders, plugin manifests), the whole tree only when those hold no skill. Move a selected skill that lives elsewhere into `skills/`, or the name fails as missing |
@@ -28,6 +29,132 @@ Connections can be configured in the dashboard, on a page per provider ([Connect
 | Errors of `GET /connections/:name`, `GET`/`PUT /connections/:name/config` (`@chamvi/http`) | A 403, and on the config routes every error, had no `cache-control` | Every response the route itself produces (after authentication and the body read), a 403 or 404 included, carries `cache-control: private, no-store` |
 | Metric `path` labels (`@chamvi/http`) | Every channel shared `/channels/:name/*`; a request with a method no route of its path serves (`OPTIONS` included) was labelled by the path's route | One label per mounted channel, `/channels/<name>/*` (`/channels/github/*`); such a request is labelled `/_unmatched`. Update the dashboards and alerts that select `path="/channels/:name/*"` |
 | A TypeScript entry (`@chamvi/cli`): `chamvi dev`, and `start`, `run-job` or `migrate` with `--entry src/index.ts` | Loaded through Node's type stripping, without tsdown | The CLI transforms it with the rolldown of tsdown and the app's `tsconfig.json` ([TypeScript entries](/reference/cli#typescript-entries)); without tsdown the command exits 2 with `The entry is TypeScript: install tsdown ^0.23.4 to load it.` Install tsdown as a devDependency (`npm install --save-dev tsdown`) wherever such a command runs. A built entry (`dist/index.mjs`) needs nothing, so an image that runs it with dev dependencies pruned keeps starting |
+
+### Stored types moved to `@chamvi/store`
+
+The shapes the store holds moved from `@chamvi/core` to the new package `@chamvi/store`, which core and every store depend on; core does not re-export them. Import these from `@chamvi/store` (or `@chamvi/app`, which re-exports both packages) instead of `@chamvi/core`. The shapes are unchanged.
+
+| Export | Kind |
+|---|---|
+| `Run`, `RunStatusLiteral`, `Usage`, `RunTaint` | type |
+| `RunStatus` | enum |
+| `WaitPoint`, `ApprovalWaitPoint`, `DispatchWaitPoint` | type |
+| `ApprovalOption` | type |
+| `TriggerEnvelope`, `Invoker`, `TriggerParent`, `TriggerSource` | type |
+| `Artifact` | type |
+| `Step`, `Checkpoint` | type |
+| `AgentRevision` | type |
+| `Connection` | type |
+| `ConversationIdentity`, `ConversationScope`, `ConversationBinding` | type |
+| `ConversationItem`, `ConversationNote`, `ConversationNoteSource`, `ConversationNoteOperation`, `ConversationSnapshot` | type |
+| `normalizeEnvelope`, `normalizeWaitPoint` | function |
+
+`@chamvi/store` lists `ai` as an optional peer dependency, for the `ModelMessage` of `Checkpoint` and `ConversationSnapshot`. It also holds the repository ports, the stored row types (`CheckpointRecord`, `EffectRecord`, `ArtifactRecord`, `StateEntry`, `StateDocument`, `StateDocumentPage`, `Lock`, `IdempotencyKey`, `AgentRevisionRecord`, `ConnectionRecord`, `ConnectionEntryRecord`, `ConnectionSecretRecord`, `ConversationRecord`, `ConversationItemRecord`, `ConversationNoteRecord`, `ConversationOperationRecord`) and the storage errors.
+
+### Services in place of the store aggregate
+
+<!-- removed-api -->
+The store aggregate is gone: `IStore`, `createMemoryStore()` and `MemoryStoreOptions` (`@chamvi/core`), `createDatabaseStore()`, `DatabaseStoreOptions` and `DatabaseStore` (`@chamvi/store-db`), `EngineOptions.store`, `IEngine.store` (`engine.store`) and `AppToken.STORE` (`@chamvi/app`) are removed.
+<!-- /removed-api -->
+
+Every rule lives in a service of `@chamvi/core`, each over the repository ports of `@chamvi/store` that only store and read. `new Engine()` takes each service by name and exposes it as a property of the engine.
+
+| Service (engine option and property) | Ports (`@chamvi/store`) | Memory (`@chamvi/store-memory`, `{ registry }`) | PostgreSQL (`@chamvi/store-db`, `(dataSource)`) |
+|---|---|---|---|
+| `RunService` (`runService`, required) | `IRunRepository` | `MemoryRunRepository` | `DatabaseRunRepository` |
+| `StepService` (`stepService`, required) | `IStepRepository` | `MemoryStepRepository` | `DatabaseStepRepository` |
+| `CheckpointService` (`checkpointService`, required) | `ICheckpointRepository` | `MemoryCheckpointRepository` | `DatabaseCheckpointRepository` |
+| `EffectService` (`effectService`, required) | `IEffectRepository` | `MemoryEffectRepository` | `DatabaseEffectRepository` |
+| `ArtifactService` (`artifactService`, required) | `IArtifactRepository` | `MemoryArtifactRepository` | `DatabaseArtifactRepository` |
+| `StateService` (`stateService`, required) | `IStateRepository`, `IStateDocumentRepository` | `MemoryStateRepository`, `MemoryStateDocumentRepository` | `DatabaseStateRepository`, `DatabaseStateDocumentRepository` |
+| `LockService` (`lockService`, required) | `ILockRepository` | `MemoryLockRepository` | `DatabaseLockRepository` |
+| `IdempotencyService` (`idempotencyService`, required) | `IIdempotencyRepository` | `MemoryIdempotencyRepository` | `DatabaseIdempotencyRepository` |
+| `AgentRevisionService` (`agentRevisionService`, required) | `IAgentRevisionRepository` | `MemoryAgentRevisionRepository` | `DatabaseAgentRevisionRepository` |
+| `ConnectionService` (`connectionService`, optional; the engine only exposes it) | `IConnectionRepository` with `entries`, `secrets` | `MemoryConnectionRepository` | `DatabaseConnectionRepository` |
+| `ConversationService` (`conversationService`, optional; required by `conversations`) | `IConversationRepository` with `items`, `notes`, `operations` | `MemoryConversationRepository` | `DatabaseConversationRepository` |
+
+Build every memory repository on one `MemoryRegistry`: it enforces the references the database's foreign keys do, and the connection fence reads the lock rows there. Specs and examples build all of it with `createTestEngine()` of `@chamvi/test-kit` (an engine on memory repositories, `replicaOf` for a second replica on the same services); an app gets it from `@chamvi/app` (below).
+
+| Before | Replacement |
+|---|---|
+| `new Engine({ store: createMemoryStore({ clock }), agents })` | `new Engine({ runService, stepService, checkpointService, effectService, artifactService, stateService, lockService, idempotencyService, agentRevisionService, connectionService?, conversationService?, agents })`, each service on its repository (see [Memory repositories](/repositories/memory) and [Database store](/repositories/database)) |
+| `engine.store.runs.insert(run)` | `engine.runService.create(run)` (resolves `false` for a stored id, as before) |
+| `engine.store.runs.findOne`, `findOneOrFail`, `update`, `find`, `findOrFail`, `claim`, `renewClaim` | The same methods on `engine.runService`; `runService.list(query)` also takes a rapiq query |
+| `engine.store.steps.insert(step)`, `find`, `findOrFail` | `engine.stepService.create(step)`, `find`, `findOrFail` |
+| `engine.store.checkpoints.save`, `findOne`, `findOneOrFail` | The same methods on `engine.checkpointService`; `save` resolves the checkpoint the run holds afterwards |
+| `engine.store.effects.findOne`, `findOneOrFail`, `save` | The same methods on `engine.effectService`; `save` resolves `{ result }` |
+| `engine.store.artifacts.insert(artifact, data, key?)` | `engine.artifactService.create(artifact, data, key?)` (resolves `false` when the id, or the key in the run, is taken) |
+| `engine.store.artifacts.save`, `findOne`, `findOneOrFail`, `findOneByKey`, `read`, `find`, `findOrFail` | The same methods on `engine.artifactService` |
+| `engine.store.state.findOne`, `findOneOrFail`, `set`, `find`, `findOrFail`, `findDocuments`, `findDocumentsOrFail`, `upsertDocument`, `deleteDocument` | The same methods on `engine.stateService` (`set` resolves the stored value, `upsertDocument` `{ id, doc }`), plus `list(agent, query)` and `listDocuments(agent, collection, query)` |
+| `engine.store.locks.acquire`, `renew`, `release`, `purgeExpired` | The same methods on `engine.lockService`, plus `holds(key, owner)`; `purgeExpired` resolves the number of rows deleted, on memory too |
+| `engine.store.idempotency.claim`, `purgeExpired` | The same methods on `engine.idempotencyService` |
+| `engine.store.agentRevisions.findOne`, `save`, `delete`, `find` | The same methods on `engine.agentRevisionService` (plus the `OrFail` forms); `save` resolves the stored marker |
+| `engine.store.connections.insert(connection)` | `engine.connectionService.create(connection)` (resolves `false` for a taken name) |
+| `engine.store.connections.findOne`, `findOneOrFail`, `find`, `delete`, `replace`, `findEntry`, `findEntries`, `writeEntries` | The same methods on `engine.connectionService` |
+| `engine.store.conversations.resolve`, `beginTurn`, `endTurn`, `prepareEmit`, `confirmEmit`, `pendingEmits`, `findItems`, `findNotes`, `findOneNote`, `applyNote`, `reset`, `delete`, `prune` and the `OrFail` forms | The same methods on `engine.conversationService` |
+| `IConversations.repository` (the engine's conversation capability) | `IConversations.service`, the `ConversationService` |
+| `IRunRepository`, `IStepRepository`, `ICheckpointRepository`, `IEffectRepository`, `IArtifactRepository`, `IStateRepository`, `ILockRepository`, `IIdempotencyRepository`, `IAgentRevisionRepository`, `IConnectionRepository`, `IConversationRepository` from `@chamvi/core` | The ports of the same names from `@chamvi/store` (each the generic entity port, see [Writing a third-party store](#writing-a-third-party-store)), plus `IStateDocumentRepository`; `RunFindOptions`, `RunUpdateOptions`, `StateFindOptions`, `StateDocumentFindOptions` stay in `@chamvi/core` |
+| `MemoryRunRepository`, `MemoryStepRepository`, ..., `MemoryConnectionRepository({ clock?, holdsLock })`, `MemoryConversationRepository({ clock?, hasRun? })` from `@chamvi/core`, `MemoryRunReferenceOptions`, `MemoryConversationRepositoryOptions` | The `Memory*Repository` classes of `@chamvi/store-memory`, each `new ...({ registry })`; the clock belongs to the services |
+| `new DatabaseRunRepository({ dataSource, clock? })` and the other database repositories with options | `new DatabaseRunRepository(dataSource)` and the others with the data source alone |
+| `@chamvi/core/conversation/persistence` (the shared policy for custom stores) | Removed: the policy belongs to `ConversationService` |
+| `createAgentState(agent, schema, store.state)`, `wrapToolsForRun(tools, ctx, store.effects)`, `findApprovalWaitBelow(store.runs, run)` | `createAgentState(agent, schema, engine.stateService)`, `wrapToolsForRun(tools, ctx, engine.effectService)`, `findApprovalWaitBelow(engine.runService, run)` |
+| `createConnectionVault({ store, keyring, clock? })` | `createConnectionVault({ connectionService, lockService, keyring, clock? })`; without a connection service it throws `InvalidAgentDefinitionError` |
+| `createRepositoryScheduleLock(store.locks, owner)` (`@chamvi/channel-cron`) | `createRepositoryScheduleLock(engine.lockService, owner)` |
+| `githubChannel({ app, locks? })` (`@chamvi/github`) with `store.locks` or a channel-local memory lock | `locks` is required, a `LockService` (or a `Pick` of `acquire` and `release`): `githubChannel({ app, locks: engine.lockService })`; `githubModule()` passes `AppToken.LOCK_SERVICE` |
+| `createKnowledge({ locks: store.locks })` (`@chamvi/knowledge`) | `createKnowledge({ locks: engine.lockService })`; `knowledgeModule()` takes `AppToken.LOCK_SERVICE` |
+
+### `@chamvi/app`: the store module and the tokens
+
+`storeModule()` registers the repositories: the database repositories over `DATABASE_URL` (or a given data source), else memory repositories on one registry. In the same setup step the app builds every service from the registered repositories and registers each under a token of its own; the engine module passes them to the engine, and the lock and idempotency services get the hourly purge (`CHAMVI_PURGE_INTERVAL_MS`), on memory too.
+
+| Before | Replacement |
+|---|---|
+| `storeModule({ store, url?, dataSource? })`, `StoreModuleOptions` with `store` | `storeModule({ url?, dataSource? })` |
+| `AppToken.STORE` | A token per repository and per service: `RUN_REPOSITORY`, `RUN_SERVICE`, `STEP_REPOSITORY`, `STEP_SERVICE`, `CHECKPOINT_REPOSITORY`, `CHECKPOINT_SERVICE`, `EFFECT_REPOSITORY`, `EFFECT_SERVICE`, `ARTIFACT_REPOSITORY`, `ARTIFACT_SERVICE`, `STATE_REPOSITORY`, `STATE_DOCUMENT_REPOSITORY`, `STATE_SERVICE`, `LOCK_REPOSITORY`, `LOCK_SERVICE`, `IDEMPOTENCY_REPOSITORY`, `IDEMPOTENCY_SERVICE`, `AGENT_REVISION_REPOSITORY`, `AGENT_REVISION_SERVICE`, and, while the store keeps them, `CONNECTION_REPOSITORY`, `CONNECTION_SERVICE`, `CONVERSATION_REPOSITORY`, `CONVERSATION_SERVICE`; `STORE_KIND` says where the rows live (`memory` or `database`) |
+| A module asked `container.resolve(AppToken.STORE).connections !== undefined` | It asks `container.has(AppToken.CONNECTION_SERVICE)` |
+| A module replacing the store module (`ModuleName.STORE`) registered `AppToken.STORE` | It registers the repository tokens and, if it likes, `STORE_KIND`; the app builds the services (see [Writing a third-party store](#writing-a-third-party-store)) |
+| `migrateStore()` and `assertStoreNotLegacy()` (`@chamvi/store-db`) threw a `ChamviError` (code `store_legacy_schema`) | `LegacySchemaError` of `@chamvi/store-db` (an ebec `BaseError`, the same code and message); `@chamvi/store-db` has no `@chamvi/core` peer dependency any more |
+
+`@chamvi/app/testing` adds `memoryStoreModule({ registry?, connections?, conversations? })`: the built-in memory store on a given `MemoryRegistry` (a second app on the same registry sees the rows of the first), without the connection or conversation repository when the flag is `false`. A spec reaches a repository or a service through its token on the harness's container.
+
+### A database for an app's own tables
+
+New in `@chamvi/app`: `databaseModule({ entities, migrations, migrationsDirectory, migrationsTableName, name? })`, `dataSourceToken(name?)`, `DatabaseToken`, `readDatabaseDescriptors(app)` and `APP_MODULES` (the symbol an App lists its modules under); in `@chamvi/store-db`: `buildDatabaseOptions`, `connectDatabase`, `synchronizeDatabase`, `closeDatabase`, `migrateDatabase`, `pendingDatabaseMigrations`, `findUntypedColumns`, `queueDataSource`, `DatabaseDriverMissingError`, `DatabaseOptionsError` and `DatabaseBusyError`. See [Database](/guide/database) and, for specs, [Testing](/guide/testing#an-app-s-database). On SQLite the module's data source takes one statement, transaction or whole operation at a time on its one connection; inside a transaction opened by hand on a query runner use that runner or its manager, and end it: work that waits 30 seconds (`databaseModule({ waitTimeoutMs })` changes it) behind one open transaction, or an operation that does not return, is refused with `DatabaseBusyError` (its `holder` says which). `connectDatabase(options, queue?)` takes the same wait limit and clock. New in `@chamvi/store-db` for `chamvi migration`: `runMigrationOperation`, `isSameDatabase`, `MIGRATION_OPERATIONS`, `STORE_DATABASE`, `MIGRATION_DATABASE_URL_VARIABLE` and `DATABASE_LOCK_PREFIX`; `migrateDatabase` resolves with the names of the migrations it ran; `databaseModule` refuses the name `store`. A `drained` lifecycle hook now runs also when the engine's drain failed. An app without a database module is unchanged. Without `DATABASE_URL` the module needs the optional peer `better-sqlite3`.
+
+List endpoints and test support for it, new: `defineSchema()`, `decodeQuery()` and `scopeQuery()` in `@chamvi/http` (re-exported by `@chamvi/app`), with the types `ListSchema`, `ListSchemaOptions`, `ListSchemaEntity`, `ListSchemaKey`, `ListFilterOperator` and `ListSortDirection`; `databaseModule({ schemas })` checks each schema against its entity at start; in `@chamvi/store-db`: `applyQuery`, `validateEntitySchemas`, `dateToISOStringTransformer` and the types `ApplyQueryOptions`, `ApplyQueryResult`, `EntityListSchema`; `migrateStore` resolves with the names of the migrations it ran; in `@chamvi/test-kit`: `createTestDataSource({ entities, url? })` with the type `TestDataSourceOptions` (on its first call it loads `typeorm` and the driver, optional peers, and `@chamvi/store-db`, which is in no dependency field of the kit: it is resolved from the kit, then from the app's folder, so the app lists it in its devDependencies). A service spec runs on `MemoryEntityRepository` of `@chamvi/store-memory` (its new option `dates` filters a date field as the instant a value names, as a database date column is filtered; on both a value naming no instant is refused with `EntityQueryError`); there is no fake repository.
+
+### Writing a third-party store
+
+Implement each port of `@chamvi/store` on your storage. A port is the generic entity port `IEntityRepository<T>` on the port's stored type, plus at most one finder (`IRunRepository.findByWaitKind`, `IStateDocumentRepository.findContaining`, `IArtifactRepository.readData`, `ILockRepository` and `IIdempotencyRepository` `removeExpiredBy(time)`, `IConnectionRepository.findFence`) and the child repositories of connections and conversations, bound to the parent's transaction. A repository decides nothing: no status or owner compare, limit, default, time stamp or choice of error.
+
+- `findMany(query)` runs a rapiq query (fields, filters, sorts, pagination) and resolves `{ data, meta: { total, limit?, offset? } }`; with a field selection it reads those fields only. A row it read with a field selection is refused by `upsert` and `upsertMany` (it would clear the other columns); `save` of it writes only what changed.
+- `findOneById`, `findOneBy(where)`, `findManyBy(where)`: an `EntityWhere<T>` holds a value, `null` or an array of values (any of) per property; inside `transaction(fn)` a single-row read locks the row until the transaction ends.
+- `create` and `merge` store nothing; `save` inserts an object `create()` returned and updates one a read returned (its changed properties only), decided by object identity.
+- `upsert`, `upsertMany(entities)` (one transaction, in as few statements as the storage allows, a later entity of a key replaces an earlier one), `remove`, `removeMany`, `removeManyBy(where)` (one statement, resolves the count, never an empty where), `validateRelations`, `checkUniqueness`, `transaction(fn)`.
+- Six storage errors, each with the entity's label and a fixed message, never a value: `EntityNotFoundError` (`entity_not_found`), `EntityConflictError` (`entity_conflict`, a unique key), `EntityRelationError` (`entity_relation_invalid`, a missing referenced row), `EntityDeadlockError` (`entity_deadlock`), `EntityQueryError` (`entity_query_invalid`: a where with a property set to `undefined`, `findOneById(undefined)`, `removeManyBy({})`, an upsert of a field-selected row, an operation a port does not offer such as a step upsert), `EntityInvalidError` (`entity_invalid`: a value the table refuses, such as a missing required column, a failed check or a value too long; it names the operation and the column or constraint, never the value).
+- `ConversationItemRecord.bytes` is the UTF-8 byte length of the item's text, set by `ConversationService`; a repository stores and returns it as given (the recall selects by it, reading `id` and `bytes` only, then the text of the selected items).
+
+`MemoryEntityRepository` (`@chamvi/store-memory`) and `EntityRepositoryAdapter` (`@chamvi/store-db`, for a TypeORM driver) implement all of it; a repository built on either implements only its mapping. Prove each port with its suite of `@chamvi/test-kit`: `describeEntityRepositoryContract` and `describeRunRepositoryContract`, `describeStepRepositoryContract`, `describeCheckpointRepositoryContract`, `describeEffectRepositoryContract`, `describeArtifactRepositoryContract`, `describeStateRepositoryContract`, `describeLockRepositoryContract`, `describeIdempotencyRepositoryContract`, `describeAgentRevisionRepositoryContract`, `describeConnectionRepositoryContract`, `describeConversationRepositoryContract({ name, create, untilBlocked })`. Then give `@chamvi/app` a module named `ModuleName.STORE` that registers each repository token (`RUN_REPOSITORY`, `STEP_REPOSITORY`, `CHECKPOINT_REPOSITORY`, `EFFECT_REPOSITORY`, `ARTIFACT_REPOSITORY`, `STATE_REPOSITORY`, `STATE_DOCUMENT_REPOSITORY`, `LOCK_REPOSITORY`, `IDEMPOTENCY_REPOSITORY`, `AGENT_REVISION_REPOSITORY`; `CONNECTION_REPOSITORY` and `CONVERSATION_REPOSITORY` optional): it replaces the built-in one, and the app builds the services. A missing required token fails the setup with `InvalidAgentDefinitionError` naming it.
+
+| Before | Replacement |
+|---|---|
+| `describeRepositoryContract((clock) => store)`, `RepositoryContractStore` | The suite per port listed above, and the services' own specs for the rules |
+| `describeConversationRepositoryContract((clock) => repository)` (the conversation rules) | `describeConversationRepositoryContract({ name, create, untilBlocked })`, `create` resolving `{ repository, runs, checkpoints }`: storage behaviour only |
+
+### Behaviour changes
+
+- A read leaves out a property set to `undefined` (the memory store kept the key with an `undefined` value): `toMatchObject({ claim: undefined })` on a read run fails, `not.toHaveProperty('claim')` holds.
+- Every change reads its row locked first and then the clock: a lease renewal that waited for the row compares a fresh time. A test that moves a `ControllableClock` by a whole `claimTtlMs` at once loses the lease of a running run; move it in steps so the renewals run.
+- `effectService.save(key, undefined)` stores `null` on memory too. `findDocuments` lists by document id in code-point order on memory too, and its `where` matches a top-level value when it is deeply equal on both drivers: PostgreSQL used containment (`{ tags: ['a'] }` matched `tags: ['a', 'b']`), memory compared with `===` (a nested value never matched).
+- The purge of expired locks and idempotency keys (`CHAMVI_PURGE_INTERVAL_MS`) runs on a memory store too.
+- A start (or `run-job`) with `CHAMVI_MIGRATE=false` on a store with pending migrations fails with `store_not_migrated`, naming how many are pending, and writes nothing (it started and failed on the first write to a missing column): run `chamvi migrate` before the app starts.
+- On PostgreSQL a held lock or a claimed idempotency key is refused on one `SELECT`; acquiring a free lock or claiming a fresh key takes four statements (it took one), a renewal or release four, a takeover of an expired lease or key five.
+- Connections: a fenced write (an entry batch, a replace, a fenced delete) locks the connection row, then reads the lease's lock row locked, then the clock; on memory a takeover, renewal or release of the lease in flight is waited for as on PostgreSQL. `writeEntries` on an absent connection is `RepositoryNotFoundError` on both stores (PostgreSQL answered `LeaseLostError`). On PostgreSQL an entry batch is one upsert statement per chunk of rows, and a clear, replace or delete removes the entries and secrets with one `DELETE` each.
+- Conversations: every change reads the conversation row locked first (PostgreSQL `FOR NO KEY UPDATE`), then the clock. A memory run or checkpoint bound to a conversation scope the store does not hold is refused with `EntityRelationError` as on PostgreSQL. `beginTurn` of a malformed run id while another run holds the turn answers `busy` on both stores (PostgreSQL threw `RunNotFoundError`). Memory scope ids are uuid v7 as on PostgreSQL; the identity's digest is the row's unique `key`. `resolve` is insert-if-absent: it never revives a deleted generation. The recall reads the sizes of the sent items first and the text of the selected items only; its result is unchanged.
+
+### The HTTP API on the services
+
+`createHttpApp({ engine })` reads everything through the engine's services (`engine.runService`, `engine.stateService`, ...; the connection configurations through `engine.connectionService`, so `connectionConfigs` needs an engine with a connection service). Routes, requests and answers are unchanged, except that a storage error reaching a route is no longer a 500: it answers with its code and a fixed message, never the error's own: `404 entity_not_found`, `409 entity_conflict`, `400 entity_relation_invalid`, `400 entity_query_invalid`, `400 entity_invalid`, `409 entity_deadlock`, `503 database_unavailable` (`@chamvi/store-db`'s `DatabaseUnavailableError`, reported to `onError` as every 5xx). The run listing orders runs the sorts leave equal by `id` (`createdAt`, then `id`, without sorts).
 
 ### New variables
 
@@ -45,6 +172,8 @@ Each is optional and names a field of a named instance; the default instance kee
 3. A dashboard not at `/ui`: pass the same value as `uiBase` to every `*-ui` module.
 4. Replace any reference to the old GitHub module id.
 5. Drain the app before the upgrade, so no stored run carries an invoker with old permission strings; rewrite `CHAMVI_TOKENS` and the authup roles ([Permissions and authup](/guide/permissions#upgrading)).
+6. Stop every replica of the previous version, then run the migrations (a default start or `chamvi migrate`) before the app serves: on a large conversation items table the byte-length backfill holds that table's lock for its duration (above).
+7. Code that builds an engine by hand or reads the store aggregate: move to the services ([Services in place of the store aggregate](#services-in-place-of-the-store-aggregate)); a custom store: [Writing a third-party store](#writing-a-third-party-store).
 
 ## Upgrading to 0.8
 
@@ -158,7 +287,7 @@ Run taint, the outbound gates and repository guidance are new, so 0.3 apps have 
 - A failing repository guidance collection gives `instructions: null` plus `instructionsError` in `create_workspace` and `read_file`; `read_file` in a repo-less workspace omits `instructions`.
 - `ghcr.io/chamvi/sandbox-dev` ships the GitHub CLI (`gh`, the current release at build time); pin the image digest for a fixed version.
 
-Conversation memory is opt-in and new, so 0.3 apps have nothing to migrate: storage is `store.conversations` (both built-in stores carry it), policy is `createApp({ conversations: { authorize } })` or `EngineOptions.conversations`. See [Conversations](/guide/conversations) for the setup.
+Conversation memory is opt-in and new, so 0.3 apps have nothing to migrate: storage is the engine's `conversationService` (both built-in stores carry a conversation repository), policy is `createApp({ conversations: { authorize } })` or `EngineOptions.conversations`. See [Conversations](/guide/conversations) for the setup.
 
 ### Database migration
 

@@ -20,7 +20,8 @@ import {
     ValidationError,
     defineModelAgent,
 } from '@chamvi/core';
-import type { IEngine, Invoker } from '@chamvi/core';
+import type { IEngine } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 import { CHAT_INTAKE_FAILED_ERROR_CODE } from '@chamvi/chat';
 import type { ChatIncoming } from '@chamvi/chat';
 import { textModel } from '@chamvi/test-kit';
@@ -307,24 +308,11 @@ describe('chat intake delivery', () => {
     it('retries a transient dispatch failure after 1000 and 2000 ms, then reports it once', async () => {
         let inserts = 0;
         const fixture = await started({
-            store: (memory) => ({
-                ...memory,
-                runs: new Proxy(memory.runs, {
-                    get(target, key, receiver) {
-                        if (key === 'insert') {
-                            return async () => {
-                                inserts += 1;
+            create: () => async () => {
+                inserts += 1;
 
-                                throw new Error('store down');
-                            };
-                        }
-
-                        const value: unknown = Reflect.get(target, key, receiver);
-
-                        return typeof value === 'function' ? value.bind(target) : value;
-                    },
-                }),
-            }),
+                throw new Error('store down');
+            },
         });
 
         const delivery = fixture.adapter.deliver(createTextMessage({ id: 'm-retry', text: 'private words' })).catch((caught: unknown) => caught);
@@ -359,24 +347,11 @@ describe('chat intake delivery', () => {
     it('stops retrying when the channel stops', async () => {
         let inserts = 0;
         const fixture = await started({
-            store: (memory) => ({
-                ...memory,
-                runs: new Proxy(memory.runs, {
-                    get(target, key, receiver) {
-                        if (key === 'insert') {
-                            return async () => {
-                                inserts += 1;
+            create: () => async () => {
+                inserts += 1;
 
-                                throw new Error('store down');
-                            };
-                        }
-
-                        const value: unknown = Reflect.get(target, key, receiver);
-
-                        return typeof value === 'function' ? value.bind(target) : value;
-                    },
-                }),
-            }),
+                throw new Error('store down');
+            },
         });
 
         const delivery = fixture.adapter.deliver(createTextMessage({ id: 'm-stop' })).catch((caught: unknown) => caught);
@@ -438,25 +413,12 @@ describe('chat intake delivery', () => {
     it('treats a validation code of another core copy as terminal', async () => {
         let inserts = 0;
         const fixture = await started({
-            store: (memory) => ({
-                ...memory,
-                runs: new Proxy(memory.runs, {
-                    get(target, key, receiver) {
-                        if (key === 'insert') {
-                            return async () => {
-                                inserts += 1;
+            create: () => async () => {
+                inserts += 1;
 
-                                // not this copy's ValidationError, only its code
-                                throw Object.assign(new Error('refused elsewhere'), { code: ErrorCode.VALIDATION });
-                            };
-                        }
-
-                        const value: unknown = Reflect.get(target, key, receiver);
-
-                        return typeof value === 'function' ? value.bind(target) : value;
-                    },
-                }),
-            }),
+                // not this copy's ValidationError, only its code
+                throw Object.assign(new Error('refused elsewhere'), { code: ErrorCode.VALIDATION });
+            },
         });
 
         const error = await fixture.adapter.deliver(createTextMessage({ id: 'm-foreign' })).catch((caught: unknown) => caught);

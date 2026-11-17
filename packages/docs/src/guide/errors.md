@@ -8,7 +8,7 @@ Every error chamvi throws extends `ChamviError`, which extends ebec's `BaseError
 | `AgentNotFoundError` | `AGENT_NOT_FOUND` | `agent_not_found` | `dispatch()` for an agent the engine does not hold; `@chamvi/http` answers 404 |
 | `AgentReplacedError` | `AGENT_REPLACED` | `agent_replaced` | `dispatch({ checked })` while the engine holds another agent object under the name (it was replaced after the caller's permission check); thrown before anything is stored, so a retry with the same idempotency key is safe; `@chamvi/http` answers 409 |
 | `InvalidRunStateError` | `INVALID_RUN_STATE` | `invalid_run_state` | A run is not in the status an operation needs: resuming a run that is not waiting, cancelling a settled run, a store guard (`expectStatus`, `expectOwner`) that does not match; `approve()` outside a tool call or in a streaming tool's body; `emit()` outside a tool call |
-| `RunNotFoundError` | `RUN_NOT_FOUND` | `run_not_found` | `resume()`, `cancel()`, `store.runs.update()` or `store.runs.findOneOrFail()` for an unknown run |
+| `RunNotFoundError` | `RUN_NOT_FOUND` | `run_not_found` | `resume()`, `cancel()`, `runService.update()` or `runService.findOneOrFail()` for an unknown run |
 | `ArtifactNotFoundError` | `ARTIFACT_NOT_FOUND` | `artifact_not_found` | An execution cannot read an artifact its messages refer to (the run fails); `@chamvi/http` answers 404 with it for an unknown artifact |
 | `BudgetExceededError` | `BUDGET_EXCEEDED` | `BudgetExceeded` | A run hit `maxSteps` or `maxTokens` while the model still wanted tools |
 | `TimeoutError` | `TIMEOUT` | `Timeout` | An execution exceeded `timeoutMs` |
@@ -44,3 +44,5 @@ A run cancelled on another replica keeps the reason once its owner settles it; a
 Some errors happen where nobody awaits: a lost lease, a failed approval message, a listener that throws, a failed recovery pass. They go to `onError(error, run?)`, by default `console.error`. Pass your logger. A `LeaseLostError` there is informational: another replica carries the run on.
 
 <<< @/snippets/errors.ts#on-error
+
+`createEngine` stands for the engine of your app, built on the repositories every replica shares ([Database store](/repositories/database)); with [`@chamvi/app`](/guide/app) the app builds it.

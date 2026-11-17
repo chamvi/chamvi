@@ -102,6 +102,7 @@ async function seed(ds: DataSource): Promise<Seeded> {
         createdAt: now,
         role: 'user',
         text: 'input',
+        bytes: 5,
         status: 'pending',
     });
     await ds.getRepository(ConversationNoteEntity).insert({

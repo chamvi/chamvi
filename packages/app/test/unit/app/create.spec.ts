@@ -8,7 +8,6 @@
 import { cron } from '@chamvi/channel-cron';
 import {
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import type { IModule } from 'orkos';
@@ -18,12 +17,12 @@ import {
     it,
 } from 'vitest';
 import {
-    AppToken,
     ModuleName,
     createApp,
     isApp,
 } from '@chamvi/app';
 import { textModel } from '@chamvi/test-kit';
+import { createTestStore, storeModuleOf } from '../../utils/store.ts';
 
 const agent = defineModelAgent({
     name: 'sweep',
@@ -102,7 +101,7 @@ describe('createApp', () => {
                 dependencies: [ModuleName.CONFIG],
                 async setup(container) {
                     calls.push('fake store');
-                    container.register(AppToken.STORE, { useValue: createMemoryStore() });
+                    await storeModuleOf(createTestStore()).setup(container);
                 },
             }],
         });

@@ -14,10 +14,7 @@ import {
 } from 'vitest';
 import { jsonSchema } from 'ai';
 import {
-    Engine,
-    MemoryConversationRepository,
     approve,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
@@ -26,6 +23,7 @@ import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { CONVERSATION_SEND_GRACE_MS } from '../../../src/engine/execute/constants.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const target = {
     account: 'main',
@@ -56,7 +54,7 @@ function setup(
     defaultAddress?: string,
     budget?: { timeoutMs: number },
 ) {
-    const store = createMemoryStore({ clock }); const conversations = new MemoryConversationRepository({ clock });
+    const store = createTestServices({ clock }); const conversations = store.conversationService;
     const out = vi.fn<NonNullable<IChannel['out']>>(async () => {}); const other = vi.fn<NonNullable<IChannel['out']>>(async () => {});
     const channel = {
         name: 'chat',
@@ -76,8 +74,8 @@ function setup(
         }],
     }, { parts: [{ type: 'text', text: 'model output is not a reply' }] }, { parts: [{ type: 'text', text: 'second result' }] }]);
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store: { ...store, conversations },
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [defineModelAgent({
             name: 'helper',
@@ -142,7 +140,7 @@ describe('source emit journal', () => {
         const first = await s.ctx.dispatchConversation(envelope, target);
 
         await s.engine.start(); await s.engine.idle();
-        expect((await s.store.runs.findOne(first.runId))?.status).toBe('completed');
+        expect((await s.store.runService.findOne(first.runId))?.status).toBe('completed');
         expect(s.out.mock.calls.map(([message, to]) => [message.body, to])).toEqual([
             ['actual reply', 'source'],
             ['off-source reply', 'elsewhere'],
@@ -157,7 +155,7 @@ describe('source emit journal', () => {
         const next = await s.ctx.dispatchConversation({ ...envelope, payload: 'follow-up' }, { ...target, text: 'follow-up' });
 
         await s.engine.idle();
-        expect((await s.store.runs.findOne(next.runId))?.status).toBe('completed');
+        expect((await s.store.runService.findOne(next.runId))?.status).toBe('completed');
 
         const prompt = JSON.stringify(s.model.doStreamCalls[2]?.prompt);
 
@@ -180,11 +178,11 @@ describe('source emit journal', () => {
 
             await handle.emit({ body: 'legitimate reply', key: '\ufffd' });
         });
-        const get = s.store.effects.findOne.bind(s.store.effects); const put = s.store.effects.save.bind(s.store.effects);
+        const get = s.store.effectService.findOne.bind(s.store.effectService); const put = s.store.effectService.save.bind(s.store.effectService);
         const wire = (key: string) => Buffer.from(key, 'utf8').toString('utf8');
 
-        vi.spyOn(s.store.effects, 'findOne').mockImplementation((key) => get(wire(key)));
-        vi.spyOn(s.store.effects, 'save').mockImplementation((key, value) => put(wire(key), value));
+        vi.spyOn(s.store.effectService, 'findOne').mockImplementation((key) => get(wire(key)));
+        vi.spyOn(s.store.effectService, 'save').mockImplementation((key, value) => put(wire(key), value));
         await run(s);
         expect(rejected).toBe(true);
         expect(s.out.mock.calls.map(([message]) => message.body)).toEqual(['legitimate reply']);
@@ -212,7 +210,7 @@ describe('source emit journal', () => {
 
         // Assert outside the SDK's tool-error handling as well as inside the action.
         const result = await run(s);
-        const steps = await s.store.steps.find(result);
+        const steps = await s.store.stepService.find(result);
         const rejected = steps.some((step) => step.kind === 'tool' && step.error !== undefined);
 
         expect(rejected).toBe(false);
@@ -255,12 +253,12 @@ describe('source emit journal', () => {
             gate.resolve(); await draining;
         }
 
-        expect((await s.store.runs.findOne(result.runId))?.status).toBe('interrupted');
+        expect((await s.store.runService.findOne(result.runId))?.status).toBe('interrupted');
 
         const pending = (await items(s)).find((item) => item.role === 'assistant')!;
 
         expect(pending.status).toBe('pending');
-        expect(await s.store.effects.findOne(pending.effectKey!)).toBeUndefined();
+        expect(await s.store.effectService.findOne(pending.effectKey!)).toBeUndefined();
     });
     it('tool_emit_not_run_output_is_remembered and two new runs see prior reply', async () => {
         const s = setup();
@@ -275,7 +273,7 @@ describe('source emit journal', () => {
         }, { ...target, text: 'second' });
 
         await s.engine.idle();
-        expect((await s.store.runs.findOne(second.runId))?.status).toBe('completed');
+        expect((await s.store.runService.findOne(second.runId))?.status).toBe('completed');
         expect((await items(s)).filter((i) => i.role === 'assistant')).toMatchObject([{ text: 'actual reply', status: 'sent' }]);
 
         const prompt = JSON.stringify(s.model.doStreamCalls[2]?.prompt);
@@ -307,8 +305,8 @@ describe('source emit journal', () => {
 
         const model = mockModel([{ parts: [{ type: 'text', text: 'second' }] }]);
         const channel = { name: 'chat' };
-        const peer = new Engine({
-            store: { ...first.store, conversations: first.conversations },
+        const peer = createTestEngine({
+            services: first.store,
             agents: [defineModelAgent({
                 name: 'helper',
                 model,
@@ -330,19 +328,19 @@ describe('source emit journal', () => {
         }, { ...target, text: 'second' });
 
         await peer.start(); await peer.idle();
-        expect((await first.store.runs.findOne(second.runId))?.status).toBe('queued');
+        expect((await first.store.runService.findOne(second.runId))?.status).toBe('queued');
         expect(model.doStreamCalls).toHaveLength(0);
         gate.resolve(); await draining;
-        expect((await first.store.runs.findOne(firstResult.runId))?.status).toBe('completed');
+        expect((await first.store.runService.findOne(firstResult.runId))?.status).toBe('completed');
         await peer.stop(); await peer.start(); await peer.idle();
-        expect((await first.store.runs.findOne(second.runId))?.status).toBe('completed');
+        expect((await first.store.runService.findOne(second.runId))?.status).toBe('completed');
         expect(JSON.stringify(model.doStreamCalls[0]?.prompt)).toContain('actual reply');
     });
     it('approval_notification_not_recalled', async () => {
         const s = setup(async (ctx) => ctx.channels.findOneOrFail().approve({ title: 'continue?' }));
         const id = await run(s);
 
-        expect((await s.store.runs.findOne(id))?.status).toBe('waiting');
+        expect((await s.store.runService.findOne(id))?.status).toBe('waiting');
         expect(s.out.mock.calls[0]?.[0].kind).toBe('approval');
         expect((await items(s)).filter((item) => item.role === 'assistant')).toHaveLength(0);
         await s.engine.cancel(id);
@@ -372,7 +370,7 @@ describe('source emit journal', () => {
     it('effect_failure_after_send_stays_uncertain', async () => {
         const s = setup(); const log = vi.spyOn(console, 'error').mockImplementation(() => {});
 
-        vi.spyOn(s.store.effects, 'save').mockRejectedValueOnce(new Error('effect write unavailable'));
+        vi.spyOn(s.store.effectService, 'save').mockRejectedValueOnce(new Error('effect write unavailable'));
         await run(s); expect(s.out).toHaveBeenCalledTimes(1);
         expect((await items(s)).filter((i) => i.role === 'assistant')).toMatchObject([{ status: 'unknown' }]);
         expect(JSON.stringify(log.mock.calls)).not.toContain('actual reply');
@@ -491,7 +489,7 @@ describe('source emit journal', () => {
             target: { channel: 'chat', address: 'source' },
             createdAt: new Date(),
         });
-        await s.store.effects.save('effect', { channel: 'chat', address: 'source' });
+        await s.store.effectService.save('effect', { channel: 'chat', address: 'source' });
         await s.engine.cancel(runId);
         expect(await s.conversations.activeRun(scope)).toBeUndefined();
         expect((await items(s)).find((i) => i.id === 'pending')?.status).toBe('sent');
@@ -518,7 +516,7 @@ describe('source emit journal', () => {
         await vi.waitFor(() => expect(s.out).toHaveBeenCalledTimes(1));
         await vi.waitFor(async () => {
             clock.advance(CONVERSATION_SEND_GRACE_MS);
-            expect((await s.store.runs.findOne(runId))?.status).toBe('waiting');
+            expect((await s.store.runService.findOne(runId))?.status).toBe('waiting');
         });
 
         if (kind === 'pause') {
@@ -526,7 +524,7 @@ describe('source emit journal', () => {
         }
 
         await s.engine.cancel(runId);
-        expect((await s.store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await s.store.runService.findOne(runId))?.status).toBe('cancelled');
         expect((await items(s)).filter((i) => i.role === 'assistant')).toMatchObject([{ status: 'unknown' }]);
     });
     it('a replayed pending call gives its fire-and-forget emit the same grace before it pauses again', async () => {
@@ -552,10 +550,10 @@ describe('source emit journal', () => {
         await vi.waitFor(() => expect(s.out).toHaveBeenCalledTimes(1));
         await vi.waitFor(async () => {
             clock.advance(CONVERSATION_SEND_GRACE_MS);
-            expect((await s.store.runs.findOne(runId))?.status).toBe('waiting');
+            expect((await s.store.runService.findOne(runId))?.status).toBe('waiting');
         });
 
-        const first = await s.store.runs.findOne(runId);
+        const first = await s.store.runService.findOne(runId);
 
         await s.engine.approve(runId, { approvalId: approvalWait(first)!.approvalId, approved: true });
         await s.engine.tick();
@@ -567,11 +565,11 @@ describe('source emit journal', () => {
             setTimeout(resolve, 20);
         });
         expect(signal.aborted).toBe(false);
-        expect((await s.store.runs.findOne(runId))?.status).toBe('running');
+        expect((await s.store.runService.findOne(runId))?.status).toBe('running');
 
         await vi.waitFor(async () => {
             clock.advance(CONVERSATION_SEND_GRACE_MS);
-            expect(approvalWait(await s.store.runs.findOne(runId))?.title).toBe('two');
+            expect(approvalWait(await s.store.runService.findOne(runId))?.title).toBe('two');
         });
         expect(signal.aborted).toBe(true);
     });
@@ -598,9 +596,9 @@ describe('source emit journal', () => {
         }, target);
 
         await s.engine.start();
-        await vi.waitFor(async () => expect((await s.store.runs.findOne(runId))?.status).toBe('waiting'));
+        await vi.waitFor(async () => expect((await s.store.runService.findOne(runId))?.status).toBe('waiting'));
 
-        const first = await s.store.runs.findOne(runId);
+        const first = await s.store.runService.findOne(runId);
 
         replaying = true;
         await s.engine.approve(runId, { approvalId: approvalWait(first)!.approvalId, approved: true });
@@ -611,7 +609,7 @@ describe('source emit journal', () => {
         await vi.waitFor(async () => {
             clock.advance(10_000);
 
-            const run = await s.store.runs.findOne(runId);
+            const run = await s.store.runService.findOne(runId);
 
             expect(run?.status).toBe('failed');
             expect(run?.error?.code).toBe('Timeout');

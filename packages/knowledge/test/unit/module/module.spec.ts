@@ -17,7 +17,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { InvalidAgentDefinitionError, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type { Agent, IClock } from '@chamvi/core';
 import { mockEmbeddingModel, mockModel } from '@chamvi/test-kit';
 import {
@@ -32,7 +32,7 @@ import {
     storeModule,
 } from '@chamvi/app';
 import type { ILogger, IModule } from '@chamvi/app';
-import { buildModuleHarness, createModuleHarness } from '@chamvi/app/testing';
+import { buildModuleHarness, createModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
 import {
     KNOWLEDGE_ROUTE_PATH,
@@ -411,9 +411,9 @@ describe('knowledgeModule()', () => {
 
         await engine.idle();
 
-        expect((await engine.store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await engine.runService.findOne(runId))?.status).toBe('completed');
 
-        const [step] = (await engine.store.steps.find(runId))
+        const [step] = (await engine.stepService.find(runId))
             .filter((entry) => entry.kind === 'tool' && entry.name === 'knowledge_search');
         const output = step?.output as KnowledgeSearchResult;
 
@@ -644,7 +644,7 @@ describe('knowledgeModule()', () => {
             env: { DATABASE_URL: 'postgres://chamvi@127.0.0.1:1/chamvi' },
             modules: [
                 configModule({ logger: createRecordingLogger() }),
-                storeModule({ store: createMemoryStore() }),
+                memoryStoreModule(),
                 engineModule(),
                 module,
             ],

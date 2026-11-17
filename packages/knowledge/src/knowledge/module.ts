@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import type { IClock, ILockRepository, IModelResolver } from '@chamvi/core';
+import type { IClock, IModelResolver, LockService } from '@chamvi/core';
 import {
     ChamviError,
     InvalidAgentDefinitionError,
@@ -55,7 +55,7 @@ const NO_DEFAULT_MODEL = 'Managed collections need an embedding model: set CHAMV
 class Knowledge implements IKnowledge {
     readonly repository: IKnowledgeRepository;
 
-    protected readonly locks: ILockRepository;
+    protected readonly locks: Pick<LockService, 'acquire' | 'release'>;
 
     protected readonly models: IModelResolver | undefined;
 

@@ -7,9 +7,9 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import { createWorkspaces } from '../fixtures/readme-example.ts';
 import { createFakeProvider } from '../utils/provider.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -22,10 +22,7 @@ describe('README example', () => {
     });
 
     it('builds a manager attached to the engine', async () => {
-        const engine = new Engine({
-            store: createMemoryStore(),
-            agents: [],
-        });
+        const engine = createTestEngine({ agents: [] });
         const manager = createWorkspaces(createFakeProvider(), engine);
 
         expect(Object.keys(manager.tools()).sort()).toEqual(['create_workspace', 'dispose_workspace', 'git_fetch', 'git_pull', 'git_push', 'read_repository_instructions']);

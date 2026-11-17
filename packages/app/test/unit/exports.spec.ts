@@ -23,6 +23,7 @@ import type {
 } from '@chamvi/app';
 import type { AgentIssue } from '@chamvi/http';
 import type { PermissionBinding } from '@chamvi/access';
+import * as store from '@chamvi/store';
 
 describe('public api', () => {
     it.each([
@@ -59,6 +60,11 @@ describe('public api', () => {
         'agentsModule',
         'schedulerModule',
         'httpModule',
+        // a database for an app's own tables
+        'databaseModule',
+        'DatabaseModule',
+        'dataSourceToken',
+        'readDatabaseDescriptors',
         // the helpers of an app's own controllers, from @chamvi/http
         'usePrincipal',
         'authorizeRequest',
@@ -67,6 +73,10 @@ describe('public api', () => {
         'ForceLoggedInMiddleware',
         'JsonBodyMiddleware',
         'RequiredJsonBodyMiddleware',
+        // the list schema of an app's list endpoints and its decoder, from @chamvi/http
+        'defineSchema',
+        'decodeQuery',
+        'scopeQuery',
         // the common surface of @chamvi/core and @chamvi/http
         'defineModelAgent',
         'defineSimpleAgent',
@@ -101,6 +111,15 @@ describe('public api', () => {
         expect(app.AGENT_CHANNEL_NAME).toBe('agent');
     });
 
+    it('exports the stored record types and the read normalizers of @chamvi/store', () => {
+        expect(app.RunStatus).toBe(store.RunStatus);
+        expect(app.normalizeEnvelope).toBe(store.normalizeEnvelope);
+        expect(app.normalizeWaitPoint).toBe(store.normalizeWaitPoint);
+        expectTypeOf<app.Run>().toEqualTypeOf<store.Run>();
+        expectTypeOf<app.TriggerEnvelope>().toEqualTypeOf<store.TriggerEnvelope>();
+        expectTypeOf<app.Invoker>().toEqualTypeOf<store.Invoker>();
+    });
+
     it.each(['createModelRegistry', 'installDefaultProvider', 'resolveModels'])('does not export %s', (name) => {
         expect(app).not.toHaveProperty(name);
     });
@@ -115,6 +134,12 @@ describe('public api', () => {
         for (const name of ['consoleNotifierModule', 'consoleNotifier']) {
             expect(app).not.toHaveProperty(name);
         }
+    });
+
+    it('exports the database tokens, apart from chamvi\'s own data source token', () => {
+        expect(Object.keys(app.DatabaseToken).sort()).toEqual(['DATA_SOURCE', 'DESCRIPTORS']);
+        expect(app.DatabaseToken.DATA_SOURCE).toBe(app.dataSourceToken());
+        expect(app.DatabaseToken.DATA_SOURCE).not.toBe(app.AppToken.DATA_SOURCE);
     });
 
     it('exports the keyring variable', () => {
@@ -133,27 +158,50 @@ describe('public api', () => {
         expect(Object.keys(app.AppToken).sort()).toEqual([
             'AGENT_CHECKS',
             'AGENT_ISSUES',
+            'AGENT_REVISION_REPOSITORY',
+            'AGENT_REVISION_SERVICE',
+            'ARTIFACT_REPOSITORY',
+            'ARTIFACT_SERVICE',
             'AUTHENTICATORS',
             'CHANNELS',
+            'CHECKPOINT_REPOSITORY',
+            'CHECKPOINT_SERVICE',
             'CLOCK',
             'CONFIG',
             'CONNECTIONS',
             'CONNECTION_CONFIGS',
+            'CONNECTION_REPOSITORY',
+            'CONNECTION_SERVICE',
             'CONNECTION_TYPES',
             'CONTEXT',
+            'CONVERSATION_REPOSITORY',
+            'CONVERSATION_SERVICE',
             'DATA_SOURCE',
+            'EFFECT_REPOSITORY',
+            'EFFECT_SERVICE',
             'ENGINE',
             'GIT_CREDENTIALS',
             'HTTP_CONTROLLERS',
             'HTTP_ROUTES',
+            'IDEMPOTENCY_REPOSITORY',
+            'IDEMPOTENCY_SERVICE',
             'KEYRING',
             'LIFECYCLE_HOOKS',
+            'LOCK_REPOSITORY',
+            'LOCK_SERVICE',
             'LOGGER',
             'MODELS',
             'OPENAPI_DOCUMENTS',
+            'RUN_REPOSITORY',
+            'RUN_SERVICE',
             'SERVER',
             'SHUTDOWN',
-            'STORE',
+            'STATE_DOCUMENT_REPOSITORY',
+            'STATE_REPOSITORY',
+            'STATE_SERVICE',
+            'STEP_REPOSITORY',
+            'STEP_SERVICE',
+            'STORE_KIND',
             'UI_AUTH',
             'UI_PAGES',
         ]);
@@ -209,6 +257,7 @@ describe('public api', () => {
 
     it('exports the app brand', () => {
         expect(app.APP_BRAND).toBe(Symbol.for('chamvi.app'));
+        expect(app.APP_MODULES).toBe(Symbol.for('chamvi.app.modules'));
     });
 
     it('exports the permission names of @chamvi/access', () => {
@@ -250,9 +299,19 @@ describe('public api', () => {
     it.each([
         'buildModuleHarness',
         'createModuleHarness',
+        'memoryStoreModule',
     ])('@chamvi/app/testing exports %s', (name) => {
         expect(testing).toHaveProperty(name);
         expect(testing[name as keyof typeof testing]).toBeTypeOf('function');
+    });
+
+    it('@chamvi/app/testing takes no record of repositories', () => {
+        expectTypeOf<Parameters<typeof testing.memoryStoreModule>>().toEqualTypeOf<[options?: testing.MemoryStoreModuleOptions]>();
+        expectTypeOf<keyof testing.MemoryStoreModuleOptions>().toEqualTypeOf<'registry' | 'connections' | 'conversations'>();
+    });
+
+    it('takes a store module of a URL or a data source only', () => {
+        expectTypeOf<keyof app.StoreModuleOptions>().toEqualTypeOf<'url' | 'dataSource'>();
     });
 });
 

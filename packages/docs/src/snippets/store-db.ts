@@ -1,9 +1,31 @@
 import type { LanguageModel } from 'ai';
-import { Engine, defineModelAgent } from '@chamvi/core';
 import {
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    EffectService,
+    Engine,
+    IdempotencyService,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
+    defineModelAgent,
+    systemClock,
+} from '@chamvi/core';
+import {
+    DatabaseAgentRevisionRepository,
+    DatabaseArtifactRepository,
+    DatabaseCheckpointRepository,
+    DatabaseEffectRepository,
+    DatabaseIdempotencyRepository,
+    DatabaseLockRepository,
+    DatabaseRunRepository,
+    DatabaseStateDocumentRepository,
+    DatabaseStateRepository,
+    DatabaseStepRepository,
     STORE_ENTITIES,
     STORE_MIGRATIONS,
-    createDatabaseStore,
     migrateStore,
 } from '@chamvi/store-db';
 import { DataSource } from 'typeorm';
@@ -26,9 +48,20 @@ export async function createEngine(model: LanguageModel) {
     await dataSource.initialize();
     await migrateStore(dataSource);
 
-    const store = createDatabaseStore({ dataSource });
     const engine = new Engine({
-        store,
+        // runs, steps, checkpoints, effects, artifacts, state, locks and idempotency keys: services over the database repositories
+        runService: new RunService({ repository: new DatabaseRunRepository(dataSource), clock: systemClock }),
+        stepService: new StepService({ repository: new DatabaseStepRepository(dataSource) }),
+        checkpointService: new CheckpointService({ repository: new DatabaseCheckpointRepository(dataSource) }),
+        effectService: new EffectService({ repository: new DatabaseEffectRepository(dataSource) }),
+        agentRevisionService: new AgentRevisionService({ repository: new DatabaseAgentRevisionRepository(dataSource) }),
+        artifactService: new ArtifactService({ repository: new DatabaseArtifactRepository(dataSource) }),
+        stateService: new StateService({
+            repository: new DatabaseStateRepository(dataSource),
+            documentRepository: new DatabaseStateDocumentRepository(dataSource),
+        }),
+        lockService: new LockService({ repository: new DatabaseLockRepository(dataSource), clock: systemClock }),
+        idempotencyService: new IdempotencyService({ repository: new DatabaseIdempotencyRepository(dataSource), clock: systemClock }),
         agents: [triage],
     });
     // #endregion setup
@@ -36,7 +69,7 @@ export async function createEngine(model: LanguageModel) {
     // #region purge
     // expired keys and locks stay until purged: purge every hour
     const purge = setInterval(() => {
-        Promise.all([store.idempotency.purgeExpired(), store.locks.purgeExpired()])
+        Promise.all([engine.idempotencyService.purgeExpired(), engine.lockService.purgeExpired()])
             .catch((e: unknown) => console.error(e));
     }, 60 * 60 * 1000);
 

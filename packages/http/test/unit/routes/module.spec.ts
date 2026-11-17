@@ -67,7 +67,7 @@ describe('extra routes', () => {
         const { app } = createTestApp({
             routes: [route({
                 handler: async (_request, ctx) => {
-                    const value = await ctx.engine.store.state.findOneOrFail('echo', 'missing');
+                    const value = await ctx.engine.stateService.findOneOrFail('echo', 'missing');
 
                     return { status: 200, body: { value } };
                 },

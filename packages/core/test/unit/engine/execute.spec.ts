@@ -17,17 +17,16 @@ import {
     vi,
 } from 'vitest';
 import { z } from 'zod';
-import { Engine, FatalToolError, defineModelAgent } from '@chamvi/core';
+import { FatalToolError, defineModelAgent } from '@chamvi/core';
 import type {
     Budget,
-    EngineOptions,
     IEngine,
-    IStore,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestEngineOptions, TestServiceSet } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -38,7 +37,7 @@ const flush = () => new Promise<void>((resolve) => {
 
 /** Holds the first call of `method` until `control.pending` is called. */
 function createGatedStore(method: 'insert' | 'save') {
-    const store = createMemoryStore();
+    const store = createTestServices();
     const control: { pending?: () => void; log: string[] } = { log: [] };
     let gated = false;
     const gate = async () => {
@@ -51,9 +50,9 @@ function createGatedStore(method: 'insert' | 'save') {
             control.pending = resolve;
         });
     };
-    const insert = store.steps.insert.bind(store.steps);
+    const insert = store.stepService.create.bind(store.stepService);
 
-    vi.spyOn(store.steps, 'insert').mockImplementation(async (...args) => {
+    vi.spyOn(store.stepService, 'create').mockImplementation(async (...args) => {
         if (method === 'insert') {
             await gate();
         }
@@ -61,15 +60,18 @@ function createGatedStore(method: 'insert' | 'save') {
         return insert(...args);
     });
 
-    const save = store.checkpoints.save.bind(store.checkpoints);
+    const save = store.checkpointService.save.bind(store.checkpointService);
 
-    vi.spyOn(store.checkpoints, 'save').mockImplementation(async (...args) => {
+    vi.spyOn(store.checkpointService, 'save').mockImplementation(async (...args) => {
         if (method === 'save') {
             await gate();
         }
 
-        await save(...args);
+        const saved = await save(...args);
+
         control.log.push('checkpoint');
+
+        return saved;
     });
 
     return { control, store };
@@ -94,8 +96,8 @@ type TestAgent = {
     budget?: Partial<Budget>;
 };
 
-function make(def: TestAgent, opts: Partial<EngineOptions> & { store?: IStore } = {}) {
-    const store = opts.store ?? createMemoryStore({ clock: opts.clock });
+function make(def: TestAgent, opts: Partial<TestEngineOptions> & { store?: TestServiceSet } = {}) {
+    const store = opts.store ?? createTestServices({ clock: opts.clock });
     const agent = defineModelAgent({
         name: 'triage',
         instructions: 'You triage.',
@@ -103,8 +105,8 @@ function make(def: TestAgent, opts: Partial<EngineOptions> & { store?: IStore } 
         tools: def.tools,
         budget: def.budget,
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [agent],
         onError: () => {},
         ...opts,
@@ -159,7 +161,7 @@ async function runOnce(def: Parameters<typeof make>[0], opts: Parameters<typeof 
         engine,
         store,
         runId,
-        run: await store.runs.findOne(runId),
+        run: await store.runService.findOne(runId),
     };
 }
 
@@ -184,7 +186,7 @@ describe('executeRun', () => {
         expect(run?.usage).toEqual({ inputTokens: 8, outputTokens: 10 });
         expect(run?.error).toBeUndefined();
         expect(run?.claim).toBeUndefined();
-        expect(await store.checkpoints.findOne(runId)).toMatchObject({ stepIndex: 1, finishReason: 'stop' });
+        expect(await store.checkpointService.findOne(runId)).toMatchObject({ stepIndex: 1, finishReason: 'stop' });
     });
 
     it('usage is persisted after every step', async () => {
@@ -226,8 +228,8 @@ describe('executeRun', () => {
     });
 
     it('checkpoint saved after every step', async () => {
-        const store = createMemoryStore();
-        const save = vi.spyOn(store.checkpoints, 'save');
+        const store = createTestServices();
+        const save = vi.spyOn(store.checkpointService, 'save');
         const appended: string[] = [];
         const { engine, runId } = await (async () => {
             const made = make({
@@ -258,12 +260,12 @@ describe('executeRun', () => {
         // user, (assistant + tool) x 2, assistant
         expect(save.mock.calls.map(([cp]) => cp.messages.length)).toEqual([3, 5, 6]);
 
-        const latest = await store.checkpoints.findOne(runId);
+        const latest = await store.checkpointService.findOne(runId);
 
         expect(latest?.messages[0]?.role).toBe('user');
         expect(latest?.messages.at(-1)?.role).toBe('assistant');
 
-        const steps = await store.steps.find(runId);
+        const steps = await store.stepService.find(runId);
 
         expect(steps.map((s) => s.kind)).toEqual(['llm', 'tool', 'llm', 'tool', 'llm']);
         expect(steps.map((s) => s.index)).toEqual([0, 1, 2, 3, 4]);
@@ -289,7 +291,7 @@ describe('executeRun', () => {
         expect(run?.status).toBe('failed');
         expect(run?.error?.code).toBe('BudgetExceeded');
 
-        const steps = await store.steps.find(runId);
+        const steps = await store.stepService.find(runId);
 
         expect(steps.filter((s) => s.kind === 'llm')).toHaveLength(3);
     });
@@ -307,7 +309,7 @@ describe('executeRun', () => {
 
         expect(run?.status).toBe('failed');
         expect(run?.error?.code).toBe('BudgetExceeded');
-        expect((await store.steps.find(runId)).filter((s) => s.kind === 'llm')).toHaveLength(3);
+        expect((await store.stepService.find(runId)).filter((s) => s.kind === 'llm')).toHaveLength(3);
     });
 
     it('a final answer at the step limit completes', async () => {
@@ -335,11 +337,11 @@ describe('executeRun', () => {
         await new Promise<void>((resolve) => {
             setImmediate(resolve);
         });
-        expect((await store.runs.findOne(runId))?.status).toBe('running');
+        expect((await store.runService.findOne(runId))?.status).toBe('running');
         clock.advance(1);
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error?.code).toBe('Timeout');
@@ -362,7 +364,7 @@ describe('executeRun', () => {
         await vi.waitFor(() => expect(calls).toHaveLength(1));
         await engine.cancel(runId);
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('cancelled');
         expect(run?.claim).toBeUndefined();
@@ -370,7 +372,7 @@ describe('executeRun', () => {
         expect(calls[0]?.abortSignal?.aborted).toBe(true);
         expect(statuses.at(-1)).toBe('cancelled');
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
     });
 
     it('cancel marks a queued run cancelled', async () => {
@@ -379,10 +381,10 @@ describe('executeRun', () => {
         const { runId } = await engine.dispatch(env);
 
         await engine.cancel(runId);
-        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
         await engine.start();
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
         expect(model.doStreamCalls).toHaveLength(0);
     });
 
@@ -417,7 +419,7 @@ describe('executeRun', () => {
         expect(run?.output).toBe('recovered');
         expect(JSON.stringify(model.doStreamCalls[1]?.prompt)).toContain('kaput');
 
-        const steps = await store.steps.find(runId);
+        const steps = await store.stepService.find(runId);
 
         expect(steps.map((s) => s.kind)).toEqual(['llm', 'tool', 'llm']);
         expect(steps[1]?.error).toEqual({ code: 'tool_broke', message: 'kaput' });
@@ -470,20 +472,20 @@ describe('executeRun', () => {
         await cancelled;
         await engine.idle();
 
-        const steps = (await gate.store.steps.find(runId)).map((s) => s.kind);
-        const checkpoint = await gate.store.checkpoints.findOne(runId);
+        const steps = (await gate.store.stepService.find(runId)).map((s) => s.kind);
+        const checkpoint = await gate.store.checkpointService.findOne(runId);
 
         // let the abandoned generate run on
         for (let i = 0; i < 10; i++) {
             await flush();
         }
 
-        expect((await gate.store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await gate.store.runService.findOne(runId))?.status).toBe('cancelled');
         // the completed step lands with its tool row and checkpoint before the run settles
         expect(steps).toEqual(['llm', 'tool']);
         expect(checkpoint?.stepIndex).toBe(0);
-        expect((await gate.store.steps.find(runId)).map((s) => s.kind)).toEqual(steps);
-        expect((await gate.store.checkpoints.findOne(runId))?.stepIndex).toBe(checkpoint?.stepIndex);
+        expect((await gate.store.stepService.find(runId)).map((s) => s.kind)).toEqual(steps);
+        expect((await gate.store.checkpointService.findOne(runId))?.stepIndex).toBe(checkpoint?.stepIndex);
         expect(events.at(-1)).toBe('run:cancelled');
         expect(events.filter((e) => e === 'run:cancelled')).toHaveLength(1);
     });
@@ -492,12 +494,12 @@ describe('executeRun', () => {
         ['stop', 'completed'],
         ['tool-calls', 'failed'],
     ])('resuming at the step limit after a %s step settles %s', async (finishReason, status) => {
-        const store = createMemoryStore();
+        const store = createTestServices();
         const model = mockModel([]);
         const { engine } = make({ model, budget: budget({ maxSteps: 2 }) }, { store });
         const { runId } = await engine.dispatch(env);
 
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             runId,
             stepIndex: 1,
             messages: [
@@ -510,7 +512,7 @@ describe('executeRun', () => {
         await engine.start();
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe(status);
 
@@ -531,12 +533,12 @@ describe('executeRun', () => {
     });
 
     it('execution resumes from checkpoint messages', async () => {
-        const store = createMemoryStore();
+        const store = createTestServices();
         const model = mockModel([{ parts: [{ type: 'text', text: 'resumed' }] }]);
         const { engine } = make({ model }, { store });
         const { runId } = await engine.dispatch(env);
 
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             runId,
             stepIndex: 0,
             messages: [
@@ -556,9 +558,9 @@ describe('executeRun', () => {
             { role: 'assistant', content: [{ type: 'text', text: 'seeded answer' }] },
             { role: 'user', content: [{ type: 'text', text: 'go on' }] },
         ]);
-        expect((await store.runs.findOne(runId))?.output).toBe('resumed');
+        expect((await store.runService.findOne(runId))?.output).toBe('resumed');
 
-        const latest = await store.checkpoints.findOne(runId);
+        const latest = await store.checkpointService.findOne(runId);
 
         expect(latest?.stepIndex).toBe(1);
         expect(latest?.messages).toHaveLength(4);

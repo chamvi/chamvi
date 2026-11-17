@@ -8,8 +8,9 @@
 import type { IClock } from '../clock/types.ts';
 import { InvalidRunStateError, LeaseLostError } from '../errors/index.ts';
 import { open, seal } from '../keyring/module.ts';
-import type { IConnectionRepository, ILockRepository } from '../repository/types.ts';
+import type { LockService } from '../lock/service.ts';
 import { entryAadOf } from './helpers.ts';
+import type { ConnectionService } from './service.ts';
 import type { ConnectionEntryWrite, IConnectionSession } from './types.ts';
 import { assertConnectionEntryWrite } from './validate.ts';
 
@@ -20,8 +21,8 @@ type SessionOptions = {
     leaseTtlMs: number;
     /** The last confirmed lease expiry (ms since epoch on `clock`), a lower bound of the store's. */
     expiresAt: number;
-    connections: IConnectionRepository;
-    locks: ILockRepository;
+    connections: Pick<ConnectionService, 'findEntries' | 'writeEntries'>;
+    lockService: Pick<LockService, 'renew' | 'release'>;
     clock: IClock;
 };
 
@@ -100,7 +101,7 @@ export class ConnectionSession implements IConnectionSession {
         let renewed: boolean | undefined;
 
         try {
-            renewed = await this.opts.locks.renew(this.opts.lock, this.opts.owner, this.opts.leaseTtlMs);
+            renewed = await this.opts.lockService.renew(this.opts.lock, this.opts.owner, this.opts.leaseTtlMs);
         } catch {
             // a store hiccup is retried until the last confirmed expiry, where the deadline loses the session
             renewed = undefined;
@@ -251,7 +252,7 @@ export class ConnectionSession implements IConnectionSession {
             this.#dataKey.fill(0);
 
             try {
-                await this.opts.locks.release(this.opts.lock, this.opts.owner);
+                await this.opts.lockService.release(this.opts.lock, this.opts.owner);
             } catch {
                 // the lease then expires on its own after its ttl
             }

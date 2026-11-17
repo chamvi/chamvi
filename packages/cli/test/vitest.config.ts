@@ -25,7 +25,8 @@ export default defineConfig({
         alias: [
             { find: /^@chamvi\/access$/, replacement: source('access/src/index.ts') },
             { find: /^@chamvi\/core$/, replacement: source('core/src/index.ts') },
-            { find: /^@chamvi\/core\/conversation\/persistence$/, replacement: source('core/src/conversation/persistence/index.ts') },
+            { find: /^@chamvi\/store$/, replacement: source('store/src/index.ts') },
+            { find: /^@chamvi\/store-memory$/, replacement: source('store-memory/src/index.ts') },
             { find: /^@chamvi\/http$/, replacement: source('http/src/index.ts') },
             { find: /^@chamvi\/channel-cron$/, replacement: source('channel-cron/src/index.ts') },
             { find: /^@chamvi\/store-db$/, replacement: source('store-db/src/index.ts') },
@@ -38,6 +39,8 @@ export default defineConfig({
         ],
     },
     test: {
+        // PostgreSQL for the migration commands (skipped with a warning without Docker, outside CI)
+        globalSetup: ['test/global-setup.ts'],
         include: ['test/unit/**/*.{test,spec}.{js,ts}'],
         passWithNoTests: false,
         testTimeout: 30_000,

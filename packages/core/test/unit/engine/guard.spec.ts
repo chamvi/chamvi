@@ -12,10 +12,12 @@ import {
     it,
 } from 'vitest';
 import { Engine, defineModelAgent, defineSimpleAgent } from '@chamvi/core';
-import type { EngineOptions, IEngine, Run } from '@chamvi/core';
+import type { EngineOptions, IEngine } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import { createTestServices, servicesOf } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const answer = () => mockModel([{ parts: [{ type: 'text', text: 'done' }] }]);
 
@@ -54,7 +56,7 @@ afterEach(() => {
     engines.length = 0;
 });
 
-function make(opts: Partial<EngineOptions> & { store: ReturnType<typeof createMemoryStore>; clock: ControllableClock }) {
+function make(opts: Partial<EngineOptions> & { store: TestServiceSet; clock: ControllableClock }) {
     const errors: unknown[] = [];
     const engine = new HookedEngine({
         agents: [],
@@ -62,6 +64,7 @@ function make(opts: Partial<EngineOptions> & { store: ReturnType<typeof createMe
             errors.push(error);
         },
         ...opts,
+        ...servicesOf(opts.store),
     });
 
     engines.push(engine);
@@ -71,7 +74,7 @@ function make(opts: Partial<EngineOptions> & { store: ReturnType<typeof createMe
 
 function setup() {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
 
     return { clock, store };
 }
@@ -105,7 +108,7 @@ const env = (agent = 'triage') => ({
     payload: {},
 });
 
-const statusOf = async (store: ReturnType<typeof createMemoryStore>, id: string) => (await store.runs.findOne(id))?.status;
+const statusOf = async (store: TestServiceSet, id: string) => (await store.runService.findOne(id))?.status;
 
 /** One poll of the queue (claimTtlMs 60 s: every 20 s), then everything it started. */
 async function poll(engine: IEngine, clock: ControllableClock): Promise<void> {
@@ -128,14 +131,14 @@ describe('execution guard', () => {
             agents: [triage],
         });
 
-        await store.runs.insert(makeRun('r1'));
+        await store.runService.create(makeRun('r1'));
 
         await engine.start();
         await engine.idle();
         await poll(engine, clock);
 
         expect(await statusOf(store, 'r1')).toBe('queued');
-        expect((await store.runs.findOne('r1'))?.claim).toBeUndefined();
+        expect((await store.runService.findOne('r1'))?.claim).toBeUndefined();
         expect(errors).toEqual([]);
         expect(model.doStreamCalls).toHaveLength(0);
     });
@@ -169,7 +172,7 @@ describe('execution guard', () => {
 
         await b.putAgent(triageB, { revision: 'h1' });
         await a.putAgent(triageA, { revision: 'h2' });
-        expect((await store.agentRevisions.findOne('triage'))?.hash).toBe('h2');
+        expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe('h2');
 
         await b.start();
 
@@ -198,7 +201,7 @@ describe('execution guard', () => {
             instructions: 'x',
         });
 
-        await store.agentRevisions.save({
+        await store.agentRevisionService.save({
             agent: 'triage',
             hash: 'h9',
             changedAt: clock.now(),
@@ -229,7 +232,7 @@ describe('execution guard', () => {
             agents: [],
         });
 
-        await store.runs.insert(makeRun('r1', { cancelRequested: true }));
+        await store.runService.create(makeRun('r1', { cancelRequested: true }));
 
         await engine.start();
         await engine.idle();
@@ -266,7 +269,7 @@ describe('execution guard', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('queued');
         expect(run?.claim).toBeUndefined();
@@ -292,7 +295,7 @@ describe('execution guard', () => {
 
         await engine.putAgent(triage, { revision: 'h1' });
         engine.beforeExecute = async () => {
-            await store.agentRevisions.save({
+            await store.agentRevisionService.save({
                 agent: 'triage',
                 hash: 'h2',
                 changedAt: clock.now(),
@@ -344,7 +347,7 @@ describe('execution guard', () => {
 
         const { runId } = await b.dispatch({ ...env(), checked: triageB });
 
-        expect((await store.runs.findOne(runId))?.agentRevision).toBe('h1');
+        expect((await store.runService.findOne(runId))?.agentRevision).toBe('h1');
 
         await b.idle();
         await poll(b, clock);
@@ -365,7 +368,7 @@ describe('execution guard', () => {
         await a.idle();
         await poll(a, clock);
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('cancelled');
         expect(run?.error?.code).toBe('agent_replaced');
@@ -386,12 +389,12 @@ describe('execution guard', () => {
             instructions: 'x',
         });
 
-        await store.agentRevisions.save({
+        await store.agentRevisionService.save({
             agent: 'triage',
             hash: 'h1',
             changedAt: clock.now(),
         });
-        await store.runs.insert(makeRun('r1', {
+        await store.runService.create(makeRun('r1', {
             agent: 'triage',
             agentRevision: 'h1',
             trigger: { ...makeRun('r1').trigger, agent: 'triage' },
@@ -404,7 +407,7 @@ describe('execution guard', () => {
         });
 
         await engine.putAgent(triage, { revision: 'h2', formerRevision: 'h1' });
-        expect((await store.agentRevisions.findOne('triage'))?.hash).toBe('h2');
+        expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe('h2');
 
         await engine.start();
         await engine.idle();
@@ -455,7 +458,7 @@ describe('execution guard', () => {
 
         await engine.putAgent(triage, { revision: 'h1' });
         engine.beforeExecute = async (e) => {
-            await store.agentRevisions.save({
+            await store.agentRevisionService.save({
                 agent: 'triage',
                 hash: 'h2',
                 changedAt: clock.now(),
@@ -475,7 +478,7 @@ describe('execution guard', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('cancelled');
         expect(run?.error?.code).toBe('agent_replaced');
@@ -514,11 +517,11 @@ describe('execution guard', () => {
         const { runId } = await b.dispatch({ ...env(), checked: triage });
 
         // the stale cancel's write is held until drain() has started
-        const update = store.runs.update.bind(store.runs);
+        const update = store.runService.update.bind(store.runService);
         const held = Promise.withResolvers<void>();
         const entered = Promise.withResolvers<void>();
 
-        store.runs.update = async (...args) => {
+        store.runService.update = async (...args) => {
             if (args[0] === runId && args[1].status === 'cancelled') {
                 entered.resolve();
                 await held.promise;
@@ -563,9 +566,9 @@ describe('checked runs of a replaced agent', () => {
         const ran: string[] = [];
         const a = recorder(ran, 'A');
         const { engine, errors } = make({
-            store, 
-            clock, 
-            agents: [a], 
+            store,
+            clock,
+            agents: [a],
         });
 
         const { runId: checked } = await engine.dispatch({ ...env(), checked: a });
@@ -576,12 +579,12 @@ describe('checked runs of a replaced agent', () => {
         await engine.start();
         await engine.idle();
 
-        const run = await store.runs.findOne(checked);
+        const run = await store.runService.findOne(checked);
 
         expect(run?.status).toBe('cancelled');
         expect(run?.error?.code).toBe('agent_replaced');
         // an unchecked run of that millisecond runs on the replacement
-        expect((await store.runs.findOne(unchecked))?.output).toBe('B');
+        expect((await store.runService.findOne(unchecked))?.output).toBe('B');
         expect(ran).toEqual(['B']);
         expect(errors).toEqual([]);
     });
@@ -591,22 +594,22 @@ describe('checked runs of a replaced agent', () => {
         const ran: string[] = [];
         const a = recorder(ran, 'A');
         const { engine, errors } = make({
-            store, 
-            clock, 
-            agents: [a], 
+            store,
+            clock,
+            agents: [a],
         });
-        const insert = store.runs.insert.bind(store.runs);
-        const update = store.runs.update.bind(store.runs);
+        const insert = store.runService.create.bind(store.runService);
+        const update = store.runService.update.bind(store.runService);
         let failCancel = true;
 
         // the replacement lands while the run is inserted
-        store.runs.insert = async (...args) => {
+        store.runService.create = async (...args) => {
             await engine.putAgent(recorder(ran, 'B'));
 
             return insert(...args);
         };
         // the post-insert cancel fails once (a transient store error)
-        store.runs.update = async (...args) => {
+        store.runService.update = async (...args) => {
             if (failCancel && args[1].status === 'cancelled') {
                 failCancel = false;
 
@@ -618,14 +621,14 @@ describe('checked runs of a replaced agent', () => {
 
         const { runId } = await engine.dispatch({ ...env(), checked: a });
 
-        store.runs.insert = insert;
+        store.runService.create = insert;
         expect(await statusOf(store, runId)).toBe('queued');
         expect(errors).toHaveLength(1);
 
         await engine.start();
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('cancelled');
         expect(run?.error?.code).toBe('agent_replaced');
@@ -667,9 +670,9 @@ describe('checked runs of a replaced agent', () => {
         const ran: string[] = [];
         const folder = recorder(ran, 'folder');
         const { engine, errors } = make({
-            store, 
-            clock, 
-            agents: [], 
+            store,
+            clock,
+            agents: [],
         });
 
         await engine.putAgent(folder, { revision: 'h1' });
@@ -721,15 +724,15 @@ describe('checked runs of a replaced agent', () => {
         const ran: string[] = [];
         const a = recorder(ran, 'A');
         const { engine } = make({
-            store, 
-            clock, 
-            agents: [a], 
+            store,
+            clock,
+            agents: [a],
         });
-        const find = store.runs.find.bind(store.runs);
+        const find = store.runService.find.bind(store.runService);
         let runId: string | undefined;
 
         // the dispatch lands while the pass's listing is in flight, after its read
-        store.runs.find = async (...args) => {
+        store.runService.find = async (...args) => {
             const page = await find(...args);
 
             if (runId === undefined && args[0]?.status?.includes('queued')) {
@@ -743,7 +746,7 @@ describe('checked runs of a replaced agent', () => {
 
         await engine.start();
         await engine.idle();
-        store.runs.find = find;
+        store.runService.find = find;
 
         // a later pass sees the run and cancels it: the listing pass kept its entry
         await poll(engine, clock);

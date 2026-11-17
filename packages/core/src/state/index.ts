@@ -6,5 +6,6 @@
  */
 
 export { createAgentState } from './module.ts';
+export * from './service.ts';
 export * from './tools.ts';
 export type * from './types.ts';

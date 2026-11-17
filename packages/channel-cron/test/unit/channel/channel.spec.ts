@@ -15,14 +15,13 @@ import {
 } from 'vitest';
 import type { ChannelSubscription, IChannel, IEngine } from '@chamvi/core';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import type { CronChannelOptions } from '@chamvi/channel-cron';
 import { cron, cronChannel } from '@chamvi/channel-cron';
 import { textModel } from '../../utils/model.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 const agentWith = (channels: ChannelSubscription[], name = 'sweep') => defineModelAgent({
     name,
@@ -37,10 +36,10 @@ describe('cronChannel', () => {
     const make = (
         channels: IChannel<any, any>[],
         agents: ReturnType<typeof agentWith>[],
-        store = createMemoryStore(),
+        storage = createTestEngine({ agents: [] }),
     ) => {
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
+            replicaOf: storage,
             agents,
             channels,
             onError: () => {},
@@ -48,12 +47,12 @@ describe('cronChannel', () => {
 
         engines.push(engine);
 
-        return { engine, store };
+        return { engine, storage };
     };
 
     const quiet = (options: CronChannelOptions = {}) => cronChannel({ onError: () => {}, ...options });
 
-    const runs = async (store: ReturnType<typeof createMemoryStore>) => (await store.runs.find({})).data;
+    const runs = async (storage: IEngine) => (await storage.runService.find({})).data;
 
     beforeEach(() => {
         vi.useFakeTimers({ now: new Date('2026-03-01T07:59:30Z') });
@@ -74,15 +73,15 @@ describe('cronChannel', () => {
     });
 
     it('fires its subscriptions once the engine started it, through the channel', async () => {
-        const { engine, store } = make([quiet()], [agentWith([cron.on('* * * * *', { overlap: 'allow' })])]);
+        const { engine, storage } = make([quiet()], [agentWith([cron.on('* * * * *', { overlap: 'allow' })])]);
 
         await vi.advanceTimersByTimeAsync(60_000);
-        expect(await runs(store)).toHaveLength(0);
+        expect(await runs(storage)).toHaveLength(0);
 
         await engine.start();
         await vi.advanceTimersByTimeAsync(60_000);
 
-        const [run] = await runs(store);
+        const [run] = await runs(storage);
 
         expect(run?.trigger).toMatchObject({
             channel: 'cron',
@@ -95,7 +94,7 @@ describe('cronChannel', () => {
         const eu = quiet({ name: 'cron-eu' });
         // a channel named cron that schedules nothing: cron.on() subscriptions validate, but nobody fires them
         const idle: IChannel = { name: 'cron' };
-        const { engine, store } = make([eu, idle], [agentWith([
+        const { engine, storage } = make([eu, idle], [agentWith([
             eu.on('* * * * *', { overlap: 'allow', id: 'eu' }),
             cron.on('* * * * *', { overlap: 'allow', id: 'default' }),
         ])]);
@@ -104,7 +103,7 @@ describe('cronChannel', () => {
 
         await vi.advanceTimersByTimeAsync(120_000);
 
-        const fired = await runs(store);
+        const fired = await runs(storage);
 
         expect(fired).toHaveLength(2);
         expect(fired.map((run) => [run.trigger.trigger, run.trigger.channel])).toEqual([
@@ -114,39 +113,39 @@ describe('cronChannel', () => {
     });
 
     it('start({ channels: false }) schedules nothing', async () => {
-        const { engine, store } = make([quiet()], [agentWith([cron.on('* * * * *', { overlap: 'allow' })])]);
+        const { engine, storage } = make([quiet()], [agentWith([cron.on('* * * * *', { overlap: 'allow' })])]);
 
         await engine.start({ channels: false });
 
         await vi.advanceTimersByTimeAsync(120_000);
 
-        expect(await runs(store)).toHaveLength(0);
+        expect(await runs(storage)).toHaveLength(0);
     });
 
     it('drain() unschedules, a restart schedules once again', async () => {
-        const { engine, store } = make([quiet()], [agentWith([cron.on('* * * * *', { overlap: 'allow' })])]);
+        const { engine, storage } = make([quiet()], [agentWith([cron.on('* * * * *', { overlap: 'allow' })])]);
 
         await engine.start();
         await engine.drain();
 
         await vi.advanceTimersByTimeAsync(120_000);
-        expect(await runs(store)).toHaveLength(0);
+        expect(await runs(storage)).toHaveLength(0);
 
         await engine.start();
         await engine.start();
         await vi.advanceTimersByTimeAsync(60_000);
-        expect(await runs(store)).toHaveLength(1);
+        expect(await runs(storage)).toHaveLength(1);
     });
 
     it('follows agents registered after start', async () => {
-        const { engine, store } = make([quiet()], []);
+        const { engine, storage } = make([quiet()], []);
 
         await engine.start();
 
         await engine.putAgent(agentWith([cron.on('* * * * *', { overlap: 'allow' })]));
         await vi.advanceTimersByTimeAsync(60_000);
 
-        expect(await runs(store)).toHaveLength(1);
+        expect(await runs(storage)).toHaveLength(1);
     });
 
     it('fails engine.start() for a subscription of an agent passed in code hubwire cannot schedule', async () => {
@@ -174,10 +173,10 @@ describe('cronChannel', () => {
 
     it('reports a failing lock with agent and subscription and keeps ticking', async () => {
         const error = new Error('lock store down');
-        const store = createMemoryStore();
-        const acquire = store.locks.acquire.bind(store.locks);
+        const storage = createTestEngine({ agents: [] });
+        const acquire = storage.lockService.acquire.bind(storage.lockService);
 
-        vi.spyOn(store.locks, 'acquire')
+        vi.spyOn(storage.lockService, 'acquire')
             .mockRejectedValueOnce(error)
             .mockImplementation(acquire);
 
@@ -185,30 +184,30 @@ describe('cronChannel', () => {
         const { engine } = make(
             [cronChannel({ onError })],
             [agentWith([cron.on('* * * * *', { overlap: 'allow' })])],
-            store,
+            storage,
         );
 
         await engine.start();
 
         await vi.advanceTimersByTimeAsync(60_000);
         expect(onError).toHaveBeenCalledWith(error, { agent: 'sweep', subscription: 'cron:* * * * *' });
-        expect(await runs(store)).toHaveLength(0);
+        expect(await runs(storage)).toHaveLength(0);
 
         await vi.advanceTimersByTimeAsync(60_000);
-        expect(await runs(store)).toHaveLength(1);
+        expect(await runs(storage)).toHaveLength(1);
     });
 
     it('two replicas on one store dispatch once per tick', async () => {
-        const store = createMemoryStore();
+        const storage = createTestEngine({ agents: [] });
         const agent = agentWith([cron.on('* * * * *', { overlap: 'allow' })]);
-        const a = make([quiet({ owner: 'a' })], [agent], store);
-        const b = make([quiet({ owner: 'b' })], [agent], store);
+        const a = make([quiet({ owner: 'a' })], [agent], storage);
+        const b = make([quiet({ owner: 'b' })], [agent], storage);
 
         await a.engine.start();
         await b.engine.start();
 
         await vi.advanceTimersByTimeAsync(60_000);
-        expect(await runs(store)).toHaveLength(1);
+        expect(await runs(storage)).toHaveLength(1);
     });
 
     it('refuses an invalid lockTtlMs when built', () => {

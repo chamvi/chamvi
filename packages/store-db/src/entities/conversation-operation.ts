@@ -14,7 +14,7 @@ import {
     PrimaryColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import type { ConversationNoteResult } from '@chamvi/core';
+import type { ConversationOperationRecord } from '@chamvi/store';
 import { TableName } from './constants.ts';
 import { ConversationEntity } from './conversation.ts';
 import { RunEntity } from './run.ts';
@@ -53,7 +53,7 @@ export class ConversationOperationEntity {
     inputHash!: string;
 
     @Column({ type: 'text' })
-    kind!: ConversationNoteResult['kind'];
+    kind!: ConversationOperationRecord['kind'];
 
     @Column({ type: 'text', collation: 'C' })
     // Receipts survive note deletion, so this is result metadata rather than a note foreign key.

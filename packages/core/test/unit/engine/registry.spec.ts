@@ -16,7 +16,6 @@ import { simulateReadableStream } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 import {
     AgentNotFoundError,
-    Engine,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     defineModelAgent,
@@ -25,15 +24,15 @@ import {
 import type {
     AgentChange,
     AgentRunsCancelled,
-    EngineOptions,
     IEngine,
-    IRunRepository,
-    IStore,
-    Run,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
-import { MemoryAgentRevisionRepository, createMemoryStore } from '../../../src/repository/index.ts';
+import { AgentRevisionService } from '../../../src/agent-revision/index.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestEngineOptions, TestServices } from '../../utils/engine.ts';
+import type { RunService } from '../../../src/run/index.ts';
 
 const model = mockModel([]);
 const triage = defineModelAgent({
@@ -47,16 +46,16 @@ const digest = defineModelAgent({
     instructions: 'y',
 });
 
-class CountingAgentRevisionRepository extends MemoryAgentRevisionRepository {
+class CountingAgentRevisionService extends AgentRevisionService {
     revisionWrites = 0;
 
-    override async save(...args: Parameters<MemoryAgentRevisionRepository['save']>) {
+    override async save(...args: Parameters<AgentRevisionService['save']>) {
         this.revisionWrites++;
 
         return super.save(...args);
     }
 
-    override async delete(...args: Parameters<MemoryAgentRevisionRepository['delete']>) {
+    override async delete(...args: Parameters<AgentRevisionService['delete']>) {
         this.revisionWrites++;
 
         return super.delete(...args);
@@ -64,8 +63,8 @@ class CountingAgentRevisionRepository extends MemoryAgentRevisionRepository {
 }
 
 function createCountingStore(options: { clock: ControllableClock }) {
-    const store = createMemoryStore(options);
-    const { runs }: { runs: IRunRepository & { failing?: string } } = store;
+    const store = createTestServices({ ...options, agentRevisionService: (ctx) => new CountingAgentRevisionService(ctx) });
+    const runs: RunService & { failing?: string } = store.runService;
     const update = runs.update.bind(runs);
 
     runs.update = async (...args) => {
@@ -78,8 +77,8 @@ function createCountingStore(options: { clock: ControllableClock }) {
 
     return {
         ...store,
-        runs,
-        agentRevisions: new CountingAgentRevisionRepository(),
+        runService: runs,
+        agentRevisionService: store.agentRevisionService as CountingAgentRevisionService,
     };
 }
 
@@ -93,13 +92,13 @@ afterEach(() => {
     engines.length = 0;
 });
 
-function make(opts: Partial<EngineOptions> & { store?: ReturnType<typeof createCountingStore>; clock?: ControllableClock } = {}) {
+function make(opts: Partial<TestEngineOptions> & { store?: ReturnType<typeof createCountingStore>; clock?: ControllableClock } = {}) {
     const clock = opts.clock ?? new ControllableClock(new Date(1_000_000));
     const store = opts.store ?? createCountingStore({ clock });
     const changes: AgentChange[] = [];
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [triage],
         onError: (error) => {
@@ -130,7 +129,7 @@ const env = (agent = 'triage') => ({
 });
 
 /** Stores a run parked on an approval, as a paused execution leaves it. */
-async function parkWaiting(store: IStore, clock: ControllableClock, id: string, agent = 'triage'): Promise<void> {
+async function parkWaiting(store: TestServices, clock: ControllableClock, id: string, agent = 'triage'): Promise<void> {
     const now = clock.now();
     const run: Run = {
         id,
@@ -155,7 +154,7 @@ async function parkWaiting(store: IStore, clock: ControllableClock, id: string, 
         updatedAt: now,
     };
 
-    await store.runs.insert(run);
+    await store.runService.create(run);
 }
 
 const statusOf = async (engine: IEngine, id: string) => (await engine.getRun(id))?.status;
@@ -238,7 +237,7 @@ describe('Engine agent registry', () => {
         clock.advance(1_000);
         await engine.putAgent(triage, { revision: 'h1' });
         expect(await statusOf(engine, runId)).toBe('queued');
-        expect(await store.agentRevisions.findOne('triage')).toEqual({
+        expect(await store.agentRevisionService.findOne('triage')).toEqual({
             agent: 'triage',
             hash: 'h1',
             changedAt: clock.now(),
@@ -272,7 +271,7 @@ describe('Engine agent registry', () => {
 
         const changedAt = clock.now();
 
-        expect(await store.agentRevisions.findOne('triage')).toEqual({
+        expect(await store.agentRevisionService.findOne('triage')).toEqual({
             agent: 'triage',
             hash: 'h2',
             changedAt,
@@ -284,7 +283,7 @@ describe('Engine agent registry', () => {
 
         await b.engine.putAgent(next, { revision: 'h2' });
         expect(await statusOf(b.engine, fresh)).toBe('queued');
-        expect(await store.agentRevisions.findOne('triage')).toEqual({
+        expect(await store.agentRevisionService.findOne('triage')).toEqual({
             agent: 'triage',
             hash: 'h2',
             changedAt,
@@ -302,11 +301,11 @@ describe('Engine agent registry', () => {
 
         await engine.putAgent(triage, { revision: 'h1' });
 
-        const writes = store.agentRevisions.revisionWrites;
+        const writes = store.agentRevisionService.revisionWrites;
 
         changes.length = 0;
         await expect(engine.putAgent(triage, { revision: 'h1' })).resolves.toBe('unchanged');
-        expect(store.agentRevisions.revisionWrites).toBe(writes);
+        expect(store.agentRevisionService.revisionWrites).toBe(writes);
         expect(changes).toEqual([]);
     });
 
@@ -317,7 +316,7 @@ describe('Engine agent registry', () => {
             clock,
         } = make();
 
-        await store.locks.acquire('agents:triage', 'someone', 600_000);
+        await store.lockService.acquire('agents:triage', 'someone', 600_000);
 
         const put = engine.putAgent(triage, { revision: 'h1' });
         let outcome: unknown;
@@ -337,7 +336,7 @@ describe('Engine agent registry', () => {
 
         expect(outcome).toBeInstanceOf(Error);
         expect((outcome as Error).name).toBe('InvalidRunStateError');
-        expect(await store.agentRevisions.findOne('triage')).toBeUndefined();
+        expect(await store.agentRevisionService.findOne('triage')).toBeUndefined();
         expect(engine.agentRevision('triage')).toBeUndefined();
     });
 
@@ -362,7 +361,7 @@ describe('Engine agent registry', () => {
         expect(await statusOf(engine, runId)).toBe('cancelled');
         expect(await statusOf(engine, 'waiting-run')).toBe('cancelled');
         expect(await statusOf(engine, other)).toBe('queued');
-        expect(await store.agentRevisions.findOne('triage')).toBeUndefined();
+        expect(await store.agentRevisionService.findOne('triage')).toBeUndefined();
         expect(engine.listAgents()).toEqual([digest]);
         expect(engine.agentRevision('triage')).toBeUndefined();
         expect(changes).toEqual([{
@@ -404,10 +403,10 @@ describe('Engine agent registry', () => {
         await expect(other.engine.removeAgent('triage')).resolves.toBe(false);
         expect(await statusOf(other.engine, 'waiting-run')).toBe('cancelled');
 
-        const { data } = await store.runs.find({ agent: 'triage' });
+        const { data } = await store.runService.find({ agent: 'triage' });
 
         expect(data.map((r) => r.status)).toEqual(['cancelled', 'cancelled']);
-        expect(await store.agentRevisions.findOne('triage')).toBeUndefined();
+        expect(await store.agentRevisionService.findOne('triage')).toBeUndefined();
         expect(other.changes).toEqual([]);
     });
 
@@ -419,7 +418,7 @@ describe('Engine agent registry', () => {
         } = make();
 
         await expect(engine.removeAgent('nope')).resolves.toBe(false);
-        expect(store.agentRevisions.revisionWrites).toBe(0);
+        expect(store.agentRevisionService.revisionWrites).toBe(0);
         expect(changes).toEqual([]);
     });
 
@@ -427,7 +426,7 @@ describe('Engine agent registry', () => {
         const clock = new ControllableClock(new Date(1_000_000));
         const store = createCountingStore({ clock });
 
-        store.runs.failing = 'broken';
+        store.runService.failing = 'broken';
 
         const { engine, errors } = make({ store, clock });
 
@@ -446,7 +445,7 @@ describe('Engine agent registry', () => {
         expect(error).toBeInstanceOf(AgentNotFoundError);
         expect((error as AgentNotFoundError).code).toBe('agent_not_found');
         expect((error as Error).message).toBe('unknown agent: nope');
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
     });
 });
 
@@ -644,7 +643,7 @@ describe('cancel reasons', () => {
         await vi.waitFor(() => expect(gated.calls()).toBe(1));
         clock.advance(1);
         await b.engine.putAgent(next, { revision: revB });
-        expect(await store.runs.findOne(runId)).toMatchObject({
+        expect(await store.runService.findOne(runId)).toMatchObject({
             status: 'running',
             cancelRequested: true,
             error: replacedError,
@@ -653,10 +652,10 @@ describe('cancel reasons', () => {
         await vi.waitFor(async () => {
             clock.advance(300);
             await flush();
-            expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+            expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
         });
         await a.engine.idle();
-        expect(await store.runs.findOne(runId)).toMatchObject({ status: 'cancelled', error: replacedError });
+        expect(await store.runService.findOne(runId)).toMatchObject({ status: 'cancelled', error: replacedError });
     });
 
     it('a run that completes despite a cancel request ends without an error', async () => {
@@ -690,11 +689,11 @@ describe('cancel reasons', () => {
         await vi.waitFor(() => expect(gated.calls()).toBe(1));
         clock.advance(1);
         await b.engine.putAgent(next, { revision: revB });
-        expect((await store.runs.findOne(runId))?.error).toEqual(replacedError);
+        expect((await store.runService.findOne(runId))?.error).toEqual(replacedError);
         gated.release();
         await a.engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.error).toBeUndefined();
@@ -809,7 +808,7 @@ describe('checkAgent and putAgent reload: false', () => {
 
         await expect(engine.putAgent(next, { revision: revA, reload: false })).resolves.toBe('replaced');
         expect(await statusOf(engine, runId)).toBe('queued');
-        expect((await store.agentRevisions.findOne('triage'))?.hash).toBe(revA);
+        expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe(revA);
     });
 
     it('reload: false keeps an equal marker', async () => {
@@ -817,12 +816,12 @@ describe('checkAgent and putAgent reload: false', () => {
 
         await engine.putAgent(triage, { revision: revA });
 
-        const before = await store.agentRevisions.findOne('triage');
-        const writes = store.agentRevisions.revisionWrites;
+        const before = await store.agentRevisionService.findOne('triage');
+        const writes = store.agentRevisionService.revisionWrites;
 
         await engine.putAgent(next, { revision: revA, reload: false });
-        expect(await store.agentRevisions.findOne('triage')).toEqual(before);
-        expect(store.agentRevisions.revisionWrites).toBe(writes);
+        expect(await store.agentRevisionService.findOne('triage')).toEqual(before);
+        expect(store.agentRevisionService.revisionWrites).toBe(writes);
     });
 
     it('reload: false moves a different marker when the agent has no unsettled runs', async () => {
@@ -847,7 +846,7 @@ describe('checkAgent and putAgent reload: false', () => {
             cancelled.push(e);
         });
         await expect(engine.putAgent(next, { revision: revB, reload: false })).resolves.toBe('replaced');
-        expect((await store.agentRevisions.findOne('triage'))?.hash).toBe(revB);
+        expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe(revB);
         expect(engine.agentRevision('triage')).toBe(revB);
         expect(cancelled).toEqual([]);
         expect(changes).toEqual([{
@@ -876,7 +875,7 @@ describe('checkAgent and putAgent reload: false', () => {
         await expect(engine.putAgent(next, { revision: revB, reload: false })).rejects.toThrow(
             'Agent "triage" runs revision aaaaaaaaaaaa in the store, not bbbbbbbbbbbb; this process does not reload agents.',
         );
-        expect((await store.agentRevisions.findOne('triage'))?.hash).toBe(revA);
+        expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe(revA);
         expect(await statusOf(engine, runId)).toBe('queued');
         expect(engine.getAgent('triage')).toBeUndefined();
         expect(changes).toEqual([]);
@@ -936,7 +935,7 @@ describe('putAgent formerRevision', () => {
             formerRevision: revA,
             reload,
         })).resolves.toBe('added');
-        expect((await store.agentRevisions.findOne('triage'))?.hash).toBe(revB);
+        expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe(revB);
         expect(await statusOf(engine, runId)).toBe('queued');
         expect(cancelled).toEqual([]);
         expect(engine.agentRevision('triage')).toBe(revB);
@@ -960,7 +959,7 @@ describe('putAgent formerRevision', () => {
         });
 
         await engine.putAgent(next, { revision: revB, formerRevision: revA });
-        expect((await store.agentRevisions.findOne('triage'))?.hash).toBe(revB);
+        expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe(revB);
         expect(await statusOf(engine, runId)).toBe('cancelled');
     });
 });
@@ -974,14 +973,14 @@ describe('run revision stamp', () => {
         const plain = await engine.dispatch(env());
         const checked = await engine.dispatch({ ...env(), checked: triage });
 
-        expect(await store.runs.findOne(plain.runId)).not.toHaveProperty('agentRevision');
-        expect((await store.runs.findOne(checked.runId))?.agentRevision).toBe('h1');
+        expect(await store.runService.findOne(plain.runId)).not.toHaveProperty('agentRevision');
+        expect((await store.runService.findOne(checked.runId))?.agentRevision).toBe('h1');
     });
 
     it('a code agent\'s run carries no stamp', async () => {
         const { engine, store } = make();
         const { runId } = await engine.dispatch({ ...env(), checked: triage });
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run).toBeDefined();
         expect(run).not.toHaveProperty('agentRevision');

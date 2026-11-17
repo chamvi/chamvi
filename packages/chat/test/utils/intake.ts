@@ -7,16 +7,16 @@
 
 
 import { Chat } from 'chat';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import type {
     Agent,
     ConversationAccess,
-    IStore,
-    Run,
+    Engine,
+    RunService,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
 import type { ChatChannel, ChatChannelOptions, ChatIngress } from '@chamvi/chat';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { createFakeAdapter } from './adapter.ts';
 import type { FakeAdapter } from './adapter.ts';
 import { createMemoryState, createRecordingLogger } from './chat.ts';
@@ -29,7 +29,6 @@ export type IntakeFixture = {
     adapters: FakeAdapter[];
     chat: Chat;
     clock: ControllableClock;
-    store: IStore;
     engine: Engine;
     channel: ChatChannel;
     /** what the channel's onError got */
@@ -44,8 +43,8 @@ export type IntakeFixture = {
 export type IntakeFixtureInput = {
     agents: (channel: ChatChannel) => Agent[];
     patch?: Partial<ChatChannelOptions>;
-    /** replaces the memory store (a recording or failing proxy over it) */
-    store?: (store: ReturnType<typeof createMemoryStore>) => IStore;
+    /** replaces the run service's create (a recording or failing wrapper around it) */
+    create?: (create: RunService['create']) => RunService['create'];
     /** the conversation policy; default allow */
     authorize?: (access: ConversationAccess) => boolean | Promise<boolean>;
     /** the adapters' names; default one adapter `fake` */
@@ -79,10 +78,7 @@ export function createIntakeFixture(input: IntakeFixtureInput): IntakeFixture {
         ...input.patch,
     };
     const channel = chatChannel(options);
-    const memory = createMemoryStore({ clock });
-    const store = input.store ? input.store(memory) : memory;
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: input.agents(channel),
         channels: [channel],
         clock,
@@ -98,19 +94,22 @@ export function createIntakeFixture(input: IntakeFixtureInput): IntakeFixture {
         },
     });
 
+    if (input.create) {
+        engine.runService.create = input.create(engine.runService.create.bind(engine.runService));
+    }
+
     return {
         adapter,
         ingress,
         adapters,
         chat,
         clock,
-        store,
         engine,
         channel,
         errors,
         engineErrors,
         access,
-        runs: async () => (await memory.runs.find({})).data,
+        runs: async () => (await engine.runService.find({})).data,
     };
 }
 

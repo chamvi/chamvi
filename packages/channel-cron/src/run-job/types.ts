@@ -5,11 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    Agent,
-    IEngine,
-    RunStatusLiteral,
-} from '@chamvi/core';
+import type { Agent, IEngine } from '@chamvi/core';
+import type { RunStatusLiteral } from '@chamvi/store';
 
 export type RunJobOptions = {
     /**

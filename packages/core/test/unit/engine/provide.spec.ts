@@ -15,7 +15,6 @@ import {
 import { z } from 'zod';
 import {
     ContextNotProvidedError,
-    Engine,
     InvalidAgentDefinitionError,
     defineContextKey,
     defineEffectTool,
@@ -33,9 +32,10 @@ import type {
     ToolContext,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet, TestServices } from '../../utils/engine.ts';
 
 type Service = { id: string };
 
@@ -60,7 +60,7 @@ const callTool = (toolName: string, input: unknown = {}): MockResponse => ({
 
 function setup(model: LanguageModel, tools: AgentDefinition['tools']) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const errors: unknown[] = [];
     const agent = defineModelAgent({
         name: 'ops',
@@ -68,8 +68,8 @@ function setup(model: LanguageModel, tools: AgentDefinition['tools']) {
         model,
         tools,
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [agent],
         clock,
         claimTtlMs: 30,
@@ -88,7 +88,7 @@ function setup(model: LanguageModel, tools: AgentDefinition['tools']) {
     };
 }
 
-async function runOn(engine: IEngine, store: ReturnType<typeof createMemoryStore>) {
+async function runOn(engine: IEngine, store: TestServiceSet) {
     const { runId } = await engine.dispatch({
         agent: 'ops',
         trigger: 'http',
@@ -98,11 +98,11 @@ async function runOn(engine: IEngine, store: ReturnType<typeof createMemoryStore
 
     await engine.idle();
 
-    return { runId, run: await store.runs.findOne(runId) };
+    return { runId, run: await store.runService.findOne(runId) };
 }
 
-async function toolStep(store: ReturnType<typeof createMemoryStore>, runId: string, name: string) {
-    return (await store.steps.find(runId)).find((s) => s.kind === 'tool' && s.name === name);
+async function toolStep(store: TestServices, runId: string, name: string) {
+    return (await store.stepService.find(runId)).find((s) => s.kind === 'tool' && s.name === name);
 }
 
 describe('engine.provide', () => {
@@ -256,9 +256,9 @@ describe('engine.provide', () => {
             },
         });
         const {
-            engine, 
-            store, 
-            clock, 
+            engine,
+            store,
+            clock,
         } = setup(mockModel([callTool('read'), text('done')]), { read });
 
         await engine.start();
@@ -451,9 +451,9 @@ describe('engine.provide', () => {
         const secret = 'sekr3t-ctx-value';
 
         expect(JSON.stringify(ctx.run)).not.toContain(secret);
-        expect(JSON.stringify(await store.steps.find(runId))).not.toContain(secret);
-        expect(JSON.stringify(await store.checkpoints.findOne(runId))).not.toContain(secret);
-        expect(JSON.stringify(await store.runs.findOne(runId))).not.toContain(secret);
+        expect(JSON.stringify(await store.stepService.find(runId))).not.toContain(secret);
+        expect(JSON.stringify(await store.checkpointService.findOne(runId))).not.toContain(secret);
+        expect(JSON.stringify(await store.runService.findOne(runId))).not.toContain(secret);
     });
 
     it('the same key on two engines', async () => {

@@ -14,7 +14,7 @@ import {
 import { Permission } from '@chamvi/access';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { z } from 'zod';
-import { createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { http, staticTokens } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -39,7 +39,7 @@ describe('POST /agents/:name/runs', () => {
 
         expect(body).toEqual({ runId: expect.any(String), deduplicated: false });
 
-        const run = await store.runs.findOne(body.runId);
+        const run = await store.runService.findOne(body.runId);
 
         expect(run?.trigger).toMatchObject({
             channel: 'http',
@@ -56,7 +56,7 @@ describe('POST /agents/:name/runs', () => {
 
         const { runId } = await response.json() as { runId: string };
 
-        expect((await store.runs.findOne(runId))?.trigger.payload).toBeUndefined();
+        expect((await store.runService.findOne(runId))?.trigger.payload).toBeUndefined();
     });
 
     it('dedupes by idempotencyKey in the body', async () => {
@@ -92,7 +92,7 @@ describe('POST /agents/:name/runs', () => {
 
         expect(second.deduplicated).toBe(false);
         expect(second.runId).not.toBe(first.runId);
-        expect((await store.runs.findOne(second.runId))?.trigger.invoker?.id).toBe('u-high');
+        expect((await store.runService.findOne(second.runId))?.trigger.invoker?.id).toBe('u-high');
         expect(await start(high)).toEqual({ runId: second.runId, deduplicated: true });
     });
 
@@ -213,7 +213,7 @@ describe('POST /agents/:name/runs', () => {
 
         expect(response.status).toBe(400);
         expect((await response.json()).issues[0].path).toEqual(['n']);
-        expect((await store.runs.find({ agent: 'typed' })).total).toBe(0);
+        expect((await store.runService.find({ agent: 'typed' })).total).toBe(0);
     });
 
     describe('attachments', () => {
@@ -242,7 +242,7 @@ describe('POST /agents/:name/runs', () => {
 
             const { runId } = await response.json() as { runId: string };
 
-            const run = await store.runs.findOne(runId);
+            const run = await store.runService.findOne(runId);
 
             expect(run?.trigger.attachments).toHaveLength(2);
 
@@ -256,9 +256,9 @@ describe('POST /agents/:name/runs', () => {
                 size: 5,
             });
             expect(second).not.toHaveProperty('filename');
-            expect(new TextDecoder().decode(await store.artifacts.read(first!.id))).toBe('alpha');
-            expect(new TextDecoder().decode(await store.artifacts.read(second!.id))).toBe('beta');
-            expect(await store.artifacts.find(runId)).toHaveLength(2);
+            expect(new TextDecoder().decode(await store.artifactService.read(first!.id))).toBe('alpha');
+            expect(new TextDecoder().decode(await store.artifactService.read(second!.id))).toBe('beta');
+            expect(await store.artifactService.find(runId)).toHaveLength(2);
         });
 
         it('takes an empty list as none', async () => {
@@ -269,7 +269,7 @@ describe('POST /agents/:name/runs', () => {
 
             const { runId } = await response.json() as { runId: string };
 
-            expect((await store.runs.findOne(runId))?.trigger.attachments).toBeUndefined();
+            expect((await store.runService.findOne(runId))?.trigger.attachments).toBeUndefined();
         });
 
         it('accepts at most 16 attachments', async () => {
@@ -306,7 +306,7 @@ describe('POST /agents/:name/runs', () => {
 
             expect(body.code).toBe('validation_error');
             expect(body.issues.map((i: { path: unknown }) => i.path)).toContainEqual(path);
-            expect((await store.runs.find({ agent: 'echo' })).total).toBe(0);
+            expect((await store.runService.find({ agent: 'echo' })).total).toBe(0);
         });
 
         it.each([['str'], [{ 0: 1 }], [null], [[1]]])('rejects attachments %j', async (attachments) => {
@@ -355,7 +355,7 @@ describe('POST /agents/:name/runs', () => {
             const second = await (await call(app, 'POST', '/agents/echo/runs', { token: ADMIN_TOKEN, body })).json();
 
             expect(second).toEqual({ runId: first.runId, deduplicated: true });
-            expect(await store.artifacts.find(first.runId)).toHaveLength(1);
+            expect(await store.artifactService.find(first.runId)).toHaveLength(1);
         });
 
         it('stays bounded by bodyLimit', async () => {
@@ -438,7 +438,7 @@ describe('POST /agents/:name/runs with an agent replaced during the request', ()
         const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
 
         expect(response.status).toBe(403);
-        expect((await store.runs.find({})).data).toEqual([]);
+        expect((await store.runService.find({})).data).toEqual([]);
     });
 
     it('validates the payload against the replacement\'s schema', async () => {
@@ -452,7 +452,7 @@ describe('POST /agents/:name/runs with an agent replaced during the request', ()
         const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
 
         expect(response.status).toBe(400);
-        expect((await store.runs.find({})).data).toEqual([]);
+        expect((await store.runService.find({})).data).toEqual([]);
     });
 
     it('starts the replacement when it is still allowed', async () => {
@@ -466,13 +466,15 @@ describe('POST /agents/:name/runs with an agent replaced during the request', ()
         const response = await call(app, 'POST', '/agents/swap/runs', { token: PUBLIC_RUNNER, body: { payload: { n: 1 } } });
 
         expect(response.status).toBe(202);
-        expect((await store.runs.find({})).data).toHaveLength(1);
+        expect((await store.runService.find({})).data).toHaveLength(1);
     });
 
     it('answers 409 agent_replaced while a replacement of the agent is still in flight', async () => {
-        const store = createMemoryStore();
-        const { app, engine } = createTestApp({
+        const {
+            app,
+            engine,
             store,
+        } = createTestApp({
             agents: [defineModelAgent({
                 name: 'swap',
                 model: textModel(),
@@ -481,11 +483,11 @@ describe('POST /agents/:name/runs with an agent replaced during the request', ()
             })],
         });
         // the replacement's sweep reads the agent's unsettled runs first: held there, it stays in flight
-        const find = store.runs.find.bind(store.runs);
+        const find = store.runService.find.bind(store.runService);
         const held = Promise.withResolvers<void>();
         const entered = Promise.withResolvers<void>();
 
-        store.runs.find = async (...args) => {
+        store.runService.find = async (...args) => {
             entered.resolve();
             await held.promise;
 
@@ -506,10 +508,10 @@ describe('POST /agents/:name/runs with an agent replaced during the request', ()
         expect(response.status).toBe(409);
         expect(await response.json()).toMatchObject({ code: 'agent_replaced' });
 
-        store.runs.find = find;
+        store.runService.find = find;
         held.resolve();
         await replacing;
 
-        expect((await store.runs.find({})).data).toEqual([]);
+        expect((await store.runService.find({})).data).toEqual([]);
     });
 });

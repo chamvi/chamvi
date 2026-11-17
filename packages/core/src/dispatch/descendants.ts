@@ -5,9 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RunStatus } from '../run/constants.ts';
-import type { Run, RunStatusLiteral } from '../run/types.ts';
-import type { IRunRepository } from '../repository/types.ts';
+import { RunStatus } from '@chamvi/store';
+import type { Run, RunStatusLiteral } from '@chamvi/store';
+import type { RunService } from '../run/service.ts';
 import { DISPATCH_DEPTH_MAX } from './constants.ts';
 
 /** Statuses of a run that may still reach an approval wait. */
@@ -26,7 +26,7 @@ function isApprovalWait(run: Run): boolean {
  * Each run once, at most `DISPATCH_DEPTH_MAX` levels, a settled run's
  * subtree skipped. `run` itself is never the answer.
  */
-export async function findApprovalWaitBelow(store: Pick<IRunRepository, 'find'>, run: Run): Promise<Run | undefined> {
+export async function findApprovalWaitBelow(runs: Pick<RunService, 'find'>, run: Run): Promise<Run | undefined> {
     const visited = new Set([run.id]);
     let level = [run];
 
@@ -49,7 +49,7 @@ export async function findApprovalWaitBelow(store: Pick<IRunRepository, 'find'>,
             return undefined;
         };
 
-        const { data: children } = await store.find({ parentRunIds: level.map((r) => r.id), status: UNSETTLED });
+        const { data: children } = await runs.find({ parentRunIds: level.map((r) => r.id), status: UNSETTLED });
         const child = take(children);
 
         if (child) {
@@ -60,7 +60,7 @@ export async function findApprovalWaitBelow(store: Pick<IRunRepository, 'find'>,
         const named = [...new Set(level.flatMap((r) => (r.waiting?.kind === 'dispatch' ? r.waiting.runIds : []))).difference(visited)];
 
         if (named.length > 0) {
-            const found = take((await store.find({ ids: named, status: UNSETTLED })).data);
+            const found = take((await runs.find({ ids: named, status: UNSETTLED })).data);
 
             if (found) {
                 return found;

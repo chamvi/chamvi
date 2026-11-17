@@ -13,15 +13,14 @@ import {
     DEFAULT_DISPATCH_WAIT_TIMEOUT_MS,
     DEFAULT_MAX_DISPATCHES_PER_RUN,
     DISPATCH_DEPTH_MAX,
-    Engine,
     InvalidAgentDefinitionError,
     agent,
     agentChannel,
     defineModelAgent,
 } from '@chamvi/core';
 import type { ChannelSubscription } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const define = (channels: ChannelSubscription<any>[]) => defineModelAgent({
     name: 'maintainer',
@@ -132,15 +131,15 @@ describe('agent.on()', () => {
     });
 
     it('an agent subscribing without agentChannel() is refused', () => {
-        const store = createMemoryStore();
+        const store = createTestServices();
 
-        expect(() => new Engine({
-            store,
+        expect(() => createTestEngine({
+            services: store,
             agents: [define([agent.on()])],
             channels: [],
         })).toThrow(/unknown channel "agent"/);
-        expect(() => new Engine({
-            store,
+        expect(() => createTestEngine({
+            services: store,
             agents: [define([agent.on()])],
             channels: [agentChannel()],
         })).not.toThrow();
@@ -161,8 +160,8 @@ describe('agent.on()', () => {
             options,
         };
 
-        expect(() => new Engine({
-            store: createMemoryStore(),
+        expect(() => createTestEngine({
+            services: createTestServices(),
             agents: [define([subscription])],
             channels: [agentChannel()],
         })).toThrow(message);
@@ -175,8 +174,8 @@ describe('agent.on()', () => {
             options: {},
         };
 
-        expect(() => new Engine({
-            store: createMemoryStore(),
+        expect(() => createTestEngine({
+            services: createTestServices(),
             agents: [define([subscription])],
             channels: [agentChannel()],
         })).toThrow(InvalidAgentDefinitionError);
@@ -185,8 +184,8 @@ describe('agent.on()', () => {
     it('refuses a role hook that is no function', () => {
         expect(() => agent.on({ role: 'pr', address: 'o/r#1' as never })).toThrow('agent.on(): address must be a function.');
         expect(() => agent.on({ role: 'pr', concurrencyKey: 1 as never })).toThrow(InvalidAgentDefinitionError);
-        expect(() => new Engine({
-            store: createMemoryStore(),
+        expect(() => createTestEngine({
+            services: createTestServices(),
             agents: [define([{
                 channel: 'agent',
                 id: 'pr',

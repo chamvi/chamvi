@@ -17,10 +17,10 @@ import {
 } from 'vitest';
 import { MockLanguageModelV4 } from 'ai/test';
 import { z } from 'zod';
-import { Engine, defineModelAgent } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import { defineModelAgent } from '@chamvi/core';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -46,7 +46,7 @@ function make(model: LanguageModel, opts: {
     maxSteps?: number;
     output?: typeof output
 } = {}) {
-    const store = createMemoryStore();
+    const store = createTestServices();
     const agent = defineModelAgent({
         name: 'triage',
         instructions: 'You triage.',
@@ -55,8 +55,8 @@ function make(model: LanguageModel, opts: {
         output: 'output' in opts ? opts.output : output,
         ...(opts.maxSteps ? { budget: { maxSteps: opts.maxSteps } } : {}),
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [agent],
         onError: () => {},
     });
@@ -75,7 +75,7 @@ async function runOnce(model: LanguageModel, opts: Parameters<typeof make>[1] = 
 
     await engine.idle();
 
-    return store.runs.findOne(runId);
+    return store.runService.findOne(runId);
 }
 
 const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] });
@@ -182,7 +182,7 @@ describe('structured output', () => {
         const { engine, store } = make(model, { maxSteps: 2 });
         const { runId } = await engine.dispatch(env);
 
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             runId,
             stepIndex: 1,
             messages: [
@@ -195,7 +195,7 @@ describe('structured output', () => {
         await engine.start();
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe(status);
 
@@ -263,7 +263,7 @@ describe('structured output', () => {
         const { engine, store } = make(model, { maxSteps: 1 });
         const { runId } = await engine.dispatch(env);
 
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             runId,
             stepIndex: 0,
             messages: [
@@ -276,7 +276,7 @@ describe('structured output', () => {
         await engine.start();
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error?.code).toBe('incomplete_response');
@@ -350,7 +350,7 @@ describe('structured output', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toEqual({ label: 'bug' });

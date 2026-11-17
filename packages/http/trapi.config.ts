@@ -11,7 +11,7 @@
  */
 
 import { readFileSync } from 'node:fs';
-import { RunStatus } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
 import type {
     Parameter,
     RefObjectType,

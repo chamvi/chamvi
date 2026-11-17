@@ -18,8 +18,8 @@ import type {
     Agent,
     ChannelMessage,
     IEngine,
-    Run,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { chatAddress } from '@chamvi/chat';
 import type { ChatChannel, ChatPayload } from '@chamvi/chat';
 import { DISCORD_API_URL, DISCORD_TEXT_MAX_CHARS } from '@chamvi/chat-discord';
@@ -456,7 +456,7 @@ describe('Discord outbound', () => {
             enforce_nonce: true,
         });
         expect(JSON.stringify(await value.runs())).not.toContain(SENTINEL_TOKEN);
-        expect(JSON.stringify(await value.store.steps.find(run!.id))).not.toContain(SENTINEL_TOKEN);
+        expect(JSON.stringify(await value.engine.stepService.find(run!.id))).not.toContain(SENTINEL_TOKEN);
     });
 
     it('a reply in a thread goes to the thread, a DM reply to the DM channel', async () => {

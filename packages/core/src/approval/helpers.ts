@@ -7,8 +7,7 @@
 
 import { isObject } from 'smob';
 import { ValidationError } from '../errors/index.ts';
-import type { ApprovalWaitPoint } from '../run/types.ts';
-import type { Invoker } from '../trigger/types.ts';
+import type { ApprovalOption, ApprovalWaitPoint, Invoker } from '@chamvi/store';
 import {
     APPROVAL_ARTIFACTS_MAX,
     APPROVAL_ARTIFACTS_PER_OPTION_MAX,
@@ -18,7 +17,7 @@ import {
     APPROVAL_OPTION_ID_PATTERN,
     APPROVAL_OPTION_LABEL_MAX_LENGTH,
 } from './constants.ts';
-import type { ApprovalDecision, ApprovalOption } from './types.ts';
+import type { ApprovalDecision } from './types.ts';
 
 /** The effect store key the decision of `approvalId` is recorded under. */
 function isStringArray(value: unknown): value is string[] {

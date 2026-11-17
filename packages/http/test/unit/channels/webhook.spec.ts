@@ -71,7 +71,7 @@ describe('POST /channels/webhook/:agent/<path>', () => {
 
         expect(deduplicated).toBe(false);
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('queued');
         expect(run?.concurrencyKey).toBe('7');
@@ -90,7 +90,7 @@ describe('POST /channels/webhook/:agent/<path>', () => {
         const response = await call(app, 'POST', ISSUES, { token: ADMIN_TOKEN, body: { id: 'x'.repeat(256) } });
 
         expect(response.status).toBe(400);
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
     });
 
     it('dedupes a retried delivery by the subscription key', async () => {
@@ -99,7 +99,7 @@ describe('POST /channels/webhook/:agent/<path>', () => {
         const second = await (await call(app, 'POST', ISSUES, { token: ADMIN_TOKEN, body: { id: '7' } })).json() as Accepted;
 
         expect(second).toEqual({ runId: first.runId, deduplicated: true });
-        expect((await store.runs.find({ agent: 'intake' })).total).toBe(1);
+        expect((await store.runService.find({ agent: 'intake' })).total).toBe(1);
     });
 
     it('creates one run for parallel deliveries with one Idempotency-Key', async () => {
@@ -117,7 +117,7 @@ describe('POST /channels/webhook/:agent/<path>', () => {
         expect(bodies.map((b) => b.deduplicated).sort()).toEqual([false, true]);
         expect(bodies[0]!.runId).toBe(bodies[1]!.runId);
 
-        const { data, total } = await store.runs.find({ agent: 'intake' });
+        const { data, total } = await store.runService.find({ agent: 'intake' });
 
         expect(total).toBe(1);
         expect(data[0]?.trigger.idempotencyKey).toBe('d-1');
@@ -129,7 +129,7 @@ describe('POST /channels/webhook/:agent/<path>', () => {
 
         expect(response.status).toBe(400);
         expect((await response.json()).issues[0].path).toEqual(['id']);
-        expect((await store.runs.find({ agent: 'intake' })).total).toBe(0);
+        expect((await store.runService.find({ agent: 'intake' })).total).toBe(0);
     });
 
     it('needs a JSON body', async () => {
@@ -167,7 +167,7 @@ describe('POST /channels/webhook/:agent/<path>', () => {
 
         const { runId } = await response.json() as Accepted;
 
-        expect((await store.runs.findOne(runId))?.trigger.payload).toEqual(body);
+        expect((await store.runService.findOne(runId))?.trigger.payload).toEqual(body);
     });
 
     it('never reads the body of an unauthenticated request', async () => {
@@ -213,7 +213,7 @@ describe('POST /channels/webhook/:agent/<path>', () => {
 
         const { runId } = await response.json() as Accepted;
 
-        expect((await store.runs.findOne(runId))?.trigger.trigger).toBe(trigger);
+        expect((await store.runService.findOne(runId))?.trigger.trigger).toBe(trigger);
     });
 
     it('needs chamvi_agent_run', async () => {
@@ -276,7 +276,7 @@ describe('webhookChannel()', () => {
 
         const { runId } = await response.json() as Accepted;
 
-        expect((await store.runs.findOne(runId))?.trigger).toMatchObject({ channel: 'hooks', trigger: 'webhook:/raw' });
+        expect((await store.runService.findOne(runId))?.trigger).toMatchObject({ channel: 'hooks', trigger: 'webhook:/raw' });
     });
 
     it('answers 413 above its bodyLimit', async () => {
@@ -285,7 +285,7 @@ describe('webhookChannel()', () => {
 
         expect(response.status).toBe(413);
         expect((await response.json()).code).toBe('request_entity_too_large');
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
     });
 
     it('needs authenticators', () => {
@@ -363,6 +363,6 @@ describe('POST /channels/webhook/:agent/<path> with an agent replaced during the
 
         expect(response.status).toBe(409);
         expect(await response.json()).toMatchObject({ code: 'agent_replaced' });
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
     });
 });

@@ -6,9 +6,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { httpChannel } from '@chamvi/http';
-import { mockModel } from '@chamvi/test-kit';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 import { createMailClient, mailTools, provideMailContext } from '@chamvi/tool-mail';
 import { createUnconfiguredMailClient } from '../../../src/client/unconfigured.ts';
 import { createFakeImap } from '../../utils/imap.ts';
@@ -34,8 +34,7 @@ describe('mail tools trust', () => {
             ]),
             tools: mailTools({ client }),
         });
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
             agents: [agent],
             channels: [httpChannel()],
         });
@@ -78,9 +77,7 @@ describe('mail tools trust', () => {
             ]),
             tools: mailTools(),
         });
-        const store = createMemoryStore();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [agent],
             channels: [httpChannel()],
         });
@@ -98,7 +95,7 @@ describe('mail tools trust', () => {
         await engine.idle();
 
         const run = await engine.getRun(runId);
-        const steps = await store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
 
         engine.stop();
 
@@ -126,9 +123,7 @@ describe('mail tools trust', () => {
             ]),
             tools: mailTools({ client }),
         });
-        const store = createMemoryStore();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [agent],
             channels: [httpChannel()],
         });
@@ -145,7 +140,7 @@ describe('mail tools trust', () => {
         await engine.idle();
 
         const run = await engine.getRun(runId);
-        const steps = await store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
 
         engine.stop();
         await client.close();

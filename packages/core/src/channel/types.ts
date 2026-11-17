@@ -5,10 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ApprovalDecision, ApprovalOption, ApprovalRequestInput } from '../approval/types.ts';
+import type { ApprovalDecision, ApprovalRequestInput } from '../approval/types.ts';
+import type { ApprovalOption, TriggerEnvelope } from '@chamvi/store';
 import type { ConversationTarget } from '../conversation/types.ts';
 import type { DispatchEnvelope, IEngine } from '../engine/types.ts';
-import type { TriggerEnvelope } from '../trigger/types.ts';
 
 /** The HTTP input of a channel: the raw web request (body unread) and the raw subpath after `/channels/<name>`. */
 export type ChannelRequest = {

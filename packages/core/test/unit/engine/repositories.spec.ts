@@ -13,26 +13,25 @@ import {
     vi,
 } from 'vitest';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 describe('engine persistence capabilities', () => {
     it('uses a replacement effect store for source sends and terminal conversation reconciliation', async () => {
-        const base = createMemoryStore();
-        const unusedEffects = vi.spyOn(base.effects, 'save');
-        const { effects } = createMemoryStore();
+        const base = createTestServices();
+        const unusedEffects = vi.spyOn(base.effectService, 'save');
+        const { effectService: effects } = createTestServices();
 
         vi.spyOn(effects, 'findOne');
 
         const save = vi.spyOn(effects, 'save');
-        const store = { ...base, effects };
+        const store = { ...base, effectService: effects };
 
-        vi.spyOn(store.conversations, 'confirmEmit').mockRejectedValueOnce(new Error('confirmation interrupted'));
+        vi.spyOn(store.conversationService, 'confirmEmit').mockRejectedValueOnce(new Error('confirmation interrupted'));
 
         const channel = { name: 'chat', out: vi.fn(async () => {}) };
         const model = mockModel([
@@ -45,8 +44,8 @@ describe('engine persistence capabilities', () => {
             },
             { parts: [{ type: 'text', text: 'done' }] },
         ]);
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
+            services: store,
             agents: [defineModelAgent({
                 name: 'helper',
                 instructions: 'Help.',
@@ -79,7 +78,7 @@ describe('engine persistence capabilities', () => {
             await engine.start();
             await engine.idle();
 
-            const run = await store.runs.findOne(runId);
+            const run = await store.runService.findOne(runId);
 
             expect(run?.status).toBe('completed');
             expect(channel.out).toHaveBeenCalledTimes(1);
@@ -90,7 +89,7 @@ describe('engine persistence capabilities', () => {
 
             expect(effects.findOne).toHaveBeenLastCalledWith(effectKey);
 
-            const items = await store.conversations.findItems(run!.conversation!.scope, { limit: 10, offset: 0 });
+            const items = await store.conversationService.findItems(run!.conversation!.scope, { limit: 10, offset: 0 });
 
             expect(items.data).toMatchObject([
                 {
@@ -114,13 +113,14 @@ describe('engine persistence capabilities', () => {
         }
     });
 
-    it('requires the conversation persistence role when conversation policy is enabled', () => {
-        const store = { ...createMemoryStore(), conversations: undefined };
+    it('requires the conversation service when conversation policy is enabled', () => {
+        const store = { ...createTestServices(), conversationService: undefined };
 
-        expect(() => new Engine({
-            store,
+        expect(() => createTestEngine({
+            services: store,
             agents: [],
             conversations: { authorize: () => true },
-        })).toThrow(InvalidAgentDefinitionError);
+        })).toThrow(new InvalidAgentDefinitionError('Conversations need a conversation service.'));
+        expect(createTestEngine({ services: store, agents: [] }).conversationService).toBeUndefined();
     });
 });

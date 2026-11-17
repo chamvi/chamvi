@@ -5,12 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    APPROVAL_OPTIONS_MAX,
-    InvalidAgentDefinitionError,
-    RunStatus,
-} from '@chamvi/core';
-import type { Agent, RunStatusLiteral } from '@chamvi/core';
+import { APPROVAL_OPTIONS_MAX, InvalidAgentDefinitionError } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
+import type { Agent } from '@chamvi/core';
+import type { RunStatusLiteral } from '@chamvi/store';
 import { fromJsonSchema } from '@modelcontextprotocol/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
@@ -351,7 +349,7 @@ async function registerRunTool(
         const release = waitSeconds > 0 ? acquireStreamSlot(ctx) : undefined;
 
         if (!release) {
-            const status = deduplicated ? (await ctx.store.runs.findOne(runId))?.status ?? RunStatus.QUEUED : RunStatus.QUEUED;
+            const status = deduplicated ? (await ctx.runService.findOne(runId))?.status ?? RunStatus.QUEUED : RunStatus.QUEUED;
 
             return toolResult({
                 runId,

@@ -18,7 +18,6 @@ const packages = new URL('../../../', import.meta.url);
 
 const aliases: Record<string, string> = {
     '@chamvi/core': 'core/src/index.ts',
-    '@chamvi/core/conversation/persistence': 'core/src/conversation/persistence/index.ts',
     '@chamvi/store-db': 'store-db/src/index.ts',
     '@chamvi/chat-whatsapp': 'chat-whatsapp/src/index.ts',
 };
@@ -51,9 +50,9 @@ registerHooks({
         });
 
         return {
-            format: 'module', 
-            source: code, 
-            shortCircuit: true, 
+            format: 'module',
+            source: code,
+            shortCircuit: true,
         };
     },
 });

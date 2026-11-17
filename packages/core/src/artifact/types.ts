@@ -6,18 +6,7 @@
  */
 
 import type { ToolResultPart } from 'ai';
-
-/** Metadata of a file stored for a run (an attachment or a tool output); the bytes are read separately. */
-export type Artifact = {
-    id: string;
-    runId: string;
-    agent: string;
-    mediaType: string;
-    filename?: string;
-    /** Byte length of the data. */
-    size: number;
-    createdAt: Date;
-};
+import type { Artifact, IArtifactRepository } from '@chamvi/store';
 
 /** A file to store: an attachment at dispatch or a tool's `artifacts.put()`. */
 export type ArtifactInput = {
@@ -60,3 +49,7 @@ export interface IRunArtifacts {
     /** The run's artifacts, by createdAt then id. */
     list(): Promise<Artifact[]>;
 }
+
+export type ArtifactServiceContext = {
+    repository: IArtifactRepository;
+};

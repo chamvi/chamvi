@@ -29,7 +29,7 @@ async function waitingGate(agent = 'gate') {
     await setup.engine.start();
     await setup.engine.idle();
 
-    const run = await setup.store.runs.findOne(runId);
+    const run = await setup.store.runService.findOne(runId);
 
     expect(run?.status).toBe('waiting');
 
@@ -55,7 +55,7 @@ describe('mcp approve_run', () => {
         expect(result.structuredContent).toEqual({ runId: setup.runId, status: 'queued' });
 
         await setup.engine.idle();
-        expect((await setup.store.runs.findOne(setup.runId))?.status).toBe('completed');
+        expect((await setup.store.runService.findOne(setup.runId))?.status).toBe('completed');
 
         const again = await callTool(client, 'approve_run', args);
 
@@ -75,7 +75,7 @@ describe('mcp approve_run', () => {
 
         expect(result.isError).toBe(true);
         expect(textOf(result)).toBe('Missing permission "chamvi_agent_approve".');
-        expect((await setup.store.runs.findOne(setup.runId))?.status).toBe('waiting');
+        expect((await setup.store.runService.findOne(setup.runId))?.status).toBe('waiting');
         await client.close();
         await setup.engine.drain();
     });
@@ -90,7 +90,7 @@ describe('mcp approve_run', () => {
         });
 
         expect(result.isError).toBe(true);
-        expect((await setup.store.runs.findOne(setup.runId))?.status).toBe('waiting');
+        expect((await setup.store.runService.findOne(setup.runId))?.status).toBe('waiting');
         await client.close();
         await setup.engine.drain();
     });
@@ -136,7 +136,7 @@ describe('mcp approve_run', () => {
         expect(result.isError).toBeFalsy();
         await setup.engine.idle();
 
-        const steps = await setup.store.steps.find(setup.runId);
+        const steps = await setup.store.stepService.find(setup.runId);
 
         expect(steps.find((s) => s.kind === 'wait')?.output).toMatchObject({ selected: ['a'] });
         await client.close();

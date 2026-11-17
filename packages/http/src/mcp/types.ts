@@ -5,16 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { Agent, ChannelSubscription } from '@chamvi/core';
 import type {
-    Agent,
     ApprovalOption,
-    ChannelSubscription,
     Run,
     RunStatusLiteral,
-} from '@chamvi/core';
+} from '@chamvi/store';
 import type { StandardSchemaWithJSON } from '@modelcontextprotocol/server';
 import type { Principal } from '../auth/types.ts';
-import type { IRunService } from '../runs/types.ts';
+import type { IRunHttpService } from '../runs/types.ts';
 
 /** A run as `list_runs` lists it. */
 export type RunSummary = Pick<Run, 'id' | 'agent' | 'status' | 'createdAt' | 'finishedAt' | 'error'>;
@@ -65,7 +64,7 @@ export type McpEndpointOptions = {
 
 /** The services the MCP tools call (shared with the REST controllers); internal. */
 export type McpServices = {
-    runs: IRunService;
+    runs: IRunHttpService;
 };
 
 /** What the route hands each MCP request through `authInfo.extra`; internal. */

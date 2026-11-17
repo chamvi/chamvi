@@ -18,7 +18,6 @@ import {
     InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
-    createMemoryStore,
     resolveConnection,
 } from '@chamvi/core';
 import type {
@@ -27,9 +26,8 @@ import type {
     DeclaredConnection,
     IConnectionConfigStore,
     IConnectionTypeProvider,
-    IStore,
 } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import {
     ADMIN_TOKEN,
     call,
@@ -96,7 +94,6 @@ type WorldOptions = {
     creatable?: boolean;
     declared?: (definition: ConnectionTypeDefinition) => DeclaredConnection[];
     configs?: (real: IConnectionConfigStore) => IConnectionConfigStore;
-    store?: IStore;
     noConfigs?: boolean;
     keyring?: () => ReturnType<typeof createKeyring>;
     uiPages?: Parameters<typeof createTestApp>[0] extends infer O ? O extends { uiPages?: infer U } ? U : never : never;
@@ -105,7 +102,9 @@ type WorldOptions = {
 
 function world(options: WorldOptions = {}) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = options.store ?? createMemoryStore({ clock });
+    const storage = createTestEngine({ agents: [], clock });
+    const connectionService = storage.connectionService!;
+    const { lockService } = storage;
     const definition = options.definition ?? mailDefinition();
     const declared = options.declared?.(definition) ?? [];
     const provider: IConnectionTypeProvider = {
@@ -115,15 +114,15 @@ function world(options: WorldOptions = {}) {
     };
     const key = randomBytes(32);
     const real = createConnectionConfigStore({
-        store,
+        connectionService,
+        lockService,
         clock,
         keyring: options.keyring ?? (() => createKeyring([{ id: 'k1', key }])),
     });
     const configs = options.configs ? options.configs(real) : real;
     const errors: unknown[] = [];
     const { app } = createTestApp({
-        store,
-        clock,
+        engine: storage,
         connectionTypes: () => [provider],
         ...(options.noConfigs ? {} : { connectionConfigs: configs }),
         ...(options.uiPages ? { uiPages: options.uiPages } : {}),
@@ -135,7 +134,8 @@ function world(options: WorldOptions = {}) {
 
     return {
         app,
-        store,
+        connections: connectionService,
+        lockService,
         real,
         clock,
         declared,
@@ -300,6 +300,21 @@ describe('connection configuration', () => {
             expect(type.creatable).toBe(false);
         });
 
+        it('refuses connectionConfigs on an engine without a connection service', () => {
+            const engine = createTestEngine({ agents: [] });
+            const bare = createTestEngine({ agents: [], replicaOf: { ...engine, connectionService: undefined } as typeof engine });
+            const configs = createConnectionConfigStore({
+                connectionService: engine.connectionService!,
+                lockService: engine.lockService,
+                keyring: () => createKeyring([{ id: 'k1', key: randomBytes(32) }]),
+            });
+
+            expect(bare.connectionService).toBeUndefined();
+            expect(() => createTestApp({ engine: bare, connectionConfigs: configs })).toThrow(InvalidAgentDefinitionError);
+            expect(() => createTestApp({ engine: bare, connectionConfigs: configs })).toThrow('connectionConfigs needs an engine with a connection service');
+            expect(() => createTestApp({ engine, connectionConfigs: configs })).not.toThrow();
+        });
+
         it('needs a principal for the types and the pages', async () => {
             const { app } = world();
 
@@ -429,7 +444,7 @@ describe('connection configuration', () => {
         });
 
         it('a locked env field refuses a write', async () => {
-            const { app, store } = world({ declared: (definition) => [declare(definition, 'mail-work', { MAIL_HOST: 'env-host.example', MAIL_PASSWORD: 'x' })] });
+            const { app, connections } = world({ declared: (definition) => [declare(definition, 'mail-work', { MAIL_HOST: 'env-host.example', MAIL_PASSWORD: 'x' })] });
 
             const settings = await call(app, 'PUT', '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
@@ -448,7 +463,7 @@ describe('connection configuration', () => {
             expect((await json(settings)).issues[0]).toMatchObject({ path: ['settings', 'host'], message: expect.stringContaining('MAIL_HOST') });
             expect(secret.status).toBe(400);
             expect(clear.status).toBe(400);
-            expect(await store.connections!.findOne('mail-work')).toBeUndefined();
+            expect(await connections.findOne('mail-work')).toBeUndefined();
         });
 
         it('requires chamvi_connection_write to save', async () => {
@@ -468,11 +483,11 @@ describe('connection configuration', () => {
         });
 
         it('creates the row of a declared connection on the first save, with the provider type', async () => {
-            const { app, store } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+            const { app, connections } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
             await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
-            expect(await store.connections!.findOne('mail-work')).toMatchObject({ type: 'mail' });
+            expect(await connections.findOne('mail-work')).toMatchObject({ type: 'mail' });
         });
 
         it('a save missing a required field not in env is 400', async () => {
@@ -559,9 +574,9 @@ describe('connection configuration', () => {
 
         it('restartRequired is true once the loaded account was deleted and created again', async () => {
             const {
-                app, 
-                real, 
-                clock, 
+                app,
+                real,
+                clock,
             } = world({
                 declared: (definition) => [declare(definition, 'mail-work', {}, {
                     account: 'work',
@@ -700,7 +715,7 @@ describe('connection configuration', () => {
         it('chamvi_connection_create can', async () => {
             const {
                 app,
-                store,
+                connections,
                 real,
             } = world();
 
@@ -716,7 +731,7 @@ describe('connection configuration', () => {
                 restartRequired: true,
                 deletable: true,
             });
-            expect(await store.connections!.findOne('mail-work')).toMatchObject({ type: 'mail' });
+            expect(await connections.findOne('mail-work')).toMatchObject({ type: 'mail' });
             expect((await real.read('mail-work'))?.values).toEqual({ host: 'imap.example', password: PASSWORD });
         });
 
@@ -750,12 +765,12 @@ describe('connection configuration', () => {
         });
 
         it('multiple:false refuses create', async () => {
-            const { app, store } = world({ definition: mailDefinition({ multiple: false }) });
+            const { app, connections } = world({ definition: mailDefinition({ multiple: false }) });
 
             const response = await create(app, tokenFor(CREATE));
 
             expect(response.status).toBe(409);
-            expect(await store.connections!.findOne('mail-work')).toBeUndefined();
+            expect(await connections.findOne('mail-work')).toBeUndefined();
         });
 
         it('refuses a type that is not creatable and a store without connections', async () => {
@@ -791,7 +806,7 @@ describe('connection configuration', () => {
         it('repairs a row a crashed create left without config', async () => {
             const {
                 app,
-                store,
+                connections,
                 real,
             } = world();
 
@@ -801,7 +816,7 @@ describe('connection configuration', () => {
 
             expect(response.status).toBe(201);
             expect((await real.read('mail-work'))?.values.password).toBe(PASSWORD);
-            expect((await store.connections!.findConfig('mail-work'))?.revision).toBe(1);
+            expect((await connections.findConfig('mail-work'))?.revision).toBe(1);
         });
 
         it('refuses to repair a bare row of another type', async () => {
@@ -897,10 +912,8 @@ describe('connection configuration', () => {
         it('joins a live handle with its configuration', async () => {
             const definition = mailDefinition();
             const clock = new ControllableClock(new Date(1_000_000));
-            const store = createMemoryStore({ clock });
             const connection = declare(definition, 'mail-work', { MAIL_HOST: 'h', MAIL_PASSWORD: 'p' });
             const { app } = createTestApp({
-                store,
                 clock,
                 connections: () => [{
                     name: 'mail-work',
@@ -1326,7 +1339,7 @@ describe('connection configuration', () => {
         it('delete is refused for module-declared and env-declared connections', async () => {
             const {
                 app,
-                store,
+                connections,
                 real,
             } = world({
                 declared: (definition) => [
@@ -1339,13 +1352,13 @@ describe('connection configuration', () => {
 
             expect((await call(app, 'DELETE', '/connections/mail-module', { token: ADMIN_TOKEN })).status).toBe(409);
             expect((await call(app, 'DELETE', '/connections/mail-env', { token: ADMIN_TOKEN })).status).toBe(409);
-            expect(await store.connections!.findOne('mail-module')).toBeDefined();
+            expect(await connections.findOne('mail-module')).toBeDefined();
         });
 
         it('deletes a stored account of a multi-instance type', async () => {
             const {
                 app,
-                store,
+                connections,
                 real,
             } = world();
 
@@ -1356,7 +1369,7 @@ describe('connection configuration', () => {
             const response = await call(app, 'DELETE', '/connections/mail-work', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'mail-work' })) });
 
             expect(response.status).toBe(200);
-            expect(await store.connections!.findOne('mail-work')).toBeUndefined();
+            expect(await connections.findOne('mail-work')).toBeUndefined();
         });
 
         function deletableWorld() {
@@ -1385,7 +1398,7 @@ describe('connection configuration', () => {
             const {
                 app,
                 real,
-                store,
+                connections,
             } = deletableWorld();
 
             await real.create('mail-work', 'mail', { settings: { host: 'imap.example' }, secrets: { set: { password: PASSWORD } } });
@@ -1399,7 +1412,7 @@ describe('connection configuration', () => {
 
             expect(list.data).toEqual([]);
             expect(put.status).toBe(404);
-            expect(await store.connections!.findOne('mail-work')).toBeUndefined();
+            expect(await connections.findOne('mail-work')).toBeUndefined();
         });
 
         it('lets a just-deleted account and its identity be added again', async () => {
@@ -1441,18 +1454,19 @@ describe('connection configuration', () => {
         it('a held connection answers 409', async () => {
             const {
                 app,
-                store,
+                connections,
+                lockService,
                 real,
             } = world();
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' } });
-            await store.locks.acquire('connection:mail-work', 'someone', 60_000);
+            await lockService.acquire('connection:mail-work', 'someone', 60_000);
 
             const response = await call(app, 'DELETE', '/connections/mail-work', { token: ADMIN_TOKEN });
 
             expect(response.status).toBe(409);
             expect((await json(response)).code).toBe('connection_held');
-            expect(await store.connections!.findOne('mail-work')).toBeDefined();
+            expect(await connections.findOne('mail-work')).toBeDefined();
         });
     });
 
@@ -1476,9 +1490,9 @@ describe('connection configuration', () => {
 
         async function recreate(context: ReturnType<typeof recreatedWorld>): Promise<void> {
             const {
-                app, 
-                real, 
-                clock, 
+                app,
+                real,
+                clock,
             } = context;
 
             await real.create('mail-work', 'mail', { settings: { port: 1 } });
@@ -1534,9 +1548,9 @@ describe('connection configuration', () => {
             expect(view.deletable).toBe(true);
             expect(list.data).toHaveLength(1);
             expect(list.data[0]).toMatchObject({
-                name: 'mail-work', 
-                account: 'work', 
-                state: 'configured', 
+                name: 'mail-work',
+                account: 'work',
+                state: 'configured',
             });
         });
 
@@ -1634,13 +1648,13 @@ describe('connection configuration', () => {
         });
 
         it('creates no row for a declared connection', async () => {
-            const { app, store } = world({ declared: (definition) => [declare(definition, 'mail-work', { MAIL_HOST: 'h', MAIL_PASSWORD: 'x' })] });
+            const { app, connections } = world({ declared: (definition) => [declare(definition, 'mail-work', { MAIL_HOST: 'h', MAIL_PASSWORD: 'x' })] });
 
             const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: {} });
 
             expect(response.status).toBe(200);
             expect((await json(response)).restartRequired).toBe(false);
-            expect(await store.connections!.findOne('mail-work')).toBeUndefined();
+            expect(await connections.findOne('mail-work')).toBeUndefined();
         });
     });
 
@@ -1706,11 +1720,10 @@ describe('connection configuration', () => {
 
         it('a create arriving between the row and its config wins alone: the first answers 409', async () => {
             const {
-                app, 
-                store, 
-                real, 
+                app,
+                connections,
+                real,
             } = world({ definition: tokenDefinition() });
-            const connections = store.connections!;
             const writeConfig = connections.writeConfig.bind(connections);
             let racing: Promise<Response> | undefined;
 

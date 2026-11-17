@@ -8,7 +8,9 @@ npm install @chamvi/http @chamvi/core --save
 
 <<< @/snippets/http.ts#app
 
-Every HTTP or MCP start ends in `engine.dispatch()`; nothing runs synchronously in a request. Errors are always JSON `{ status, code, message, issues? }`, unmatched routes included; a 5xx body says `Internal Server Error` and the cause goes to `onError`. An issue carries the `received` value only when it is small (at most 256 characters as JSON), so a 400 for an oversized list, a long string or a large file never echoes the body back.
+`createEngine` stands for the engine of your app, built on the repositories every replica shares ([Database store](/repositories/database)); with [`@chamvi/app`](/guide/app) the app builds it.
+
+Every HTTP or MCP start ends in `engine.dispatch()`; nothing runs synchronously in a request. Errors are always JSON `{ status, code, message, issues? }`, unmatched routes included; a 5xx body says `Internal Server Error` and the cause goes to `onError`. A storage error answers with its code and a fixed message: `404 entity_not_found`, `409 entity_conflict`, `400 entity_relation_invalid`, `400 entity_query_invalid`, `400 entity_invalid`, `409 entity_deadlock`, `503 database_unavailable` (the last also goes to `onError`). An issue carries the `received` value only when it is small (at most 256 characters as JSON), so a 400 for an oversized list, a long string or a large file never echoes the body back.
 
 ## Channels
 

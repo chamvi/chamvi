@@ -85,7 +85,7 @@ export class ToolCalendarModule implements IModule {
             return;
         }
 
-        const editable = !this.pinned && container.resolve(AppToken.STORE).connections !== undefined;
+        const editable = !this.pinned && container.has(AppToken.CONNECTION_SERVICE);
         const definition = calendarConnectionDefinition(this.options.fetch ? { fetch: this.options.fetch } : {});
         const loaded = await loadCalendarAccounts({
             definition,

@@ -68,9 +68,9 @@ describePostgres('app conversation PostgreSQL lifecycle', () => {
         cleanup.push(() => harness.stop());
         await harness.setup();
 
-        const conversations = harness.container.resolve(AppToken.STORE).conversations!;
+        const conversations = harness.container.resolve(AppToken.CONVERSATION_SERVICE);
 
-        expect(conversations).toBeInstanceOf(DatabaseConversationRepository);
+        expect(harness.container.resolve(AppToken.CONVERSATION_REPOSITORY)).toBeInstanceOf(DatabaseConversationRepository);
         await conversations.resolve(identity);
         expect(await dataSource.query('SELECT count(*)::int AS count FROM chamvi_conversations')).toEqual([{ count: 1 }]);
         await harness.stop();
@@ -180,17 +180,19 @@ describePostgres('app conversation PostgreSQL lifecycle', () => {
 
         await engine.idle();
 
-        const runs = harness.container.resolve(AppToken.STORE);
-        const conversations = harness.container.resolve(AppToken.STORE).conversations!;
+        const conversations = harness.container.resolve(AppToken.CONVERSATION_SERVICE);
 
-        expect((await runs.runs.findOne(result.runId))?.status).toBe('completed');
+        expect((await harness.container.resolve(AppToken.RUN_SERVICE).findOne(result.runId))?.status).toBe('completed');
         expect(sent).toEqual(['saved']);
 
         const scope = (await conversations.findOne(identity))!;
 
         expect((await conversations.findOneNote(scope, 'style'))?.text).toBe('short answers');
         expect((await conversations.findItems(scope, { limit: 10, offset: 0 })).data.map((item) => item.text)).toEqual(['remember my style', 'saved']);
-        expect((await runs.checkpoints.findOne(result.runId))?.conversation).toEqual({ scopeId: scope.id, generation: scope.generation });
+
+        const checkpoint = await harness.container.resolve(AppToken.CHECKPOINT_SERVICE).findOne(result.runId);
+
+        expect(checkpoint?.conversation).toEqual({ scopeId: scope.id, generation: scope.generation });
 
         const ds = harness.container.resolve(AppToken.DATA_SOURCE);
 
@@ -231,7 +233,7 @@ describePostgres('app conversation PostgreSQL lifecycle', () => {
         await harness.setup();
 
         const dataSource = harness.container.resolve(AppToken.DATA_SOURCE);
-        const conversations = harness.container.resolve(AppToken.STORE).conversations!;
+        const conversations = harness.container.resolve(AppToken.CONVERSATION_SERVICE);
         const endTurn = conversations.endTurn.bind(conversations);
 
         vi.spyOn(conversations, 'endTurn').mockImplementation(async (...args) => {

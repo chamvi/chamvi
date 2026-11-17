@@ -13,10 +13,7 @@ import {
     vi,
 } from 'vitest';
 import {
-    Engine,
-    MemoryConversationRepository,
     approve,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
@@ -29,8 +26,11 @@ import type {
 } from '@chamvi/core';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
+import { makeRun } from '../../fixtures/conversation-service.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { fakeSkillRuntime } from '../../utils/skill-runtime.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const identity = {
     agent: 'helper',
@@ -62,16 +62,15 @@ function setup(options: {
     instructions?: AgentDefinition['instructions'];
     skills?: AgentDefinition['skills'];
     clock?: IClock;
-    store?: ReturnType<typeof createMemoryStore>;
-    conversations?: MemoryConversationRepository;
+    store?: TestServiceSet;
     model?: ReturnType<typeof mockModel>;
     authorize?: () => boolean;
     tools?: any;
     maxSteps?: number;
     agentConcurrencyMaxRuns?: number
 } = {}) {
-    const store = options.store ?? createMemoryStore({ clock: options.clock });
-    const conversations = options.conversations ?? new MemoryConversationRepository({ clock: options.clock });
+    const store = options.store ?? createTestServices({ clock: options.clock });
+    const conversations = store.conversationService;
     const model = options.model ?? mockModel([{ parts: [{ type: 'text', text: 'answer' }] }]);
     const channel = { name: 'chat' };
     const agent = defineModelAgent({
@@ -85,8 +84,8 @@ function setup(options: {
         budget: { maxSteps: options.maxSteps ?? 5 },
     });
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store: { ...store, conversations },
+    const engine = createTestEngine({
+        services: store,
         clock: options.clock,
         agents: [agent],
         channels: [channel],
@@ -162,7 +161,7 @@ describe('conversation execution admission', () => {
             }]),
         });
 
-        await s.store.artifacts.insert({
+        await s.store.artifactService.create({
             id: 'prefix-file',
             runId: 'fixture',
             agent: 'helper',
@@ -173,14 +172,13 @@ describe('conversation execution admission', () => {
         await run(s, 'earlier conversation input');
 
         const id = await run(s);
-        const waiting = (await s.store.runs.findOne(id))!;
+        const waiting = (await s.store.runService.findOne(id))!;
 
         expect(waiting.status, JSON.stringify(waiting.error)).toBe('waiting');
         await s.engine.stop();
 
         const resumed = setup({
             store: s.store,
-            conversations: s.conversations,
             instructions,
             skills: [skill.input],
             model: mockModel([{ parts: [{ type: 'text', text: 'finished' }] }]),
@@ -189,7 +187,7 @@ describe('conversation execution admission', () => {
         await resumed.engine.start();
         await resumed.engine.approve(id, { approvalId: approvalWait(waiting)!.approvalId, approved: true });
         await resumed.engine.idle();
-        expect(await s.store.runs.findOne(id)).toMatchObject({ status: 'completed', output: 'finished' });
+        expect(await s.store.runService.findOne(id)).toMatchObject({ status: 'completed', output: 'finished' });
         expect(applied).toBe(1);
         expect(contexts).toHaveLength(2);
 
@@ -221,7 +219,7 @@ describe('conversation execution admission', () => {
             expect(messages.map((message) => message.role).slice(0, 6)).toEqual(['user', 'assistant', 'system', 'system', 'user', 'user']);
         }
 
-        const checkpoint = await s.store.checkpoints.findOne(id);
+        const checkpoint = await s.store.checkpointService.findOne(id);
         const scope = (await s.conversations.findOne(identity))!;
 
         expect(checkpoint?.conversation).toEqual({ scopeId: scope.id, generation: scope.generation });
@@ -229,14 +227,14 @@ describe('conversation execution admission', () => {
         const persisted = JSON.stringify([
             checkpoint,
             await s.conversations.findItems(scope, { limit: 100, offset: 0 }),
-            await s.conversations.beginTurn(scope, 'next-snapshot', 'next', {
+            await s.store.runService.create(makeRun('next-snapshot', { status: 'completed' })).then(() => s.conversations.beginTurn(scope, 'next-snapshot', 'next', {
                 maxItems: 20,
                 maxHistoryBytes: 32768,
                 maxNotesBytes: 8192,
                 maxItemBytes: 16384,
                 retentionMs: 999999,
                 maxStoredItems: 1000,
-            }),
+            })),
         ]);
 
         expect(persisted).toContain('earlier conversation input');
@@ -258,8 +256,8 @@ describe('conversation execution admission', () => {
 
         await s.engine.start();
         await s.engine.idle();
-        expect((await s.store.runs.findOne(runId))?.status).toBe('completed');
-        expect((await s.store.runs.findOne(runId))?.trigger.payload).toEqual(payload);
+        expect((await s.store.runService.findOne(runId))?.status).toBe('completed');
+        expect((await s.store.runService.findOne(runId))?.trigger.payload).toEqual(payload);
 
         const prompt = JSON.stringify(s.model.doStreamCalls[0]?.prompt);
 
@@ -267,7 +265,7 @@ describe('conversation execution admission', () => {
         expect(prompt).not.toContain('opaque-transport-event');
         expect(prompt).not.toContain('transport-only');
 
-        const first = (await s.store.checkpoints.findOne(runId))?.messages[0];
+        const first = (await s.store.checkpointService.findOne(runId))?.messages[0];
 
         expect(first?.role).toBe('user');
         expect(first?.content).toEqual(withAttachment ? [
@@ -297,7 +295,7 @@ describe('conversation execution admission', () => {
         });
         const first = await run(s);
 
-        expect((await s.store.runs.findOne(first))?.status).toBe('waiting');
+        expect((await s.store.runService.findOne(first))?.status).toBe('waiting');
 
         const same = await s.ctx.dispatchConversation(envelope, target);
         const other = await s.ctx.dispatchConversation(
@@ -310,8 +308,8 @@ describe('conversation execution admission', () => {
         );
 
         await s.engine.idle();
-        expect((await s.store.runs.findOne(same.runId))?.status).toBe('queued');
-        expect((await s.store.runs.findOne(other.runId))?.status).toBe('completed');
+        expect((await s.store.runService.findOne(same.runId))?.status).toBe('queued');
+        expect((await s.store.runService.findOne(other.runId))?.status).toBe('completed');
         expect(s.model.doStreamCalls).toHaveLength(2);
         expect(JSON.stringify(s.model.doStreamCalls[1]?.prompt)).toContain('other input');
         await s.engine.cancel(first);
@@ -348,21 +346,21 @@ describe('conversation execution admission', () => {
 
         const first = await run(s);
 
-        expect((await s.store.runs.findOne(first))?.status).toBe('waiting');
+        expect((await s.store.runService.findOne(first))?.status).toBe('waiting');
 
         const begin = vi.spyOn(s.conversations, 'beginTurn');
         const next = await s.ctx.dispatchConversation({ ...envelope, agent: 'peer' }, target);
 
         await s.engine.idle();
-        expect((await s.store.runs.findOne(next.runId))?.status).toBe('queued');
+        expect((await s.store.runService.findOne(next.runId))?.status).toBe('queued');
         await expect(begin.mock.results[0]?.value).resolves.toMatchObject({ kind: 'busy', runId: first });
         expect(s.model.doStreamCalls).toHaveLength(1);
 
         await s.engine.cancel(first);
         await s.engine.idle();
 
-        expect((await s.store.runs.findOne(first))?.status).toBe('cancelled');
-        expect((await s.store.runs.findOne(next.runId))?.status).toBe('completed');
+        expect((await s.store.runService.findOne(first))?.status).toBe('cancelled');
+        expect((await s.store.runService.findOne(next.runId))?.status).toBe('completed');
         expect(s.model.doStreamCalls).toHaveLength(2);
         expect(clock.now()).toEqual(new Date(0));
         expect(s.errors).toEqual([]);
@@ -373,6 +371,7 @@ describe('conversation execution admission', () => {
         const result = await s.ctx.dispatchConversation(envelope, target);
         const scope = await s.conversations.resolve(identity);
 
+        await s.store.runService.create(makeRun('previous', { status: 'completed' }));
         await s.conversations.beginTurn(scope, 'previous', 'earlier input', {
             maxItems: 20,
             maxHistoryBytes: 32768,
@@ -383,10 +382,10 @@ describe('conversation execution admission', () => {
         });
         await s.conversations.endTurn(scope, 'previous', []);
         await s.engine.start(); await s.engine.idle();
-        expect((await s.store.runs.findOne(result.runId))?.status).toBe('completed');
+        expect((await s.store.runService.findOne(result.runId))?.status).toBe('completed');
         expect(JSON.stringify(s.model.doStreamCalls[0]?.prompt)).toContain('earlier input');
 
-        const cp = await s.store.checkpoints.findOne(result.runId);
+        const cp = await s.store.checkpointService.findOne(result.runId);
 
         expect(cp?.conversation).toEqual({
             scopeId: scope.id,
@@ -405,7 +404,7 @@ describe('conversation execution admission', () => {
             retentionMs: 999999,
             maxStoredItems: 1000,
         });
-        await s.store.runs.update(result.runId, { status: 'cancelled' });
+        await s.store.runService.update(result.runId, { status: 'cancelled' });
         expect(await s.conversations.activeRun(scope)).toBe(result.runId);
         await expect(s.engine.resetConversation(identity)).resolves.toHaveProperty('generation', 1);
         expect(await s.conversations.activeRun(scope)).toBeUndefined();
@@ -414,7 +413,7 @@ describe('conversation execution admission', () => {
         const s = setup();
         const scope = await s.conversations.resolve(identity);
 
-        await s.store.runs.insert({
+        await s.store.runService.create({
             id: 'owner',
             agent: 'helper',
             status: 'waiting',
@@ -439,14 +438,15 @@ describe('conversation execution admission', () => {
 
         const id = await run(s);
 
-        expect((await s.store.runs.findOne(id))?.status).toBe('queued');
+        expect((await s.store.runService.findOne(id))?.status).toBe('queued');
         expect(s.model.doStreamCalls).toHaveLength(0);
     });
-    it.each([true, false])('settled or missing owner reconciles before admission (%s)', async (exists) => {
+    // the owner always exists: a conversation's active run references a run (memory and database alike)
+    it.each([true])('settled owner reconciles before admission (%s)', async (exists) => {
         const s = setup(); const scope = await s.conversations.resolve(identity);
 
         if (exists) {
-            await s.store.runs.insert({
+            await s.store.runService.create({
                 id: 'old',
                 agent: 'helper',
                 status: 'completed',
@@ -473,7 +473,7 @@ describe('conversation execution admission', () => {
 
         const id = await run(s);
 
-        expect((await s.store.runs.findOne(id))?.status).toBe('completed');
+        expect((await s.store.runService.findOne(id))?.status).toBe('completed');
         await expect(s.engine.resetConversation(identity)).resolves.toHaveProperty('generation', 1);
     });
     it('stale_generation_fails_without_model', async () => {
@@ -481,7 +481,7 @@ describe('conversation execution admission', () => {
 
         await s.engine.resetConversation(identity);
         await s.engine.start(); await s.engine.idle();
-        expect((await s.store.runs.findOne(result.runId))?.status).toBe('failed');
+        expect((await s.store.runService.findOne(result.runId))?.status).toBe('failed');
         expect(s.model.doStreamCalls).toHaveLength(0);
     });
     it('new_engine_restart_reuses_snapshot_before_first_step', async () => {
@@ -496,10 +496,11 @@ describe('conversation execution admission', () => {
             maxStoredItems: 1000,
         };
 
+        await s.store.runService.create(makeRun('previous', { status: 'completed' }));
         await s.conversations.beginTurn(scope, 'previous', 'original history', limits); await s.conversations.endTurn(scope, 'previous', []);
 
         const first = await s.conversations.beginTurn(scope, result.runId, 'current', limits);
-        const resumed = setup({ store: s.store, conversations: s.conversations });
+        const resumed = setup({ store: s.store });
 
         await resumed.engine.start(); await resumed.engine.idle();
         expect(first.kind).toBe('ready');
@@ -511,7 +512,7 @@ describe('conversation execution admission', () => {
         const s = setup({ authorize: () => allowed, maxSteps: 1 });
         const result = await s.ctx.dispatchConversation(envelope, target);
 
-        await s.store.checkpoints.save({
+        await s.store.checkpointService.save({
             runId: result.runId,
             stepIndex: 0,
             finishReason: 'stop',
@@ -520,7 +521,7 @@ describe('conversation execution admission', () => {
         });
         allowed = false;
         await s.engine.start(); await s.engine.idle();
-        expect((await s.store.runs.findOne(result.runId))?.status).toBe('failed');
+        expect((await s.store.runService.findOne(result.runId))?.status).toBe('failed');
         expect(s.model.doStreamCalls).toHaveLength(0);
     });
     it('cancel during admission still settles and releases the admitted owner', async () => {
@@ -541,7 +542,7 @@ describe('conversation execution admission', () => {
         const cancelled = s.engine.cancel(runId);
 
         release.resolve(); await cancelled; await s.engine.idle();
-        expect((await s.store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await s.store.runService.findOne(runId))?.status).toBe('cancelled');
         expect(await s.conversations.activeRun((await s.conversations.findOne(identity))!)).toBeUndefined();
         expect(s.model.doStreamCalls).toHaveLength(0);
     });
@@ -552,7 +553,7 @@ describe('conversation execution admission', () => {
 
         const id = await run(s);
 
-        expect((await s.store.runs.findOne(id))?.status).toBe('failed');
+        expect((await s.store.runService.findOne(id))?.status).toBe('failed');
         expect(factory).not.toHaveBeenCalled(); expect(s.model.doStreamCalls).toHaveLength(0);
     });
     it('approval_resume_does_not_recall_again and revocation prevents pending tool', async () => {
@@ -579,13 +580,13 @@ describe('conversation execution admission', () => {
         });
         const begin = vi.spyOn(s.conversations, 'beginTurn'); const id = await run(s);
 
-        expect((await s.store.runs.findOne(id))?.status).toBe('waiting');
+        expect((await s.store.runService.findOne(id))?.status).toBe('waiting');
 
-        const waiting = approvalWait(await s.store.runs.findOne(id))!;
+        const waiting = approvalWait(await s.store.runService.findOne(id))!;
 
         allowed = false;
         await s.engine.approve(id, { approvalId: waiting.approvalId, approved: true }); await s.engine.idle();
-        expect((await s.store.runs.findOne(id))?.status).toBe('failed'); expect(applied).toBe(0);
+        expect((await s.store.runService.findOne(id))?.status).toBe('failed'); expect(applied).toBe(0);
         expect(model.doStreamCalls).toHaveLength(1);
         expect(begin).toHaveBeenCalledTimes(1);
     });

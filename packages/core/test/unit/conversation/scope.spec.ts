@@ -19,19 +19,18 @@ import {
     InvalidAgentDefinitionError,
     ValidationError,
 } from '@chamvi/core';
+import type { ChannelDispatchEnvelope, DispatchEnvelope } from '@chamvi/core';
 import type {
-    ChannelDispatchEnvelope,
     Checkpoint,
     ConversationBinding,
     ConversationIdentity,
-    DispatchEnvelope,
     Run,
-} from '@chamvi/core';
+} from '@chamvi/store';
 import {
     conversationConcurrencyKey,
     normalizeConversationLimits,
 } from '../../../src/conversation/helpers.ts';
-import { assertConversationScope, assertConversationText, identityId } from '@chamvi/core/conversation/persistence';
+import { assertConversationScope, assertConversationText, identityId } from '../../../src/conversation/persistence/index.ts';
 
 const identity: ConversationIdentity = {
     agent: 'assistant',

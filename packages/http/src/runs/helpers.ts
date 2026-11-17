@@ -9,22 +9,22 @@ import {
     APPROVAL_OPTIONS_MAX,
     ArtifactNotFoundError,
     RunNotFoundError,
-    RunStatus,
 } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
 import type {
     Agent,
-    Artifact,
     ArtifactInput,
     ChannelSubscription,
     IClock,
+} from '@chamvi/core';
+import type {
+    Artifact,
     Invoker,
     Run,
-    RunStatusLiteral,
     Step,
-    WaitPoint,
-} from '@chamvi/core';
+} from '@chamvi/store';
 import { BadRequestError, ForbiddenError, NotFoundError } from '@ebec/http';
-import { defineSchema } from '@rapiq/core';
+import { defineSchema, eq, inArray } from '@rapiq/core';
 import type { IFilter } from '@rapiq/core';
 import { parseFilterScalar } from '@rapiq/parser-simple';
 import { isObject } from 'smob';
@@ -40,7 +40,7 @@ import type { Principal } from '../auth/types.ts';
 import { DEFAULT_PAGE_LIMIT } from '../app/constants.ts';
 import { HTTP_CHANNEL_NAME } from '../channels/constants.ts';
 import type { HttpAgents, HttpContext } from '../app/types.ts';
-import { decodeQuery } from '../request/helpers.ts';
+import { decodeFlatQuery } from '../query/helpers.ts';
 import {
     isArrayOf,
     isBase64,
@@ -61,7 +61,8 @@ import {
 import type {
     ApproveBody,
     InvokerView,
-    RunListQuery,
+    RunFindFilter,
+    RunListRequest,
     RunView,
     StartRunBody,
 } from './types.ts';
@@ -150,8 +151,8 @@ export async function readableAgents(principal: Principal, agents: HttpAgents, c
  * one of an agent the principal may not read under the private-agent rule
  * (the same error, so run ids are not probed), else 403.
  */
-export async function loadReadableRun(ctx: Pick<HttpContext, 'store' | 'agents' | 'clock'>, principal: Principal, id: string): Promise<Run> {
-    const run = await ctx.store.runs.findOneOrFail(id);
+export async function loadReadableRun(ctx: Pick<HttpContext, 'runService' | 'agents' | 'clock'>, principal: Principal, id: string): Promise<Run> {
+    const run = await ctx.runService.findOneOrFail(id);
 
     if (await canReadRun(principal, run, ctx.agents, ctx.clock)) {
         return run;
@@ -250,14 +251,14 @@ function createAttachmentContainer(): Container<ArtifactInput> {
 }
 
 /** An artifact of `run` with its bytes; ArtifactNotFoundError (404) for an unknown id or another run's artifact. */
-export async function loadRunArtifact(ctx: Pick<HttpContext, 'store'>, run: Run, id: string): Promise<{ artifact: Artifact; data: Uint8Array }> {
-    const artifact = await ctx.store.artifacts.findOne(id);
+export async function loadRunArtifact(ctx: Pick<HttpContext, 'artifactService'>, run: Run, id: string): Promise<{ artifact: Artifact; data: Uint8Array }> {
+    const artifact = await ctx.artifactService.findOne(id);
 
     if (!artifact || artifact.runId !== run.id) {
         throw new ArtifactNotFoundError(id);
     }
 
-    const data = await ctx.store.artifacts.read(id);
+    const data = await ctx.artifactService.read(id);
 
     if (!data) {
         throw new ArtifactNotFoundError(id);
@@ -300,10 +301,10 @@ const RUN_STATUSES = new Set<string>(Object.values(RunStatus));
 
 /**
  * The wire is untyped: rapiq coerces `123`, `007`, `true` or `null` to a
- * scalar, even quoted. Such a value maps back to the registered agent
- * whose name coerces to it; an unregistered one reads in canonical form.
+ * scalar, even quoted. Such a value names the registered agent whose name
+ * coerces to it; an unregistered one reads in canonical form.
  */
-function readAgentFilter(filter: IFilter, agentNames: Iterable<string>): string {
+function agentNameOf(filter: IFilter, agentNames: Iterable<string>): string {
     const { value } = filter;
 
     if (filter.operator !== 'eq' || Array.isArray(value) || isObject(value)) {
@@ -323,61 +324,62 @@ function readAgentFilter(filter: IFilter, agentNames: Iterable<string>): string 
     return matches[0] ?? String(value);
 }
 
-/** One run id; a value the wire coerced to a scalar reads in canonical form. */
-function readParentFilter(filter: IFilter): string {
+/**
+ * A decoded `GET /runs` filter as a filter on the run's fields, else 400:
+ * `agent` (one name), `parent` (one run id, on `parentRunId`), `status`
+ * (run statuses, as `in`) and `waiting` (`approval` or `dispatch`). A value
+ * the wire coerced to a scalar reads in canonical form.
+ */
+function checkRunFilter(filter: IFilter, agentNames: Iterable<string>): IFilter {
     const { value } = filter;
 
-    if (filter.operator !== 'eq' || Array.isArray(value) || isObject(value)) {
-        throw new BadRequestError({ message: 'filter[parent] takes one run id.' });
+    switch (filter.field) {
+        case 'agent':
+            return eq('agent', agentNameOf(filter, agentNames));
+        case 'parent':
+            if (filter.operator !== 'eq' || Array.isArray(value) || isObject(value)) {
+                throw new BadRequestError({ message: 'filter[parent] takes one run id.' });
+            }
+
+            return eq('parentRunId', String(value));
+        case 'waiting':
+            if (filter.operator !== 'eq' || (value !== 'approval' && value !== 'dispatch')) {
+                throw new BadRequestError({ message: 'filter[waiting] takes approval or dispatch.' });
+            }
+
+            return filter;
+        default: {
+            let values: unknown[] | undefined;
+
+            if (filter.operator === 'eq') {
+                values = [value];
+            } else if (filter.operator === 'in' && Array.isArray(value)) {
+                values = value;
+            }
+
+            const hasInvalidStatus = values !== undefined &&
+                values.some((item) => !(typeof item === 'string' && RUN_STATUSES.has(item)));
+
+            if (!values || hasInvalidStatus) {
+                throw new BadRequestError({ message: 'filter[status] takes run statuses.' });
+            }
+
+            return inArray('status', values);
+        }
     }
-
-    return String(value);
-}
-
-/** One wait point kind: `approval` or `dispatch`. */
-function readWaitingFilter(filter: IFilter): WaitPoint['kind'] {
-    const { value } = filter;
-
-    if (filter.operator !== 'eq' || (value !== 'approval' && value !== 'dispatch')) {
-        throw new BadRequestError({ message: 'filter[waiting] takes approval or dispatch.' });
-    }
-
-    return value;
-}
-
-function readStatusFilter(filter: IFilter): RunStatusLiteral[] {
-    let values: unknown[] | undefined;
-
-    if (filter.operator === 'eq') {
-        values = [filter.value];
-    } else if (filter.operator === 'in' && Array.isArray(filter.value)) {
-        values = filter.value;
-    }
-
-    const hasInvalidStatus = values !== undefined &&
-        values.some((value) => !(typeof value === 'string' && RUN_STATUSES.has(value)));
-
-    if (!values || hasInvalidStatus) {
-        throw new BadRequestError({ message: 'filter[status] takes run statuses.' });
-    }
-
-    return values as RunStatusLiteral[];
 }
 
 /**
- * `GET /runs` query: one agent, one parent run, statuses, one wait point
- * kind, a page, `sort=createdAt` only.
- * `agentNames` (the app's agents) resolve an agent name the wire coerced.
+ * `GET /runs` query, decoded with rapiq and checked: one agent, one parent
+ * run, statuses, one wait point kind, each given once and joined with
+ * `and`; a page; `sort=createdAt` only. `agentNames` (the app's agents)
+ * resolve an agent name the wire coerced.
  */
-export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Iterable<string> = []): RunListQuery {
-    const decoded = decodeQuery(searchParams, RUN_LIST_SCHEMA);
-
+export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Iterable<string> = []): RunListRequest {
+    const decoded = decodeFlatQuery(searchParams, RUN_LIST_SCHEMA);
     const seen = new Set<string>();
-    const query: RunListQuery = {
-        limit: decoded.limit ?? DEFAULT_PAGE_LIMIT,
-        offset: decoded.offset ?? 0,
-        order: 'asc',
-    };
+    const filters: IFilter[] = [];
+    let agent: string | undefined;
 
     for (const filter of decoded.filters) {
         if (seen.has(filter.field)) {
@@ -386,15 +388,13 @@ export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Ite
 
         seen.add(filter.field);
 
-        if (filter.field === 'agent') {
-            query.agent = readAgentFilter(filter, agentNames);
-        } else if (filter.field === 'parent') {
-            query.parent = readParentFilter(filter);
-        } else if (filter.field === 'waiting') {
-            query.waiting = readWaitingFilter(filter);
-        } else {
-            query.status = readStatusFilter(filter);
+        const checked = checkRunFilter(filter, agentNames);
+
+        if (checked.field === 'agent') {
+            agent = checked.value as string;
         }
+
+        filters.push(checked);
     }
 
     const [sort, ...others] = decoded.sorts;
@@ -403,11 +403,45 @@ export function parseRunListQuery(searchParams: URLSearchParams, agentNames: Ite
         throw new BadRequestError({ message: 'Only sort=createdAt or sort=-createdAt is supported.' });
     }
 
-    if (sort?.operator === 'DESC') {
-        query.order = 'desc';
+    return {
+        filters,
+        ...(agent !== undefined ? { agent } : {}),
+        limit: decoded.limit ?? DEFAULT_PAGE_LIMIT,
+        offset: decoded.offset ?? 0,
+        sorts: sort ? { [sort.name]: sort.operator } : {},
+    };
+}
+
+/**
+ * A run listing's request from an already validated filter (MCP
+ * `list_runs`): the same rapiq filters `parseRunListQuery` builds.
+ */
+export function toRunListRequest(filter: RunFindFilter): RunListRequest {
+    const filters: IFilter[] = [];
+
+    if (filter.agent !== undefined) {
+        filters.push(eq('agent', filter.agent));
     }
 
-    return query;
+    if (filter.parent !== undefined) {
+        filters.push(eq('parentRunId', filter.parent));
+    }
+
+    if (filter.status !== undefined) {
+        filters.push(inArray('status', [...filter.status]));
+    }
+
+    if (filter.waiting !== undefined) {
+        filters.push(eq('waiting', filter.waiting));
+    }
+
+    return {
+        filters,
+        ...(filter.agent !== undefined ? { agent: filter.agent } : {}),
+        limit: filter.limit,
+        offset: filter.offset,
+        sorts: filter.order === 'desc' ? { createdAt: 'DESC' } : {},
+    };
 }
 
 export function createApproveContainer(): Container<ApproveBody> {
@@ -429,8 +463,8 @@ export function createApproveContainer(): Container<ApproveBody> {
  * A run the principal may answer approvals of: 404 for a missing run (no
  * read permission needed), 403 without `chamvi_agent_approve` for its agent.
  */
-export async function loadApprovableRun(ctx: Pick<HttpContext, 'store' | 'agents' | 'clock'>, principal: Principal, id: string): Promise<Run> {
-    const run = await ctx.store.runs.findOneOrFail(id);
+export async function loadApprovableRun(ctx: Pick<HttpContext, 'runService' | 'agents' | 'clock'>, principal: Principal, id: string): Promise<Run> {
+    const run = await ctx.runService.findOneOrFail(id);
     const resource = agentResource(run.agent, ctx.agents.get(run.agent));
 
     if (!await isGranted(principal, Permission.AGENT_APPROVE, ctx.clock, resource)) {

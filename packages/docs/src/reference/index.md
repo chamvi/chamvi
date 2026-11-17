@@ -1,6 +1,6 @@
 # @chamvi/core
 
-The public API of `@chamvi/core`, taken from `packages/core/src/index.ts`. Contract interfaces carry an `I` prefix (`IRunRepository`, `IClock`, `IChannel`, `IAgentState`); data shapes are unprefixed types.
+The public API of `@chamvi/core`, taken from `packages/core/src/index.ts`. Contract interfaces carry an `I` prefix (`IClock`, `IChannel`, `IAgentState`, `IEngine`); data shapes are unprefixed types.
 
 ```ts
 import { Engine, defineModelAgent } from '@chamvi/core';
@@ -20,9 +20,11 @@ const DEFAULT_TIMEOUT_MS: 900_000; // 15 minutes
 
 Throws `InvalidAgentDefinitionError` for an invalid name, instruction outer shape or role, duplicate subscription ids, a tool with `needsApproval` or a `toolsContext` entry naming a chamvi tool or no tool of a plain tool set (both in a plain tool set; a tools factory fails the run instead), `defineModelAgent()` also for `run`. `Agent` is `ModelAgent | SimpleAgent`, told apart (and narrowed, the definition too) by `kind` (`'model'` or `'simple'`); `AgentDefinition` is `ModelAgentDefinition | SimpleAgentDefinition`. The engine refuses an agent whose `kind` is neither or disagrees with its definition (a simple agent needs a function `run`, a model agent has none). `defineSimpleAgent()` also throws for a non-function `run`, a tools factory or any of `model`, `instructions`, `skills`, `output`, `conversation`, `toolsContext`; its `run(payload, ctx: SimpleRunContext)` gets the tool context plus `ctx.tools`. See [Agents](/guide/agents#simple-agents).
 
-A folder agent's `agent.ts` default-exports `defineModelAgent()`'s or `defineSimpleAgent()`'s result, named like its folder (rebuilt through the factory of its `kind`; one without `kind`, from an older core, as a model agent unless it has `run`); `AgentRevision` is the store's revision marker of a folder agent (see [Agent Folders](/guide/agent-folders)):
+A folder agent's `agent.ts` default-exports `defineModelAgent()`'s or `defineSimpleAgent()`'s result, named like its folder (rebuilt through the factory of its `kind`; one without `kind`, from an older core, as a model agent unless it has `run`); `AgentRevision` (`@chamvi/store`) is the store's revision marker of a folder agent (see [Agent Folders](/guide/agent-folders)):
 
 <<< ../../../core/src/agent/types.ts{ts}
+
+<<< ../../../store/src/agent-revision/types.ts{ts}
 
 ## Native messages and instructions
 
@@ -54,9 +56,9 @@ function assertTriggerKey(name: string, value: string | undefined): void;     //
 
 `consoleChannel()` writes `[chamvi] <kind>: <title or the body's first line> (agent <agent>, run <runId>, key <key>)`, then the body lines and, for an approval, with options `select one:` (or `select one or more:`) and one `option <id>: <label>` line per option, then `approval <approvalId> waits until <ISO>`, one `write` call per line. It never throws; an invalid `name` throws `InvalidAgentDefinitionError`.
 
-The envelope (`TriggerEnvelope`, `Invoker`):
+The envelope (`TriggerEnvelope`, `Invoker`, from `@chamvi/store`):
 
-<<< ../../../core/src/trigger/types.ts{ts}
+<<< ../../../store/src/trigger/types.ts{ts}
 
 `agent.on()` (dispatch roles) is in core, see [Dispatch](#dispatch). The other subscription builders live in the channel packages: `http.on()` and `webhook.on()` in [`@chamvi/http`](/reference/http), `cron.on()` in [`@chamvi/channel-cron`](/reference/channel-cron), `github.on()` in [`@chamvi/github`](/reference/github). See [Channels & the Envelope](/guide/channels).
 
@@ -68,7 +70,6 @@ Use `IEngine` for engine type annotations and `Engine` for construction or exten
 class Engine {
     constructor(opts: EngineOptions);
 
-    readonly store: IStore;
     readonly clock: IClock;
     getAgent(name: string): Agent | undefined;
     listAgents(): Agent[];
@@ -132,25 +133,31 @@ class Engine {
 
 ## Runs
 
-`Run`, `RunStatusLiteral`, `RunContext`, `Step`, `Checkpoint`, `WaitPoint`, `Budget` and `Usage`:
+`Budget` and `RunContext`:
 
 <<< ../../../core/src/run/types.ts{ts}
 
-The `RunStatus` enum, whose values `RunStatusLiteral` is built from:
+The stored records `Run`, `RunStatusLiteral`, `WaitPoint`, `Usage`, `Step` and `Checkpoint`, from `@chamvi/store`:
 
-<<< ../../../core/src/run/constants.ts{ts}
+<<< ../../../store/src/run/types.ts{ts}
 
-## Stores and repositories
+<<< ../../../store/src/step/types.ts{ts}
 
-```ts
-function createMemoryStore(options?: MemoryStoreOptions): IStore & { conversations: IConversationRepository };
-```
+<<< ../../../store/src/checkpoint/types.ts{ts}
 
-The `IStore` aggregate and its capability interfaces (`IRunRepository`, `IStepRepository`, `ICheckpointRepository`, `IIdempotencyRepository`, `ILockRepository`, `IEffectRepository`, `IStateRepository`, `IArtifactRepository`, `IAgentRevisionRepository`) are listed on the [Repository Contract](/repositories/) page.
+The `RunStatus` enum (`@chamvi/store`), whose values `RunStatusLiteral` is built from:
+
+<<< ../../../store/src/run/constants.ts{ts}
+
+## Services and repositories
+
+There is no store aggregate: `RunService`, `StepService`, `CheckpointService`, `EffectService`, `ArtifactService`, `StateService`, `LockService`, `IdempotencyService` and `AgentRevisionService` hold the rules of runs, steps, checkpoints, effect results, artifacts, agent state, locks, idempotency keys and agent revision markers over the ports of `@chamvi/store`; `EngineOptions` takes each (`runService`, `stepService`, `checkpointService`, `effectService`, `artifactService`, `stateService`, `lockService`, `idempotencyService`, `agentRevisionService`). `ConnectionService` holds the connection rules over `IConnectionRepository`; `EngineOptions` takes it as an optional `connectionService` (exposed, unused by the engine), the connection vault and config store take it. `ConversationService` holds the conversation rules over `IConversationRepository`; `EngineOptions` takes it as an optional `conversationService`, required by the `conversations` capability. The ports are listed on the [Repository Contract](/repositories/) page.
 
 ## Artifacts
 
 `Artifact` (metadata), `ArtifactInput` (a file to store) and `IRunArtifacts` (the tool context's `artifacts`):
+
+<<< ../../../store/src/artifact/types.ts{ts}
 
 <<< ../../../core/src/artifact/types.ts{ts}
 
@@ -226,7 +233,7 @@ function effectMarker(effectKey: string): string; // '<!-- chamvi:effect=<key> -
 function wrapToolsForRun(
     tools: ToolSet,
     ctx: ToolContext,
-    store: IEffectRepository,
+    effects: Pick<EffectService, 'findOne' | 'save'>,
     options?: { allow?: (toolName: string) => boolean; hooks?: AgentHooks },
 ): ToolSet;
 
@@ -248,6 +255,8 @@ const APPROVAL_OPTION_LABEL_MAX_LENGTH: 200;
 const APPROVAL_OPTION_DETAIL_MAX_LENGTH: 20_000;
 const APPROVAL_OPTIONS_DETAIL_MAX_LENGTH: 100_000; // all details of one request
 ```
+
+<<< ../../../store/src/approval/types.ts{ts}
 
 <<< ../../../core/src/approval/types.ts{ts}
 
@@ -285,7 +294,7 @@ const DEFAULT_DISPATCH_WAIT_TIMEOUT_MS: 86_400_000; // 24 hours
 function createAgentState<S extends StateSchema = StateSchema>(
     agent: string,
     schema: S | undefined,
-    store: IStateRepository,
+    state: Pick<StateService, 'findOne' | 'set' | 'findDocuments' | 'upsertDocument' | 'deleteDocument'>,
 ): IAgentState<S>;
 
 function createStateTools<S extends StateSchema>(schema: S): ToolSet; // the tools read context.state

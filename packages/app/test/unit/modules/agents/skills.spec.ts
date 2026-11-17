@@ -110,9 +110,9 @@ describe('folder skill verification', () => {
         const current = setup.engine();
         const original = current.getAgent('greeter');
         const revision = current.agentRevision('greeter');
-        const marker = await setup.store.agentRevisions.findOne('greeter');
+        const marker = await setup.store.agentRevisionService.findOne('greeter');
         const runId = await queueRun(setup.store, setup.clock, 'greeter');
-        const queued = await setup.store.runs.findOne(runId);
+        const queued = await setup.store.runService.findOne(runId);
         const entered = Promise.withResolvers<void>();
         const release = Promise.withResolvers<void>();
         const reason = new Error('app stopped before registry mutation');
@@ -149,8 +149,8 @@ describe('folder skill verification', () => {
             await reload;
             expect(current.getAgent('greeter')).toBe(original);
             expect(current.agentRevision('greeter')).toBe(revision);
-            expect(await setup.store.agentRevisions.findOne('greeter')).toEqual(marker);
-            expect(await setup.store.runs.findOne(runId)).toEqual(queued);
+            expect(await setup.store.agentRevisionService.findOne('greeter')).toEqual(marker);
+            expect(await setup.store.runService.findOne(runId)).toEqual(queued);
         } finally {
             release.resolve();
         }
@@ -168,7 +168,7 @@ describe('folder skill verification', () => {
         await setup.harness.setup();
         expect(setup.engine().getAgent('keeper')).toBeDefined();
         expect(setup.engine().getAgent('greeter')).toBeUndefined();
-        expect(await setup.store.agentRevisions.findOne('greeter')).toBeUndefined();
+        expect(await setup.store.agentRevisionService.findOne('greeter')).toBeUndefined();
         expect(setup.issues()).toMatchObject([{ agent: 'greeter', message: expect.stringMatching(/temporarily unavailable/) }]);
         expect((await providerState()).attempts).toBe(1);
 
@@ -179,7 +179,7 @@ describe('folder skill verification', () => {
         await setup.poll();
         expect((await providerState()).attempts).toBe(2);
         expect(setup.engine().getAgent('greeter')?.definition.instructions).toBe('v1');
-        expect(await setup.store.agentRevisions.findOne('greeter')).toBeDefined();
+        expect(await setup.store.agentRevisionService.findOne('greeter')).toBeDefined();
         expect(setup.issues()).toEqual([]);
     });
 
@@ -208,7 +208,7 @@ describe('folder skill verification', () => {
 
         expect(error).toBeInstanceOf(Error);
         expect((error as { code?: unknown }).code).toBe(code);
-        expect(await setup.store.agentRevisions.findOne('greeter')).toBeUndefined();
+        expect(await setup.store.agentRevisionService.findOne('greeter')).toBeUndefined();
     });
 
     it('fails a job of the agent whose preparation rejects with undefined, keeping that rejection', async () => {
@@ -266,7 +266,7 @@ describe('folder skill verification', () => {
 
         await setup.harness.setup();
         expect(setup.issues()).toEqual([]);
-        expect(await setup.store.agentRevisions.findOne('greeter')).toBeUndefined();
+        expect(await setup.store.agentRevisionService.findOne('greeter')).toBeUndefined();
     });
 
     it('hot reload retains the old agent, marker and queued run when verification fails', async () => {
@@ -278,15 +278,15 @@ describe('folder skill verification', () => {
         await setup.watch();
 
         const previous = setup.engine().getAgent('greeter');
-        const marker = await setup.store.agentRevisions.findOne('greeter');
+        const marker = await setup.store.agentRevisionService.findOne('greeter');
         const runId = await queueRun(setup.store, setup.clock, 'greeter');
 
         await writeTree(join(root.path, 'greeter'), { 'agent.ts': sourceAgent('v2') });
         await setup.poll();
         await setup.poll();
         expect(setup.engine().getAgent('greeter')).toBe(previous);
-        expect(await setup.store.agentRevisions.findOne('greeter')).toEqual(marker);
-        expect((await setup.store.runs.findOne(runId))?.status).toBe('queued');
+        expect(await setup.store.agentRevisionService.findOne('greeter')).toEqual(marker);
+        expect((await setup.store.runService.findOne(runId))?.status).toBe('queued');
         expect(setup.issues()).toMatchObject([{ agent: 'greeter', message: expect.stringMatching(/skill/i) }]);
     });
 

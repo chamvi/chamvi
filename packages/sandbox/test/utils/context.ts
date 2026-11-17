@@ -6,8 +6,9 @@
  */
 
 import type { ToolSet } from 'ai';
-import { createAgentState, createMemoryStore } from '@chamvi/core';
+import { StateService, createAgentState } from '@chamvi/core';
 import type { IRunArtifacts, ToolContext } from '@chamvi/core';
+import { MemoryRegistry, MemoryStateDocumentRepository, MemoryStateRepository } from '@chamvi/store-memory';
 
 const NO_ARTIFACTS: IRunArtifacts = {
     put: async () => {
@@ -16,6 +17,16 @@ const NO_ARTIFACTS: IRunArtifacts = {
     get: async () => undefined,
     list: async () => [],
 };
+
+/** A state service on fresh memory repositories. */
+function stateService(): StateService {
+    const registry = new MemoryRegistry();
+
+    return new StateService({
+        repository: new MemoryStateRepository({ registry }),
+        documentRepository: new MemoryStateDocumentRepository({ registry }),
+    });
+}
 
 /** A ToolContext of run `runId`, started over http; `signal` defaults to one that never aborts. */
 export function toolContext(runId: string, signal: AbortSignal = new AbortController().signal): ToolContext {
@@ -35,7 +46,7 @@ export function toolContext(runId: string, signal: AbortSignal = new AbortContro
             },
             signal,
         },
-        state: createAgentState('coder', undefined, createMemoryStore().state),
+        state: createAgentState('coder', undefined, stateService()),
         artifacts: NO_ARTIFACTS,
     };
 }

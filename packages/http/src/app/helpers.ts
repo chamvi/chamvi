@@ -25,6 +25,7 @@ import {
     HTTP_CONTEXT,
     RESERVED_ROUTE_SEGMENTS,
     STATIC_ROUTE_PATH,
+    STORAGE_ERRORS,
     STREAM_RETRY_AFTER_SECONDS,
 } from './constants.ts';
 import { validateChannels } from '../channels/helpers.ts';
@@ -47,6 +48,8 @@ type ErrorBody = {
     code: string;
     message: string;
     issues?: readonly Issue[];
+    /** The message is fixed and safe to send, also for a 5xx. */
+    fixed?: boolean;
 };
 
 const CORE_STATUS: Record<string, number> = {
@@ -234,6 +237,10 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         throw new InvalidAgentDefinitionError('connections must be a function returning the connection handles.');
     }
 
+    if (options.connectionConfigs !== undefined && !options.engine.connectionService) {
+        throw new InvalidAgentDefinitionError('connectionConfigs needs an engine with a connection service (its stored rows).');
+    }
+
     if (options.connectionTypes !== undefined && typeof options.connectionTypes !== 'function') {
         throw new InvalidAgentDefinitionError('connectionTypes must be a function returning the connection type providers.');
     }
@@ -249,7 +256,10 @@ export function buildContext(options: HttpAppOptions): HttpContext {
 
     return {
         engine: options.engine,
-        store: options.engine.store,
+        runService: options.engine.runService,
+        stepService: options.engine.stepService,
+        artifactService: options.engine.artifactService,
+        stateService: options.engine.stateService,
         agents: createLiveAgents(options.engine, options.agents),
         agentIssues: readAgentIssues(options),
         authenticators,
@@ -269,6 +279,7 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         connections: options.connections ?? (() => []),
         connectionTypes: options.connectionTypes ?? (() => []),
         ...(options.connectionConfigs && { connectionConfigs: options.connectionConfigs }),
+        ...(options.engine.connectionService && { connectionService: options.engine.connectionService }),
         uiPages: options.uiPages ?? (() => []),
         // eslint-disable-next-line no-console
         onError: options.onError ?? ((error) => console.error('[chamvi]', error)),
@@ -298,7 +309,14 @@ function renderError(event: IAppEvent, body: ErrorBody): Response {
         headers.set('www-authenticate', 'Bearer');
     }
 
-    return new Response(JSON.stringify(body), { status: body.status, headers });
+    const wire: Omit<ErrorBody, 'fixed'> = {
+        status: body.status,
+        code: body.code,
+        message: body.message,
+        ...(body.issues !== undefined ? { issues: body.issues } : {}),
+    };
+
+    return new Response(JSON.stringify(wire), { status: body.status, headers });
 }
 
 /**
@@ -373,7 +391,39 @@ function isBareAppError(error: IHTTPError): boolean {
     return error instanceof AppError && error.code === APP_ERROR_CODE;
 }
 
+/**
+ * A storage error by its code, with its fixed message: never the error's
+ * own message or fields (an entity label, an operation, a driver code),
+ * and never its issues.
+ */
+function toStorageErrorBody(cause: unknown): ErrorBody | undefined {
+    if (!Error.isError(cause)) {
+        return undefined;
+    }
+
+    const { code } = cause as { code?: unknown };
+
+    if (typeof code !== 'string' || !Object.hasOwn(STORAGE_ERRORS, code)) {
+        return undefined;
+    }
+
+    const { status, message } = STORAGE_ERRORS[code]!;
+
+    return {
+        status,
+        code,
+        message,
+        fixed: true,
+    };
+}
+
 function toErrorBody(cause: unknown): ErrorBody | undefined {
+    const storage = toStorageErrorBody(cause);
+
+    if (storage) {
+        return storage;
+    }
+
     // before validup: isValidupError duck-types any error carrying issues
     if (isHTTPError(cause) && !isBareAppError(cause)) {
         return withIssues({
@@ -422,7 +472,7 @@ export function createErrorHandler(ctx: HttpContext): Handler {
             body = {
                 status: body?.status ?? 500,
                 code: body?.code ?? 'internal_error',
-                message: 'Internal Server Error',
+                message: body?.fixed ? body.message : 'Internal Server Error',
             };
         }
 

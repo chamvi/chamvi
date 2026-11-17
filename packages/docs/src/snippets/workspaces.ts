@@ -1,7 +1,5 @@
 import type { LanguageModel } from 'ai';
-import type { IStore } from '@chamvi/core';
 import {
-    Engine,
     ToolDeniedError,
     approve,
     defineModelAgent,
@@ -13,8 +11,12 @@ import type { IGithubApp } from '@chamvi/github';
 import { createWorkspaceManager, staticGitCredentials } from '@chamvi/sandbox';
 import type { ISandboxProvider } from '@chamvi/sandbox';
 import { createLocalSandbox } from '@chamvi/sandbox-local';
+import type { EngineOptions, IEngine } from '@chamvi/core';
 
-export async function serve(store: IStore, model: LanguageModel, provider: ISandboxProvider) {
+/** Builds the app's engine on the repositories every replica shares (see Database store). */
+type CreateEngine = (options: Pick<EngineOptions, 'agents' | 'channels' | 'onError'>) => IEngine;
+
+export async function serve(createEngine: CreateEngine, model: LanguageModel, provider: ISandboxProvider) {
     // #region setup
     const workspaces = createWorkspaceManager({
         provider,
@@ -49,8 +51,8 @@ export async function serve(store: IStore, model: LanguageModel, provider: ISand
         },
     });
 
-    const engine = new Engine({
-        store,
+    // your engine on the repositories every replica shares (see Database store)
+    const engine = createEngine({
         agents: [repro],
         channels: [httpChannel()],
     });

@@ -6,7 +6,7 @@
  */
 
 import { expect, it } from 'vitest';
-import type { Run } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { serializeRun } from '../../../src/runs/helpers.ts';
 import type { HttpAgents } from '../../../src/app/types.ts';
 

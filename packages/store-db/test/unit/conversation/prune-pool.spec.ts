@@ -12,12 +12,15 @@ import {
     it,
     vi,
 } from 'vitest';
-import { DEFAULT_CONVERSATION_LIMITS } from '@chamvi/core';
+import {
+    DEFAULT_CONVERSATION_LIMITS,
+    RunService,
+} from '@chamvi/core';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '@chamvi/store-db';
-import { SeededConversationRepository, seedRun } from '../../utils/conversation.ts';
+import { turnsOf } from '../../../../core/test/fixtures/conversation-service.ts';
+import { conversationServiceOf, seedRun } from '../../utils/conversation.ts';
 import { ConversationItemEntity, ConversationOperationEntity } from '../../../src/entities/index.ts';
-import { asValues } from '../../../src/repository/helpers.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
 async function withinPoolDeadline<T>(query: Promise<T>): Promise<T> {
@@ -45,8 +48,8 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
         dataSource = await createTestDataSource({ max: 1 });
 
         const clock = new ControllableClock(new Date('2026-10-28T00:00:00.000Z'));
-        const store = new SeededConversationRepository({ dataSource, clock });
-        const runs = new DatabaseRunRepository({ dataSource, clock });
+        const store = turnsOf({ service: conversationServiceOf(dataSource, clock), seedRun: (id) => seedRun(dataSource, id) });
+        const runs = new RunService({ repository: new DatabaseRunRepository(dataSource), clock });
         const scope = await store.resolve({
             agent: 'helper',
             channel: 'chat',
@@ -57,7 +60,7 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
         const limits = { ...DEFAULT_CONVERSATION_LIMITS, retentionMs: 10_000 };
         async function seed(runId: string, status?: 'completed' | 'waiting') {
             if (status) {
-                await runs.insert({
+                await runs.create({
                     id: runId,
                     agent: 'helper',
                     status,
@@ -130,10 +133,11 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
             createdAt: s.clock.now(),
             role: 'user' as const,
             text: 'input',
+            bytes: 5,
             status: 'sent' as const,
         }));
 
-        await dataSource.getRepository(ConversationItemEntity).insert(items.map((item) => asValues<ConversationItemEntity>(item)));
+        await dataSource.getRepository(ConversationItemEntity).insert(items);
 
         const queries = vi.spyOn(dataSource.logger, 'logQuery');
 

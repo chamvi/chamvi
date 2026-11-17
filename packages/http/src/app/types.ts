@@ -7,13 +7,13 @@
 
 import type {
     Agent,
+    ConnectionService,
     IChannel,
     IClock,
     IConnectionConfigStore,
     IConnectionHandle,
     IConnectionTypeProvider,
     IEngine,
-    IStore,
 } from '@chamvi/core';
 import type { Options as CorsPluginOptions } from '@routup/cors';
 import type { Options as PrometheusPluginOptions } from '@routup/prometheus';
@@ -49,7 +49,7 @@ export type McpOptions = {
 };
 
 export type HttpAppOptions = {
-    /** Its `store`, agents and `clock` serve every route. */
+    /** Its services (`runService`, `stepService`, `artifactService`, `stateService`, `connectionService`), agents and `clock` serve every route. */
     engine: IEngine;
     /**
      * Names of the engine's agents to serve (routes, MCP tools, extra
@@ -141,9 +141,11 @@ export type HttpAppOptions = {
      */
     connectionTypes?: () => readonly IConnectionTypeProvider[];
     /**
-     * Where connection settings and secrets are saved. Absent (a store
-     * without `connections`): connections are read-only, no save or create
-     * is accepted.
+     * Where connection settings and secrets are saved; it needs an engine
+     * with a connection service (`engine.connectionService`, the stored
+     * rows), else InvalidAgentDefinitionError. Absent (a store without
+     * connections): connections are read-only, no save or create is
+     * accepted.
      */
     connectionConfigs?: IConnectionConfigStore;
     /** The separately built pages `GET /ui-pages` lists, read per request. Default: none. */
@@ -235,7 +237,14 @@ export type HttpAgents = {
 /** Shared by every route module; internal. */
 export type HttpContext = {
     engine: IEngine;
-    store: IStore;
+    /** The engine's run service. */
+    runService: IEngine['runService'];
+    /** The engine's step service. */
+    stepService: IEngine['stepService'];
+    /** The engine's artifact service. */
+    artifactService: IEngine['artifactService'];
+    /** The engine's state service. */
+    stateService: IEngine['stateService'];
     agents: HttpAgents;
     /** Agents that failed to load, as `GET /agents` lists them. */
     agentIssues: () => AgentIssue[];
@@ -264,6 +273,8 @@ export type HttpContext = {
     connections: () => readonly IConnectionHandle[];
     connectionTypes: () => readonly IConnectionTypeProvider[];
     connectionConfigs?: IConnectionConfigStore;
+    /** The engine's connection service: the stored connection rows, when the app keeps them. */
+    connectionService?: Pick<ConnectionService, 'findOne' | 'find'>;
     uiPages: () => readonly UiPage[];
     onError: (error: unknown) => void;
 };

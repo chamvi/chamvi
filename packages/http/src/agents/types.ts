@@ -96,7 +96,7 @@ export interface IAgentService {
 }
 
 /** What `AgentStateService` needs of the http context. */
-export type AgentStateServiceContext = Pick<HttpContext, 'agents' | 'store' | 'clock'>;
+export type AgentStateServiceContext = Pick<HttpContext, 'agents' | 'stateService' | 'clock'>;
 
 /**
  * Agent state. Each method checks the permission for `{ name }`, then the

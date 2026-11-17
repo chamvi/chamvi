@@ -5,12 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type {
-    Run,
-    RunDelta,
-    RunEvent,
-    Step,
-} from '@chamvi/core';
+import type { RunDelta, RunEvent } from '@chamvi/core';
+import type { Run, Step } from '@chamvi/store';
 import { createEventStream } from 'routup';
 import type { IAppEvent } from 'routup';
 import { acquireStreamSlot, refuseStreamOverCap, refuseWhenClosed } from '../../app/helpers.ts';
@@ -171,7 +167,7 @@ export async function streamRun(event: IAppEvent, ctx: HttpContext, runId: strin
     /** Sends the steps not sent yet, then ends: the settled run was the last word. */
     async function settle(): Promise<void> {
         try {
-            const steps = await ctx.store.steps.find(runId);
+            const steps = await ctx.stepService.find(runId);
 
             sendSteps(steps);
             cleanup();
@@ -230,7 +226,7 @@ export async function streamRun(event: IAppEvent, ctx: HttpContext, runId: strin
         }
 
         try {
-            const run = await ctx.store.runs.findOne(runId);
+            const run = await ctx.runService.findOne(runId);
 
             if (ended) {
                 return;
@@ -256,7 +252,7 @@ export async function streamRun(event: IAppEvent, ctx: HttpContext, runId: strin
                 return;
             }
 
-            const sentSteps = changed && sendSteps(await ctx.store.steps.find(runId));
+            const sentSteps = changed && sendSteps(await ctx.stepService.find(runId));
 
             if (sentSteps) {
                 sent = true;
@@ -288,8 +284,8 @@ export async function streamRun(event: IAppEvent, ctx: HttpContext, runId: strin
     let steps: Step[];
 
     try {
-        run = await ctx.store.runs.findOneOrFail(runId);
-        steps = await ctx.store.steps.find(runId);
+        run = await ctx.runService.findOneOrFail(runId);
+        steps = await ctx.stepService.find(runId);
     } catch (error) {
         // nothing was written yet: the error handler answers instead
         cleanup();

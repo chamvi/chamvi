@@ -6,7 +6,6 @@
  */
 
 import { createHmac } from 'node:crypto';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import type { Agent, IChannel, IEngine } from '@chamvi/core';
 import { createGithubApp, githubChannel } from '@chamvi/github';
 import type {
@@ -17,7 +16,7 @@ import type {
 } from '@chamvi/github';
 import { createHttpApp, staticTokens } from '@chamvi/http';
 import type { HttpAppOptions } from '@chamvi/http';
-import { ControllableClock, createFakeGithub } from '@chamvi/test-kit';
+import { ControllableClock, createFakeGithub, createTestEngine } from '@chamvi/test-kit';
 import type { FakeGithub } from '@chamvi/test-kit';
 
 /** The http app (a routup `App`). */
@@ -41,7 +40,6 @@ export type GithubTestAppInput = {
 export type GithubTestApp = {
     app: App;
     engine: IEngine;
-    store: ReturnType<typeof createMemoryStore>;
     clock: ControllableClock;
     fake: FakeGithub;
     gh: IGithubApp;
@@ -85,15 +83,15 @@ export function createGithubTestApp(input: GithubTestAppInput): GithubTestApp {
         errors.push(error);
         input.onError?.(error);
     };
+    // the channel is built before the engine: its persistent-comment locks are a storage engine's lock service
     const channel = githubChannel({
         app: gh,
         clock,
         onError,
+        locks: createTestEngine({ agents: [], clock }).lockService,
         ...input.channel,
     });
-    const store = createMemoryStore({ clock });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents,
         channels: [channel as IChannel],
         clock,
@@ -119,7 +117,6 @@ export function createGithubTestApp(input: GithubTestAppInput): GithubTestApp {
     return {
         app,
         engine,
-        store,
         clock,
         fake,
         gh,

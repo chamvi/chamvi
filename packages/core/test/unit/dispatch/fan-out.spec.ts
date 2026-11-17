@@ -8,7 +8,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     agent,
     agentChannel,
     defineModelAgent,
@@ -16,12 +15,13 @@ import {
     dispatch,
     waitForDispatch,
 } from '@chamvi/core';
-import type { DispatchOutcome, IStore } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import type { DispatchOutcome } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { nextRun, treeModel } from '../../utils/dispatch.ts';
 import type { ChildTurn, ParentTurn } from '../../utils/dispatch.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -46,7 +46,7 @@ const fan = defineTool({
     },
 });
 
-function build(store: IStore, clock: ControllableClock, parent: ParentTurn[], child: ChildTurn) {
+function build(store: TestServiceSet, clock: ControllableClock, parent: ParentTurn[], child: ChildTurn) {
     const lead = defineModelAgent({
         name: 'lead',
         instructions: 'You lead.',
@@ -55,8 +55,8 @@ function build(store: IStore, clock: ControllableClock, parent: ParentTurn[], ch
         tools: { fan },
     });
 
-    return new Engine({
-        store,
+    return createTestEngine({
+        services: store,
         clock,
         agents: [lead],
         channels: [agentChannel()],
@@ -69,7 +69,7 @@ describe('fan-out', () => {
         bodies = 0;
 
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         // engine A: c1 answers, c2 and c3 never do (they are interrupted by the drain)
         const a = build(store, clock, [
             { parts: [call('fan', { payloads: ['c1', 'c2', 'c3'] }, 'f1')] },
@@ -95,7 +95,7 @@ describe('fan-out', () => {
         clock.advance(1_000);
         await draining;
 
-        const parked = await store.runs.findOne(parentId);
+        const parked = await store.runService.findOne(parentId);
 
         expect(parked?.status).toBe('waiting');
         expect(parked?.waiting?.kind).toBe('dispatch');
@@ -112,13 +112,13 @@ describe('fan-out', () => {
         await b.start();
         await b.idle();
 
-        const { data } = await store.runs.find({ parentRunId: parentId });
+        const { data } = await store.runService.find({ parentRunId: parentId });
         const byPayload = (p: string) => data.find((r) => r.trigger.payload === p)!;
 
         expect(data).toHaveLength(3);
         expect(byPayload('c2').error).toEqual({ code: 'Error', message: 'model down' });
 
-        const tools = (await store.steps.find(parentId)).filter((s) => s.kind === 'tool');
+        const tools = (await store.stepService.find(parentId)).filter((s) => s.kind === 'tool');
         const outcomes = tools[0]?.output as DispatchOutcome[];
 
         expect(outcomes).toEqual([
@@ -145,11 +145,11 @@ describe('fan-out', () => {
             },
         ]);
 
-        const waits = (await store.steps.find(parentId)).filter((s) => s.kind === 'wait');
+        const waits = (await store.stepService.find(parentId)).filter((s) => s.kind === 'wait');
 
         expect(waits).toHaveLength(1);
         expect(waits[0]?.name).toBe('fan');
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
         expect(bodies).toBe(2);
 
         b.stop();

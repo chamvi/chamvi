@@ -43,12 +43,12 @@ export class AgentStateService implements IAgentStateService {
     async list(name: string, query: URLSearchParams, principal: Principal): Promise<{ data: KvEntry[] }> {
         const agent = await this.readableAgent(name, principal, Permission.STATE_READ);
 
-        return { data: await this.ctx.store.state.find(agent.name, parseKvListQuery(query)) };
+        return { data: await this.ctx.stateService.list(agent.name, parseKvListQuery(query)) };
     }
 
     async get(name: string, key: string, principal: Principal): Promise<KvView> {
         const agent = await this.readableAgent(name, principal, Permission.STATE_READ);
-        const value = await this.ctx.store.state.findOne(agent.name, key);
+        const value = await this.ctx.stateService.findOne(agent.name, key);
 
         return { key, value: value ?? null };
     }
@@ -57,7 +57,7 @@ export class AgentStateService implements IAgentStateService {
         const agent = await this.readableAgent(name, principal, Permission.STATE_WRITE);
         const body = await validateBody(this.kvContainer, data);
 
-        await this.ctx.store.state.set(agent.name, key, body.value);
+        await this.ctx.stateService.set(agent.name, key, body.value);
 
         return { key, value: body.value };
     }
@@ -67,7 +67,7 @@ export class AgentStateService implements IAgentStateService {
 
         assertCollection(agent, collection);
 
-        const docs = await this.ctx.store.state.findDocuments(agent.name, collection, parseCollectionQuery(query));
+        const docs = await this.ctx.stateService.listDocuments(agent.name, collection, parseCollectionQuery(query));
 
         return { data: docs.map(serializeDoc) };
     }

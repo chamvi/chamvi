@@ -6,9 +6,8 @@
  */
 
 import { Permission } from '@chamvi/access';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import { createHttpApp, staticTokens } from '@chamvi/http';
-import { mockEmbeddingModel } from '@chamvi/test-kit';
+import { createTestEngine, mockEmbeddingModel } from '@chamvi/test-kit';
 import type { App } from 'routup';
 import {
     afterEach,
@@ -64,8 +63,7 @@ function createFixture(extra: Partial<KnowledgeOptions> = {}): Fixture {
 
     started.push(knowledge);
 
-    const engine = new Engine({
-        store: createMemoryStore({ clock: setup.clock }),
+    const engine = createTestEngine({
         agents: [],
         clock: setup.clock,
     });

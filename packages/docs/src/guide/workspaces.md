@@ -53,6 +53,8 @@ chamvi's own commands never run from the cache: every workspace command starts w
 
 <<< @/snippets/workspaces.ts#setup
 
+`createEngine` stands for the engine of your app, built on the repositories every replica shares ([Database store](/repositories/database)); with [`@chamvi/app`](/guide/app) the app builds it.
+
 The coding tools are not yours to edit, so the approval for `bash` sits in the agent's `beforeToolExecution` hook: `approve()` there pauses the run (keeping its workspaces on this replica) until someone answers, and a refused command reaches the model as a `ToolDeniedError` tool error. See [Approvals & Hooks](/guide/approvals#gating-tools-you-did-not-write).
 
 `workspaces.tools()` gives the model six tools by default; `codingTools(workspaces)` adds eleven more. Every tool resolves its workspace with the calling run's id, so a run can only reach its own workspaces.
@@ -152,9 +154,9 @@ A run waiting for an approval (or for dispatched runs) keeps its workspace, sinc
 
 A suspension loses running background jobs and `/tmp`; on Kubernetes also everything outside `/workspace` and `/home/sandbox` (an `apt install`) and an emptyDir `/cache`. Nothing else changes: a suspended workspace still goes when its run settles or at `maxLifetimeMs`. A run that resumes while another replica suspends its workspace may see one failed command (the workspace is gone); the next call finds it again.
 
-`workspaces.close()` at shutdown (call it **after** `engine.drain()`) disposes nothing a live run holds (`close({ dispose: true })` disposes those too, which `sandboxModule()` does when `engine.store.runs` is a `MemoryRunRepository`, since no run of it resumes after the restart): it aborts the creates still in flight (disposing what they made) and waits for them and for every disposal already started, at most 30 seconds (`close({ timeoutMs })`), then reports what is left to `onError`.
+`workspaces.close()` at shutdown (call it **after** `engine.drain()`) disposes nothing a live run holds (`close({ dispose: true })` disposes those too, which `sandboxModule()` does when `AppToken.STORE_KIND` is `memory`, since no run of it resumes after the restart): it aborts the creates still in flight (disposing what they made) and waits for them and for every disposal already started, at most 30 seconds (`close({ timeoutMs })`), then reports what is left to `onError`.
 
-Several deployments (dev and prod, CI) may share one Docker host or namespace: every workspace carries the manager's `deployment` (`CHAMVI_DEPLOYMENT` with the module, default `default`), and `find` and the garbage collection only see their own. Give every app on a shared host its own `CHAMVI_DEPLOYMENT`: `sandboxModule()` treats a run its engine does not know as finished only in a named deployment, since in `default` that run may belong to another app. So with the default, the workspaces of runs the store no longer holds (an app using `createMemoryStore()` that crashed instead of stopping) stay until `maxLifetimeMs`; with a named deployment they go on the next collection, and two apps sharing one name remove each other's workspaces.
+Several deployments (dev and prod, CI) may share one Docker host or namespace: every workspace carries the manager's `deployment` (`CHAMVI_DEPLOYMENT` with the module, default `default`), and `find` and the garbage collection only see their own. Give every app on a shared host its own `CHAMVI_DEPLOYMENT`: `sandboxModule()` treats a run its engine does not know as finished only in a named deployment, since in `default` that run may belong to another app. So with the default, the workspaces of runs the store no longer holds (an app on memory repositories that crashed instead of stopping) stay until `maxLifetimeMs`; with a named deployment they go on the next collection, and two apps sharing one name remove each other's workspaces.
 
 For development, the local provider runs everything in a temporary directory:
 

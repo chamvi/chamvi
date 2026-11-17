@@ -13,7 +13,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     agent,
     agentChannel,
     defineModelAgent,
@@ -22,11 +21,13 @@ import {
     waitForDispatch,
 } from '@chamvi/core';
 import type { DispatchOutcome, IEngine } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
+import { flush } from '../../utils/concurrency.ts';
 import { nextRun, treeModel } from '../../utils/dispatch.ts';
 import type { ChildTurn } from '../../utils/dispatch.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -57,10 +58,22 @@ afterEach(() => {
     engines.length = 0;
 });
 
+/**
+ * Moves the clock in steps of a third of the default claim TTL: the
+ * lease renewals of running runs (which read the clock after their row
+ * lock) run as time passes, as they would on a real clock.
+ */
+async function advance(clock: ControllableClock, ms: number): Promise<void> {
+    for (let left = ms; left > 0; left -= 20_000) {
+        clock.advance(Math.min(20_000, left));
+        await flush();
+    }
+}
+
 describe('dispatch wait timeout', () => {
     it('timeout cancels owned unsettled children and outcomes carry Timeout', async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         // a answers, b settles only by aborting
         const child: ChildTurn = (payload, options) => (payload === 'a' ?
             text('out-a') :
@@ -77,8 +90,8 @@ describe('dispatch wait timeout', () => {
             channels: [agent.on()],
             tools: { fan },
         });
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
+            services: store,
             clock,
             agents: [lead],
             channels: [agentChannel()],
@@ -101,12 +114,12 @@ describe('dispatch wait timeout', () => {
 
         const completed = nextRun(engine, (run) => run.id === parentId && run.status === 'completed');
 
-        clock.advance(60_000);
+        await advance(clock, 60_000);
         await engine.tick();
         await completed;
         await engine.idle();
 
-        const { data } = await store.runs.find({ parentRunId: parentId });
+        const { data } = await store.runService.find({ parentRunId: parentId });
         const a = data.find((r) => r.trigger.payload === 'a')!;
         const b = data.find((r) => r.trigger.payload === 'b')!;
 
@@ -114,7 +127,7 @@ describe('dispatch wait timeout', () => {
         expect(b.status).toBe('cancelled');
         expect(b.error?.code).toBe('Timeout');
 
-        const [step] = (await store.steps.find(parentId)).filter((s) => s.kind === 'tool');
+        const [step] = (await store.stepService.find(parentId)).filter((s) => s.kind === 'tool');
         const outcomes = step?.output as DispatchOutcome[];
 
         expect(outcomes[0]).toEqual({
@@ -132,14 +145,14 @@ describe('dispatch wait timeout', () => {
             error: { code: 'Timeout' },
         });
         expect(outcomes[1]?.error?.message).toBe(b.error?.message);
-        expect((await store.steps.find(parentId)).filter((s) => s.kind === 'wait')).toHaveLength(1);
+        expect((await store.stepService.find(parentId)).filter((s) => s.kind === 'wait')).toHaveLength(1);
     });
 
     describe('a cancel that lands on another replica', () => {
         /** Replica `a` executes the parent and child `b`; replica `remote` (never started) runs the expiring tick. */
         async function setup() {
             const clock = new ControllableClock(START);
-            const store = createMemoryStore({ clock });
+            const store = createTestServices({ clock });
             const lead = defineModelAgent({
                 name: 'lead',
                 instructions: 'You lead.',
@@ -153,14 +166,14 @@ describe('dispatch wait timeout', () => {
                 tools: { fan },
             });
             const options = {
-                store,
+                services: store,
                 clock,
                 agents: [lead],
                 channels: [agentChannel()],
                 onError: () => {},
             };
-            const a = new Engine(options);
-            const remote = new Engine(options);
+            const a = createTestEngine(options);
+            const remote = createTestEngine(options);
 
             engines.push(a, remote);
             await a.start();
@@ -177,7 +190,7 @@ describe('dispatch wait timeout', () => {
 
             // a's poll stays out of it: the expiry happens on the remote replica
             await a.stop();
-            clock.advance(60_000);
+            await advance(clock, 60_000);
             await remote.tick();
 
             return {
@@ -190,8 +203,8 @@ describe('dispatch wait timeout', () => {
             };
         }
 
-        async function waitOutcome(store: ReturnType<typeof createMemoryStore>, parentId: string): Promise<DispatchOutcome | undefined> {
-            const [step] = (await store.steps.find(parentId)).filter((s) => s.kind === 'wait');
+        async function waitOutcome(store: TestServices, parentId: string): Promise<DispatchOutcome | undefined> {
+            const [step] = (await store.stepService.find(parentId)).filter((s) => s.kind === 'wait');
 
             return (step?.output as DispatchOutcome[] | undefined)?.[0];
         }
@@ -205,8 +218,8 @@ describe('dispatch wait timeout', () => {
             } = await setup();
 
             // only cancelRequested so far: the parent waits for the cancel to land
-            expect((await store.runs.findOne(childId))).toMatchObject({ status: 'running', cancelRequested: true });
-            expect((await store.runs.findOne(parentId))?.status).toBe('waiting');
+            expect((await store.runService.findOne(childId))).toMatchObject({ status: 'running', cancelRequested: true });
+            expect((await store.runService.findOne(parentId))?.status).toBe('waiting');
 
             const queued = nextRun(a, (run) => run.id === parentId && run.status === 'queued');
 
@@ -214,7 +227,7 @@ describe('dispatch wait timeout', () => {
             await a.recover();
             await queued;
 
-            expect((await store.runs.findOne(childId))?.status).toBe('cancelled');
+            expect((await store.runService.findOne(childId))?.status).toBe('cancelled');
             expect(await waitOutcome(store, parentId)).toMatchObject({
                 runId: childId,
                 status: 'cancelled',
@@ -232,13 +245,13 @@ describe('dispatch wait timeout', () => {
             } = await setup();
 
             await remote.tick();
-            expect((await store.runs.findOne(parentId))?.status).toBe('waiting');
+            expect((await store.runService.findOne(parentId))?.status).toBe('waiting');
 
             clock.advance(60_000);
             await remote.tick();
 
-            expect((await store.runs.findOne(parentId))?.status).toBe('queued');
-            expect((await store.runs.findOne(childId))?.status).toBe('running');
+            expect((await store.runService.findOne(parentId))?.status).toBe('queued');
+            expect((await store.runService.findOne(childId))?.status).toBe('running');
             expect(await waitOutcome(store, parentId)).toMatchObject({
                 runId: childId,
                 status: 'timeout',

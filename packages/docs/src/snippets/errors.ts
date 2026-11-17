@@ -1,17 +1,19 @@
 import {
-    Engine,
     ErrorCode,
     LeaseLostError,
-    RunStatus,
 } from '@chamvi/core';
-import type { Agent, IEngine, IStore } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
+import type { Agent, EngineOptions, IEngine } from '@chamvi/core';
+
+/** Builds the app's engine on the repositories every replica shares (see Database store). */
+type CreateEngine = (options: Pick<EngineOptions, 'agents' | 'channels' | 'onError'>) => IEngine;
 
 declare const logger: { error(fields: object, message: string): void };
 
-export function createEngine(store: IStore, agents: Agent[]) {
+export function createReportingEngine(createEngine: CreateEngine, agents: Agent[]) {
     // #region on-error
-    const engine = new Engine({
-        store,
+    // your engine on the repositories every replica shares (see Database store)
+    const engine = createEngine({
         agents,
         onError: (error, run) => {
             if (error instanceof LeaseLostError) {

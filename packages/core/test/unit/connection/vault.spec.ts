@@ -18,30 +18,31 @@ import {
     ValidationError,
     createConnectionVault,
     createKeyring,
-    createMemoryStore,
 } from '@chamvi/core';
 import type {
     ConnectionEntryWrite,
     ConnectionFence,
-    IStore,
     KeyringKey,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
+import { createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const text = (value: string) => new TextEncoder().encode(value);
 const decode = (value: Uint8Array | undefined) => (value ? new TextDecoder().decode(value) : undefined);
 const masterKey = (id: string): KeyringKey => ({ id, key: new Uint8Array(randomBytes(32)) });
 const settle = () => new Promise<void>((resolve) => {
-    setImmediate(resolve); 
+    setImmediate(resolve);
 });
 
 const setup = (keys: KeyringKey[] = [masterKey('k1')]) => {
     const clock = new ControllableClock();
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const vault = createConnectionVault({
-        store, 
-        keyring: createKeyring(keys), 
-        clock, 
+        connectionService: store.connectionService,
+        lockService: store.lockService,
+        keyring: createKeyring(keys),
+        clock,
     });
 
     return {
@@ -53,11 +54,11 @@ const setup = (keys: KeyringKey[] = [masterKey('k1')]) => {
 };
 
 /** Records the owner of every lease the vault acquires (each session has its own). */
-const recordOwners = (store: IStore) => {
+const recordOwners = (store: TestServiceSet) => {
     const owners: string[] = [];
-    const acquire = store.locks.acquire.bind(store.locks);
+    const acquire = store.lockService.acquire.bind(store.lockService);
 
-    store.locks.acquire = async (key, owner, ttlMs) => {
+    store.lockService.acquire = async (key, owner, ttlMs) => {
         owners.push(owner);
 
         return acquire(key, owner, ttlMs);
@@ -67,10 +68,14 @@ const recordOwners = (store: IStore) => {
 };
 
 describe('createConnectionVault', () => {
-    it('refuses a store without connections', () => {
-        const store: IStore = { ...createMemoryStore(), connections: undefined };
+    it('refuses to be built without a connection service', () => {
+        const { lockService } = createTestServices();
 
-        expect(() => createConnectionVault({ store, keyring: createKeyring([masterKey('k1')]) }))
+        expect(() => createConnectionVault({
+            connectionService: undefined as never,
+            lockService,
+            keyring: createKeyring([masterKey('k1')]),
+        }))
             .toThrow(InvalidAgentDefinitionError);
     });
 
@@ -114,15 +119,15 @@ describe('createConnectionVault', () => {
 describe('vault.open', () => {
     it('creates the connection on first open with a data key wrapped under the active key', async () => {
         const {
-            clock, 
-            store, 
-            vault, 
+            clock,
+            store,
+            vault,
         } = setup();
 
         clock.advance(5_000);
 
         const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
-        const stored = await store.connections.findOneOrFail('wa');
+        const stored = await store.connectionService.findOneOrFail('wa');
 
         expect(session.name).toBe('wa');
         expect(stored).toMatchObject({
@@ -163,16 +168,16 @@ describe('vault.open', () => {
             store,
             vault,
         } = setup();
-        const findOne = store.connections!.findOne.bind(store.connections);
+        const findOne = store.connectionService.findOne.bind(store.connectionService);
 
         let delayed = false;
 
         // the first lookup outlasts the lease and another owner takes it over meanwhile
-        store.connections!.findOne = async (name) => {
+        store.connectionService.findOne = async (name) => {
             if (!delayed) {
                 delayed = true;
                 clock.advance(3_000);
-                expect(await store.locks.acquire('connection:wa', 'o2', 60_000)).toBe(true);
+                expect(await store.lockService.acquire('connection:wa', 'o2', 60_000)).toBe(true);
             }
 
             return findOne(name);
@@ -183,7 +188,7 @@ describe('vault.open', () => {
             owner: 'o1',
             leaseTtlMs: 3_000,
         })).rejects.toBeInstanceOf(LeaseLostError);
-        expect(await store.locks.acquire('connection:wa', 'o3', 1_000)).toBe(false);
+        expect(await store.lockService.acquire('connection:wa', 'o3', 1_000)).toBe(false);
     });
 
     it('rejects with LeaseLostError when the lease expired during initialization, and releases it', async () => {
@@ -192,11 +197,11 @@ describe('vault.open', () => {
             store,
             vault,
         } = setup();
-        const findOne = store.connections!.findOne.bind(store.connections);
+        const findOne = store.connectionService.findOne.bind(store.connectionService);
 
         let delayed = false;
 
-        store.connections!.findOne = async (name) => {
+        store.connectionService.findOne = async (name) => {
             if (!delayed) {
                 delayed = true;
                 clock.advance(3_000);
@@ -210,15 +215,15 @@ describe('vault.open', () => {
             owner: 'o1',
             leaseTtlMs: 3_000,
         })).rejects.toBeInstanceOf(LeaseLostError);
-        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
     });
 
     it('releases a lease acquired after the signal aborted', async () => {
         const { store, vault } = setup();
         const controller = new AbortController();
-        const acquire = store.locks.acquire.bind(store.locks);
+        const acquire = store.lockService.acquire.bind(store.lockService);
 
-        store.locks.acquire = async (...args) => {
+        store.lockService.acquire = async (...args) => {
             const result = await acquire(...args);
 
             controller.abort(new Error('stopped'));
@@ -231,8 +236,8 @@ describe('vault.open', () => {
             owner: 'o1',
             signal: controller.signal,
         })).rejects.toThrow('stopped');
-        store.locks.acquire = acquire;
-        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        store.lockService.acquire = acquire;
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
     });
 
     it('does not acquire when the signal is already aborted', async () => {
@@ -245,8 +250,8 @@ describe('vault.open', () => {
             owner: 'o1',
             signal: controller.signal,
         })).rejects.toThrow('stopped');
-        expect(await store.connections.findOne('wa')).toBeUndefined();
-        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await store.connectionService.findOne('wa')).toBeUndefined();
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
     });
 });
 
@@ -259,7 +264,7 @@ describe('connection session', () => {
         expect(decode(await session.readOne('creds'))).toBe('secret');
         expect(decode(await session.readOne('missing'))).toBeUndefined();
 
-        const raw = await store.connections.findEntry('wa', 'creds');
+        const raw = await store.connectionService.findEntry('wa', 'creds');
 
         expect(Buffer.from(raw!).toString('utf8')).not.toContain('secret');
 
@@ -275,14 +280,14 @@ describe('connection session', () => {
 
     it('renews the lease every ttl / 3 on the clock', async () => {
         const {
-            clock, 
-            store, 
-            vault, 
+            clock,
+            store,
+            vault,
         } = setup();
         const renewals: number[] = [];
-        const renew = store.locks.renew.bind(store.locks);
+        const renew = store.lockService.renew.bind(store.lockService);
 
-        store.locks.renew = async (...args) => {
+        store.lockService.renew = async (...args) => {
             renewals.push(clock.now().getTime());
 
             return renew(...args);
@@ -301,7 +306,7 @@ describe('connection session', () => {
 
         // the first renew confirms the lease before open returns
         expect(renewals).toEqual([0, 1_000, 2_000, 3_000, 4_000]);
-        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(false);
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(false);
         await session.write({ set: { a: text('1') } });
         await session.close();
         clock.advance(10_000);
@@ -311,14 +316,14 @@ describe('connection session', () => {
 
     it('uses a default lease ttl of 60 s', async () => {
         const {
-            clock, 
-            store, 
-            vault, 
+            clock,
+            store,
+            vault,
         } = setup();
         const ttls: number[] = [];
-        const acquire = store.locks.acquire.bind(store.locks);
+        const acquire = store.lockService.acquire.bind(store.lockService);
 
-        store.locks.acquire = async (key, owner, ttlMs) => {
+        store.lockService.acquire = async (key, owner, ttlMs) => {
             ttls.push(ttlMs);
 
             return acquire(key, owner, ttlMs);
@@ -336,11 +341,11 @@ describe('connection session', () => {
 
     it('a renew in flight while closing schedules no further renew', async () => {
         const {
-            clock, 
-            store, 
-            vault, 
+            clock,
+            store,
+            vault,
         } = setup();
-        const renew = store.locks.renew.bind(store.locks);
+        const renew = store.lockService.renew.bind(store.lockService);
         const gate = Promise.withResolvers<void>();
         let calls = 0;
 
@@ -350,7 +355,7 @@ describe('connection session', () => {
             leaseTtlMs: 3_000,
         });
 
-        store.locks.renew = async (...args) => {
+        store.lockService.renew = async (...args) => {
             calls++;
             await gate.promise;
 
@@ -371,9 +376,9 @@ describe('connection session', () => {
 
     it('a failed renew resolves lost and refuses every later call', async () => {
         const {
-            clock, 
-            store, 
-            vault, 
+            clock,
+            store,
+            vault,
         } = setup();
         const owners = recordOwners(store);
         const session = await vault.open('wa', {
@@ -383,7 +388,7 @@ describe('connection session', () => {
         });
 
         await session.write({ set: { a: text('1') } });
-        await store.locks.release('connection:wa', owners[0]!);
+        await store.lockService.release('connection:wa', owners[0]!);
         clock.advance(1_000);
 
         const lost = await session.lost;
@@ -399,11 +404,11 @@ describe('connection session', () => {
 
     it('a renew that throws is retried, not treated as lost', async () => {
         const {
-            clock, 
-            store, 
-            vault, 
+            clock,
+            store,
+            vault,
         } = setup();
-        const renew = store.locks.renew.bind(store.locks);
+        const renew = store.lockService.renew.bind(store.lockService);
         let failures = 1;
 
         const session = await vault.open('wa', {
@@ -412,7 +417,7 @@ describe('connection session', () => {
             leaseTtlMs: 3_000,
         });
 
-        store.locks.renew = async (...args) => {
+        store.lockService.renew = async (...args) => {
             if (failures-- > 0) {
                 throw new Error('store unavailable');
             }
@@ -423,7 +428,7 @@ describe('connection session', () => {
         let lost = false;
 
         void session.lost.then(() => {
-            lost = true; 
+            lost = true;
         });
 
         for (let i = 0; i < 3; i++) {
@@ -449,7 +454,7 @@ describe('connection session', () => {
         });
 
         await session.write({ set: { a: text('1') } });
-        store.locks.renew = async () => {
+        store.lockService.renew = async () => {
             throw new Error('store unavailable');
         };
 
@@ -476,7 +481,7 @@ describe('connection session', () => {
             store,
             vault,
         } = setup();
-        const renew = store.locks.renew.bind(store.locks);
+        const renew = store.lockService.renew.bind(store.lockService);
         const session = await vault.open('wa', {
             type: 'whatsapp',
             owner: 'o1',
@@ -484,7 +489,7 @@ describe('connection session', () => {
         });
         let calls = 0;
 
-        store.locks.renew = async (...args) => {
+        store.lockService.renew = async (...args) => {
             calls++;
 
             // the second renew hangs: the first confirmed the lease until 1000 + 3000
@@ -512,19 +517,19 @@ describe('connection session', () => {
         const owners = recordOwners(store);
         const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
 
-        await store.locks.release('connection:wa', owners[0]!);
-        await store.locks.acquire('connection:wa', 'o2', 60_000);
+        await store.lockService.release('connection:wa', owners[0]!);
+        await store.lockService.acquire('connection:wa', 'o2', 60_000);
         await expect(session.write({ set: { a: text('1') } })).rejects.toBeInstanceOf(LeaseLostError);
         await expect(session.lost).resolves.toBeInstanceOf(LeaseLostError);
         await expect(session.write({ set: { b: text('1') } })).rejects.toBeInstanceOf(LeaseLostError);
-        expect(await store.connections.findEntry('wa', 'a')).toBeUndefined();
+        expect(await store.connectionService.findEntry('wa', 'a')).toBeUndefined();
         await session.close();
-        expect(await store.locks.acquire('connection:wa', 'o3', 1_000)).toBe(false);
+        expect(await store.lockService.acquire('connection:wa', 'o3', 1_000)).toBe(false);
     });
 
     it('serializes writes, and flush and reads wait for the accepted ones', async () => {
         const { store, vault } = setup();
-        const { connections } = store;
+        const { connectionService: connections } = store;
         const original = connections.writeEntries.bind(connections);
         const gates: PromiseWithResolvers<void>[] = [];
         const events: string[] = [];
@@ -547,10 +552,10 @@ describe('connection session', () => {
         let flushed = false;
         let read: string | undefined;
         const flush = session.flush().then(() => {
-            flushed = true; 
+            flushed = true;
         });
         const reading = session.readOne('a').then((value) => {
-            read = decode(value); 
+            read = decode(value);
         });
 
         await settle();
@@ -570,7 +575,7 @@ describe('connection session', () => {
 
     it('a failed write rejects itself and the next flush, and later writes go on', async () => {
         const { store, vault } = setup();
-        const { connections } = store;
+        const { connectionService: connections } = store;
         const original = connections.writeEntries.bind(connections);
         let fail = true;
 
@@ -622,7 +627,7 @@ describe('connection session', () => {
 
         expect(decode(await other.readOne('a'))).toBe('1');
         await other.close();
-        expect(await store.locks.acquire('connection:wa', 'o3', 1_000)).toBe(true);
+        expect(await store.lockService.acquire('connection:wa', 'o3', 1_000)).toBe(true);
     });
 
     it('round-trips the entry key __proto__', async () => {
@@ -660,7 +665,11 @@ describe('connection session', () => {
             return key;
         };
 
-        const vault = createConnectionVault({ store, keyring });
+        const vault = createConnectionVault({
+            connectionService: store.connectionService,
+            lockService: store.lockService,
+            keyring,
+        });
         const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
         const [dataKey] = unwrapped;
         const seen = new Set<unknown>();
@@ -690,19 +699,19 @@ describe('connection session', () => {
             store,
             vault,
         } = setup();
-        const { connections } = store;
-        const original = connections!.writeEntries.bind(connections);
+        const { connectionService: connections } = store;
+        const original = connections.writeEntries.bind(connections);
         const gate = Promise.withResolvers<void>();
-        const renew = store.locks.renew.bind(store.locks);
+        const renew = store.lockService.renew.bind(store.lockService);
         let renewals = 0;
 
-        store.locks.renew = async (...args) => {
+        store.lockService.renew = async (...args) => {
             renewals++;
 
             return renew(...args);
         };
 
-        connections!.writeEntries = async (...args) => {
+        connections.writeEntries = async (...args) => {
             await gate.promise;
 
             return original(...args);
@@ -728,7 +737,7 @@ describe('connection session', () => {
         clock.advance(10_000);
         await settle();
         expect(renewals).toBe(7);
-        expect(await store.locks.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
         expect(await connections!.findEntry('wa', 'a')).toBeInstanceOf(Uint8Array);
     });
 
@@ -738,7 +747,7 @@ describe('connection session', () => {
 
         await session.write({ set: { a: text('1') } });
 
-        const { connections } = store;
+        const { connectionService: connections } = store;
         const findEntries = connections!.findEntries.bind(connections);
         const gate = Promise.withResolvers<void>();
 
@@ -766,7 +775,8 @@ describe('connection session', () => {
         const owners = recordOwners(store);
         // the first session's renewals never run: its lease expires on the store's clock
         const stalled = createConnectionVault({
-            store,
+            connectionService: store.connectionService,
+            lockService: store.lockService,
             keyring: createKeyring(keys),
             clock: new ControllableClock(),
         });
@@ -791,10 +801,10 @@ describe('connection session', () => {
         }
 
         await expect(first.write({ set: { late: text('1') } })).rejects.toBeInstanceOf(LeaseLostError);
-        expect(await store.connections.findEntry('wb', 'late')).toBeUndefined();
+        expect(await store.connectionService.findEntry('wb', 'late')).toBeUndefined();
         await first.close();
         // the first session's close does not release the second's lease
-        expect(await store.locks.acquire('connection:wb', 'o2', 1_000)).toBe(false);
+        expect(await store.lockService.acquire('connection:wb', 'o2', 1_000)).toBe(false);
         await second.close();
     });
 
@@ -805,8 +815,12 @@ describe('connection session', () => {
         await session.write({ set: { creds: text('secret') } });
         await session.close();
 
-        const before = await store.connections.findOneOrFail('wa');
-        const lost = createConnectionVault({ store, keyring: createKeyring([masterKey('k2')]) });
+        const before = await store.connectionService.findOneOrFail('wa');
+        const lost = createConnectionVault({
+            connectionService: store.connectionService,
+            lockService: store.lockService,
+            keyring: createKeyring([masterKey('k2')]),
+        });
 
         await expect(lost.open('wa', { type: 'whatsapp', owner: 'o2' })).rejects.toBeInstanceOf(DecryptionFailedError);
 
@@ -815,7 +829,7 @@ describe('connection session', () => {
             owner: 'o2',
             recreate: true,
         });
-        const after = await store.connections.findOneOrFail('wa');
+        const after = await store.connectionService.findOneOrFail('wa');
 
         expect(after.keyId).toBe('k2');
         expect(Buffer.from(after.wrappedKey).equals(Buffer.from(before.wrappedKey))).toBe(false);
@@ -840,7 +854,7 @@ describe('connection session', () => {
             owner: 'o2',
             recreate: true,
         })).rejects.toBeInstanceOf(ConnectionHeldError);
-        expect((await store.connections.findOneOrFail('wa')).type).toBe('telegram');
+        expect((await store.connectionService.findOneOrFail('wa')).type).toBe('telegram');
         expect(decode(await session.readOne('a'))).toBe('1');
         await session.close();
 
@@ -850,28 +864,28 @@ describe('connection session', () => {
             recreate: true,
         });
 
-        expect((await store.connections.findOneOrFail('wa')).type).toBe('whatsapp');
-        expect(await store.connections.findEntry('wa', 'a')).toBeUndefined();
+        expect((await store.connectionService.findOneOrFail('wa')).type).toBe('whatsapp');
+        expect(await store.connectionService.findEntry('wa', 'a')).toBeUndefined();
         await fresh.close();
     });
 
     it('recreate after the lease expired is refused and deletes nothing of the next holder', async () => {
         const {
-            clock, 
-            store, 
-            vault, 
+            clock,
+            store,
+            vault,
         } = setup();
         const initial = await vault.open('wa', { type: 'whatsapp', owner: 'o0' });
 
         await initial.write({ set: { creds: text('old') } });
         await initial.close();
 
-        const acquire = store.locks.acquire.bind(store.locks);
+        const acquire = store.lockService.acquire.bind(store.lockService);
         let second: Awaited<ReturnType<typeof vault.open>> | undefined;
         let stalled = false;
 
         // opener A stalls right after acquiring: its lease expires, B opens and writes meanwhile
-        store.locks.acquire = async (key, owner, ttlMs) => {
+        store.lockService.acquire = async (key, owner, ttlMs) => {
             const acquired = await acquire(key, owner, ttlMs);
 
             if (!stalled && owner.startsWith('a:')) {
@@ -885,7 +899,7 @@ describe('connection session', () => {
             return acquired;
         };
 
-        const before = await store.connections.findOneOrFail('wa');
+        const before = await store.connectionService.findOneOrFail('wa');
 
         await expect(vault.open('wa', {
             type: 'whatsapp',
@@ -894,7 +908,7 @@ describe('connection session', () => {
             recreate: true,
         })).rejects.toBeInstanceOf(LeaseLostError);
 
-        const after = await store.connections.findOneOrFail('wa');
+        const after = await store.connectionService.findOneOrFail('wa');
 
         expect(after.keyId).toBe(before.keyId);
         expect(Buffer.from(after.wrappedKey).equals(Buffer.from(before.wrappedKey))).toBe(true);
@@ -909,14 +923,14 @@ describe('connection session', () => {
         await session.write({ set: { creds: text('secret') } });
         await session.close();
 
-        const before = await store.connections.findOneOrFail('wa');
+        const before = await store.connectionService.findOneOrFail('wa');
 
         await expect(vault.open('wa', {
             type: '\ud800',
             owner: 'o2',
             recreate: true,
         })).rejects.toBeInstanceOf(ValidationError);
-        expect(await store.connections.findOneOrFail('wa')).toEqual(before);
+        expect(await store.connectionService.findOneOrFail('wa')).toEqual(before);
 
         const reopened = await vault.open('wa', { type: 'whatsapp', owner: 'o3' });
 
@@ -926,9 +940,9 @@ describe('connection session', () => {
 
     it('restart: a new vault over the same store reads the same plaintext', async () => {
         const {
-            store, 
-            vault, 
-            keys, 
+            store,
+            vault,
+            keys,
         } = setup();
         const session = await vault.open('wa', { type: 'whatsapp', owner: 'o1' });
 
@@ -936,7 +950,11 @@ describe('connection session', () => {
         await session.close();
 
         const copied = keys.map((entry) => ({ id: entry.id, key: new Uint8Array(entry.key) }));
-        const restarted = createConnectionVault({ store, keyring: createKeyring(copied) });
+        const restarted = createConnectionVault({
+            connectionService: store.connectionService,
+            lockService: store.lockService,
+            keyring: createKeyring(copied),
+        });
         const reopened = await restarted.open('wa', { type: 'whatsapp', owner: 'o2' });
 
         expect(decode(await reopened.readOne('creds'))).toBe('secret');
@@ -951,15 +969,15 @@ describe('connection session', () => {
 
         await session.write({ set: { a: text('secret') } });
 
-        const sealed = (await store.connections.findEntry('wa', 'a'))!;
+        const sealed = (await store.connectionService.findEntry('wa', 'a'))!;
 
-        await store.connections.writeEntries('wa', { set: { b: sealed } }, fence);
+        await store.connectionService.writeEntries('wa', { set: { b: sealed } }, fence);
         await expect(session.readOne('b')).rejects.toBeInstanceOf(DecryptionFailedError);
         await session.close();
 
         const other = await vault.open('wb', { type: 'whatsapp', owner: 'o1' });
 
-        await store.connections.writeEntries('wb', { set: { a: sealed } }, { lock: 'connection:wb', owner: owners[1]! });
+        await store.connectionService.writeEntries('wb', { set: { a: sealed } }, { lock: 'connection:wb', owner: owners[1]! });
         await expect(other.readOne('a')).rejects.toBeInstanceOf(DecryptionFailedError);
         await other.close();
     });
@@ -973,7 +991,11 @@ describe('connection session', () => {
         await session.close();
 
         const k2 = masterKey('k2');
-        const wrong = createConnectionVault({ store, keyring: createKeyring([k2]) });
+        const wrong = createConnectionVault({
+            connectionService: store.connectionService,
+            lockService: store.lockService,
+            keyring: createKeyring([k2]),
+        });
         const failure = wrong.open('wa', { type: 'whatsapp', owner: 'o2' });
 
         await expect(failure).rejects.toBeInstanceOf(DecryptionFailedError);
@@ -985,11 +1007,15 @@ describe('connection session', () => {
             expect(message).not.toContain(Buffer.from(secret).toString('base64'));
         }
 
-        const rotated = createConnectionVault({ store, keyring: createKeyring([k2, k1]) });
+        const rotated = createConnectionVault({
+            connectionService: store.connectionService,
+            lockService: store.lockService,
+            keyring: createKeyring([k2, k1]),
+        });
         const reopened = await rotated.open('wa', { type: 'whatsapp', owner: 'o2' });
 
         expect(decode(await reopened.readOne('creds'))).toBe('secret');
-        expect((await store.connections.findOneOrFail('wa')).keyId).toBe('k1');
+        expect((await store.connectionService.findOneOrFail('wa')).keyId).toBe('k1');
         await reopened.close();
     });
 });

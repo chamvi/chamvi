@@ -10,12 +10,12 @@ import type { ToolSet } from 'ai';
 import { describe, expect, it } from 'vitest';
 import {
     InvalidRunStateError,
-    createMemoryStore,
     defineTool,
     toolCallKey,
     wrapToolsForRun,
 } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
+import { createTestServices } from '../../utils/engine.ts';
 
 const context = { run: { runId: 'run' } } as ToolContext;
 
@@ -45,8 +45,8 @@ describe('toolCallKey', () => {
             },
         });
         let step = 0;
-        const store = createMemoryStore();
-        const tools = wrapToolsForRun({ key: definition }, context, store.effects, { stepIndex: () => step });
+        const store = createTestServices();
+        const tools = wrapToolsForRun({ key: definition }, context, store.effectService, { stepIndex: () => step });
         const first = await call(tools);
 
         expect(await call(tools)).toBe(first);
@@ -57,7 +57,7 @@ describe('toolCallKey', () => {
 
         const later = await call(tools);
         const otherContext = { run: { runId: 'other' } } as ToolContext;
-        const otherRun = wrapToolsForRun({ key: definition }, otherContext, store.effects, { stepIndex: () => step });
+        const otherRun = wrapToolsForRun({ key: definition }, otherContext, store.effectService, { stepIndex: () => step });
 
         expect(new Set([first, ...parallel, later, await call(otherRun, 'call', otherContext)]).size).toBe(5);
     });
@@ -74,7 +74,7 @@ describe('toolCallKey', () => {
                 return toolCallKey(ctx);
             },
         });
-        const tools = wrapToolsForRun({ key: definition }, context, createMemoryStore().effects);
+        const tools = wrapToolsForRun({ key: definition }, context, createTestServices().effectService);
 
         await call(tools);
         expect(late).toBeDefined();

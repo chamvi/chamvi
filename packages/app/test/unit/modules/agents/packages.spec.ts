@@ -6,7 +6,6 @@
  */
 
 import { join } from 'node:path';
-import { createMemoryStore } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
     afterEach,
@@ -28,6 +27,7 @@ import type { AgentsDirHarnessOptions } from '../../../utils/agents-dir.ts';
 import { createTempDir, writeTree } from '../../../utils/folder.ts';
 import type { Harness } from '../../../utils/harness.ts';
 import { installPackage } from '../../../utils/packages.ts';
+import { createTestStore } from '../../../utils/store.ts';
 
 let tmp: Awaited<ReturnType<typeof createTempDir>>;
 let cwd: string;
@@ -63,7 +63,7 @@ describe('package agents', () => {
 
         expect(setup.engine().getAgent('greeter')).toBeDefined();
         expect(setup.engine().agentRevision('greeter')).toBe('@s/greeter@1.2.0');
-        expect((await setup.store.agentRevisions.findOne('greeter'))?.hash).toBe('@s/greeter@1.2.0');
+        expect((await setup.store.agentRevisionService.findOne('greeter'))?.hash).toBe('@s/greeter@1.2.0');
         // registered for a package-only app (no agents dir)
         expect(setup.issues()).toEqual([]);
         expect(setup.logger.entries.some((entry) => entry.msg.startsWith('the app has no agents'))).toBe(false);
@@ -167,9 +167,9 @@ describe('package agents', () => {
         await writeTree(cwd, { 'agents/folder/agent.ts': agentFile('from folder', 'test/model', 'folder') });
 
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestStore({ clock });
 
-        await store.agentRevisions.save({
+        await store.agentRevisionService.save({
             agent: 'elsewhere',
             hash: 'h1',
             changedAt: clock.now(),
@@ -190,8 +190,8 @@ describe('package agents', () => {
             agent: '@s/missing',
             message: '@s/missing: not found from the app\'s directory; add it to the app\'s dependencies.',
         })]);
-        expect(await store.agentRevisions.findOne('elsewhere')).toBeDefined();
-        expect((await store.runs.findOne(runId))?.status).toBe('queued');
+        expect(await store.agentRevisionService.findOne('elsewhere')).toBeDefined();
+        expect((await store.runService.findOne(runId))?.status).toBe('queued');
         expect(setup.logger.entries.some((entry) => entry.msg === 'a package agent did not load; no agent is removed')).toBe(true);
     });
 
@@ -200,9 +200,9 @@ describe('package agents', () => {
         await writeTree(cwd, { 'agents/folder/agent.ts': agentFile('from folder', 'test/model', 'folder') });
 
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestStore({ clock });
 
-        await store.agentRevisions.save({
+        await store.agentRevisionService.save({
             agent: 'elsewhere',
             hash: 'h1',
             changedAt: clock.now(),
@@ -216,8 +216,8 @@ describe('package agents', () => {
 
         await setup.harness.setup();
 
-        expect(await store.agentRevisions.findOne('elsewhere')).toBeUndefined();
-        expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe('ok@1.0.0');
+        expect(await store.agentRevisionService.findOne('elsewhere')).toBeUndefined();
+        expect((await store.agentRevisionService.findOne('greeter'))?.hash).toBe('ok@1.0.0');
     });
 
     it('registers AGENT_ISSUES for a package-only app', async () => {

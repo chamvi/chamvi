@@ -6,8 +6,7 @@
  */
 
 import { join } from 'node:path';
-import { InvalidRunStateError, createMemoryStore } from '@chamvi/core';
-import type { IStore } from '@chamvi/core';
+import { InvalidRunStateError } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
     afterEach,
@@ -28,18 +27,20 @@ import type { AgentsDirHarnessOptions } from '../../../utils/agents-dir.ts';
 import { createTempDir, writeTree } from '../../../utils/folder.ts';
 import type { Harness } from '../../../utils/harness.ts';
 import { installPackage } from '../../../utils/packages.ts';
+import { createTestStore } from '../../../utils/store.ts';
+import type { TestStore } from '../../../utils/store.ts';
 
 let tmp: Awaited<ReturnType<typeof createTempDir>>;
 let cwd: string;
 let clock: ControllableClock;
-let store: IStore;
+let store: TestStore;
 const harnesses: Harness[] = [];
 
 beforeEach(async () => {
     tmp = await createTempDir();
     cwd = join(tmp.path, 'app');
     clock = new ControllableClock(START);
-    store = createMemoryStore({ clock });
+    store = createTestStore({ clock });
     await writeTree(cwd, { 'package.json': '{ "name": "app", "private": true }\n' });
 });
 
@@ -70,7 +71,7 @@ async function stopAll() {
     harnesses.length = 0;
 }
 
-const statusOf = async (runId: string) => (await store.runs.findOne(runId))?.status;
+const statusOf = async (runId: string) => (await store.runService.findOne(runId))?.status;
 const packageDir = () => join(cwd, 'node_modules', '@s', 'greeter');
 
 describe('package agent revisions in production', () => {
@@ -101,7 +102,7 @@ describe('package agent revisions in production', () => {
         const setup = await boot();
 
         expect(await statusOf(runId)).toBe('cancelled');
-        expect((await store.runs.findOne(runId))?.error?.message).toBe(
+        expect((await store.runService.findOne(runId))?.error?.message).toBe(
             'Agent "greeter" was reloaded at revision @s/greeter@1.1.0; its unsettled runs were cancelled.',
         );
         expect(setup.logger.entries.find((entry) => entry.msg === 'agent reloaded')).toMatchObject({
@@ -119,7 +120,7 @@ describe('package agent revisions in dev', () => {
 
         const hash = await hashAgentPackage(packageDir());
 
-        expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe(`@s/greeter@1.0.0+${hash.slice(0, 12)}`);
+        expect((await store.agentRevisionService.findOne('greeter'))?.hash).toBe(`@s/greeter@1.0.0+${hash.slice(0, 12)}`);
         await stopAll();
 
         const runId = await queueRun(store, clock, 'greeter');
@@ -136,7 +137,7 @@ describe('package agent revisions in dev', () => {
         await boot();
         await stopAll();
 
-        const changedAt = (await store.agentRevisions.findOne('greeter'))?.changedAt;
+        const changedAt = (await store.agentRevisionService.findOne('greeter'))?.changedAt;
         const runId = await queueRun(store, clock, 'greeter');
 
         clock.advance(1_000);
@@ -144,7 +145,7 @@ describe('package agent revisions in dev', () => {
         await boot({ dev: true });
         await stopAll();
 
-        expect((await store.agentRevisions.findOne('greeter'))?.hash).toMatch(/^@s\/greeter@1\.0\.0\+[0-9a-f]{12}$/);
+        expect((await store.agentRevisionService.findOne('greeter'))?.hash).toMatch(/^@s\/greeter@1\.0\.0\+[0-9a-f]{12}$/);
         expect(await statusOf(runId)).not.toBe('cancelled');
 
         const second = await queueRun(store, clock, 'greeter');
@@ -152,7 +153,7 @@ describe('package agent revisions in dev', () => {
         clock.advance(1_000);
         await boot();
 
-        const marker = await store.agentRevisions.findOne('greeter');
+        const marker = await store.agentRevisionService.findOne('greeter');
 
         expect(marker?.hash).toBe('@s/greeter@1.0.0');
         expect(marker?.changedAt).toEqual(changedAt);
@@ -216,7 +217,7 @@ describe('package agents across restarts', () => {
         const setup = await boot({ root, importer: failing });
 
         expect(await statusOf(runId)).toBe('queued');
-        expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe('@s/greeter@1.0.0');
+        expect((await store.agentRevisionService.findOne('greeter'))?.hash).toBe('@s/greeter@1.0.0');
         expect(setup.engine().getAgent('greeter')).toBeUndefined();
         expect(setup.issues()).toContainEqual(expect.objectContaining({
             agent: 'greeter',
@@ -237,9 +238,9 @@ describe('package agents across restarts', () => {
         await boot({ importer: (url) => import(`${url}?v=2`) });
 
         expect(await statusOf(runId)).toBe('cancelled');
-        expect((await store.runs.findOne(runId))?.error?.code).toBe('agent_removed');
-        expect(await store.agentRevisions.findOne('other')).toBeUndefined();
-        expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe('@s/greeter@2.0.0');
+        expect((await store.runService.findOne(runId))?.error?.code).toBe('agent_removed');
+        expect(await store.agentRevisionService.findOne('other')).toBeUndefined();
+        expect((await store.agentRevisionService.findOne('greeter'))?.hash).toBe('@s/greeter@2.0.0');
     });
 
     it('removes the agents of a package dropped from the list without an agents dir', async () => {
@@ -254,7 +255,7 @@ describe('package agents across restarts', () => {
         await boot();
 
         expect(await statusOf(runId)).toBe('cancelled');
-        expect(await store.agentRevisions.findOne('other')).toBeUndefined();
+        expect(await store.agentRevisionService.findOne('other')).toBeUndefined();
     });
 
     it('keeps every marker while a package does not load, without an agents dir', async () => {
@@ -270,7 +271,7 @@ describe('package agents across restarts', () => {
         const setup = await boot({ packages: ['@s/greeter', 'other'], importer: (url) => (url.includes('/other/') ? failing() : import(url)) });
 
         expect(await statusOf(runId)).toBe('queued');
-        expect((await store.agentRevisions.findOne('other'))?.hash).toBe('other@1.0.0');
+        expect((await store.agentRevisionService.findOne('other'))?.hash).toBe('other@1.0.0');
         expect(setup.logger.entries.some((entry) => entry.msg === ORPHANS_KEPT_MESSAGE)).toBe(true);
     });
 
@@ -281,7 +282,7 @@ describe('package agents across restarts', () => {
 
         const folderHash = 'ab'.repeat(32);
 
-        await store.agentRevisions.save({
+        await store.agentRevisionService.save({
             agent: 'folder', 
             hash: folderHash, 
             changedAt: clock.now(), 
@@ -293,9 +294,9 @@ describe('package agents across restarts', () => {
         await boot({ packages: [] });
 
         expect(await statusOf(runId)).toBe('cancelled');
-        expect((await store.runs.findOne(runId))?.error?.code).toBe('agent_removed');
-        expect(await store.agentRevisions.findOne('other')).toBeUndefined();
-        expect((await store.agentRevisions.findOne('folder'))?.hash).toBe(folderHash);
+        expect((await store.runService.findOne(runId))?.error?.code).toBe('agent_removed');
+        expect(await store.agentRevisionService.findOne('other')).toBeUndefined();
+        expect((await store.agentRevisionService.findOne('folder'))?.hash).toBe(folderHash);
     });
 
     it('keeps folder markers in a package-only start without an agents dir', async () => {
@@ -303,7 +304,7 @@ describe('package agents across restarts', () => {
 
         const folderHash = 'cd'.repeat(32);
 
-        await store.agentRevisions.save({
+        await store.agentRevisionService.save({
             agent: 'folder', 
             hash: folderHash, 
             changedAt: clock.now(), 
@@ -314,7 +315,7 @@ describe('package agents across restarts', () => {
         await boot();
 
         expect(await statusOf(runId)).toBe('queued');
-        expect((await store.agentRevisions.findOne('folder'))?.hash).toBe(folderHash);
+        expect((await store.agentRevisionService.findOne('folder'))?.hash).toBe(folderHash);
     });
 
     it('keeps the issue of a failed package when another package exports an agent of its name', async () => {
@@ -324,6 +325,6 @@ describe('package agents across restarts', () => {
         const setup = await boot({ packages: ['broken', 'second'], importer: (url) => (url.includes('/broken/') ? failing() : import(url)) });
 
         expect(setup.issues()).toContainEqual(expect.objectContaining({ agent: 'broken', message: expect.stringContaining('boom at import') }));
-        expect((await store.agentRevisions.findOne('broken'))?.hash).toBe('second@1.0.0');
+        expect((await store.agentRevisionService.findOne('broken'))?.hash).toBe('second@1.0.0');
     });
 });

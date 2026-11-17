@@ -83,7 +83,7 @@ describe('README example', () => {
         expect(run?.status).toBe('completed');
         expect(run?.taint).toBeUndefined();
 
-        const search = (await engine.store.steps.find(runId))
+        const search = (await engine.stepService.find(runId))
             .find((step) => step.kind === 'tool' && step.name === 'knowledge_search');
         const output = search?.output as KnowledgeSearchResult;
 

@@ -11,8 +11,15 @@
 // `<n>.<i>`; a line `committed <n>` follows every durable batch.
 
 import { DataSource } from 'typeorm';
-import { createConnectionVault, createKeyring, parseKeyring } from '@chamvi/core';
-import { STORE_ENTITIES, createDatabaseStore } from '@chamvi/store-db';
+import {
+    ConnectionService,
+    LockService,
+    createConnectionVault,
+    createKeyring,
+    parseKeyring,
+    systemClock,
+} from '@chamvi/core';
+import { DatabaseConnectionRepository, DatabaseLockRepository, STORE_ENTITIES } from '@chamvi/store-db';
 import { createStoreWhatsAppAuth } from '@chamvi/chat-whatsapp';
 
 const env = (name: string): string => {
@@ -37,9 +44,12 @@ const dataSource = new DataSource({
 
 await dataSource.initialize();
 
-const store = createDatabaseStore({ dataSource });
 const auth = createStoreWhatsAppAuth({
-    vault: createConnectionVault({ store, keyring: createKeyring(parseKeyring(env('KILL_KEYRING'))) }),
+    vault: createConnectionVault({
+        connectionService: new ConnectionService({ repository: new DatabaseConnectionRepository(dataSource), clock: systemClock }),
+        lockService: new LockService({ repository: new DatabaseLockRepository(dataSource), clock: systemClock }),
+        keyring: createKeyring(parseKeyring(env('KILL_KEYRING'))),
+    }),
     connection: 'bot',
     owner: 'writer',
     leaseTtlMs: Number(env('KILL_TTL_MS')),

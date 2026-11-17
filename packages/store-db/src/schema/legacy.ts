@@ -5,10 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ChamviError } from '@chamvi/core';
 import type { DataSource, QueryRunner } from 'typeorm';
 import { TableName } from '../entities/constants.ts';
-import { STORE_LEGACY_SCHEMA_CODE } from './constants.ts';
+import { LegacySchemaError } from '../error/legacy.ts';
 
 const BASELINE_MIGRATION = 'UuidBaseline1794096000000';
 
@@ -24,9 +23,6 @@ const LEGACY_MIGRATIONS = [
     'RunLineage1792800000000',
     'Connections1792886400000',
 ];
-
-const LEGACY_MESSAGE = 'This database holds a chamvi schema from an earlier version that cannot be upgraded in place. ' +
-    'Start on a new, empty database; see the upgrade guide (https://chamvi.dev/guide/upgrading).';
 
 async function holdsLegacySchema(dataSource: DataSource, queryRunner: QueryRunner): Promise<boolean> {
     const { schema } = dataSource.driver.options as { schema?: string };
@@ -76,10 +72,7 @@ export async function assertStoreNotLegacy(dataSource: DataSource, queryRunner?:
 
     try {
         if (await holdsLegacySchema(dataSource, runner)) {
-            throw new ChamviError({
-                code: STORE_LEGACY_SCHEMA_CODE,
-                message: LEGACY_MESSAGE,
-            });
+            throw new LegacySchemaError();
         }
     } finally {
         if (!queryRunner) {

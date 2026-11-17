@@ -223,7 +223,7 @@ export class AgentsModule implements IModule {
 
             if (unresolved.length > 0 && role !== 'check') {
                 // a package that did not load may hold a stored package agent: a folder must not take it over (and cancel its runs)
-                for (const marker of await engine.store.agentRevisions.find()) {
+                for (const marker of await engine.agentRevisionService.find()) {
                     if (isPackageMarker(marker.hash) && !reserved.has(marker.agent)) {
                         reserved.set(marker.agent, `${marker.agent}: ${UNRESOLVED_PACKAGE_RESERVED_MESSAGE}`);
                     }

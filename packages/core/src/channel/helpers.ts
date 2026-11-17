@@ -24,7 +24,7 @@ import {
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
 import { untilAborted } from '../run/helpers.ts';
 import type { RunContext } from '../run/types.ts';
-import type { IEffectRepository } from '../repository/types.ts';
+import type { EffectService } from '../effect/service.ts';
 import type {
     ChannelHandle,
     EmitMessage,
@@ -89,7 +89,7 @@ function assertEmitMessage(message: unknown): asserts message is EmitMessage {
 function createChannelHandle(
     run: RunContext,
     execution: RunContext,
-    effects: IEffectRepository,
+    effects: Pick<EffectService, 'findOne' | 'save'>,
     inflight: Inflight,
     channel: IChannel<any, any>,
     address?: string,
@@ -212,7 +212,7 @@ function createChannelHandle(
 
             if (source) {
                 assertConversationText(captured.body, source.capability.limits.maxItemBytes);
-                await source.capability.repository.prepareEmit(source.binding.scope, {
+                await source.capability.service.prepareEmit(source.binding.scope, {
                     id: `emit:${stableHash(effectKey)}`,
                     runId: source.run.id,
                     role: 'assistant',
@@ -243,7 +243,7 @@ function createChannelHandle(
                 throw new ValidationError('The emit effect belongs to another target.');
             }
 
-            await source.capability.repository.confirmEmit(source.binding.scope, `emit:${stableHash(effectKey)}`);
+            await source.capability.service.confirmEmit(source.binding.scope, `emit:${stableHash(effectKey)}`);
         })();
 
         return conversation ? conversation.capability.track(conversation.run.id, work) : work;
@@ -309,7 +309,7 @@ function createChannelHandle(
  */
 export function createToolChannels(
     run: RunContext,
-    effects: IEffectRepository,
+    effects: Pick<EffectService, 'findOne' | 'save'>,
     engine: Pick<IEngine, 'getChannel' | 'listChannels'>,
 ): ToolChannels {
     const inflight: Inflight = new Map();

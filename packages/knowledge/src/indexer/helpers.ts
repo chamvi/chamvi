@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock, ILockRepository } from '@chamvi/core';
+import type { IClock, LockService } from '@chamvi/core';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../repository/types.ts';
@@ -95,7 +95,7 @@ export function createWake(): KnowledgeWake {
  * since it was taken and answers false for good once another owner has it.
  */
 export function createIndexLock(
-    locks: ILockRepository,
+    locks: Pick<LockService, 'acquire' | 'release'>,
     key: string,
     owner: string,
     clock: IClock,

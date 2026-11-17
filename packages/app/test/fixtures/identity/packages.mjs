@@ -10,8 +10,9 @@
 // linked TypeScript workspace package, each with decoy copies of @chamvi/core
 // and ai of its own that throw when loaded) import the app's copies only
 // through the resolve hook. A tool of each injects a key a module provided.
-import { AppToken, createApp, storeModule } from '@chamvi/app';
-import { createMemoryStore, defineContextKey } from '@chamvi/core';
+import { AppToken, createApp } from '@chamvi/app';
+import { memoryStoreModule } from '@chamvi/app/testing';
+import { defineContextKey } from '@chamvi/core';
 import { simulateReadableStream } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
 
@@ -75,15 +76,23 @@ const results = {};
 // the models go in directly: through a models provider the AI SDK would wrap the mock
 
 for (const agent of ['built-greeter', 'source-greeter']) {
-    const store = createMemoryStore();
+    let engine;
     const app = createApp({
         agents: ['@fixture/built', '@fixture/source'],
         modules: [{
             name: 'greeting',
             async setup(container) {
-                container.registerMany(AppToken.LIFECYCLE_HOOKS, { useValue: { name: 'greeting', engineCreated: (engine) => engine.provide(key, 'hello from the module') } });
+                container.registerMany(AppToken.LIFECYCLE_HOOKS, {
+                    useValue: {
+                        name: 'greeting',
+                        engineCreated: (created) => {
+                            engine = created;
+                            created.provide(key, 'hello from the module');
+                        },
+                    },
+                });
             },
-        }, storeModule({ store })],
+        }, memoryStoreModule()],
     });
 
     const result = await app.runJob({
@@ -93,14 +102,14 @@ for (const agent of ['built-greeter', 'source-greeter']) {
             CHAMVI_LOG_LEVEL: 'error',
         },
     });
-    const steps = result.runId ? await store.steps.find(result.runId) : [];
+    const steps = result.runId ? await engine.stepService.find(result.runId) : [];
     const tool = steps.find((step) => step.kind === 'tool');
 
     results[agent] = {
         status: result.status,
         output: tool?.output ?? null,
         error: tool?.error ?? null,
-        revision: (await store.agentRevisions.findOne(agent))?.hash ?? null,
+        revision: (await engine.agentRevisionService.findOne(agent))?.hash ?? null,
     };
 }
 

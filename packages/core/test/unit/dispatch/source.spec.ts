@@ -16,7 +16,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     agent,
     agentChannel,
     defineModelAgent,
@@ -30,14 +29,14 @@ import type {
     DispatchInput,
     IChannel,
     IEngine,
-    IStore,
-    Run,
 } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import type { Run } from '@chamvi/store';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet, TestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 4, 6));
 const GATE = 'Approve outbound execution from an untrusted run?';
@@ -123,16 +122,16 @@ type Setup = {
     child?: MockResponse[];
     tools: ToolSet;
     role?: ChannelSubscription<any>;
-    store?: IStore;
+    store?: TestServiceSet;
 };
 
 function setup(options: Setup) {
     const clock = new ControllableClock(START);
-    const store = options.store ?? createMemoryStore({ clock });
+    const store = options.store ?? createTestServices({ clock });
     const gh = recorder();
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [defineModelAgent({
             name: 'maintainer',
@@ -173,8 +172,8 @@ async function startParent(engine: IEngine): Promise<string> {
     return runId;
 }
 
-async function childOf(store: IStore, parentId: string): Promise<Run | undefined> {
-    const { data } = await store.runs.find({ parentRunId: parentId });
+async function childOf(store: TestServices, parentId: string): Promise<Run | undefined> {
+    const { data } = await store.runService.find({ parentRunId: parentId });
 
     return data[0];
 }
@@ -260,7 +259,7 @@ describe('dispatch({ source })', () => {
 
     it('keeps the rule when the child resumes on a new engine', async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const first = setup({
             parent: [turn(call('handoff', { number: 12 })), text('done')],
             child: [turn(call('ask', { number: 12 })), text('asked')],
@@ -285,7 +284,7 @@ describe('dispatch({ source })', () => {
         await second.engine.approve(waiting!.id, { approvalId: approvalWait(waiting)!.id, approved: true });
         await second.engine.idle();
 
-        const done = await store.runs.findOne(waiting!.id);
+        const done = await store.runService.findOne(waiting!.id);
 
         expect(done?.status).toBe('completed');
         expect(done?.trigger.parent?.source).toEqual(SOURCE);
@@ -307,7 +306,7 @@ describe('dispatch({ source })', () => {
             tools: { handoff: handoff(source as DispatchInput['source']) },
         });
         const parentId = await startParent(engine);
-        const [step] = (await store.steps.find(parentId)).filter((s) => s.kind === 'tool');
+        const [step] = (await store.stepService.find(parentId)).filter((s) => s.kind === 'tool');
 
         expect(await childOf(store, parentId)).toBeUndefined();
         expect(JSON.stringify(step?.error ?? step?.output)).toMatch(/dispatch source/);
@@ -361,6 +360,6 @@ describe('dispatch({ source })', () => {
             },
         } as Parameters<IEngine['dispatch']>[0]);
 
-        expect((await store.runs.findOne(runId))?.trigger.parent).toBeUndefined();
+        expect((await store.runService.findOne(runId))?.trigger.parent).toBeUndefined();
     });
 });

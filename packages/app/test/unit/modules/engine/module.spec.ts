@@ -9,7 +9,6 @@ import {
     AGENT_CHANNEL_NAME,
     InvalidAgentDefinitionError,
     agent as agentRoles,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
     resolveModel,
@@ -44,6 +43,9 @@ import type { AppMode, ILifecycleHook } from '@chamvi/app';
 import { buildHarness } from '../../../utils/harness.ts';
 import type { Harness } from '../../../utils/harness.ts';
 import { createRecordingLogger } from '../../../utils/logger.ts';
+import { createTestStore } from '../../../utils/store.ts';
+import type { TestStore } from '../../../utils/store.ts';
+import { memoryStoreModule } from '@chamvi/app/testing';
 
 
 function agentWith(model: Agent['definition']['model'], extra: Partial<ModelAgentDefinition> = {}): Agent {
@@ -79,7 +81,7 @@ function build(options: {
     modules?: IModule[];
     models?: Record<string, ReturnType<typeof customProvider>>;
     model?: ModelRef;
-    store?: ReturnType<typeof createMemoryStore>;
+    store?: TestStore;
 }) {
     const clock = new ControllableClock(new Date('2026-10-21T00:00:00Z'));
     const logger = createRecordingLogger(clock);
@@ -91,7 +93,7 @@ function build(options: {
         model: options.model,
         modules: [
             configModule({ clock, logger }),
-            storeModule(options.store ? { store: options.store } : {}),
+            options.store ? memoryStoreModule(options.store) : storeModule(),
             engineModule(),
             ...(options.modules ?? []),
         ],
@@ -168,7 +170,7 @@ describe('engineModule', () => {
             agents: [agentWith('anthropic/m')],
             env: { DATABASE_URL: 'postgres://u@127.0.0.1:1/x' },
             // a given store: the module never connects
-            store: createMemoryStore(),
+            store: createTestStore(),
         });
 
         await harness.setup();

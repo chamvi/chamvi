@@ -13,23 +13,22 @@ import {
 } from 'vitest';
 import { jsonSchema } from 'ai';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import { fakeSkillRuntime } from '../../utils/skill-runtime.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { ControllableClock } from '../../utils/clock.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const agent = (input?: ReturnType<typeof fakeSkillRuntime>['input']) => defineModelAgent({
     name: 'test',
     instructions: 'role',
     skills: input ? [input] : [],
 });
-const engine = (agents: ReturnType<typeof agent>[] = []) => new Engine({
-    store: createMemoryStore(),
+const engine = (agents: ReturnType<typeof agent>[] = []) => createTestEngine({
+    services: createTestServices(),
     model: mockModel([]),
     agents,
 });
@@ -64,7 +63,7 @@ describe('skill runtime integration', () => {
                 trigger: 'test',
                 payload: {},
             });
-            const marker = await e.store.agentRevisions.findOne('test');
+            const marker = await e.agentRevisionService.findOne('test');
             const run = await e.getRun(runId);
 
             await e.prepare({ agents: [candidate] });
@@ -90,7 +89,7 @@ describe('skill runtime integration', () => {
             expect(fake.calls.commits).toBe(commits);
             expect(e.getAgent('test')).toBe(original);
             expect(e.agentRevision('test')).toBe('v1');
-            expect(await e.store.agentRevisions.findOne('test')).toEqual(marker);
+            expect(await e.agentRevisionService.findOne('test')).toEqual(marker);
             expect(await e.getRun(runId)).toEqual(run);
         } finally {
             release.resolve();
@@ -100,19 +99,19 @@ describe('skill runtime integration', () => {
 
     it.each(['caller', 'engine'] as const)('finishes an already-started revision change consistently when %s cancellation arrives', async (cancel) => {
         const clock = new ControllableClock(new Date(1_000));
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const original = agent();
         const candidate = agent();
-        const e = new Engine({
+        const e = createTestEngine({
             clock,
-            store,
+            services: store,
             agents: [],
             model: mockModel([]),
         });
         const controller = new AbortController();
         const entered = Promise.withResolvers<void>();
         const release = Promise.withResolvers<void>();
-        const save = store.agentRevisions.save.bind(store.agentRevisions);
+        const save = store.agentRevisionService.save.bind(store.agentRevisionService);
         let stopping: Promise<void> | undefined;
 
         try {
@@ -126,10 +125,13 @@ describe('skill runtime integration', () => {
             });
 
             clock.advance(1);
-            vi.spyOn(store.agentRevisions, 'save').mockImplementation(async (revision) => {
-                await save(revision);
+            vi.spyOn(store.agentRevisionService, 'save').mockImplementation(async (revision) => {
+                const saved = await save(revision);
+
                 entered.resolve();
                 await release.promise;
+
+                return saved;
             });
 
             const options = { revision: 'v2', signal: controller.signal };
@@ -148,7 +150,7 @@ describe('skill runtime integration', () => {
             expect(await result).toBe('replaced');
             expect(e.getAgent('test')).toBe(candidate);
             expect(e.agentRevision('test')).toBe('v2');
-            expect(await store.agentRevisions.findOne('test')).toMatchObject({ hash: 'v2' });
+            expect(await store.agentRevisionService.findOne('test')).toMatchObject({ hash: 'v2' });
             expect(await e.getRun(runId)).toMatchObject({ status: 'cancelled', error: { code: 'agent_replaced' } });
         } finally {
             release.resolve();
@@ -200,8 +202,8 @@ describe('skill runtime integration', () => {
     it('keeps empty captured agents runnable after the first late runtime', async () => {
         const model = mockModel([{ parts: [{ type: 'text', text: 'empty' }] }, { parts: [{ type: 'text', text: 'contributed' }] }]);
         const empty = defineModelAgent({ name: 'empty', instructions: 'empty role' });
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
+            services: createTestServices(),
             agents: [empty],
             model,
         });
@@ -263,8 +265,8 @@ describe('skill runtime integration', () => {
             instructions: '',
             skills: [{} as never],
         })).toThrow(/runtime provider/i);
-        expect(() => new Engine({
-            store: createMemoryStore(),
+        expect(() => createTestEngine({
+            services: createTestServices(),
             agents: [],
             skills: [{
                 runtime: {
@@ -292,8 +294,8 @@ describe('skill runtime integration', () => {
                 input: {},
             }],
         }, { parts: [{ type: 'text', text: 'done' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
+            services: createTestServices(),
             model,
             agents: [defineModelAgent({
                 name: 'test',
@@ -321,7 +323,7 @@ describe('skill runtime integration', () => {
         });
 
         await e.idle();
-        expect((await e.store.steps.find(run.runId)).find((step) => step.name === 'contributed')?.output).toBe('test');
+        expect((await e.stepService.find(run.runId)).find((step) => step.name === 'contributed')?.output).toBe('test');
         expect(events).toEqual(['check', 'before', 'after']);
         expect(JSON.stringify(model.doStreamCalls[0]?.prompt)).toContain('custom contribution');
         await e.stop();
@@ -356,8 +358,8 @@ describe('skill runtime integration', () => {
             },
         });
         const model = mockModel([{ parts: [{ type: 'text', text: 'done' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
+            services: createTestServices(),
             model,
             agents: [agent(fake.input)],
         });
@@ -416,8 +418,8 @@ describe('skill runtime integration', () => {
     });
     it('prepares global inputs even when no agents are registered', async () => {
         const fake = fakeSkillRuntime();
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
+            services: createTestServices(),
             agents: [],
             skills: [fake.input],
         });
@@ -440,8 +442,8 @@ describe('skill runtime integration', () => {
         Object.assign(a.definition, { skills: inputs });
 
         const model = mockModel([{ parts: [{ type: 'text', text: 'original' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
+            services: createTestServices(),
             model,
             agents: capture === 'constructor' ? [a] : [],
         });

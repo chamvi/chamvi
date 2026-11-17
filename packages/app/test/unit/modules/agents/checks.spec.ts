@@ -7,7 +7,6 @@
 
 import { writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
-import { createMemoryStore } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
     afterEach,
@@ -32,6 +31,7 @@ import { createTempDir, writeTree } from '../../../utils/folder.ts';
 import type { Harness } from '../../../utils/harness.ts';
 import { createRecordingLogger } from '../../../utils/logger.ts';
 import { freePort } from '../../../utils/port.ts';
+import { createTestStore } from '../../../utils/store.ts';
 
 let root: { path: string; remove: () => Promise<void> };
 let apps: IApp[] = [];
@@ -95,7 +95,7 @@ describe('the checks a folder agent passes before it is registered', () => {
         await writeTree(root.path, { 'greeter/agent.ts': agentFile('v1') });
 
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestStore({ clock });
         const setup = buildAgentsDirHarness({
             root: root.path,
             clock,
@@ -107,7 +107,7 @@ describe('the checks a folder agent passes before it is registered', () => {
         await setup.harness.setup();
         await setup.watch();
 
-        const marker = await store.agentRevisions.findOne('greeter');
+        const marker = await store.agentRevisionService.findOne('greeter');
         const runId = await queueRun(store, clock, 'greeter');
 
         await writeTree(join(root.path, 'greeter'), change);
@@ -117,8 +117,8 @@ describe('the checks a folder agent passes before it is registered', () => {
         }
 
         expect(setup.engine().getAgent('greeter')?.definition.instructions).toBe('v1');
-        expect(await store.agentRevisions.findOne('greeter')).toEqual(marker);
-        expect((await store.runs.findOne(runId))?.status).toBe('queued');
+        expect(await store.agentRevisionService.findOne('greeter')).toEqual(marker);
+        expect((await store.runService.findOne(runId))?.status).toBe('queued');
         expect(setup.issues()).toEqual([expect.objectContaining({ agent: 'greeter' })]);
         expect(setup.logger.entries.filter((entry) => entry.msg === 'agent load failed')).toHaveLength(1);
         expect(setup.logger.entries.filter((entry) => entry.msg === 'agent reload failed')).toHaveLength(0);

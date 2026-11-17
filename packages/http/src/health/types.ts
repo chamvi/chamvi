@@ -17,7 +17,7 @@ export type ReadinessUnavailableView = { status: 'unavailable'; reason: 'shuttin
 export type ReadinessView = ReadinessReadyView | ReadinessUnavailableView;
 
 /** What `HealthService` needs of the http context. */
-export type HealthServiceContext = Pick<HttpContext, 'engine' | 'store' | 'clock' | 'shutdown' | 'readyTimeoutMs'>;
+export type HealthServiceContext = Pick<HttpContext, 'engine' | 'runService' | 'clock' | 'shutdown' | 'readyTimeoutMs'>;
 
 export interface IHealthService {
     /** Shutdown, then engine drain, then a store round trip within `readyTimeoutMs`. */

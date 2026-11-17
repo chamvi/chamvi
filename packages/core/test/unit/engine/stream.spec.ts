@@ -17,10 +17,10 @@ import {
     vi,
 } from 'vitest';
 import { z } from 'zod';
-import { Engine, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { IEngine, RunDelta } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -41,15 +41,15 @@ const env = {
 };
 
 function make(model: LanguageModel, tools?: () => ToolSet) {
-    const store = createMemoryStore();
+    const store = createTestServices();
     const agent = defineModelAgent({
         name: 'triage',
         instructions: 'You triage.',
         model,
         tools,
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [agent],
         onError: () => {},
     });
@@ -166,7 +166,7 @@ describe('streaming', () => {
 
         await engine.idle();
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(deltas).toEqual([
             {
                 runId,
@@ -182,11 +182,11 @@ describe('streaming', () => {
             },
         ]);
 
-        const llm = (await store.steps.find(runId)).filter((s) => s.kind === 'llm');
+        const llm = (await store.stepService.find(runId)).filter((s) => s.kind === 'llm');
         const stored = llm.at(-1)?.output as { text: string };
 
         expect(deltas.map((d) => d.text).join('')).toBe(stored.text);
-        expect((await store.checkpoints.findOne(runId))?.stepIndex).toBe(1);
+        expect((await store.checkpointService.findOne(runId))?.stepIndex).toBe(1);
     });
 
     it('emits reasoning deltas', async () => {
@@ -218,7 +218,7 @@ describe('streaming', () => {
 
         await engine.idle();
 
-        expect((await store.runs.findOne(runId))?.output).toBe('answer');
+        expect((await store.runService.findOne(runId))?.output).toBe('answer');
         expect(deltas.map((d) => [d.step, d.kind, d.text])).toEqual([
             [0, 'reasoning', 'think'],
             [0, 'text', 'answer'],
@@ -269,7 +269,7 @@ describe('streaming', () => {
         await vi.waitFor(() => expect(deltas).toHaveLength(1));
 
         await engine.cancel(runId);
-        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
         push?.({
             type: 'text-delta',
             id: 't',
@@ -302,7 +302,7 @@ describe('streaming', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'Error', message: 'boom' });
@@ -326,16 +326,16 @@ describe('streaming', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'Error', message: 'boom' });
 
-        const steps = await store.steps.find(runId);
+        const steps = await store.stepService.find(runId);
 
         expect(steps.map((step) => step.kind)).toEqual(['llm']);
         expect(steps[0]?.output).toMatchObject({ text: 'partial', finishReason: 'error' });
-        expect(await store.checkpoints.findOne(runId)).toMatchObject({ stepIndex: 0, finishReason: 'error' });
+        expect(await store.checkpointService.findOne(runId)).toMatchObject({ stepIndex: 0, finishReason: 'error' });
     });
 
     it('a model error after a completed step fails the run', async () => {
@@ -354,11 +354,11 @@ describe('streaming', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'Error', message: 'mock script exhausted' });
-        expect((await store.checkpoints.findOne(runId))?.stepIndex).toBe(0);
+        expect((await store.checkpointService.findOne(runId))?.stepIndex).toBe(0);
     });
 
     it('a model error is not logged by the AI SDK', async () => {
@@ -372,7 +372,7 @@ describe('streaming', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'Error', message: 'mock script exhausted' });
@@ -389,7 +389,7 @@ describe('streaming', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error?.code).toBe('incomplete_response');
@@ -425,7 +425,7 @@ describe('streaming', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error?.code).toBe('incomplete_response');
@@ -446,7 +446,7 @@ describe('streaming', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toBe('answer');
@@ -476,9 +476,9 @@ describe('streaming', () => {
                 return { stream };
             },
         });
-        const store = createMemoryStore();
-        const engine = new Engine({
-            store,
+        const store = createTestServices();
+        const engine = createTestEngine({
+            services: store,
             agents: [defineModelAgent({
                 name: 'triage',
                 instructions: 'You triage.',
@@ -506,7 +506,7 @@ describe('streaming', () => {
         });
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'Error', message: 'sink failed' });

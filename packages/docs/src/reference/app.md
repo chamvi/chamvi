@@ -12,7 +12,7 @@ npm install @chamvi/app ai typeorm pg
 |---|---|---|
 | `@chamvi/app` | `createApp`, `isApp`, the built-in modules, the module contract (tokens, `ModuleName`, `AppContext`, `ILifecycleHook`, the `IModule` and `IContainer` types), env readers, `approvalUrlOf`, `readConfig`, `createLogger`, `BUILTIN_PROVIDERS`, the model and check types (`ProviderConfig`, `SecretValue`, `AppCheckOptions`, `AppCheckResult`, ...) | |
 | `@chamvi/app/authup` | `authupModule`, `oidcModule` | `@authup/server-adapter-kit`, `@authup/core-http-kit` |
-| `@chamvi/app/testing` | `buildModuleHarness`, `createModuleHarness` | |
+| `@chamvi/app/testing` | `buildModuleHarness`, `createModuleHarness`, `memoryStoreModule` | |
 
 ## createApp
 
@@ -32,7 +32,7 @@ Synchronous and side-effect free. `agents` may be omitted or empty: the agents c
 | `start` | config, store (migrated unless `CHAMVI_MIGRATE=false`), engine with every contributed channel (the cron channel fires unless `CHAMVI_SCHEDULER=false`), http; starts the engine (and so its channels) once every module built, resolves once listening | the setup error (a module graph error as `InvalidAgentDefinitionError`); `app_stopped` when `stop()` interrupted the setup (the setup's own error is logged); `app_in_use` for a second lifecycle or after `stop()` |
 | `stop` | the shutdown sequence (see [Start and stop](/guide/app#start-and-stop)); memoized, waits for a setup in flight | `app_stop_failed` when a teardown failed (each failure is logged) |
 | `runJob` | config, store (migrated), engine (not started: `@chamvi/channel-cron` `runJob` starts it without channels, ticks and drains it); no http | the job's error; `app_in_use` |
-| `migrate` | config, store (`migrateStore`), store teardown | `InvalidAgentDefinitionError` without `DATABASE_URL`; `app_in_use` |
+| `migrate` | config, store (`migrateStore`), every [database module](/guide/database) (its migrations), their teardown | `InvalidAgentDefinitionError` without `DATABASE_URL`; `app_in_use` |
 | `check` | the `start` path up to its start steps (`context.check`, mode `start`): config, store (connected, never migrated: pending migrations reject with `store_not_migrated` unless `CHAMVI_MIGRATE` is on), the model settings, every module's setup and onReady, the agent folders loaded and checked (`engine.checkAgent()`, never `putAgent`), then the teardown. No engine or channel start, no server, no run, no store write (no migration, revision marker, cancel or lock). Resolves `{ issues }`, the agent folders' load issues | the setup error (`invalid_agent_definition` for a configuration error), the store's (`store_not_migrated`, a connection error); `app_in_use`: it is the app's one lifecycle |
 
 `runJob` resolves `exitCode: 0` for a `completed`, `waiting`, `skipped`, queued-behind-an-approval or signal-interrupted run, `1` for `failed` or `cancelled`.
@@ -60,9 +60,9 @@ Read by `readConfig(env, { mode, dev })` once per lifecycle; the optional module
 | `CHAMVI_BASE_PATH` | http | empty or `^(?:\/[a-z0-9._~-]+)+$` | `''` (health at `/healthz`, UI at `/ui`) | never |
 | `CHAMVI_PUBLIC_URL` | http, ui, channels | absolute URL | unset | an approval link is wanted |
 | `CHAMVI_LOG_LEVEL` | config | `error`, `warn`, `info`, `debug` | `info` | never |
-| `DATABASE_URL` | store | `postgres://...` | unset: `createMemoryStore()` (warned outside dev) | `migrate`; any multi-replica or CronJob deployment |
+| `DATABASE_URL` | store | `postgres://...` | unset: memory repositories (warned outside dev) | `migrate`; any multi-replica or CronJob deployment |
 | `CHAMVI_MIGRATE` | store | bool | `true` | never |
-| `CHAMVI_PURGE_INTERVAL_MS` | store | int, `0` disables | `3600000` (for purgeable capability repositories, on `engine.clock`) | never |
+| `CHAMVI_PURGE_INTERVAL_MS` | store | int, `0` disables | `3600000` (the lock and idempotency services' `purgeExpired()`, on `engine.clock`) | never |
 | `CHAMVI_MAX_CONCURRENT_RUNS` | engine | int >= 1 | `4` | never |
 | `CHAMVI_SCHEDULER` | scheduler | bool | `true`; `false` starts no in-process cron (CronJob mode; `cron.on()` subscriptions still validate) | never |
 | `CHAMVI_AGENTS_DIR` | agents | path of a directory, relative to the working directory | unset: `./agents` when it is a directory, else no [agent folders](/guide/agent-folders) | |
@@ -141,7 +141,7 @@ Listing one of them in `createApp({ modules })` replaces the default instance. `
 
 <<< ../../../app/src/modules/config/types.ts{ts}
 
-`StoreModuleOptions` (`store` is used as is and never closed; `dataSource` must be initialized, is migrated like a built one and never destroyed; `url` wins over `DATABASE_URL`; a data source built from a URL waits at most 10 s for Postgres to accept the first connection):
+`StoreModuleOptions` (`dataSource` must be initialized, is migrated like a built one and never destroyed; `url` wins over `DATABASE_URL`; a data source built from a URL waits at most 10 s for Postgres to accept the first connection). A module named `ModuleName.STORE` that registers the repository tokens replaces it ([Writing a Repository](/repositories/writing-a-repository#register-it-with-an-app)):
 
 <<< ../../../app/src/modules/repository/types.ts{ts}
 
@@ -152,6 +152,19 @@ Listing one of them in `createApp({ modules })` replaces the default instance. `
 <<< ../../../app/src/modules/scheduler/types.ts{ts}
 
 <<< ../../../app/src/modules/http/types.ts{ts}
+
+## Database module
+
+```ts
+function databaseModule(options: DatabaseModuleOptions): IModule;          // 'chamvi:db:<name>', default 'chamvi:db:default'
+function dataSourceToken(name?: string): TypedToken<DataSource>;          // one token per name; DatabaseToken.DATA_SOURCE is the default's
+function readDatabaseDescriptors(app: IApp): DatabaseDescriptor[];        // an app's databases, without connecting
+const DatabaseToken: DatabaseTokens;                                       // DATA_SOURCE, DESCRIPTORS
+```
+
+A database for the app's own tables beside chamvi's store: PostgreSQL on `DATABASE_URL`, migrated under the lock `chamvi:db:<name>` into its own migrations table, else SQLite in memory (refused with `NODE_ENV=production`). See [Database](/guide/database).
+
+<<< ../../../app/src/modules/database/types.ts{ts}
 
 ## Optional modules
 
@@ -215,6 +228,7 @@ function throwIfStopped(context: AppContext): void; // throws the app_stopped er
 // @chamvi/app/testing
 function buildModuleHarness(options?: ModuleHarnessOptions): ModuleHarness;          // not set up yet
 async function createModuleHarness(options?: ModuleHarnessOptions): Promise<ModuleHarness>; // set up
+function memoryStoreModule(options?: MemoryStoreModuleOptions): IModule;              // 'chamvi:store' on memory repositories of `registry` (default a new one)
 ```
 
 The real module lifecycle without `start()` and a port, over exactly `options.modules` (list the built-ins a module needs, e.g. `configModule()`, `storeModule()`, `engineModule()`) on a container holding `AppToken.CONTEXT` (and `CLOCK` with `clock`): `setup()` runs every `setup`, every `onReady` and the start steps like the app and tears down and rethrows when one fails, `reported` collects every `context.report()` call (a throwing lifecycle hook lands there), `stop()` aborts the context signal and tears down.

@@ -14,7 +14,7 @@ Old approval pollers do not understand the safe notification field: they can pos
 
 ## What core already guarantees
 
-With a shared, durable store such as the [database store](/repositories/database) (`createMemoryStore()` cannot be shared), several `Engine`s coordinate without a leader:
+With a shared, durable store such as the [database store](/repositories/database) (memory repositories cannot be shared), several `Engine`s coordinate without a leader:
 
 - **One executor per run.** Run claims are leases (`claimTtlMs`, renewed every third of it). A replica that loses its lease stops writing.
 - **One run per concurrency key.** Checked under a store lock, across replicas.

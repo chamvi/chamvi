@@ -187,7 +187,7 @@ export class DiscordModule implements IModule {
         this.handle = handle;
 
         const pinned = this.isPinned();
-        const editable = !pinned && container.resolve(AppToken.STORE).connections !== undefined;
+        const editable = !pinned && container.has(AppToken.CONNECTION_SERVICE);
         const row = pinned ? undefined : await this.readRow(container);
 
         let resolved = this.resolve(row);

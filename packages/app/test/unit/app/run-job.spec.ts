@@ -8,7 +8,6 @@
 import { cron } from '@chamvi/channel-cron';
 import {
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
@@ -27,7 +26,6 @@ import {
     ModuleName,
     configModule,
     createApp,
-    storeModule,
 } from '@chamvi/app';
 import type { IApp } from '@chamvi/app';
 import {
@@ -39,6 +37,7 @@ import {
 import { hangingModel, rejectionOf } from '../../utils/app.ts';
 import { createTempDir, writeTree } from '../../utils/folder.ts';
 import { createRecordingLogger } from '../../utils/logger.ts';
+import { createTestStore, storeModuleOf } from '../../utils/store.ts';
 
 const DRAIN_MS = 1_000;
 const POLL_MS = 1_000;
@@ -63,10 +62,10 @@ function sweep(model: Agent['definition']['model'], channels = [cron.on('*/5 * *
 function build(agents: Agent[], modules: IModule[] = []) {
     const clock = new ControllableClock(new Date('2026-10-21T08:00:00Z'));
     const logger = createRecordingLogger(clock);
-    const store = createMemoryStore({ clock });
+    const store = createTestStore({ clock });
     const app = createApp({
         agents,
-        modules: [configModule({ clock, logger }), storeModule({ store }), ...modules],
+        modules: [configModule({ clock, logger }), storeModuleOf(store), ...modules],
     });
 
     apps.push(app);
@@ -91,7 +90,7 @@ describe('App.runJob', () => {
         const result = await app.runJob({ env, agent: 'sweep' });
 
         expect(result).toMatchObject({ status: 'completed', exitCode: 0 });
-        expect((await store.runs.findOne(result.runId as string))?.status).toBe('completed');
+        expect((await store.runService.findOne(result.runId as string))?.status).toBe('completed');
     });
 
     it('returns exitCode 1 for a failed run', async () => {
@@ -158,7 +157,7 @@ describe('App.runJob', () => {
         });
 
         expect(result).toMatchObject({ status: 'completed', exitCode: 0 });
-        expect((await named.store.runs.findOne(result.runId as string))?.trigger).toMatchObject({ channel: 'cron', trigger: 'cron:0 * * * *' });
+        expect((await named.store.runService.findOne(result.runId as string))?.trigger).toMatchObject({ channel: 'cron', trigger: 'cron:0 * * * *' });
     });
 
     it('serves no http during a job', async () => {
@@ -199,7 +198,7 @@ describe('App.runJob', () => {
         });
 
         await vi.waitFor(async () => {
-            const { data } = await store.runs.find({ agent: 'sweep' });
+            const { data } = await store.runService.find({ agent: 'sweep' });
 
             expect(data[0]?.status).toBe('running');
         });
@@ -218,8 +217,8 @@ describe('App.runJob', () => {
 
         expect(await job).toMatchObject({ status: 'interrupted', exitCode: 0 });
 
-        const getRun = vi.spyOn(store.runs, 'findOne');
-        const listRuns = vi.spyOn(store.runs, 'find');
+        const getRun = vi.spyOn(store.runService, 'findOne');
+        const listRuns = vi.spyOn(store.runService, 'find');
 
         clock.advance(10 * POLL_MS);
         await new Promise((resolve) => {
@@ -237,10 +236,10 @@ describe('App.runJob', () => {
 
             const clock = new ControllableClock(new Date('2026-10-21T08:00:00Z'));
             const logger = createRecordingLogger(clock);
-            const store = createMemoryStore({ clock });
+            const store = createTestStore({ clock });
             const old = 'c'.repeat(64);
 
-            await store.agentRevisions.save({
+            await store.agentRevisionService.save({
                 agent: 'greeter',
                 hash: old,
                 changedAt: clock.now(),
@@ -249,7 +248,7 @@ describe('App.runJob', () => {
             const runId = await queueRun(store, clock, 'greeter');
             const app = createApp({
                 models: { test: provider() },
-                modules: [configModule({ clock, logger }), storeModule({ store })],
+                modules: [configModule({ clock, logger }), storeModuleOf(store)],
             });
 
             apps.push(app);
@@ -261,8 +260,8 @@ describe('App.runJob', () => {
 
             expect(error.code).toBe(APP_ERROR_CODE_INVALID_RUN_STATE);
             expect(error.message).toContain(old.slice(0, 12));
-            expect((await store.agentRevisions.findOne('greeter'))?.hash).toBe(old);
-            expect((await store.runs.findOne(runId))?.status).toBe('queued');
+            expect((await store.agentRevisionService.findOne('greeter'))?.hash).toBe(old);
+            expect((await store.runService.findOne(runId))?.status).toBe('queued');
         } finally {
             await dir.remove();
         }

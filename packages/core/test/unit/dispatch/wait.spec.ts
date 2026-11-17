@@ -24,15 +24,12 @@ import {
     waitForDispatch,
 } from '@chamvi/core';
 import type {
-    DispatchWaitPoint,
     IEngine,
-    IStore,
-    Run,
     ToolContext,
 } from '@chamvi/core';
+import type { DispatchWaitPoint, Run } from '@chamvi/store';
 import { answerDispatchWait } from '../../../src/engine/dispatch/module.ts';
-import { MemoryRunRepository, createMemoryStore } from '../../../src/repository/index.ts';
-import type { RunUpdateOptions } from '../../../src/repository/types.ts';
+import type { RunUpdateOptions } from '../../../src/run/types.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import {
     gate,
@@ -42,7 +39,8 @@ import {
 } from '../../utils/dispatch.ts';
 import type { ChildTurn, ParentTurn } from '../../utils/dispatch.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
-import { createMemoryStoreWithRuns } from '../../utils/store.ts';
+import { createTestServices, servicesOf } from '../../utils/engine.ts';
+import type { TestServiceSet, TestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -119,9 +117,9 @@ class TestEngine extends Engine {
     }
 }
 
-function setup(parent: ParentTurn[], child: ChildTurn = answer, options: { store?: IStore; clock?: ControllableClock } = {}) {
+function setup(parent: ParentTurn[], child: ChildTurn = answer, options: { store?: TestServiceSet; clock?: ControllableClock } = {}) {
     const clock = options.clock ?? new ControllableClock(START);
-    const store = options.store ?? createMemoryStore({ clock });
+    const store = options.store ?? createTestServices({ clock });
     const lead = defineModelAgent({
         name: 'lead',
         instructions: 'You lead.',
@@ -142,7 +140,7 @@ function setup(parent: ParentTurn[], child: ChildTurn = answer, options: { store
         model: treeModel(done(), answer),
     });
     const engine = new TestEngine({
-        store,
+        ...servicesOf(store),
         clock,
         agents: [lead, other],
         channels: [agentChannel()],
@@ -171,14 +169,14 @@ async function startParent(engine: IEngine, agentName = 'lead'): Promise<string>
     return runId;
 }
 
-async function children(store: IStore, parentId: string): Promise<Run[]> {
-    const { data } = await store.runs.find({ parentRunId: parentId });
+async function children(store: TestServices, parentId: string): Promise<Run[]> {
+    const { data } = await store.runService.find({ parentRunId: parentId });
 
     return data;
 }
 
-async function stepsOf(store: IStore, runId: string, kind: 'tool' | 'wait') {
-    return (await store.steps.find(runId)).filter((step) => step.kind === kind);
+async function stepsOf(store: TestServices, runId: string, kind: 'tool' | 'wait') {
+    return (await store.stepService.find(runId)).filter((step) => step.kind === kind);
 }
 
 function dispatchWait(run: Run | undefined): DispatchWaitPoint | undefined {
@@ -212,7 +210,7 @@ describe('waitForDispatch()', () => {
         const [step] = await stepsOf(store, parentId, 'tool');
 
         expect(step?.error).toMatchObject({ code: 'invalid_run_state' });
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('single in gives single out, list in gives list in order with duplicates', async () => {
@@ -237,7 +235,7 @@ describe('waitForDispatch()', () => {
             single: outcome(a, 'out-a'),
             list: [outcome(b, 'out-b'), outcome(a, 'out-a'), outcome(b, 'out-b')],
         });
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('empty list resolves []', async () => {
@@ -257,7 +255,7 @@ describe('waitForDispatch()', () => {
     it('already settled children resolve without suspending', async () => {
         let parentId = '';
         let ids: string[] = [];
-        const holder: { engine?: IEngine; store?: IStore } = {};
+        const holder: { engine?: IEngine; store?: TestServiceSet } = {};
         const { engine, store } = setup([
             turn(call('start', { payloads: ['a', 'b'] }, 'c1')),
             async () => {
@@ -294,7 +292,7 @@ describe('waitForDispatch()', () => {
         expect((steps[1]?.output as { status: string }[]).map((o) => o.status)).toEqual(['completed', 'completed']);
         expect(waiting.ids.has(parentId)).toBe(false);
         expect(await stepsOf(store, parentId, 'wait')).toHaveLength(0);
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('refuses a run this run did not dispatch', async () => {
@@ -325,7 +323,7 @@ describe('waitForDispatch()', () => {
             message: `Run ${holder.id} was not dispatched by run ${parentId}.`,
         });
         expect(waiting.ids.has(parentId)).toBe(false);
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('wait id is <stepIndex>:<toolCallId>:w0 and the default expiresAt is now + 24 h', async () => {
@@ -354,7 +352,7 @@ describe('waitForDispatch()', () => {
         hold.open();
         await engine.idle();
 
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
         expect(await stepsOf(store, parentId, 'wait')).toHaveLength(1);
     });
 
@@ -404,11 +402,11 @@ describe('waitForDispatch()', () => {
 
     it('a tainted child taints the parent before the outcome reaches the model', async () => {
         const seen: { taint?: Run['taint']; outcome?: boolean } = {};
-        const holder: { store?: IStore; parentId?: string } = {};
+        const holder: { store?: TestServiceSet; parentId?: string } = {};
         const { engine, store } = setup([
             turn(call('fan', { payloads: ['a'] }, 'c1')),
             async (options) => {
-                seen.taint = (await holder.store!.runs.findOne(holder.parentId!))?.taint;
+                seen.taint = (await holder.store!.runService.findOne(holder.parentId!))?.taint;
                 seen.outcome = promptHas(options, 'out-a');
 
                 return text('done');
@@ -426,7 +424,7 @@ describe('waitForDispatch()', () => {
         expect(child?.taint?.source).toBe('tool:fetchPage');
         expect(seen.outcome).toBe(true);
         expect(seen.taint?.source).toBe(`dispatch:${child!.id}`);
-        expect((await store.runs.findOne(holder.parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(holder.parentId))?.status).toBe('completed');
     });
 
     it('two waits in one step resume one after another', async () => {
@@ -463,7 +461,7 @@ describe('waitForDispatch()', () => {
         const tools = await stepsOf(store, parentId, 'tool');
 
         expect(tools.map((s) => (s.output as { output: string }[])[0]?.output)).toEqual(['out-a', 'out-b']);
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('a child settled before the pause landed resumes the parent', async () => {
@@ -471,7 +469,8 @@ describe('waitForDispatch()', () => {
         const settled = Promise.withResolvers<void>();
         let delayed = 0;
 
-        const runs = new MemoryRunRepository({ clock });
+        const store = createTestServices({ clock });
+        const runs = store.runService;
         const update = runs.update.bind(runs);
 
         runs.update = async (id: string, patch: Partial<Run>, opts?: RunUpdateOptions): Promise<Run> => {
@@ -497,7 +496,6 @@ describe('waitForDispatch()', () => {
             return update(id, patch, opts);
         };
 
-        const store = createMemoryStoreWithRuns(runs, { clock });
         const { engine } = setup([turn(call('fan', { payloads: ['a'] }, 'c1')), text('done')], answer, { store, clock });
         const parentId = await startParent(engine);
 
@@ -505,7 +503,7 @@ describe('waitForDispatch()', () => {
 
         expect(delayed).toBe(1);
         expect(await stepsOf(store, parentId, 'wait')).toHaveLength(1);
-        expect((await store.runs.findOne(parentId))?.status).toBe('completed');
+        expect((await store.runService.findOne(parentId))?.status).toBe('completed');
     });
 
     it('approve() refuses a dispatch wait', async () => {
@@ -539,7 +537,7 @@ describe('waitForDispatch()', () => {
         // the child settles behind the engine's back: no push
         const [child] = await children(store, parentId);
 
-        await store.runs.update(child!.id, {
+        await store.runService.update(child!.id, {
             status: 'completed',
             output: 'out-a',
             claim: undefined,

@@ -36,6 +36,8 @@ If the local execution loses its lease while being cancelled, `cancel()` throws 
 
 <<< @/snippets/shutdown.ts#shutdown
 
+`createEngine` stands for the engine of your app, built on the repositories every replica shares ([Database store](/repositories/database)); with [`@chamvi/app`](/guide/app) the app builds it.
+
 Only the drain deadline keeps the event loop alive; the engine's other timers never do. Pick a `timeoutMs` below your platform's grace period (Kubernetes' `terminationGracePeriodSeconds`).
 
 ## Recovery
@@ -54,4 +56,4 @@ The next execution continues from the latest checkpoint. A step whose checkpoint
 | Crash or kill | `running`, claim expires | after the lease expires, on the next `recover()` |
 | Lost network to the store | `running` until the lease expires | as for a crash; the old owner stops writing once it notices |
 
-`createMemoryStore()` loses everything with the process, so recovery across restarts needs a durable store.
+The memory repositories lose everything with the process, so recovery across restarts needs a durable store.

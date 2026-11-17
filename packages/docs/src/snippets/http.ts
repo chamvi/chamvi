@@ -1,8 +1,7 @@
 import type { ITokenVerifier } from '@authup/server-adapter-kit';
 import { Permission } from '@chamvi/access';
-import type { Agent, IStore } from '@chamvi/core';
+import type { Agent, EngineOptions, IEngine } from '@chamvi/core';
 import { cronChannel } from '@chamvi/channel-cron';
-import { Engine } from '@chamvi/core';
 import {
     authup,
     createHttpApp,
@@ -15,6 +14,9 @@ import {
 } from '@chamvi/http';
 import type { Authenticator } from '@chamvi/http';
 import { serve } from 'routup';
+
+/** Builds the app's engine on the repositories every replica shares (see Database store). */
+type CreateEngine = (options: Pick<EngineOptions, 'agents' | 'channels' | 'onError'>) => IEngine;
 
 /** The `authorization` header of chamvi's authup client (client credentials). */
 declare function clientAuthorization(): Promise<Record<string, string>>;
@@ -73,15 +75,15 @@ export function authenticators(verifier: ITokenVerifier): Authenticator[] {
     // #endregion auth
 }
 
-export async function start(store: IStore, agents: Agent[], verifier: ITokenVerifier) {
+export async function start(createEngine: CreateEngine, agents: Agent[], verifier: ITokenVerifier) {
     // #region app
     const auth = authenticators(verifier);
     // POST /channels/webhook/<agent><path>, authenticated with the same chain
     const webhooks = webhookChannel({ auth });
-    const engine = new Engine({
-        store,
+    // your engine on the repositories every replica shares (see Database store)
+    const engine = createEngine({
         agents,
-        // the channels read the store, agents and clock from the engine
+        // the channels read the services, agents and clock from the engine
         channels: [httpChannel(), mcpChannel(), webhooks, cronChannel()],
     });
 

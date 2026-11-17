@@ -12,7 +12,8 @@ import {
     it,
 } from 'vitest';
 import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
-import type { IEngine, Run } from '@chamvi/core';
+import type { IEngine } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
 import type { WhatsAppChatOptions, WhatsAppIdentity } from '@chamvi/chat-whatsapp';
 import { textModel } from '@chamvi/test-kit';

@@ -8,6 +8,8 @@ npm install @chamvi/channel-cron @chamvi/core --save
 
 <<< @/snippets/cron.ts#channel
 
+`createEngine` stands for the engine of your app, built on the repositories every replica shares ([Database store](/repositories/database)): the lock that elects one replica per tick lives there.
+
 `cron.on(expression, options?)` validates the expression (cron-parser) and the timezone and throws `InvalidAgentDefinitionError` for one it refuses. `engine.start()` starts the channel after recovering runs: it creates one [hubwire](https://github.com/tada5hi/hubwire) scheduled component per cron subscription of the engine's agents, and the subscription of an agent without a revision (one passed in code) it cannot use (an expression croner refuses) fails `engine.start()` with `InvalidAgentDefinitionError`, naming the agent and subscription; an [agent folder](/guide/agent-folders)'s goes to `onError` and leaves that agent unscheduled. The channel follows agents registered, replaced and removed at runtime. With [`@chamvi/app`](/guide/app), `schedulerModule()` contributes the channel.
 
 A second cron channel (`cronChannel({ name: 'cron-eu' })`) has its own `on()`: its subscriptions fire only there, and `cron.on()` ones only on the channel named `cron`.
@@ -62,6 +64,8 @@ The run is dispatched through that channel's trusted conversation intake (`dispa
 `runJob()` fires one cron subscription once and waits for its run, for a Kubernetes CronJob instead of a long-lived replica:
 
 <<< @/snippets/cron.ts#job
+
+The job's engine runs on the same shared repositories as the long-lived replicas, so the runs it recovers and the ticks it locks are theirs.
 
 The tick is dispatched at the current time (the overlap policy applies). The engine is then started with `start({ channels: false })`, so a job never starts cron schedules or any other channel, and runs one approval tick even when the tick is skipped, so leftovers of earlier jobs make progress: a run whose pod was killed is recovered, an interrupted or answered run is executed, and an approval past its timeout is denied. The job returns when the run is `completed` (exit code 0), `waiting` for an approval, its own or a descendant's (0, the pod is not held; `waitingRunId` names a waiting descendant), `queued` behind a run of the same subscription that waits for an approval (0, under `queue-one`), `failed` or `cancelled` (1), or `skipped` by the overlap policy (0). A run that waits on the runs it [dispatched](/guide/dispatch) keeps the job going until they settle. It polls `engine.getRun` every `pollMs`, so a run finished by another replica also ends the job. It never calls `process.exit`. The engine must hold the subscription's cron channel.
 

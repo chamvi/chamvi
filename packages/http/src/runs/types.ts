@@ -7,16 +7,19 @@
 
 import type {
     Agent,
-    Artifact,
     ArtifactInput,
     ChannelSubscription,
+} from '@chamvi/core';
+import type {
+    Artifact,
     Invoker,
     Run,
     RunStatusLiteral,
     Step,
     TriggerEnvelope,
     WaitPoint,
-} from '@chamvi/core';
+} from '@chamvi/store';
+import type { IFilter } from '@rapiq/core';
 import type { HttpContext } from '../app/types.ts';
 import type { Principal } from '../auth/types.ts';
 import type { HTTP_CHANNEL_NAME, MCP_CHANNEL_NAME } from '../channels/constants.ts';
@@ -40,7 +43,7 @@ export type RunView = Omit<Run, 'claim' | 'trigger' | 'conversation'> & {
     agentPrivate: boolean;
 };
 
-/** `GET /runs` query after decoding. */
+/** The filter, page and order a run listing takes (`GET /runs`, MCP `list_runs`). */
 export type RunListQuery = {
     agent?: string;
     /** `filter[parent]`: only the runs this run dispatched. */
@@ -92,9 +95,23 @@ export type ApproveBody = {
     selected?: string[];
 };
 
+/**
+ * `GET /runs` after decoding and validation; internal: rapiq filters on the
+ * run's fields (`agent`, `parentRunId`, `status`, `waiting`), the name
+ * `filter[agent]` gave (the permission check reads it), the page and the
+ * sorts (`createdAt` only).
+ */
+export type RunListRequest = {
+    filters: IFilter[];
+    agent?: string;
+    limit: number;
+    offset: number;
+    sorts: Record<string, 'ASC' | 'DESC'>;
+};
+
 // #region services
-/** What `RunService` needs of the http context. */
-export type RunServiceContext = Pick<HttpContext, 'engine' | 'store' | 'agents' | 'clock'>;
+/** What `RunHttpService` needs of the http context. */
+export type RunHttpServiceContext = Pick<HttpContext, 'engine' | 'runService' | 'stepService' | 'artifactService' | 'agents' | 'clock'>;
 
 /** `POST /agents/{name}/runs`: the agent name, the untrusted body and the `Idempotency-Key` header. */
 export type StartRunInput = {
@@ -170,7 +187,7 @@ export type ApproveRunView = {
  * Runs: start, read, cancel, approve. Each method keeps the check order of
  * the route it serves; `data` arguments are untrusted and validated here.
  */
-export interface IRunService {
+export interface IRunHttpService {
     /** `chamvi_agent_run` (403), the agent (404), its http subscription (404), the body, then the dispatch. */
     start(input: StartRunInput, principal: Principal): Promise<StartRunView>;
     /**
@@ -199,7 +216,7 @@ export interface IRunService {
 }
 
 export type RunControllerContext = {
-    service: IRunService;
+    service: IRunHttpService;
 };
 
 // #endregion services

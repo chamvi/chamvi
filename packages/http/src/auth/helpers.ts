@@ -5,14 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { 
-    can, 
-    canSome, 
-    isPermissionAuthorization, 
-    isPermissionBinding, 
+import {
+    can,
+    canSome,
+    isPermissionAuthorization,
+    isPermissionBinding,
 } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { Agent, IClock, Invoker } from '@chamvi/core';
+import type { Agent, IClock } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 import { ForbiddenError, UnauthorizedError } from '@ebec/http';
 import type { IAppEvent } from 'routup';
 import { isObject } from 'smob';

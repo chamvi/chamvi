@@ -1,0 +1,278 @@
+// Vitest Snapshot v1, https://vitest.dev/guide/snapshot.html
+
+exports[`state list answers > answers the kv and collection listings byte for byte as before 1`] = `
+{
+  "issues ": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"},{"issue":"42","tag":"true","id":"a"},{"issue":42,"tag":"null","id":"b"},{"issue":"007","tag":"\\"x\\"","id":"c"},{"status":null,"nested":{"a":1},"id":"d"},{"status":"OPEN","id":"e"},{"id":"f","doc":"a string document"},{"id":"g","doc":[1,2]},{"title":"a","status":"open","priority":2,"id":"i1"},{"title":"b","status":"closed","priority":1,"id":"i2"}]}",
+    "status": 200,
+  },
+  "issues filter=and(eq(status,'open'),eq(priority,2))": {
+    "body": "{"status":400,"code":"bad_request","message":"The input syntax is invalid: Unexpected token in value: FIELD","issues":[{"type":"item","code":"syntaxInvalid","path":[],"message":"The input syntax is invalid: Unexpected token in value: FIELD","meta":{"parameter":"filters"}}]}",
+    "status": 400,
+  },
+  "issues filter=and(eq(status,'open'),eq(status,'open'))": {
+    "body": "{"status":400,"code":"bad_request","message":"filter[status] may be given once."}",
+    "status": 400,
+  },
+  "issues filter=eq(status,'open')": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"},{"title":"a","status":"open","priority":2,"id":"i1"}]}",
+    "status": 200,
+  },
+  "issues filter=or(eq(status,'open'),eq(status,'closed'))": {
+    "body": "{"status":400,"code":"bad_request","message":"Only top-level filters joined with \\"and\\" are supported."}",
+    "status": 400,
+  },
+  "issues filter[Status]=open": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "issues filter[a.b]=1": {
+    "body": "{"status":400,"code":"bad_request","message":"The key path a is invalid.","issues":[{"type":"item","code":"keyPathInvalid","path":["a"],"message":"The key path a is invalid.","meta":{"parameter":"filters","key":"a"}}]}",
+    "status": 400,
+  },
+  "issues filter[doc]=x": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "issues filter[flag]=true": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"}]}",
+    "status": 200,
+  },
+  "issues filter[id]=i1": {
+    "body": "{"status":400,"code":"bad_request","message":"filter[id] is not supported: id is the store id, not a document field."}",
+    "status": 400,
+  },
+  "issues filter[issue]="007"": {
+    "body": "{"data":[{"issue":"007","tag":"\\"x\\"","id":"c"}]}",
+    "status": 200,
+  },
+  "issues filter[issue]="42"": {
+    "body": "{"data":[{"issue":"42","tag":"true","id":"a"}]}",
+    "status": 200,
+  },
+  "issues filter[issue]=007": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "issues filter[issue]=42": {
+    "body": "{"data":[{"issue":42,"tag":"null","id":"b"}]}",
+    "status": 200,
+  },
+  "issues filter[missing]=1": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "issues filter[nested]=1": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "issues filter[priority]="2"": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "issues filter[priority]=2": {
+    "body": "{"data":[{"title":"a","status":"open","priority":2,"id":"i1"}]}",
+    "status": 200,
+  },
+  "issues filter[status]=": {
+    "body": "{"status":400,"code":"bad_request","message":"The value of the key status is invalid.","issues":[{"type":"item","code":"keyValueInvalid","path":["status"],"message":"The value of the key status is invalid.","meta":{"parameter":"filters","key":"status"},"received":""}]}",
+    "status": 400,
+  },
+  "issues filter[status]=!open": {
+    "body": "{"status":400,"code":"bad_request","message":"Only top-level equality filters are supported."}",
+    "status": 400,
+  },
+  "issues filter[status]="null"": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "issues filter[status]=OPEN": {
+    "body": "{"data":[{"status":"OPEN","id":"e"}]}",
+    "status": 200,
+  },
+  "issues filter[status]=closed": {
+    "body": "{"data":[{"title":"b","status":"closed","priority":1,"id":"i2"}]}",
+    "status": 200,
+  },
+  "issues filter[status]=null": {
+    "body": "{"data":[{"status":null,"nested":{"a":1},"id":"d"}]}",
+    "status": 200,
+  },
+  "issues filter[status]=open": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"},{"title":"a","status":"open","priority":2,"id":"i1"}]}",
+    "status": 200,
+  },
+  "issues filter[status]=open&filter[flag]=true": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"}]}",
+    "status": 200,
+  },
+  "issues filter[status]=open&filter[status]=closed": {
+    "body": "{"status":400,"code":"bad_request","message":"Only top-level equality filters are supported."}",
+    "status": 400,
+  },
+  "issues filter[status]=open&filter[title]=a": {
+    "body": "{"data":[{"title":"a","status":"open","priority":2,"id":"i1"}]}",
+    "status": 200,
+  },
+  "issues filter[status]=open,closed": {
+    "body": "{"status":400,"code":"bad_request","message":"Only top-level equality filters are supported."}",
+    "status": 400,
+  },
+  "issues filter[status]=~op": {
+    "body": "{"status":400,"code":"bad_request","message":"Only top-level equality filters are supported."}",
+    "status": 400,
+  },
+  "issues filter[tag]=""x""": {
+    "body": "{"data":[{"issue":"007","tag":"\\"x\\"","id":"c"}]}",
+    "status": 200,
+  },
+  "issues filter[tag]="null"": {
+    "body": "{"data":[{"issue":42,"tag":"null","id":"b"}]}",
+    "status": 200,
+  },
+  "issues filter[tag]="true"": {
+    "body": "{"data":[{"issue":"42","tag":"true","id":"a"}]}",
+    "status": 200,
+  },
+  "issues filter[tag]=true": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "issues page[limit]=0": {
+    "body": "{"status":400,"code":"bad_request","message":"The value of the key limit is invalid.","issues":[{"type":"item","code":"keyValueInvalid","path":["limit"],"message":"The value of the key limit is invalid.","meta":{"parameter":"pagination"},"received":"0"}]}",
+    "status": 400,
+  },
+  "issues page[limit]=1": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"}]}",
+    "status": 200,
+  },
+  "issues page[limit]=1&page[offset]=1": {
+    "body": "{"status":400,"code":"bad_request","message":"page[offset] is not supported for state collections."}",
+    "status": 400,
+  },
+  "issues page[limit]=100": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"},{"issue":"42","tag":"true","id":"a"},{"issue":42,"tag":"null","id":"b"},{"issue":"007","tag":"\\"x\\"","id":"c"},{"status":null,"nested":{"a":1},"id":"d"},{"status":"OPEN","id":"e"},{"id":"f","doc":"a string document"},{"id":"g","doc":[1,2]},{"title":"a","status":"open","priority":2,"id":"i1"},{"title":"b","status":"closed","priority":1,"id":"i2"}]}",
+    "status": 200,
+  },
+  "issues page[limit]=101": {
+    "body": "{"status":400,"code":"bad_request","message":"The pagination limit must not exceed the value of 100."}",
+    "status": 400,
+  },
+  "issues page[limit]=2&filter[status]=open": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"},{"title":"a","status":"open","priority":2,"id":"i1"}]}",
+    "status": 200,
+  },
+  "issues page[limit]=3": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"},{"issue":"42","tag":"true","id":"a"},{"issue":42,"tag":"null","id":"b"}]}",
+    "status": 200,
+  },
+  "issues page[offset]=-1": {
+    "body": "{"status":400,"code":"bad_request","message":"The value of the key offset is invalid.","issues":[{"type":"item","code":"keyValueInvalid","path":["offset"],"message":"The value of the key offset is invalid.","meta":{"parameter":"pagination"},"received":"-1"}]}",
+    "status": 400,
+  },
+  "issues page[offset]=0": {
+    "body": "{"data":[{"status":"open","flag":true,"id":"B"},{"issue":"42","tag":"true","id":"a"},{"issue":42,"tag":"null","id":"b"},{"issue":"007","tag":"\\"x\\"","id":"c"},{"status":null,"nested":{"a":1},"id":"d"},{"status":"OPEN","id":"e"},{"id":"f","doc":"a string document"},{"id":"g","doc":[1,2]},{"title":"a","status":"open","priority":2,"id":"i1"},{"title":"b","status":"closed","priority":1,"id":"i2"}]}",
+    "status": 200,
+  },
+  "issues sort=-status": {
+    "body": "{"status":400,"code":"bad_request","message":"The key status is not permitted.","issues":[{"type":"item","code":"keyNotAllowed","path":["status"],"message":"The key status is not permitted.","meta":{"parameter":"sorts","key":"status"}}]}",
+    "status": 400,
+  },
+  "issues sort=id": {
+    "body": "{"status":400,"code":"bad_request","message":"The key id is not permitted.","issues":[{"type":"item","code":"keyNotAllowed","path":["id"],"message":"The key id is not permitted.","meta":{"parameter":"sorts","key":"id"}}]}",
+    "status": 400,
+  },
+  "kv ": {
+    "body": "{"data":[{"key":" ","value":""},{"key":"10","value":null},{"key":"2","value":[1,2]},{"key":"B","value":"upper"},{"key":"a","value":{"n":1}},{"key":"a/b","value":false},{"key":"b","value":2},{"key":"é","value":"accent"}]}",
+    "status": 200,
+  },
+  "kv echo": {
+    "body": "{"data":[{"key":"x","value":true}]}",
+    "status": 200,
+  },
+  "kv fields=key": {
+    "body": "{"data":[{"key":" ","value":""},{"key":"10","value":null},{"key":"2","value":[1,2]},{"key":"B","value":"upper"},{"key":"a","value":{"n":1}},{"key":"a/b","value":false},{"key":"b","value":2},{"key":"é","value":"accent"}]}",
+    "status": 200,
+  },
+  "kv filter=eq(key,'a')": {
+    "body": "{"status":400,"code":"bad_request","message":"The key key is not permitted.","issues":[{"type":"item","code":"keyNotAllowed","path":["key"],"message":"The key key is not permitted.","meta":{"parameter":"filters","key":"key"}}]}",
+    "status": 400,
+  },
+  "kv filter[key]=a": {
+    "body": "{"status":400,"code":"bad_request","message":"The key key is not permitted.","issues":[{"type":"item","code":"keyNotAllowed","path":["key"],"message":"The key key is not permitted.","meta":{"parameter":"filters","key":"key"}}]}",
+    "status": 400,
+  },
+  "kv loose": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "kv page[limit]=0": {
+    "body": "{"status":400,"code":"bad_request","message":"The value of the key limit is invalid.","issues":[{"type":"item","code":"keyValueInvalid","path":["limit"],"message":"The value of the key limit is invalid.","meta":{"parameter":"pagination"},"received":"0"}]}",
+    "status": 400,
+  },
+  "kv page[limit]=1": {
+    "body": "{"data":[{"key":" ","value":""}]}",
+    "status": 200,
+  },
+  "kv page[limit]=1&page[offset]=1": {
+    "body": "{"data":[{"key":"10","value":null}]}",
+    "status": 200,
+  },
+  "kv page[limit]=100": {
+    "body": "{"data":[{"key":" ","value":""},{"key":"10","value":null},{"key":"2","value":[1,2]},{"key":"B","value":"upper"},{"key":"a","value":{"n":1}},{"key":"a/b","value":false},{"key":"b","value":2},{"key":"é","value":"accent"}]}",
+    "status": 200,
+  },
+  "kv page[limit]=101": {
+    "body": "{"status":400,"code":"bad_request","message":"The pagination limit must not exceed the value of 100."}",
+    "status": 400,
+  },
+  "kv page[limit]=1e2": {
+    "body": "{"status":400,"code":"bad_request","message":"page[limit] takes a non-negative integer."}",
+    "status": 400,
+  },
+  "kv page[limit]=3&page[offset]=2": {
+    "body": "{"data":[{"key":"2","value":[1,2]},{"key":"B","value":"upper"},{"key":"a","value":{"n":1}}]}",
+    "status": 200,
+  },
+  "kv page[limit]=abc": {
+    "body": "{"status":400,"code":"bad_request","message":"The value of the key limit is invalid.","issues":[{"type":"item","code":"keyValueInvalid","path":["limit"],"message":"The value of the key limit is invalid.","meta":{"parameter":"pagination"},"received":"abc"}]}",
+    "status": 400,
+  },
+  "kv page[offset]=-1": {
+    "body": "{"status":400,"code":"bad_request","message":"The value of the key offset is invalid.","issues":[{"type":"item","code":"keyValueInvalid","path":["offset"],"message":"The value of the key offset is invalid.","meta":{"parameter":"pagination"},"received":"-1"}]}",
+    "status": 400,
+  },
+  "kv page[offset]=100": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "kv page[offset]=2.5": {
+    "body": "{"status":400,"code":"bad_request","message":"page[offset] takes a non-negative integer."}",
+    "status": 400,
+  },
+  "kv page[offset]=6": {
+    "body": "{"data":[{"key":"b","value":2},{"key":"é","value":"accent"}]}",
+    "status": 200,
+  },
+  "kv sort=-key": {
+    "body": "{"status":400,"code":"bad_request","message":"The key key is not permitted.","issues":[{"type":"item","code":"keyNotAllowed","path":["key"],"message":"The key key is not permitted.","meta":{"parameter":"sorts","key":"key"}}]}",
+    "status": 400,
+  },
+  "kv sort=key": {
+    "body": "{"status":400,"code":"bad_request","message":"The key key is not permitted.","issues":[{"type":"item","code":"keyNotAllowed","path":["key"],"message":"The key key is not permitted.","meta":{"parameter":"sorts","key":"key"}}]}",
+    "status": 400,
+  },
+  "loose empty": {
+    "body": "{"data":[]}",
+    "status": 200,
+  },
+  "loose kv": {
+    "body": "{"data":[{"a":1,"id":"k1"}]}",
+    "status": 200,
+  },
+  "other collection": {
+    "body": "{"status":404,"code":"not_found","message":"Agent \\"intake\\" declares no state collection \\"other\\"."}",
+    "status": 404,
+  },
+}
+`;

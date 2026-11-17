@@ -5,8 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { MemoryConversationRepository, createMemoryStore, defineModelAgent } from '@chamvi/core';
-import type { IConversationRepository, IEngine } from '@chamvi/core';
+import { ConversationService, defineModelAgent } from '@chamvi/core';
+import type { IEngine } from '@chamvi/core';
+import type { IConversationRepository } from '@chamvi/store';
+import { MemoryConversationRepository } from '@chamvi/store-memory';
 import { ControllableClock, textModel  } from '@chamvi/test-kit';
 import type { IContainer } from 'eldin';
 import {
@@ -19,11 +21,12 @@ import {
     AppToken,
     configModule,
     createApp,
-    storeModule,
 } from '@chamvi/app';
 import type { AppOptions, IApp } from '@chamvi/app';
 import { TOKENS } from '../../utils/app.ts';
 import { createRecordingLogger } from '../../utils/logger.ts';
+import { createTestStore, storeModuleOf } from '../../utils/store.ts';
+import type { TestStore } from '../../utils/store.ts';
 
 const identity = {
     agent: 'helper',
@@ -39,8 +42,9 @@ afterEach(async () => {
     apps.length = 0;
 });
 
-function build(conversations?: AppOptions['conversations'], store?: IConversationRepository) {
+function build(conversations?: AppOptions['conversations'], store?: (registry: TestStore['registry']) => IConversationRepository) {
     const clock = new ControllableClock(new Date('2026-10-28T00:00:00Z'));
+    const testStore = createTestStore({ clock });
     const logger = createRecordingLogger(clock);
     let container: IContainer;
     const app = createApp({
@@ -53,7 +57,7 @@ function build(conversations?: AppOptions['conversations'], store?: IConversatio
         ...(conversations !== undefined && { conversations }),
         modules: [
             configModule({ clock, logger }),
-            ...(store ? [storeModule({ store: { ...createMemoryStore({ clock }), conversations: store } })] : []),
+            ...(store ? [storeModuleOf({ ...testStore, conversationRepository: store(testStore.registry) })] : []),
             {
                 name: 'test:capture',
                 async setup(value) {
@@ -80,27 +84,34 @@ describe('app conversation capability', () => {
         const built = build();
 
         await built.app.check({ env });
-        expect(built.container().resolve(AppToken.STORE).conversations).toBeInstanceOf(MemoryConversationRepository);
+        expect(built.container().resolve(AppToken.CONVERSATION_REPOSITORY)).toBeInstanceOf(MemoryConversationRepository);
+        expect(built.container().resolve(AppToken.CONVERSATION_SERVICE)).toBeInstanceOf(ConversationService);
         expect(built.container().has(AppToken.DATA_SOURCE)).toBe(false);
     });
 
     it('custom_store_respected and check_writes_nothing', async () => {
         const calls: PropertyKey[] = [];
-        const custom = new Proxy(new MemoryConversationRepository(), {
-            get(target, key) {
-                const value = Reflect.get(target, key);
+        let custom!: IConversationRepository;
+        const built = build({ authorize: () => true }, (registry) => {
+            custom = new Proxy(new MemoryConversationRepository({ registry }), {
+                get(target, key) {
+                    const value = Reflect.get(target, key);
 
-                return typeof value === 'function' ? (...args: unknown[]) => {
-                    calls.push(key);
+                    return typeof value === 'function' ? (...args: unknown[]) => {
+                        calls.push(key);
 
-                    return value.apply(target, args);
-                } : value;
-            },
-        }) as IConversationRepository;
-        const built = build({ authorize: () => true }, custom);
+                        return value.apply(target, args);
+                    } : value;
+                },
+            });
+
+            return custom;
+        });
 
         await built.app.check({ env });
-        expect(built.container().resolve(AppToken.STORE).conversations!).toBe(custom);
+        expect(built.container().resolve(AppToken.CONVERSATION_REPOSITORY)).toBe(custom);
+        expect((built.container().resolve(AppToken.ENGINE) as IEngine).conversationService)
+            .toBe(built.container().resolve(AppToken.CONVERSATION_SERVICE));
         expect(calls).toEqual([]);
     });
 
@@ -109,10 +120,9 @@ describe('app conversation capability', () => {
 
         await built.app.check({ env });
 
-        const aggregate = built.container().resolve(AppToken.STORE);
-        const store = aggregate.conversations!;
+        const store = built.container().resolve(AppToken.CONVERSATION_SERVICE);
 
-        expect(store).toBeInstanceOf(MemoryConversationRepository);
+        expect(built.container().resolve(AppToken.CONVERSATION_REPOSITORY)).toBeInstanceOf(MemoryConversationRepository);
 
         const engine = built.container().resolve(AppToken.ENGINE) as IEngine;
 
@@ -121,7 +131,7 @@ describe('app conversation capability', () => {
         const at = built.clock.now();
 
         // the memory store refuses a turn for a run it does not hold, as a foreign key would
-        await aggregate.runs.insert({
+        await built.container().resolve(AppToken.RUN_SERVICE).create({
             id: 'clock-run',
             agent: 'helper',
             status: 'running',
@@ -159,8 +169,8 @@ describe('app conversation capability', () => {
         await first.app.check({ env });
         await second.app.check({ env });
 
-        const firstRepository = first.container().resolve(AppToken.STORE).conversations!;
-        const secondRepository = second.container().resolve(AppToken.STORE).conversations!;
+        const firstRepository = first.container().resolve(AppToken.CONVERSATION_SERVICE);
+        const secondRepository = second.container().resolve(AppToken.CONVERSATION_SERVICE);
 
         expect(firstRepository).not.toBe(secondRepository);
         await firstRepository.resolve(identity);

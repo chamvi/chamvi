@@ -74,7 +74,7 @@ async function writeNote(kind: 'set' | 'remove', input: unknown, ctx: ToolContex
     if (kind === 'remove') {
         const content = { kind, key: input.key };
 
-        return bound.capability.repository.applyNote(bound.binding.scope, {
+        return bound.capability.service.applyNote(bound.binding.scope, {
             id,
             source,
             inputHash: stableHash(content),
@@ -106,7 +106,7 @@ async function writeNote(kind: 'set' | 'remove', input: unknown, ctx: ToolContex
         ...(expiresAt ? { expiresAt } : {}),
     };
 
-    return bound.capability.repository.applyNote(bound.binding.scope, {
+    return bound.capability.service.applyNote(bound.binding.scope, {
         id,
         source,
         inputHash: stableHash(content),
@@ -145,7 +145,7 @@ export function memoryTools(): ToolSet {
                     throw new ValidationError('The memory list limit must be at most 50.');
                 }
 
-                const result = await bound.capability.repository.findNotes(bound.binding.scope, page);
+                const result = await bound.capability.service.findNotes(bound.binding.scope, page);
 
                 return {
                     data: result.data.map(({
@@ -184,7 +184,7 @@ export function memoryTools(): ToolSet {
                 assertInput(input, ['key']);
                 assertKey(input.key);
 
-                return bound.capability.repository.findOneNote(bound.binding.scope, input.key);
+                return bound.capability.service.findOneNote(bound.binding.scope, input.key);
             },
         }),
         memory_set: defineTool({

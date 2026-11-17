@@ -23,7 +23,7 @@ import type { KnowledgeModuleOptions } from './types.ts';
  * `options.env ?? process.env`, winning over `embeddingModel`) when the
  * factory is called. In start and job mode and a check, `setup` builds
  * `createKnowledge()` over the repository (default in memory, warned outside
- * dev), the store's locks, the managed collections' model, the app's model
+ * dev), the app's lock service, the managed collections' model, the app's model
  * resolver (`AppToken.MODELS`, for string models) and clock, its indexing
  * errors going to the app logger (`knowledge error`); a configuration error
  * fails the setup (an unresolvable variable names it, never its value). In
@@ -88,7 +88,7 @@ export class KnowledgeModule implements IModule {
 
         const knowledge = createKnowledge({
             repository: repository ?? createMemoryKnowledgeRepository(),
-            locks: container.resolve(AppToken.STORE).locks,
+            locks: container.resolve(AppToken.LOCK_SERVICE),
             ...(collections !== undefined && { collections }),
             ...(embeddingModel !== undefined && { embeddingModel }),
             ...(models !== undefined && { models }),

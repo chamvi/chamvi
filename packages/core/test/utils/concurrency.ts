@@ -7,19 +7,18 @@
 
 import { jsonSchema } from 'ai';
 import {
-    Engine,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
     Agent,
     ChannelSubscription,
-    EngineOptions,
     IEngine,
 } from '@chamvi/core';
 import { ControllableClock } from './clock.ts';
 import { MockLanguageModelV4 } from 'ai/test';
+import { createTestEngine, createTestServices } from './engine.ts';
+import type { TestEngineOptions } from './engine.ts';
 
 export const flush = () => new Promise<void>((resolve) => {
     setImmediate(resolve);
@@ -27,7 +26,7 @@ export const flush = () => new Promise<void>((resolve) => {
 
 export function concurrencyHarness() {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const engines: IEngine[] = [];
     const releases = new Map<string, () => void>();
     const entered: string[] = [];
@@ -89,9 +88,9 @@ export function concurrencyHarness() {
             }),
         });
     }
-    function engine(agents: Agent[], options: Partial<EngineOptions> = {}) {
-        const instance = new Engine({
-            store,
+    function engine(agents: Agent[], options: Partial<TestEngineOptions> = {}) {
+        const instance = createTestEngine({
+            services: store,
             clock,
             agents,
             channels: [{ name: 'input' }],

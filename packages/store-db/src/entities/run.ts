@@ -19,7 +19,7 @@ import type {
     RunStatusLiteral,
     RunTaint,
     Usage,
-} from '@chamvi/core';
+} from '@chamvi/store';
 import { OPTIONAL_JSON_TRANSFORMER, TableName } from './constants.ts';
 import { ConversationEntity } from './conversation.ts';
 

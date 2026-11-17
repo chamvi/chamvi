@@ -254,7 +254,7 @@ export class GithubModule implements IModule {
         container.registerMany(AppToken.AGENT_CHECKS, { useValue: (agent) => assertSubscriber(instances.list, instance, agent) });
 
         const definition = githubConnectionDefinition();
-        const editable = !this.isPinned() && container.resolve(AppToken.STORE).connections !== undefined;
+        const editable = !this.isPinned() && container.has(AppToken.CONNECTION_SERVICE);
         const row = this.isPinned() ? undefined : await this.readRow(container);
         let resolved;
 
@@ -289,9 +289,8 @@ export class GithubModule implements IModule {
             ...this.channelOptions,
             name: channelName,
             locks: this.channelOptions.locks ?? {
-                acquire: (...args) => container.resolve(AppToken.STORE).locks.acquire(...args),
-                renew: (...args) => container.resolve(AppToken.STORE).locks.renew(...args),
-                release: (...args) => container.resolve(AppToken.STORE).locks.release(...args),
+                acquire: (...args) => container.resolve(AppToken.LOCK_SERVICE).acquire(...args),
+                release: (...args) => container.resolve(AppToken.LOCK_SERVICE).release(...args),
             },
             app: this.app,
             ...(approvalUrl && { approvalUrl }),

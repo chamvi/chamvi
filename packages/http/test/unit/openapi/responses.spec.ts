@@ -20,14 +20,13 @@ import {
 import {
     createConnectionConfigStore,
     createKeyring,
-    createMemoryStore,
 } from '@chamvi/core';
 import type {
     ConnectionTypeDefinition,
     IConnectionHandle,
     IConnectionTypeProvider,
 } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import {
     ADMIN_TOKEN,
     READER_TOKEN,
@@ -199,9 +198,9 @@ describe.skipIf(!document)('live responses against the openapi document', () => 
             await engine.start();
             await engine.idle();
 
-            await store.state.set('echo', 'counter', 3);
-            await store.state.set('echo', 'nested', { a: [1, 'b', null] });
-            await store.state.upsertDocument('echo', 'items', 'i1', { color: 'red', qty: 3 });
+            await store.stateService.set('echo', 'counter', 3);
+            await store.stateService.set('echo', 'nested', { a: [1, 'b', null] });
+            await store.stateService.upsertDocument('echo', 'items', 'i1', { color: 'red', qty: 3 });
         });
 
         afterAll(async () => {
@@ -321,15 +320,17 @@ describe.skipIf(!document)('live responses against the openapi document', () => 
             actions: { reset: async () => undefined },
         };
         const clock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock });
+        const engine = createTestEngine({ agents: [], clock });
+        const connectionService = engine.connectionService!;
+        const { lockService } = engine;
         const key = randomBytes(32);
         const { app } = createTestApp({
-            store,
-            clock,
+            engine,
             connections: () => [handle],
             connectionTypes: () => [provider],
             connectionConfigs: createConnectionConfigStore({
-                store,
+                connectionService,
+                lockService,
                 clock,
                 keyring: () => createKeyring([{ id: 'k1', key }]),
             }),

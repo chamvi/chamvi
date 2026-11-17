@@ -55,6 +55,7 @@
         "@chamvi/core": "^0.8.0",
         "@chamvi/sandbox": "^0.8.0",
         "@chamvi/sandbox-local": "^0.8.0",
+        "@chamvi/store": "^0.8.0",
         "@chamvi/test-kit": "^0.8.0",
         "ai": "^7.0.165",
         "zod": "^4.6.7"

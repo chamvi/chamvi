@@ -15,7 +15,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     FatalToolError,
     InvalidAgentDefinitionError,
     ToolDeniedError,
@@ -32,10 +31,10 @@ import type {
 } from '@chamvi/core';
 import { currentToolCall } from '../../../src/effect/frame.ts';
 import { stableHash } from '../../../src/effect/helpers.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] });
 const call = (toolName: string, input: unknown = {}): MockResponse => ({
@@ -62,9 +61,9 @@ async function runOnce(
     setup?: (engine: IEngine) => void,
 ) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
-    const engine = new Engine({
-        store,
+    const store = createTestServices({ clock });
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'ops',
             instructions: 'You operate.',
@@ -88,12 +87,12 @@ async function runOnce(
 
     await engine.idle();
 
-    const steps = await store.steps.find(runId);
+    const steps = await store.stepService.find(runId);
 
     return {
         runId,
         store,
-        run: await store.runs.findOne(runId),
+        run: await store.runService.findOne(runId),
         tools: steps.filter((step) => step.kind === 'tool'),
     };
 }
@@ -224,8 +223,8 @@ describe('agent hooks', () => {
         });
 
         expect(run?.status).toBe('completed');
-        expect(await store.effects.findOne(`${runId}:post:${stableHash({ body: 'y' })}`)).toEqual({ result: 'y' });
-        expect(await store.effects.findOne(`${runId}:post:${stableHash({ body: 'x' })}`)).toBeUndefined();
+        expect(await store.effectService.findOne(`${runId}:post:${stableHash({ body: 'y' })}`)).toEqual({ result: 'y' });
+        expect(await store.effectService.findOne(`${runId}:post:${stableHash({ body: 'x' })}`)).toBeUndefined();
     });
 
     it('afterToolExecution rewrites a fresh result and a recorded effect result alike', async () => {

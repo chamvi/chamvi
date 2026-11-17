@@ -5,26 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { IConnectionRepository } from '@chamvi/store';
 import type { IClock } from '../clock/types.ts';
 import type { LeaseLostError } from '../errors/index.ts';
 import type { IKeyring } from '../keyring/types.ts';
-import type { IStore } from '../repository/types.ts';
-
-/**
- * One configured account of a provider (WhatsApp, later Telegram, Slack). The
- * store holds only its wrapped data key; its entries are sealed bytes.
- */
-export type Connection = {
-    /** Agent-name rule (`^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64). */
-    name: string;
-    /** Set by the provider (`whatsapp`), 1 to 64 characters. */
-    type: string;
-    /** The keyring key the data key is wrapped under. */
-    keyId: string;
-    wrappedKey: Uint8Array;
-    createdAt: Date;
-    updatedAt: Date;
-};
+import type { LockService } from '../lock/service.ts';
+import type { ConnectionService } from './service.ts';
 
 /**
  * One atomic batch of entry changes: `clear` removes every entry, then `set`
@@ -36,13 +22,13 @@ export type ConnectionEntryWrite = {
     clear?: boolean;
 };
 
-/** A connection's plain settings and its sealed secrets, as the repository stores them. */
+/** A connection's plain settings and its sealed secrets, as the service reads them. */
 export type ConnectionConfig = {
     /** The data key the secrets are sealed under, read in the same snapshot as them. */
     keyId: string;
     wrappedKey: Uint8Array;
     settings: Record<string, unknown>;
-    /** Sealed bytes by field name; the repository never sees plaintext. */
+    /** Sealed bytes by field name; the store never sees plaintext. */
     secrets: Map<string, Uint8Array>;
     /** Bumped by every `writeConfig`, starting at 0. */
     revision: number;
@@ -59,15 +45,28 @@ export type ConnectionConfigWrite = {
     clearSecrets?: readonly string[];
 };
 
-/** The store lock lease (`ILockRepository`) a write must hold at write time. */
+/** The lease (`LockService`) a write must hold at write time. */
 export type ConnectionFence = {
     lock: string;
     owner: string;
 };
 
+export type ConnectionServiceContext = {
+    /** The connections with their entries and secrets, and the fence read of their leases. */
+    repository: IConnectionRepository;
+    /** Read after the locked reads: the fence's expiry is compared with it, `updatedAt` stamped from it. */
+    clock: IClock;
+};
+
 export type ConnectionVaultOptions = {
-    /** Must hold `connections`; its `locks` fence the writes. */
-    store: IStore;
+    /** The stored connections; the leases of `lockService` fence its writes. */
+    connectionService: Pick<ConnectionService, 'create' | 'findOne' | 'findOneOrFail' | 'replace' | 'findEntries' | 'writeEntries'>;
+    /**
+     * The connection leases (`connection:<name>`), in the lock storage the
+     * connection repository's fence reads (the same database, or the same
+     * memory registry).
+     */
+    lockService: Pick<LockService, 'acquire' | 'renew' | 'release'>;
     keyring: IKeyring;
     /** Drives the lease renewals (default systemClock). */
     clock?: IClock;
@@ -150,8 +149,14 @@ export interface IConnectionSession {
 }
 
 export type ConnectionConfigStoreOptions = {
-    /** Must hold `connections`; its `locks` guard `delete`. */
-    store: IStore;
+    /** The stored connections; the leases of `lockService` guard `delete`. */
+    connectionService: Pick<ConnectionService, 'create' | 'findOne' | 'findOneOrFail' | 'findConfig' | 'writeConfig' | 'delete'>;
+    /**
+     * The connection leases (`connection:<name>`), in the lock storage the
+     * connection repository's fence reads (the same database, or the same
+     * memory registry).
+     */
+    lockService: Pick<LockService, 'acquire' | 'release'>;
     /** Resolved only when a data key is needed: an app without keys can still describe and read secret-free connections. */
     keyring: () => IKeyring;
     /** Stamps created rows (default systemClock). */

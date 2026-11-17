@@ -14,16 +14,17 @@ import {
 } from 'vitest';
 import {
     ConnectionNotConfiguredError,
+    ConnectionService,
     InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
-    createMemoryStore,
     defineModelAgent,
+    systemClock,
 } from '@chamvi/core';
+import { MemoryConnectionRepository, MemoryRegistry } from '@chamvi/store-memory';
 import type {
     DeclaredConnection,
     IConnectionTypeProvider,
-    IStore,
 } from '@chamvi/core';
 import {
     AppToken,
@@ -33,11 +34,11 @@ import {
     storeModule,
 } from '@chamvi/app';
 import type { IModule } from '@chamvi/app';
-import { buildModuleHarness } from '@chamvi/app/testing';
+import { buildModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness } from '@chamvi/app/testing';
 import { DISCORD_CONNECTION_TYPE, discordModule } from '@chamvi/chat-discord/module';
 import type { DiscordModuleOptions } from '@chamvi/chat-discord/module';
-import { ControllableClock, textModel } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine, textModel } from '@chamvi/test-kit';
 import {
     ALICE,
     CHANNEL,
@@ -48,6 +49,24 @@ import {
     createMemoryState,
     settle,
 } from '../../utils/discord.ts';
+
+/**
+ * The registry the app's memory repositories share with the spec, whether
+ * the app keeps connections (`connections: false` keeps none) and a
+ * connection service on that registry, to seed and read the rows the app sees.
+ */
+function storeOf(options: { connections?: boolean } = {}) {
+    const registry = new MemoryRegistry();
+    const connectionRepository = new MemoryConnectionRepository({ registry });
+
+    return {
+        registry,
+        connections: options.connections !== false,
+        connectionService: new ConnectionService({ repository: connectionRepository, clock: systemClock }),
+    };
+}
+
+type TestStore = ReturnType<typeof storeOf>;
 
 const APP_ID = '100000000000000009';
 const keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
@@ -62,7 +81,7 @@ type WorldInput = {
     patch?: Partial<DiscordModuleOptions>;
     check?: boolean;
     mode?: 'start' | 'migrate';
-    store?: IStore;
+    store?: TestStore;
     appEnv?: Record<string, string>;
     extraModules?: (clients: ReturnType<typeof createFakeClients>) => IModule[];
 };
@@ -113,7 +132,9 @@ function world(input: WorldInput = {}) {
         })],
         modules: [
             configModule({ clock, logger }),
-            storeModule(input.store ? { store: input.store } : {}),
+            input.store ?
+                memoryStoreModule({ registry: input.store.registry, connections: input.store.connections }) :
+                storeModule(),
             engineModule(),
             module,
             ...(input.extraModules?.(clients) ?? []),
@@ -143,9 +164,13 @@ function world(input: WorldInput = {}) {
 async function storedWorld(
     name: string,
     update: { settings?: Record<string, unknown>; secrets?: { set: Record<string, string> } },
-): Promise<IStore> {
-    const store = createMemoryStore();
-    const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+): Promise<TestStore> {
+    const store = storeOf();
+    const configs = createConnectionConfigStore({
+        connectionService: store.connectionService,
+        lockService: createTestEngine({ agents: [] }).lockService,
+        keyring: () => keyring,
+    });
 
     await configs.create(name, DISCORD_CONNECTION_TYPE, update);
 
@@ -219,7 +244,7 @@ describe('discordModule', () => {
         expect(stored.clients.last().logins).toEqual(['stored-token']);
 
         const connection = stored.connection();
-        const row = await store.connections!.findOne('discord');
+        const row = await store.connectionService.findOne('discord');
 
         expect(connection.resolved.sources.token).toEqual({ kind: 'store' });
         expect(connection.loadedRevision).toBe(1);
@@ -486,9 +511,7 @@ describe('discordModule', () => {
     });
 
     it('a store without connections is env-only and read-only', async () => {
-        const store: IStore = createMemoryStore();
-
-        delete store.connections;
+        const store = storeOf({ connections: false });
 
         const w = world({ moduleEnv: {}, store });
 
@@ -501,7 +524,7 @@ describe('discordModule', () => {
     it('migrate mode does nothing', async () => {
         const w = world({
             mode: 'migrate',
-            store: createMemoryStore(),
+            store: storeOf(),
             appEnv: { DATABASE_URL: 'postgres://chamvi@127.0.0.1:1/chamvi' },
         });
 

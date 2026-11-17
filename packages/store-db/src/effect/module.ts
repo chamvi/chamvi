@@ -5,45 +5,23 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { RepositoryNotFoundError } from '@chamvi/core';
-import type { IEffectRepository } from '@chamvi/core';
-import type { DataSource, Repository } from 'typeorm';
-import { uuidv7 } from 'uuidv7';
+import type { DataSource, EntityManager } from 'typeorm';
+import type { EffectRecord, IEffectRepository } from '@chamvi/store';
 import { EffectEntity } from '../entities/index.ts';
-import { asValues } from '../repository/helpers.ts';
+import { EntityRepositoryAdapter } from '../entity/module.ts';
 
-export class DatabaseEffectRepository implements IEffectRepository {
-    protected dataSource: DataSource;
-
-    constructor(opts: { dataSource: DataSource }) {
-        this.dataSource = opts.dataSource;
+/** Recorded effect results in `chamvi_effects`, stored as given; `upsert` replaces by `key`. */
+export class DatabaseEffectRepository extends EntityRepositoryAdapter<EffectRecord, EffectEntity> implements IEffectRepository {
+    constructor(source: DataSource | EntityManager) {
+        super(source.getRepository(EffectEntity), {
+            entity: 'effect',
+            alias: 'effect',
+            target: EffectEntity,
+            upsertKey: ['key'],
+        });
     }
 
-    protected get effects(): Repository<EffectEntity> {
-        return this.dataSource.getRepository(EffectEntity);
-    }
-
-    async findOne(key: string): Promise<{ result: unknown } | undefined> {
-        const entity = await this.effects.findOneBy({ key });
-
-        return entity ? { result: entity.result } : undefined;
-    }
-
-    async findOneOrFail(key: string): Promise<{ result: unknown }> {
-        const result = await this.findOne(key);
-
-        if (result === undefined) {
-            throw new RepositoryNotFoundError('effects');
-        }
-
-        return result;
-    }
-
-    async save(key: string, result: unknown): Promise<void> {
-        await this.effects.upsert(asValues<EffectEntity>({
-            id: uuidv7(),
-            key,
-            result: result ?? null,
-        }), ['key']);
+    withManager(manager: EntityManager): this {
+        return new DatabaseEffectRepository(manager) as this;
     }
 }

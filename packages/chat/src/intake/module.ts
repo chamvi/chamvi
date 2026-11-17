@@ -12,8 +12,8 @@ import type {
     ChannelSubscription,
     ConversationTarget,
     IClock,
-    Invoker,
 } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 import { isObject } from 'smob';
 import { encodeChatAddress, hashKey } from '../channel/helpers.ts';
 import { CHAT_INTAKE_FAILED_ERROR_CODE } from '../channel/constants.ts';

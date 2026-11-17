@@ -6,13 +6,18 @@
  */
 
 import type { ToolSet } from 'ai';
-import type { ToolContext } from '@chamvi/core';
-import { createAgentState, createMemoryStore, systemClock } from '@chamvi/core';
+import type { IEngine, ToolContext } from '@chamvi/core';
+import { createAgentState, systemClock } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import { runToolCall } from '../../../core/src/effect/frame.ts';
 import { createRunArtifacts } from '../../../core/src/artifact/module.ts';
 import type { ListArtifactsResult, ProcessFilesResult } from '@chamvi/tool-files';
 
-export function toolContext(runId: string, signal: AbortSignal = new AbortController().signal, store = createMemoryStore()): ToolContext {
+export function toolContext(
+    runId: string,
+    signal: AbortSignal = new AbortController().signal,
+    engine: Pick<IEngine, 'stateService' | 'artifactService'> = createTestEngine({ agents: [] }),
+): ToolContext {
     return {
         channels: {} as ToolContext['channels'],
         run: {
@@ -28,8 +33,8 @@ export function toolContext(runId: string, signal: AbortSignal = new AbortContro
             },
             signal,
         },
-        state: createAgentState('files', undefined, store.state),
-        artifacts: createRunArtifacts(store.artifacts, { id: runId, agent: 'files' }, systemClock),
+        state: createAgentState('files', undefined, engine.stateService),
+        artifacts: createRunArtifacts(engine.artifactService, { id: runId, agent: 'files' }, systemClock),
     };
 }
 
@@ -42,7 +47,7 @@ export async function callTool(tools: ToolSet, input: unknown, context: ToolCont
         toolName: 'process_files',
         stepIndex: 0,
         approvals: 0,
-        effects: createMemoryStore().effects,
+        effects: createTestEngine({ agents: [] }).effectService,
     }, () => execute(input, {
         toolCallId,
         messages: [],

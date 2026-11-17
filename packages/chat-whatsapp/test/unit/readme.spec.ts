@@ -53,7 +53,7 @@ describe('README example', () => {
     it('imports only the public entries and never a test helper', () => {
         const imports = read('../fixtures/readme-example.ts').matchAll(/from '([^']+)'/g).map((m) => m[1]).toArray();
 
-        expect(imports.sort()).toEqual(['@chamvi/chat-whatsapp', '@chamvi/chat-whatsapp', '@chamvi/core', '@chamvi/core', 'ai', 'zod']);
+        expect(imports.sort()).toEqual(['@chamvi/chat-whatsapp', '@chamvi/chat-whatsapp', '@chamvi/core', '@chamvi/core', '@chamvi/store-memory', 'ai', 'zod']);
     });
 
     it('acquires nothing and builds no socket before the engine starts', () => {
@@ -113,7 +113,7 @@ describe('README example', () => {
         await settle();
         await engine.idle();
 
-        const { data: runs } = await engine.store.runs.find({});
+        const { data: runs } = await engine.runService.find({});
 
         expect(pairings).toEqual([{ qr: 'QR-REF' }]);
         expect(runs).toHaveLength(1);

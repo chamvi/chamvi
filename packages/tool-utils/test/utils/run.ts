@@ -6,8 +6,35 @@
  */
 
 import type { ToolSet } from 'ai';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
-import type { DispatchEnvelope, TriggerParent } from '@chamvi/core';
+import {
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    EffectService,
+    Engine,
+    IdempotencyService,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
+    defineModelAgent,
+    systemClock,
+} from '@chamvi/core';
+import type { DispatchEnvelope } from '@chamvi/core';
+import type { TriggerParent } from '@chamvi/store';
+import {
+    MemoryAgentRevisionRepository,
+    MemoryArtifactRepository,
+    MemoryCheckpointRepository,
+    MemoryEffectRepository,
+    MemoryIdempotencyRepository,
+    MemoryLockRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+    MemoryStateDocumentRepository,
+    MemoryStateRepository,
+    MemoryStepRepository,
+} from '@chamvi/store-memory';
 import type { ControllableClock } from '@chamvi/test-kit';
 import { mockModel } from '@chamvi/test-kit';
 
@@ -45,8 +72,23 @@ export async function runTool(tools: ToolSet, name: string, input: unknown, opti
         instructions: 'Call the tool.',
         tools,
     });
+    const registry = new MemoryRegistry();
+    const runs = new MemoryRunRepository({ registry });
+    const locks = new MemoryLockRepository({ registry });
+    const clock = options.clock ?? systemClock;
     const engine = new LineageEngine({
-        store: createMemoryStore(),
+        runService: new RunService({ repository: runs, clock }),
+        stepService: new StepService({ repository: new MemoryStepRepository({ registry }) }),
+        checkpointService: new CheckpointService({ repository: new MemoryCheckpointRepository({ registry }) }),
+        effectService: new EffectService({ repository: new MemoryEffectRepository({ registry }) }),
+        agentRevisionService: new AgentRevisionService({ repository: new MemoryAgentRevisionRepository({ registry }) }),
+        artifactService: new ArtifactService({ repository: new MemoryArtifactRepository({ registry }) }),
+        stateService: new StateService({
+            repository: new MemoryStateRepository({ registry }),
+            documentRepository: new MemoryStateDocumentRepository({ registry }),
+        }),
+        lockService: new LockService({ repository: locks, clock: systemClock }),
+        idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock: systemClock }),
         agents: [agent],
         ...(options.clock ? { clock: options.clock } : {}),
     });
@@ -80,7 +122,7 @@ export async function runTool(tools: ToolSet, name: string, input: unknown, opti
 
     await engine.idle();
 
-    const steps = await engine.store.steps.find(runId);
+    const steps = await engine.stepService.find(runId);
     const step = steps.find((s) => s.kind === 'tool' && s.name === name);
 
     engine.stop();

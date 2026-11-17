@@ -15,7 +15,7 @@ import { App } from 'routup';
 import type { IShutdown } from '@chamvi/http';
 import { buildContext, createErrorHandler } from '../../../src/app/helpers.ts';
 import { registerMcpRoutes } from '../../../src/mcp/module.ts';
-import { RunService } from '../../../src/runs/service.ts';
+import { RunHttpService } from '../../../src/runs/service.ts';
 import {
     ADMIN_TOKEN,
     call,
@@ -80,7 +80,7 @@ describe('/mcp', () => {
 
     it('rejects a body over bodyLimit before any tool runs', async () => {
         const { app, store } = createRunTestApp({ bodyLimit: 1_024 });
-        const getRun = vi.spyOn(store.runs, 'findOne');
+        const getRun = vi.spyOn(store.runService, 'findOne');
         const client = await connectMcp(app, ADMIN_TOKEN);
 
         await expect(callTool(client, 'get_run', { runId: 'x'.repeat(2_048) })).rejects.toThrow(/413|large/i);
@@ -106,7 +106,7 @@ describe('/mcp', () => {
         });
         const app = new App();
 
-        registerMcpRoutes(app, ctx, { runs: new RunService(ctx) });
+        registerMcpRoutes(app, ctx, { runs: new RunHttpService(ctx) });
         app.use(createErrorHandler(ctx));
         expect(ctx.closers.size).toBe(1);
 

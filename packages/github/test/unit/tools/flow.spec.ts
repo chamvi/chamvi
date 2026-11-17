@@ -63,7 +63,6 @@ describe('webhook to comment', () => {
         const {
             app,
             engine,
-            store,
             fake,
         } = setup([
             {
@@ -103,7 +102,7 @@ describe('webhook to comment', () => {
         await engine.start();
         await engine.idle();
 
-        const waiting = await store.runs.findOne(runs[0]!.runId);
+        const waiting = await engine.runService.findOne(runs[0]!.runId);
 
         expect(waiting?.status).toBe('waiting');
         expect(waiting?.waiting?.toolName).toBe('github_add_labels');
@@ -117,7 +116,7 @@ describe('webhook to comment', () => {
         await engine.approve(waiting!.id, { approvalId: waiting!.waiting!.id, approved: true });
         await engine.idle();
 
-        const run = await store.runs.findOne(waiting!.id);
+        const run = await engine.runService.findOne(waiting!.id);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toBe('Triaged.');
@@ -144,7 +143,6 @@ describe('webhook to comment', () => {
         const {
             app,
             engine,
-            store,
             fake,
         } = setup([
             {
@@ -166,7 +164,7 @@ describe('webhook to comment', () => {
         await engine.start();
         await engine.idle();
 
-        const run = await store.runs.findOne(runs[0]!.runId);
+        const run = await engine.runService.findOne(runs[0]!.runId);
 
         expect(run?.status).toBe('waiting');
         expect(run?.waiting?.toolName).toBe('github_close_issue');
@@ -195,7 +193,6 @@ describe('webhook to comment', () => {
         const {
             app,
             engine,
-            store,
             fake,
             errors,
         } = setup;
@@ -214,7 +211,7 @@ describe('webhook to comment', () => {
         await engine.start();
         await engine.idle();
 
-        const paused = await store.runs.findOne(runId);
+        const paused = await engine.runService.findOne(runId);
 
         expect(paused?.status).toBe('waiting');
         expect(paused?.waiting?.toolName).toBe('github_create_comment');
@@ -222,7 +219,7 @@ describe('webhook to comment', () => {
 
         await engine.approve(runId, { approvalId: paused!.waiting!.id, approved: true });
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await engine.runService.findOne(runId))?.status).toBe('completed');
         expect(errors).toEqual([]);
 
         const bodies = (fake.comments.get('octo/demo#5') ?? []).map((c) => String(c.body));
@@ -248,7 +245,6 @@ describe('webhook to comment', () => {
         const {
             app,
             engine,
-            store,
             fake,
         } = setup([comment('zero'), comment('one'), { parts: [{ type: 'text', text: 'Done.' }] }]);
         const response = await deliver(app, {
@@ -262,7 +258,7 @@ describe('webhook to comment', () => {
         await engine.start();
         await engine.idle();
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await engine.runService.findOne(runId))?.status).toBe('completed');
 
         const bodies = (fake.comments.get('octo/demo#5') ?? []).map((c) => String(c.body));
 

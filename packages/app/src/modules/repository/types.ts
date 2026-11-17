@@ -5,33 +5,19 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock, IStore } from '@chamvi/core';
 import type { DataSource } from 'typeorm';
-import type { ILogger } from '../../logger/types.ts';
 
 export type StoreModuleOptions = {
     /** A Postgres URL; default `DATABASE_URL`. */
     url?: string;
-    /** Used as is and never closed. */
-    store?: IStore;
-    /** An initialized data source, shared by the TypeORM repositories and never destroyed. */
+    /** An initialized data source, shared by the database repositories and never destroyed. */
     dataSource?: DataSource;
 };
 
-/** A capability store with expired records to remove. */
-export type PurgingRepository = {
-    purgeExpired(): Promise<unknown>;
+/** Which optional aggregates a memory store keeps (each default `true`). */
+export type MemoryStoreAggregates = {
+    /** `false`: no connection repository, so `CONNECTION_REPOSITORY` and `CONNECTION_SERVICE` are not registered. */
+    connections?: boolean;
+    /** `false`: no conversation repository, so `CONVERSATION_REPOSITORY` and `CONVERSATION_SERVICE` are not registered. */
+    conversations?: boolean;
 };
-
-export type PurgeTimerOptions = {
-    repositories: PurgingRepository[];
-    clock: IClock;
-    intervalMs: number;
-    logger: ILogger;
-};
-
-export interface IPurgeTimer {
-    start(): void;
-    /** Idempotent; keeps a call in flight from re-arming and resolves once it settled. */
-    stop(): Promise<void>;
-}

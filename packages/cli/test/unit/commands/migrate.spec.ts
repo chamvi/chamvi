@@ -18,6 +18,13 @@ import {
 } from 'vitest';
 import { MIGRATE_DEFAULT_APP_NOTICE } from '../../../src/entry/constants.ts';
 import { runCli } from '../../../src/run/module.ts';
+import {
+    createTestDatabase,
+    describePostgres,
+    dropTestDatabase,
+    postgresUrl,
+    tablesOf,
+} from '../../utils/postgres.ts';
 import { createFakeProcess } from '../../utils/process.ts';
 
 const entry = fileURLToPath(new URL('../../fixtures/app/src/index.ts', import.meta.url));
@@ -53,6 +60,25 @@ describe('migrate', () => {
             expect(fake.stderr.join('')).not.toContain('CHAMVI_AGENTS');
         } finally {
             await rm(cwd, { recursive: true, force: true });
+        }
+    });
+});
+
+describePostgres('migrate on PostgreSQL', () => {
+    it('an app without a database module migrates chamvi\'s store and nothing else, as before', async () => {
+        const database = await createTestDatabase();
+        const fake = createFakeProcess();
+
+        try {
+            await runCli(['migrate', '--entry', entry], fake.context({ env: { DATABASE_URL: postgresUrl(database) } }));
+            expect(fake.exitCodes).toEqual([]);
+
+            const tables = await tablesOf(database);
+
+            expect(tables).toContain('migrations');
+            expect(tables.filter((table) => table !== 'migrations' && !table.startsWith('chamvi_'))).toEqual([]);
+        } finally {
+            await dropTestDatabase(database);
         }
     });
 });

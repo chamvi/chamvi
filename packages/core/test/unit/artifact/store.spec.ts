@@ -6,10 +6,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
+import { MemoryArtifactRepository, MemoryRegistry } from '@chamvi/store-memory';
 import { ErrorCode, InvalidRunStateError } from '@chamvi/core';
 import { createRunArtifacts, storeArtifact } from '../../../src/artifact/module.ts';
-import { MemoryArtifactRepository, createMemoryStore } from '../../../src/repository/index.ts';
+import { ArtifactService } from '../../../src/artifact/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
+import { createTestServices } from '../../utils/engine.ts';
 
 const run = { id: 'run-1', agent: 'vision' };
 const input = (text: string) => ({
@@ -20,24 +22,24 @@ const input = (text: string) => ({
 
 describe('storeArtifact', () => {
     it('returns the stored artifact when the run already holds the key', async () => {
-        const store = createMemoryStore();
-        const first = await storeArtifact(store.artifacts, run, input('first'), new Date(1), 'attachment:0');
-        const second = await storeArtifact(store.artifacts, run, input('second!'), new Date(2), 'attachment:0');
+        const store = createTestServices();
+        const first = await storeArtifact(store.artifactService, run, input('first'), new Date(1), 'attachment:0');
+        const second = await storeArtifact(store.artifactService, run, input('second!'), new Date(2), 'attachment:0');
 
         expect(second).toEqual(first);
-        expect(await store.artifacts.find('run-1')).toEqual([first]);
-        expect(new TextDecoder().decode(await store.artifacts.read(first.id))).toBe('first');
+        expect(await store.artifactService.find('run-1')).toEqual([first]);
+        expect(new TextDecoder().decode(await store.artifactService.read(first.id))).toBe('first');
     });
 
     it.each([
         ['an unkeyed lost race', undefined],
         ['a keyed lost race whose row is absent', 'attachment:0'],
     ])('throws InvalidRunStateError on %s', async (_, key) => {
-        const store = new class extends MemoryArtifactRepository {
-            override async insert(): Promise<boolean> {
+        const store = new class extends ArtifactService {
+            override async create(): Promise<boolean> {
                 return false;
             }
-        }();
+        }({ repository: new MemoryArtifactRepository({ registry: new MemoryRegistry() }) });
         const promise = storeArtifact(store, run, input('y'), new Date(1), key);
 
         await expect(promise).rejects.toBeInstanceOf(InvalidRunStateError);
@@ -46,7 +48,7 @@ describe('storeArtifact', () => {
 
     it('gives tool artifacts random ids', async () => {
         const clock = new ControllableClock(new Date(1));
-        const artifacts = createRunArtifacts(createMemoryStore({ clock }).artifacts, run, clock);
+        const artifacts = createRunArtifacts(createTestServices({ clock }).artifactService, run, clock);
         const a = await artifacts.put(input('a'));
         const b = await artifacts.put(input('b'));
 

@@ -9,9 +9,7 @@ import { tool } from 'ai';
 import { afterEach, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineEffectTool,
     defineModelAgent,
     defineTool,
@@ -19,6 +17,7 @@ import {
 } from '@chamvi/core';
 import type {
     ChannelMessage,
+    Engine,
     IChannel,
     ModelAgentDefinition,
     ToolContext,
@@ -30,6 +29,7 @@ import { wrapToolsForRun } from '../../../src/effect/wrap.ts';
 import { createAgentState } from '../../../src/state/module.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: Engine[] = [];
 
@@ -54,9 +54,9 @@ function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>, 
             sent.push({ message, address });
         },
     };
-    const store = createMemoryStore();
-    const engine = new Engine({
-        store,
+    const store = createTestServices();
+    const engine = createTestEngine({
+        services: store,
         channels: [source, ...extra],
         agents: [defineModelAgent({
             name: 'test',
@@ -109,8 +109,8 @@ it('denies ChannelHandle.approve() to a model-selected address in a tainted run'
         tools: { ask: asker('elsewhere') },
     });
     const runId = await ctx.dispatch();
-    const run = await ctx.store.runs.findOne(runId);
-    const steps = await ctx.store.steps.find(runId);
+    const run = await ctx.store.runService.findOne(runId);
+    const steps = await ctx.store.stepService.find(runId);
 
     expect(run?.status).toBe('completed');
     expect(ctx.sent).toEqual([]);
@@ -123,7 +123,7 @@ it('asks the outbound gate before delivering an approval to another address, pri
         tools: { ask: asker('elsewhere') },
     });
     const runId = await ctx.dispatch();
-    const gate = await ctx.store.runs.findOne(runId);
+    const gate = await ctx.store.runService.findOne(runId);
 
     expect(gate?.status).toBe('waiting');
     expect(approvalWait(gate)?.approvalId).toMatch(/^bound:/);
@@ -134,7 +134,7 @@ it('asks the outbound gate before delivering an approval to another address, pri
     await ctx.engine.approve(runId, { approvalId: approvalWait(gate)!.approvalId, approved: true });
     await ctx.engine.idle();
 
-    const asked = await ctx.store.runs.findOne(runId);
+    const asked = await ctx.store.runService.findOne(runId);
 
     expect(asked?.status).toBe('waiting');
     expect(approvalWait(asked)?.address).toBe('elsewhere');
@@ -148,7 +148,7 @@ it('sends an approval to the source address without the gate', async () => {
         tools: { ask: asker() },
     });
     const runId = await ctx.dispatch();
-    const run = await ctx.store.runs.findOne(runId);
+    const run = await ctx.store.runService.findOne(runId);
 
     expect(run?.status).toBe('waiting');
     expect(approvalWait(run)?.approvalId).not.toMatch(/^bound:/);
@@ -221,7 +221,7 @@ it('sends the trust notification to the snapshot of the source address', async (
     });
     const runId = await ctx.dispatch();
 
-    expect((await ctx.store.runs.findOne(runId))?.status).toBe('waiting');
+    expect((await ctx.store.runService.findOne(runId))?.status).toBe('waiting');
     expect(ctx.sent.map((entry) => entry.address)).toEqual(['origin']);
 });
 
@@ -250,7 +250,7 @@ it('accepts boolean and predicate tool trust flags', () => {
 });
 
 it('refuses a hand-built chamvi tool with a malformed trust when wrapping it, but ignores a third-party trust field', () => {
-    const store = createMemoryStore();
+    const store = createTestServices();
     const context: ToolContext = {
         run: {
             runId: 'run',
@@ -272,8 +272,8 @@ it('refuses a hand-built chamvi tool with a malformed trust when wrapping it, bu
                 throw new Error('No channel');
             },
         },
-        state: createAgentState('test', undefined, store.state),
-        artifacts: createRunArtifacts(store.artifacts, { id: 'run', agent: 'test' }, systemClock),
+        state: createAgentState('test', undefined, store.stateService),
+        artifacts: createRunArtifacts(store.artifactService, { id: 'run', agent: 'test' }, systemClock),
     };
     const forged = Object.assign(tool({
         inputSchema: z.object({}),
@@ -285,8 +285,8 @@ it('refuses a hand-built chamvi tool with a malformed trust when wrapping it, bu
         execute: async () => 'ok',
     }), { trust: 'unrelated library field' });
 
-    expect(() => wrapToolsForRun({ forged }, context, store.effects)).toThrow('forged');
-    expect(() => wrapToolsForRun({ library }, context, store.effects)).not.toThrow();
+    expect(() => wrapToolsForRun({ forged }, context, store.effectService)).toThrow('forged');
+    expect(() => wrapToolsForRun({ library }, context, store.effectService)).not.toThrow();
 });
 
 it('keeps the plain ordinals of parallel gated approvals in call order when gate lookups differ in latency', async () => {
@@ -307,21 +307,21 @@ it('keeps the plain ordinals of parallel gated approvals in call order when gate
             }),
         },
     });
-    const { findOne } = ctx.store.effects;
+    const { findOne } = ctx.store.effectService;
     let slow: string | undefined;
 
-    ctx.store.effects.findOne = async (key) => {
+    ctx.store.effectService.findOne = async (key) => {
         if (slow !== undefined && key.endsWith(slow)) {
             await new Promise((resolve) => {
                 setTimeout(resolve, 20);
             });
         }
 
-        return findOne.call(ctx.store.effects, key);
+        return findOne.call(ctx.store.effectService, key);
     };
 
     const runId = await ctx.dispatch();
-    const first = await ctx.store.runs.findOne(runId);
+    const first = await ctx.store.runService.findOne(runId);
 
     expect(approvalWait(first)?.approvalId).toMatch(/^bound:/);
     expect(approvalWait(first)?.body).toContain('"x"');
@@ -330,7 +330,7 @@ it('keeps the plain ordinals of parallel gated approvals in call order when gate
     slow = approvalWait(first)!.approvalId;
 
     for (let i = 0; i < 4; i++) {
-        const run = await ctx.store.runs.findOne(runId);
+        const run = await ctx.store.runService.findOne(runId);
 
         if (!approvalWait(run)?.approvalId.startsWith('bound:')) {
             break;
@@ -344,7 +344,7 @@ it('keeps the plain ordinals of parallel gated approvals in call order when gate
         await ctx.engine.idle();
     }
 
-    const plain = await ctx.store.runs.findOne(runId);
+    const plain = await ctx.store.runService.findOne(runId);
 
     expect(plain?.status).toBe('waiting');
     expect(approvalWait(plain)?.title).toBe('B');
@@ -360,9 +360,9 @@ it('gates the reserved copy of the options a channel approval sends, not the cal
                 execute: async (_, { context }) => {
                     const options = [{ id: 'safe', label: 'Keep the branch' }];
                     const pending = context.channels.findOneOrFail().approve({
-                        title: 'Pick', 
-                        address: 'x', 
-                        options, 
+                        title: 'Pick',
+                        address: 'x',
+                        options,
                     });
 
                     // the tool changes its array while the gate is still being looked up
@@ -374,7 +374,7 @@ it('gates the reserved copy of the options a channel approval sends, not the cal
         },
     });
     const runId = await ctx.dispatch();
-    const run = await ctx.store.runs.findOne(runId);
+    const run = await ctx.store.runService.findOne(runId);
 
     expect(approvalWait(run)?.approvalId).toMatch(/^bound:/);
     expect(approvalWait(run)?.body).toContain('Keep the branch');

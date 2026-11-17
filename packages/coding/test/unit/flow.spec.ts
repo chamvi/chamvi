@@ -16,16 +16,11 @@ import {
     it,
     vi,
 } from 'vitest';
-import {
-    Engine,
-    approve,
-    createMemoryStore,
-    defineModelAgent,
-} from '@chamvi/core';
+import { approve, defineModelAgent } from '@chamvi/core';
 import { codingTools } from '@chamvi/coding';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import type { ExecResult, IWorkspaceManager, RepositoryInstructions } from '@chamvi/sandbox';
-import { createGitFixture } from '@chamvi/test-kit';
+import { createGitFixture, createTestEngine } from '@chamvi/test-kit';
 import { createLocalSandbox } from '@chamvi/sandbox-local';
 import { mockModel } from '../utils/model.ts';
 import type { MockResponse } from '../utils/model.ts';
@@ -77,9 +72,7 @@ describe('coding flow (local)', () => {
             ]),
             tools: { ...manager.tools(), ...codingTools(manager) },
         });
-        const store = createMemoryStore();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [agent],
             onError: () => {},
         });
@@ -97,12 +90,12 @@ describe('coding flow (local)', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await engine.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toBe('tests failed with exit code 1');
 
-        const steps = await store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
         const create = steps.find((step) => step.kind === 'tool' && step.name === 'create_workspace');
 
         expect(create?.error).toBeUndefined();
@@ -174,8 +167,7 @@ describe('repository guidance through Engine checkpoints', () => {
                 },
             },
         });
-        const store = createMemoryStore();
-        const first = new Engine({ store, agents: [agentFor(firstManager)] });
+        const first = createTestEngine({ agents: [agentFor(firstManager)] });
 
         cleanups.push(() => first.stop());
         firstManager.attach(first);
@@ -190,11 +182,11 @@ describe('repository guidance through Engine checkpoints', () => {
 
         await first.idle();
 
-        const paused = await store.runs.findOne(runId);
+        const paused = await first.runService.findOne(runId);
 
         expect(paused?.status).toBe('waiting');
 
-        const beforeRestart = await store.steps.find(runId);
+        const beforeRestart = await first.stepService.find(runId);
         const created = beforeRestart.find((step) => step.kind === 'tool' && step.name === 'create_workspace');
         const initialRead = beforeRestart.find((step) => step.kind === 'tool' && step.name === 'read_file');
         const rootInstructions = (created?.output as { instructions: RepositoryInstructions }).instructions;
@@ -243,7 +235,11 @@ describe('repository guidance through Engine checkpoints', () => {
 
         cleanups.push(() => secondManager.close());
 
-        const second = new Engine({ store, agents: [agentFor(secondManager)] });
+        // the restarted process: the same store and services
+        const second = createTestEngine({
+            replicaOf: first,
+            agents: [agentFor(secondManager)],
+        });
 
         cleanups.push(() => second.stop());
         secondManager.attach(second);
@@ -251,13 +247,13 @@ describe('repository guidance through Engine checkpoints', () => {
         await second.approve(runId, { approvalId: paused!.waiting!.id, approved: true });
         await second.idle();
 
-        expect(await store.runs.findOne(runId)).toMatchObject({ status: 'completed', output: 'guidance received' });
+        expect(await first.runService.findOne(runId)).toMatchObject({ status: 'completed', output: 'guidance received' });
         expect(resultsAt(3)).toEqual(expect.arrayContaining([
             { name: 'create_workspace', output: { type: 'json', value: created!.output } },
             { name: 'read_file', output: { type: 'json', value: initialRead!.output } },
         ]));
 
-        const steps = await store.steps.find(runId);
+        const steps = await first.stepService.find(runId);
         const reads = steps.filter((step) => step.kind === 'tool' && step.name === 'read_file');
 
         expect(reads).toHaveLength(2);

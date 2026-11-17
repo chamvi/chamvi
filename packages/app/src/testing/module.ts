@@ -5,13 +5,18 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { MemoryRegistry } from '@chamvi/store-memory';
 import { Container } from 'eldin';
+import type { IModule } from 'orkos';
 import { Application } from 'orkos';
-import { AppToken } from '../module/constants.ts';
+import { AppToken, ModuleName } from '../module/constants.ts';
 import { createStoppedError, reportingModule } from '../module/helpers.ts';
 import { runStartSteps } from '../module/start.ts';
 import type { AppContext } from '../module/types.ts';
+import { registerMemoryRepositories } from '../modules/repository/register.ts';
+import { withServices } from '../modules/service/module.ts';
 import type {
+    MemoryStoreModuleOptions,
     ModuleHarness,
     ModuleHarnessOptions,
     ModuleHarnessReport,
@@ -58,7 +63,7 @@ export function buildModuleHarness(options: ModuleHarnessOptions = {}): ModuleHa
 
     const application = new Application({
         container,
-        modules: (options.modules ?? []).map((module) => reportingModule(module, report)),
+        modules: (options.modules ?? []).map((module) => reportingModule(withServices(module), report)),
     });
 
     return {
@@ -98,4 +103,26 @@ export async function createModuleHarness(options: ModuleHarnessOptions = {}): P
     await harness.setup();
 
     return harness;
+}
+
+/**
+ * The built-in memory store on `registry` (default a new one), for specs: a
+ * second app on the same registry sees the rows of the first, as a restart
+ * on one database would. It registers each repository token and
+ * `STORE_KIND` `memory`; the connection and conversation repositories
+ * unless `connections` or `conversations` is `false`. A spec reaches a
+ * repository or a service through its token on the harness's container.
+ */
+export function memoryStoreModule(options: MemoryStoreModuleOptions = {}): IModule {
+    const registry = options.registry ?? new MemoryRegistry();
+
+    return {
+        name: ModuleName.STORE,
+        dependencies: [ModuleName.CONFIG],
+        setup(container) {
+            registerMemoryRepositories(container, registry, options);
+
+            return Promise.resolve();
+        },
+    };
 }

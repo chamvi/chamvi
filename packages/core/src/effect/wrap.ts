@@ -8,7 +8,6 @@
 import type { ToolExecutionOptions, ToolSet } from 'ai';
 import { isObject } from 'smob';
 import { FatalToolError, ToolNotAllowedError } from '../errors/index.ts';
-import type { IEffectRepository } from '../repository/types.ts';
 import type { ToolContext, ToolTrust } from '../tool/types.ts';
 import { hasToolContext } from '../tool/helpers.ts';
 import { assertToolTrust } from '../trust/asserts.ts';
@@ -18,6 +17,7 @@ import { SuspendSignal } from '../approval/request.ts';
 import { EFFECT, EFFECT_HOOKS } from './constants.ts';
 import { assertExecutionActive, currentToolCall, runToolCall } from './frame.ts';
 import { stableHash, validateToolInput } from './helpers.ts';
+import type { EffectService } from './service.ts';
 import type { EffectHooks, ToolCallFrame, WrapToolsOptions } from './types.ts';
 
 type Execute = (input: unknown, options: any) => unknown;
@@ -106,7 +106,7 @@ function toolCallIdOf(options: unknown): string {
 export function wrapToolsForRun(
     tools: ToolSet,
     ctx: ToolContext,
-    store: IEffectRepository,
+    effects: Pick<EffectService, 'findOne' | 'save'>,
     options: WrapToolsOptions = {},
 ): ToolSet {
     const {
@@ -138,7 +138,7 @@ export function wrapToolsForRun(
                 toolName: name,
                 stepIndex: stepIndex?.() ?? 0,
                 approvals: 0,
-                effects: store,
+                effects,
                 artifacts: ctx.artifacts,
                 ended,
             };
@@ -420,7 +420,7 @@ export function wrapToolsForRun(
         }
 
         const apply = async (key: string, input: unknown, callOptions: unknown) => {
-            const stored = await store.findOne(key);
+            const stored = await effects.findOne(key);
 
             if (stored) {
                 return stored.result;
@@ -429,7 +429,7 @@ export function wrapToolsForRun(
             const remote = await readResult(() => effectHooks?.alreadyApplied?.(key, input, ctx));
 
             if (remote !== undefined) {
-                await store.save(key, remote);
+                await effects.save(key, remote);
 
                 return remote;
             }
@@ -445,7 +445,7 @@ export function wrapToolsForRun(
             // The effect already happened: a failing write must not fail the call.
             // `alreadyApplied` is what guards this window on a later retry.
             try {
-                await store.save(key, result);
+                await effects.save(key, result);
             } catch (error) {
                 // eslint-disable-next-line no-console
                 console.error(`chamvi: failed to record effect ${key}`, error);

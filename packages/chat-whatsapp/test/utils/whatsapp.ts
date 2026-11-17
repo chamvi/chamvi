@@ -16,13 +16,13 @@ import type {
     UserFacingSocketConfig,
     WAMessage,
 } from 'baileys';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type {
     Agent,
     ConversationAccess,
-    IStore,
-    Run,
+    Engine,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { createWhatsAppChat } from '@chamvi/chat-whatsapp';
 import type {
     WhatsAppChatOptions,
@@ -32,7 +32,7 @@ import type {
     WhatsAppSocketFactory,
 } from '@chamvi/chat-whatsapp';
 import type { ChatChannel } from '@chamvi/chat';
-import { ControllableClock, textModel } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine, textModel } from '@chamvi/test-kit';
 import { createRecordingAuth } from './auth.ts';
 import type { RecordingAuth } from './auth.ts';
 
@@ -252,7 +252,6 @@ export type WhatsAppFixture = {
     trace: string[];
     clock: ControllableClock;
     engine: Engine;
-    store: IStore;
     errors: unknown[];
     pairings: WhatsAppPairing[];
     access: ConversationAccess[];
@@ -294,9 +293,7 @@ export function createWhatsAppFixture(input: WhatsAppFixtureInput = {}): WhatsAp
         ...input.patch,
     });
     const { channel } = setup;
-    const memory = createMemoryStore({ clock });
-    const engine = new Engine({
-        store: memory,
+    const engine = createTestEngine({
         agents: input.agents ? input.agents(channel) : [defineModelAgent({
             name: 'assistant',
             model: textModel(),
@@ -325,11 +322,10 @@ export function createWhatsAppFixture(input: WhatsAppFixtureInput = {}): WhatsAp
         trace,
         clock,
         engine,
-        store: memory,
         errors,
         pairings,
         access,
-        runs: async () => (await memory.runs.find({})).data,
+        runs: async () => (await engine.runService.find({})).data,
     };
 }
 

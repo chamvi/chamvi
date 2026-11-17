@@ -26,7 +26,7 @@ describe('mcp invoker', () => {
 
         const { runId } = result.structuredContent as { runId: string };
 
-        expect((await setup.store.runs.findOne(runId))?.trigger.invoker).toEqual({
+        expect((await setup.store.runService.findOne(runId))?.trigger.invoker).toEqual({
             id: 'p:chamvi_agent_run',
             kind: 'token',
             bindings: [restricted(Permission.AGENT_RUN, { name: 'echo' })],
@@ -61,7 +61,7 @@ describe('mcp invoker', () => {
         expect(result.isError).toBeFalsy();
         await setup.engine.idle();
 
-        const wait = (await setup.store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await setup.store.stepService.find(runId)).find((s) => s.kind === 'wait');
 
         expect((wait?.output as { approver?: unknown }).approver).toEqual({
             id: 'p:chamvi_agent_approve',

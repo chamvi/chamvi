@@ -10,14 +10,13 @@ import {
     AppToken,
     ModuleName,
     createApp,
-    createMemoryStore,
     defineModelAgent,
-    storeModule,
 } from '@chamvi/app';
 import type { IEngine } from '@chamvi/core';
 import { defineSkillSource, loadSkillBundle } from '@chamvi/skills';
 import { mockModel } from '@chamvi/test-kit';
 import { approvedSkill, cleanupSkills } from '../../utils/skills.ts';
+import { memoryStoreModule } from '@chamvi/app/testing';
 
 it('prepares real app defaults before engineCreated and combines factory extras in ordinary execution', async () => {
     const common = loadSkillBundle(approvedSkill('common', { body: 'DEFAULT BODY' }));
@@ -41,7 +40,6 @@ it('prepares real app defaults before engineCreated and combines factory extras 
         },
         { parts: [{ type: 'text', text: 'done' }] },
     ]);
-    const store = createMemoryStore();
     const app = createApp({
         agents: [defineModelAgent({
             name: 'reviewer',
@@ -57,7 +55,7 @@ it('prepares real app defaults before engineCreated and combines factory extras 
                 return [common];
             },
         })],
-        modules: [storeModule({ store }), { name: ModuleName.HTTP, setup: () => Promise.resolve() }, {
+        modules: [memoryStoreModule(), { name: ModuleName.HTTP, setup: () => Promise.resolve() }, {
             name: 'observe',
             async setup(container) {
                 container.registerMany(AppToken.LIFECYCLE_HOOKS, {
@@ -87,9 +85,9 @@ it('prepares real app defaults before engineCreated and combines factory extras 
         });
 
         await engine!.idle();
-        expect((await store.runs.findOne(run.runId))?.status).toBe('completed');
+        expect((await engine!.runService.findOne(run.runId))?.status).toBe('completed');
 
-        const tools = (await store.steps.find(run.runId)).filter((step) => step.kind === 'tool');
+        const tools = (await engine!.stepService.find(run.runId)).filter((step) => step.kind === 'tool');
 
         expect(tools.map((step) => step.output)).toMatchObject([{ content: 'DEFAULT BODY' }, { content: 'EXTRA BODY' }]);
 

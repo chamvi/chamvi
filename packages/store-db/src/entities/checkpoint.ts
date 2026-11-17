@@ -15,7 +15,7 @@ import {
     PrimaryColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import type { Checkpoint } from '@chamvi/core';
+import type { Checkpoint } from '@chamvi/store';
 import { JSON_VALUE_TRANSFORMER, TableName } from './constants.ts';
 import { RunEntity } from './run.ts';
 import { ConversationEntity } from './conversation.ts';

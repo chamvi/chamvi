@@ -16,7 +16,6 @@ import {
 import { z } from 'zod';
 import {
     ChannelNotFoundError,
-    Engine,
     approve,
     defineModelAgent,
     defineTool,
@@ -27,11 +26,12 @@ import type {
     IChannel,
     IEngine,
 } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const START = 1_000_000;
 const CLAIM_TTL_MS = 30;
@@ -103,10 +103,10 @@ const askModel = (): LanguageModel => mockModel([
     { parts: [{ type: 'text', text: 'done' }] },
 ]);
 
-function createEngine(store: ReturnType<typeof createMemoryStore>, clock: ControllableClock, channels: IChannel[], channel: string | null = 'slack', slot?: string) {
+function createEngine(store: TestServiceSet, clock: ControllableClock, channels: IChannel[], channel: string | null = 'slack', slot?: string) {
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'release',
             instructions: 'You release.',
@@ -128,7 +128,7 @@ function createEngine(store: ReturnType<typeof createMemoryStore>, clock: Contro
 
 function setup() {
     const clock = new ControllableClock(new Date(START));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
 
     return { clock, store };
 }
@@ -157,7 +157,7 @@ describe('approval delivery', () => {
         const { engine, errors } = createEngine(store, clock, [channel]);
         const runId = await start(engine);
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('waiting');
 
@@ -207,16 +207,16 @@ describe('approval delivery', () => {
         const runId = await start(engine);
 
         expect(sent).toHaveLength(1);
-        expect(approvalWait(await store.runs.findOne(runId))?.notifiedAt).toBeUndefined();
+        expect(approvalWait(await store.runService.findOne(runId))?.notifiedAt).toBeUndefined();
         expect(errors).toHaveLength(1);
 
         await engine.tick();
         expect(sent).toHaveLength(2);
-        expect(approvalWait(await store.runs.findOne(runId))?.notifiedAt).toBeUndefined();
+        expect(approvalWait(await store.runService.findOne(runId))?.notifiedAt).toBeUndefined();
 
         await engine.tick();
         expect(sent).toHaveLength(3);
-        expect(approvalWait(await store.runs.findOne(runId))?.notifiedAt).toBeInstanceOf(Date);
+        expect(approvalWait(await store.runService.findOne(runId))?.notifiedAt).toBeInstanceOf(Date);
 
         await engine.tick();
         expect(sent).toHaveLength(3);
@@ -235,7 +235,7 @@ describe('approval delivery', () => {
         // the replica dies: nothing of it runs any more
         first.engine.stop();
 
-        const waiting = approvalWait(await store.runs.findOne(runId));
+        const waiting = approvalWait(await store.runService.findOne(runId));
 
         expect(waiting?.notifiedAt).toBeUndefined();
 
@@ -251,7 +251,7 @@ describe('approval delivery', () => {
         await second.engine.tick();
         expect(sent).toHaveLength(1);
         expect(sent[0]?.message.key).toBe(`${runId}:${waiting!.approvalId}`);
-        expect((await store.runs.findOne(runId))?.waiting).toMatchObject({
+        expect((await store.runService.findOne(runId))?.waiting).toMatchObject({
             approvalId: waiting!.approvalId,
             notifiedAt: expect.any(Date),
         });
@@ -266,7 +266,7 @@ describe('approval delivery', () => {
         });
         const { engine: first } = createEngine(store, clock, [failing.channel], 'slack', slot);
         const runId = await start(first);
-        const before = approvalWait(await store.runs.findOne(runId))!;
+        const before = approvalWait(await store.runService.findOne(runId))!;
 
         expect(before).toMatchObject({
             slot,
@@ -285,7 +285,7 @@ describe('approval delivery', () => {
         expect(recovered.sent).toHaveLength(1);
         expect(recovered.sent[0]?.message).toEqual(failing.sent[0]?.message);
         expect(recovered.sent[0]?.address).toBe('C0OPS');
-        expect((await store.runs.findOne(runId))!.waiting).toMatchObject({ slot, notifiedAt: expect.any(Date) });
+        expect((await store.runService.findOne(runId))!.waiting).toMatchObject({ slot, notifiedAt: expect.any(Date) });
         await second.tick();
         expect(recovered.sent).toHaveLength(1);
     });
@@ -295,7 +295,7 @@ describe('approval delivery', () => {
         const { channel, sent } = createChannel();
         const { engine, errors } = createEngine(store, clock, [channel], null);
         const runId = await start(engine);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('waiting');
         expect(approvalWait(run)?.channel).toBeUndefined();
@@ -324,7 +324,7 @@ describe('approval delivery', () => {
         const runId = await start(first.engine);
 
         expect(a.sent).toHaveLength(1);
-        expect(approvalWait(await store.runs.findOne(runId))?.notifiedAt).toBeUndefined();
+        expect(approvalWait(await store.runService.findOne(runId))?.notifiedAt).toBeUndefined();
         first.engine.stop();
 
         const second = createEngine(store, clock, [b.channel]);
@@ -335,7 +335,7 @@ describe('approval delivery', () => {
         release();
         await ticks;
         expect(a.sent.length + b.sent.length).toBe(2);
-        expect(approvalWait(await store.runs.findOne(runId))?.notifiedAt).toBeInstanceOf(Date);
+        expect(approvalWait(await store.runService.findOne(runId))?.notifiedAt).toBeInstanceOf(Date);
 
         await Promise.all([first.engine.tick(), second.engine.tick()]);
         expect(a.sent.length + b.sent.length).toBe(2);
@@ -350,7 +350,7 @@ describe('approval delivery', () => {
         const runId = await start(failing.engine);
 
         failing.engine.stop();
-        expect(approvalWait(await store.runs.findOne(runId))?.notifiedAt).toBeUndefined();
+        expect(approvalWait(await store.runService.findOne(runId))?.notifiedAt).toBeUndefined();
 
         const { engine, errors } = createEngine(store, clock, [], null);
 

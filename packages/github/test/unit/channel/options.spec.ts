@@ -6,24 +6,36 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { InvalidAgentDefinitionError, MemoryLockRepository } from '@chamvi/core';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import { githubChannel } from '@chamvi/github';
 import type { GithubChannelOptions } from '@chamvi/github';
 import { resolveOptions } from '../../../src/channel/helpers.ts';
 import { createCommentFixture } from '../../utils/github.ts';
 
+/** The persistent-comment locks every channel of this spec takes. */
+const locks = createTestEngine({ agents: [] }).lockService;
+
 const { gh } = createCommentFixture();
 
 describe('githubChannel options', () => {
     it('defaults its name to github', () => {
-        expect(resolveOptions({ app: gh }).name).toBe('github');
-        expect(resolveOptions({ app: gh, name: 'issues' }).name).toBe('issues');
-        expect(githubChannel({ app: gh }).name).toBe('github');
-        expect(githubChannel({ app: gh, name: 'github-ent' }).name).toBe('github-ent');
+        expect(resolveOptions({ app: gh, locks }).name).toBe('github');
+        expect(resolveOptions({
+            app: gh,
+            locks,
+            name: 'issues',
+        }).name).toBe('issues');
+        expect(githubChannel({ app: gh, locks }).name).toBe('github');
+        expect(githubChannel({
+            app: gh,
+            locks,
+            name: 'github-ent',
+        }).name).toBe('github-ent');
     });
 
     it('has in and out, and no start', () => {
-        const channel = githubChannel({ app: gh });
+        const channel = githubChannel({ app: gh, locks });
 
         expect(channel.in).toBeTypeOf('function');
         expect(channel.out).toBeTypeOf('function');
@@ -31,21 +43,27 @@ describe('githubChannel options', () => {
     });
 
     it('takes one mention or several', () => {
-        expect(resolveOptions({ app: gh, mention: 'octocat' }).mentions).toEqual(['octocat']);
-        expect(resolveOptions({ app: gh, mention: ['octocat', 'Mona-Lisa'] }).mentions).toEqual(['octocat', 'Mona-Lisa']);
-        expect(resolveOptions({ app: gh }).mentions).toEqual([]);
+        expect(resolveOptions({
+            app: gh,
+            locks,
+            mention: 'octocat',
+        }).mentions).toEqual(['octocat']);
+        expect(resolveOptions({
+            app: gh,
+            locks,
+            mention: ['octocat', 'Mona-Lisa'],
+        }).mentions).toEqual(['octocat', 'Mona-Lisa']);
+        expect(resolveOptions({ app: gh, locks }).mentions).toEqual([]);
     });
 
-    it('defaults to independent local memory locks', () => {
-        const defaults = resolveOptions({ app: gh });
-
-        expect(defaults.locks).toBeInstanceOf(MemoryLockRepository);
-        expect(resolveOptions({ app: gh }).locks).not.toBe(defaults.locks);
+    it('requires a lock service: without one it is a type error and an InvalidAgentDefinitionError', () => {
+        // @ts-expect-error locks is required
+        expect(() => githubChannel({ app: gh })).toThrow(InvalidAgentDefinitionError);
+        // @ts-expect-error locks is required
+        expect(() => resolveOptions({ app: gh })).toThrow('locks must be a LockService');
     });
 
-    it('uses the supplied lock repository for persistent comments', () => {
-        const locks = new MemoryLockRepository();
-
+    it('uses the supplied lock service for persistent comments', () => {
         expect(resolveOptions({
             app: gh,
             locks,
@@ -70,6 +88,10 @@ describe('githubChannel options', () => {
         ['a non-function onError', { onError: 'log' as unknown as GithubChannelOptions['onError'] }],
         ['a non-function approvalUrl', { approvalUrl: 'https://app.example/ui/approvals' as unknown as GithubChannelOptions['approvalUrl'] }],
     ])('rejects %s', (_label, patch) => {
-        expect(() => githubChannel({ app: gh, ...patch })).toThrow(InvalidAgentDefinitionError);
+        expect(() => githubChannel({
+            app: gh,
+            locks,
+            ...patch,
+        })).toThrow(InvalidAgentDefinitionError);
     });
 });

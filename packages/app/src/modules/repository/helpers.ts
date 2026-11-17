@@ -9,7 +9,6 @@ import { isObject } from 'smob';
 import type { DataSource } from 'typeorm';
 import type { ILogger } from '../../logger/types.ts';
 import { MASKED_PAIR } from './constants.ts';
-import type { PurgingRepository } from './types.ts';
 
 function passwordsOf(url: string): string[] {
     let password: string;
@@ -113,8 +112,4 @@ export async function destroyQuietly(dataSource: DataSource, logger: ILogger, ur
     } catch (error) {
         logger.debug('Closing the data source after a failed store setup failed.', { error: maskPassword(error, url) });
     }
-}
-
-export function isPurgingRepository<T>(store: T): store is T & PurgingRepository {
-    return isObject(store) && 'purgeExpired' in store && typeof store.purgeExpired === 'function';
 }

@@ -33,7 +33,7 @@ import type {
     ConnectionTestView,
     ConnectionView,
     IConnectionConfigService,
-    IConnectionService,
+    IConnectionHttpService,
 } from '../types.ts';
 
 /** Responses that can carry a pairing QR or stored settings stay out of every cache. */
@@ -45,7 +45,7 @@ function noStore(event: IAppEvent): void {
 @DSecurity([], 'bearer')
 @DController('/connections')
 export class ConnectionController {
-    protected service: IConnectionService;
+    protected service: IConnectionHttpService;
 
     protected config: IConnectionConfigService;
 

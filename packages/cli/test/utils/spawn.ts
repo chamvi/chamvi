@@ -18,6 +18,28 @@ export const fixtureEntry = (name: string) => fileURLToPath(new URL(`../fixtures
 /** What test/utils/hooks-probe.ts writes to stderr per `registerHooks` call. */
 export const HOOKS_PROBE_LINE = 'chamvi-test: registerHooks';
 
+/** What test/utils/load-probe.ts writes to stderr as the process exits, before the JSON list. */
+export const LOAD_PROBE_LINE = 'chamvi-test: loaded ';
+
+/** The modules test/utils/load-probe.ts reports: TypeORM, typeorm-extension and @chamvi/store-db (by package folder). */
+export const LOAD_PROBE_PATTERN = /\/(typeorm|typeorm-extension|store-db)\//;
+
+/** The env preloading test/utils/load-probe.ts into a spawned bin. */
+export function loadProbeEnv(): Env {
+    return { NODE_OPTIONS: `--import=${pathToFileURL(fileURLToPath(new URL('./load-probe.ts', import.meta.url))).href}` };
+}
+
+/** What test/utils/load-probe.ts reported in a spawned bin's stderr. */
+export function loadedModules(stderr: string): string[] {
+    const line = stderr.split('\n').find((candidate) => candidate.startsWith(LOAD_PROBE_LINE));
+
+    if (!line) {
+        throw new Error(`no load probe line in:\n${stderr}`);
+    }
+
+    return JSON.parse(line.slice(LOAD_PROBE_LINE.length)) as string[];
+}
+
 /** The env preloading test/utils/hooks-probe.ts into a spawned bin. */
 export function hooksProbeEnv(): Env {
     return { NODE_OPTIONS: `--import=${pathToFileURL(fileURLToPath(new URL('./hooks-probe.ts', import.meta.url))).href}` };

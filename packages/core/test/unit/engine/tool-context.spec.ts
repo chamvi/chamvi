@@ -20,7 +20,6 @@ import {
 import { z } from 'zod';
 import { Permission } from '@chamvi/access';
 import {
-    Engine,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     approve,
@@ -34,14 +33,15 @@ import {
 import type {
     AgentDefinition,
     IEngine,
-    Invoker,
     ToolContext,
 } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { gateTool, recordApprovals } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -97,7 +97,7 @@ type Setup = {
     toolPolicy?: AgentDefinition['toolPolicy'];
     hooks?: AgentDefinition['hooks'];
     toolsContext?: AgentDefinition['toolsContext'];
-    store?: ReturnType<typeof createMemoryStore>;
+    store?: TestServiceSet;
     owner?: string;
     claimTtlMs?: number;
     budget?: AgentDefinition['budget'];
@@ -105,7 +105,7 @@ type Setup = {
 
 function setup(s: Setup) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = s.store ?? createMemoryStore({ clock });
+    const store = s.store ?? createTestServices({ clock });
     const agent = defineModelAgent({
         name: 'release',
         instructions: 'You release.',
@@ -117,8 +117,8 @@ function setup(s: Setup) {
         toolsContext: s.toolsContext,
         ...(s.budget ? { budget: s.budget } : {}),
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [agent],
         clock: s.store ? undefined : clock,
         claimTtlMs: s.claimTtlMs ?? 30,
@@ -158,7 +158,7 @@ async function runOnce(s: Setup) {
     return {
         ...ctx,
         runId,
-        run: await ctx.store.runs.findOne(runId),
+        run: await ctx.store.runService.findOne(runId),
     };
 }
 
@@ -224,8 +224,8 @@ describe('tool context', () => {
         expect(recorded[0]!.runId).toBe(runId);
         expect(recorded[0]!.invoker).toEqual(alice);
         expect(recorded[0]!.signal).toBeInstanceOf(AbortSignal);
-        expect(await store.state.findOne('release', 'k')).toBe('v');
-        expect(await store.artifacts.find(runId)).toHaveLength(1);
+        expect(await store.stateService.findOne('release', 'k')).toBe('v');
+        expect(await store.artifactService.find(runId)).toHaveLength(1);
     });
 
     it('gives parallel calls of one step the same context object', async () => {
@@ -402,7 +402,7 @@ describe('tool context', () => {
             message: 'Agent "release": toolsContext entry "lookup" names a chamvi tool, which gets the run context instead.',
         });
         expect(model.doStreamCalls).toHaveLength(0);
-        expect(await store.steps.find(runId)).toEqual([]);
+        expect(await store.stepService.find(runId)).toEqual([]);
     });
 
     it('rejects a toolsContext entry naming no tool', async () => {
@@ -448,7 +448,7 @@ describe('tool context', () => {
         expect(first.run?.status).toBe('failed');
         expect(first.run?.error).toEqual({ code: 'validation_error', message: expected });
         expect(executed).toBe(0);
-        expect((await first.store.steps.find(first.runId)).map((s) => s.kind)).toEqual(['llm']);
+        expect((await first.store.stepService.find(first.runId)).map((s) => s.kind)).toEqual(['llm']);
     });
 
     it('keeps a rejected toolsContext entry out of the run error', async () => {
@@ -576,7 +576,7 @@ describe('tool context', () => {
         });
 
         expect(run?.status).toBe('completed');
-        expect(await store.state.findDocuments('release', 'notes')).toEqual([{ id: 'n1', doc: { title: 'hello' } }]);
+        expect(await store.stateService.findDocuments('release', 'notes')).toEqual([{ id: 'n1', doc: { title: 'hello' } }]);
     });
 
     it('rejects a toolsContext entry naming a state tool', async () => {
@@ -615,7 +615,7 @@ describe('tool context', () => {
 
         expect(run?.status).toBe('completed');
         expect(applied).toBe(1);
-        expect(await store.effects.findOne('u-alice:post:hi')).toEqual({ result: runId });
+        expect(await store.effectService.findOne('u-alice:post:hi')).toEqual({ result: runId });
     });
 
     it('keeps policy-hidden tools and the execute re-check working', async () => {
@@ -651,7 +651,7 @@ describe('tool context', () => {
         expect(seen[0]!.run.runId).toBe(runId);
         expect(rolledBack).toBe(0);
 
-        const refused = (await store.steps.find(runId)).find((s) => s.kind === 'tool' && s.name === 'rollback');
+        const refused = (await store.stepService.find(runId)).find((s) => s.kind === 'tool' && s.name === 'rollback');
 
         expect((refused?.error as { code: string } | undefined)?.code).toBe('tool_not_allowed');
     });
@@ -689,12 +689,12 @@ describe('tool context', () => {
         const { runId } = await engine.dispatch(env());
 
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
         expect(recorded).toHaveLength(0);
 
         await engine.approve(notifier.calls[0]!.runId, { approvalId: notifier.calls[0]!.approvalId, approved: true });
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(recorded).toEqual([{
             runId,
             invoker: alice,
@@ -704,7 +704,7 @@ describe('tool context', () => {
 
     it('hands the context to a call after recovery', async () => {
         const { model, calls } = scripted(['hang', callTool('lookup'), text('done')]);
-        const store = createMemoryStore();
+        const store = createTestServices();
         // real time: a short lease could expire on a slow runner and let A re-run
         // the run itself; drain releases the claim, so B recovers it at once
         const a = setup({
@@ -728,11 +728,11 @@ describe('tool context', () => {
 
         await vi.waitFor(() => expect(calls).toHaveLength(1));
         await a.engine.drain({ timeoutMs: 50 });
-        expect((await store.runs.findOne(runId))?.status).toBe('interrupted');
+        expect((await store.runService.findOne(runId))?.status).toBe('interrupted');
 
         await b.engine.start();
         await b.engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(seen).toHaveLength(1);
         expect(seen[0]!.run.runId).toBe(runId);
     });
@@ -749,8 +749,8 @@ describe('tool context', () => {
 
         expect(run?.status).toBe('completed');
 
-        const steps = JSON.stringify(await store.steps.find(runId));
-        const checkpoint = JSON.stringify(await store.checkpoints.findOne(runId));
+        const steps = JSON.stringify(await store.stepService.find(runId));
+        const checkpoint = JSON.stringify(await store.checkpointService.findOne(runId));
 
         for (const json of [steps, checkpoint]) {
             expect(json).not.toContain('toolsContext');
@@ -798,7 +798,7 @@ describe('writes after the execution ended', () => {
 
         expect(outcome).toBeInstanceOf(InvalidRunStateError);
         expect((outcome as Error).message).toContain('state.set()');
-        expect(await store.state.findOne('release', 'k')).toBeUndefined();
+        expect(await store.stateService.findOne('release', 'k')).toBeUndefined();
     });
 
     it('refuses a collection upsert and remove after the run settled', async () => {
@@ -828,7 +828,7 @@ describe('writes after the execution ended', () => {
         expect(outcomes[0]).toBeInstanceOf(InvalidRunStateError);
         expect(outcomes[1]).toBeInstanceOf(InvalidRunStateError);
 
-        const docs = await store.state.findDocuments('release', 'items', {});
+        const docs = await store.stateService.findDocuments('release', 'items', {});
 
         expect(docs.map(({ id }) => id)).toEqual(['i0']);
     });
@@ -868,7 +868,7 @@ describe('writes after the execution ended', () => {
         expect(outcomes[0]).toBeInstanceOf(InvalidRunStateError);
         expect((outcomes[0] as Error).message).toContain('artifacts.put()');
         expect(outcomes[1]).toBeInstanceOf(InvalidRunStateError);
-        expect((await store.artifacts.find(runId)).map(({ id }) => id)).toEqual([kept]);
+        expect((await store.artifactService.find(runId)).map(({ id }) => id)).toEqual([kept]);
         expect((await artifacts!.list()).map(({ id }) => id)).toEqual([kept]);
         expect((await artifacts!.get(kept!))?.data).toEqual(new Uint8Array([1]));
     });
@@ -876,9 +876,9 @@ describe('writes after the execution ended', () => {
     it('refuses a state write a simple run left after it settled', async () => {
         const work = detachedWork();
         const clock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock });
-        const engine = new Engine({
-            store,
+        const store = createTestServices({ clock });
+        const engine = createTestEngine({
+            services: store,
             clock,
             agents: [defineSimpleAgent({
                 name: 'fan',
@@ -904,15 +904,15 @@ describe('writes after the execution ended', () => {
         });
 
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
 
         const outcomes = await work.release();
 
         expect(outcomes[0]).toBeInstanceOf(InvalidRunStateError);
         expect(outcomes[1]).toBeInstanceOf(InvalidRunStateError);
-        expect(await store.state.findOne('fan', 'kept')).toBe(1);
-        expect(await store.state.findOne('fan', 'late')).toBeUndefined();
-        expect(await store.artifacts.find(runId)).toHaveLength(0);
+        expect(await store.stateService.findOne('fan', 'kept')).toBe(1);
+        expect(await store.stateService.findOne('fan', 'late')).toBeUndefined();
+        expect(await store.artifactService.find(runId)).toHaveLength(0);
     });
 
     it('refuses a write left by the paused execution and accepts writes after the resume', async () => {
@@ -948,17 +948,17 @@ describe('writes after the execution ended', () => {
         const { runId } = await engine.dispatch(env());
 
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
 
         const [outcome] = await work.release();
 
         expect(outcome).toBeInstanceOf(InvalidRunStateError);
-        expect(await store.state.findOne('release', 'late')).toBeUndefined();
+        expect(await store.stateService.findOne('release', 'late')).toBeUndefined();
 
         await engine.approve(runId, { approvalId: notifier.calls[0]!.approvalId, approved: true });
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
-        expect(await store.state.findOne('release', 'after')).toBe(true);
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
+        expect(await store.stateService.findOne('release', 'after')).toBe(true);
     });
 
     it('keeps the writes of a tool that completed before a cancel', async () => {
@@ -980,8 +980,8 @@ describe('writes after the execution ended', () => {
         await vi.waitFor(() => expect(calls).toHaveLength(2));
         await engine.cancel(runId);
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
-        expect(await store.state.findOne('release', 'k')).toBe(1);
+        expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
+        expect(await store.stateService.findOne('release', 'k')).toBe(1);
     });
 });
 
@@ -1058,17 +1058,17 @@ describe('writes from a live call after the execution ended', () => {
         await tool.entered;
         await engine.cancel(runId);
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
 
         expect(await tool.clean()).toEqual(['done', 'done']);
-        expect(await store.state.findOne('release', 'cleanup')).toBe(1);
-        expect(await store.artifacts.find(runId)).toHaveLength(1);
+        expect(await store.stateService.findOne('release', 'cleanup')).toBe(1);
+        expect(await store.artifactService.find(runId)).toHaveLength(1);
 
         // work that call left behind after it settled stays refused
         const [late] = await tool.release();
 
         expect(late).toBeInstanceOf(InvalidRunStateError);
-        expect(await store.state.findOne('release', 'late')).toBeUndefined();
+        expect(await store.stateService.findOne('release', 'late')).toBeUndefined();
     });
 
     it('keeps the cleanup writes of a tool that honours the timeout', async () => {
@@ -1091,18 +1091,18 @@ describe('writes from a live call after the execution ended', () => {
         clock.advance(1000);
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error?.code).toBe('Timeout');
 
         expect(await tool.clean()).toEqual(['done', 'done']);
-        expect(await store.state.findOne('release', 'cleanup')).toBe(1);
-        expect(await store.artifacts.find(runId)).toHaveLength(1);
+        expect(await store.stateService.findOne('release', 'cleanup')).toBe(1);
+        expect(await store.artifactService.find(runId)).toHaveLength(1);
 
         const [late] = await tool.release();
 
         expect(late).toBeInstanceOf(InvalidRunStateError);
-        expect(await store.state.findOne('release', 'late')).toBeUndefined();
+        expect(await store.stateService.findOne('release', 'late')).toBeUndefined();
     });
 });

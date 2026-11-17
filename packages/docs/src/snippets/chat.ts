@@ -5,10 +5,20 @@ import { z } from 'zod';
 import { createApp } from '@chamvi/app';
 import { cron } from '@chamvi/channel-cron';
 import {
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    ConversationService,
+    EffectService,
     Engine,
-    createMemoryStore,
+    IdempotencyService,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
     defineModelAgent,
     defineTool,
+    systemClock,
 } from '@chamvi/core';
 import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
 import type { IChatPlatform } from '@chamvi/chat';
@@ -21,6 +31,20 @@ import type { IWhatsAppAuthProvider } from '@chamvi/chat-whatsapp';
 import { whatsappModule } from '@chamvi/chat-whatsapp/module';
 import { chatWhatsappUiModule } from '@chamvi/chat-whatsapp-ui/module';
 import { uiModule } from '@chamvi/ui/module';
+import {
+    MemoryAgentRevisionRepository,
+    MemoryArtifactRepository,
+    MemoryCheckpointRepository,
+    MemoryConversationRepository,
+    MemoryEffectRepository,
+    MemoryIdempotencyRepository,
+    MemoryLockRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+    MemoryStateDocumentRepository,
+    MemoryStateRepository,
+    MemoryStepRepository,
+} from '@chamvi/store-memory';
 
 declare const model: LanguageModel;
 // an exclusive session store of your own (or whatsappModule's, below)
@@ -104,8 +128,24 @@ export const assistant = defineModelAgent({
     tools: { reply },
 });
 
+// runs, steps, checkpoints, effects, artifacts, state and conversations in memory, gone with the process: @chamvi/app keeps them in PostgreSQL
+const registry = new MemoryRegistry();
+const runs = new MemoryRunRepository({ registry });
+const locks = new MemoryLockRepository({ registry });
 export const engine = new Engine({
-    store: createMemoryStore(),
+    runService: new RunService({ repository: runs, clock: systemClock }),
+    stepService: new StepService({ repository: new MemoryStepRepository({ registry }) }),
+    checkpointService: new CheckpointService({ repository: new MemoryCheckpointRepository({ registry }) }),
+    effectService: new EffectService({ repository: new MemoryEffectRepository({ registry }) }),
+    agentRevisionService: new AgentRevisionService({ repository: new MemoryAgentRevisionRepository({ registry }) }),
+    artifactService: new ArtifactService({ repository: new MemoryArtifactRepository({ registry }) }),
+    stateService: new StateService({
+        repository: new MemoryStateRepository({ registry }),
+        documentRepository: new MemoryStateDocumentRepository({ registry }),
+    }),
+    lockService: new LockService({ repository: locks, clock: systemClock }),
+    idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock: systemClock }),
+    conversationService: new ConversationService({ repository: new MemoryConversationRepository({ registry }), clock: systemClock }),
     agents: [assistant],
     channels: [channel],
     conversations: { authorize: ({ agent }) => agent === 'assistant' },

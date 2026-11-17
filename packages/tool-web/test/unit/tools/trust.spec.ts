@@ -7,11 +7,12 @@
 
 import { describe, expect, it } from 'vitest';
 import type { AgentTrust } from '@chamvi/core';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { httpChannel } from '@chamvi/http';
 import { webTools } from '@chamvi/tool-web';
 import { mockModel } from '../../utils/model.ts';
 import { createFakeWeb, text } from '../../utils/web.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 /** Two fetches in one run: the first result taints the run, the second runs on a tainted run. */
 async function twoFetches(trust?: AgentTrust) {
@@ -39,8 +40,7 @@ async function twoFetches(trust?: AgentTrust) {
         tools: webTools({ client: web.client, lookup: web.lookup }),
         ...(trust ? { trust } : {}),
     });
-    const engine = new Engine({
-        store: createMemoryStore(),
+    const engine = createTestEngine({
         agents: [agent],
         channels: [httpChannel()],
     });

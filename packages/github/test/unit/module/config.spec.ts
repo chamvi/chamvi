@@ -11,20 +11,21 @@ import { tmpdir } from 'node:os';
 import path from 'node:path';
 import {
     ConnectionNotConfiguredError,
+    ConnectionService,
     InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
-    createMemoryStore,
     defineModelAgent,
+    systemClock,
 } from '@chamvi/core';
+import { MemoryConnectionRepository, MemoryRegistry } from '@chamvi/store-memory';
 import type {
     Agent,
     DeclaredConnection,
     IConnectionTypeProvider,
-    IStore,
 } from '@chamvi/core';
 import { createGithubApp, github, injectGithubContext } from '@chamvi/github';
-import { ControllableClock, createFakeGithub } from '@chamvi/test-kit';
+import { ControllableClock, createFakeGithub, createTestEngine } from '@chamvi/test-kit';
 import {
     afterEach,
     describe,
@@ -40,7 +41,7 @@ import {
     storeModule,
 } from '@chamvi/app';
 import type { IContainer, IModule } from '@chamvi/app';
-import { createModuleHarness } from '@chamvi/app/testing';
+import { createModuleHarness, memoryStoreModule  } from '@chamvi/app/testing';
 import type { ModuleHarness } from '@chamvi/app/testing';
 import { GITHUB_CONNECTION_TYPE, githubModule } from '@chamvi/github/module';
 import { githubConnectionDefinition, loadGithubConnection } from '../../../src/module/type.ts';
@@ -51,6 +52,24 @@ import {
     freePort,
 } from '../../utils/module.ts';
 import type { RecordingLogger } from '../../utils/module.ts';
+
+/**
+ * The registry the app's memory repositories share with the spec, whether
+ * the app keeps connections (`connections: false` keeps none) and a
+ * connection service on that registry, to seed and read the rows the app sees.
+ */
+function storeOf(options: { connections?: boolean } = {}) {
+    const registry = new MemoryRegistry();
+    const connectionRepository = new MemoryConnectionRepository({ registry });
+
+    return {
+        registry,
+        connections: options.connections !== false,
+        connectionService: new ConnectionService({ repository: connectionRepository, clock: systemClock }),
+    };
+}
+
+type TestStore = ReturnType<typeof storeOf>;
 
 const clock = new ControllableClock(new Date('2026-10-20T10:00:00Z'));
 const fake = createFakeGithub({ appId: '1', clock });
@@ -125,9 +144,9 @@ function agentNamed(name: string, channels: Agent['definition']['channels'] = []
 async function setup(
     modules: IModule[],
     input: {
-        agents?: Agent[]; 
-        store?: IStore; 
-        logger?: RecordingLogger 
+        agents?: Agent[];
+        store?: TestStore;
+        logger?: RecordingLogger
     } = {},
 ): Promise<ModuleHarness> {
     const harness = await createModuleHarness({
@@ -136,7 +155,9 @@ async function setup(
         agents: input.agents ?? [],
         modules: [
             configModule({ logger: input.logger ?? createRecordingLogger() }),
-            storeModule(input.store ? { store: input.store } : {}),
+            input.store ?
+                memoryStoreModule({ registry: input.store.registry, connections: input.store.connections }) :
+                storeModule(),
             engineModule(),
             ...modules,
         ],
@@ -289,9 +310,9 @@ describe('githubModule configuration', () => {
         expect(harness.reported).toEqual([]);
         expect(logger.entries.some((entry) => entry.level === 'warn' && String(entry.msg).includes('not configured'))).toBe(true);
         expect(connectionsOf(harness)[0]).toMatchObject({
-            name: GITHUB_CONNECTION_TYPE, 
-            editable: true, 
-            deletable: false, 
+            name: GITHUB_CONNECTION_TYPE,
+            editable: true,
+            deletable: false,
         });
         expect(connectionsOf(harness)[0]!.resolved.state).toBe('not_configured');
 
@@ -319,8 +340,12 @@ describe('githubModule configuration', () => {
     });
 
     it('a stored connection configures the module and carries its revision', async () => {
-        const store = createMemoryStore({ clock });
-        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+        const store = storeOf();
+        const configs = createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => keyring,
+        });
 
         await configs.create('github', GITHUB_CONNECTION_TYPE, {
             settings: { appId: '7' },
@@ -330,7 +355,7 @@ describe('githubModule configuration', () => {
         const module = githubModule({ env: {} });
         const harness = await setup([module], { store });
         const [connection] = connectionsOf(harness);
-        const row = await store.connections!.findOne('github');
+        const row = await store.connectionService.findOne('github');
 
         expect(module.app.appId).toBe('7');
         expect(connection).toMatchObject({
@@ -344,8 +369,12 @@ describe('githubModule configuration', () => {
     });
 
     it('a stored connection with a refused value stays idle and is listed incomplete', async () => {
-        const store = createMemoryStore({ clock });
-        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+        const store = storeOf();
+        const configs = createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => keyring,
+        });
 
         await configs.create('github', GITHUB_CONNECTION_TYPE, {
             settings: { appId: '7' },
@@ -362,8 +391,12 @@ describe('githubModule configuration', () => {
     });
 
     it('a refused stored optional value is dropped: required stored values stay and the App starts', async () => {
-        const store = createMemoryStore({ clock });
-        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+        const store = storeOf();
+        const configs = createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => keyring,
+        });
 
         await configs.create('github', GITHUB_CONNECTION_TYPE, {
             settings: { appId: '7', slug: 'Not A Slug' },
@@ -384,8 +417,12 @@ describe('githubModule configuration', () => {
     });
 
     it('a refused stored required value with env set stays idle, listing only it as missing', async () => {
-        const store = createMemoryStore({ clock });
-        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+        const store = storeOf();
+        const configs = createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => keyring,
+        });
 
         await configs.create('github', GITHUB_CONNECTION_TYPE, {
             settings: { appId: '7' },
@@ -403,8 +440,12 @@ describe('githubModule configuration', () => {
     });
 
     it('several refused stored values are all dropped', async () => {
-        const store = createMemoryStore({ clock });
-        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+        const store = storeOf();
+        const configs = createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => keyring,
+        });
 
         await configs.create('github', GITHUB_CONNECTION_TYPE, {
             settings: {
@@ -423,8 +464,12 @@ describe('githubModule configuration', () => {
     });
 
     it('a refused value that did not come from the store fails the start, even with a stored row', async () => {
-        const store = createMemoryStore({ clock });
-        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+        const store = storeOf();
+        const configs = createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => keyring,
+        });
 
         await configs.create('github', GITHUB_CONNECTION_TYPE, {
             settings: { appId: '7' },
@@ -435,8 +480,12 @@ describe('githubModule configuration', () => {
     });
 
     it('a code value refused after a stored one is dropped fails the start instead of idling', async () => {
-        const store = createMemoryStore({ clock });
-        const configs = createConnectionConfigStore({ store, keyring: () => keyring });
+        const store = storeOf();
+        const configs = createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => keyring,
+        });
 
         await configs.create('github', GITHUB_CONNECTION_TYPE, {
             settings: { appId: '7', slug: 'Not A Slug' },
@@ -474,23 +523,31 @@ describe('githubModule configuration', () => {
     });
 
     it('an unreadable stored row of another name does not fail the module', async () => {
-        const store = createMemoryStore({ clock });
-        const configs = createConnectionConfigStore({ store, keyring: () => createKeyring([{ id: 'k1', key: randomBytes(32) }]) });
+        const store = storeOf();
+        const configs = createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => createKeyring([{ id: 'k1', key: randomBytes(32) }]),
+        });
 
         await configs.create('github-old', GITHUB_CONNECTION_TYPE, {
             settings: { appId: '9' },
             secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'old' } },
         });
-        await createConnectionConfigStore({ store, keyring: () => keyring }).create('github-acme', GITHUB_CONNECTION_TYPE, {
+        await createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => keyring,
+        }).create('github-acme', GITHUB_CONNECTION_TYPE, {
             settings: { appId: '7' },
             secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'stored' } },
         });
 
         const fromEnv = githubModule({ env: envOf('GITHUB_') });
         const fromStore = githubModule({
-            name: 'github-acme', 
-            agents: ['acme'], 
-            env: {}, 
+            name: 'github-acme',
+            agents: ['acme'],
+            env: {},
         });
 
         await setup([fromEnv, fromStore], { store, agents: [agentNamed('acme')] });
@@ -518,9 +575,9 @@ describe('githubModule configuration', () => {
                 name: 'acme',
                 agents: ['triager'],
                 env: {
-                    ...envOf('CHAMVI_GITHUB_ACME_'), 
-                    CHAMVI_GITHUB_ACME_WEBHOOK_SECRET: 'acme-secret', 
-                    CHAMVI_GITHUB_ACME_APP_SLUG: 'acme', 
+                    ...envOf('CHAMVI_GITHUB_ACME_'),
+                    CHAMVI_GITHUB_ACME_WEBHOOK_SECRET: 'acme-secret',
+                    CHAMVI_GITHUB_ACME_APP_SLUG: 'acme',
                 },
             }),
         ], [agentNamed('triager')]);
@@ -535,9 +592,9 @@ describe('githubModule configuration', () => {
 
         acmeFake.installations.set('octo/demo', 77);
         acmeFake.issues.set('octo/demo#7', {
-            number: 7, 
-            title: 'Hello', 
-            state: 'open', 
+            number: 7,
+            title: 'Hello',
+            state: 'open',
         });
 
         const triager = defineModelAgent({
@@ -653,7 +710,7 @@ describe('githubModule configuration', () => {
     });
 
     it('a store without connections stays env-only and not editable', async () => {
-        const store: IStore = { ...createMemoryStore({ clock }), connections: undefined };
+        const store = storeOf({ connections: false });
         const module = githubModule({ env: envOf('GITHUB_') });
         const harness = await setup([module], { store });
 

@@ -5,127 +5,115 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ArtifactNotFoundError, RepositoryNotFoundError, RunNotFoundError } from '@chamvi/core';
-import type { Artifact, IArtifactRepository } from '@chamvi/core';
-import type { DataSource, Repository } from 'typeorm';
+import type { DataSource, DeepPartial, EntityManager } from 'typeorm';
+import { EntityRelationError } from '@chamvi/store';
+import type { ArtifactRecord, IArtifactRepository } from '@chamvi/store';
 import { ArtifactEntity } from '../entities/index.ts';
-import {
-    isUuid,
-    toArtifact,
-    toArtifactValues,
-    toEntity,
-} from '../repository/helpers.ts';
+import { EntityRepositoryAdapter } from '../entity/module.ts';
+import { isUuidValue } from '../entity/helpers/index.ts';
 
-export class DatabaseArtifactRepository implements IArtifactRepository {
-    protected dataSource: DataSource;
+/**
+ * The columns of a (partial) artifact: an absent property maps to absent
+ * columns; the bytes are copied into a Buffer, the bytea parameter the
+ * driver expects.
+ */
+function toArtifactEntity(value: Partial<ArtifactRecord>): DeepPartial<ArtifactEntity> {
+    return {
+        id: value.id,
+        key: value.key,
+        runId: value.runId,
+        agent: value.agent,
+        mediaType: value.mediaType,
+        filename: value.filename,
+        size: value.size,
+        data: value.data === undefined ? undefined : Buffer.from(value.data),
+        createdAt: value.createdAt,
+    } as DeepPartial<ArtifactEntity>;
+}
 
-    constructor(opts: { dataSource: DataSource }) {
-        this.dataSource = opts.dataSource;
+/** The metadata of a row: a NULL filename is absent, the key and the bytes are never returned. */
+function fromArtifactEntity(entity: ArtifactEntity): ArtifactRecord {
+    const artifact: ArtifactRecord = {
+        id: entity.id,
+        runId: entity.runId,
+        agent: entity.agent,
+        mediaType: entity.mediaType,
+        size: entity.size,
+        createdAt: entity.createdAt,
+    };
+
+    if (entity.filename !== null && entity.filename !== undefined) {
+        artifact.filename = entity.filename;
     }
 
-    protected get artifacts(): Repository<ArtifactEntity> {
-        return this.dataSource.getRepository(ArtifactEntity);
+    return artifact;
+}
+
+/**
+ * Artifacts in `chamvi_artifacts`: `key` and `data` are never selected by
+ * a read (`select: false`), `readData` loads the bytes. `run_id` has no
+ * foreign key (attachments are stored before their run), so a `runId`
+ * that is no uuid, which the column cannot hold, is refused as a missing
+ * run (`EntityRelationError` naming `run`) before it reaches the database.
+ */
+export class DatabaseArtifactRepository extends EntityRepositoryAdapter<ArtifactRecord, ArtifactEntity> implements IArtifactRepository {
+    constructor(source: DataSource | EntityManager) {
+        super(source.getRepository(ArtifactEntity), {
+            entity: 'artifact',
+            alias: 'artifact',
+            target: ArtifactEntity,
+            toEntity: toArtifactEntity,
+            fromEntity: fromArtifactEntity,
+        });
     }
 
-    async insert(artifact: Artifact, data: Uint8Array, key?: string): Promise<boolean> {
-        if (!isUuid(artifact.runId)) {
-            throw new RunNotFoundError(artifact.runId);
+    withManager(manager: EntityManager): this {
+        return new DatabaseArtifactRepository(manager) as this;
+    }
+
+    override async save(entity: ArtifactRecord): Promise<ArtifactRecord> {
+        this.assertRunId(entity);
+
+        return super.save(entity);
+    }
+
+    override async upsert(entity: ArtifactRecord): Promise<ArtifactRecord> {
+        this.assertRunId(entity);
+
+        return super.upsert(entity);
+    }
+
+    override async upsertMany(entities: ArtifactRecord[]): Promise<ArtifactRecord[]> {
+        for (const entity of entities) {
+            this.assertRunId(entity);
         }
 
-        // no conflict target: a taken id and a taken (run_id, key) both keep the stored artifact
-        const result = await this.artifacts.createQueryBuilder()
-            .insert()
-            .values(toArtifactValues(artifact, data, key))
-            .orIgnore()
-            .returning(['id'])
-            .updateEntity(false)
-            .execute();
-
-        return result.raw.length === 1;
+        return super.upsertMany(entities);
     }
 
-    async save(artifact: Artifact, data: Uint8Array, key: string): Promise<Artifact> {
-        if (!isUuid(artifact.runId)) {
-            throw new RunNotFoundError(artifact.runId);
+    async readData(id: string): Promise<Uint8Array | null> {
+        if (this.mustQueue()) {
+            return this.transaction((repository) => repository.readData(id));
         }
 
-        // one statement: insert, or replace the row of this (run_id, key); the stored id, agent and created_at stay
-        const result = await this.artifacts.createQueryBuilder()
-            .insert()
-            .values(toArtifactValues(artifact, data, key))
-            .orUpdate(['media_type', 'filename', 'size', 'data'], ['run_id', 'key'])
-            .returning(['id', 'runId', 'agent', 'mediaType', 'filename', 'size', 'createdAt'])
-            .updateEntity(false)
-            .execute();
+        this.assertOpen('readData');
 
-        return toArtifact(toEntity(this.dataSource, ArtifactEntity, result.raw[0]));
-    }
-
-    async findOne(id: string): Promise<Artifact | undefined> {
-        if (!isUuid(id)) {
-            return undefined;
+        if (!isUuidValue(id)) {
+            return null;
         }
 
-        // the data column is select: false, so the bytes stay in the database
-        const entity = await this.artifacts.findOneBy({ id });
-
-        return entity ? toArtifact(entity) : undefined;
-    }
-
-    async findOneOrFail(id: string): Promise<Artifact> {
-        const result = await this.findOne(id);
-
-        if (result === undefined) {
-            throw new ArtifactNotFoundError(id);
-        }
-
-        return result;
-    }
-
-    async findOneByKey(runId: string, key: string): Promise<Artifact | undefined> {
-        if (!isUuid(runId)) {
-            return undefined;
-        }
-
-        const entity = await this.artifacts.findOneBy({ runId, key });
-
-        return entity ? toArtifact(entity) : undefined;
-    }
-
-    async read(id: string): Promise<Uint8Array | undefined> {
-        if (!isUuid(id)) {
-            return undefined;
-        }
-
-        const entity = await this.artifacts.findOne({
+        const row = await this.persist(() => this.repository.findOne({
             select: { id: true, data: true },
             where: { id },
-        });
+        }), 'readData');
 
         // a copy into a plain Uint8Array: a Buffer would leak its toJSON
-        return entity ? new Uint8Array(entity.data) : undefined;
+        return row ? new Uint8Array(row.data) : null;
     }
 
-    async find(runId: string): Promise<Artifact[]> {
-        if (!isUuid(runId)) {
-            return [];
+    protected assertRunId(entity: ArtifactRecord): void {
+        if (entity.runId !== undefined && !isUuidValue(entity.runId)) {
+            throw new EntityRelationError(this.options.entity, 'run');
         }
-
-        const entities = await this.artifacts.find({
-            where: { runId },
-            order: { createdAt: 'ASC', id: 'ASC' },
-        });
-
-        return entities.map((entity) => toArtifact(entity));
-    }
-
-    async findOrFail(runId: string): Promise<Artifact[]> {
-        const result = await this.find(runId);
-
-        if (result.length === 0) {
-            throw new RepositoryNotFoundError('artifacts');
-        }
-
-        return result;
     }
 }

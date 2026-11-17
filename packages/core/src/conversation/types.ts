@@ -5,38 +5,19 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ModelMessage } from 'ai';
 import type { ConversationOperation, ConversationTurnKind } from './constants.ts';
 import type { IClock } from '../clock/index.ts';
-import type { Invoker } from '../trigger/types.ts';
-import type { Run } from '../run/types.ts';
-
-/**
- * Who a conversation is with, as the trusted channel names it: the memory key, the
- * channel, an account alias on that channel, the chat and an explicit
- * audience. Each field is a non-blank string of at most
- * CONVERSATION_FIELD_MAX_LENGTH UTF-16 code units without control characters
- * or lone surrogates. The scope id is the sha256 of its canonical JSON.
- */
-export type ConversationIdentity = {
-    /** Stable memory key from the agent configuration; defaults to its name. */
-    agent: string;
-    channel: string;
-    account: string;
-    chat: string;
-    audience: string;
-};
-
-/**
- * One generation of a conversation: `id` the identity's digest, `generation`
- * advanced by a reset or delete, so queued work of an older generation never
- * reaches the new one.
- */
-export type ConversationScope = {
-    id: string;
-    generation: number;
-    identity: ConversationIdentity;
-};
+import type {
+    ConversationIdentity,
+    ConversationItem,
+    ConversationNote,
+    ConversationScope,
+    ConversationSnapshot,
+    IConversationRepository,
+    Invoker,
+    Run,
+} from '@chamvi/store';
+import type { ConversationService } from './service.ts';
 
 /** What a channel hands to the trusted intake: the identity fields it owns plus the user's text. */
 export type ConversationTarget = {
@@ -63,12 +44,6 @@ export type ConversationRef = {
     audience: string;
     /** The run's source address on that channel (where its replies go). */
     address?: string;
-};
-
-/** A run's conversation (`Run.conversation`): set by the trusted intake only, never by a dispatch envelope. */
-export type ConversationBinding = {
-    scope: ConversationScope;
-    text: string;
 };
 
 /**
@@ -115,7 +90,7 @@ export type ConversationOptions = {
 
 /** Optional engine capability; no ordinary run calls it. */
 export interface IConversations {
-    readonly repository: IConversationRepository;
+    readonly service: ConversationService;
     readonly limits: ResolvedConversationLimits;
 
     allow(operation: ConversationOperationLiteral, identity: ConversationIdentity, agent: string, invoker?: Invoker): Promise<void>;
@@ -129,60 +104,6 @@ export interface IConversations {
     prune(): Promise<void>;
 }
 
-/**
- * One transcript record: an accepted user message (`sent` = accepted input),
- * or an assistant emit to the source address (`sent` once the channel's `out`
- * resolved, `unknown` when that is uncertain). Only `sent` items are recalled.
- */
-export type ConversationItem = {
-    id: string;
-    role: 'user' | 'assistant';
-    text: string;
-    runId: string;
-    createdAt: Date;
-    status: 'pending' | 'sent' | 'unknown';
-    effectKey?: string;
-    target?: { channel: string; address: string };
-};
-
-/** Where a note operation came from: the run, tool call and model step. */
-export type ConversationNoteSource = {
-    runId: string;
-    toolCallId: string;
-    stepIndex: number;
-};
-
-export type ConversationNote = {
-    key: string;
-    text: string;
-    createdAt: Date;
-    updatedAt: Date;
-    expiresAt?: Date;
-    source: ConversationNoteSource;
-};
-
-/**
- * One durable note change. `id` identifies the operation (derived from its
- * source and the operation's ordinal within the tool call), `inputHash` the
- * input it was applied with, so a replay with the same id is answered from
- * the record and never applied twice.
- */
-export type ConversationNoteOperation = {
-    id: string;
-    inputHash: string;
-    source: ConversationNoteSource;
-    kind: 'set';
-    key: string;
-    text: string;
-    expiresAt?: Date;
-} | {
-    id: string;
-    inputHash: string;
-    source: ConversationNoteSource;
-    kind: 'remove';
-    key: string;
-};
-
 /** The outcome of a note operation: metadata only, never the note's text. */
 export type ConversationNoteResult = {
     kind: 'set';
@@ -192,20 +113,6 @@ export type ConversationNoteResult = {
     kind: 'remove';
     key: string;
     removed: boolean;
-};
-
-/**
- * What a run recalled, stored before its first model step: the rendered
- * messages, the items and notes they came from, and how many items did not fit.
- */
-export type ConversationSnapshot = {
-    scope: ConversationScope;
-    runId: string;
-    messages: ModelMessage[];
-    itemIds: string[];
-    noteKeys: string[];
-    createdAt: Date;
-    omitted: number;
 };
 
 export type BeginTurnResult = {
@@ -218,70 +125,14 @@ export type BeginTurnResult = {
     kind: `${ConversationTurnKind.STALE}`;
 };
 
-export type MemoryConversationRepositoryOptions = {
-    /** Every date and expiry decision; default systemClock. */
-    clock?: IClock;
-    /**
-     * Synchronous run lookup; beginTurn for a run it does not know is refused with
-     * RunNotFoundError, as a database foreign key would. Without one any run id is accepted.
-     */
-    hasRun?: (runId: string) => boolean;
-};
-
 export type ConversationFindOptions = { limit: number; offset: number };
 
-/**
- * Optional conversation persistence in the engine's IStore bundle.
- * Dates come from the repository's IClock; values are copied in and out.
- * OrFail queries throw RepositoryNotFoundError on absence or an empty selected
- * page, preserving validation, expiry and generation rules of the plain query.
- */
-export interface IConversationRepository {
-    /** The identity's current scope, created at generation 0 when missing; never revives a deleted generation. */
-    resolve(identity: ConversationIdentity): Promise<ConversationScope>;
-    /** The identity's current scope, or undefined; read only. */
-    findOne(identity: ConversationIdentity): Promise<ConversationScope | undefined>;
-    findOneOrFail(identity: ConversationIdentity): Promise<ConversationScope>;
-    /** Admit only a nonterminal run; retries reuse its snapshot while it owns the turn. */
-    beginTurn(
-        scope: ConversationScope,
-        runId: string,
-        text: string,
-        limits: ResolvedConversationLimits,
-    ): Promise<BeginTurnResult>;
-    /** Read-only owner lookup for terminal repair, never reserves a turn. */
-    activeRun(scope: ConversationScope): Promise<string | undefined>;
-    /** Terminal settlement only: clears the owner and snapshot. Never resume this run afterward. */
-    endTurn(scope: ConversationScope, runId: string, confirmedEmitIds: string[]): Promise<void>;
-    prepareEmit(scope: ConversationScope, item: ConversationItem): Promise<void>;
-    confirmEmit(scope: ConversationScope, itemId: string): Promise<void>;
-    pendingEmits(scope: ConversationScope, runId: string): Promise<ConversationItem[]>;
-    findItems(
-        scope: ConversationScope,
-        query: ConversationFindOptions,
-    ): Promise<{ data: ConversationItem[]; total: number }>;
-    findItemsOrFail(
-        scope: ConversationScope,
-        query: ConversationFindOptions,
-    ): Promise<{ data: ConversationItem[]; total: number }>;
-    findNotes(
-        scope: ConversationScope,
-        query: ConversationFindOptions,
-    ): Promise<{ data: ConversationNote[]; total: number }>;
-    findNotesOrFail(
-        scope: ConversationScope,
-        query: ConversationFindOptions,
-    ): Promise<{ data: ConversationNote[]; total: number }>;
-    findOneNote(scope: ConversationScope, key: string): Promise<ConversationNote | undefined>;
-    findOneNoteOrFail(scope: ConversationScope, key: string): Promise<ConversationNote>;
-    applyNote(scope: ConversationScope, operation: ConversationNoteOperation): Promise<ConversationNoteResult>;
-    reset(identity: ConversationIdentity, options: { keepNotes: boolean }): Promise<ConversationScope>;
-    delete(identity: ConversationIdentity): Promise<void>;
-    prune(
-        limits: ResolvedConversationLimits,
-        options?: { isSettled?: (runId: string) => Promise<boolean> },
-    ): Promise<void>;
-}
+export type ConversationServiceContext = {
+    /** The conversations with their items, notes and note operations. */
+    repository: IConversationRepository;
+    /** Read after the conversation row's locked read: every date, expiry and retention comes from it. */
+    clock: IClock;
+};
 
 /** Privileged in-process inspection; audit runs/checkpoints are separate retained copies. */
 export type ConversationInspection = {

@@ -7,10 +7,10 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import { httpChannel } from '@chamvi/http';
 import { createResearchAgent } from '../fixtures/readme-example.ts';
 import { mockModel } from '../utils/model.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 const read = (path: string) => readFileSync(new URL(path, import.meta.url), 'utf8');
 
@@ -46,8 +46,7 @@ describe('README example', () => {
             },
             { parts: [{ type: 'text', text: 'That address is not reachable.' }] },
         ]));
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
             agents: [agent],
             channels: [httpChannel()],
         });
@@ -65,7 +64,7 @@ describe('README example', () => {
 
         expect((await engine.getRun(runId))?.status).toBe('completed');
 
-        const steps = await engine.store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
         const fetch = steps.find((step) => step.kind === 'tool' && step.name === 'web_fetch');
 
         expect(fetch?.error).toMatchObject({ code: 'validation_error' });

@@ -1,0 +1,9 @@
+{
+    "name": "fixture-database",
+    "type": "module",
+    "private": true,
+    "dependencies": {
+        "@chamvi/app": "*",
+        "typeorm": "*"
+    }
+}

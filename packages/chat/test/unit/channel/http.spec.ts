@@ -115,25 +115,12 @@ function forwardMessage(
     };
 }
 
-function failingInserts(counter: { inserts: number }): IntakeFixtureInput['store'] {
-    return (memory) => ({
-        ...memory,
-        runs: new Proxy(memory.runs, {
-            get(target, key, receiver) {
-                if (key === 'insert') {
-                    return async () => {
-                        counter.inserts += 1;
+function failingInserts(counter: { inserts: number }): IntakeFixtureInput['create'] {
+    return () => async () => {
+        counter.inserts += 1;
 
-                        throw new Error('store down');
-                    };
-                }
-
-                const value: unknown = Reflect.get(target, key, receiver);
-
-                return typeof value === 'function' ? value.bind(target) : value;
-            },
-        }),
-    });
+        throw new Error('store down');
+    };
 }
 
 describe('chat channel webhooks', () => {
@@ -292,7 +279,7 @@ describe('chat channel webhooks', () => {
 
     it('dispatch_failure_is_503', async () => {
         const counter = { inserts: 0 };
-        const fixture = await serve({ store: failingInserts(counter) });
+        const fixture = await serve({ create: failingInserts(counter) });
 
         forwardMessage(fixture.adapter, 'm-fail');
 
@@ -370,7 +357,7 @@ describe('chat channel webhooks', () => {
 
     it('answers 503 when the adapter drops the message promise and its options', async () => {
         const counter = { inserts: 0 };
-        const fixture = await serve({ store: failingInserts(counter) });
+        const fixture = await serve({ create: failingInserts(counter) });
 
         forwardMessage(fixture.adapter, 'm-dropped', { waitUntil: false });
 

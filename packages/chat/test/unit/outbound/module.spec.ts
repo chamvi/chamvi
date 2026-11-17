@@ -18,8 +18,8 @@ import type {
     ChannelMessage,
     ChannelSendOptions,
     IClock,
-    TriggerEnvelope,
 } from '@chamvi/core';
+import type { TriggerEnvelope } from '@chamvi/store';
 import {
     CHAT_REQUEST_ERROR_CODE,
     CHAT_TEXT_MAX_CHARS,

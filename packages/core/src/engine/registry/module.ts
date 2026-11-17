@@ -5,9 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { AgentRevision } from '../../agent/types.ts';
+import type { AgentRevision } from '@chamvi/store';
 import { InvalidRunStateError, RunNotFoundError } from '../../errors/index.ts';
-import { RunStatus } from '../../run/constants.ts';
+import { RunStatus } from '@chamvi/store';
 import { agentCancelReason, formatRevision, withAgentLock } from './helpers.ts';
 import type { CancelReason, DropRevisionOptions, RegistryContext } from './types.ts';
 
@@ -28,7 +28,7 @@ export async function cancelAgentRuns(
     reason: CancelReason,
     before?: Date,
 ): Promise<string[]> {
-    const { data } = await ctx.store.runs.find({ agent, status: UNSETTLED });
+    const { data } = await ctx.runService.find({ agent, status: UNSETTLED });
     const runs = before === undefined ?
         data :
         data.filter((run) => run.createdAt.getTime() < before.getTime());
@@ -74,7 +74,7 @@ export async function syncRevision(
     former?: string,
 ): Promise<string[] | undefined> {
     return withAgentLock(ctx, agent, async () => {
-        const marker = await ctx.store.agentRevisions.findOne(agent);
+        const marker = await ctx.agentRevisionService.findOne(agent);
 
         if (marker?.hash === revision) {
             return undefined;
@@ -88,7 +88,7 @@ export async function syncRevision(
         const cancelled = marker ? await cancelAgentRuns(ctx, agent, reason, ctx.clock.now()) : [];
         const changedAt = ctx.clock.now();
 
-        await ctx.store.agentRevisions.save({
+        await ctx.agentRevisionService.save({
             agent,
             hash: revision,
             changedAt,
@@ -119,14 +119,14 @@ export async function claimRevision(
     former?: string,
 ): Promise<void> {
     await withAgentLock(ctx, agent, async () => {
-        const marker = await ctx.store.agentRevisions.findOne(agent);
+        const marker = await ctx.agentRevisionService.findOne(agent);
 
         if ((marker?.hash === revision) || (await moveFormerMarker(ctx, marker, revision, former))) {
             return;
         }
 
         if (marker) {
-            const { data } = await ctx.store.runs.find({
+            const { data } = await ctx.runService.find({
                 agent,
                 status: UNSETTLED,
                 limit: 1,
@@ -141,7 +141,7 @@ export async function claimRevision(
             }
         }
 
-        await ctx.store.agentRevisions.save({
+        await ctx.agentRevisionService.save({
             agent,
             hash: revision,
             changedAt: ctx.clock.now(),
@@ -160,7 +160,7 @@ export async function claimRevision(
 export async function dropRevision(ctx: RegistryContext, agent: string, options: DropRevisionOptions): Promise<string[] | undefined> {
     return withAgentLock(ctx, agent, async () => {
         const reason = agentCancelReason(agent, 'removed');
-        const marker = await ctx.store.agentRevisions.findOne(agent);
+        const marker = await ctx.agentRevisionService.findOne(agent);
 
         if (marker) {
             if (options.revision !== undefined && marker.hash !== options.revision) {
@@ -169,7 +169,7 @@ export async function dropRevision(ctx: RegistryContext, agent: string, options:
 
             const cancelled = await cancelAgentRuns(ctx, agent, reason);
 
-            await ctx.store.agentRevisions.delete(agent);
+            await ctx.agentRevisionService.delete(agent);
 
             return cancelled;
         }
@@ -196,7 +196,7 @@ async function moveFormerMarker(
         return false;
     }
 
-    await ctx.store.agentRevisions.save({ ...marker, hash: revision });
+    await ctx.agentRevisionService.save({ ...marker, hash: revision });
 
     return true;
 }

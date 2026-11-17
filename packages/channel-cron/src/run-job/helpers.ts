@@ -9,9 +9,9 @@ import type {
     Agent,
     ChannelSubscription,
     IEngine,
-    IRunRepository,
-    Run,
+    RunService,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { InvalidAgentDefinitionError, findApprovalWaitBelow } from '@chamvi/core';
 import { isCronChannel } from '../channel/helpers.ts';
 import { readCronOptions } from '../tick/index.ts';
@@ -71,7 +71,7 @@ function isApprovalWait(run: Run): boolean {
  * runs, the first unsettled descendant that waits on an approval
  * (`findApprovalWaitBelow()`). A dispatch wait alone keeps the job waiting.
  */
-export async function isJobSettled(store: Pick<IRunRepository, 'find' | 'findOne'>, run: Run): Promise<Run | false> {
+export async function isJobSettled(store: Pick<RunService, 'find' | 'findOne'>, run: Run): Promise<Run | false> {
     if (TERMINAL.includes(run.status) || isApprovalWait(run)) {
         return run;
     }
@@ -88,7 +88,7 @@ export async function isJobSettled(store: Pick<IRunRepository, 'find' | 'findOne
  * for a human (an approval, its own or a descendant's): it starts only once a
  * human answers (or the approval times out), so a job must not wait for it.
  */
-export async function isQueuedBehindApproval(store: Pick<IRunRepository, 'find' | 'findOne'>, run: Run): Promise<boolean> {
+export async function isQueuedBehindApproval(store: Pick<RunService, 'find' | 'findOne'>, run: Run): Promise<boolean> {
     if (run.status !== 'queued' || run.concurrencyKey === undefined) {
         return false;
     }

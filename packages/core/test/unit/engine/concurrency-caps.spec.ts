@@ -49,18 +49,18 @@ describe('nested execution caps', () => {
         await engine.start();
         await h.settle();
 
-        const request = (await h.store.runs.findOne(waiting.runId))!;
+        const request = (await h.store.runService.findOne(waiting.runId))!;
 
         expect(request.status).toBe('waiting');
-        expect((await h.store.runs.findOne(keyed.runId))?.status).toBe('queued');
-        expect((await h.store.runs.findOne(free.runId))?.status).toBe('running');
+        expect((await h.store.runService.findOne(keyed.runId))?.status).toBe('queued');
+        expect((await h.store.runService.findOne(free.runId))?.status).toBe('running');
         await engine.approve(waiting.runId, { approvalId: approvalWait(request)!.approvalId, approved: true });
         await h.settle();
-        expect((await h.store.runs.findOne(waiting.runId))?.status).toBe('queued');
+        expect((await h.store.runService.findOne(waiting.runId))?.status).toBe('queued');
         h.releases.get(free.runId)!();
         await h.settle();
-        expect((await h.store.runs.findOne(waiting.runId))?.status).toBe('running');
-        expect((await h.store.runs.findOne(keyed.runId))?.status).toBe('queued');
+        expect((await h.store.runService.findOne(waiting.runId))?.status).toBe('running');
+        expect((await h.store.runService.findOne(keyed.runId))?.status).toBe('queued');
     });
 
     it('cancels queued cancellation requests even when numerical capacity is full', async () => {
@@ -71,10 +71,10 @@ describe('nested execution caps', () => {
 
         const cancel = await h.dispatch(engine);
 
-        await h.store.runs.update(cancel.runId, { cancelRequested: true });
+        await h.store.runService.update(cancel.runId, { cancelRequested: true });
         await engine.start();
         await h.settle();
-        expect((await h.store.runs.findOne(cancel.runId))?.status).toBe('cancelled');
+        expect((await h.store.runService.findOne(cancel.runId))?.status).toBe('cancelled');
         expect(h.entered).toHaveLength(1);
     });
 
@@ -92,13 +92,13 @@ describe('nested execution caps', () => {
         const later = await h.dispatch(engine);
 
         await h.settle();
-        expect((await h.store.runs.find({ status: ['running'] })).total).toBe(2);
+        expect((await h.store.runService.find({ status: ['running'] })).total).toBe(2);
         h.releases.get(h.entered[0]!)!();
         await h.settle();
-        expect((await h.store.runs.findOne(later.runId))?.status).toBe('queued');
+        expect((await h.store.runService.findOne(later.runId))?.status).toBe('queued');
         h.releases.get(h.entered[1]!)!();
         await h.settle();
-        expect((await h.store.runs.findOne(later.runId))?.status).toBe('running');
+        expect((await h.store.runService.findOne(later.runId))?.status).toBe('running');
     });
 
     it('recovers interrupted runs through the same admission ceiling', async () => {
@@ -116,14 +116,14 @@ describe('nested execution caps', () => {
         await h.settle();
         h.clock.advance(1);
         await drained;
-        expect((await h.store.runs.findOne(first.runId))?.status).toBe('interrupted');
+        expect((await h.store.runService.findOne(first.runId))?.status).toBe('interrupted');
 
         const b = h.engine([agent]);
 
         await b.start();
         await h.settle();
-        expect((await h.store.runs.find({ status: ['running'] })).total).toBe(1);
-        expect((await h.store.runs.findOne(next.runId))?.status).toBe('queued');
+        expect((await h.store.runService.find({ status: ['running'] })).total).toBe(1);
+        expect((await h.store.runService.findOne(next.runId))?.status).toBe('queued');
     });
     it('keeps excess distinct-key work queued and starts it when capacity is released', async () => {
         const h = setup();
@@ -136,8 +136,8 @@ describe('nested execution caps', () => {
 
         await engine.start();
         await h.settle();
-        expect((await h.store.runs.find({ status: ['running'] })).total).toBe(2);
-        expect((await h.store.runs.findOne(ids[2]!))?.status).toBe('queued');
+        expect((await h.store.runService.find({ status: ['running'] })).total).toBe(2);
+        expect((await h.store.runService.findOne(ids[2]!))?.status).toBe('queued');
         h.releases.get(ids[0]!)!();
         await h.settle();
         expect(h.entered).toContain(ids[2]!);
@@ -160,14 +160,14 @@ describe('nested execution caps', () => {
         await engine.start();
         await h.settle();
 
-        const running = (await h.store.runs.find({ status: ['running'], agent: 'worker' })).data;
+        const running = (await h.store.runService.find({ status: ['running'], agent: 'worker' })).data;
 
         expect(running).toHaveLength(4);
         expect(running.filter((r) => r.trigger.trigger === 'a')).toHaveLength(2);
         expect(running.filter((r) => r.trigger.trigger === 'b')).toHaveLength(1);
-        expect((await h.store.runs.findOne(ids[2]!))?.status).toBe('queued');
-        expect((await h.store.runs.findOne(ids[4]!))?.status).toBe('queued');
-        expect((await h.store.runs.findOne(other.runId))?.status).toBe('running');
+        expect((await h.store.runService.findOne(ids[2]!))?.status).toBe('queued');
+        expect((await h.store.runService.findOne(ids[4]!))?.status).toBe('queued');
+        expect((await h.store.runService.findOne(other.runId))?.status).toBe('running');
         h.releases.get(ids[5]!)!();
         await h.settle();
         expect(h.entered).toContain(ids[6]);
@@ -178,9 +178,9 @@ describe('nested execution caps', () => {
         const engine = h.engine([h.agent('worker', false, [subscription('a', false), subscription('b')])]);
         let admissions = 0;
         let counts = 0;
-        const acquire = h.store.locks.acquire.bind(h.store.locks);
+        const acquire = h.store.lockService.acquire.bind(h.store.lockService);
 
-        h.store.locks.acquire = async (...args) => {
+        h.store.lockService.acquire = async (...args) => {
             if (args[0].startsWith('admission:')) {
                 admissions++;
             }
@@ -188,9 +188,9 @@ describe('nested execution caps', () => {
             return acquire(...args);
         };
 
-        const list = h.store.runs.find.bind(h.store.runs);
+        const list = h.store.runService.find.bind(h.store.runService);
 
-        h.store.runs.find = async (query) => {
+        h.store.runService.find = async (query) => {
             if (query?.agent === 'worker' && query.status?.includes('running')) {
                 counts++;
             }

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunStatusLiteral } from '@chamvi/core';
+import type { RunStatusLiteral } from '@chamvi/store';
 
 export const RUN_LIST_POLL_MS = 5000;
 

@@ -18,9 +18,8 @@ import {
     InvalidRunStateError,
     createConnectionVault,
     createKeyring,
-    createMemoryStore,
 } from '@chamvi/core';
-import type { IEngine, IKeyring, IStore } from '@chamvi/core';
+import type { ConnectionService, IEngine, IKeyring } from '@chamvi/core';
 import {
     WHATSAPP_AUTH_ERROR_CODE,
     WHATSAPP_CONNECTION_ERROR_CODE,
@@ -34,7 +33,7 @@ import type {
     WhatsAppChatOptions,
     WhatsAppConnectionStatus,
 } from '@chamvi/chat-whatsapp';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { createWhatsAppConnection } from '../../../src/whatsapp/connection.ts';
 import { createRecordingAuth, deferred } from '../../utils/auth.ts';
 import { createFakeSockets, createWhatsAppFixture, settle } from '../../utils/whatsapp.ts';
@@ -66,9 +65,14 @@ function codesOf(errors: unknown[]): unknown[] {
     return errors.map((error) => (error as { code?: unknown }).code);
 }
 
+/** A connection service and the lock service whose leases its fence reads (a test engine). */
+type Storage = Pick<IEngine, 'connectionService' | 'lockService'>;
+
 type StoreWorld = WhatsAppFixture & {
     statuses: WhatsAppConnectionStatus[];
-    connections: IStore;
+    connections: ConnectionService;
+    /** the lock service the connection fence reads */
+    lockService: Storage['lockService'];
     /** another process's provider over the same store (its renewals on `clock`) */
     other(clock?: ControllableClock): IWhatsAppAuthProvider;
 };
@@ -80,14 +84,17 @@ function storeWorld(input: {
     /** the fixture provider's keyring (default the shared one) */
     keyring?: IKeyring;
     clock?: ControllableClock;
-    store?: IStore;
+    /** the connection service and the lock service its fence reads (default a test engine's) */
+    storage?: Storage;
 } = {}): StoreWorld {
     const clock = input.clock ?? new ControllableClock(new Date('2026-11-01T09:00:00Z'));
-    const connections = input.store ?? createMemoryStore({ clock });
+    const storage = input.storage ?? createTestEngine({ agents: [], clock });
+    const connections = storage.connectionService!;
     const statuses: WhatsAppConnectionStatus[] = [];
     const provider = (owner: string, renewClock: ControllableClock, ring: IKeyring = keyring) => createStoreWhatsAppAuth({
         vault: createConnectionVault({
-            store: connections,
+            connectionService: connections,
+            lockService: storage.lockService,
             keyring: ring,
             clock: renewClock,
         }),
@@ -113,13 +120,13 @@ function storeWorld(input: {
         clock,
         statuses,
         connections,
+        lockService: storage.lockService,
         other: (renewClock = clock) => provider('other', renewClock),
     };
 }
 
 /** Makes the next entry write of the store fail once (a short store outage). */
-function failNextWrite(store: IStore): void {
-    const connections = store.connections!;
+function failNextWrite(connections: ConnectionService): void {
     const original = connections.writeEntries.bind(connections);
 
     connections.writeEntries = async () => {
@@ -130,8 +137,7 @@ function failNextWrite(store: IStore): void {
 }
 
 /** Holds the next entry write of the store until the returned promise resolves. */
-function holdNextWrite(store: IStore): PromiseWithResolvers<void> {
-    const connections = store.connections!;
+function holdNextWrite(connections: ConnectionService): PromiseWithResolvers<void> {
     const original = connections.writeEntries.bind(connections);
     const gate = deferred();
 
@@ -160,9 +166,9 @@ function textOf(error: unknown, depth = 0): string {
     }
 
     const record = error as {
-        message?: unknown; 
-        cause?: unknown; 
-        stack?: unknown 
+        message?: unknown;
+        cause?: unknown;
+        stack?: unknown
     };
 
     return [
@@ -297,7 +303,7 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
         expect(second.config.auth.creds.registered).toBe(false);
         expect(second.config.auth.creds.noiseKey.private).not.toEqual(first.config.auth.creds.noiseKey.private);
         expect(await second.config.auth.keys.get('session', ['alice.0'])).toEqual({});
-        expect(await world.connections.connections!.findEntry('bot', 'key:session:alice.0')).toBeUndefined();
+        expect(await world.connections.findEntry('bot', 'key:session:alice.0')).toBeUndefined();
 
         second.emit('connection.update', { qr: QR });
         expect(world.pairings).toEqual([{ qr: QR }]);
@@ -324,7 +330,7 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
         await expect(world.setup.reset()).rejects.toThrow(/held by another process/);
 
         expect(world.setup.status()).toBe('held-elsewhere');
-        expect(await world.connections.connections!.findEntry('bot', 'creds')).toBeInstanceOf(Uint8Array);
+        expect(await world.connections.findEntry('bot', 'creds')).toBeInstanceOf(Uint8Array);
 
         await holder.release();
         world.clock.advance(upperDelay(0));
@@ -339,7 +345,7 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
 
     it('a reset whose acquire finds the session held is refused and clears nothing later', async () => {
         const world = storeWorld();
-        const { locks } = world.connections;
+        const locks = world.lockService;
         const acquire = locks.acquire.bind(locks);
 
         locks.acquire = async () => {
@@ -394,8 +400,8 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
 
     it('a reset recovers a session whose data key no keyring key unwraps', async () => {
         const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
-        const store = createMemoryStore({ clock });
-        const before = storeWorld({ clock, store });
+        const storage = createTestEngine({ agents: [], clock });
+        const before = storeWorld({ clock, storage });
 
         await before.engine.start();
         await before.sockets.last().config.auth.keys.set({ session: { 'alice.0': new Uint8Array([1]) } });
@@ -404,7 +410,7 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
         // the old master key is gone from the keyring
         const world = storeWorld({
             clock,
-            store,
+            storage,
             keyring: createKeyring([{ id: 'k2', key: randomBytes(32) }]),
         });
 
@@ -416,9 +422,9 @@ describe('WhatsApp connection: held elsewhere, reset, status', () => {
 
         expect(world.sockets.sockets).toHaveLength(1);
         expect(world.setup.status()).toBe('connecting');
-        expect((await store.connections!.findOneOrFail('bot')).keyId).toBe('k2');
-        expect(await store.connections!.findEntry('bot', 'key:session:alice.0')).toBeUndefined();
-        expect(await store.connections!.findEntry('bot', 'creds')).toBeInstanceOf(Uint8Array);
+        expect((await storage.connectionService!.findOneOrFail('bot')).keyId).toBe('k2');
+        expect(await storage.connectionService!.findEntry('bot', 'key:session:alice.0')).toBeUndefined();
+        expect(await storage.connectionService!.findEntry('bot', 'creds')).toBeInstanceOf(Uint8Array);
         expect(await world.sockets.last().config.auth.keys.get('session', ['alice.0'])).toEqual({});
     });
 
@@ -754,12 +760,13 @@ describe('WhatsApp connection: the retry budget of a reset, a reentrant close', 
         expect(console.info).toBe(originalInfo);
     });
 
-    function storeAuth(keys: IKeyring, store: IStore, clock: ControllableClock): IWhatsAppAuthProvider {
+    function storeAuth(keys: IKeyring, storage: Storage, clock: ControllableClock): IWhatsAppAuthProvider {
         return createStoreWhatsAppAuth({
             vault: createConnectionVault({
-                store, 
-                keyring: keys, 
-                clock, 
+                connectionService: storage.connectionService!,
+                lockService: storage.lockService,
+                keyring: keys,
+                clock,
             }),
             connection: 'bot',
             owner: 'connector',
@@ -769,7 +776,7 @@ describe('WhatsApp connection: the retry budget of a reset, a reentrant close', 
 
     it('releases the lease after a flush that failed, so the reset takes it again', async () => {
         const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
-        const inner = storeAuth(keyring, createMemoryStore({ clock }), clock);
+        const inner = storeAuth(keyring, createTestEngine({ agents: [], clock }), clock);
         let failFlush = true;
         const provider: IWhatsAppAuthProvider = {
             supportsReset: true,
@@ -811,12 +818,12 @@ describe('WhatsApp connection: the retry budget of a reset, a reentrant close', 
 
     it('a reset recovers a session whose data key no keyring key unwraps', async () => {
         const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
-        const store = createMemoryStore({ clock });
-        const previous = await storeAuth(keyring, store, clock).acquire(new AbortController().signal);
+        const storage = createTestEngine({ agents: [], clock });
+        const previous = await storeAuth(keyring, storage, clock).acquire(new AbortController().signal);
 
         await previous.release();
 
-        const world = createWhatsAppFixture({ patch: { auth: storeAuth(createKeyring([{ id: 'k2', key: randomBytes(32) }]), store, clock) } });
+        const world = createWhatsAppFixture({ patch: { auth: storeAuth(createKeyring([{ id: 'k2', key: randomBytes(32) }]), storage, clock) } });
 
         engines.push(world.engine);
         await world.engine.start();
@@ -825,22 +832,23 @@ describe('WhatsApp connection: the retry budget of a reset, a reentrant close', 
         await world.setup.reset();
 
         expect(world.sockets.sockets).toHaveLength(1);
-        expect(await store.connections!.findOne('bot')).toMatchObject({ keyId: 'k2' });
+        expect(await storage.connectionService!.findOne('bot')).toMatchObject({ keyId: 'k2' });
     });
 
     it('a reset recovers a session whose creds do not decode', async () => {
         const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
-        const store = createMemoryStore({ clock });
+        const storage = createTestEngine({ agents: [], clock });
         const session = await createConnectionVault({
-            store, 
-            keyring, 
-            clock, 
+            connectionService: storage.connectionService!,
+            lockService: storage.lockService,
+            keyring,
+            clock,
         }).open('bot', { type: 'whatsapp', owner: 'seed' });
 
         await session.write({ set: { creds: new TextEncoder().encode('not json') } });
         await session.close();
 
-        const world = createWhatsAppFixture({ patch: { auth: storeAuth(keyring, store, clock) } });
+        const world = createWhatsAppFixture({ patch: { auth: storeAuth(keyring, storage, clock) } });
 
         engines.push(world.engine);
         await world.engine.start();

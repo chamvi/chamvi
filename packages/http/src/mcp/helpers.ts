@@ -8,11 +8,12 @@
 import {
     ChamviError,
     RunNotFoundError,
-    RunStatus,
     findApprovalWaitBelow,
     rebaseJsonSchemaRefs,
 } from '@chamvi/core';
-import type { IEngine, Run } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
+import type { IEngine } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { isHTTPError } from '@ebec/http';
 import type { CallToolResult } from '@modelcontextprotocol/server';
 import type { StandardJSONSchemaV1, StandardSchemaV1 } from '@standard-schema/spec';
@@ -95,13 +96,13 @@ export function isWaitOver(run: Run): boolean {
  * descendant that does (`findApprovalWaitBelow()`); `undefined` without one.
  */
 export async function findWaitingApproval(engine: IEngine, runId: string): Promise<Run | undefined> {
-    const root = await engine.store.runs.findOne(runId);
+    const root = await engine.runService.findOne(runId);
 
     if (!root) {
         return undefined;
     }
 
-    return isApprovalWait(root) ? root : findApprovalWaitBelow(engine.store.runs, root);
+    return isApprovalWait(root) ? root : findApprovalWaitBelow(engine.runService, root);
 }
 
 /**
@@ -148,7 +149,7 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
                 return;
             }
 
-            ctx.store.runs.findOne(runId).then(settle, reject);
+            ctx.runService.findOne(runId).then(settle, reject);
         }
 
         /** The answer when the wait is over (`null`: the run is gone), else `undefined`. */
@@ -192,7 +193,7 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
 
         /** Checks on an event: no poll of its own. */
         function probe(): void {
-            ctx.store.runs.findOne(runId)
+            ctx.runService.findOne(runId)
                 .then(inspect)
                 .then((result) => {
                     if (!done) {
@@ -203,7 +204,7 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
 
         async function check(): Promise<void> {
             try {
-                const result = await inspect(await ctx.store.runs.findOne(runId));
+                const result = await inspect(await ctx.runService.findOne(runId));
 
                 if (done || finish(result)) {
                     return;

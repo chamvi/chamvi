@@ -19,7 +19,7 @@ import {
 
 /** The id of the artifact the tool put under `key`. */
 async function keyedId(engine: IEngine, runId: string, key: string): Promise<string> {
-    return (await engine.store.artifacts.findOneByKey(runId, `tool:${key}`))!.id;
+    return (await engine.artifactService.findOneByKey(runId, `tool:${key}`))!.id;
 }
 
 async function pausedShots() {
@@ -35,7 +35,7 @@ async function pausedShots() {
     await ctx.engine.start();
     await ctx.engine.idle();
 
-    expect((await ctx.store.runs.findOne(runId))?.status).toBe('waiting');
+    expect((await ctx.store.runService.findOne(runId))?.status).toBe('waiting');
 
     return { ...ctx, runId };
 }
@@ -43,9 +43,9 @@ async function pausedShots() {
 describe('approval artifacts on the run wire', () => {
     it('GET /runs/:id of a waiting run includes waiting.artifacts and options[].artifacts', async () => {
         const {
-            app, 
-            engine, 
-            runId, 
+            app,
+            engine,
+            runId,
         } = await pausedShots();
         const response = await call(app, 'GET', `/runs/${runId}`, { token: READER_TOKEN });
 
@@ -69,9 +69,9 @@ describe('approval artifacts on the run wire', () => {
 
     it('GET /runs/:id/artifacts/:artifactId returns a keyed artifact\'s bytes with its media type', async () => {
         const {
-            app, 
-            engine, 
-            runId, 
+            app,
+            engine,
+            runId,
         } = await pausedShots();
         const id = await keyedId(engine, runId, 'button/diff');
         const response = await call(app, 'GET', `/runs/${runId}/artifacts/${id}`, { token: READER_TOKEN });

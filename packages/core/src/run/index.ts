@@ -5,6 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export * from './constants.ts';
-export { normalizeWaitPoint, waitIdOf } from './helpers.ts';
+export { waitIdOf } from './helpers.ts';
+export * from './service.ts';
 export type * from './types.ts';

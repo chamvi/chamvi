@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import type { IEngine } from '@chamvi/core';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
@@ -33,6 +33,7 @@ import {
 } from '../../utils/app.ts';
 import { createRecordingLogger } from '../../utils/logger.ts';
 import { closeServer, freePort, listenOn } from '../../utils/port.ts';
+import { createTestStore, storeModuleOf } from '../../utils/store.ts';
 
 const agent = defineModelAgent({
     name: 'triage',
@@ -243,7 +244,8 @@ describe('App.stop', () => {
             name: ModuleName.STORE,
             dependencies: [ModuleName.CONFIG],
             async setup(container) {
-                container.register(AppToken.STORE, { useValue: createMemoryStore() });
+                // a module replacing the store module registers the repositories; the app builds the services
+                await storeModuleOf(createTestStore()).setup(container);
                 container.registerMany(AppToken.LIFECYCLE_HOOKS, {
                     useValue: {
                         name: 'purge',

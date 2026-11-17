@@ -53,7 +53,7 @@ function invalid(message: string): InvalidAgentDefinitionError {
  * (nothing is read, acquired or connected), so agents subscribe with
  * `module.on()`. `setup` (start mode, a check included) resolves the keyring
  * (`CHAMVI_ENCRYPTION_KEYS`, failing setup naming it), builds the connection
- * vault over `AppToken.STORE` and the app clock, and contributes the channel
+ * vault over `AppToken.CONNECTION_SERVICE` and the app clock, and contributes the channel
  * to `AppToken.CHANNELS` and the handle to `AppToken.CONNECTIONS`; a job
  * contributes the channel only (its subscriptions validate, the engine never
  * starts it), migrate nothing. The lease is taken only when the engine
@@ -189,8 +189,13 @@ export class WhatsAppModule implements IModule {
         this.approvalUrl = approvalUrl;
 
         if (context.mode === 'start') {
+            if (!container.has(AppToken.CONNECTION_SERVICE)) {
+                throw invalid('the app store must keep connections (AppToken.CONNECTION_SERVICE).');
+            }
+
             const vault = createConnectionVault({
-                store: container.resolve(AppToken.STORE),
+                connectionService: container.resolve(AppToken.CONNECTION_SERVICE),
+                lockService: container.resolve(AppToken.LOCK_SERVICE),
                 keyring: container.resolve(AppToken.KEYRING),
                 clock: container.resolve(AppToken.CLOCK),
             });

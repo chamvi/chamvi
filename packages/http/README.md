@@ -47,7 +47,20 @@ ESM only, Node.js `>=26.0.0`. `@chamvi/core` and `@routup/decorators` (`^5.3.0`)
 
 ```typescript
 import type { LanguageModel } from 'ai';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import {
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    EffectService,
+    Engine,
+    IdempotencyService,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
+    defineModelAgent,
+    systemClock,
+} from '@chamvi/core';
 import {
     createHttpApp,
     createShutdown,
@@ -56,6 +69,19 @@ import {
     mcpChannel,
     staticTokens,
 } from '@chamvi/http';
+import {
+    MemoryAgentRevisionRepository,
+    MemoryArtifactRepository,
+    MemoryCheckpointRepository,
+    MemoryEffectRepository,
+    MemoryIdempotencyRepository,
+    MemoryLockRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+    MemoryStateDocumentRepository,
+    MemoryStateRepository,
+    MemoryStepRepository,
+} from '@chamvi/store-memory';
 
 export async function createAgentServer(model: LanguageModel) {
     const echo = defineModelAgent({
@@ -66,8 +92,23 @@ export async function createAgentServer(model: LanguageModel) {
         channels: [http.on()],
     });
 
+    // runs and the rest in memory: gone with the process (@chamvi/app keeps them in PostgreSQL)
+    const registry = new MemoryRegistry();
+    const runs = new MemoryRunRepository({ registry });
+    const locks = new MemoryLockRepository({ registry });
     const engine = new Engine({
-        store: createMemoryStore(),
+        runService: new RunService({ repository: runs, clock: systemClock }),
+        stepService: new StepService({ repository: new MemoryStepRepository({ registry }) }),
+        checkpointService: new CheckpointService({ repository: new MemoryCheckpointRepository({ registry }) }),
+        effectService: new EffectService({ repository: new MemoryEffectRepository({ registry }) }),
+        agentRevisionService: new AgentRevisionService({ repository: new MemoryAgentRevisionRepository({ registry }) }),
+        artifactService: new ArtifactService({ repository: new MemoryArtifactRepository({ registry }) }),
+        stateService: new StateService({
+            repository: new MemoryStateRepository({ registry }),
+            documentRepository: new MemoryStateDocumentRepository({ registry }),
+        }),
+        lockService: new LockService({ repository: locks, clock: systemClock }),
+        idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock: systemClock }),
         agents: [echo],
         // REST runs carry channel http, MCP runs channel mcp
         channels: [httpChannel(), mcpChannel()],
@@ -81,7 +122,7 @@ export async function createAgentServer(model: LanguageModel) {
 
     const shutdown = createShutdown({ engine });
     const app = createHttpApp({
-        // routes read the store, the agents and the clock from the engine
+        // routes read the services, the agents and the clock from the engine
         engine,
         auth: staticTokens({
             tokens: [{
@@ -106,7 +147,7 @@ export async function createAgentServer(model: LanguageModel) {
 }
 ```
 
-Every route answers JSON. Errors are always `{ status, code, message, issues? }` (for unmatched routes too); a 5xx body says `Internal Server Error` and the cause goes to `onError`. An issue keeps its `received` value only when that is at most 256 characters as JSON, so a 400 never echoes a large body (an oversized `attachments` list, a long `address` or media type) back. Every 401 carries `WWW-Authenticate: Bearer`.
+Every route answers JSON. Errors are always `{ status, code, message, issues? }` (for unmatched routes too); a 5xx body says `Internal Server Error` and the cause goes to `onError`. A storage error answers with its code and a fixed message, never its own: `404 entity_not_found`, `409 entity_conflict`, `400 entity_relation_invalid`, `400 entity_query_invalid`, `400 entity_invalid`, `409 entity_deadlock`, `503 database_unavailable` (the last also goes to `onError`). An issue keeps its `received` value only when that is at most 256 characters as JSON, so a 400 never echoes a large body (an oversized `attachments` list, a long `address` or media type) back. Every 401 carries `WWW-Authenticate: Bearer`.
 
 ## Endpoints
 
@@ -232,6 +273,17 @@ Agents subscribe to channels (`defineModelAgent({ channels: [...] })`, see `@cha
 
 `controllers` takes instances of an app's own [`@routup/decorators`](https://www.npmjs.com/package/@routup/decorators) classes, mounted after the built-in controllers and served under `basePath` behind the rate limiter, the body limits and the JSON error renderer. A controller holds no permission check or validation: its service does, with the request helpers `usePrincipal`, `authorizeRequest`, `assertGranted`, `toInvoker` and the middlewares `ForceLoggedInMiddleware`, `JsonBodyMiddleware`, `RequiredJsonBodyMiddleware`. A method is unauthenticated unless it uses one of the middlewares or its service authorizes. Base paths follow the extra routes' rule (static, outside the built-in segments and the metrics path); a base path listed twice in one controller, a method path routup cannot parse, an extra route at or under a base path, or a base path at or under an extra prefix route throws `InvalidAgentDefinitionError` at construction. Routes match in declaration order, are always rate limited and labelled by their declared pattern (`/notes/:id`) in the metrics. `openapi.documents` merges the app's own trapi documents into `/openapi.json`. See [Controllers](https://chamvi.dev/guide/controllers).
 
+## List endpoints
+
+`defineSchema({ entity?, filters?, operators?, nested?, sorts?, sort?, key?, relations?, fields?, defaultLimit?, maxLimit? })` declares what a client may ask of a list endpoint; nothing is allowed by default. `decodeQuery(searchParams, schema)` decodes a request's rapiq query (`filter[title]=a`, `sort=-title`, `page[limit]=10`, `include=author`, `fields=title`, or the expression form `filter=eq(title,'a')`) into the query `findMany` of any repository takes: a filter, operator (default `eq`, `ne`, `in`, `nin`, `lt`, `lte`, `gt`, `gte`), sort, relation or field the schema does not allow, a compound filter (unless `nested`), a malformed page value or a limit above `maxLimit` (default 100) is a 400 `BadRequestError` naming the key, never the value. The result has a page (`defaultLimit`, default 50) and an order that ends with the schema's `key` (default `id`) in the direction of the last sort. The repositories match case-sensitively; a database repository drops a filter value that is no uuid on a uuid column. `databaseModule({ schemas })` of `@chamvi/app` checks each schema against its entity at start. A nested include is taken only when the schema lists it with its parent (`relations: ['author', 'author.organization']`); a field, filter or sort of a related entity (`author.name`) is not supported, `fields=` cannot be combined with `include=`, and a page value above `Number.MAX_SAFE_INTEGER` is refused.
+
+A service that restricts a list (an owner, a tenant) ands its condition onto the decoded query with `scopeQuery(query, ...conditions)`, never by pushing it into `query.filters`: with `nested` the root may be an `or`, which a pushed condition would widen.
+
+```ts
+const query = scopeQuery(decodeQuery(event.searchParams, NOTE_LIST_SCHEMA), eq('ownerId', principal.id));
+const { data, meta } = await this.repository.findMany(query);
+```
+
 ## Operations
 
 - **`/metrics`** is unauthenticated (scrapers rarely send bearer tokens): keep it off the public ingress (a NetworkPolicy, or a separate internal listener), or disable it with `metrics: false`. Each app gets its own `prom-client` `Registry`; the `path` label is the pattern of the route that served the request, without `basePath` (`/runs/:id`, `/channels/github/*`; an unknown path, a method the path does not serve and `OPTIONS` are `/_unmatched`), so ids and probes do not mint series. SSE streams and rate-limited requests are not timed. `metrics.normalizePath` overrides the label.
@@ -268,7 +320,7 @@ process.once('SIGTERM', () => {
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `engine` | `IEngine` | required | Dispatches, cancels and resumes runs; its `store`, agents and `clock` serve every route (runs, steps and state are read from `engine.store`, polls, waits and timeouts run on `engine.clock`) |
+| `engine` | `IEngine` | required | Dispatches, cancels and resumes runs; its services, agents and `clock` serve every route (runs, steps, artifacts and state are read through `engine.runService`, `stepService`, `artifactService`, `stateService`, polls, waits and timeouts run on `engine.clock`) |
 | `agents` | `string[]` | every agent | Names of the engine's agents this app serves (routes, MCP tools, extra routes); the others are unknown to it. A mounted channel serves every agent subscribing to it. A name the engine lacks or given twice throws `InvalidAgentDefinitionError` |
 | `auth` | `Authenticator \| Authenticator[]` | required | The authenticator chain |
 | `basePath` | `string` | none | Prefix of every route, e.g. `/api` |
@@ -309,11 +361,12 @@ process.once('SIGTERM', () => {
 | `httpChannel`, `mcpChannel`, `webhookChannel` | function | The channels REST, MCP and generic webhooks dispatch as |
 | `usePrincipal`, `authorizeRequest`, `assertGranted`, `toInvoker` | function | Request helpers for [controllers](#controllers) |
 | `ForceLoggedInMiddleware`, `JsonBodyMiddleware`, `RequiredJsonBodyMiddleware` | class | Method middlewares for controllers |
+| `defineSchema`, `decodeQuery`, `scopeQuery` | function | A list endpoint's schema, its decoder and the scope a service ands onto it (see [List endpoints](#list-endpoints)) |
 | `http`, `webhook` | constant | Subscription builders: `http.on({ schema? })`, `webhook.on(path, options?)` |
 | `HTTP_CHANNEL_NAME`, `MCP_CHANNEL_NAME`, `WEBHOOK_CHANNEL_NAME` | constant | `http`, `mcp`, `webhook` |
 | `DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS`, `DEFAULT_SHUTDOWN_CLOSE_TIMEOUT_MS` | constant | `30_000`, `5_000` |
 
-Types: `HttpAppOptions`, `McpOptions`, `CorsOptions`, `RateLimitOptions`, `PrometheusOptions`, `TrustProxyInput`, `Principal`, `Authenticator`, `StaticToken`, `StaticTokensOptions`, `AuthupOptions`, `OidcOptions`, `IShutdown`, `ShutdownOptions`, `RunView`, `InvokerView`, `RunListQuery`, `RunSummary`, `RunToolResult`, `AgentSummary`, `ScheduleSummary`, `ScheduleOverlap`, `WebhookChannel`, `WebhookChannelOptions`, `HttpSubscriber`, `HttpSubscriptionOptions`, `WebhookSubscriber`, `WebhookSubscriptionOptions`.
+Types: `ListSchema`, `ListSchemaOptions`, `ListSchemaEntity`, `ListSchemaKey`, `ListFilterOperator`, `ListSortDirection`, `HttpAppOptions`, `McpOptions`, `CorsOptions`, `RateLimitOptions`, `PrometheusOptions`, `TrustProxyInput`, `Principal`, `Authenticator`, `StaticToken`, `StaticTokensOptions`, `AuthupOptions`, `OidcOptions`, `IShutdown`, `ShutdownOptions`, `RunView`, `InvokerView`, `RunListQuery`, `RunSummary`, `RunToolResult`, `AgentSummary`, `ScheduleSummary`, `ScheduleOverlap`, `WebhookChannel`, `WebhookChannelOptions`, `HttpSubscriber`, `HttpSubscriptionOptions`, `WebhookSubscriber`, `WebhookSubscriptionOptions`.
 
 ## License
 

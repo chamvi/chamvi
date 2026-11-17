@@ -27,9 +27,10 @@ import { bindRunSnapshot } from '../../dispatch/helpers.ts';
 import { assertTranscriptMessages, splitInstructions } from '../../message/helpers.ts';
 import { toLanguageModel } from '../../model/asserts.ts';
 import { untilAborted } from '../../run/helpers.ts';
-import { RunStatus } from '../../run/constants.ts';
+import { RunStatus } from '@chamvi/store';
 import { CONVERSATION_SEND_GRACE_MS } from './constants.ts';
-import type { RunContext, Step, Usage } from '../../run/types.ts';
+import type { RunContext } from '../../run/types.ts';
+import type { Step, Usage } from '@chamvi/store';
 import {
     resolveBudget,
     stepTokens,
@@ -95,11 +96,13 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
     const {
         run,
         agent,
-        store,
+        stepService,
+        checkpointService,
+        artifactService,
         clock,
     } = ctx;
     const budget = resolveBudget(agent);
-    const checkpoint = await store.checkpoints.findOne(run.id);
+    const checkpoint = await checkpointService.findOne(run.id);
     // stored form: file parts hold artifact markers; the model gets a hydrated copy
     let initial: ModelMessage[] = checkpoint?.messages ?? [
         ...(ctx.conversation?.snapshot.messages ?? []),
@@ -122,7 +125,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
 
     const usage: Usage = { ...run.usage };
     let stepIndex = checkpoint ? checkpoint.stepIndex + 1 : 0;
-    let stepSeq = (await store.steps.find(run.id)).length;
+    let stepSeq = (await stepService.find(run.id)).length;
 
     // calls a suspended approve() left without a result: run before any model call
     const pending = checkpoint ? pendingToolCalls(checkpoint.messages) : [];
@@ -169,7 +172,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
     let prompt: ModelMessage[];
 
     try {
-        prompt = await hydrateMessages([...configured.messages, ...initial], store.artifacts);
+        prompt = await hydrateMessages([...configured.messages, ...initial], artifactService);
     } catch (error) {
         if (!(error instanceof ArtifactNotFoundError)) {
             throw error;
@@ -267,7 +270,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
      * recovery does not re-run it. `checkOwner: false` skips the ownership read
      * for writes that are owner-conditional in the store already (ctx.update).
      */
-    const guarded = async (write: () => Promise<void>, { checkOwner = true } = {}): Promise<boolean> => {
+    const guarded = async (write: () => Promise<unknown>, { checkOwner = true } = {}): Promise<boolean> => {
         if (abandoned) {
             return false;
         }
@@ -292,7 +295,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
             index: stepSeq,
         };
 
-        if (!await guarded(() => store.steps.insert(full))) {
+        if (!await guarded(() => stepService.create(full))) {
             return;
         }
 
@@ -376,7 +379,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
             }
 
             responseMessages.push(...messages);
-            await guarded(() => store.checkpoints.save({
+            await guarded(() => checkpointService.save({
                 runId: run.id,
                 stepIndex: stepIndex++,
                 messages: [...initial, ...responseMessages],
@@ -449,7 +452,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
 
                 initial = withToolResults(initial, [part]);
                 prompt = withToolResults(prompt, [part]);
-                await guarded(() => store.checkpoints.save({
+                await guarded(() => checkpointService.save({
                     runId: run.id,
                     stepIndex: checkpoint!.stepIndex,
                     messages: initial,
@@ -607,7 +610,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
         toolsContext: toolsContext as never,
         stopWhen,
         // a tool result's artifact marker (artifactFilePart) gets its bytes per model call, never in a stored message
-        prepareStep: async ({ messages }) => ({ messages: await hydrateMessages(messages, store.artifacts) }),
+        prepareStep: async ({ messages }) => ({ messages: await hydrateMessages(messages, artifactService) }),
         onLanguageModelCallEnd: () => {
             modelCallEnded = true;
         },

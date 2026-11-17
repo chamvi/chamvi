@@ -7,11 +7,14 @@
 
 import type { Agent } from '../../agent/types.ts';
 import type { IClock } from '../../clock/index.ts';
-import type { Run } from '../../run/types.ts';
-import type { IStore } from '../../repository/types.ts';
+import type { Run } from '@chamvi/store';
+import type { LockService } from '../../lock/service.ts';
+import type { RunService } from '../../run/service.ts';
 
 export type RunQueueOptions = {
-    store: Pick<IStore, 'runs' | 'locks'>;
+    /** The keyed-run and admission locks. */
+    lockService: Pick<LockService, 'acquire' | 'release'>;
+    runService: RunService;
     /** Synchronous live registry lookup; no loading, creation or I/O. Missing agents return undefined. */
     getAgent: (name: string) => Agent | undefined;
     clock: IClock;

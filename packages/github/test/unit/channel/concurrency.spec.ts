@@ -7,8 +7,6 @@
 
 import { readFileSync } from 'node:fs';
 import {
-    Engine,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
@@ -26,6 +24,10 @@ import {
 import { z } from 'zod';
 import { createGithubFixture, deliver } from '../../utils/app.ts';
 import { mockModel, textModel } from '../../utils/model.ts';
+import { createTestEngine } from '@chamvi/test-kit';
+
+/** The persistent-comment locks every channel of this spec takes. */
+const locks = createTestEngine({ agents: [] }).lockService;
 
 const BODY = readFileSync(new URL('../../fixtures/deliveries/issues-opened.json', import.meta.url), 'utf8');
 let engine: IEngine | undefined;
@@ -38,8 +40,11 @@ afterEach(async () => {
 describe('GitHub burst admission', () => {
     it('persists signed bursts before replying while nested caps leave room for another agent', async () => {
         const { gh, clock } = createGithubFixture();
-        const channel = githubChannel({ app: gh, clock });
-        const store = createMemoryStore({ clock });
+        const channel = githubChannel({
+            app: gh,
+            locks,
+            clock,
+        });
         const errors: unknown[] = [];
         const entered: string[] = [];
         const releases = new Map<string, () => void>();
@@ -95,8 +100,7 @@ describe('GitHub burst admission', () => {
             channels: [],
         });
 
-        engine = new Engine({
-            store,
+        engine = createTestEngine({
             clock,
             agents: [agent, other],
             channels: [channel],
@@ -136,11 +140,11 @@ describe('GitHub burst admission', () => {
             const id = result.runs[0]!.runId;
 
             ids.push(id);
-            expect(await store.runs.findOne(id)).toMatchObject({ id, agent: 'triage' });
+            expect(await engine.runService.findOne(id)).toMatchObject({ id, agent: 'triage' });
         }
 
         await vi.waitFor(() => expect(entered).toHaveLength(1));
-        expect((await store.runs.find({ agent: 'triage', status: ['queued'] })).total).toBe(4);
+        expect((await engine.runService.find({ agent: 'triage', status: ['queued'] })).total).toBe(4);
 
         const side = await engine.dispatch({
             agent: 'other',
@@ -149,16 +153,16 @@ describe('GitHub burst admission', () => {
             payload: {},
         });
 
-        await vi.waitFor(async () => expect((await store.runs.findOne(side.runId))?.status).toBe('completed'));
+        await vi.waitFor(async () => expect((await engine!.runService.findOne(side.runId))?.status).toBe('completed'));
 
         for (let i = 0; i < ids.length; i++) {
             await vi.waitFor(() => expect(entered).toHaveLength(i + 1));
             releases.get(entered[i]!)!();
-            await vi.waitFor(async () => expect((await store.runs.findOne(entered[i]!))?.status).toBe('completed'));
+            await vi.waitFor(async () => expect((await engine!.runService.findOne(entered[i]!))?.status).toBe('completed'));
         }
 
         expect(peak).toBe(1);
-        expect((await store.runs.find({ agent: 'triage', status: ['completed'] })).total).toBe(5);
+        expect((await engine.runService.find({ agent: 'triage', status: ['completed'] })).total).toBe(5);
 
         const invalid = await deliver(app, {
             event: 'issues',
@@ -168,7 +172,7 @@ describe('GitHub burst admission', () => {
         });
 
         expect(invalid.status).toBe(401);
-        expect((await store.runs.find({ agent: 'triage' })).total).toBe(5);
+        expect((await engine.runService.find({ agent: 'triage' })).total).toBe(5);
         expect(errors).toEqual([]);
     });
 });

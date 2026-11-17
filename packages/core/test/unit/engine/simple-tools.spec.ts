@@ -8,7 +8,6 @@
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     FatalToolError,
     ValidationError,
     agent,
@@ -21,23 +20,24 @@ import {
     dispatchTo,
 } from '@chamvi/core';
 import type {
+    Engine,
     IChannel,
-    IStore,
     ModelAgentDefinition,
     SimpleAgentDefinition,
 } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
 function setup(def: Omit<SimpleAgentDefinition, 'name'>, options: { channels?: IChannel[]; agents?: ModelAgentDefinition[] } = {}) {
     const clock = new ControllableClock(START);
-    const store: IStore = createMemoryStore({ clock });
-    const engine = new Engine({
-        store,
+    const store: TestServiceSet = createTestServices({ clock });
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [defineSimpleAgent({ name: 'simple', ...def }), ...(options.agents ?? []).map((a) => defineModelAgent(a))],
         channels: options.channels ?? [],
@@ -74,12 +74,12 @@ describe('ctx.tools in simple runs', () => {
             run: async (_payload, ctx) => ({ result: await ctx.tools.double!({ n: '21' }) }),
         });
         const runId = await runOnce(engine);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toEqual({ result: 42 });
 
-        const steps = await store.steps.find(runId);
+        const steps = await store.stepService.find(runId);
 
         expect(steps.map((s) => [s.index, s.kind, s.name])).toEqual([[0, 'tool', 'double'], [1, 'tool', 'simple']]);
         expect(steps[0]).toMatchObject({ input: { n: '21' }, output: 42 });
@@ -102,7 +102,7 @@ describe('ctx.tools in simple runs', () => {
         });
         const runId = await runOnce(engine);
 
-        expect((await store.runs.findOne(runId))?.output).toBe(2);
+        expect((await store.runService.findOne(runId))?.output).toBe(2);
 
         await engine.stop();
     });
@@ -132,12 +132,12 @@ describe('ctx.tools in simple runs', () => {
         });
         const runId = await runOnce(engine);
 
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
 
         await engine.approve(runId, { approvalId: '0:run:0', approved: true });
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toEqual({ written: 'written 1', approved: true });
@@ -162,7 +162,7 @@ describe('ctx.tools in simple runs', () => {
             run: async (_payload, ctx) => ({ answer: await ctx.tools.ask!({}) }),
         });
         const runId = await runOnce(engine);
-        const waiting = await store.runs.findOne(runId);
+        const waiting = await store.runService.findOne(runId);
 
         expect(waiting?.status).toBe('waiting');
         expect(waiting?.waiting).toMatchObject({
@@ -170,12 +170,12 @@ describe('ctx.tools in simple runs', () => {
             approvalId: '0:run:0:0',
             toolName: 'ask',
         });
-        expect(await store.steps.find(runId)).toHaveLength(0);
+        expect(await store.stepService.find(runId)).toHaveLength(0);
 
         await engine.approve(runId, { approvalId: '0:run:0:0', approved: true });
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toEqual({ answer: 'yes' });
@@ -203,7 +203,7 @@ describe('ctx.tools in simple runs', () => {
         });
         const runId = await runOnce(engine);
 
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
 
         await engine.stop();
     });
@@ -238,12 +238,12 @@ describe('ctx.tools in simple runs', () => {
             }],
         });
         const runId = await runOnce(engine);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.taint).toEqual({ at: expect.any(Date), source: 'tool:read' });
 
-        const child = await store.runs.findOne((run?.output as { child: string }).child);
+        const child = await store.runService.findOne((run?.output as { child: string }).child);
 
         expect(child?.parentRunId).toBe(runId);
         expect(child?.taint?.source).toBe('tool:read');
@@ -273,7 +273,7 @@ describe('ctx.tools in simple runs', () => {
             run: async (_payload, ctx) => ctx.tools.send!({ text: 'secret' }),
         }, { channels: [source] });
         const runId = await runOnce(engine, {}, 'source');
-        const waiting = await store.runs.findOne(runId);
+        const waiting = await store.runService.findOne(runId);
 
         expect(waiting?.status).toBe('waiting');
         expect(approvalWait(waiting)?.body).toContain('secret');
@@ -282,7 +282,7 @@ describe('ctx.tools in simple runs', () => {
         await engine.approve(runId, { approvalId: approvalWait(waiting)!.approvalId, approved: true });
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toBe('sent');
@@ -302,7 +302,7 @@ describe('ctx.tools in simple runs', () => {
             run: async (_payload, ctx) => ctx.tools.double!({ n: 'x' }),
         });
         const runId = await runOnce(engine);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error?.code).toBe('validation_error');
@@ -318,7 +318,7 @@ describe('ctx.tools in simple runs', () => {
         const unknown = setup({ run: async (_payload, ctx) => ctx.tools.missing!({}) });
         const unknownId = await runOnce(unknown.engine);
 
-        expect((await unknown.store.runs.findOne(unknownId))?.error).toEqual({
+        expect((await unknown.store.runService.findOne(unknownId))?.error).toEqual({
             code: 'validation_error',
             message: 'Tool "missing" is not available to agent "simple".',
         });
@@ -331,7 +331,7 @@ describe('ctx.tools in simple runs', () => {
         });
         const policyId = await runOnce(policy.engine);
 
-        expect((await policy.store.runs.findOne(policyId))?.error).toEqual({
+        expect((await policy.store.runService.findOne(policyId))?.error).toEqual({
             code: 'validation_error',
             message: 'Tool "hidden" is not available to agent "simple".',
         });
@@ -350,7 +350,7 @@ describe('ctx.tools in simple runs', () => {
         });
         const caughtId = await runOnce(caught.engine);
 
-        expect((await caught.store.runs.findOne(caughtId))?.output).toEqual({ caught: true });
+        expect((await caught.store.runService.findOne(caughtId))?.output).toEqual({ caught: true });
         await caught.engine.stop();
     });
 
@@ -367,12 +367,12 @@ describe('ctx.tools in simple runs', () => {
             run: async (_payload, ctx) => ctx.tools.boom!({}),
         });
         const runId = await runOnce(engine);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'boom_code', message: 'stop' });
 
-        const steps = await store.steps.find(runId);
+        const steps = await store.stepService.find(runId);
 
         expect(steps[0]).toMatchObject({
             kind: 'tool',
@@ -440,7 +440,7 @@ describe('ctx.tools in simple runs', () => {
         await engine.cancel(runId);
         await engine.idle();
 
-        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
 
         gate.resolve();
 
@@ -450,8 +450,8 @@ describe('ctx.tools in simple runs', () => {
 
         expect(errors).toEqual([expect.objectContaining({ code: 'invalid_run_state' }), expect.objectContaining({ code: 'invalid_run_state' })]);
         expect(applied).toEqual([]);
-        expect((await store.runs.find({ parentRunId: runId })).data).toEqual([]);
-        expect(await store.steps.find(runId)).toEqual([]);
+        expect((await store.runService.find({ parentRunId: runId })).data).toEqual([]);
+        expect(await store.stepService.find(runId)).toEqual([]);
 
         await engine.stop();
     });
@@ -497,16 +497,16 @@ describe('ctx.tools in simple runs', () => {
         await new Promise((resolve) => {
             setImmediate(resolve);
         });
-        expect((await store.runs.findOne(runId))?.status).toBe('running');
+        expect((await store.runService.findOne(runId))?.status).toBe('running');
 
         gate.resolve();
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
 
         await engine.approve(runId, { approvalId: '0:run:0', approved: true });
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toEqual({ written: 'written', approved: true });
@@ -536,7 +536,7 @@ describe('ctx.tools in simple runs', () => {
             },
         });
         const runId = await runOnce(engine);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'boom_code', message: 'stop' });

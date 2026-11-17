@@ -7,9 +7,7 @@
 
 import { z } from 'zod';
 import {
-    Engine,
     approve,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
@@ -42,6 +40,7 @@ import {
     E2E_TOKEN,
 } from './constants.ts';
 import { createDemoModel } from './model.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 /** A 1x1 PNG, the release preview the `release` agent shows on its option. */
 const PREVIEW_PNG = 'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mNk+M9QDwADhgGAWjR9awAAAABJRU5ErkJggg==';
@@ -90,10 +89,7 @@ function createDemoConnection() {
 
 const connection = createDemoConnection();
 
-const store = createMemoryStore();
-
-const engine = new Engine({
-    store,
+const engine = createTestEngine({
     agents: [
         defineModelAgent({
             name: 'deploy',
@@ -163,9 +159,9 @@ const engine = new Engine({
     claimTtlMs: 3000,
 });
 
-await store.state.set('digest', 'last_digest_at', '2026-10-21T06:00:12.481Z');
-await store.state.set('digest', 'recipients', ['#maintainers']);
-await store.state.upsertDocument('digest', 'sent', '2026-10-21', { issues: 14, channel: '#maintainers' });
+await engine.stateService.set('digest', 'last_digest_at', '2026-10-21T06:00:12.481Z');
+await engine.stateService.set('digest', 'recipients', ['#maintainers']);
+await engine.stateService.upsertDocument('digest', 'sent', '2026-10-21', { issues: 14, channel: '#maintainers' });
 
 const app = createHttpApp({
     engine,
@@ -195,9 +191,9 @@ const app = createHttpApp({
             path: `/ui/ext/${E2E_PAGE_SLUG}`,
             root: fileURLToPath(new URL('dist/app', import.meta.url)),
             config: (apiBase) => ({
-                apiBase, 
-                uiBase: `${apiBase}/ui`, 
-                auth: { tokens: true }, 
+                apiBase,
+                uiBase: `${apiBase}/ui`,
+                auth: { tokens: true },
             }),
             csp: (config) => buildCsp(config as StaticCspConfig),
         }),

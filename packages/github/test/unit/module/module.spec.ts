@@ -233,7 +233,7 @@ describe('githubModule', () => {
         expect(harness.container.resolveAll(AppToken.CHANNELS).map((channel) => channel.name)).toEqual(['github-ent']);
     });
 
-    it('uses the app store lock for persistent comments and forwards the slot', async () => {
+    it('uses the app lock service for persistent comments and forwards the slot', async () => {
         const fixture = createFakeGithub({
             appId: '1',
             slug: 'chamvi-test',
@@ -262,9 +262,9 @@ describe('githubModule', () => {
 
         harnesses.push(harness);
 
-        const store = harness.container.resolve(AppToken.STORE);
+        const locks = harness.container.resolve(AppToken.LOCK_SERVICE);
         // A busy slot is asked again with backoff (on the app's clock) until the send's timeout.
-        const acquire = vi.spyOn(store.locks, 'acquire').mockResolvedValueOnce(false);
+        const acquire = vi.spyOn(locks, 'acquire').mockResolvedValueOnce(false);
         const [channel] = harness.container.resolveAll(AppToken.CHANNELS);
         const message = {
             kind: 'message' as const,

@@ -9,7 +9,7 @@ import type { ChannelContext, IEngine } from '@chamvi/core';
 import type { CronChannelErrorContext } from '../channel/types.ts';
 
 export type SchedulerOptions = {
-    /** Its agents' subscriptions of `channel` are scheduled; its store holds the tick locks. */
+    /** Its agents' subscriptions of `channel` are scheduled; its lock service holds the tick locks. */
     engine: IEngine;
     /** The cron channel's name: only subscriptions naming it are scheduled. */
     channel: string;

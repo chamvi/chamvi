@@ -13,9 +13,7 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
@@ -25,6 +23,7 @@ import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/model.ts';
 import type { MockResponse } from '../../utils/model.ts';
 import { createFakeProvider } from '../../utils/provider.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 const engines: IEngine[] = [];
 
@@ -38,7 +37,6 @@ afterEach(() => {
 
 function setup(script: MockResponse[], tools: AgentDefinition['tools']) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
     const provider = createFakeProvider({ clock });
     const manager = createWorkspaceManager({
         provider,
@@ -47,8 +45,7 @@ function setup(script: MockResponse[], tools: AgentDefinition['tools']) {
     });
     const model = mockModel(script);
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: [defineModelAgent({
             name: 'coder',
             instructions: 'You code.',
@@ -66,7 +63,6 @@ function setup(script: MockResponse[], tools: AgentDefinition['tools']) {
 
     return {
         engine,
-        store,
         provider,
         manager,
         model,
@@ -74,7 +70,7 @@ function setup(script: MockResponse[], tools: AgentDefinition['tools']) {
     };
 }
 
-async function run(engine: IEngine, store: ReturnType<typeof createMemoryStore>) {
+async function run(engine: IEngine) {
     const { runId } = await engine.dispatch({
         agent: 'coder',
         trigger: 'http',
@@ -84,7 +80,7 @@ async function run(engine: IEngine, store: ReturnType<typeof createMemoryStore>)
 
     await engine.idle();
 
-    return { runId, run: await store.runs.findOne(runId) };
+    return { runId, run: await engine.runService.findOne(runId) };
 }
 
 const text = (t: string): MockResponse => ({ parts: [{ type: 'text', text: t }] });
@@ -100,7 +96,6 @@ describe('sandbox context', () => {
     it('the tools factory offers the injected manager\'s tools', async () => {
         const {
             engine,
-            store,
             provider,
             manager,
         } = setup([call('create_workspace'), text('done')], (ctx) => injectSandboxContext(ctx).tools());
@@ -108,7 +103,7 @@ describe('sandbox context', () => {
         provideSandboxContext(engine, manager);
         await engine.start();
 
-        const { runId, run: done } = await run(engine, store);
+        const { runId, run: done } = await run(engine);
 
         expect(done?.status).toBe('completed');
         expect(provider.created).toHaveLength(1);
@@ -127,13 +122,12 @@ describe('sandbox context', () => {
         });
         const {
             engine,
-            store,
             manager,
         } = setup([call('use'), text('done')], { use });
 
         provideSandboxContext(engine, manager);
         await engine.start();
-        expect((await run(engine, store)).run?.status).toBe('completed');
+        expect((await run(engine)).run?.status).toBe('completed');
         expect(seen).toHaveLength(1);
         expect(seen[0]).toBe(manager);
     });
@@ -141,14 +135,13 @@ describe('sandbox context', () => {
     it('without provide the run fails naming sandbox', async () => {
         const {
             engine,
-            store,
             model,
             errors,
         } = setup([text('done')], (ctx) => injectSandboxContext(ctx).tools());
 
         await engine.start();
 
-        const { run: failed } = await run(engine, store);
+        const { run: failed } = await run(engine);
 
         expect(failed?.status).toBe('failed');
         expect(failed?.error?.code).toBe('context_not_provided');

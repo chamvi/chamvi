@@ -6,10 +6,9 @@
  */
 
 import { fileURLToPath } from 'node:url';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import { createHttpApp, staticTokens } from '@chamvi/http';
 import type { HttpAppOptions } from '@chamvi/http';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import type { App } from 'routup';
 
 export const FIXTURE_BUILD = fileURLToPath(new URL('../fixtures/build/', import.meta.url));
@@ -23,8 +22,7 @@ export function createUiTestApp(options: Partial<Omit<HttpAppOptions, 'engine' |
     clock: ControllableClock;
 } {
     const clock = new ControllableClock(new Date(1_000_000));
-    const engine = new Engine({
-        store: createMemoryStore({ clock }),
+    const engine = createTestEngine({
         agents: [],
         clock,
         onError: () => {},

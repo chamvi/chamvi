@@ -13,18 +13,17 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     approve,
-    createMemoryStore,
     defineEffectTool,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type { ModelAgentDefinition, ToolContext } from '@chamvi/core';
+import type { Engine, ModelAgentDefinition, ToolContext } from '@chamvi/core';
 import { wrapToolsForRun } from '../../../src/effect/wrap.ts';
 import { gateOutbound } from '../../../src/trust/module.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: Engine[] = [];
 const call = (toolName: string, input = {}) => ({
@@ -48,9 +47,9 @@ afterEach(async () => {
 });
 
 function setup(definition: Omit<ModelAgentDefinition, 'name' | 'instructions'>) {
-    const store = createMemoryStore();
-    const engine = new Engine({
-        store,
+    const store = createTestServices();
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
@@ -111,8 +110,8 @@ it.each(['plain', 'effect', 'reconciliation', 'generator', 'iterable factory'] a
 
         await engine.start();
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
-        expect((await store.runs.findOne(runId))?.taint?.source).toBe('tool:read');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.taint?.source).toBe('tool:read');
         expect(classify).toHaveBeenCalledTimes(1);
         expect(send).not.toHaveBeenCalled();
     },
@@ -166,8 +165,8 @@ it.each(['plain', 'effect', 'reconciliation', 'generator', 'iterable factory'] a
 
         await engine.start();
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
-        expect((await store.runs.findOne(runId))?.taint?.source).toBe('tool:read');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.taint?.source).toBe('tool:read');
         expect(classify).toHaveBeenCalledTimes(1);
         expect(send).not.toHaveBeenCalled();
     },
@@ -187,14 +186,14 @@ it.each(['guardWhenTainted', 'taint'] as const)('refuses an unbound %s tool befo
             signal: new AbortController().signal,
         },
     } as ToolContext;
-    const store = createMemoryStore();
+    const store = createTestServices();
     const tools = wrapToolsForRun({
         classified: defineTool({
             inputSchema: z.object({}),
             trust: { [flag]: true },
             execute,
         }),
-    }, context, store.effects);
+    }, context, store.effectService);
 
     await expect(tools.classified!.execute!({}, {
         toolCallId: 'classified',
@@ -235,7 +234,7 @@ it('keeps the execution trust identity when a tool replaces public ToolContext.r
 
     await engine.start();
     await engine.idle();
-    expect((await store.runs.findOne(runId))?.taint).toBeDefined();
+    expect((await store.runService.findOne(runId))?.taint).toBeDefined();
     expect(send).not.toHaveBeenCalled();
 });
 
@@ -269,19 +268,19 @@ it('replays an ordinary approval after parallel taint adds an automatic gate on 
     await engine.start();
     await engine.idle();
 
-    const manual = approvalWait(await store.runs.findOne(runId))!;
+    const manual = approvalWait(await store.runService.findOne(runId))!;
 
     expect(manual.title).toBe('Manual send approval');
     expect(manual.approvalId).toBe('0:send:0');
     await engine.approve(runId, { approvalId: manual.approvalId, approved: true });
     await engine.idle();
 
-    const automatic = approvalWait(await store.runs.findOne(runId))!;
+    const automatic = approvalWait(await store.runService.findOne(runId))!;
 
     expect(automatic.approvalId).toMatch(/^bound:/);
     expect(send).not.toHaveBeenCalled();
     await engine.approve(runId, { approvalId: automatic.approvalId, approved: true });
     await engine.idle();
-    expect((await store.runs.findOne(runId))?.status).toBe('completed');
+    expect((await store.runService.findOne(runId))?.status).toBe('completed');
     expect(send).toHaveBeenCalledTimes(1);
 });

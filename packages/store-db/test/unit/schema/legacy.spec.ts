@@ -7,8 +7,9 @@
 
 import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
-import { migrateStore } from '../../../src/schema/index.ts';
+import { STORE_MIGRATIONS, migrateStore } from '../../../src/schema/index.ts';
 import { assertStoreNotLegacy } from '../../../src/schema/legacy.ts';
+import { LegacySchemaError } from '../../../src/error/index.ts';
 import type { TestDataSourceOptions } from '../../utils/database.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 
@@ -50,6 +51,7 @@ describePostgres('legacy schema refusal', () => {
         await ds.query('CREATE TABLE "chamvi_runs" ("id" varchar PRIMARY KEY)');
 
         await expect(assertStoreNotLegacy(ds)).rejects.toMatchObject({ code: 'store_legacy_schema', message: MESSAGE });
+        await expect(assertStoreNotLegacy(ds)).rejects.toBeInstanceOf(LegacySchemaError);
         await expect(migrateStore(ds)).rejects.toMatchObject({ code: 'store_legacy_schema' });
     });
 
@@ -111,13 +113,13 @@ describePostgres('legacy schema refusal', () => {
         await recordMigration(ds, 'CreateUsers1700000000000');
 
         await expect(assertStoreNotLegacy(ds)).resolves.toBeUndefined();
-        await expect(migrateStore(ds)).resolves.toBeUndefined();
+        await expect(migrateStore(ds)).resolves.toEqual(STORE_MIGRATIONS.map((migration) => migration.name));
     });
 
     it('accepts a database with the baseline applied', async () => {
         const ds = await create(true);
 
         await expect(assertStoreNotLegacy(ds)).resolves.toBeUndefined();
-        await expect(migrateStore(ds)).resolves.toBeUndefined();
+        await expect(migrateStore(ds)).resolves.toEqual([]);
     });
 });

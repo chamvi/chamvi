@@ -31,16 +31,15 @@ import type {
     ChannelSubscription,
     DispatchInput,
     IEngine,
-    IStore,
-    Run,
-    TriggerParent,
 } from '@chamvi/core';
+import type { Run, TriggerParent } from '@chamvi/store';
 import type { DispatchHost } from '../../../src/dispatch/types.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
+import { createTestServices, servicesOf } from '../../utils/engine.ts';
+import type { TestServiceSet, TestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -116,10 +115,10 @@ function setup(options: {
     tools?: ToolSet;
     maxSubtreeTokens?: number;
     concurrencyMaxRuns?: number;
-    store?: IStore;
+    store?: TestServiceSet;
 }) {
     const clock = new ControllableClock(START);
-    const store = options.store ?? createMemoryStore({ clock });
+    const store = options.store ?? createTestServices({ clock });
     const maintainer = defineModelAgent({
         name: 'maintainer',
         instructions: 'You maintain.',
@@ -129,7 +128,7 @@ function setup(options: {
         ...(options.maxSubtreeTokens !== undefined ? { budget: { maxSubtreeTokens: options.maxSubtreeTokens } } : {}),
     });
     const engine = new HostEngine({
-        store,
+        ...servicesOf(store),
         clock,
         agents: [maintainer],
         channels: [agentChannel()],
@@ -142,8 +141,8 @@ function setup(options: {
     return { engine, store };
 }
 
-async function children(store: IStore): Promise<Run[]> {
-    const { data } = await store.runs.find({ agent: 'maintainer' });
+async function children(store: TestServices): Promise<Run[]> {
+    const { data } = await store.runService.find({ agent: 'maintainer' });
 
     return data.filter((run) => run.trigger.channel === 'agent');
 }
@@ -166,8 +165,8 @@ const childEnvelope = {
     idempotencyKey: 'child-key',
 };
 
-async function toolSteps(store: IStore, runId: string) {
-    return (await store.steps.find(runId)).filter((step) => step.kind === 'tool');
+async function toolSteps(store: TestServices, runId: string) {
+    return (await store.stepService.find(runId)).filter((step) => step.kind === 'tool');
 }
 
 describe('dispatch guards', () => {
@@ -194,18 +193,18 @@ describe('dispatch guards', () => {
 
         const [step] = await toolSteps(store, runId);
         const [child] = await children(store);
-        const parent = (await store.runs.findOne(runId))!;
+        const parent = (await store.runService.findOne(runId))!;
 
         expect(step?.error).toBeUndefined();
         expect(parent.status).toBe('completed');
         expect(child).toMatchObject({
-            concurrencyKey: 'k', 
-            status: 'completed', 
-            parentRunId: runId, 
+            concurrencyKey: 'k',
+            status: 'completed',
+            parentRunId: runId,
         });
         // the key held the child back: it started only after its caller settled
         expect(child!.claim).toBeUndefined();
-        expect((await store.steps.find(child!.id))[0]!.startedAt.getTime()).toBeGreaterThanOrEqual(parent.updatedAt.getTime());
+        expect((await store.stepService.find(child!.id))[0]!.startedAt.getTime()).toBeGreaterThanOrEqual(parent.updatedAt.getTime());
     });
 
     it('refuses to wait on a child that needs the waiting run\'s key', async () => {
@@ -237,7 +236,7 @@ describe('dispatch guards', () => {
             code: 'validation_error',
             message: `Run ${child!.id} needs concurrency key "k" of agent "maintainer", which run ${runId} holds while it waits: the wait could never end.`,
         });
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         // the child still runs once its caller settled
         expect(child!.status).toBe('completed');
     });
@@ -295,7 +294,7 @@ describe('dispatch guards', () => {
             code: 'validation_error',
             message: `Run ${level2.id} needs concurrency key "k" of agent "maintainer", which run ${rootId} holds while it waits: the wait could never end.`,
         });
-        expect((await store.runs.findOne(rootId))?.status).toBe('completed');
+        expect((await store.runService.findOne(rootId))?.status).toBe('completed');
         expect(level2.status).toBe('completed');
     });
 
@@ -329,7 +328,7 @@ describe('dispatch guards', () => {
         const level2 = all.find((r) => r.trigger.payload === 'level-2')!;
         const [waited] = await toolSteps(store, level1.id);
 
-        expect((await store.runs.findOne(rootId))?.status).toBe('completed');
+        expect((await store.runService.findOne(rootId))?.status).toBe('completed');
         expect(waited?.error).toBeUndefined();
         expect(waited?.output).toMatchObject({ runId: level2.id, status: 'completed' });
         expect(level1.status).toBe('completed');
@@ -337,12 +336,12 @@ describe('dispatch guards', () => {
 
     it('returns the outcome when the key-holding child settles while the wait checks it', async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         let cancelOnRead: (() => Promise<unknown>) | undefined;
-        const findOne = store.runs.findOne.bind(store.runs);
+        const findOne = store.runService.findOne.bind(store.runService);
 
         // the first run read after the dispatch (the ancestor read) cancels the queued child first
-        store.runs.findOne = async (id) => {
+        store.runService.findOne = async (id) => {
             const cancel = cancelOnRead;
 
             cancelOnRead = undefined;
@@ -403,7 +402,7 @@ describe('dispatch guards', () => {
             payload: {},
         });
 
-        await store.runs.update(runId, { subtreeUsage: { inputTokens: 600, outputTokens: 400 } });
+        await store.runService.update(runId, { subtreeUsage: { inputTokens: 600, outputTokens: 400 } });
         await engine.start();
         await engine.idle();
 
@@ -414,8 +413,8 @@ describe('dispatch guards', () => {
             message: `Run ${runId} reached its subtree token budget of 1000 tokens.`,
         });
         expect(await children(store)).toHaveLength(0);
-        expect(await store.effects.findOne(`dispatch-count:${runId}:maintainer:default`)).toBeUndefined();
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect(await store.effectService.findOne(`dispatch-count:${runId}:maintainer:default`)).toBeUndefined();
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
     });
 
     it('a subtree under the budget passes', async () => {
@@ -431,7 +430,7 @@ describe('dispatch guards', () => {
             payload: {},
         });
 
-        await store.runs.update(runId, { subtreeUsage: { inputTokens: 600, outputTokens: 399 } });
+        await store.runService.update(runId, { subtreeUsage: { inputTokens: 600, outputTokens: 399 } });
         await engine.start();
         await engine.idle();
 
@@ -467,10 +466,10 @@ describe('dispatch guards', () => {
 
         await engine.idle();
 
-        const paused = await store.runs.findOne(runId);
+        const paused = await store.runService.findOne(runId);
 
         expect(paused?.status).toBe('waiting');
-        await store.runs.update(runId, { subtreeUsage: { inputTokens: 5000, outputTokens: 0 } });
+        await store.runService.update(runId, { subtreeUsage: { inputTokens: 5000, outputTokens: 0 } });
         await engine.approve(runId, { approvalId: approvalWait(paused)!.approvalId, approved: true });
         await engine.idle();
 
@@ -479,7 +478,7 @@ describe('dispatch guards', () => {
 
         expect(all).toHaveLength(1);
         expect(step?.output).toEqual({ runId: all[0]!.id, deduplicated: false });
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
     });
 
     it('refuses a child for a parent that is not running', async () => {
@@ -524,8 +523,8 @@ describe('dispatch guards', () => {
         const waitingId = await dispatchRoot('wait');
 
         await engine.idle();
-        expect((await store.runs.findOne(completedId))?.status).toBe('completed');
-        expect((await store.runs.findOne(waitingId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(completedId))?.status).toBe('completed');
+        expect((await store.runService.findOne(waitingId))?.status).toBe('waiting');
 
         const host = engine.host();
 
@@ -533,33 +532,33 @@ describe('dispatch guards', () => {
             await expect(host.createRun(childEnvelope, parentOf(parentId))).rejects.toThrow(
                 new InvalidRunStateError(`Run "${parentId}" is not running: it cannot dispatch a run.`),
             );
-            expect((await store.runs.find({ parentRunId: parentId })).data).toHaveLength(0);
+            expect((await store.runService.find({ parentRunId: parentId })).data).toHaveLength(0);
         }
 
         // nothing claimed the key: a running parent's dispatch under it creates the child
         const runningId = await dispatchRoot('hold');
 
         await entered.promise;
-        expect((await store.runs.findOne(runningId))?.status).toBe('running');
+        expect((await store.runService.findOne(runningId))?.status).toBe('running');
 
         const created = await host.createRun(childEnvelope, parentOf(runningId));
 
         expect(created.deduplicated).toBe(false);
-        expect((await store.runs.findOne(created.runId))?.parentRunId).toBe(runningId);
+        expect((await store.runService.findOne(created.runId))?.parentRunId).toBe(runningId);
 
         hold.resolve();
         await engine.idle();
     });
 
     it('refuses a dispatch whose execution ended while it was awaiting, without spending a slot', async () => {
-        const store = createMemoryStore({ clock: new ControllableClock(START) });
+        const store = createTestServices({ clock: new ControllableClock(START) });
         const blocked = Promise.withResolvers<void>();
         const reached = Promise.withResolvers<void>();
-        const findOne = store.effects.findOne.bind(store.effects);
+        const findOne = store.effectService.findOne.bind(store.effectService);
         let blocking = true;
 
         // the dispatch's first record lookup waits until the test released it
-        store.effects.findOne = async (key) => {
+        store.effectService.findOne = async (key) => {
             if (blocking && key.includes(':dispatch:')) {
                 blocking = false;
                 reached.resolve();
@@ -604,7 +603,7 @@ describe('dispatch guards', () => {
         await reached.promise;
         await engine.cancel(runId);
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
 
         blocked.resolve();
         await settled.promise;
@@ -638,24 +637,24 @@ describe('dispatch guards', () => {
 
         const all = await children(store);
         const [step] = await toolSteps(store, runId);
-        const waits = (await store.steps.find(runId)).filter((s) => s.kind === 'wait');
+        const waits = (await store.stepService.find(runId)).filter((s) => s.kind === 'wait');
 
         expect(waits).toHaveLength(1);
         expect(all).toHaveLength(1);
         expect(step?.output).toMatchObject({ runId: all[0]!.id, status: 'completed' });
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
     });
 
     it("an ancestor's subtree budget refuses", async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         // dispatches, then puts the root over its budget (one run at a time: the child starts after)
         const seed = defineTool({
             inputSchema: fanInput,
             execute: async (input, { context }) => {
                 const result = await dispatch(context, input as DispatchInput);
 
-                await store.runs.update(context.run.runId, { subtreeUsage: { inputTokens: 1000, outputTokens: 0 } });
+                await store.runService.update(context.run.runId, { subtreeUsage: { inputTokens: 1000, outputTokens: 0 } });
 
                 return result;
             },

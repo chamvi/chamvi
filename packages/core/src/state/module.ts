@@ -5,21 +5,24 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IStateRepository } from '../repository/types.ts';
 import { validate } from './helpers.ts';
+import type { StateService } from './service.ts';
 import type { IAgentState, Infer, StateSchema } from './types.ts';
 
+/** What an agent's state (`createAgentState()`) needs of the state service. */
+type AgentStateService = Pick<StateService, 'findOne' | 'set' | 'findDocuments' | 'upsertDocument' | 'deleteDocument'>;
+
 /**
- * Repository-backed IAgentState scoped to one agent. With a schema, collection
+ * Service-backed IAgentState scoped to one agent. With a schema, collection
  * documents are validated (and stored as the schema's output) on upsert, and
  * only declared collections are writable; without one, nothing is validated.
  */
 export function createAgentState<S extends StateSchema = StateSchema>(
     agent: string,
     schema: S | undefined,
-    store: IStateRepository,
+    state: AgentStateService,
 ): IAgentState<S> {
-    return createGuardedAgentState(agent, schema, store, () => {});
+    return createGuardedAgentState(agent, schema, state, () => {});
 }
 
 /**
@@ -30,19 +33,19 @@ export function createAgentState<S extends StateSchema = StateSchema>(
 export function createGuardedAgentState<S extends StateSchema = StateSchema>(
     agent: string,
     schema: S | undefined,
-    store: IStateRepository,
+    state: AgentStateService,
     assertWritable: (name: string) => void,
 ): IAgentState<S> {
     return {
-        get: async <T = unknown>(key: string) => await store.findOne(agent, key) as T | undefined,
+        get: async <T = unknown>(key: string) => await state.findOne(agent, key) as T | undefined,
         set: async (key, value) => {
             assertWritable('state.set()');
 
-            await store.set(agent, key, value);
+            await state.set(agent, key, value);
         },
         collection: <K extends keyof S & string>(name: K) => ({
             list: async (q?: { where?: Partial<Infer<S[K]>>; limit?: number }) => {
-                const rows = await store.findDocuments(agent, name, {
+                const rows = await state.findDocuments(agent, name, {
                     where: q?.where as Record<string, unknown> | undefined,
                     limit: q?.limit,
                 });
@@ -57,12 +60,12 @@ export function createGuardedAgentState<S extends StateSchema = StateSchema>(
                 // the execution may have ended during an async validation
                 assertWritable(`state.collection("${name}").upsert()`);
 
-                await store.upsertDocument(agent, name, id, value);
+                await state.upsertDocument(agent, name, id, value);
             },
             remove: async (id: string) => {
                 assertWritable(`state.collection("${name}").remove()`);
 
-                await store.deleteDocument(agent, name, id);
+                await state.deleteDocument(agent, name, id);
             },
         }),
     };

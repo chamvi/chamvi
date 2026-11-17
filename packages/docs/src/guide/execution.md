@@ -16,7 +16,7 @@ One execution is one call of an AI SDK `ToolLoopAgent` for one claimed, `running
 
 A `Checkpoint` holds the full message history after a step, the step index and the AI SDK finish reason of that step.
 
-<<< ../../../core/src/run/types.ts{ts}
+<<< ../../../store/src/checkpoint/types.ts{ts}
 
 Checkpoints never hold the bytes of an artifact: a file part keeps a reference (`data: 'chamvi-artifact:<id>'`) and every execution reads the bytes again.
 

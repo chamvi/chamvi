@@ -1,10 +1,12 @@
-import type { Agent, IEngine, IStore } from '@chamvi/core';
-import { Engine } from '@chamvi/core';
+import type { Agent, EngineOptions, IEngine } from '@chamvi/core';
 
-export async function serve(store: IStore, agents: Agent[]) {
+/** Builds the app's engine on the repositories every replica shares (see Database store). */
+type CreateEngine = (options: Pick<EngineOptions, 'agents' | 'channels' | 'onError'>) => IEngine;
+
+export async function serve(createEngine: CreateEngine, agents: Agent[]) {
     // #region shutdown
-    const engine = new Engine({
-        store,
+    // your engine on the repositories every replica shares (see Database store)
+    const engine = createEngine({
         agents,
         onError: (error, run) => console.error('[agents]', run?.id, error),
     });

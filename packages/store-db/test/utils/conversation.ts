@@ -6,14 +6,19 @@
  */
 
 import type { DataSource } from 'typeorm';
-import type { ConversationScope, ResolvedConversationLimits, Run } from '@chamvi/core';
-import { DatabaseConversationRepository, DatabaseRunRepository } from '@chamvi/store-db';
-import { isUuid } from '../../src/repository/helpers.ts';
+import { ConversationService } from '@chamvi/core';
+import type { IClock } from '@chamvi/core';
+import { EntityConflictError } from '@chamvi/store';
+import type { Run } from '@chamvi/store';
+import { DatabaseConversationRepository } from '../../src/conversation/index.ts';
+import { DatabaseRunRepository } from '../../src/run/index.ts';
 
+/** Store a run of this id if absent: a turn references its run, as the engine creates it first. */
 export async function seedRun(dataSource: DataSource, id: string, overrides: Partial<Run> = {}): Promise<void> {
     const now = new Date('2026-10-28T00:00:00.000Z');
+    const runs = new DatabaseRunRepository(dataSource);
 
-    await new DatabaseRunRepository({ dataSource }).insert({
+    await runs.save(runs.create({
         id,
         agent: 'helper',
         status: 'running',
@@ -29,17 +34,14 @@ export async function seedRun(dataSource: DataSource, id: string, overrides: Par
         createdAt: now,
         updatedAt: now,
         ...overrides,
+    })).catch((error: unknown) => {
+        if (!(error instanceof EntityConflictError)) {
+            throw error;
+        }
     });
 }
 
-/** Valid lifecycle fixtures create the run before its conversation turn, as Engine does. */
-export class SeededConversationRepository extends DatabaseConversationRepository {
-    override async beginTurn(scope: ConversationScope, runId: string, text: string, limits: ResolvedConversationLimits) {
-        // A malformed run id is the case under test: the repository must refuse it, not this fixture.
-        if (isUuid(runId)) {
-            await seedRun(this.dataSource, runId);
-        }
-
-        return super.beginTurn(scope, runId, text, limits);
-    }
+/** The conversation service on the database repositories of the data source. */
+export function conversationServiceOf(dataSource: DataSource, clock: IClock): ConversationService {
+    return new ConversationService({ repository: new DatabaseConversationRepository(dataSource), clock });
 }

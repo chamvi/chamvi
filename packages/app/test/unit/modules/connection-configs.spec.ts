@@ -10,12 +10,10 @@ import {
     InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
-    createMemoryStore,
 } from '@chamvi/core';
 import type {
     IConnectionConfigStore,
     IConnectionTypeProvider,
-    IStore,
 } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
@@ -28,12 +26,13 @@ import {
     AppToken,
     ENV_ENCRYPTION_KEYS,
     configModule,
-    storeModule,
 } from '@chamvi/app';
 import type { Env } from '@chamvi/app';
 import { buildHarness } from '../../utils/harness.ts';
 import type { Harness, HarnessOptions } from '../../utils/harness.ts';
 import { createRecordingLogger } from '../../utils/logger.ts';
+import { createTestStore, storeModuleOf } from '../../utils/store.ts';
+import type { TestStore } from '../../utils/store.ts';
 
 const KEY = randomBytes(32);
 const KEYS = `k1:${KEY.toString('base64')}`;
@@ -49,9 +48,10 @@ afterEach(async () => {
 /** A store shared with the app, as a database is between a start and a job. */
 function createSeeds() {
     const clock = new ControllableClock(new Date('2026-11-09T00:00:00Z'));
-    const store = createMemoryStore({ clock });
+    const store = createTestStore({ clock });
     const seeds = createConnectionConfigStore({
-        store,
+        connectionService: store.connectionService,
+        lockService: store.lockService,
         clock,
         keyring: () => createKeyring([{ id: 'k1', key: KEY }]),
     });
@@ -63,9 +63,9 @@ function createSeeds() {
     };
 }
 
-async function boot(store: IStore, clock: ControllableClock, options: HarnessOptions = {}): Promise<IConnectionConfigStore> {
+async function boot(store: TestStore, clock: ControllableClock, options: HarnessOptions = {}): Promise<IConnectionConfigStore> {
     const harness = buildHarness({
-        modules: [configModule({ clock, logger: createRecordingLogger(clock) }), storeModule({ store })],
+        modules: [configModule({ clock, logger: createRecordingLogger(clock) }), storeModuleOf(store)],
         ...options,
     });
 
@@ -114,7 +114,7 @@ describe('AppToken.CONNECTION_CONFIGS', () => {
 
     it('builds one store per app', async () => {
         const { store, clock } = createSeeds();
-        const harness = buildHarness({ modules: [configModule({ clock, logger: createRecordingLogger(clock) }), storeModule({ store })] });
+        const harness = buildHarness({ modules: [configModule({ clock, logger: createRecordingLogger(clock) }), storeModuleOf(store)] });
 
         harnesses.push(harness);
         await harness.setup();
@@ -135,7 +135,7 @@ describe('AppToken.CONNECTION_CONFIGS', () => {
         const harness = buildHarness({
             modules: [
                 configModule({ clock, logger: createRecordingLogger(clock) }),
-                storeModule({ store: { ...store, connections: undefined } }),
+                storeModuleOf({ ...store, connectionRepository: null }),
             ],
         });
 
@@ -160,7 +160,7 @@ describe('AppToken.CONNECTION_CONFIGS', () => {
                     },
                 },
                 configModule({ clock, logger: createRecordingLogger(clock) }),
-                storeModule({ store }),
+                storeModuleOf(store),
             ],
         });
 

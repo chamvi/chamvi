@@ -9,7 +9,7 @@ import { isPermissionAuthorization, isPermissionBinding } from '@chamvi/access';
 import type { PermissionIdentity } from '@chamvi/access';
 import { isObject } from 'smob';
 import { ValidationError } from '../errors/index.ts';
-import type { Invoker, TriggerEnvelope } from './types.ts';
+import type { Invoker, TriggerEnvelope } from '@chamvi/store';
 
 const isNonEmptyString = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
 
@@ -91,29 +91,4 @@ export function idempotencyScope(envelope: Pick<TriggerEnvelope, 'agent' | 'chan
     }
 
     return `${base}:${encodeURIComponent(invoker.kind)}:${encodeURIComponent(invoker.id)}`;
-}
-
-/**
- * A stored envelope as the current shape: envelopes written before channels
- * hold `source` and `thread`, which fill `channel` and `address` when those
- * are absent. Both legacy keys are dropped; the input is not changed. Repository
- * implementations call it on every envelope they read back.
- */
-export function normalizeEnvelope(raw: Record<string, unknown>): TriggerEnvelope {
-    const {
-        source,
-        thread,
-        ...rest
-    } = raw;
-    const output: Record<string, unknown> = { ...rest };
-
-    if (output.channel === undefined && source !== undefined) {
-        output.channel = source;
-    }
-
-    if (output.address === undefined && thread !== undefined) {
-        output.address = thread;
-    }
-
-    return output as TriggerEnvelope;
 }

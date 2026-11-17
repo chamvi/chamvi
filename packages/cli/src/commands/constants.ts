@@ -41,3 +41,15 @@ export const TSDOWN_PACKAGE = 'tsdown';
 
 /** The codes of a module that does not resolve: `import()` and `require.resolve()`. */
 export const MODULE_NOT_FOUND_CODES: readonly string[] = ['ERR_MODULE_NOT_FOUND', 'MODULE_NOT_FOUND'];
+
+/** The operations of `chamvi migration` (`@chamvi/store-db`'s `MIGRATION_OPERATIONS`, loaded only when the command runs; a spec pins both). */
+export const MIGRATION_OPERATION_NAMES: readonly string[] = ['generate', 'run', 'revert', 'status', 'drift'];
+
+/** `chamvi migration --database store`: chamvi's own store (`@chamvi/store-db`'s `STORE_DATABASE`; a spec pins both). */
+export const STORE_DATABASE_NAME = 'store';
+
+/** The database `run`, `revert`, `status` and `drift` work on, read as chamvi's config reads it. */
+export const DATABASE_URL_VARIABLE = 'DATABASE_URL';
+
+/** `generate` is refused when it is `production`. */
+export const NODE_ENV_VARIABLE = 'NODE_ENV';

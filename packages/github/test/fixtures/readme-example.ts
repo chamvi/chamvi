@@ -1,13 +1,35 @@
 import type { LanguageModel } from 'ai';
 import {
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    EffectService,
     Engine,
+    IdempotencyService,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
     ToolDeniedError,
-    createMemoryStore,
     defineModelAgent,
+    systemClock,
 } from '@chamvi/core';
 import { createGithubApp, github, githubChannel } from '@chamvi/github';
 import type { GithubAppOptions } from '@chamvi/github';
 import { createHttpApp, createShutdown, staticTokens } from '@chamvi/http';
+import {
+    MemoryAgentRevisionRepository,
+    MemoryArtifactRepository,
+    MemoryCheckpointRepository,
+    MemoryEffectRepository,
+    MemoryIdempotencyRepository,
+    MemoryLockRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+    MemoryStateDocumentRepository,
+    MemoryStateRepository,
+    MemoryStepRepository,
+} from '@chamvi/store-memory';
 
 export async function createTriageServer(
     model: LanguageModel,
@@ -30,8 +52,17 @@ export async function createTriageServer(
         webhookSecret: GITHUB_WEBHOOK_SECRET,
         ...options,
     });
-    // deliveries in, issue comments out
-    const channel = githubChannel({ app: gh, clock: options.clock });
+    // runs, steps, checkpoints, effects, artifacts and state in memory, gone with the process: @chamvi/app keeps them in PostgreSQL
+    const registry = new MemoryRegistry();
+    const runs = new MemoryRunRepository({ registry });
+    const locks = new MemoryLockRepository({ registry });
+    const lockService = new LockService({ repository: locks, clock: systemClock });
+    // deliveries in, issue comments out; named comment slots are coordinated through the lock service
+    const channel = githubChannel({
+        app: gh,
+        locks: lockService,
+        clock: options.clock,
+    });
 
     const triage = defineModelAgent({
         name: 'triage',
@@ -62,7 +93,18 @@ export async function createTriageServer(
     });
 
     const engine = new Engine({
-        store: createMemoryStore(),
+        runService: new RunService({ repository: runs, clock: systemClock }),
+        stepService: new StepService({ repository: new MemoryStepRepository({ registry }) }),
+        checkpointService: new CheckpointService({ repository: new MemoryCheckpointRepository({ registry }) }),
+        effectService: new EffectService({ repository: new MemoryEffectRepository({ registry }) }),
+        agentRevisionService: new AgentRevisionService({ repository: new MemoryAgentRevisionRepository({ registry }) }),
+        artifactService: new ArtifactService({ repository: new MemoryArtifactRepository({ registry }) }),
+        stateService: new StateService({
+            repository: new MemoryStateRepository({ registry }),
+            documentRepository: new MemoryStateDocumentRepository({ registry }),
+        }),
+        lockService,
+        idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock: systemClock }),
         agents: [triage],
         channels: [channel],
     });

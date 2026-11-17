@@ -13,12 +13,10 @@ import {
     vi,
 } from 'vitest';
 import {
-    Engine,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import { cron, cronChannel } from '@chamvi/channel-cron';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { buildComponentOptions } from '../../../src/scheduler/helpers.ts';
 import { textModel } from '../../utils/model.ts';
 
@@ -26,7 +24,6 @@ const T = new Date('2026-03-01T08:00:00.000Z');
 
 function setup() {
     const clock = new ControllableClock(T);
-    const store = createMemoryStore({ clock });
     const subscription = cron.on('0 9 * * *', { timezone: 'Europe/Berlin' });
     const agent = defineModelAgent({
         name: 'sweep',
@@ -34,8 +31,7 @@ function setup() {
         instructions: 'x',
         channels: [subscription],
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: [agent],
         channels: [cronChannel()],
         clock,
@@ -50,7 +46,7 @@ function setup() {
     }, agent, subscription);
 
     return {
-        store,
+        storage: engine,
         lock,
         onError,
         options,
@@ -72,11 +68,11 @@ describe('buildComponentOptions', () => {
     });
 
     it('run fires the subscription at the scheduled time', async () => {
-        const { store, options } = setup();
+        const { storage, options } = setup();
 
         await options.run({ scheduledAt: T });
 
-        const { data } = await store.runs.find({ agent: 'sweep' });
+        const { data } = await storage.runService.find({ agent: 'sweep' });
 
         expect(data).toHaveLength(1);
         expect(data[0]?.trigger.channel).toBe('cron');

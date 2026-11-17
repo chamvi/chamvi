@@ -8,17 +8,21 @@
 import { afterEach, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     InvalidAgentDefinitionError,
     approve,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
     outboundApproved,
 } from '@chamvi/core';
-import type { ChannelMessage, IChannel, ToolContext } from '@chamvi/core';
+import type {
+    ChannelMessage,
+    Engine,
+    IChannel,
+    ToolContext,
+} from '@chamvi/core';
 import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: Engine[] = [];
 
@@ -63,9 +67,9 @@ function setup(untrusted: boolean) {
             return 'pushed';
         },
     });
-    const store = createMemoryStore();
-    const engine = new Engine({
-        store,
+    const store = createTestServices();
+    const engine = createTestEngine({
+        services: store,
         channels: [source],
         agents: [defineModelAgent({
             name: 'test',
@@ -106,7 +110,7 @@ function setup(untrusted: boolean) {
 it('carries approvalDetail in the private gate body and tells the tool the gate approved it', async () => {
     const ctx = setup(true);
     const runId = await ctx.dispatch();
-    const gate = await ctx.store.runs.findOne(runId);
+    const gate = await ctx.store.runService.findOne(runId);
 
     expect(gate?.status).toBe('waiting');
     expect(approvalWait(gate)?.approvalId).toMatch(/^bound:/);
@@ -117,7 +121,7 @@ it('carries approvalDetail in the private gate body and tells the tool the gate 
     await ctx.engine.approve(runId, { approvalId: approvalWait(gate)!.approvalId, approved: true });
     await ctx.engine.idle();
 
-    const run = await ctx.store.runs.findOne(runId);
+    const run = await ctx.store.runService.findOne(runId);
 
     // one approval: the tool saw the gate's decision and asked nothing more
     expect(run?.status).toBe('completed');
@@ -127,13 +131,13 @@ it('carries approvalDetail in the private gate body and tells the tool the gate 
 it('binds the gate decision to the detail: a changed detail on replay asks again', async () => {
     const ctx = setup(true);
     const runId = await ctx.dispatch();
-    const first = await ctx.store.runs.findOne(runId);
+    const first = await ctx.store.runService.findOne(runId);
 
     ctx.setDetail('def5678 Something else');
     await ctx.engine.approve(runId, { approvalId: approvalWait(first)!.approvalId, approved: true });
     await ctx.engine.idle();
 
-    const second = await ctx.store.runs.findOne(runId);
+    const second = await ctx.store.runService.findOne(runId);
 
     expect(second?.status).toBe('waiting');
     expect(approvalWait(second)?.approvalId).not.toBe(approvalWait(first)!.approvalId);
@@ -143,7 +147,7 @@ it('binds the gate decision to the detail: a changed detail on replay asks again
 it('answers false without a gate (untainted run), so the tool asks itself', async () => {
     const ctx = setup(false);
     const runId = await ctx.dispatch();
-    const run = await ctx.store.runs.findOne(runId);
+    const run = await ctx.store.runService.findOne(runId);
 
     expect(run?.status).toBe('waiting');
     expect(approvalWait(run)?.title).toBe('Push?');

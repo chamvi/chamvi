@@ -11,10 +11,18 @@ import type { ToolTrust } from '@chamvi/core';
 import { githubChannel } from '@chamvi/github';
 import { createGithubFixture } from '../../utils/app.ts';
 import { toolContext } from '../../utils/tools.ts';
+import { createTestEngine } from '@chamvi/test-kit';
+
+/** The persistent-comment locks every channel of this spec takes. */
+const locks = createTestEngine({ agents: [] }).lockService;
 
 function setup() {
     const { gh } = createGithubFixture();
-    const channel = githubChannel({ app: gh, name: 'project-github' });
+    const channel = githubChannel({
+        app: gh,
+        locks,
+        name: 'project-github',
+    });
     const tools = gh.writeTools();
     const trust = (name: string) => (tools[name] as Tool & { trust: ToolTrust }).trust;
 
@@ -58,9 +66,9 @@ describe('GitHub trust classification', () => {
         }
 
         const comment = (number: number, repo = 'octo/demo') => ({
-            repo, 
-            number, 
-            body: 'reply', 
+            repo,
+            number,
+            body: 'reply',
         });
         const source = toolContext({ channel: 'project-github', address: 'Octo/Demo#5' });
 
@@ -91,21 +99,21 @@ describe('GitHub trust classification', () => {
         // tool code rewriting the trigger must not turn another issue into the source one
         ctx.run.trigger.address = 'octo/demo#6';
         expect(await guardWhenTainted({
-            repo: 'octo/demo', 
-            number: 6, 
-            body: 'elsewhere', 
+            repo: 'octo/demo',
+            number: 6,
+            body: 'elsewhere',
         }, ctx)).toBe(true);
         expect(await guardWhenTainted({
-            repo: 'octo/demo', 
-            number: 5, 
-            body: 'reply', 
+            repo: 'octo/demo',
+            number: 5,
+            body: 'reply',
         }, ctx)).toBe(false);
 
         ctx.run.trigger.channel = 'webhook';
         expect(await guardWhenTainted({
-            repo: 'octo/demo', 
-            number: 5, 
-            body: 'reply', 
+            repo: 'octo/demo',
+            number: 5,
+            body: 'reply',
         }, ctx)).toBe(false);
     });
 });

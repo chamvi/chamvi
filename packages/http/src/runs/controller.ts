@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Artifact } from '@chamvi/core';
+import type { Artifact } from '@chamvi/store';
 import {
     DBody,
     DContext,
@@ -31,7 +31,7 @@ import type {
     ApproveBody,
     ApproveRunView,
     CancelRunView,
-    IRunService,
+    IRunHttpService,
     RunControllerContext,
     RunDetailView,
     RunListView,
@@ -43,7 +43,7 @@ import type {
 @DSecurity([], 'bearer')
 @DController('')
 export class RunController {
-    protected service: IRunService;
+    protected service: IRunHttpService;
 
     constructor(ctx: RunControllerContext) {
         this.service = ctx.service;

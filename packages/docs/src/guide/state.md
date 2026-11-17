@@ -26,7 +26,7 @@ A `tools` factory receives `state`, typed by the declared schema. A tool built w
 
 <<< @/snippets/state.ts#invalid
 
-`createAgentState(agent, schema, store)` builds the same API outside a run, for scripts, admin tasks and tests:
+`createAgentState(agent, schema, stateService)` builds the same API outside a run (`engine.stateService`, or a `StateService` on any state repositories), for scripts, admin tasks and tests:
 
 <<< @/snippets/state.ts#direct
 

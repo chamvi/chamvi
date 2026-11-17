@@ -9,5 +9,6 @@ export * from './config.ts';
 export * from './constants.ts';
 export * from './module.ts';
 export * from './resolve.ts';
+export * from './service.ts';
 export type * from './types.ts';
 export * from './validate.ts';

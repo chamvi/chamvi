@@ -15,22 +15,21 @@ import {
 import { z } from 'zod';
 import {
     ContextNotProvidedError,
-    Engine,
     defineModelAgent,
     defineTool,
     resolveModel,
 } from '@chamvi/core';
 import type {
-    EngineOptions,
     IEngine,
     IModelResolver,
     ModelAgentDefinition,
     ToolContext,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestEngineOptions, TestServiceSet } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -74,17 +73,17 @@ function recordingResolver(models: Record<string, LanguageModel>): IModelResolve
 
 function setup(
     definition: Partial<ModelAgentDefinition>,
-    options: Partial<EngineOptions> = {},
+    options: Partial<TestEngineOptions> = {},
 ) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const agent = defineModelAgent({
         name: 'ops',
         instructions: 'You operate.',
         ...definition,
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [agent],
         clock,
         claimTtlMs: 30,
@@ -97,7 +96,7 @@ function setup(
     return { store, engine };
 }
 
-async function runOn(engine: IEngine, store: ReturnType<typeof createMemoryStore>) {
+async function runOn(engine: IEngine, store: TestServiceSet) {
     await engine.start();
 
     const { runId } = await engine.dispatch({
@@ -110,8 +109,8 @@ async function runOn(engine: IEngine, store: ReturnType<typeof createMemoryStore
     await engine.idle();
 
     return {
-        run: await store.runs.findOne(runId),
-        steps: await store.steps.find(runId),
+        run: await store.runService.findOne(runId),
+        steps: await store.stepService.find(runId),
     };
 }
 

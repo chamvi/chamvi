@@ -23,15 +23,14 @@ import {
     defineModelAgent,
 } from '@chamvi/core';
 import type {
-    EngineOptions,
     IEngine,
-    IStore,
-    Run,
     RunEvent,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';
-import { createMemoryStoreWithRuns } from '../../utils/store.ts';
-import { MemoryRunRepository, createMemoryStore } from '../../../src/repository/index.ts';
+import { createTestEngine, createTestServices, servicesOf } from '../../utils/engine.ts';
+import type { TestEngineOptions, TestServiceSet } from '../../utils/engine.ts';
+import { RunService } from '../../../src/run/index.ts';
 
 const model = {} as LanguageModel;
 const agent = defineModelAgent({
@@ -87,8 +86,8 @@ class GatedEngine extends Engine {
 }
 
 /** Marking a run `running` lands a few ticks late, widening the check-then-start race window. */
-class SlowStartRepository extends MemoryRunRepository {
-    override async update(...args: Parameters<MemoryRunRepository['update']>) {
+class SlowStartService extends RunService {
+    override async update(...args: Parameters<RunService['update']>) {
         if (args[1].status === 'running') {
             for (let i = 0; i < 5; i++) {
                 await flush();
@@ -109,10 +108,10 @@ afterEach(() => {
     engines.length = 0;
 });
 
-function make(opts: Partial<EngineOptions> & { store?: IStore } = {}) {
-    const store = opts.store ?? createMemoryStore();
+function make(opts: Partial<TestEngineOptions> & { store?: TestServiceSet } = {}) {
+    const store = opts.store ?? createTestServices();
     const engine = new GatedEngine({
-        store,
+        ...servicesOf(store),
         agents: [agent],
         onError: () => {},
         ...opts,
@@ -168,7 +167,7 @@ describe('Engine.dispatch', () => {
 
         expect(new Set(results.map((r) => r.runId)).size).toBe(1);
         expect(results.filter((r) => !r.deduplicated)).toHaveLength(1);
-        expect((await store.runs.find({})).total).toBe(1);
+        expect((await store.runService.find({})).total).toBe(1);
     });
 
     it.each(['idempotencyKey', 'concurrencyKey', 'address'])('refuses a %s above TRIGGER_KEY_MAX_LENGTH or with a NUL before any store write', async (key) => {
@@ -178,7 +177,7 @@ describe('Engine.dispatch', () => {
             await expect(engine.dispatch(env({ [key]: value }))).rejects.toBeInstanceOf(ValidationError);
         }
 
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
 
         const { deduplicated } = await engine.dispatch(env({ [key]: 'k'.repeat(TRIGGER_KEY_MAX_LENGTH) }));
 
@@ -192,8 +191,8 @@ describe('Engine.dispatch', () => {
             instructions: 'y',
         });
 
-        expect(() => new Engine({
-            store: createMemoryStore(),
+        expect(() => createTestEngine({
+            services: createTestServices(),
             agents: [agent, other],
         })).toThrow(/"triage" is used more than once/);
     });
@@ -201,22 +200,22 @@ describe('Engine.dispatch', () => {
     it('a redelivery heals an idempotency key whose run was never created', async () => {
         const { engine, store } = make();
 
-        vi.spyOn(store.runs, 'insert').mockRejectedValueOnce(new Error('store down'));
+        vi.spyOn(store.runService, 'create').mockRejectedValueOnce(new Error('store down'));
         await expect(engine.dispatch(env({ idempotencyKey: 'k' }))).rejects.toThrow('store down');
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
 
         const retried = await engine.dispatch(env({ idempotencyKey: 'k' }));
 
         expect(retried.deduplicated).toBe(false);
         expect((await engine.getRun(retried.runId))?.status).toBe('queued');
         expect(await engine.dispatch(env({ idempotencyKey: 'k' }))).toEqual({ runId: retried.runId, deduplicated: true });
-        expect((await store.runs.find({})).total).toBe(1);
+        expect((await store.runService.find({})).total).toBe(1);
     });
 
     it('concurrent healers of a lost run create it once', async () => {
         const { engine, store } = make();
 
-        vi.spyOn(store.runs, 'insert').mockRejectedValueOnce(new Error('store down'));
+        vi.spyOn(store.runService, 'create').mockRejectedValueOnce(new Error('store down'));
         await expect(engine.dispatch(env({ idempotencyKey: 'k' }))).rejects.toThrow('store down');
 
         const results = await Promise.all(
@@ -225,7 +224,7 @@ describe('Engine.dispatch', () => {
 
         expect(new Set(results.map((r) => r.runId)).size).toBe(1);
         expect(results.filter((r) => !r.deduplicated)).toHaveLength(1);
-        expect((await store.runs.find({})).total).toBe(1);
+        expect((await store.runService.find({})).total).toBe(1);
     });
 
     it('dispatch rejects unknown agent', async () => {
@@ -233,7 +232,7 @@ describe('Engine.dispatch', () => {
 
         await expect(engine.dispatch(env({ agent: 'nope' }))).rejects.toThrow(AgentNotFoundError);
         await expect(engine.dispatch(env({ agent: 'nope' }))).rejects.toThrow('unknown agent: nope');
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
     });
 
     it('runs with the same concurrencyKey execute one at a time', async () => {
@@ -269,7 +268,7 @@ describe('Engine.dispatch', () => {
         const { engine, store } = make();
         const other = await engine.dispatch(env({ concurrencyKey: 'c' }));
 
-        await store.runs.update(other.runId, { status: 'waiting' });
+        await store.runService.update(other.runId, { status: 'waiting' });
         await engine.start();
         await engine.dispatch(env({ concurrencyKey: 'c' }));
         await flush();
@@ -318,7 +317,7 @@ describe('Engine.dispatch', () => {
     });
 
     it('same-key runs on two replicas sharing a store never overlap', async () => {
-        const store = createMemoryStoreWithRuns(new SlowStartRepository());
+        const store = createTestServices({ runService: (ctx) => new SlowStartService(ctx) });
         // real timers: the lease must outlive a renewal delayed by a loaded machine,
         // or the other replica recovers the running run and executes it again
         const a = make({
@@ -366,7 +365,7 @@ describe('Engine.dispatch', () => {
 
     it('picks up a run unblocked outside this process once the poll fires', async () => {
         const clock = new ControllableClock(new Date('2026-01-01T00:00:00Z'));
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const { engine } = make({
             store,
             clock,
@@ -375,8 +374,8 @@ describe('Engine.dispatch', () => {
         const blocker = await engine.dispatch(env({ concurrencyKey: 'c' }));
 
         // running on another replica, which holds a live claim (recovery leaves it alone)
-        await store.runs.claim(blocker.runId, 'elsewhere', 60_000);
-        await store.runs.update(blocker.runId, { status: 'running' });
+        await store.runService.claim(blocker.runId, 'elsewhere', 60_000);
+        await store.runService.update(blocker.runId, { status: 'running' });
         await engine.start();
 
         const { runId } = await engine.dispatch(env({ concurrencyKey: 'c' }));
@@ -384,7 +383,7 @@ describe('Engine.dispatch', () => {
         await flush();
         expect(await statusOf(engine, runId)).toBe('queued');
 
-        await store.runs.update(blocker.runId, { status: 'completed' });
+        await store.runService.update(blocker.runId, { status: 'completed' });
         clock.advance(100);
         await vi.waitFor(() => expect(engine.executed).toEqual([runId]));
         await engine.release(runId);
@@ -393,11 +392,11 @@ describe('Engine.dispatch', () => {
     });
 
     it('a store failure inside a pass is reported, not thrown', async () => {
-        const store = createMemoryStore();
+        const store = createTestServices();
         const onError = vi.fn();
         const { engine } = make({ store, onError });
 
-        vi.spyOn(store.runs, 'find').mockRejectedValueOnce(new Error('boom'));
+        vi.spyOn(store.runService, 'find').mockRejectedValueOnce(new Error('boom'));
         await engine.dispatch(env());
         await expect(engine.start()).resolves.toBeUndefined();
         expect(onError.mock.calls[0]?.[0]).toMatchObject({ message: 'boom' });
@@ -422,7 +421,7 @@ describe('Engine.dispatch', () => {
 
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'tool_broke', message: 'nope' });
@@ -446,11 +445,11 @@ describe('Engine.dispatch', () => {
     });
 
     it('a throwing lock release does not strand the run', async () => {
-        const store = createMemoryStore();
+        const store = createTestServices();
         const onError = vi.fn();
         const { engine } = make({ store, onError });
 
-        vi.spyOn(store.locks, 'release').mockRejectedValueOnce(new Error('release failed'));
+        vi.spyOn(store.lockService, 'release').mockRejectedValueOnce(new Error('release failed'));
         await engine.start();
 
         const { runId } = await engine.dispatch(env({ concurrencyKey: 'c' }));
@@ -463,13 +462,13 @@ describe('Engine.dispatch', () => {
 
     it('stop() then start() keeps a single poll chain', async () => {
         const clock = new ControllableClock();
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const { engine } = make({
             store,
             clock,
             claimTtlMs: 300,
         });
-        const list = vi.spyOn(store.runs, 'find');
+        const list = vi.spyOn(store.runService, 'find');
 
         await engine.start();
         // a poll pass is in flight when the engine is restarted
@@ -483,7 +482,7 @@ describe('Engine.dispatch', () => {
         await flush();
 
         // one chain means one approval expiry check, one recovery and one scheduling pass per poll tick (no dispatch role: no cascade heal)
-        const statuses = list.mock.calls.map(([q]) => q.status?.join());
+        const statuses = list.mock.calls.map(([q]) => q?.status?.join());
 
         expect(statuses).toEqual(['waiting', 'running,interrupted', 'queued']);
     });
@@ -524,14 +523,14 @@ describe('dispatch keeps lineage private', () => {
         const { engine, store } = make();
         const { runId } = await engine.dispatch({ ...env(), parent } as never);
 
-        expect((await store.runs.findOne(runId))!.trigger.parent).toBeUndefined();
+        expect((await store.runService.findOne(runId))!.trigger.parent).toBeUndefined();
     });
 
     it("a channel's ctx.dispatch drops a parent", async () => {
         const channel = { name: 'http' };
         const { engine, store } = make({ channels: [channel] });
         const { runId } = await engine.channelContext(channel).dispatch({ ...env(), parent } as never);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run!.trigger.parent).toBeUndefined();
         expect(run!.trigger.channel).toBe('http');
@@ -539,7 +538,7 @@ describe('dispatch keeps lineage private', () => {
 });
 
 /** Holds the next run insert at a gate until released. */
-class GatedInsertRepository extends MemoryRunRepository {
+class GatedInsertService extends RunService {
     gate?: Promise<void>;
 
     entered?: () => void;
@@ -560,13 +559,13 @@ class GatedInsertRepository extends MemoryRunRepository {
         return entered.promise;
     }
 
-    override async insert(...args: Parameters<MemoryRunRepository['insert']>) {
+    override async create(...args: Parameters<RunService['create']>) {
         if (this.gate) {
             this.entered?.();
             await this.gate;
         }
 
-        return super.insert(...args);
+        return super.create(...args);
     }
 }
 
@@ -611,9 +610,9 @@ describe('dispatch with the checked agent', () => {
         instructions: 'other',
     });
 
-    function makeChecked(store: IStore = createMemoryStore(), clock = new ControllableClock(new Date(1_000_000))) {
+    function makeChecked(store: TestServiceSet = createTestServices(), clock = new ControllableClock(new Date(1_000_000))) {
         const engine = new CountingEngine({
-            store,
+            ...servicesOf(store),
             clock,
             agents: [agent],
             onError: () => {},
@@ -634,7 +633,7 @@ describe('dispatch with the checked agent', () => {
 
         expect(deduplicated).toBe(false);
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('queued');
         expect(run?.trigger).not.toHaveProperty('checked');
@@ -643,19 +642,19 @@ describe('dispatch with the checked agent', () => {
 
     it('refuses another object for the name before any store write, so a retry with the key creates the run', async () => {
         const { engine, store } = makeChecked();
-        const claim = vi.spyOn(store.idempotency, 'claim');
+        const claim = vi.spyOn(store.idempotencyService, 'claim');
 
         const error = await engine.dispatch(env({ checked: other(), idempotencyKey: 'k' })).catch((e: unknown) => e);
 
         expect(error).toBeInstanceOf(AgentReplacedError);
         expect((error as AgentReplacedError).code).toBe('agent_replaced');
         expect(claim).not.toHaveBeenCalled();
-        expect((await store.runs.find({})).total).toBe(0);
+        expect((await store.runService.find({})).total).toBe(0);
 
         const retried = await engine.dispatch(env({ checked: agent, idempotencyKey: 'k' }));
 
         expect(retried.deduplicated).toBe(false);
-        expect((await store.runs.findOne(retried.runId))?.status).toBe('queued');
+        expect((await store.runService.findOne(retried.runId))?.status).toBe('queued');
     });
 
     it('checked for an unregistered name stays AgentNotFoundError', async () => {
@@ -670,8 +669,9 @@ describe('dispatch with the checked agent', () => {
     });
 
     it('cancels the run it created when the agent was replaced between entry and insert', async () => {
-        const runs = new GatedInsertRepository();
-        const { engine, store } = makeChecked(createMemoryStoreWithRuns(runs));
+        const gated = createTestServices({ runService: (ctx) => new GatedInsertService(ctx) });
+        const runs = gated.runService as GatedInsertService;
+        const { engine, store } = makeChecked(gated);
         const entered = runs.arm();
         const pending = engine.dispatch(env({ checked: agent }));
 
@@ -680,7 +680,7 @@ describe('dispatch with the checked agent', () => {
         runs.open();
 
         const { runId, deduplicated } = await pending;
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(deduplicated).toBe(false);
         expect(run?.status).toBe('cancelled');
@@ -689,8 +689,9 @@ describe('dispatch with the checked agent', () => {
     });
 
     it('does not cancel a run dispatched without checked when the agent was replaced meanwhile', async () => {
-        const runs = new GatedInsertRepository();
-        const { engine, store } = makeChecked(createMemoryStoreWithRuns(runs));
+        const gated = createTestServices({ runService: (ctx) => new GatedInsertService(ctx) });
+        const runs = gated.runService as GatedInsertService;
+        const { engine, store } = makeChecked(gated);
         const entered = runs.arm();
         const pending = engine.dispatch(env());
 
@@ -700,7 +701,7 @@ describe('dispatch with the checked agent', () => {
 
         const { runId } = await pending;
 
-        expect((await store.runs.findOne(runId))?.status).toBe('queued');
+        expect((await store.runService.findOne(runId))?.status).toBe('queued');
         expect(engine.cancels).toEqual([]);
     });
 
@@ -721,7 +722,7 @@ describe('dispatch with the checked agent', () => {
         expect(engine.getAgent('triage')).toBe(agent);
 
         await expect(engine.dispatch(env({ checked: agent }))).rejects.toBeInstanceOf(AgentReplacedError);
-        expect((await store.runs.find({})).total).toBe(1);
+        expect((await store.runService.find({})).total).toBe(1);
 
         // unchecked dispatches are unaffected
         const { runId: unchecked } = await engine.dispatch(env());
@@ -729,17 +730,18 @@ describe('dispatch with the checked agent', () => {
         sweep.release();
         await replacing;
 
-        expect((await store.runs.findOne(older.runId))?.status).toBe('cancelled');
-        expect((await store.runs.findOne(unchecked))?.status).toBe('queued');
+        expect((await store.runService.findOne(older.runId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(unchecked))?.status).toBe('queued');
     });
 
     it('cancels a checked run inserted while a replacement sweep is in flight', async () => {
-        const runs = new GatedInsertRepository();
+        const gated = createTestServices({ runService: (ctx) => new GatedInsertService(ctx) });
+        const runs = gated.runService as GatedInsertService;
         const {
             engine, 
             store, 
             clock, 
-        } = makeChecked(createMemoryStoreWithRuns(runs));
+        } = makeChecked(gated);
 
         await engine.dispatch(env());
         clock.advance(1);
@@ -756,7 +758,7 @@ describe('dispatch with the checked agent', () => {
         runs.open();
 
         const { runId } = await pending;
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('cancelled');
         expect(run?.error?.code).toBe('agent_replaced');
@@ -769,16 +771,16 @@ describe('dispatch with the checked agent', () => {
         const { engine, store } = makeChecked();
         const first = await engine.dispatch(env({ checked: agent, idempotencyKey: 'k' }));
 
-        await store.runs.update(first.runId, { status: 'completed' });
+        await store.runService.update(first.runId, { status: 'completed' });
 
         const replacement = other();
 
         await engine.putAgent(replacement);
 
-        const claim = store.idempotency.claim.bind(store.idempotency);
+        const claim = store.idempotencyService.claim.bind(store.idempotencyService);
         const later = other();
 
-        vi.spyOn(store.idempotency, 'claim').mockImplementationOnce(async (...args) => {
+        vi.spyOn(store.idempotencyService, 'claim').mockImplementationOnce(async (...args) => {
             await engine.putAgent(later);
 
             return claim(...args);
@@ -787,7 +789,7 @@ describe('dispatch with the checked agent', () => {
         const again = await engine.dispatch(env({ checked: replacement, idempotencyKey: 'k' }));
 
         expect(again).toEqual({ runId: first.runId, deduplicated: true });
-        expect((await store.runs.findOne(first.runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(first.runId))?.status).toBe('completed');
         expect(engine.cancels).toEqual([]);
     });
 });

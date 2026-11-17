@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
 import { customProvider } from 'ai';
 import { MockEmbeddingModelV4 } from 'ai/test';
@@ -19,12 +19,12 @@ import {
     AppToken,
     configModule,
     engineModule,
-    storeModule,
 } from '@chamvi/app';
 import type { AppMode } from '@chamvi/app';
 import { buildHarness } from '../../../utils/harness.ts';
 import type { Harness } from '../../../utils/harness.ts';
 import { createRecordingLogger } from '../../../utils/logger.ts';
+import { createTestStore, storeModuleOf } from '../../../utils/store.ts';
 
 let harnesses: Harness[] = [];
 
@@ -55,7 +55,7 @@ function build(options: { mode?: AppMode; check?: boolean } = {}): Harness {
         },
         modules: [
             configModule({ clock, logger: createRecordingLogger(clock) }),
-            storeModule({ store: createMemoryStore() }),
+            storeModuleOf(createTestStore()),
             engineModule(),
         ],
     });

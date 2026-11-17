@@ -72,6 +72,8 @@
         "@chamvi/channel-cron": "^0.8.0",
         "@chamvi/core": "^0.8.0",
         "@chamvi/http": "^0.8.0",
+        "@chamvi/store": "^0.8.0",
+        "@chamvi/store-memory": "^0.8.0",
         "@chamvi/test-kit": "^0.8.0",
         "@chamvi/ui-kit": "^0.8.0",
         "@ebec/core": "^1.3.2",

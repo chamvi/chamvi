@@ -20,12 +20,11 @@ import {
     InvalidRunStateError,
     createConnectionVault,
     createKeyring,
-    createMemoryStore,
 } from '@chamvi/core';
-import type { IKeyring, IStore } from '@chamvi/core';
+import type { IKeyring } from '@chamvi/core';
 import { createStoreWhatsAppAuth } from '@chamvi/chat-whatsapp';
 import type { WhatsAppAuthLease } from '@chamvi/chat-whatsapp';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { createWhatsAppFixture, settle } from '../../utils/whatsapp.ts';
 
 const keyring: IKeyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
@@ -38,12 +37,15 @@ afterEach(async () => {
 
 function world(ttl = 3000) {
     const clock = new ControllableClock(new Date('2026-11-01T09:00:00Z'));
-    const store: IStore = createMemoryStore({ clock });
+    const storage = createTestEngine({ agents: [], clock });
+    const connections = storage.connectionService!;
+    const { lockService } = storage;
     const provider = (owner: string, holderClock: ControllableClock = clock) => createStoreWhatsAppAuth({
         vault: createConnectionVault({
-            store, 
-            keyring, 
-            clock: holderClock, 
+            connectionService: connections,
+            lockService,
+            keyring,
+            clock: holderClock,
         }),
         connection: 'bot',
         owner,
@@ -52,7 +54,8 @@ function world(ttl = 3000) {
 
     return {
         clock,
-        store,
+        connections,
+        lockService,
         provider,
     };
 }
@@ -67,8 +70,7 @@ async function take(lease: Promise<WhatsAppAuthLease>): Promise<WhatsAppAuthLeas
 
 describe('createStoreWhatsAppAuth', () => {
     it('closes the session when the abort comes during a stalled credentials read', async () => {
-        const { store, provider } = world();
-        const connections = store.connections!;
+        const { connections, provider } = world();
         const findEntries = connections.findEntries.bind(connections);
         const controller = new AbortController();
 
@@ -85,21 +87,25 @@ describe('createStoreWhatsAppAuth', () => {
     });
 
     it('refuses malformed options', () => {
-        const { store } = world();
-        const vault = createConnectionVault({ store, keyring });
+        const { connections, lockService } = world();
+        const vault = createConnectionVault({
+            connectionService: connections,
+            lockService,
+            keyring,
+        });
 
         expect(() => createStoreWhatsAppAuth(undefined as never)).toThrow(InvalidAgentDefinitionError);
         expect(() => createStoreWhatsAppAuth({ vault: {} as never, connection: 'bot' })).toThrow(InvalidAgentDefinitionError);
         expect(() => createStoreWhatsAppAuth({ vault, connection: 'Not A Name' })).toThrow(InvalidAgentDefinitionError);
         expect(() => createStoreWhatsAppAuth({
-            vault, 
-            connection: 'bot', 
-            owner: '', 
+            vault,
+            connection: 'bot',
+            owner: '',
         })).toThrow(InvalidAgentDefinitionError);
     });
 
     it('pairs and persists creds through the connector', async () => {
-        const { store, provider } = world();
+        const { connections, provider } = world();
         const fixture = createWhatsAppFixture({ patch: { auth: provider('a') } });
 
         await fixture.engine.start();
@@ -115,7 +121,7 @@ describe('createStoreWhatsAppAuth', () => {
         expect(fixture.errors).toEqual([]);
 
         // sealed at rest: the stored creds hold no plaintext
-        const stored = await store.connections!.findEntry('bot', 'creds');
+        const stored = await connections.findEntry('bot', 'creds');
 
         expect(stored).toBeInstanceOf(Uint8Array);
         expect(Buffer.from(stored!).toString('utf8')).not.toContain('4900000000000');
@@ -192,7 +198,7 @@ describe('createStoreWhatsAppAuth', () => {
     });
 
     it('a key set with null deletes, in the same batch as the other changes', async () => {
-        const { store, provider } = world();
+        const { connections, provider } = world();
         const lease = await take(provider('a').acquire(new AbortController().signal));
 
         await lease.auth.keys.set({ session: { a: new Uint8Array([1]), b: new Uint8Array([2]) } });
@@ -202,23 +208,27 @@ describe('createStoreWhatsAppAuth', () => {
             b: Buffer.from([2]),
             c: Buffer.from([3]),
         });
-        expect(await store.connections!.findEntry('bot', 'key:session:a')).toBeUndefined();
-        expect(await store.connections!.findEntry('bot', 'key:session:c')).toBeInstanceOf(Uint8Array);
+        expect(await connections.findEntry('bot', 'key:session:a')).toBeUndefined();
+        expect(await connections.findEntry('bot', 'key:session:c')).toBeInstanceOf(Uint8Array);
     });
 
     it('clear removes the session, creds included', async () => {
-        const { store, provider } = world();
+        const { connections, provider } = world();
         const lease = await take(provider('a').acquire(new AbortController().signal));
 
         await lease.saveCreds();
         await lease.auth.keys.set({ session: { a: new Uint8Array([1]) } });
         await lease.auth.keys.clear!();
 
-        expect(await store.connections!.findEntries('bot', ['creds', 'key:session:a'])).toEqual(new Map());
+        expect(await connections.findEntries('bot', ['creds', 'key:session:a'])).toEqual(new Map());
     });
 
     it('a reset acquire recreates the session under a fresh data key, also when no keyring key unwraps it', async () => {
-        const { store, provider } = world();
+        const {
+            connections,
+            lockService,
+            provider,
+        } = world();
         const lease = await provider('a').acquire(new AbortController().signal);
 
         lease.auth.creds = { ...lease.auth.creds, registered: true };
@@ -226,7 +236,11 @@ describe('createStoreWhatsAppAuth', () => {
         await lease.auth.keys.set({ session: { a: new Uint8Array([1]) } });
         await lease.release();
 
-        const rotated = createConnectionVault({ store, keyring: createKeyring([{ id: 'k2', key: randomBytes(32) }]) });
+        const rotated = createConnectionVault({
+            connectionService: connections,
+            lockService,
+            keyring: createKeyring([{ id: 'k2', key: randomBytes(32) }]),
+        });
         const lost = createStoreWhatsAppAuth({ vault: rotated, connection: 'bot' });
 
         await expect(lost.acquire(new AbortController().signal)).rejects.toBeInstanceOf(DecryptionFailedError);
@@ -235,18 +249,18 @@ describe('createStoreWhatsAppAuth', () => {
 
         expect(fresh.auth.creds.registered).toBe(false);
         expect(await fresh.auth.keys.get('session', ['a'])).toEqual({});
-        expect((await store.connections!.findOneOrFail('bot')).keyId).toBe('k2');
-        expect(await store.connections!.findEntries('bot', ['creds', 'key:session:a'])).toEqual(new Map());
+        expect((await connections.findOneOrFail('bot')).keyId).toBe('k2');
+        expect(await connections.findEntries('bot', ['creds', 'key:session:a'])).toEqual(new Map());
     });
 
     it('a reset acquire while the session is held elsewhere deletes nothing', async () => {
-        const { store, provider } = world();
+        const { connections, provider } = world();
         const holder = await take(provider('a').acquire(new AbortController().signal));
 
         await holder.saveCreds();
         await expect(provider('b').acquire(new AbortController().signal, { reset: true }))
             .rejects.toBeInstanceOf(ConnectionHeldError);
-        expect(await store.connections!.findEntry('bot', 'creds')).toBeInstanceOf(Uint8Array);
+        expect(await connections.findEntry('bot', 'creds')).toBeInstanceOf(Uint8Array);
     });
 
     it('saveCreds persists the creds object the lease holds now', async () => {

@@ -7,12 +7,10 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import {
     createHttpApp,
     http,
@@ -30,7 +28,6 @@ import { SseReader } from '../../utils/sse.ts';
 
 function setup() {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
     const agents = [
         defineModelAgent({
             name: 'echo',
@@ -47,13 +44,12 @@ function setup() {
     ];
     const hooks = webhookChannel({ auth: testAuth });
     const options = {
-        store,
         agents,
         clock,
         channels: [httpChannel(), hooks],
         onError: () => {},
     };
-    const engine = new Engine(options);
+    const engine = createTestEngine(options);
     // only the engine knows the store, the agents and the clock
     const app = createHttpApp({
         engine,
@@ -66,7 +62,6 @@ function setup() {
     return {
         app,
         engine,
-        store,
         clock,
         options,
     };
@@ -102,6 +97,7 @@ describe('createHttpApp over the engine', () => {
     it('polls the stream on the engine\'s clock', async () => {
         const {
             app,
+            engine,
             clock,
             options,
         } = setup();
@@ -112,7 +108,11 @@ describe('createHttpApp over the engine', () => {
         await reader.next(1);
 
         // another replica runs it: only the store poll sees the change
-        const other = new Engine({ ...options, owner: 'replica-b' });
+        const other = createTestEngine({
+            ...options,
+            replicaOf: engine,
+            owner: 'replica-b',
+        });
 
         await other.start();
         await other.idle();

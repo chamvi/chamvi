@@ -6,8 +6,8 @@
  */
 
 import type { IClock } from '../../clock/index.ts';
-import type { Run } from '../../run/types.ts';
-import type { IStore } from '../../repository/types.ts';
+import type { Run } from '@chamvi/store';
+import type { RunService } from '../../run/service.ts';
 import type { CancelReason } from '../registry/types.ts';
 
 /** What resume() records and appends: the effect the resumed call reads, and the `wait` step. */
@@ -21,7 +21,7 @@ export type ResumeStep = {
 
 /** What the dispatch-wait operations need from the engine. */
 export type DispatchEngineContext = {
-    store: Pick<IStore, 'runs'>;
+    runService: RunService;
     clock: IClock;
     /** How long past an expired wait a requested cancel may take to land before the run reads `timeout`. */
     claimTtlMs: number;

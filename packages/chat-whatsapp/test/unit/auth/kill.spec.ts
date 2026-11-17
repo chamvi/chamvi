@@ -13,14 +13,18 @@ import { DataSource } from 'typeorm';
 import { afterAll, expect, it } from 'vitest';
 import {
     ConnectionHeldError,
+    ConnectionService,
+    LockService,
     createConnectionVault,
     createKeyring,
     parseKeyring,
+    systemClock,
 } from '@chamvi/core';
 import {
+    DatabaseConnectionRepository,
+    DatabaseLockRepository,
     STORE_ENTITIES,
     STORE_MIGRATIONS,
-    createDatabaseStore,
     migrateStore,
 } from '@chamvi/store-db';
 import { createStoreWhatsAppAuth } from '@chamvi/chat-whatsapp';
@@ -113,9 +117,12 @@ describePostgres('a holder killed with SIGKILL mid-stream', () => {
 
         expect(lastCommitted).toBeGreaterThanOrEqual(49);
 
-        const store = createDatabaseStore({ dataSource });
         const auth = createStoreWhatsAppAuth({
-            vault: createConnectionVault({ store, keyring: createKeyring(parseKeyring(keyringValue)) }),
+            vault: createConnectionVault({
+                connectionService: new ConnectionService({ repository: new DatabaseConnectionRepository(dataSource), clock: systemClock }),
+                lockService: new LockService({ repository: new DatabaseLockRepository(dataSource), clock: systemClock }),
+                keyring: createKeyring(parseKeyring(keyringValue)),
+            }),
             connection: 'bot',
             owner: 'successor',
             leaseTtlMs: TTL_MS,

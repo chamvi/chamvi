@@ -7,5 +7,11 @@
 
 export { EFFECT } from './constants.ts';
 export * from './define.ts';
-export type { EffectTool, WrapToolsOptions } from './types.ts';
+export * from './service.ts';
+export type {
+    EffectResult,
+    EffectServiceContext,
+    EffectTool,
+    WrapToolsOptions,
+} from './types.ts';
 export * from './wrap.ts';

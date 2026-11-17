@@ -7,20 +7,7 @@
 
 import type { ToolCallFrame } from '../effect/types.ts';
 import type { ApprovalRequest } from '../engine/execute/types.ts';
-import type { Invoker } from '../trigger/types.ts';
-
-/** One choice of an approval request; `detail` is shown in the UI only (e.g. a diff). */
-export type ApprovalOption = {
-    id: string;
-    label: string;
-    detail?: string;
-    /**
-     * Ids of this run's artifacts to show with the option (e.g. from
-     * `ctx.artifacts.put()`), at most APPROVAL_ARTIFACTS_PER_OPTION_MAX,
-     * unique. Not part of channel messages.
-     */
-    artifacts?: string[];
-};
+import type { ApprovalOption, Invoker } from '@chamvi/store';
 
 /** What a tool asks the owner to approve (`approve()`, `ChannelHandle.approve()`). */
 export type ApprovalRequestInput = {

@@ -13,7 +13,8 @@ import {
     it,
 } from 'vitest';
 import { InvalidAgentDefinitionError, defineModelAgent, defineTool } from '@chamvi/core';
-import type { IEngine, Run } from '@chamvi/core';
+import type { IEngine } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { cron, cronChannel, fireCronSubscription } from '@chamvi/channel-cron';
 import { DISCORD_API_URL } from '@chamvi/chat-discord';
 import { mockModel } from '@chamvi/test-kit';

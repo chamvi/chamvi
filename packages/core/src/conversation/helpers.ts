@@ -9,15 +9,47 @@ import { isObject } from 'smob';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { CONVERSATION_LIMITS_MAX, DEFAULT_CONVERSATION_LIMITS } from './constants.ts';
 import { assertConversationScope, identityId } from './persistence/module.ts';
+import type { ConversationLimits, ConversationNoteResult, ResolvedConversationLimits  } from './types.ts';
 import type {
     ConversationItem,
-    ConversationLimits,
+    ConversationItemRecord,
     ConversationNote,
+    ConversationNoteRecord,
+    ConversationOperationRecord,
+    ConversationRecord,
     ConversationScope,
-    ResolvedConversationLimits,
-} from './types.ts';
+} from '@chamvi/store';
 
 const LIMIT_KEYS = Object.keys(DEFAULT_CONVERSATION_LIMITS) as (keyof ResolvedConversationLimits)[];
+
+/**
+ * Orders strings by Unicode code point, like Postgres `COLLATE "C"` on
+ * UTF-8 (`<` compares UTF-16 code units, which puts an astral character
+ * such as U+1F600 before U+FFFD).
+ */
+export function compareCodePoints(a: string, b: string): number {
+    const left = a[Symbol.iterator]();
+    const right = b[Symbol.iterator]();
+
+    for (;;) {
+        const l = left.next();
+        const r = right.next();
+
+        if (l.done || r.done) {
+            if (l.done && r.done) {
+                return 0;
+            }
+
+            return l.done ? -1 : 1;
+        }
+
+        const diff = l.value.codePointAt(0)! - r.value.codePointAt(0)!;
+
+        if (diff !== 0) {
+            return diff;
+        }
+    }
+}
 
 /**
  * The limits with every default applied; a value that is no positive safe
@@ -86,4 +118,82 @@ export function isNoteActive(note: ConversationNote, now: Date): boolean {
 /** A persisted emit receipt must describe the recorded source target, not just share a custom key. */
 export function matchesEmitReceipt(result: unknown, target: ConversationItem['target']): boolean {
     return target !== undefined && isObject(result) && result.channel === target.channel && result.address === target.address;
+}
+
+/** The scope of a conversation row: a copy. */
+export function readScope(record: ConversationRecord): ConversationScope {
+    return {
+        id: record.id,
+        generation: record.generation,
+        identity: {
+            agent: record.identity.agent,
+            channel: record.identity.channel,
+            account: record.identity.account,
+            chat: record.identity.chat,
+            audience: record.identity.audience,
+        },
+    };
+}
+
+/** The transcript item of a stored item: a copy without the storage fields, absent values left out. */
+export function readItem(record: ConversationItemRecord): ConversationItem {
+    const item: ConversationItem = {
+        id: record.key,
+        role: record.role,
+        text: record.text,
+        runId: record.runId,
+        createdAt: new Date(record.createdAt.getTime()),
+        status: record.status,
+    };
+
+    if (record.effectKey !== undefined) {
+        item.effectKey = record.effectKey;
+    }
+
+    if (record.target !== undefined) {
+        item.target = { channel: record.target.channel, address: record.target.address };
+    }
+
+    return item;
+}
+
+/** The note of a stored note: a copy without the storage fields, absent values left out. */
+export function readNote(record: ConversationNoteRecord): ConversationNote {
+    const note: ConversationNote = {
+        key: record.key,
+        text: record.text,
+        createdAt: new Date(record.createdAt.getTime()),
+        updatedAt: new Date(record.updatedAt.getTime()),
+        source: {
+            runId: record.source.runId,
+            toolCallId: record.source.toolCallId,
+            stepIndex: record.source.stepIndex,
+        },
+    };
+
+    if (record.expiresAt !== undefined) {
+        note.expiresAt = new Date(record.expiresAt.getTime());
+    }
+
+    return note;
+}
+
+/** The result a recorded note operation answers a replay with: metadata only. */
+export function resultOf(record: ConversationOperationRecord): ConversationNoteResult {
+    return record.kind === 'set' ?
+        {
+            kind: 'set',
+            key: record.key,
+            updatedAt: new Date(record.createdAt.getTime()),
+        } :
+        {
+            kind: 'remove',
+            key: record.key,
+            removed: record.removed === true,
+        };
+}
+
+/** Notes by key in code-point order. */
+export function compareNotes(a: ConversationNote, b: ConversationNote): number {
+    return compareCodePoints(a.key, b.key);
 }

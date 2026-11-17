@@ -16,7 +16,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     InvalidRunStateError,
     agent,
     agentChannel,
@@ -36,10 +35,11 @@ import type {
     ToolContext,
 } from '@chamvi/core';
 import { currentToolCall } from '../../../src/effect/frame.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const ctx = { run: { runId: 'r1' } } as unknown as ToolContext;
 const schema = z.object({});
@@ -71,7 +71,7 @@ describe('tool-call frame', () => {
             },
         });
         const effect = defineEffectTool({ inputSchema: schema, execute: async () => currentToolCall() });
-        const tools = wrapToolsForRun({ plain, effect }, ctx, createMemoryStore().effects);
+        const tools = wrapToolsForRun({ plain, effect }, ctx, createTestServices().effectService);
 
         expect(await call(tools, 'plain', 'c1')).toMatchObject({
             runId: 'r1',
@@ -97,7 +97,7 @@ describe('tool-call frame', () => {
                 yield currentToolCall()?.toolCallId;
             },
         });
-        const tools = wrapToolsForRun({ stream }, ctx, createMemoryStore().effects);
+        const tools = wrapToolsForRun({ stream }, ctx, createTestServices().effectService);
 
         expect(await call(tools, 'stream', 'c3')).toEqual(['c3', 'c3']);
     });
@@ -141,7 +141,7 @@ function detachedWork() {
 
 function setupEngine(tools: ToolSet, responses: MockResponse[], hooks?: AgentHooks, budget?: { timeoutMs?: number }) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const sent: ChannelMessage[] = [];
     const slack: IChannel = {
         name: 'slack',
@@ -149,8 +149,8 @@ function setupEngine(tools: ToolSet, responses: MockResponse[], hooks?: AgentHoo
             sent.push(message);
         },
     };
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [defineModelAgent({
             name: 'ops',
@@ -202,13 +202,13 @@ describe('detached work after a model tool call returned', () => {
             },
         });
         const {
-            engine, 
-            store, 
-            sent, 
+            engine,
+            store,
+            sent,
         } = setupEngine({ leave }, [turn(callOf('leave')), text('done')]);
         const runId = await runOnce(engine);
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
 
         const [outcome] = await work.release();
 
@@ -231,9 +231,9 @@ describe('detached work after a model tool call returned', () => {
         const [outcome] = await work.release();
 
         expect(outcome).toBeInstanceOf(InvalidRunStateError);
-        expect((await store.runs.find({ parentRunId: runId })).data).toHaveLength(0);
+        expect((await store.runService.find({ parentRunId: runId })).data).toHaveLength(0);
 
-        const claim = await store.idempotency.claim('ops:agent', 'dispatch:default:late', 'probe', 1000);
+        const claim = await store.idempotencyService.claim('ops:agent', 'dispatch:default:late', 'probe', 1000);
 
         expect(claim.created).toBe(true);
     });
@@ -253,7 +253,7 @@ describe('detached work after a model tool call returned', () => {
         const [outcome] = await work.release();
 
         expect(outcome).toBeInstanceOf(InvalidRunStateError);
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
     });
 
     it('refuses extract() from work a tool left after returning', async () => {
@@ -269,7 +269,7 @@ describe('detached work after a model tool call returned', () => {
         const { engine, store } = setupEngine({ leave }, [turn(callOf('leave')), text('done')]);
         const runId = await runOnce(engine);
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
 
         const [outcome] = await work.release();
 
@@ -280,7 +280,7 @@ describe('detached work after a model tool call returned', () => {
     it('refuses detached work while the run is still executing', async () => {
         const work = detachedWork();
         const seen: { outcome?: unknown; status?: string } = {};
-        let stored: ReturnType<typeof createMemoryStore> | undefined;
+        let stored: TestServiceSet | undefined;
         const leave = defineTool({
             inputSchema: schema,
             execute: async (_input, { context }) => {
@@ -293,15 +293,15 @@ describe('detached work after a model tool call returned', () => {
             inputSchema: schema,
             execute: async (_input, { context }) => {
                 [seen.outcome] = await work.release();
-                seen.status = (await stored!.runs.findOne(context.run.runId))?.status;
+                seen.status = (await stored!.runService.findOne(context.run.runId))?.status;
 
                 return 'ok';
             },
         });
         const {
-            engine, 
-            store, 
-            sent, 
+            engine,
+            store,
+            sent,
         } = setupEngine({ leave, later }, [turn(callOf('leave')), turn(callOf('later')), text('done')]);
 
         stored = store;
@@ -311,7 +311,7 @@ describe('detached work after a model tool call returned', () => {
         expect(seen.status).toBe('running');
         expect(seen.outcome).toBeInstanceOf(InvalidRunStateError);
         expect(sent).toHaveLength(0);
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
     });
 
     it("keeps a streaming tool's frame active until iteration ends", async () => {
@@ -329,13 +329,13 @@ describe('detached work after a model tool call returned', () => {
             },
         });
         const {
-            engine, 
-            store, 
-            sent, 
+            engine,
+            store,
+            sent,
         } = setupEngine({ stream }, [turn(callOf('stream')), text('done')]);
         const runId = await runOnce(engine);
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(sent.map((m) => (m as { body?: string }).body)).toEqual(['first', 'second']);
 
         const [outcome] = await work.release();
@@ -360,17 +360,17 @@ describe('detached work after a model tool call returned', () => {
             },
         });
         const {
-            engine, 
-            store, 
-            sent, 
+            engine,
+            store,
+            sent,
         } = setupEngine({ notify }, [
             turn(callOf('notify', {}, 'a'), callOf('notify', {}, 'b')),
             text('done'),
         ]);
         const runId = await runOnce(engine);
-        const steps = (await store.steps.find(runId)).filter((step) => step.kind === 'tool');
+        const steps = (await store.stepService.find(runId)).filter((step) => step.kind === 'tool');
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(applied).toBe(1);
         expect(sent).toHaveLength(1);
         expect(steps.map((step) => step.output)).toEqual(['sent', 'sent']);
@@ -388,18 +388,18 @@ describe('detached work after a model tool call returned', () => {
             execute: async () => 'sent',
         });
         const {
-            engine, 
-            store, 
-            sent, 
+            engine,
+            store,
+            sent,
         } = setupEngine({ notify }, [turn(callOf('notify')), text('done')], {
             afterToolExecution: async (_call, ctx) => {
                 await ctx.channels.findOneOrFail('slack').emit({ body: 'after' }, 'C1');
             },
         });
         const runId = await runOnce(engine);
-        const [step] = (await store.steps.find(runId)).filter((s) => s.kind === 'tool');
+        const [step] = (await store.stepService.find(runId)).filter((s) => s.kind === 'tool');
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(step?.output).toBe('sent');
         expect(sent.map((m) => (m as { body?: string }).body)).toEqual(['reconcile', 'after']);
     });
@@ -463,8 +463,8 @@ describe('detached work after a model tool call returned', () => {
 
         await hung.started;
         clock.advance(2000);
-        await vi.waitFor(async () => expect((await store.runs.findOne(runId))?.status).toBe('failed'));
-        expect((await store.runs.findOne(runId))?.error?.code).toBe('Timeout');
+        await vi.waitFor(async () => expect((await store.runService.findOne(runId))?.status).toBe('failed'));
+        expect((await store.runService.findOne(runId))?.error?.code).toBe('Timeout');
 
         expect(await hung.release()).toBeInstanceOf(InvalidRunStateError);
         expect(sent).toHaveLength(0);
@@ -473,15 +473,15 @@ describe('detached work after a model tool call returned', () => {
     it('refuses emit() from a call still running after its run was cancelled', async () => {
         const hung = hungEmitter();
         const {
-            engine, 
-            store, 
-            sent, 
+            engine,
+            store,
+            sent,
         } = setupEngine({ hang: hung.hang }, [turn(callOf('hang')), text('done')]);
         const runId = await startRun(engine);
 
         await hung.started;
         await engine.cancel(runId);
-        await vi.waitFor(async () => expect((await store.runs.findOne(runId))?.status).toBe('cancelled'));
+        await vi.waitFor(async () => expect((await store.runService.findOne(runId))?.status).toBe('cancelled'));
 
         expect(await hung.release()).toBeInstanceOf(InvalidRunStateError);
         expect(sent).toHaveLength(0);

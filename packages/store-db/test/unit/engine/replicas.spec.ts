@@ -31,10 +31,10 @@ import {
     waitForDispatch,
 } from '@chamvi/core';
 import type { EngineOptions, IEngine } from '@chamvi/core';
-import { createDatabaseStore } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestServices } from '../../utils/store.ts';
 
 const sleep = (ms: number) => new Promise<void>((resolve) => {
     setTimeout(resolve, ms);
@@ -150,7 +150,7 @@ describePostgres('two engines sharing TypeORM store', () => {
         model: LanguageModel,
         opts: Partial<EngineOptions> & { tools?: () => ToolSet } = {},
     ) {
-        const store = createDatabaseStore({ dataSource });
+        const store = createTestServices({ dataSource });
         const errors: unknown[] = [];
         const agent = defineModelAgent({
             name: 'triage',
@@ -159,7 +159,15 @@ describePostgres('two engines sharing TypeORM store', () => {
             tools: opts.tools,
         });
         const engine = new Engine({
-            store,
+            runService: store.runService,
+            stepService: store.stepService,
+            checkpointService: store.checkpointService,
+            effectService: store.effectService,
+            artifactService: store.artifactService,
+            stateService: store.stateService,
+            agentRevisionService: store.agentRevisionService,
+            lockService: store.lockService,
+            idempotencyService: store.idempotencyService,
             agents: [agent],
             // Real time: renewal runs every claimTtlMs / 3, so the lease must
             // survive a delayed renewal on a loaded machine.
@@ -214,20 +222,20 @@ describePostgres('two engines sharing TypeORM store', () => {
 
         await vi.waitFor(() => expect(calls).toHaveLength(2), WAIT);
         await a.engine.drain({ timeoutMs: 50 });
-        expect((await a.store.runs.findOne(runId))?.status).toBe('interrupted');
+        expect((await a.store.runService.findOne(runId))?.status).toBe('interrupted');
 
         await b.engine.start();
         await b.engine.idle();
 
-        const run = await b.store.runs.findOne(runId);
+        const run = await b.store.runService.findOne(runId);
 
         expect(run).toMatchObject({ status: 'completed', output: 'done' });
         expect(run?.claim).toBeUndefined();
         expect(lookup).toHaveBeenCalledTimes(1);
         expect(calls).toHaveLength(3);
-        expect((await b.store.checkpoints.findOne(runId))?.stepIndex).toBe(1);
+        expect((await b.store.checkpointService.findOne(runId))?.stepIndex).toBe(1);
 
-        const steps = await b.store.steps.find(runId);
+        const steps = await b.store.stepService.find(runId);
 
         expect(steps.map((s) => s.kind)).toEqual(['llm', 'tool', 'llm']);
         expect(a.errors).toEqual([]);
@@ -262,25 +270,25 @@ describePostgres('two engines sharing TypeORM store', () => {
 
         // A runs the parent until it waits on the child, and the child until it asks
         await vi.waitFor(async () => {
-            const { data } = await a.store.runs.find({ parentRunId: parentId });
+            const { data } = await a.store.runService.find({ parentRunId: parentId });
 
             childId = data[0]?.id ?? '';
             expect(data[0]?.waiting?.kind).toBe('approval');
-            expect((await a.store.runs.findOne(parentId))?.waiting?.kind).toBe('dispatch');
+            expect((await a.store.runService.findOne(parentId))?.waiting?.kind).toBe('dispatch');
         }, WAIT);
 
-        const waited = await a.store.runs.findOneOrFail(parentId);
+        const waited = await a.store.runService.findOneOrFail(parentId);
 
         // B answers and executes the child; its settle answers the parent
         await b.engine.start();
         await b.engine.approve(childId, { approvalId: '0:k1:0', approved: true });
 
         await vi.waitFor(async () => {
-            expect((await a.store.runs.findOne(parentId))?.status).toBe('completed');
+            expect((await a.store.runService.findOne(parentId))?.status).toBe('completed');
         }, WAIT);
 
-        const child = await b.store.runs.findOne(childId);
-        const steps = await b.store.steps.find(parentId);
+        const child = await b.store.runService.findOne(childId);
+        const steps = await b.store.stepService.find(parentId);
 
         expect(child).toMatchObject({ status: 'completed', output: 'out-a' });
         expect(steps.filter((s) => s.kind === 'wait')).toHaveLength(1);
@@ -293,7 +301,7 @@ describePostgres('two engines sharing TypeORM store', () => {
             status: 'completed',
             output: 'out-a',
         }]);
-        expect((await b.store.runs.findOne(parentId))?.subtreeUsage).toEqual(child?.usage);
+        expect((await b.store.runService.findOne(parentId))?.subtreeUsage).toEqual(child?.usage);
 
         // the child's approval message has nowhere to go (channel agent has no out)
         for (const error of [...a.errors, ...b.errors]) {
@@ -316,10 +324,10 @@ describePostgres('two engines sharing TypeORM store', () => {
 
         expect(results[0].runId).toBe(results[1].runId);
         expect(results.filter((r) => r.deduplicated)).toHaveLength(1);
-        expect((await a.store.runs.find({})).total).toBe(1);
+        expect((await a.store.runService.find({})).total).toBe(1);
 
         await vi.waitFor(async () => {
-            expect((await a.store.runs.findOne(results[0].runId))?.status).toBe('completed');
+            expect((await a.store.runService.findOne(results[0].runId))?.status).toBe('completed');
         }, WAIT);
         expect(a.errors).toEqual([]);
         expect(b.errors).toEqual([]);
@@ -337,22 +345,22 @@ describePostgres('two engines sharing TypeORM store', () => {
         const { runId: run1 } = await a.engine.dispatch({ ...env, concurrencyKey: 'k' });
 
         await vi.waitFor(async () => {
-            expect((await a.store.runs.findOne(run1))?.status).toBe('running');
+            expect((await a.store.runService.findOne(run1))?.status).toBe('running');
         }, WAIT);
 
         const { runId: run2 } = await b.engine.dispatch({ ...env, concurrencyKey: 'k' });
 
         await sleep(500);
-        expect((await b.store.runs.findOne(run2))?.status).toBe('queued');
+        expect((await b.store.runService.findOne(run2))?.status).toBe('queued');
 
         open();
         await vi.waitFor(async () => {
-            expect((await a.store.runs.findOne(run1))?.status).toBe('completed');
-            expect((await a.store.runs.findOne(run2))?.status).toBe('completed');
+            expect((await a.store.runService.findOne(run1))?.status).toBe('completed');
+            expect((await a.store.runService.findOne(run2))?.status).toBe('completed');
         }, WAIT);
 
-        const first = await a.store.runs.findOne(run1);
-        const second = await a.store.runs.findOne(run2);
+        const first = await a.store.runService.findOne(run1);
+        const second = await a.store.runService.findOne(run2);
 
         expect(second!.startedAt!.getTime()).toBeGreaterThanOrEqual(first!.finishedAt!.getTime());
         expect(a.errors).toEqual([]);

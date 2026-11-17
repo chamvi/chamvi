@@ -13,14 +13,12 @@ import {
     vi,
 } from 'vitest';
 import {
-    Engine,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import type { SkillInput } from '@chamvi/core';
 import type { RunJobResult } from '@chamvi/channel-cron';
 import { cron, cronChannel, runJob } from '@chamvi/channel-cron';
-import { ControllableClock, fakeSkillRuntime } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine, fakeSkillRuntime } from '@chamvi/test-kit';
 
 const T = new Date('2026-03-01T08:00:00.000Z');
 const POLL_MS = 1_000;
@@ -40,15 +38,13 @@ function hangingModel() {
 
 function setup(skills?: SkillInput[]) {
     const clock = new ControllableClock(T);
-    const store = createMemoryStore({ clock });
     const agent = defineModelAgent({
         name: 'sweep',
         model: hangingModel(),
         instructions: 'x',
         channels: [cron.on('*/5 * * * *')],
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: [agent],
         channels: [cronChannel()],
         clock,
@@ -57,7 +53,7 @@ function setup(skills?: SkillInput[]) {
 
     return {
         clock,
-        store,
+        storage: engine,
         agent,
         engine,
     };
@@ -79,7 +75,7 @@ async function abortWhileRunning(ctx: ReturnType<typeof setup>) {
     });
 
     await vi.waitFor(async () => {
-        const { data } = await ctx.store.runs.find({ agent: 'sweep' });
+        const { data } = await ctx.storage.runService.find({ agent: 'sweep' });
 
         expect(data[0]?.status).toBe('running');
     });
@@ -116,7 +112,7 @@ describe('runJob with a signal', () => {
         expect(signal.aborted).toBe(true);
         release.resolve();
         await expect(job).resolves.toEqual({ status: 'skipped', exitCode: 0 });
-        expect((await ctx.store.runs.find({ agent: 'sweep' })).data).toEqual([]);
+        expect((await ctx.storage.runService.find({ agent: 'sweep' })).data).toEqual([]);
     });
 
     it('a failed skill preparation rejects before the tick is dispatched, leaving no queued run', async () => {
@@ -128,7 +124,7 @@ describe('runJob with a signal', () => {
         }).input]);
 
         await expect(runJob({ engine: ctx.engine, agent: ctx.agent })).rejects.toBe(failure);
-        expect((await ctx.store.runs.find({ agent: 'sweep' })).data).toEqual([]);
+        expect((await ctx.storage.runService.find({ agent: 'sweep' })).data).toEqual([]);
     });
 
     it('independent verification errors still reject when the caller also cancels', async () => {
@@ -155,7 +151,7 @@ describe('runJob with a signal', () => {
         controller.abort();
         release.resolve();
         await rejection;
-        expect((await ctx.store.runs.find({ agent: 'sweep' })).data).toEqual([]);
+        expect((await ctx.storage.runService.find({ agent: 'sweep' })).data).toEqual([]);
     });
 
     it('returns the stored status after the drain when aborted while waiting', async () => {
@@ -165,7 +161,7 @@ describe('runJob with a signal', () => {
 
         expect(result).toMatchObject({ status: 'interrupted', exitCode: 0 });
 
-        const run = await ctx.store.runs.findOne(result.runId as string);
+        const run = await ctx.storage.runService.findOne(result.runId as string);
 
         expect(run?.status).toBe('interrupted');
     });
@@ -188,7 +184,7 @@ describe('runJob with a signal', () => {
 
     it('fires nothing and never starts the engine for an aborted signal', async () => {
         const ctx = setup();
-        const listRuns = vi.spyOn(ctx.store.runs, 'find');
+        const listRuns = vi.spyOn(ctx.storage.runService, 'find');
         const start = vi.spyOn(ctx.engine, 'start');
         const controller = new AbortController();
 
@@ -205,7 +201,7 @@ describe('runJob with a signal', () => {
         expect(listRuns).not.toHaveBeenCalled();
         listRuns.mockRestore();
 
-        const { total } = await ctx.store.runs.find({});
+        const { total } = await ctx.storage.runService.find({});
 
         expect(total).toBe(0);
     });

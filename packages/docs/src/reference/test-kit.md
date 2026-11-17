@@ -1,6 +1,6 @@
 # @chamvi/test-kit
 
-Test helpers for chamvi: a controllable clock, the repository, knowledge repository and workspace contract suites, mock language and embedding models, a git fixture and an in-process fake GitHub.
+Test helpers for chamvi: a controllable clock, an engine on memory repositories, a data source for an app's database code, the repository port, knowledge repository and workspace contract suites, mock language and embedding models, a git fixture and an in-process fake GitHub. See [Testing](/guide/testing) for how they fit together.
 
 ```bash
 npm install --save-dev @chamvi/test-kit @chamvi/core vitest
@@ -8,19 +8,25 @@ npm install --save-dev @chamvi/test-kit @chamvi/core vitest
 
 `@chamvi/core` and `vitest` are peer dependencies; the workspace contract takes any `IWorkspace` of `@chamvi/sandbox`, typed structurally (`ContractWorkspace`), so the kit does not depend on `@chamvi/sandbox`.
 
-## describeRepositoryContract
+## The repository port suites
 
-```ts
-function describeRepositoryContract(
-    create: (clock: ControllableClock) => IStore | Promise<IStore>,
-): void;
-```
-
-Registers the Vitest suite every `IStore` implementation must pass. `create` is called once per test with a fresh `ControllableClock` and must return a fresh, empty store that uses that clock for every expiry decision.
+The ports of `@chamvi/store` have a suite each, taking `{ name, create() }` (a fresh, empty repository per test): `describeRunRepositoryContract`, `describeStepRepositoryContract`, `describeCheckpointRepositoryContract` (`create` returns `{ runs, checkpoints }`), `describeEffectRepositoryContract`, `describeArtifactRepositoryContract`, `describeStateRepositoryContract` (`create` returns `{ entries, documents }`), `describeLockRepositoryContract`, `describeIdempotencyRepositoryContract`, `describeAgentRevisionRepositoryContract`, `describeConnectionRepositoryContract` (`create` returns `{ repository, locks }`, the lock repository whose rows the connection fence reads; `untilBlocked()` resolves once a statement waits for a row lock) and `describeConversationRepositoryContract` (`create` returns `{ repository, runs, checkpoints }`, the runs and checkpoints a conversation is referenced by; `untilBlocked()` as above).
 
 <<< @/snippets/repository-contract.ts#contract
 
-See [Writing a Repository](/repositories/writing-a-repository) for what the suite covers.
+See [Writing a Repository](/repositories/writing-a-repository) for what the suites cover.
+
+## createTestEngine
+
+`createTestEngine(options)` returns an engine on memory repositories of one registry. Options are `EngineOptions` without the services, plus `clock` (default the system clock), `replicaOf: engine` (a second engine on the same services and clock; another `clock` is refused) and `conversationService: (service) => service`, which wraps the conversation service it built to inject a fault or a recorder. Its `connectionService` is on the same registry, fenced by the engine's `lockService`, and its `conversationService` too (its rows reference the engine's runs).
+
+## createTestDataSource
+
+```ts
+function createTestDataSource(options: TestDataSourceOptions): Promise<DataSource>; // TestDataSourceOptions: { entities, url? }
+```
+
+A TypeORM data source for a spec of an app's [database](/guide/database) code, built as `databaseModule()` builds the app's: SQLite in memory by default, its tables synchronized from `entities` and guarded for concurrent callers as the app's SQLite data source is; with `url`, a new database of its own on that PostgreSQL server (its user may create databases), synchronized too and dropped again by `destroy()`. Each call is a database of its own; the caller destroys it. A `url` that is not `postgres:` or `postgresql:` is refused without echoing it. Nothing is loaded before the first call. `typeorm` and the driver (`better-sqlite3` or `pg`) are optional peer dependencies; `@chamvi/store-db` is in no dependency field of the kit: it is loaded by a variable specifier, through the kit's own resolution first, then from the app's folder, and when neither finds it the error names it as the package to add to the app's devDependencies.
 
 ## describeWorkspaceContract
 
@@ -101,4 +107,4 @@ Time moves only through `advance(ms)`, which fires every timer due within the wi
 
 <<< @/snippets/testing.ts#clock
 
-Pass the same clock to the store and to the engine (`new Engine({ ..., clock })`) to test claim leases, run timeouts and approval expiry without real timers.
+Pass the same clock to the services and to the engine (`createTestEngine({ clock })` does both) to test claim leases, run timeouts and approval expiry without real timers.

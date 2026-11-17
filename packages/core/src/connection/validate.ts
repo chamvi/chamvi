@@ -13,7 +13,8 @@ import {
     CONNECTION_SECRET_FIELD_MAX_LENGTH,
     CONNECTION_TYPE_MAX_LENGTH,
 } from './constants.ts';
-import type { Connection, ConnectionConfigWrite, ConnectionEntryWrite } from './types.ts';
+import type { ConnectionConfigWrite, ConnectionEntryWrite } from './types.ts';
+import type { Connection } from '@chamvi/store';
 
 // well-formed UTF-16: a lone surrogate would be stored as U+FFFD in Postgres and seal to a shared AAD
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' &&

@@ -11,13 +11,11 @@ import { join } from 'node:path';
 import { jsonSchema } from 'ai';
 import { afterEach, expect, it } from 'vitest';
 import {
-    Engine,
-    createMemoryStore,
     defineEffectTool,
     defineModelAgent,
 } from '@chamvi/core';
-import type { IStore } from '@chamvi/core';
-import { mockEmbeddingModel, mockModel } from '@chamvi/test-kit';
+import type { Engine, IEngine } from '@chamvi/core';
+import { createTestEngine, mockEmbeddingModel, mockModel } from '@chamvi/test-kit';
 import type { MockEmbeddingModel } from '@chamvi/test-kit';
 import type {
     IKnowledge,
@@ -58,7 +56,6 @@ const done = { parts: [{ type: 'text' as const, text: 'done' }] };
 type Setup = {
     engine: Engine;
     repository: MemoryKnowledgeRepository;
-    store: IStore;
     model: MockEmbeddingModel;
     writes: () => number;
 };
@@ -77,9 +74,7 @@ async function setup(source: IKnowledgeSource, options: { index?: boolean } = {}
     }
 
     let writes = 0;
-    const store = createMemoryStore();
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: [defineModelAgent({
             name: 'reader',
             instructions: 'Answer from the wiki.',
@@ -110,7 +105,6 @@ async function setup(source: IKnowledgeSource, options: { index?: boolean } = {}
     return {
         engine,
         repository: indexer.repository,
-        store,
         model,
         writes: () => writes,
     };
@@ -129,8 +123,8 @@ async function dispatch(engine: Engine): Promise<string> {
     return runId;
 }
 
-async function searchSteps(store: IStore, runId: string) {
-    return (await store.steps.find(runId)).filter((step) => step.kind === 'tool' && step.name === 'knowledge_search');
+async function searchSteps(engine: IEngine, runId: string) {
+    return (await engine.stepService.find(runId)).filter((step) => step.kind === 'tool' && step.name === 'knowledge_search');
 }
 
 it('leaves the run clean after searching a trusted folder collection', async () => {
@@ -141,17 +135,16 @@ it('leaves the run clean after searching a trusted folder collection', async () 
 
     const {
         engine, 
-        store, 
         writes, 
     } = await setup(folder(dir));
     const runId = await dispatch(engine);
-    const run = await store.runs.findOne(runId);
+    const run = await engine.runService.findOne(runId);
 
     expect(run?.status).toBe('completed');
     expect(run?.taint).toBeUndefined();
     expect(writes()).toBe(1);
 
-    const [step] = await searchSteps(store, runId);
+    const [step] = await searchSteps(engine, runId);
     const output = step?.output as KnowledgeSearchResult;
 
     expect(output.matches[0]).toMatchObject({
@@ -171,12 +164,11 @@ it('taints the run after searching an untrusted collection and gates the next ou
     });
     const {
         engine,
-        store,
         model,
         writes,
     } = await setup(source);
     const runId = await dispatch(engine);
-    const waiting = await store.runs.findOne(runId);
+    const waiting = await engine.runService.findOne(runId);
 
     expect(waiting?.status).toBe('waiting');
     expect(waiting?.taint).toEqual({ at: expect.any(Date), source: 'tool:knowledge_search' });
@@ -188,14 +180,14 @@ it('taints the run after searching an untrusted collection and gates the next ou
     await engine.approve(runId, { approvalId: waiting!.waiting!.id, approved: true });
     await engine.idle();
 
-    const run = await store.runs.findOne(runId);
+    const run = await engine.runService.findOne(runId);
 
     expect(run?.status).toBe('completed');
     expect(writes()).toBe(1);
     // the replay reads the checkpointed search result: no new search
     expect(model.calls.length).toBe(calls);
 
-    const steps = await searchSteps(store, runId);
+    const steps = await searchSteps(engine, runId);
 
     expect(steps).toHaveLength(1);
     expect((steps[0]!.output as KnowledgeSearchResult).matches[0]?.document).toBe('refunds');
@@ -209,17 +201,16 @@ it('leaves the run clean when a trusted declared collection is not indexed yet',
     });
     const {
         engine,
-        store,
         writes,
     } = await setup(source, { index: false });
     const runId = await dispatch(engine);
-    const run = await store.runs.findOne(runId);
+    const run = await engine.runService.findOne(runId);
 
     expect(run?.status).toBe('completed');
     expect(run?.taint).toBeUndefined();
     expect(writes()).toBe(1);
 
-    const [step] = await searchSteps(store, runId);
+    const [step] = await searchSteps(engine, runId);
 
     expect(step?.error).toMatchObject({ message: 'Knowledge collection "wiki" is not ready.' });
 });
@@ -233,7 +224,6 @@ it('answers no passage when the collection turns untrusted while it is searched'
     const {
         engine,
         repository,
-        store,
     } = await setup(source);
     const search = repository.search.bind(repository);
 
@@ -247,8 +237,8 @@ it('answers no passage when the collection turns untrusted while it is searched'
     };
 
     const runId = await dispatch(engine);
-    const run = await store.runs.findOne(runId);
-    const [step] = await searchSteps(store, runId);
+    const run = await engine.runService.findOne(runId);
+    const [step] = await searchSteps(engine, runId);
 
     expect(step?.output).toBeUndefined();
     expect(step?.error).toMatchObject({ message: 'Knowledge collection "wiki" changed while it was searched; search again.' });

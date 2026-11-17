@@ -7,8 +7,8 @@
 
 import { randomUUID } from 'node:crypto';
 import type { Agent } from '../../agent/types.ts';
-import { RunStatus } from '../../run/constants.ts';
-import type { Run } from '../../run/types.ts';
+import { RunStatus } from '@chamvi/store';
+import type { Run } from '@chamvi/store';
 import type { RunQueueOptions } from './types.ts';
 
 function hasCaps(agent: Agent | undefined): boolean {
@@ -30,12 +30,12 @@ export async function admitRun(
     const key = `admission:${run.agent}`;
     const owner = randomUUID();
 
-    if (!await opts.store.locks.acquire(key, owner, opts.claimTtlMs)) {
+    if (!await opts.lockService.acquire(key, owner, opts.claimTtlMs)) {
         return undefined;
     }
 
     try {
-        const candidate = await opts.store.runs.findOne(run.id);
+        const candidate = await opts.runService.findOne(run.id);
 
         if (!candidate || candidate.status !== RunStatus.QUEUED || (mayStart && !mayStart(candidate))) {
             return undefined;
@@ -53,7 +53,7 @@ export async function admitRun(
                 ?.find((subscription) => subscription.id === candidate.trigger.trigger)?.concurrencyMaxRuns;
 
             if (typeof agentCap === 'number' || typeof subscriptionCap === 'number') {
-                const { data: running } = await opts.store.runs.find({ agent: candidate.agent, status: [RunStatus.RUNNING] });
+                const { data: running } = await opts.runService.find({ agent: candidate.agent, status: [RunStatus.RUNNING] });
 
                 if (typeof agentCap === 'number' && running.length >= agentCap) {
                     return undefined;
@@ -72,7 +72,7 @@ export async function admitRun(
         return await start(candidate);
     } finally {
         try {
-            await opts.store.locks.release(key, owner);
+            await opts.lockService.release(key, owner);
         } catch (error) {
             try {
                 opts.onError(error, run);

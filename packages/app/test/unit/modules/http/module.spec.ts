@@ -35,6 +35,7 @@ import {
     storeModule,
 } from '@chamvi/app';
 import type { HttpModuleOptions, ILifecycleHook } from '@chamvi/app';
+import { memoryStoreModule } from '@chamvi/app/testing';
 import { createStoppedError } from '../../../../src/module/helpers.ts';
 import { buildHarness } from '../../../utils/harness.ts';
 import type { Harness } from '../../../utils/harness.ts';
@@ -103,6 +104,7 @@ async function build(options: {
     env?: Record<string, string>;
     modules?: IModule[];
     scheduler?: IModule;
+    store?: IModule;
     http?: HttpModuleOptions;
 } = {}) {
     const port = await freePort();
@@ -118,7 +120,7 @@ async function build(options: {
         agents: options.agents ?? [triage()],
         modules: [
             configModule({ clock, logger }),
-            storeModule(),
+            options.store ?? storeModule(),
             staticTokensModule(),
             engineModule(),
             options.scheduler ?? schedulerModule(),
@@ -257,15 +259,8 @@ describe('httpModule', () => {
 
     it('keeps a store without connections env-only', async () => {
         const { harness, url } = await build({
-            modules: [
-                contributesConfiguration(),
-                hooks({
-                    name: 'no-connections',
-                    engineCreated: (engine: IEngine) => {
-                        delete (engine.store as { connections?: unknown }).connections;
-                    },
-                }),
-            ],
+            store: memoryStoreModule({ connections: false }),
+            modules: [contributesConfiguration()],
         });
 
         await harness.setup();

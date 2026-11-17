@@ -16,13 +16,15 @@ import { assertStoreNotLegacy } from './legacy.ts';
  * The migrations run on the connection that holds the lock, so a call needs
  * one pooled connection.
  *
- * The data source must list STORE_ENTITIES and STORE_MIGRATIONS.
+ * The data source must list STORE_ENTITIES and STORE_MIGRATIONS. Resolves
+ * with the names of the migrations this call ran, in order, decided under
+ * the lock: a call that waited for another one reports only its own.
  */
-export async function migrateStore(dataSource: DataSource): Promise<void> {
+export async function migrateStore(dataSource: DataSource): Promise<string[]> {
     const queryRunner = dataSource.createQueryRunner();
 
     try {
-        await withDatabaseLock(
+        return await withDatabaseLock(
             queryRunner,
             MIGRATION_LOCK_NAME,
             async () => {
@@ -32,7 +34,8 @@ export async function migrateStore(dataSource: DataSource): Promise<void> {
                 const executor = new MigrationExecutor(dataSource, queryRunner);
 
                 executor.transaction = 'each';
-                await executor.executePendingMigrations();
+
+                return (await executor.executePendingMigrations()).map((migration) => migration.name);
             },
         );
     } finally {

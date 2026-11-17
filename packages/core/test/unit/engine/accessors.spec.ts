@@ -7,9 +7,9 @@
 
 import type { LanguageModel } from 'ai';
 import { describe, expect, it } from 'vitest';
-import { Engine, defineModelAgent, systemClock } from '@chamvi/core';
+import { defineModelAgent, systemClock } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const model = {} as LanguageModel;
 const triage = defineModelAgent({
@@ -24,22 +24,25 @@ const digest = defineModelAgent({
 });
 
 describe('engine accessors', () => {
-    it('exposes the store and clock it was built with', () => {
+    it('exposes the services and clock it was built with', () => {
         const clock = new ControllableClock();
-        const store = createMemoryStore({ clock });
-        const engine = new Engine({
-            store,
+        const services = createTestServices({ clock });
+        const engine = createTestEngine({
+            services,
             agents: [triage],
             clock,
         });
 
-        expect(engine.store).toBe(store);
+        for (const name of Object.keys(services) as (keyof typeof services)[]) {
+            expect(engine[name], name).toBe(services[name]);
+        }
+
         expect(engine.clock).toBe(clock);
     });
 
     it('defaults the clock to systemClock', () => {
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
+            services: createTestServices(),
             agents: [],
         });
 
@@ -47,8 +50,8 @@ describe('engine accessors', () => {
     });
 
     it('lists its agents in registration order', () => {
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
+            services: createTestServices(),
             agents: [triage, digest],
         });
 
@@ -57,8 +60,8 @@ describe('engine accessors', () => {
     });
 
     it('returns a fresh array from listAgents', () => {
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
+            services: createTestServices(),
             agents: [triage],
         });
         const agents = engine.listAgents();
@@ -69,8 +72,8 @@ describe('engine accessors', () => {
     });
 
     it('looks an agent up by name', () => {
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
+            services: createTestServices(),
             agents: [triage, digest],
         });
 

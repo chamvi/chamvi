@@ -7,10 +7,10 @@
 
 import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
-import { createDatabaseStore } from '@chamvi/store-db';
 import { testUuid } from '@chamvi/test-kit';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 import { seedRun } from '../../utils/conversation.ts';
+import { createTestServices } from '../../utils/store.ts';
 
 describePostgres('conversation audit binding persistence', () => {
     let dataSource: DataSource;
@@ -23,7 +23,7 @@ describePostgres('conversation audit binding persistence', () => {
     it('round trips Run binding and real Checkpoint provenance', async () => {
         dataSource = await createTestDataSource();
 
-        const store = createDatabaseStore({ dataSource });
+        const store = createTestServices({ dataSource });
         const now = new Date();
         const identity = {
             agent: 'helper',
@@ -32,11 +32,11 @@ describePostgres('conversation audit binding persistence', () => {
             chat: 'opaque-é',
             audience: 'direct',
         };
-        const resolved = await store.conversations.resolve(identity);
+        const resolved = await store.conversationService.resolve(identity);
         const scope = { ...resolved, generation: 7 };
         const conversation = { scope, text: 'accepted unicode 🐈' };
 
-        await store.runs.insert({
+        await store.runService.create({
             id: testUuid('run'),
             agent: 'helper',
             status: 'queued',
@@ -53,33 +53,33 @@ describePostgres('conversation audit binding persistence', () => {
             createdAt: now,
             updatedAt: now,
         });
-        expect((await store.runs.findOne(testUuid('run')))?.conversation).toEqual(conversation);
+        expect((await store.runService.findOne(testUuid('run')))?.conversation).toEqual(conversation);
 
         const provenance = {
             scopeId: scope.id,
             generation: scope.generation,
         };
 
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             runId: testUuid('run'),
             stepIndex: 0,
             messages: [],
             createdAt: now,
             conversation: provenance,
         });
-        expect((await store.checkpoints.findOne(testUuid('run')))?.conversation).toEqual(provenance);
-        await store.runs.update(testUuid('run'), { conversation: undefined });
-        expect(await store.runs.findOne(testUuid('run'))).not.toHaveProperty('conversation');
+        expect((await store.checkpointService.findOne(testUuid('run')))?.conversation).toEqual(provenance);
+        await store.runService.update(testUuid('run'), { conversation: undefined });
+        expect(await store.runService.findOne(testUuid('run'))).not.toHaveProperty('conversation');
     });
 
     it('updates and clears checkpoint provenance only when replacing the latest checkpoint', async () => {
         dataSource = await createTestDataSource();
 
-        const store = createDatabaseStore({ dataSource });
+        const store = createTestServices({ dataSource });
 
         await seedRun(dataSource, testUuid('run'));
 
-        const scope = await store.conversations.resolve({
+        const scope = await store.conversationService.resolve({
             agent: 'helper',
             channel: 'chat',
             account: 'main',
@@ -93,28 +93,28 @@ describePostgres('conversation audit binding persistence', () => {
             createdAt: new Date(),
         };
 
-        await store.checkpoints.save(checkpoint);
+        await store.checkpointService.save(checkpoint);
 
         const conversation = { scopeId: scope.id, generation: 1 };
 
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             ...checkpoint,
             stepIndex: 1,
             conversation,
         });
-        expect((await store.checkpoints.findOne(testUuid('run')))?.conversation).toEqual(conversation);
+        expect((await store.checkpointService.findOne(testUuid('run')))?.conversation).toEqual(conversation);
 
         const replaced = { ...conversation, generation: 2 };
 
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             ...checkpoint,
             stepIndex: 1,
             conversation: replaced,
         });
-        expect((await store.checkpoints.findOne(testUuid('run')))?.conversation).toEqual(replaced);
-        await store.checkpoints.save(checkpoint);
-        expect((await store.checkpoints.findOne(testUuid('run')))?.conversation).toEqual(replaced);
-        await store.checkpoints.save({ ...checkpoint, stepIndex: 2 });
-        expect(await store.checkpoints.findOne(testUuid('run'))).not.toHaveProperty('conversation');
+        expect((await store.checkpointService.findOne(testUuid('run')))?.conversation).toEqual(replaced);
+        await store.checkpointService.save(checkpoint);
+        expect((await store.checkpointService.findOne(testUuid('run')))?.conversation).toEqual(replaced);
+        await store.checkpointService.save({ ...checkpoint, stepIndex: 2 });
+        expect(await store.checkpointService.findOne(testUuid('run'))).not.toHaveProperty('conversation');
     });
 });

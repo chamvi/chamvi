@@ -5,17 +5,26 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConversationSnapshot, IConversations } from '../../conversation/types.ts';
+import type { IConversations } from '../../conversation/types.ts';
+import type {
+    ApprovalOption,
+    ConversationSnapshot,
+    Run,
+    Step,
+    Usage,
+} from '@chamvi/store';
 import type { ToolSet } from 'ai';
 import type { Agent } from '../../agent/types.ts';
-import type { ApprovalOption } from '../../approval/types.ts';
 import type { IClock } from '../../clock/index.ts';
 import type { ContextKey } from '../../context/types.ts';
 import type { ToolCallFrame } from '../../effect/types.ts';
 import type { IModelResolver, ModelRef } from '../../model/types.ts';
-import type { Run, Step, Usage } from '../../run/types.ts';
 import type { SkillContribution } from '../../skill/types.ts';
-import type { IStore } from '../../repository/types.ts';
+import type { ArtifactService } from '../../artifact/service.ts';
+import type { CheckpointService } from '../../checkpoint/service.ts';
+import type { EffectService } from '../../effect/service.ts';
+import type { StateService } from '../../state/service.ts';
+import type { StepService } from '../../step/service.ts';
 import type { ToolContext } from '../../tool/types.ts';
 import type { IEngine, RunDelta } from '../types.ts';
 
@@ -58,7 +67,11 @@ export type ExecuteContext = {
     model: ModelRef | undefined;
     /** Resolves a string model at execution start; without one a string goes to the AI SDK as is. */
     models?: IModelResolver;
-    store: Pick<IStore, 'steps' | 'checkpoints' | 'effects' | 'state' | 'artifacts'>;
+    stepService: StepService;
+    checkpointService: CheckpointService;
+    effectService: EffectService;
+    artifactService: ArtifactService;
+    stateService: StateService;
     clock: IClock;
     /** Aborted by engine.cancel(). */
     signal: AbortSignal;

@@ -7,9 +7,8 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import { httpChannel } from '@chamvi/http';
-import { mockModel } from '@chamvi/test-kit';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 import type { MailSearchResult } from '@chamvi/tool-mail';
 import { createInboxAgent } from '../fixtures/readme-example.ts';
 import { createFakeImap } from '../utils/imap.ts';
@@ -55,8 +54,7 @@ describe('README example', () => {
             port: imap.port,
             security: 'plain',
         });
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
             agents: [agent],
             channels: [httpChannel()],
         });
@@ -73,7 +71,7 @@ describe('README example', () => {
         await engine.idle();
 
         const run = await engine.getRun(runId);
-        const steps = await engine.store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
         const search = steps.find((step) => step.kind === 'tool' && step.name === 'mail_search');
 
         engine.stop();

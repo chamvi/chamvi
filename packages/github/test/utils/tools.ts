@@ -6,12 +6,12 @@
  */
 
 import type { ModelMessage, ToolSet } from 'ai';
-import { createAgentState, createMemoryStore } from '@chamvi/core';
-import type {
-    IRunArtifacts,
-    ToolContext,
-    TriggerEnvelope,
+import {
+    createAgentState,
 } from '@chamvi/core';
+import type { IRunArtifacts, ToolContext } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
+import type { TriggerEnvelope } from '@chamvi/store';
 import { bindTrust } from '../../../core/src/trust/module.ts';
 import { START } from './app.ts';
 
@@ -68,7 +68,7 @@ export function toolContext(input: ToolContextInput = {}): ToolContext {
             trigger,
             signal: input.signal ?? new AbortController().signal,
         },
-        state: createAgentState('triage', undefined, createMemoryStore().state),
+        state: createAgentState('triage', undefined, createTestEngine({ agents: [] }).stateService),
         artifacts: NO_ARTIFACTS,
     };
 

@@ -2,7 +2,7 @@
     "name": "@chamvi/cli",
     "version": "0.8.0",
     "type": "module",
-    "description": "The chamvi command line: dev, build, start, run-job and migrate for an app built with @chamvi/app.",
+    "description": "The chamvi command line: dev, build, start, run-job, migrate and migration for an app built with @chamvi/app.",
     "author": {
         "name": "Peter Placzek",
         "email": "contact@tada5hi.net",
@@ -61,6 +61,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
+        "@chamvi/store-db": "^0.8.0",
         "@oxc-project/runtime": "^0.157.0",
         "citty": "^0.2.2"
     },
@@ -70,6 +71,7 @@
         "@chamvi/test-kit": "^0.8.0",
         "@routup/decorators": "^5.1.0",
         "@swc/core": "^1.16.22",
+        "@testcontainers/postgresql": "^12.2.1",
         "ai": "^7.0.165",
         "reflect-metadata": "^0.2.2",
         "tsdown": "^0.23.7",

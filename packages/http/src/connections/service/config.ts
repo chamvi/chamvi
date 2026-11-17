@@ -286,7 +286,7 @@ export class ConnectionConfigService implements IConnectionConfigService {
      */
     protected async repairBareRow(name: string, type: string, update: ConnectionConfigUpdate): Promise<void> {
         const configs = this.requireConfigs();
-        const row = await this.ctx.store.connections?.findOne(name);
+        const row = await this.ctx.connectionService?.findOne(name);
         const stored = await configs.describe(name);
 
         if (row?.type !== type || stored?.revision !== 0) {

@@ -89,7 +89,7 @@ export async function fireCronSubscription(ctx: CronTickContext): Promise<CronTi
         return { dispatched: false, reason: 'channel' };
     }
 
-    if (await isOverlapping(engine.store.runs, agent.name, subscription.id, options.overlap)) {
+    if (await isOverlapping(engine.runService, agent.name, subscription.id, options.overlap)) {
         return { dispatched: false, reason: 'overlap' };
     }
 

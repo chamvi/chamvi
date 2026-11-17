@@ -6,10 +6,12 @@
  */
 
 import type { Agent, IClock, IKeyring } from '@chamvi/core';
+import type { MemoryRegistry } from '@chamvi/store-memory';
 import type { IContainer } from 'eldin';
 import type { Application, IModule } from 'orkos';
 import type { Env } from '../env/types.ts';
 import type { AppContext, AppMode } from '../module/types.ts';
+import type { MemoryStoreAggregates } from '../modules/repository/types.ts';
 
 export type ModuleHarnessReport = { error: unknown; context?: Record<string, unknown> };
 
@@ -47,4 +49,9 @@ export type ModuleHarness = {
     setup(): Promise<void>;
     /** Aborts the context signal (app_stopped) and tears every module down. */
     stop(): Promise<void>;
+};
+
+export type MemoryStoreModuleOptions = MemoryStoreAggregates & {
+    /** Where the memory repositories keep their rows (default: a new registry). */
+    registry?: MemoryRegistry;
 };

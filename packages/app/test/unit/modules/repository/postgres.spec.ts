@@ -9,8 +9,36 @@ import { randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 import type { AddressInfo, Socket } from 'node:net';
 import { inspect } from 'node:util';
-import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { DatabaseRunRepository, STORE_ENTITIES, STORE_MIGRATIONS } from '@chamvi/store-db';
+import {
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    ConnectionService,
+    ConversationService,
+    EffectService,
+    IdempotencyService,
+    InvalidAgentDefinitionError,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
+} from '@chamvi/core';
+import {
+    DatabaseAgentRevisionRepository,
+    DatabaseArtifactRepository,
+    DatabaseCheckpointRepository,
+    DatabaseConnectionRepository,
+    DatabaseConversationRepository,
+    DatabaseEffectRepository,
+    DatabaseIdempotencyRepository,
+    DatabaseLockRepository,
+    DatabaseRunRepository,
+    DatabaseStateDocumentRepository,
+    DatabaseStateRepository,
+    DatabaseStepRepository,
+    STORE_ENTITIES,
+    STORE_MIGRATIONS,
+} from '@chamvi/store-db';
 import { ControllableClock } from '@chamvi/test-kit';
 import { DataSource, QueryFailedError } from 'typeorm';
 import {
@@ -113,7 +141,7 @@ describe('storeModule on a database URL', () => {
         expect(inspect(error, { depth: 5 })).not.toContain('sekr3t');
         expect(logger.lines.join('\n')).not.toContain('sekr3t');
         expect(inspect(harness.reported, { depth: 5 })).not.toContain('sekr3t');
-        expect(harness.container.has(AppToken.STORE)).toBe(false);
+        expect(harness.container.has(AppToken.RUN_REPOSITORY)).toBe(false);
     });
 
     it('an unreachable DATABASE_URL fails a check too', async () => {
@@ -152,7 +180,7 @@ describe('storeModule on a database URL', () => {
 
             await expect(harness.setup()).rejects.toBeInstanceOf(Error);
             expect(Date.now() - began).toBeLessThan(5_000);
-            expect(harness.container.has(AppToken.STORE)).toBe(false);
+            expect(harness.container.has(AppToken.RUN_REPOSITORY)).toBe(false);
         } finally {
             sockets.forEach((socket) => socket.destroy());
             await new Promise((resolve) => {
@@ -171,7 +199,7 @@ describe('storeModule on a database URL', () => {
         const { harness } = build({ store: { dataSource } });
 
         await expect(harness.setup()).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
-        expect(harness.container.has(AppToken.STORE)).toBe(false);
+        expect(harness.container.has(AppToken.RUN_REPOSITORY)).toBe(false);
     });
 
     it('stop during migrate: an aborted context initializes nothing', async () => {
@@ -181,7 +209,7 @@ describe('storeModule on a database URL', () => {
 
         await expect(harness.setup()).rejects.toMatchObject({ code: APP_ERROR_CODE.STOPPED });
         expect(harness.container.has(AppToken.DATA_SOURCE)).toBe(false);
-        expect(harness.container.has(AppToken.STORE)).toBe(false);
+        expect(harness.container.has(AppToken.RUN_REPOSITORY)).toBe(false);
     });
 });
 
@@ -195,10 +223,51 @@ describePostgres('storeModule on Postgres', () => {
         const dataSource = harness.container.resolve(AppToken.DATA_SOURCE);
 
         expect(await tableExists(dataSource, 'chamvi_runs')).toBe(true);
-        expect(harness.container.resolve(AppToken.STORE).runs).toBeInstanceOf(DatabaseRunRepository);
+        expect(harness.container.resolve(AppToken.RUN_REPOSITORY)).toBeInstanceOf(DatabaseRunRepository);
+        expect(harness.container.resolve(AppToken.STORE_KIND)).toBe('database');
 
         await harness.stop();
         expect(dataSource.isInitialized).toBe(false);
+    });
+
+    it('each repository and service resolves on PostgreSQL', async () => {
+        const url = await createTestDatabaseUrl();
+        const { harness } = build({ env: { DATABASE_URL: url } });
+
+        await harness.setup();
+
+        const { container } = harness;
+
+        expect(container.resolve(AppToken.STORE_KIND)).toBe('database');
+        expect(container.resolve(AppToken.RUN_REPOSITORY)).toBeInstanceOf(DatabaseRunRepository);
+        expect(container.resolve(AppToken.STEP_REPOSITORY)).toBeInstanceOf(DatabaseStepRepository);
+        expect(container.resolve(AppToken.CHECKPOINT_REPOSITORY)).toBeInstanceOf(DatabaseCheckpointRepository);
+        expect(container.resolve(AppToken.EFFECT_REPOSITORY)).toBeInstanceOf(DatabaseEffectRepository);
+        expect(container.resolve(AppToken.ARTIFACT_REPOSITORY)).toBeInstanceOf(DatabaseArtifactRepository);
+        expect(container.resolve(AppToken.STATE_REPOSITORY)).toBeInstanceOf(DatabaseStateRepository);
+        expect(container.resolve(AppToken.STATE_DOCUMENT_REPOSITORY)).toBeInstanceOf(DatabaseStateDocumentRepository);
+        expect(container.resolve(AppToken.LOCK_REPOSITORY)).toBeInstanceOf(DatabaseLockRepository);
+        expect(container.resolve(AppToken.IDEMPOTENCY_REPOSITORY)).toBeInstanceOf(DatabaseIdempotencyRepository);
+        expect(container.resolve(AppToken.AGENT_REVISION_REPOSITORY)).toBeInstanceOf(DatabaseAgentRevisionRepository);
+        expect(container.resolve(AppToken.CONNECTION_REPOSITORY)).toBeInstanceOf(DatabaseConnectionRepository);
+        expect(container.resolve(AppToken.CONVERSATION_REPOSITORY)).toBeInstanceOf(DatabaseConversationRepository);
+
+        expect(container.resolve(AppToken.RUN_SERVICE)).toBeInstanceOf(RunService);
+        expect(container.resolve(AppToken.STEP_SERVICE)).toBeInstanceOf(StepService);
+        expect(container.resolve(AppToken.CHECKPOINT_SERVICE)).toBeInstanceOf(CheckpointService);
+        expect(container.resolve(AppToken.EFFECT_SERVICE)).toBeInstanceOf(EffectService);
+        expect(container.resolve(AppToken.ARTIFACT_SERVICE)).toBeInstanceOf(ArtifactService);
+        expect(container.resolve(AppToken.STATE_SERVICE)).toBeInstanceOf(StateService);
+        expect(container.resolve(AppToken.LOCK_SERVICE)).toBeInstanceOf(LockService);
+        expect(container.resolve(AppToken.IDEMPOTENCY_SERVICE)).toBeInstanceOf(IdempotencyService);
+        expect(container.resolve(AppToken.AGENT_REVISION_SERVICE)).toBeInstanceOf(AgentRevisionService);
+        expect(container.resolve(AppToken.CONNECTION_SERVICE)).toBeInstanceOf(ConnectionService);
+        expect(container.resolve(AppToken.CONVERSATION_SERVICE)).toBeInstanceOf(ConversationService);
+
+        // a service writes through its repository into the database
+        await expect(container.resolve(AppToken.STATE_SERVICE).set('a', 'k', 1)).resolves.toBe(1);
+        expect(await container.resolve(AppToken.STATE_REPOSITORY).findOneBy({ agent: 'a', key: 'k' })).toMatchObject({ value: 1 });
+        await harness.stop();
     });
 
     it('start mode migrates', async () => {
@@ -207,22 +276,44 @@ describePostgres('storeModule on Postgres', () => {
 
         await harness.setup();
 
-        const store = harness.container.resolve(AppToken.STORE);
-
-        await expect(store.runs.find({})).resolves.toMatchObject({ total: 0 });
+        await expect(harness.container.resolve(AppToken.RUN_SERVICE).find({})).resolves.toMatchObject({ total: 0 });
         await harness.stop();
     });
 
-    it('start mode skips the migration with CHAMVI_MIGRATE=false', async () => {
+    it('a start with CHAMVI_MIGRATE=false on an unmigrated database fails with store_not_migrated and writes nothing', async () => {
         const url = await createTestDatabaseUrl();
+        const { harness } = build({ env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'false' } });
+
+        const error = await harness.setup().then(() => undefined, (e: unknown) => e);
+
+        expect(error).toMatchObject({ code: APP_ERROR_CODE.STORE_NOT_MIGRATED });
+        expect((error as Error).message).toBe(
+            `The store has ${STORE_MIGRATIONS.length} pending migration(s); run chamvi migrate or set CHAMVI_MIGRATE=true.`,
+        );
+
+        const ds = await openAdmin(url);
+
+        try {
+            expect(await tableExists(ds, 'migrations')).toBe(false);
+            expect(await tableExists(ds, 'chamvi_runs')).toBe(false);
+        } finally {
+            await closeAdmin();
+        }
+    });
+
+    it('a start with CHAMVI_MIGRATE=false on a migrated database starts without migrating', async () => {
+        const url = await createTestDatabaseUrl();
+        const first = build({ env: { DATABASE_URL: url } });
+
+        await first.harness.setup();
+        await first.harness.stop();
+
         const { harness } = build({ env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'false' } });
 
         await harness.setup();
 
-        const store = harness.container.resolve(AppToken.STORE);
-
-        expect(store.runs).toBeInstanceOf(DatabaseRunRepository);
-        await expect(store.runs.find({})).rejects.toThrow();
+        expect(harness.container.resolve(AppToken.RUN_REPOSITORY)).toBeInstanceOf(DatabaseRunRepository);
+        await expect(harness.container.resolve(AppToken.RUN_SERVICE).find({})).resolves.toMatchObject({ total: 0 });
         await harness.stop();
     });
 
@@ -232,7 +323,8 @@ describePostgres('storeModule on Postgres', () => {
 
         await harness.setup();
 
-        expect(harness.container.resolve(AppToken.STORE).runs).toBeInstanceOf(DatabaseRunRepository);
+        expect(harness.container.resolve(AppToken.RUN_REPOSITORY)).toBeInstanceOf(DatabaseRunRepository);
+        expect(harness.container.resolve(AppToken.STORE_KIND)).toBe('database');
         await harness.stop();
     });
 
@@ -251,7 +343,7 @@ describePostgres('storeModule on Postgres', () => {
         expect(error).toMatchObject({ driverError: { code: '42P07' } });
         expect((error as Error).message).toMatch(/IDX_e7686bb29a31182711655bf5bb/);
         expect(harness.container.resolve(AppToken.DATA_SOURCE).isInitialized).toBe(false);
-        expect(harness.container.has(AppToken.STORE)).toBe(false);
+        expect(harness.container.has(AppToken.RUN_REPOSITORY)).toBe(false);
     });
 
     it('a failed migration keeps the TypeORM error for a password found in the stack', async () => {
@@ -315,10 +407,8 @@ describePostgres('storeModule on Postgres', () => {
 
             expect(harness.container.resolve(AppToken.DATA_SOURCE)).toBe(dataSource);
 
-            const store = harness.container.resolve(AppToken.STORE);
-
-            expect(store.runs).toBeInstanceOf(DatabaseRunRepository);
-            await expect(store.runs.find({})).resolves.toMatchObject({ total: 0 });
+            expect(harness.container.resolve(AppToken.RUN_REPOSITORY)).toBeInstanceOf(DatabaseRunRepository);
+            await expect(harness.container.resolve(AppToken.RUN_SERVICE).find({})).resolves.toMatchObject({ total: 0 });
 
             await harness.stop();
             expect(dataSource.isInitialized).toBe(true);
@@ -337,14 +427,13 @@ describePostgres('storeModule on Postgres', () => {
 
         await harness.setup();
 
-        const store = harness.container.resolve(AppToken.STORE);
-
-        await store.locks.acquire('lock', 'owner', 1000);
+        await harness.container.resolve(AppToken.LOCK_SERVICE).acquire('lock', 'owner', 1000);
         await runHooks(harness.container, 'started');
         clock.advance(DEFAULT_PURGE_INTERVAL_MS);
 
+        // the lock service's purge, then the idempotency service's
         await vi.waitFor(() => {
-            expect(logger.entries.find((entry) => entry.level === 'debug')).toMatchObject({ results: [0, 1] });
+            expect(logger.entries.find((entry) => entry.level === 'debug')).toMatchObject({ results: [1, 0] });
         });
 
         await runHooks(harness.container, 'stopping');
@@ -432,7 +521,8 @@ describePostgres('storeModule on Postgres', () => {
         const { harness } = build({ check: true, env: { DATABASE_URL: url, CHAMVI_MIGRATE: 'false' } });
 
         await harness.setup();
-        expect(harness.container.resolve(AppToken.STORE).runs).toBeInstanceOf(DatabaseRunRepository);
+        expect(harness.container.resolve(AppToken.RUN_REPOSITORY)).toBeInstanceOf(DatabaseRunRepository);
+        expect(harness.container.resolve(AppToken.STORE_KIND)).toBe('database');
         await harness.stop();
     });
 });

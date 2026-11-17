@@ -6,6 +6,6 @@
  */
 
 export * from './constants.ts';
-export * from './memory.ts';
+export * from './service.ts';
 export type * from './types.ts';
 export { hasConversation, memoryTools } from './tools.ts';

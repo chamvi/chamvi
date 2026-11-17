@@ -6,8 +6,6 @@
  */
 
 import {
-    Engine,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
@@ -18,7 +16,7 @@ import {
     httpChannel,
     mcpChannel,
 } from '@chamvi/http';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { MockLanguageModelV4 } from 'ai/test';
 import {
     afterEach,
@@ -42,7 +40,6 @@ afterEach(async () => {
 describe('HTTP subscription execution cap', () => {
     it('shares one subscription slot between REST and MCP transport runs', async () => {
         const clock = new ControllableClock(new Date('2026-10-28T00:00:00Z'));
-        const store = createMemoryStore({ clock });
         const entered: string[] = [];
         const releases = new Map<string, () => void>();
         const errors: unknown[] = [];
@@ -82,8 +79,7 @@ describe('HTTP subscription execution cap', () => {
             }),
         });
 
-        engine = new Engine({
-            store,
+        engine = createTestEngine({
             clock,
             agents: [agent],
             channels: [httpChannel(), mcpChannel()],
@@ -117,15 +113,15 @@ describe('HTTP subscription execution cap', () => {
 
             const mcp = result.structuredContent as { runId: string };
 
-            expect(await store.runs.findOne(rest.runId)).toMatchObject({ trigger: { trigger: 'http', channel: 'http' } });
-            expect(await store.runs.findOne(mcp.runId)).toMatchObject({ status: 'queued', trigger: { trigger: 'http', channel: 'mcp' } });
+            expect(await engine.runService.findOne(rest.runId)).toMatchObject({ trigger: { trigger: 'http', channel: 'http' } });
+            expect(await engine.runService.findOne(mcp.runId)).toMatchObject({ status: 'queued', trigger: { trigger: 'http', channel: 'mcp' } });
             expect(entered).toEqual([rest.runId]);
             releases.get(rest.runId)!();
             await vi.waitFor(() => expect(entered).toEqual([rest.runId, mcp.runId]));
-            expect((await store.runs.findOne(rest.runId))?.status).toBe('completed');
+            expect((await engine.runService.findOne(rest.runId))?.status).toBe('completed');
             releases.get(mcp.runId)!();
             await engine.idle();
-            expect((await store.runs.findOne(mcp.runId))?.status).toBe('completed');
+            expect((await engine.runService.findOne(mcp.runId))?.status).toBe('completed');
             expect(errors).toEqual([]);
         } finally {
             await client.close();

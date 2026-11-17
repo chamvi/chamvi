@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createConnectionConfigStore, systemClock } from '@chamvi/core';
+import { InvalidAgentDefinitionError, createConnectionConfigStore, systemClock } from '@chamvi/core';
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { readConfig } from '../../config/module.ts';
@@ -46,11 +46,18 @@ export class ConfigModule implements IModule {
         // lazy: the store exists only once its module ran, and only a secret needs the keyring
         if (!container.has(AppToken.CONNECTION_CONFIGS)) {
             container.register(AppToken.CONNECTION_CONFIGS, {
-                useFactory: () => createConnectionConfigStore({
-                    store: container.resolve(AppToken.STORE),
-                    keyring: () => container.resolve(AppToken.KEYRING),
-                    clock: container.resolve(AppToken.CLOCK),
-                }),
+                useFactory: () => {
+                    if (!container.has(AppToken.CONNECTION_SERVICE)) {
+                        throw new InvalidAgentDefinitionError('A connection config store needs a store that keeps connections.');
+                    }
+
+                    return createConnectionConfigStore({
+                        connectionService: container.resolve(AppToken.CONNECTION_SERVICE),
+                        lockService: container.resolve(AppToken.LOCK_SERVICE),
+                        keyring: () => container.resolve(AppToken.KEYRING),
+                        clock: container.resolve(AppToken.CLOCK),
+                    });
+                },
             });
         }
     }

@@ -8,7 +8,7 @@
 import { BadRequestError } from '@ebec/http';
 import { defineSchema } from '@rapiq/core';
 import { describe, expect, it } from 'vitest';
-import { decodeQuery } from '../../../src/request/helpers.ts';
+import { decodeFlatQuery } from '../../../src/query/helpers.ts';
 
 const schema = defineSchema({
     filters: { allowed: ['agent', 'status'] },
@@ -16,9 +16,9 @@ const schema = defineSchema({
     throwOnFailure: true,
 });
 
-const decode = (query: string) => decodeQuery(new URLSearchParams(query), schema);
+const decode = (query: string) => decodeFlatQuery(new URLSearchParams(query), schema);
 
-describe('decodeQuery', () => {
+describe('decodeFlatQuery', () => {
     it('decodes filters, pagination and sorts from the bracket dialect', () => {
         expect(decode('filter[agent]=a&page[limit]=5&sort=createdAt')).toEqual({
             filters: [{
@@ -80,5 +80,11 @@ describe('decodeQuery', () => {
 
     it('ignores fields, include and unknown keys', () => {
         expect(decode('fields=id&include=x&foo=bar')).toEqual({ filters: [], sorts: [] });
+    });
+
+    it('refuses a page value above the largest safe integer', () => {
+        expect(() => decode('page[offset]=99999999999999999999')).toThrow('page[offset] takes a non-negative integer.');
+        expect(() => decode('page[limit]=99999999999999999999')).toThrow(BadRequestError);
+        expect(decode('page[offset]=9007199254740991').offset).toBe(9007199254740991);
     });
 });

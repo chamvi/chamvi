@@ -13,7 +13,8 @@ import type {
     UserFacingSocketConfig,
     WAMessage,
 } from 'baileys';
-import type { ConversationRef, IClock, Invoker } from '@chamvi/core';
+import type { ConversationRef, IClock } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 import type {
     Adapter,
     Chat,

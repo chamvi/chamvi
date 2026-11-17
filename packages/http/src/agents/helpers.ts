@@ -9,7 +9,13 @@ import { Permission } from '@chamvi/access';
 import { DEFAULT_MAX_STEPS } from '@chamvi/core';
 import type { Agent, IClock } from '@chamvi/core';
 import { BadRequestError, ForbiddenError, NotFoundError } from '@ebec/http';
-import { defineSchema } from '@rapiq/core';
+import {
+    and,
+    defineQuery,
+    defineSchema,
+    eq,
+} from '@rapiq/core';
+import type { IFilter, IQuery } from '@rapiq/core';
 import { CronExpressionParser } from 'cron-parser';
 import { isObject } from 'smob';
 import { Container } from 'validup';
@@ -17,7 +23,7 @@ import { DEFAULT_PAGE_LIMIT } from '../app/constants.ts';
 import { agentResource, isGranted } from '../auth/helpers.ts';
 import type { Principal } from '../auth/types.ts';
 import { webhookUrl } from '../channels/helpers.ts';
-import { decodeQuery } from '../request/helpers.ts';
+import { decodeFlatQuery } from '../query/helpers.ts';
 import { isDefined } from '../request/validators.ts';
 import type { HttpAgents } from '../app/types.ts';
 import type {
@@ -167,20 +173,25 @@ function filterValue(value: unknown): unknown {
 }
 
 /** A KV list query: `page[limit]` (default 50, at most 100) and `page[offset]`, no filter, no sort. */
-export function parseKvListQuery(searchParams: URLSearchParams): { limit: number; offset: number } {
-    const decoded = decodeQuery(searchParams, KV_LIST_QUERY_SCHEMA);
+export function parseKvListQuery(searchParams: URLSearchParams): IQuery {
+    const decoded = decodeFlatQuery(searchParams, KV_LIST_QUERY_SCHEMA);
 
     if (decoded.filters.length > 0) {
         throw new BadRequestError({ message: 'The kv listing takes no filter.' });
     }
 
-    return { limit: decoded.limit ?? DEFAULT_PAGE_LIMIT, offset: decoded.offset ?? 0 };
+    return defineQuery({ pagination: { limit: decoded.limit ?? DEFAULT_PAGE_LIMIT, offset: decoded.offset ?? 0 } });
 }
 
-/** A collection list query: top-level `eq` filters as `where`, a limit, no offset, no sort. */
-export function parseCollectionQuery(searchParams: URLSearchParams): { where: Record<string, unknown>; limit: number } {
-    const decoded = decodeQuery(searchParams, COLLECTION_QUERY_SCHEMA);
-    const where: Record<string, unknown> = {};
+/**
+ * A collection list query: top-level `eq` filters on document keys, each
+ * once (not `id`, the store id), a double-quoted value as a string; a
+ * limit; no offset, no sort.
+ */
+export function parseCollectionQuery(searchParams: URLSearchParams): IQuery {
+    const decoded = decodeFlatQuery(searchParams, COLLECTION_QUERY_SCHEMA);
+    const seen = new Set<string>();
+    const filters: IFilter[] = [];
 
     for (const filter of decoded.filters) {
         if (filter.operator !== 'eq') {
@@ -188,22 +199,26 @@ export function parseCollectionQuery(searchParams: URLSearchParams): { where: Re
         }
 
         if (filter.field === 'id') {
-            // `id` on the wire is the store id, which `where` cannot match
+            // `id` on the wire is the store id, which a document filter cannot match
             throw new BadRequestError({ message: 'filter[id] is not supported: id is the store id, not a document field.' });
         }
 
-        if (Object.hasOwn(where, filter.field)) {
+        if (seen.has(filter.field)) {
             throw new BadRequestError({ message: `filter[${filter.field}] may be given once.` });
         }
 
-        where[filter.field] = filterValue(filter.value);
+        seen.add(filter.field);
+        filters.push(eq(filter.field, filterValue(filter.value)));
     }
 
     if (decoded.offset !== undefined && decoded.offset > 0) {
         throw new BadRequestError({ message: 'page[offset] is not supported for state collections.' });
     }
 
-    return { where, limit: decoded.limit ?? DEFAULT_PAGE_LIMIT };
+    return defineQuery({
+        ...(filters.length > 0 ? { filters: and(...filters) } : {}),
+        pagination: { limit: decoded.limit ?? DEFAULT_PAGE_LIMIT },
+    });
 }
 
 /** A stored document on the wire: its fields plus the store `id` (which wins over a field named `id`). */

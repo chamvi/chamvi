@@ -1,6 +1,6 @@
 # Quick Start
 
-One agent, an in-memory store, the console channel and one manually dispatched run that answers where it came from. This is the same code as the example in the `@chamvi/core` README, which the test suite runs against a scripted model.
+One agent, memory repositories, the console channel and one manually dispatched run that answers where it came from. This is the same code as the example in the `@chamvi/core` README, which the test suite runs against a scripted model.
 
 <<< @/snippets/quick-start.ts
 
@@ -20,6 +20,6 @@ Pass any AI SDK `LanguageModel`, for example `anthropic(...)` from `@ai-sdk/anth
 ## Where to go next
 
 - [Your First Agent](/guide/first-agent): the same agent as a folder on `@chamvi/app`, run with `chamvi dev`, checked with `chamvi start --check`
-- Replace `createMemoryStore()` with a durable store before you rely on restarts. See [Stores and repositories](/repositories/).
+- Replace the memory repositories with durable ones before you rely on restarts. See [Stores and repositories](/repositories/).
 - Add a [budget](/guide/budgets), [approvals](/guide/approvals) or [state](/guide/state).
 - Shut down with [`drain()`](/guide/recovery) instead of `stop()` in a real process.

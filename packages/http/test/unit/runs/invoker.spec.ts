@@ -57,7 +57,7 @@ describe('run invoker over REST', () => {
         const { app, store } = setup();
         const runId = await startRun(app, ALICE_TOKEN);
 
-        expect((await store.runs.findOne(runId))?.trigger.invoker).toEqual({
+        expect((await store.runService.findOne(runId))?.trigger.invoker).toEqual({
             id: 'user-1',
             kind: 'authup',
             name: 'alice',
@@ -69,7 +69,7 @@ describe('run invoker over REST', () => {
         const { app, store } = setup();
         const runId = await startRun(app, ADMIN_TOKEN, 'echo');
 
-        expect((await store.runs.findOne(runId))?.trigger.invoker).toEqual({
+        expect((await store.runService.findOne(runId))?.trigger.invoker).toEqual({
             id: 'admin',
             kind: 'token',
             bindings: allPermissions(),
@@ -92,7 +92,7 @@ describe('run invoker over REST', () => {
         const { app, store } = createRunTestApp({ auth: [testAuth, bobAuth] });
         const runId = await startRun(app, 'bob');
 
-        expect((await store.runs.findOne(runId))?.trigger.invoker).not.toHaveProperty('name');
+        expect((await store.runService.findOne(runId))?.trigger.invoker).not.toHaveProperty('name');
 
         const response = await call(app, 'GET', `/runs/${runId}`, { token: READER_TOKEN });
 
@@ -114,7 +114,7 @@ describe('run invoker over REST', () => {
         });
         const { runId } = await response.json() as { runId: string };
 
-        expect((await store.runs.findOne(runId))?.trigger.invoker?.id).toBe('admin');
+        expect((await store.runService.findOne(runId))?.trigger.invoker?.id).toBe('admin');
     });
 
     it('dispatches webhook runs without an invoker', async () => {
@@ -134,7 +134,7 @@ describe('run invoker over REST', () => {
 
         const { runId } = await response.json() as { runId: string };
 
-        expect((await store.runs.findOne(runId))?.trigger).not.toHaveProperty('invoker');
+        expect((await store.runService.findOne(runId))?.trigger).not.toHaveProperty('invoker');
     });
 
     it('drops the invoker bindings from GET /runs and GET /runs/:id', async () => {
@@ -169,7 +169,7 @@ describe('run invoker over REST', () => {
 
         await engine.start();
         await engine.idle();
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
 
         const response = await call(app, 'POST', `/runs/${runId}/approve`, {
             token: ALICE_TOKEN,
@@ -179,7 +179,7 @@ describe('run invoker over REST', () => {
         expect(response.status).toBe(202);
         await engine.idle();
 
-        const wait = (await store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await store.stepService.find(runId)).find((s) => s.kind === 'wait');
 
         expect((wait?.output as { approver?: unknown }).approver).toEqual({
             id: 'user-1',

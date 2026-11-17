@@ -6,7 +6,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createMemoryStore, wrapToolsForRun } from '@chamvi/core';
+import {
+    wrapToolsForRun,
+} from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import type { ToolSet } from 'ai';
 import type { GithubCheck, GithubPullRequestChecks } from '@chamvi/github';
 import { summarizeChecks } from '../../../src/tools/checks.ts';
@@ -37,7 +40,7 @@ function run(name: string, status: string, conclusion: string | null = null) {
 function setup() {
     const fixture = createGithubFixture();
     const ctx = toolContext({ channel: 'cron' });
-    const tools: ToolSet = wrapToolsForRun(fixture.gh.readTools(), ctx, createMemoryStore().effects);
+    const tools: ToolSet = wrapToolsForRun(fixture.gh.readTools(), ctx, createTestEngine({ agents: [] }).effectService);
     const call = <T = unknown>(name: string, input: unknown) => callTool<T>(tools, name, input, ctx);
 
     fixture.fake.installations.set('octo/demo', 9);

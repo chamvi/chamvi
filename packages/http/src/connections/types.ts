@@ -144,8 +144,8 @@ export type FormInput = {
 // #endregion helpers
 
 // #region services
-/** What `ConnectionService` needs of the http context. */
-export type ConnectionServiceContext = Pick<HttpContext, 'connections' | 'connectionTypes' | 'connectionConfigs' | 'store' | 'clock' | 'onError'>;
+/** What `ConnectionHttpService` needs of the http context. */
+export type ConnectionHttpServiceContext = Pick<HttpContext, 'connections' | 'connectionTypes' | 'connectionConfigs' | 'connectionService' | 'clock' | 'onError'>;
 
 /**
  * The connection handles joined with what is declared and stored.
@@ -154,7 +154,7 @@ export type ConnectionServiceContext = Pick<HttpContext, 'connections' | 'connec
  * widgets (a pairing QR), streams it and resets it; the check runs before
  * the 404, so a refusal says nothing about the name.
  */
-export interface IConnectionService {
+export interface IConnectionHttpService {
     /** The connections the principal may read; never widgets. */
     list(principal: Principal): Promise<{ data: ConnectionView[] }>;
     /** 403, then 404; a writer also gets the widgets, `canReset` and `live`. */
@@ -169,7 +169,7 @@ export interface IConnectionService {
 }
 
 /** What `ConnectionConfigService` needs of the http context. */
-export type ConnectionConfigServiceContext = ConnectionServiceContext & Pick<HttpContext, 'uiPages' | 'basePath'>;
+export type ConnectionConfigServiceContext = ConnectionHttpServiceContext & Pick<HttpContext, 'uiPages' | 'basePath'>;
 
 /**
  * The configuration API. Editing, deleting and testing need
@@ -193,7 +193,7 @@ export interface IConnectionConfigService {
 }
 
 export type ConnectionControllerContext = {
-    service: IConnectionService;
+    service: IConnectionHttpService;
     config: IConnectionConfigService;
 };
 

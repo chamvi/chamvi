@@ -6,22 +6,25 @@
  */
 
 import { isObject } from 'smob';
-import type { Invoker } from '../trigger/types.ts';
-import type { Run } from '../run/types.ts';
 import type {
     ConversationIdentity,
+    ConversationScope,
+    Invoker,
+    Run,
+} from '@chamvi/store';
+import type {
     ConversationInspection,
     ConversationOperationLiteral,
     ConversationOptions,
-    ConversationScope,
-    IConversationRepository,
     IConversations,
     ResolvedConversationLimits,
 } from './types.ts';
-import type { IEffectRepository, IRunRepository } from '../repository/types.ts';
+import type { ConversationService } from './service.ts';
+import type { EffectService } from '../effect/service.ts';
+import type { RunService } from '../run/service.ts';
 import { InvalidAgentDefinitionError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
 import { ConversationOperation, ConversationTurnKind } from './constants.ts';
-import { RunStatus } from '../run/constants.ts';
+import { RunStatus } from '@chamvi/store';
 import { matchesEmitReceipt, normalizeConversationLimits } from './helpers.ts';
 import { assertPage } from './persistence/module.ts';
 
@@ -31,7 +34,7 @@ function settled(run: Run | undefined): boolean {
 
 /** Optional engine capability; no ordinary run calls it. */
 export class Conversations implements IConversations {
-    readonly repository: IConversationRepository;
+    readonly service: ConversationService;
 
     readonly limits: ResolvedConversationLimits;
 
@@ -39,22 +42,16 @@ export class Conversations implements IConversations {
 
     protected readonly pending = new Map<string, Set<Promise<void>>>();
 
-    protected readonly runs: IRunRepository;
+    protected readonly runs: Pick<RunService, 'findOne'>;
 
-    protected readonly effects: IEffectRepository;
+    protected readonly effects: Pick<EffectService, 'findOne'>;
 
-    constructor(options: ConversationOptions, repository: IConversationRepository, runs: IRunRepository, effects: IEffectRepository) {
-        if (!isObject(options) || typeof options.authorize !== 'function' || !isObject(repository)) {
-            throw new InvalidAgentDefinitionError('Conversations need a repository and an authorizer.');
+    constructor(options: ConversationOptions, service: ConversationService, runs: Pick<RunService, 'findOne'>, effects: Pick<EffectService, 'findOne'>) {
+        if (!isObject(options) || typeof options.authorize !== 'function' || !isObject(service)) {
+            throw new InvalidAgentDefinitionError('Conversations need a conversation service and an authorizer.');
         }
 
-        for (const method of ['resolve', 'findOne', 'beginTurn', 'activeRun', 'endTurn', 'prepareEmit', 'confirmEmit', 'pendingEmits', 'findItems', 'findNotes', 'findOneNote', 'applyNote', 'reset', 'delete', 'prune'] as const) {
-            if (typeof repository[method] !== 'function') {
-                throw new InvalidAgentDefinitionError(`The conversation repository needs ${method}().`);
-            }
-        }
-
-        this.repository = repository;
+        this.service = service;
         this.runs = runs;
         this.effects = effects;
         this.authorize = options.authorize;
@@ -79,7 +76,7 @@ export class Conversations implements IConversations {
 
         await this.allow(operation, scope.identity, run.trigger.agent, run.trigger.invoker);
 
-        const current = await this.repository.findOne(scope.identity);
+        const current = await this.service.findOne(scope.identity);
 
         if (!current || current.id !== scope.id || current.generation !== scope.generation) {
             throw new InvalidRunStateError('The conversation scope is stale: it was reset or deleted.');
@@ -90,11 +87,11 @@ export class Conversations implements IConversations {
         await this.check(run);
 
         const { scope, text } = run.conversation!;
-        let result = await this.repository.beginTurn(scope, run.id, text, this.limits);
+        let result = await this.service.beginTurn(scope, run.id, text, this.limits);
 
         if (result.kind === ConversationTurnKind.BUSY && settled(await this.runs.findOne(result.runId))) {
             await this.reconcile(scope, result.runId);
-            result = await this.repository.beginTurn(scope, run.id, text, this.limits);
+            result = await this.service.beginTurn(scope, run.id, text, this.limits);
         }
 
         if (result.kind === ConversationTurnKind.STALE) {
@@ -141,7 +138,7 @@ export class Conversations implements IConversations {
         // Terminal repair never fabricates success for an unrecorded external send.
         await this.idle(runId);
         await this.track(runId, (async () => {
-            const pending = await this.repository.pendingEmits(scope, runId);
+            const pending = await this.service.pendingEmits(scope, runId);
             const confirmed: string[] = [];
 
             for (const item of pending) {
@@ -152,18 +149,18 @@ export class Conversations implements IConversations {
                 }
             }
 
-            await this.repository.endTurn(scope, runId, confirmed);
+            await this.service.endTurn(scope, runId, confirmed);
         })());
     }
 
     async repair(identity: ConversationIdentity): Promise<void> {
-        const scope = await this.repository.findOne(identity);
+        const scope = await this.service.findOne(identity);
 
         if (!scope) {
             return;
         }
 
-        const owner = await this.repository.activeRun(scope);
+        const owner = await this.service.activeRun(scope);
 
         if (owner && settled(await this.runs.findOne(owner))) {
             await this.reconcile(scope, owner);
@@ -179,13 +176,13 @@ export class Conversations implements IConversations {
             throw new ValidationError('Conversation inspection limit must be at most 100.');
         }
 
-        const scope = await this.repository.findOne(identity);
+        const scope = await this.service.findOne(identity);
 
         if (!scope) {
             return undefined;
         }
 
-        const [items, notes] = await Promise.all([this.repository.findItems(scope, page), this.repository.findNotes(scope, page)]);
+        const [items, notes] = await Promise.all([this.service.findItems(scope, page), this.service.findNotes(scope, page)]);
 
         return {
             scope,
@@ -195,6 +192,6 @@ export class Conversations implements IConversations {
     }
 
     async prune(): Promise<void> {
-        await this.repository.prune(this.limits, { isSettled: async (id) => settled(await this.runs.findOne(id)) });
+        await this.service.prune(this.limits, { isSettled: async (id) => settled(await this.runs.findOne(id)) });
     }
 }

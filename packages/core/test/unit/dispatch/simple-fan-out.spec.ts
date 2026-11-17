@@ -7,7 +7,6 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-    Engine,
     agent,
     agentChannel,
     defineModelAgent,
@@ -15,16 +14,13 @@ import {
     dispatchTo,
     waitForDispatch,
 } from '@chamvi/core';
-import type {
-    DispatchResult,
-    IStore,
-    SimpleRunContext,
-} from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import type { DispatchResult, Engine, SimpleRunContext } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { nextRun, treeModel } from '../../utils/dispatch.ts';
 import type { ChildTurn } from '../../utils/dispatch.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -35,7 +31,7 @@ const text = (t: string, usage?: MockResponse['usage']): MockResponse => ({
 
 type FanRun = (payload: unknown, ctx: SimpleRunContext) => unknown;
 
-function build(store: IStore, clock: ControllableClock, run: FanRun, child: ChildTurn, maxSubtreeTokens?: number) {
+function build(store: TestServiceSet, clock: ControllableClock, run: FanRun, child: ChildTurn, maxSubtreeTokens?: number) {
     const fan = defineSimpleAgent({
         name: 'fan',
         run,
@@ -48,8 +44,8 @@ function build(store: IStore, clock: ControllableClock, run: FanRun, child: Chil
         channels: [agent.on({ role: 'item', from: ['fan'] })],
     });
 
-    return new Engine({
-        store,
+    return createTestEngine({
+        services: store,
         clock,
         agents: [fan, worker],
         channels: [agentChannel()],
@@ -73,7 +69,7 @@ async function root(engine: Engine): Promise<string> {
 describe('simple agent fan-out', () => {
     it('dispatches two children, waits and completes with both outcomes', async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const engine = build(store, clock, async (payload, ctx) => {
             const { items } = payload as { items: string[] };
             const started = await Promise.all(items.map((item) => dispatchTo(ctx, {
@@ -90,8 +86,8 @@ describe('simple agent fan-out', () => {
         await waiting;
         await engine.idle();
 
-        const parent = await store.runs.findOne(parentId);
-        const { data: children } = await store.runs.find({ parentRunId: parentId });
+        const parent = await store.runService.findOne(parentId);
+        const { data: children } = await store.runService.find({ parentRunId: parentId });
         const idOf = (p: string) => children.find((r) => r.trigger.payload === p)!.id;
 
         expect(children).toHaveLength(2);
@@ -119,7 +115,7 @@ describe('simple agent fan-out', () => {
 
     it('a third dispatch past the subtree budget fails the run', async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const engine = build(store, clock, async (payload, ctx) => {
             const { items } = payload as { items: string[] };
             const started = await Promise.all(items.map((item) => dispatchTo(ctx, {
@@ -141,21 +137,21 @@ describe('simple agent fan-out', () => {
 
         await engine.idle();
 
-        const parent = await store.runs.findOne(parentId);
+        const parent = await store.runService.findOne(parentId);
 
         expect(parent?.status).toBe('failed');
         expect(parent?.error).toEqual({
             code: 'BudgetExceeded',
             message: `Run ${parentId} reached its subtree token budget of 30 tokens.`,
         });
-        expect((await store.runs.find({ parentRunId: parentId })).data).toHaveLength(2);
+        expect((await store.runService.find({ parentRunId: parentId })).data).toHaveLength(2);
 
         await engine.stop();
     });
 
     it('recovers after a drain between dispatch and wait without re-creating a child', async () => {
         const clock = new ControllableClock(START);
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const results: DispatchResult[][] = [];
         let calls = 0;
         let hold = true;
@@ -203,7 +199,7 @@ describe('simple agent fan-out', () => {
         clock.advance(1_000);
         await draining;
 
-        expect((await store.runs.findOne(parentId))?.status).toBe('interrupted');
+        expect((await store.runService.findOne(parentId))?.status).toBe('interrupted');
 
         hold = false;
 
@@ -212,8 +208,8 @@ describe('simple agent fan-out', () => {
         await b.start();
         await b.idle();
 
-        const parent = await store.runs.findOne(parentId);
-        const { data: children } = await store.runs.find({ parentRunId: parentId });
+        const parent = await store.runService.findOne(parentId);
+        const { data: children } = await store.runService.find({ parentRunId: parentId });
 
         expect(children).toHaveLength(2);
         expect(parent?.status).toBe('completed');

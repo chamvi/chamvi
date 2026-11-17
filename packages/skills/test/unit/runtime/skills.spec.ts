@@ -13,16 +13,14 @@ import {
     vi,
 } from 'vitest';
 import {
-    Engine,
     approve,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type { SkillInput } from '@chamvi/core';
+import type { Engine, SkillInput } from '@chamvi/core';
 import type { Skill } from '@chamvi/skills';
 import { defineSkill, defineSkillSource } from '@chamvi/skills';
-import { mockModel } from '@chamvi/test-kit';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 
 const skill = (name = 'common', body = 'SECRET BODY'): Skill & SkillInput => defineSkill({
     name,
@@ -38,8 +36,7 @@ const agent = (skills: Parameters<typeof defineModelAgent>[0]['skills'] = []) =>
     instructions: 'role',
     skills,
 });
-const engine = (skills: ConstructorParameters<typeof Engine>[0]['skills'] = [], agents = [agent()]) => new Engine({
-    store: createMemoryStore(),
+const engine = (skills: ConstructorParameters<typeof Engine>[0]['skills'] = [], agents = [agent()]) => createTestEngine({
     agents,
     skills,
     model: mockModel([]),
@@ -72,8 +69,7 @@ describe('first class skills', () => {
 
     it('contributes a separate metadata system block after the configured instruction array', async () => {
         const model = mockModel([{ parts: [{ type: 'text', text: 'done' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             model,
             skills: [skill()],
             agents: [defineModelAgent({
@@ -104,15 +100,14 @@ describe('first class skills', () => {
             expect(prompt.map((message) => message.role)).toEqual(['system', 'user', 'assistant', 'system', 'user']);
             expect(prompt[3]?.content).toContain('approved_skills');
             expect(JSON.stringify(prompt)).not.toContain('SECRET BODY');
-            expect(JSON.stringify(await e.store.checkpoints.findOne(runId))).not.toContain('approved_skills');
+            expect(JSON.stringify(await e.checkpointService.findOne(runId))).not.toContain('approved_skills');
         } finally {
             await e.stop();
         }
     });
     it('keeps string instructions and catalog metadata in distinct leading system blocks', async () => {
         const model = mockModel([{ parts: [{ type: 'text', text: 'done' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             model,
             skills: [skill()],
             agents: [agent()],
@@ -176,8 +171,7 @@ describe('first class skills', () => {
                 input: { name: 'common' },
             }],
         }, { parts: [{ type: 'text', text: 'done' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             model,
             skills: [ready, defineSkillSource(source)],
             agents: [agent()],
@@ -199,7 +193,7 @@ describe('first class skills', () => {
 
         await e.idle();
 
-        const steps = (await e.store.steps.find(run.runId)).filter((step) => step.kind === 'tool');
+        const steps = (await e.stepService.find(run.runId)).filter((step) => step.kind === 'tool');
 
         expect(steps[0]?.output).toMatchObject({ content: 'reference' });
         expect(steps[1]?.output).toMatchObject({ content: 'SECRET BODY' });
@@ -244,8 +238,7 @@ describe('first class skills', () => {
             }],
         }, { parts: [{ type: 'text', text: 'done' }] }]);
         const start = vi.fn(); const stop = vi.fn();
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             agents: [agent()],
             skills: [source],
             model,
@@ -275,7 +268,7 @@ describe('first class skills', () => {
         expect(instructions).toContain('approved_skills');
         expect(instructions).not.toContain('SECRET BODY');
         expect(instructions).toContain('\\\\u003c');
-        expect((await e.store.steps.find(run.runId)).find((step) => step.name === 'load_skill')?.output).toMatchObject({ content: 'SECRET BODY', references: ['references/a.md'] });
+        expect((await e.stepService.find(run.runId)).find((step) => step.name === 'load_skill')?.output).toMatchObject({ content: 'SECRET BODY', references: ['references/a.md'] });
         await e.stop();
     });
     it('stop joins ignored provider cancellation and allows a deliberate restart', async () => {
@@ -307,8 +300,7 @@ describe('first class skills', () => {
     it('stop owns and stops a channel that resolves late', async () => {
         const entered = Promise.withResolvers<void>(); const deferred = Promise.withResolvers<void>();
         const stop = vi.fn();
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             agents: [agent()],
             model: mockModel([]),
             channels: [{
@@ -342,13 +334,12 @@ describe('first class skills', () => {
 
         await expect(e.putAgent(candidate, { revision: 'new' })).rejects.toThrow(/skill/i);
         expect(e.getAgent('test')).toBe(old);
-        expect(await e.store.agentRevisions.findOne('test')).toBeUndefined();
+        expect(await e.agentRevisionService.findOne('test')).toBeUndefined();
         expect((await e.getRun(run.runId))?.status).toBe('queued');
     });
     it('cleans started channels on rejection without joining its own startup', async () => {
         const stop = vi.fn();
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             agents: [agent()],
             model: mockModel([]),
             channels: [{
@@ -373,8 +364,7 @@ describe('first class skills', () => {
         })])).toThrow(/load_skill/);
 
         const model = mockModel([{ parts: [{ type: 'text', text: 'must not run' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             agents: [defineModelAgent({
                 name: 'test',
                 instructions: '',
@@ -464,18 +454,7 @@ describe('first class skills', () => {
         expect(await preparing).toBeInstanceOf(Error);
     });
     it('keeps the captured corpus with a captured agent across replacement during a revision read', async () => {
-        const store = createMemoryStore();
         const entered = Promise.withResolvers<void>(); const deferred = Promise.withResolvers<void>();
-        const original = store.agentRevisions.findOne.bind(store.agentRevisions); let hold = false;
-
-        store.agentRevisions.findOne = async (name) => {
-            if (hold) {
-                hold = false; entered.resolve(); await deferred.promise;
-            }
-
-            return original(name);
-        };
-
         const model = mockModel([{
             parts: [{
                 type: 'tool-call',
@@ -483,11 +462,20 @@ describe('first class skills', () => {
                 input: { name: 'common' },
             }],
         }, { parts: [{ type: 'text', text: 'done' }] }]);
-        const e = new Engine({
-            store,
+        const e = createTestEngine({
             agents: [],
             model,
         });
+
+        const original = e.agentRevisionService.findOne.bind(e.agentRevisionService); let hold = false;
+
+        e.agentRevisionService.findOne = async (name) => {
+            if (hold) {
+                hold = false; entered.resolve(); await deferred.promise;
+            }
+
+            return original(name);
+        };
 
         await e.putAgent(agent([skill('common', 'OLD')]), { revision: 'same' }); await e.start();
         hold = true;
@@ -501,7 +489,7 @@ describe('first class skills', () => {
 
         await entered.promise;
         await e.putAgent(agent([defineSkill({ ...skill('common', 'NEW'), hash: 'b'.repeat(64) })]), { revision: 'same' }); deferred.resolve(); await e.idle();
-        expect((await store.steps.find(run.runId)).find((step) => step.name === 'load_skill')?.output).toMatchObject({ content: 'OLD' }); await e.stop();
+        expect((await e.stepService.find(run.runId)).find((step) => step.name === 'load_skill')?.output).toMatchObject({ content: 'OLD' }); await e.stop();
     });
     it('scopes global and extra loads and keeps instructions passive for agents with no user tools', async () => {
         const model = mockModel([{
@@ -517,8 +505,7 @@ describe('first class skills', () => {
                 input: { name: 'common' },
             }],
         }, { parts: [{ type: 'text', text: 'done' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             model,
             skills: [skill()],
             agents: [agent(), defineModelAgent({
@@ -539,13 +526,13 @@ describe('first class skills', () => {
 
         await e.idle();
 
-        const calls = (await e.store.steps.find(run.runId)).filter((step) => step.kind === 'tool');
+        const calls = (await e.stepService.find(run.runId)).filter((step) => step.kind === 'tool');
 
         expect(calls[0]?.error).toMatchObject({ message: 'Unknown approved skill.' }); expect(calls[1]?.output).toMatchObject({ name: 'common' });
         expect(JSON.stringify(model.doStreamCalls[0]?.tools)).not.toContain('private'); await e.stop();
     });
     it('runs load_skill through hooks and durable approval replay with a new prepared snapshot', async () => {
-        const store = createMemoryStore(); const before: string[] = []; const after: unknown[] = [];
+        const before: string[] = []; const after: unknown[] = [];
         const hooks = {
             beforeToolExecution: async (call: { toolName: string }, ctx: Parameters<typeof approve>[0]) => {
                 before.push(call.toolName); await approve(ctx, { title: 'Read approved content?' });
@@ -561,8 +548,7 @@ describe('first class skills', () => {
                 input: { name: 'common' },
             }],
         }]);
-        const a = new Engine({
-            store,
+        const a = createTestEngine({
             model: first,
             agents: [defineModelAgent({
                 name: 'test',
@@ -588,8 +574,9 @@ describe('first class skills', () => {
         expect(waiting?.status).toBe('waiting'); await a.stop();
 
         const second = mockModel([{ parts: [{ type: 'text', text: 'done' }] }]);
-        const b = new Engine({
-            store,
+        // a restart: the runs of the first engine
+        const b = createTestEngine({
+            replicaOf: a,
             model: second,
             agents: [defineModelAgent({
                 name: 'test',
@@ -612,8 +599,7 @@ describe('first class skills', () => {
                 input: { name: 'common' },
             }],
         }, { parts: [{ type: 'text', text: 'done' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             model,
             agents: [defineModelAgent({
                 name: 'test',
@@ -633,7 +619,7 @@ describe('first class skills', () => {
         });
 
         await e.idle();
-        expect((await e.store.steps.find(run.runId)).find((step) => step.kind === 'tool')?.error).toMatchObject({ code: 'tool_not_allowed' }); await e.stop();
+        expect((await e.stepService.find(run.runId)).find((step) => step.kind === 'tool')?.error).toMatchObject({ code: 'tool_not_allowed' }); await e.stop();
     });
     it('rejects conflicting ready snapshots synchronously and rejects malformed UTF-8 strings', () => {
         expect(() => agent([skill(), skill('common', 'DIFFERENT')])).toThrow(/conflicting content/i);
@@ -650,10 +636,9 @@ describe('first class skills', () => {
         }).toThrow(/skill/i);
     });
     it('verification rejects before recovery, channels or a model call', async () => {
-        const store = createMemoryStore(); const reads = vi.spyOn(store.runs, 'find'); const start = vi.fn();
+        const start = vi.fn();
         const error = new Error('verification failed'); const model = mockModel([]);
-        const e = new Engine({
-            store,
+        const e = createTestEngine({
             model,
             agents: [agent()],
             channels: [{ name: 'test', start }],
@@ -664,6 +649,7 @@ describe('first class skills', () => {
                 },
             })],
         });
+        const reads = vi.spyOn(e.runService, 'find');
 
         await expect(e.start()).rejects.toBe(error);
         expect(reads).not.toHaveBeenCalled(); expect(start).not.toHaveBeenCalled(); expect(model.doStreamCalls).toHaveLength(0);
@@ -692,12 +678,23 @@ describe('first class skills', () => {
         expect(e.isDraining).toBe(true);
     });
     it('preserves startup cancellation during the final queue pump and cleans channels', async () => {
-        const store = createMemoryStore();
         const entered = Promise.withResolvers<void>();
         const release = Promise.withResolvers<void>();
-        const listRuns = store.runs.find.bind(store.runs);
+        const controller = new AbortController();
+        const reason = new Error('startup canceled during pump');
+        const stop = vi.fn();
+        const e = createTestEngine({
+            agents: [],
+            channels: [{
+                name: 'test',
+                start: async () => {},
+                stop,
+            }],
+        });
 
-        store.runs.find = async (options) => {
+        const listRuns = e.runService.find.bind(e.runService);
+
+        e.runService.find = async (options) => {
             if (options?.status?.length === 1 && options.status[0] === 'queued') {
                 entered.resolve();
                 await release.promise;
@@ -706,18 +703,6 @@ describe('first class skills', () => {
             return listRuns(options);
         };
 
-        const controller = new AbortController();
-        const reason = new Error('startup canceled during pump');
-        const stop = vi.fn();
-        const e = new Engine({
-            store,
-            agents: [],
-            channels: [{
-                name: 'test',
-                start: async () => {},
-                stop,
-            }],
-        });
         const starting = e.start({ signal: controller.signal });
         const outcome = starting.catch((error: unknown) => error);
 
@@ -734,12 +719,17 @@ describe('first class skills', () => {
         expect(stop).toHaveBeenCalledOnce();
     });
     it('canceled startup refuses queued admission after a deferred store read', async () => {
-        const store = createMemoryStore();
         const entered = Promise.withResolvers<void>();
         const release = Promise.withResolvers<void>();
-        const listRuns = store.runs.find.bind(store.runs);
+        const model = mockModel([{ parts: [{ type: 'text', text: 'must remain queued' }] }]);
+        const e = createTestEngine({
+            agents: [agent([skill()])],
+            model,
+        });
 
-        store.runs.find = async (options) => {
+        const listRuns = e.runService.find.bind(e.runService);
+
+        e.runService.find = async (options) => {
             if (options?.status?.length === 1 && options.status[0] === 'queued') {
                 entered.resolve();
                 await release.promise;
@@ -748,12 +738,6 @@ describe('first class skills', () => {
             return listRuns(options);
         };
 
-        const model = mockModel([{ parts: [{ type: 'text', text: 'must remain queued' }] }]);
-        const e = new Engine({
-            store,
-            agents: [agent([skill()])],
-            model,
-        });
         const run = await e.dispatch({
             agent: 'test',
             channel: 'test',
@@ -777,13 +761,18 @@ describe('first class skills', () => {
         expect((await e.getRun(run.runId))?.status).toBe('queued');
     });
     it('stop joins deferred admission without launching it, and restart can run the released claim', async () => {
-        const store = createMemoryStore();
         const entered = Promise.withResolvers<void>();
         const release = Promise.withResolvers<void>();
-        const claimRun = store.runs.claim.bind(store.runs);
+        const model = mockModel([{ parts: [{ type: 'text', text: 'after restart' }] }]);
+        const e = createTestEngine({
+            agents: [agent([skill()])],
+            model,
+        });
+
+        const claimRun = e.runService.claim.bind(e.runService);
         let hold = true;
 
-        store.runs.claim = async (...args) => {
+        e.runService.claim = async (...args) => {
             if (hold) {
                 hold = false;
                 entered.resolve();
@@ -792,13 +781,6 @@ describe('first class skills', () => {
 
             return claimRun(...args);
         };
-
-        const model = mockModel([{ parts: [{ type: 'text', text: 'after restart' }] }]);
-        const e = new Engine({
-            store,
-            agents: [agent([skill()])],
-            model,
-        });
 
         await e.start();
 
@@ -825,11 +807,12 @@ describe('first class skills', () => {
         await e.idle();
         expect(stoppedBeforeAdmissionSettled).toBe(false);
         expect(model.doStreamCalls).toHaveLength(0);
-        expect(await e.getRun(run.runId)).toMatchObject({
-            status: 'queued',
-            claim: undefined,
-            startedAt: undefined,
-        });
+
+        const released = await e.getRun(run.runId);
+
+        expect(released).toMatchObject({ status: 'queued' });
+        expect(released).not.toHaveProperty('claim');
+        expect(released).not.toHaveProperty('startedAt');
         await e.start();
         await e.idle();
         expect(model.doStreamCalls).toHaveLength(1);
@@ -848,8 +831,7 @@ describe('first class skills', () => {
                 input: {},
             }],
         }, { parts: [{ type: 'text', text: 'finished normally' }] }]);
-        const e = new Engine({
-            store: createMemoryStore(),
+        const e = createTestEngine({
             model,
             agents: [defineModelAgent({
                 name: 'test',

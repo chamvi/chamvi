@@ -4,9 +4,9 @@
 - `packages/server-kit/src/core/types.ts`: `IEntityRepository` groups entity queries and mutations behind repository contracts.
 - `apps/server-core/src/core/entities/user/types.ts`: `IUserRepository` adds domain operations.
 - `apps/server-core/src/app/modules/database/repositories/user/repository.ts`: `UserRepositoryAdapter` adapts the persistence implementation to the contract.
-- chamvi mapping: `packages/core/src/repository/types.ts` contains role-specific contracts; `packages/core/src/repository/memory/` and `packages/store-db/src/` implement them; `Engine.store` receives the assembled capabilities.
+- chamvi mapping (#231): `packages/store/src/entity/types.ts` holds `IEntityRepository<T>` (`findMany`, `findOneById`, `findOneBy`, `create`, `merge`, `save`, `transaction`, ... as authup's) and `packages/store/src/<aggregate>/types.ts` the port per aggregate; `packages/store-memory/src/` (`MemoryEntityRepository`) and `packages/store-db/src/` (`EntityRepositoryAdapter`, as authup's `UserRepositoryAdapter`) implement them; the services of `packages/core/src/<aggregate>/service.ts` hold the domain operations and the engine takes each by name. Difference: authup's ports carry domain finders; chamvi's ports allow at most one finder and keep every rule in the service.
 
-The user's requested `find`/`findOne`/`findOrFail`/`findOneOrFail` naming is explicit. It is not a claim that Authup exposes that exact quartet: the inspected generic Authup contract uses `findMany`, `findOneById` and other qualified methods. chamvi retains its existing domain return shapes, absence as undefined, mutation atomicity and clock semantics. No generic ORM query language or adapter inheritance hierarchy was introduced.
+The user's requested `find`/`findOne`/`findOrFail`/`findOneOrFail` naming is explicit. It is not a claim that Authup exposes that exact quartet: the inspected generic Authup contract uses `findMany`, `findOneById` and other qualified methods. chamvi's services keep the domain return shapes, absence as undefined, mutation atomicity and clock semantics; the generic port speaks rapiq queries, never ORM find options.
 
 ## HTTP controllers and services
 

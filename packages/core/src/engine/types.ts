@@ -10,21 +10,60 @@ import type { ArtifactInput } from '../artifact/types.ts';
 import type { ChannelContext, IChannel } from '../channel/types.ts';
 import type { IClock } from '../clock/index.ts';
 import type { IContextProvider } from '../context/types.ts';
+import type { ConversationInspection, ConversationOptions } from '../conversation/types.ts';
 import type {
     ConversationIdentity,
-    ConversationInspection,
-    ConversationOptions,
     ConversationScope,
-} from '../conversation/types.ts';
+    Invoker,
+    Run,
+    Step,
+    TriggerEnvelope,
+} from '@chamvi/store';
 import type { IModelResolver, ModelRef } from '../model/types.ts';
-import type { Run, Step } from '../run/types.ts';
 import type { SkillInput } from '../skill/types.ts';
-import type { IStore } from '../repository/types.ts';
-import type { Invoker, TriggerEnvelope } from '../trigger/types.ts';
+import type { AgentRevisionService } from '../agent-revision/service.ts';
+import type { ConnectionService } from '../connection/service.ts';
+import type { ConversationService } from '../conversation/service.ts';
+import type { ArtifactService } from '../artifact/service.ts';
+import type { CheckpointService } from '../checkpoint/service.ts';
+import type { EffectService } from '../effect/service.ts';
+import type { IdempotencyService } from '../idempotency/service.ts';
+import type { LockService } from '../lock/service.ts';
+import type { RunService } from '../run/service.ts';
+import type { StateService } from '../state/service.ts';
+import type { StepService } from '../step/service.ts';
 
 /** Public engine contract; use Engine only for construction or extension. */
 export interface IEngine extends IContextProvider {
-    readonly store: IStore;
+    /** The rules of runs over the run repository. */
+    readonly runService: RunService;
+    /** The steps of runs over the step repository. */
+    readonly stepService: StepService;
+    /** The latest checkpoint of each run over the checkpoint repository. */
+    readonly checkpointService: CheckpointService;
+    /** Recorded effect results over the effect repository. */
+    readonly effectService: EffectService;
+    /** The files of runs over the artifact repository. */
+    readonly artifactService: ArtifactService;
+    /** Agent state over the key-value and document repositories. */
+    readonly stateService: StateService;
+    /** The revision markers of folder agents over the agent revision repository. */
+    readonly agentRevisionService: AgentRevisionService;
+    /** Leases on keys over the lock repository (keyed runs, admission, the registry, approval deliveries). */
+    readonly lockService: LockService;
+    /** The idempotency keys of dispatches over the idempotency repository. */
+    readonly idempotencyService: IdempotencyService;
+    /**
+     * Connections over the connection repository, when the store keeps
+     * them; the engine itself uses none, code that holds an engine
+     * (`createHttpApp`) reads them through it.
+     */
+    readonly connectionService: ConnectionService | undefined;
+    /**
+     * Conversations over the conversation repository, when the store keeps
+     * them; the conversation capability (`conversations`) needs it.
+     */
+    readonly conversationService: ConversationService | undefined;
     readonly clock: IClock;
     readonly isDraining: boolean;
 
@@ -105,7 +144,30 @@ export type AgentRunsCancelled = {
 export type EngineEvent = RunEvent | AgentChange | AgentRunsCancelled;
 
 export type EngineOptions = {
-    store: IStore;
+    /** Runs: built on the same clock as the engine's (`clock`). */
+    runService: RunService;
+    stepService: StepService;
+    checkpointService: CheckpointService;
+    effectService: EffectService;
+    artifactService: ArtifactService;
+    stateService: StateService;
+    agentRevisionService: AgentRevisionService;
+    /** Leases: built on the same clock as the engine's (`clock`). */
+    lockService: LockService;
+    /** Dispatch idempotency keys: built on the same clock as the engine's (`clock`). */
+    idempotencyService: IdempotencyService;
+    /**
+     * Connections, when the store keeps them (optional); the engine uses
+     * none, it exposes the service to code that holds the engine. Its
+     * fence reads the lock rows `lockService` writes.
+     */
+    connectionService?: ConnectionService;
+    /**
+     * Conversations, when the store keeps them (optional): required by the
+     * conversation capability (`conversations`), built on the engine's
+     * clock.
+     */
+    conversationService?: ConversationService;
     agents: Agent[];
     readonly skills?: readonly SkillInput[];
     /**
@@ -126,7 +188,7 @@ export type EngineOptions = {
     models?: IModelResolver;
     /**
      * The conversation capability agents with `conversation: true` need: the
-     * authorizer and the limits. Persistence comes from `store.conversations`.
+     * authorizer and the limits. Persistence comes from `conversationService`.
      */
     conversations?: ConversationOptions;
     /** Default `${hostname}-${pid}`. */

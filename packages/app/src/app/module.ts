@@ -23,9 +23,10 @@ import {
     runHooks,
 } from '../module/helpers.ts';
 import { runStartSteps } from '../module/start.ts';
+import { withServices } from '../modules/service/module.ts';
 import { splitAgentEntries } from '../package/helpers.ts';
 import type { AppContext, AppMode } from '../module/types.ts';
-import { APP_BRAND } from './constants.ts';
+import { APP_BRAND, APP_MODULES } from './constants.ts';
 import {
     buildModules,
     createInUseError,
@@ -119,6 +120,10 @@ export class App implements IApp {
         this.agents = Object.freeze(entries.agents);
         this.packages = Object.freeze(entries.packages);
         this.modules = buildModules(options.modules);
+        Object.defineProperty(this, APP_MODULES, {
+            get: () => [...this.modules],
+            enumerable: false,
+        });
         this.models = options.models;
         this.skills = options.skills;
         this.model = options.model;
@@ -204,7 +209,7 @@ export class App implements IApp {
 
         const application = new Application({
             container,
-            modules: this.modules.map((module) => reportingModule(module, report)),
+            modules: this.modules.map((module) => reportingModule(withServices(module), report)),
         });
 
         const lifecycle: Lifecycle = {

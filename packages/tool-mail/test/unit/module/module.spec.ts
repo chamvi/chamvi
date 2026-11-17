@@ -13,7 +13,6 @@ import {
 } from 'vitest';
 import {
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
@@ -29,7 +28,7 @@ import {
     storeModule,
 } from '@chamvi/app';
 import type { IModule } from '@chamvi/app';
-import { buildModuleHarness, createModuleHarness } from '@chamvi/app/testing';
+import { buildModuleHarness, createModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
 import { mailTools } from '@chamvi/tool-mail';
 import type { MailSearchResult } from '@chamvi/tool-mail';
@@ -130,8 +129,8 @@ async function runAssistant(harness: ModuleHarness) {
 
     await engine.idle();
 
-    const run = await engine.store.runs.findOne(runId);
-    const step = (await engine.store.steps.find(runId))
+    const run = await engine.runService.findOne(runId);
+    const step = (await engine.stepService.find(runId))
         .find((entry) => entry.kind === 'tool' && entry.name === 'mail_search');
 
     return { run, step };
@@ -239,7 +238,7 @@ describe('toolMailModule()', () => {
             env: { DATABASE_URL: 'postgres://chamvi@127.0.0.1:1/chamvi' },
             modules: [
                 configModule({ logger: createLogger({ level: 'error', write: () => {} }) }),
-                storeModule({ store: createMemoryStore() }),
+                memoryStoreModule(),
                 engineModule(),
                 toolMailModule({ env: envOf(server.port) }),
             ],

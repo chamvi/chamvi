@@ -13,7 +13,7 @@ import {
     it,
 } from 'vitest';
 import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
-import type { IConnectionHandle, IStore } from '@chamvi/core';
+import type { IConnectionHandle } from '@chamvi/core';
 import {
     AppToken,
     configModule,
@@ -97,7 +97,8 @@ function world(input: {
         sockets,
         module,
         harness,
-        store: () => harness.container.resolve(AppToken.STORE) as IStore,
+        connections: () => harness.container.resolve(AppToken.CONNECTION_SERVICE),
+        lockService: () => harness.container.resolve(AppToken.LOCK_SERVICE),
         handle: () => harness.container.resolveAll(AppToken.CONNECTIONS)[0] as IConnectionHandle,
     };
 }
@@ -119,7 +120,7 @@ describe('whatsappModule', () => {
         // started: the lease is taken, the socket built
         expect(w.sockets.sockets).toHaveLength(1);
         expect(w.handle().status()).toBe('connecting');
-        expect(await w.store().connections!.findOne('bot')).toMatchObject({ type: 'whatsapp', keyId: 'k1' });
+        expect(await w.connections().findOne('bot')).toMatchObject({ type: 'whatsapp', keyId: 'k1' });
     });
 
     it('shows the pairing QR through the handle only while pairing, and never logs it', async () => {
@@ -179,7 +180,7 @@ describe('whatsappModule', () => {
         await w.handle().actions.reset!();
 
         expect(w.sockets.sockets).toHaveLength(2);
-        expect(await w.store().connections!.findEntry('bot', 'key:session:alice.0')).toBeUndefined();
+        expect(await w.connections().findEntry('bot', 'key:session:alice.0')).toBeUndefined();
 
         w.sockets.last().emit('connection.update', { qr: QR });
         expect(w.handle().widgets()).toEqual([{ kind: 'qr', value: QR }]);
@@ -192,8 +193,8 @@ describe('whatsappModule', () => {
         await settle();
 
         expect(w.sockets.sockets).toEqual([]);
-        expect(await w.store().connections!.find()).toEqual([]);
-        expect(await w.store().locks.acquire('connection:bot', 'probe', 1000)).toBe(true);
+        expect(await w.connections().find()).toEqual([]);
+        expect(await w.lockService().acquire('connection:bot', 'probe', 1000)).toBe(true);
     });
 
     it('a check still refuses a malformed keyring without echoing it', async () => {

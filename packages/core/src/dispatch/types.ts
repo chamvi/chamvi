@@ -11,8 +11,9 @@ import type { Agent } from '../agent/types.ts';
 import type { ChannelSubscription, DispatchResult } from '../channel/types.ts';
 import type { IClock } from '../clock/types.ts';
 import type { DispatchEnvelope } from '../engine/types.ts';
-import type { IEffectRepository, IRunRepository } from '../repository/types.ts';
-import type { Invoker, TriggerParent, TriggerSource } from '../trigger/types.ts';
+import type { EffectService } from '../effect/service.ts';
+import type { RunService } from '../run/service.ts';
+import type { Invoker, TriggerParent, TriggerSource } from '@chamvi/store';
 
 export type AgentSubscriptionOptions<P = unknown> = {
     /** The role (the subscription id), following the channel-name rule; default `default`. */
@@ -108,8 +109,8 @@ export type DispatchHost = {
     hasChannel(name: string): boolean;
     /** The engine clock: the time a permission check of a cross-agent dispatch evaluates at. */
     clock: IClock;
-    effects: IEffectRepository;
-    runs: Pick<IRunRepository, 'findOne' | 'find'>;
+    effects: Pick<EffectService, 'findOne' | 'save'>;
+    runs: Pick<RunService, 'findOne' | 'find'>;
     /** Creates the run with `parent` as its lineage (engine.dispatch() never sets one). */
     createRun(envelope: DispatchEnvelope, parent: TriggerParent): Promise<DispatchResult>;
     /** Runs `fn` after every earlier call of the same run settled (the count and children read-check-write). */

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { InvalidAgentDefinitionError, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import { ControllableClock, textModel } from '@chamvi/test-kit';
@@ -25,7 +25,6 @@ import {
     httpModule,
     schedulerModule,
     staticTokensModule,
-    storeModule,
 } from '@chamvi/app';
 import type { AppMode, HttpModuleOptions, IApp } from '@chamvi/app';
 import { TOKEN, TOKENS, rejectionOf } from '../../../utils/app.ts';
@@ -39,6 +38,7 @@ import { buildHarness } from '../../../utils/harness.ts';
 import type { Harness } from '../../../utils/harness.ts';
 import { createRecordingLogger } from '../../../utils/logger.ts';
 import { closeServer, freePort, listenOn } from '../../../utils/port.ts';
+import { createTestStore, storeModuleOf } from '../../../utils/store.ts';
 
 const START = new Date('2026-11-15T00:00:00Z');
 
@@ -119,7 +119,7 @@ async function build(options: {
     const builtIn = [
         configModule({ clock, logger }),
         // a given store: migrate mode then never connects to its DATABASE_URL
-        storeModule({ store: createMemoryStore({ clock }) }),
+        storeModuleOf(createTestStore({ clock })),
         staticTokensModule(),
         engineModule(),
         schedulerModule(),
@@ -219,7 +219,7 @@ describe('AppToken.HTTP_CONTROLLERS', () => {
                 agents: [triage],
                 modules: [
                     configModule({ clock, logger: createRecordingLogger(clock) }),
-                    storeModule({ store: createMemoryStore({ clock }) }),
+                    storeModuleOf(createTestStore({ clock })),
                     httpModule({ openapi: false }),
                     ...modules,
                 ],
@@ -330,7 +330,7 @@ describe('AppToken.OPENAPI_DOCUMENTS', () => {
             agents: [triage],
             modules: [
                 configModule({ clock, logger: createRecordingLogger(clock) }),
-                storeModule({ store: createMemoryStore({ clock }) }),
+                storeModuleOf(createTestStore({ clock })),
                 httpModule({ openapi: { documents: [a] } }),
                 documents([], openApiDocument('/notes', 'otherNotes')),
             ],

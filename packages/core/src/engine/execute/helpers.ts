@@ -35,19 +35,14 @@ import {
     ToolNotAllowedError,
     ValidationError,
 } from '../../errors/index.ts';
-import type {
-    Budget,
-    Checkpoint,
-    RunContext,
-    WaitPoint,
-} from '../../run/types.ts';
+import type { Budget, RunContext } from '../../run/types.ts';
+import type { Checkpoint, TriggerEnvelope, WaitPoint } from '@chamvi/store';
 import { createGuardedAgentState } from '../../state/module.ts';
 import { createStateTools } from '../../state/tools.ts';
 import { TOOL_CONTEXT_MISSING } from '../../tool/constants.ts';
 import { hasToolContext } from '../../tool/helpers.ts';
 import { assertAgentTrust } from '../../trust/asserts.ts';
 import type { ToolContext } from '../../tool/types.ts';
-import type { TriggerEnvelope } from '../../trigger/types.ts';
 import { MAX_ERROR_CAUSE_LENGTH } from './constants.ts';
 import type {
     AssembleToolsOptions,
@@ -178,9 +173,9 @@ export function createToolContext(ctx: ExecuteContext, runContext: RunContext, g
     };
     const toolContext: ToolContext = {
         run: runContext,
-        state: createGuardedAgentState(ctx.agent.name, ctx.agent.definition.state, ctx.store.state, assertWritable),
-        artifacts: createGuardedRunArtifacts(ctx.store.artifacts, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock, assertWritable),
-        channels: createToolChannels(runContext, ctx.store.effects, ctx.engine),
+        state: createGuardedAgentState(ctx.agent.name, ctx.agent.definition.state, ctx.stateService, assertWritable),
+        artifacts: createGuardedRunArtifacts(ctx.artifactService, { id: ctx.run.id, agent: ctx.run.agent }, ctx.clock, assertWritable),
+        channels: createToolChannels(runContext, ctx.effectService, ctx.engine),
     };
 
     if (ctx.provided) {
@@ -295,7 +290,7 @@ export async function assembleTools(
 
     if (!toolPolicy) {
         return {
-            tools: wrapToolsForRun(tools, toolContext, ctx.store.effects, {
+            tools: wrapToolsForRun(tools, toolContext, ctx.effectService, {
                 hooks,
                 trust: ctx.agent.definition.trust,
                 onSuspend,
@@ -312,7 +307,7 @@ export async function assembleTools(
     const verdicts = await Promise.all(names.map(async (name) => allow(name)));
 
     return {
-        tools: wrapToolsForRun(tools, toolContext, ctx.store.effects, {
+        tools: wrapToolsForRun(tools, toolContext, ctx.effectService, {
             allow,
             hooks,
             trust: ctx.agent.definition.trust,

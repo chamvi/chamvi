@@ -6,14 +6,10 @@
  */
 
 import { join } from 'node:path';
-import {
-    Engine,
-    createMemoryStore,
-    defineModelAgent,
-} from '@chamvi/app';
+import { defineModelAgent } from '@chamvi/app';
 import type { IEngine } from '@chamvi/app';
 import { hashSkillBundle } from '@chamvi/skills';
-import { ControllableClock, createGitFixture } from '@chamvi/test-kit';
+import { ControllableClock, createGitFixture, createTestEngine } from '@chamvi/test-kit';
 import type { LanguageModelV4StreamPart } from '@ai-sdk/provider';
 import { simulateReadableStream } from 'ai';
 import { MockLanguageModelV4 } from 'ai/test';
@@ -28,7 +24,6 @@ it('prepares reviewed bytes for metadata-only initial context and body/reference
     const directory = join(fixture.path, 'prepared');
     const hash = hashSkillBundle(join(fixture.path, 'skills/audit'));
     const clock = new ControllableClock();
-    const store = createMemoryStore({ clock });
     let turn = 0;
     const model = new MockLanguageModelV4({
         doStream: async () => {
@@ -108,9 +103,8 @@ it('prepares reviewed bytes for metadata-only initial context and body/reference
             model,
         });
 
-        engine = new Engine({
+        engine = createTestEngine({
             agents: [agent],
-            store,
             clock,
         });
         await engine.start();
@@ -123,7 +117,7 @@ it('prepares reviewed bytes for metadata-only initial context and body/reference
         });
 
         await engine.idle();
-        expect(await store.runs.findOne(runId)).toMatchObject({ status: 'completed', output: 'done' });
+        expect(await engine.runService.findOne(runId)).toMatchObject({ status: 'completed', output: 'done' });
 
         const initial = JSON.stringify(model.doStreamCalls[0]!.prompt);
 
@@ -132,7 +126,7 @@ it('prepares reviewed bytes for metadata-only initial context and body/reference
         expect(initial).not.toContain('PRIVATE');
         expect(initial).not.toContain(directory);
 
-        const tools = (await store.steps.find(runId)).filter((step) => step.kind === 'tool');
+        const tools = (await engine.stepService.find(runId)).filter((step) => step.kind === 'tool');
 
         expect(tools.map((step) => step.output)).toMatchObject([
             {
@@ -148,7 +142,7 @@ it('prepares reviewed bytes for metadata-only initial context and body/reference
                 content: 'PRIVATE REFERENCE\n',
             },
         ]);
-        expect(JSON.stringify(await store.checkpoints.findOne(runId))).toContain('PRIVATE REFERENCE');
+        expect(JSON.stringify(await engine.checkpointService.findOne(runId))).toContain('PRIVATE REFERENCE');
         await expect(prepareCatalog(options, { audit: '0'.repeat(64) })).rejects.toThrow();
         expect(hashSkillBundle(join(directory, 'audit'))).toBe(hash);
     } finally {

@@ -5,9 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-/** The purge timer's lifecycle hook. */
-export const PURGE_HOOK_NAME = 'chamvi:purge';
-
 export const MEMORY_STORE_WARNING = 'DATABASE_URL unset: the memory store keeps runs in memory; restarts lose them and replicas share nothing.';
 
 /** How a check's store_not_migrated error ends, after the pending count. */

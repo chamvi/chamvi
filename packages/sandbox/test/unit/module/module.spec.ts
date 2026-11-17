@@ -10,17 +10,15 @@ import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import {
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import type {
     Agent,
     IEngine,
-    IStore,
     ModelAgentDefinition,
-    Run,
 } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { createWorkspaceManager, injectSandboxContext, provideSandboxContext } from '@chamvi/sandbox';
 import type { ISandboxProvider, IWorkspaceManager } from '@chamvi/sandbox';
 import { createLocalSandbox } from '@chamvi/sandbox-local';
@@ -34,12 +32,17 @@ import {
 import { z } from 'zod';
 import {
     AppToken,
+    ModuleName,
     configModule,
     engineModule,
     storeModule,
 } from '@chamvi/app';
-import type { AppMode, ILifecycleHook, IModule } from '@chamvi/app';
-import { createModuleHarness } from '@chamvi/app/testing';
+import type {
+    AppMode,
+    ILifecycleHook,
+    IModule,
+} from '@chamvi/app';
+import { createModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness } from '@chamvi/app/testing';
 import { SandboxModule, sandboxModule } from '@chamvi/sandbox/module';
 import type { SandboxModuleOptions, SandboxProviderName } from '@chamvi/sandbox/module';
@@ -163,7 +166,8 @@ async function harnessWith(module: IModule, options: {
     mode?: AppMode;
     agents?: Agent[];
     events?: string[];
-    store?: IStore;
+    /** The store module instead of one over `store` (or a memory one). */
+    storeModule?: IModule;
     clock?: ControllableClock;
 } = {}) {
     const harness = await createModuleHarness({
@@ -172,7 +176,7 @@ async function harnessWith(module: IModule, options: {
         agents: options.agents ?? [agent()],
         modules: [
             configModule({ logger: createRecordingLogger(), ...(options.clock && { clock: options.clock }) }),
-            storeModule(options.store ? { store: options.store } : {}),
+            options.storeModule ?? storeModule(),
             engineModule(),
             module,
         ],
@@ -500,19 +504,18 @@ describe('sandboxModule', () => {
     });
 
     it('keeps the held workspaces after drained when the store persists', async () => {
-        const memory = createMemoryStore();
-        // a store of its own kind: the runs outlive the process
-        const runs = new Proxy({}, {
-            get: (_target, key) => {
-                const value: unknown = Reflect.get(memory.runs, key);
-
-                return typeof value === 'function' ? value.bind(memory.runs) : value;
-            },
-        }) as IStore['runs'];
-        const store = { ...memory, runs };
+        // a store module of another kind than memory: its runs outlive the process
         const manager = fakeManager([]);
+        const given: IModule = {
+            name: ModuleName.STORE,
+            dependencies: [ModuleName.CONFIG],
+            async setup(container) {
+                await memoryStoreModule().setup(container);
+                container.register(AppToken.STORE_KIND, { useValue: 'database' });
+            },
+        };
 
-        await (await harnessWith(sandboxModule({ manager, env: {} }), { store })).stop();
+        await (await harnessWith(sandboxModule({ manager, env: {} }), { storeModule: given })).stop();
         expect(manager.closes).toEqual([{ dispose: false }]);
     });
 
@@ -611,7 +614,7 @@ describe('sandboxModule', () => {
 
         expect(run?.status).toBe('completed');
 
-        const steps = await engine.store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
         const created = steps.find((step) => step.kind === 'tool');
 
         expect(created?.output).toMatchObject({ root: '/workspace', reused: false });
@@ -820,7 +823,7 @@ describe('sandboxModule: suspension', () => {
     it('isSuspendable answers a run waiting at least suspendAfterMs', async () => {
         const clock = new ControllableClock(new Date(1_000_000));
         const module = new RecordingSandboxModule({ env: {} });
-        const harness = await harnessWith(module, { clock, store: createMemoryStore({ clock }) });
+        const harness = await harnessWith(module, { clock });
         const { isSuspendable } = await gcOptionsOf(module);
         const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
         const getRun = vi.spyOn(engine, 'getRun');
@@ -853,7 +856,7 @@ describe('sandboxModule: suspension', () => {
     it('isSuspendable uses the suspendAfterMs option', async () => {
         const clock = new ControllableClock(new Date(1_000_000));
         const module = new RecordingSandboxModule({ env: {}, suspendAfterMs: 1_000 });
-        const harness = await harnessWith(module, { clock, store: createMemoryStore({ clock }) });
+        const harness = await harnessWith(module, { clock });
         const { isSuspendable } = await gcOptionsOf(module);
         const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
         const getRun = vi.spyOn(engine, 'getRun');
@@ -902,7 +905,7 @@ describe('sandboxModule: suspension', () => {
     it('CHAMVI_SANDBOX_SUSPEND_AFTER_MS wins over the option', async () => {
         const clock = new ControllableClock(new Date(1_000_000));
         const module = new RecordingSandboxModule({ env: { CHAMVI_SANDBOX_SUSPEND_AFTER_MS: '5000' }, suspendAfterMs: 1_000 });
-        const harness = await harnessWith(module, { clock, store: createMemoryStore({ clock }) });
+        const harness = await harnessWith(module, { clock });
         const { isSuspendable } = await gcOptionsOf(module);
         const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
         const getRun = vi.spyOn(engine, 'getRun');

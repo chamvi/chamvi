@@ -1,9 +1,7 @@
 import type { LanguageModel } from 'ai';
 import { z } from 'zod';
 import { cron, cronChannel } from '@chamvi/channel-cron';
-import type { IStore } from '@chamvi/core';
 import {
-    Engine,
     ToolDeniedError,
     defineModelAgent,
     defineTool,
@@ -11,8 +9,12 @@ import {
 } from '@chamvi/core';
 import { createGithubApp, github, githubChannel } from '@chamvi/github';
 import { createHttpApp, staticTokens } from '@chamvi/http';
+import type { EngineOptions, IEngine } from '@chamvi/core';
 
-export function createTriage(model: LanguageModel, store: IStore) {
+/** Builds the app's engine on the repositories every replica shares (see Database store). */
+type CreateEngine = (options: Pick<EngineOptions, 'agents' | 'channels' | 'onError'>) => IEngine;
+
+export function createTriage(createEngine: CreateEngine, model: LanguageModel) {
     // #region app
     const gh = createGithubApp({
         appId: process.env.GITHUB_APP_ID ?? '',
@@ -29,6 +31,11 @@ export function createTriage(model: LanguageModel, store: IStore) {
     // deliveries in at POST /channels/github, issue comments out
     const channel = githubChannel({
         app: gh,
+        // named comment slots are coordinated through the engine's lock service (built below), shared by every replica
+        locks: {
+            acquire: (...args) => engine.lockService.acquire(...args),
+            release: (...args) => engine.lockService.release(...args),
+        },
         // mentioned at the top of every comment
         mention: 'octocat',
         // a link to the approval in the UI, without the token
@@ -77,8 +84,8 @@ export function createTriage(model: LanguageModel, store: IStore) {
     // #endregion agent
 
     // #region http
-    const engine = new Engine({
-        store,
+    // your engine on the repositories every replica shares (see Database store)
+    const engine = createEngine({
         agents: [triage],
         channels: [channel, cronChannel()],
     });

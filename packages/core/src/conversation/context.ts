@@ -5,9 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run, RunContext } from '../run/types.ts';
+import type { RunContext } from '../run/types.ts';
+import type { ConversationBinding, Run } from '@chamvi/store';
 import { ConversationOperation } from './constants.ts';
-import type { ConversationBinding, IConversations } from './types.ts';
+import type { IConversations } from './types.ts';
 
 const executions = new WeakMap<RunContext, {
     capability: IConversations;

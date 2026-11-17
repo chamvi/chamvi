@@ -26,8 +26,8 @@ import {
     toWaitRecord,
     waitRecordKey,
 } from './helpers.ts';
-import { RunStatus } from '../run/constants.ts';
-import type { Run } from '../run/types.ts';
+import { RunStatus } from '@chamvi/store';
+import type { Run } from '@chamvi/store';
 import type {
     DispatchHost,
     DispatchOutcome,

@@ -5,6 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Run } from '../../run/types.ts';
+import type { Run } from '@chamvi/store';
 
 export const groupKey = (run: Pick<Run, 'agent' | 'concurrencyKey'>) => `${run.agent}\0${run.concurrencyKey}`;

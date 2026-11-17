@@ -6,17 +6,20 @@
  */
 
 import { uuidv7 } from 'uuidv7';
+import type { Artifact } from '@chamvi/store';
 import type { IClock } from '../clock/index.ts';
 import { InvalidRunStateError } from '../errors/index.ts';
-import type { IArtifactRepository } from '../repository/types.ts';
 import { ARTIFACT_URI_PREFIX } from './constants.ts';
 import { assertArtifactInput } from './helpers.ts';
+import type { ArtifactService } from './service.ts';
 import type {
-    Artifact,
     ArtifactFilePart,
     ArtifactInput,
     IRunArtifacts,
 } from './types.ts';
+
+/** What the artifacts of a run (`createRunArtifacts()`) need of the artifact service. */
+type RunArtifactsService = Pick<ArtifactService, 'create' | 'save' | 'findOne' | 'findOneByKey' | 'read' | 'find'>;
 
 /** The metadata of `input` as a new artifact of the run, under a fresh UUID v7. */
 function createArtifact(
@@ -42,7 +45,7 @@ function createArtifact(
  * caller never names metadata the store does not hold.
  */
 export async function storeArtifact(
-    store: IArtifactRepository,
+    artifacts: Pick<ArtifactService, 'create' | 'findOneByKey'>,
     run: { id: string; agent: string },
     input: ArtifactInput,
     createdAt: Date,
@@ -50,11 +53,11 @@ export async function storeArtifact(
 ): Promise<Artifact> {
     const artifact = createArtifact(run, input, createdAt);
 
-    if (await store.insert(artifact, input.data, key)) {
+    if (await artifacts.create(artifact, input.data, key)) {
         return artifact;
     }
 
-    const stored = key === undefined ? undefined : await store.findOneByKey(run.id, key);
+    const stored = key === undefined ? undefined : await artifacts.findOneByKey(run.id, key);
 
     if (!stored) {
         throw new InvalidRunStateError(`The artifact "${artifact.id}" could not be stored for run "${run.id}".`);
@@ -65,11 +68,11 @@ export async function storeArtifact(
 
 /** The artifacts of one run, as tools get them. */
 export function createRunArtifacts(
-    store: IArtifactRepository,
+    artifacts: RunArtifactsService,
     run: { id: string; agent: string },
     clock: IClock,
 ): IRunArtifacts {
-    return createGuardedRunArtifacts(store, run, clock, () => {});
+    return createGuardedRunArtifacts(artifacts, run, clock, () => {});
 }
 
 /**
@@ -78,7 +81,7 @@ export function createRunArtifacts(
  * nothing is stored. Reads are never checked.
  */
 export function createGuardedRunArtifacts(
-    store: IArtifactRepository,
+    artifacts: RunArtifactsService,
     run: { id: string; agent: string },
     clock: IClock,
     assertWritable: (name: string) => void,
@@ -89,19 +92,19 @@ export function createGuardedRunArtifacts(
             assertArtifactInput(input);
 
             if (input.key === undefined) {
-                return storeArtifact(store, run, input, clock.now());
+                return storeArtifact(artifacts, run, input, clock.now());
             }
 
-            return store.save(createArtifact(run, input, clock.now()), input.data, `tool:${input.key}`);
+            return artifacts.save(createArtifact(run, input, clock.now()), input.data, `tool:${input.key}`);
         },
         async get(id) {
-            const artifact = await store.findOne(id);
+            const artifact = await artifacts.findOne(id);
 
             if (artifact?.runId !== run.id) {
                 return undefined;
             }
 
-            const data = await store.read(id);
+            const data = await artifacts.read(id);
 
             if (!data) {
                 return undefined;
@@ -110,7 +113,7 @@ export function createGuardedRunArtifacts(
             return { artifact, data };
         },
         list() {
-            return store.find(run.id);
+            return artifacts.find(run.id);
         },
     };
 }

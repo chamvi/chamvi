@@ -19,7 +19,7 @@ import { IssueCode, defineIssueItem } from '@ebec/core';
 import type { Issue } from '@ebec/core';
 import { ConflictError } from '@ebec/http';
 import { ValidupError } from 'validup';
-import type { ConfigTarget, ConnectionServiceContext, FormInput } from '../types.ts';
+import type { ConfigTarget, ConnectionHttpServiceContext, FormInput } from '../types.ts';
 import { isStored, lockOf, normalizeSetting } from './fields.ts';
 import { isDeleted } from './target.ts';
 
@@ -199,7 +199,7 @@ export function identityValues(target: ConfigTarget, settings: ConnectionConfigV
 
 /** Refuses `values` when another connection of the type has their identity; `self` is the account being edited. */
 export async function assertUnique(
-    ctx: ConnectionServiceContext,
+    ctx: ConnectionHttpServiceContext,
     definition: ConnectionTypeDefinition,
     values: ConnectionValues,
     self?: string,
@@ -210,7 +210,7 @@ export async function assertUnique(
 
     const wanted = definition.uniqueId(values);
     const conflict = new ConflictError({ message: 'An account with the same identity already exists.' });
-    const rows = await ctx.store.connections?.find() ?? [];
+    const rows = await ctx.connectionService?.find() ?? [];
     const rowsByName = new Map(rows.map((row) => [row.name, row]));
     const declaredNames = new Set<string>();
 

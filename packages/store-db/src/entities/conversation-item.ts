@@ -14,7 +14,7 @@ import {
     PrimaryGeneratedColumn,
 } from 'typeorm';
 import type { Relation } from 'typeorm';
-import type { ConversationItem } from '@chamvi/core';
+import type { ConversationItem } from '@chamvi/store';
 import { TableName } from './constants.ts';
 import { ConversationEntity } from './conversation.ts';
 import { RunEntity } from './run.ts';
@@ -57,6 +57,10 @@ export class ConversationItemEntity {
 
     @Column({ type: 'text' })
     text!: string;
+
+    /** The UTF-8 byte length of `text`, set by the conversation service. */
+    @Column({ type: 'integer' })
+    bytes!: number;
 
     @Column({ type: 'text' })
     status!: ConversationItem['status'];

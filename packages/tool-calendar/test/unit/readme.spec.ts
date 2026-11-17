@@ -7,9 +7,8 @@
 
 import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
-import { Engine, createMemoryStore } from '@chamvi/core';
 import { httpChannel } from '@chamvi/http';
-import { mockModel } from '@chamvi/test-kit';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 import type { CalendarEventsToolResult } from '@chamvi/tool-calendar';
 import { createPlannerAgent } from '../fixtures/readme-example.ts';
 import { createFakeCalDav } from '../utils/caldav.ts';
@@ -49,8 +48,7 @@ describe('README example', () => {
             },
             { parts: [{ type: 'text', text: 'The standup moved to 14:00.' }] },
         ]), 'secret', server.fetch);
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
             agents: [agent],
             channels: [httpChannel()],
         });
@@ -67,7 +65,7 @@ describe('README example', () => {
         await engine.idle();
 
         const run = await engine.getRun(runId);
-        const steps = await engine.store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
         const events = steps.find((step) => step.kind === 'tool' && step.name === 'calendar_events');
 
         engine.stop();

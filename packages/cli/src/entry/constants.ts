@@ -16,3 +16,6 @@ export const DEFAULT_APP_NOTICE = 'no entry file: running the default app (agent
 
 /** DEFAULT_APP_NOTICE for `migrate`, which loads no agent. */
 export const MIGRATE_DEFAULT_APP_NOTICE = 'no entry file: migrating the store of the default app\n';
+
+/** DEFAULT_APP_NOTICE for `migration`: the default app has no database module. */
+export const MIGRATION_DEFAULT_APP_NOTICE = 'no entry file: the default app has no database module\n';

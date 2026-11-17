@@ -7,7 +7,13 @@
 
 import type {
     Agent,
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    ConnectionService,
     ConnectionValues,
+    ConversationService,
+    EffectService,
     IChannel,
     IClock,
     IConnectionConfigStore,
@@ -16,10 +22,28 @@ import type {
     IEngine,
     IKeyring,
     IModelResolver,
-    IStore,
+    IdempotencyService,
+    LockService,
     ModelRef,
+    RunService,
     SkillInput,
+    StateService,
+    StepService,
 } from '@chamvi/core';
+import type {
+    IAgentRevisionRepository,
+    IArtifactRepository,
+    ICheckpointRepository,
+    IConnectionRepository,
+    IConversationRepository,
+    IEffectRepository,
+    IIdempotencyRepository,
+    ILockRepository,
+    IRunRepository,
+    IStateDocumentRepository,
+    IStateRepository,
+    IStepRepository,
+} from '@chamvi/store';
 import type {
     AgentIssue,
     Authenticator,
@@ -121,7 +145,7 @@ export interface ILifecycleHook {
     started?(): void | Promise<void>;
     /** start only: the shutdown's first step, before the closers, the server close and the drain (which stops the channels). */
     stopping?(): void | Promise<void>;
-    /** After the engine drained (start, job and a check), before the store closes. */
+    /** After the engine drained (start, job and a check; also when the drain failed), before the store closes. */
     drained?(): void | Promise<void>;
 }
 
@@ -155,12 +179,77 @@ export type UiAuth = {
     };
 };
 
+/** Where the store module keeps the rows. */
+export type StoreKind = 'memory' | 'database';
+
 export type AppTokens = {
     CONTEXT: AppContext;
     CONFIG: AppConfig;
     LOGGER: ILogger;
     CLOCK: IClock;
-    STORE: IStore;
+    /** Where the store's rows live: in this process (`memory`) or in a database (`database`). */
+    STORE_KIND: StoreKind;
+    /** The run repository the store module registers (memory, database or a replacing module's). */
+    RUN_REPOSITORY: IRunRepository;
+    /** The rules of runs over `RUN_REPOSITORY`, on the app clock; the engine module passes it to the engine. */
+    RUN_SERVICE: RunService;
+    /** The step repository the store module registers (memory, database or a replacing module's). */
+    STEP_REPOSITORY: IStepRepository;
+    /** The steps of runs over `STEP_REPOSITORY`; the engine module passes it to the engine. */
+    STEP_SERVICE: StepService;
+    /** The checkpoint repository the store module registers (memory, database or a replacing module's). */
+    CHECKPOINT_REPOSITORY: ICheckpointRepository;
+    /** The latest checkpoint of each run over `CHECKPOINT_REPOSITORY`; the engine module passes it to the engine. */
+    CHECKPOINT_SERVICE: CheckpointService;
+    /** The effect repository the store module registers (memory, database or a replacing module's). */
+    EFFECT_REPOSITORY: IEffectRepository;
+    /** Recorded effect results over `EFFECT_REPOSITORY`; the engine module passes it to the engine. */
+    EFFECT_SERVICE: EffectService;
+    /** The artifact repository the store module registers (memory, database or a replacing module's). */
+    ARTIFACT_REPOSITORY: IArtifactRepository;
+    /** The files of runs over `ARTIFACT_REPOSITORY`; the engine module passes it to the engine. */
+    ARTIFACT_SERVICE: ArtifactService;
+    /** The state key repository the store module registers (memory, database or a replacing module's). */
+    STATE_REPOSITORY: IStateRepository;
+    /** The state document repository the store module registers (memory, database or a replacing module's). */
+    STATE_DOCUMENT_REPOSITORY: IStateDocumentRepository;
+    /** Agent state over `STATE_REPOSITORY` and `STATE_DOCUMENT_REPOSITORY`; the engine module passes it to the engine. */
+    STATE_SERVICE: StateService;
+    /** The lock repository the store module registers (memory, database or a replacing module's). */
+    LOCK_REPOSITORY: ILockRepository;
+    /** Leases over `LOCK_REPOSITORY`, on the app clock; the engine module passes it to the engine, connections and features lock through it. */
+    LOCK_SERVICE: LockService;
+    /** The idempotency key repository the store module registers (memory, database or a replacing module's). */
+    IDEMPOTENCY_REPOSITORY: IIdempotencyRepository;
+    /** Dispatch idempotency keys over `IDEMPOTENCY_REPOSITORY`, on the app clock; the engine module passes it to the engine. */
+    IDEMPOTENCY_SERVICE: IdempotencyService;
+    /** The agent revision repository the store module registers (memory, database or a replacing module's). */
+    AGENT_REVISION_REPOSITORY: IAgentRevisionRepository;
+    /** The revision markers of folder agents over `AGENT_REVISION_REPOSITORY`; the engine module passes it to the engine. */
+    AGENT_REVISION_SERVICE: AgentRevisionService;
+    /**
+     * The connection repository the store module registers (memory,
+     * database or a replacing module's); optional (`container.has()`).
+     */
+    CONNECTION_REPOSITORY: IConnectionRepository;
+    /**
+     * Connections, their entries and config over `CONNECTION_REPOSITORY`, on
+     * the app clock, fenced by the leases of `LOCK_SERVICE`. Registered only
+     * while the store keeps connections: a feature asks `container.has()`.
+     */
+    CONNECTION_SERVICE: ConnectionService;
+    /**
+     * The conversation repository the store module registers (memory,
+     * database or a replacing module's); optional (`container.has()`).
+     */
+    CONVERSATION_REPOSITORY: IConversationRepository;
+    /**
+     * Conversations, their transcripts and notes over
+     * `CONVERSATION_REPOSITORY`, on the app clock. Registered only while
+     * the store keeps conversations: the engine module passes it to the
+     * engine, the conversation capability needs it.
+     */
+    CONVERSATION_SERVICE: ConversationService;
     DATA_SOURCE: DataSource;
     ENGINE: IEngine;
     /** The engine module's model resolver (start and job mode, a check too): chat and, through `embedding()`, embedding models. */
@@ -203,10 +292,12 @@ export type AppTokens = {
     /** A collection: the connection types modules contribute. */
     CONNECTION_TYPES: IConnectionTypeProvider;
     /**
-     * The settings and sealed secrets of connections, over `STORE`: list
-     * `ModuleName.STORE` in `dependencies` to resolve it in `setup`. Built
-     * lazily; the keyring is resolved only when a secret is touched, so
-     * reading plain settings needs no `CHAMVI_ENCRYPTION_KEYS`.
+     * The settings and sealed secrets of connections, over
+     * `CONNECTION_SERVICE`: list `ModuleName.STORE` in `dependencies` to
+     * resolve it in `setup`. Built lazily; resolving it throws
+     * InvalidAgentDefinitionError while the store keeps no connections; the
+     * keyring is resolved only when a secret is touched, so reading plain
+     * settings needs no `CHAMVI_ENCRYPTION_KEYS`.
      */
     CONNECTION_CONFIGS: IConnectionConfigStore;
     /** A collection: the separately built pages modules contribute; the shell lists them from `GET /ui-pages`. */

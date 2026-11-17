@@ -18,12 +18,8 @@ import {
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type {
-    ApprovalWaitPoint,
-    ChamviError,
-    IEngine,
-    Run,
-} from '@chamvi/core';
+import type { ChamviError, IEngine } from '@chamvi/core';
+import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import { github } from '@chamvi/github';
 import type { GithubChannelOptions, IGithubApp } from '@chamvi/github';
 import { createGithubTestApp, deliver } from '../../utils/app.ts';

@@ -10,11 +10,11 @@ import { describe, expect, it } from 'vitest';
 import {
     InvalidAgentDefinitionError,
     ValidationError,
-    createMemoryStore,
     effectMarker,
     wrapToolsForRun,
 } from '@chamvi/core';
 import type { ToolTrust } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import type { Tool } from 'ai';
 import { createGithubApp } from '@chamvi/github';
 import type { GithubCreatedPullRequest, GithubProposalsOptions, GithubProposeChangeInput } from '@chamvi/github';
@@ -339,8 +339,8 @@ function setup(policy = POLICY) {
     };
 }
 
-function wrapped(fixture: ReturnType<typeof setup>, runId: string, store = createMemoryStore().effects) {
-    return wrapToolsForRun(fixture.gh.writeTools(), toolContext({ runId }), store).github_propose_change!;
+function wrapped(fixture: ReturnType<typeof setup>, runId: string, effects = createTestEngine({ agents: [] }).effectService) {
+    return wrapToolsForRun(fixture.gh.writeTools(), toolContext({ runId }), effects).github_propose_change!;
 }
 
 function replay(fixture: ReturnType<typeof setup>, runId: string, input = INPUT) {

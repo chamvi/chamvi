@@ -11,12 +11,12 @@ import {
     expect,
     it,
 } from 'vitest';
-import { Engine, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import type { IEngine, IModelResolver, ModelRef } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -50,14 +50,14 @@ async function runAgent(options: {
     models?: IModelResolver
 }) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const agent = defineModelAgent({
         name: 'ops',
         instructions: 'You operate.',
         ...(options.model === undefined ? {} : { model: options.model }),
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [agent],
         clock,
         claimTtlMs: 30,
@@ -79,8 +79,8 @@ async function runAgent(options: {
     await engine.idle();
 
     return {
-        run: await store.runs.findOne(runId),
-        steps: await store.steps.find(runId),
+        run: await store.runService.findOne(runId),
+        steps: await store.stepService.find(runId),
     };
 }
 

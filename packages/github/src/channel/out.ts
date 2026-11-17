@@ -13,7 +13,8 @@ import {
     ValidationError,
     effectMarker,
 } from '@chamvi/core';
-import type { ChannelMessage, ChannelSendOptions, TriggerEnvelope } from '@chamvi/core';
+import type { ChannelMessage, ChannelSendOptions } from '@chamvi/core';
+import type { TriggerEnvelope } from '@chamvi/store';
 import { isSameLogin } from '../app/helpers.ts';
 import { isPositiveInteger } from '../subscription/helpers.ts';
 import { GITHUB_REQUEST_ERROR_CODE } from '../tools/constants.ts';
@@ -104,7 +105,10 @@ async function installationOf(
  * asked again with backoff until `timeoutMs`), searches without a time
  * cutoff, then PATCHes that bot's matching comment. The lock is released
  * in the background once the send settled, so a slow or failing release
- * (reported to `onError`) never fails a delivered comment.
+ * (reported to `onError`) never fails a delivered comment; a later send of
+ * the same sender to that slot waits for the release first (not for a
+ * backoff on the clock), at most until the lease (twice `timeoutMs`) the
+ * release would have ended runs out.
  * Throws a ValidationError for another
  * address (before any request) and InvalidAgentDefinitionError without an
  * installation (before any comment request), a `github_request` ChamviError for a GitHub failure
@@ -113,6 +117,8 @@ async function installationOf(
  */
 export function createCommentSender(options: ResolvedGithubChannelOptions) {
     const { app } = options;
+    // The slot releases in flight, by slot key: an entry is removed once its release settled.
+    const releases = new Map<string, Promise<void>>();
 
     return async (message: ChannelMessage, address: string, opts: ChannelSendOptions): Promise<void> => {
         const target = parseAddress(address);
@@ -157,6 +163,15 @@ export function createCommentSender(options: ResolvedGithubChannelOptions) {
                     let wait = SLOT_LOCK_RETRY_MS;
 
                     for (;;) {
+                        const pending = releases.get(slotKey);
+
+                        if (pending) {
+                            // This sender's own release of the slot is in flight: wait for it, not for a backoff.
+                            busy = true;
+                            await untilAborted(pending, signal);
+                            signal.throwIfAborted();
+                        }
+
                         const acquisition = options.locks.acquire(slotKey, owner, options.timeoutMs * 2).then(async (taken) => {
                             // A cancelled caller may stop waiting before the store answers.
                             if (taken && signal.aborted) {
@@ -245,12 +260,28 @@ export function createCommentSender(options: ResolvedGithubChannelOptions) {
                     // Not bound to the abort: the lease (twice timeoutMs) covers a release that never answers.
                     // Neither a synchronous throw of the repository nor a throwing onError escapes.
                     const key = slotKey;
-
-                    Promise.try(() => options.locks.release(key, owner)).catch((error: unknown) => {
+                    const released: Promise<void> = Promise.try(() => options.locks.release(key, owner)).then(() => {}, (error: unknown) => {
                         try {
                             options.onError(error);
                         } catch {
                             // a reporter that throws has nowhere left to report to
+                        }
+                    });
+
+                    // a failed release resolves too, and one that never answers holds the slot's next send only
+                    // until the lease it would have ended runs out (on the channel's clock)
+                    const lease = new AbortController();
+                    const pending = Promise.race([
+                        released,
+                        waitOn(options.clock, options.timeoutMs * 2, lease.signal).catch(() => {}),
+                    ]);
+
+                    releases.set(key, pending);
+                    pending.then(() => {
+                        lease.abort();
+
+                        if (releases.get(key) === pending) {
+                            releases.delete(key);
                         }
                     });
                 }

@@ -88,7 +88,19 @@ export class EngineModule implements IModule {
         const logger = container.resolve(AppToken.LOGGER);
 
         const engine = new Engine({
-            store: container.resolve(AppToken.STORE),
+            runService: container.resolve(AppToken.RUN_SERVICE),
+            stepService: container.resolve(AppToken.STEP_SERVICE),
+            checkpointService: container.resolve(AppToken.CHECKPOINT_SERVICE),
+            effectService: container.resolve(AppToken.EFFECT_SERVICE),
+            artifactService: container.resolve(AppToken.ARTIFACT_SERVICE),
+            stateService: container.resolve(AppToken.STATE_SERVICE),
+            lockService: container.resolve(AppToken.LOCK_SERVICE),
+            idempotencyService: container.resolve(AppToken.IDEMPOTENCY_SERVICE),
+            agentRevisionService: container.resolve(AppToken.AGENT_REVISION_SERVICE),
+            // optional: a store without connections registers no connection service
+            ...(container.has(AppToken.CONNECTION_SERVICE) && { connectionService: container.resolve(AppToken.CONNECTION_SERVICE) }),
+            // optional: a store without conversations registers no conversation service
+            ...(container.has(AppToken.CONVERSATION_SERVICE) && { conversationService: container.resolve(AppToken.CONVERSATION_SERVICE) }),
             ...(context.conversations !== undefined && { conversations: context.conversations }),
             agents: [...context.agents],
             ...(context.skills !== undefined && { skills: context.skills }),
@@ -128,9 +140,13 @@ export class EngineModule implements IModule {
             return;
         }
 
-        // a no-op once createShutdown or runJob drained it
-        await engine.drain({ timeoutMs: container.resolve(AppToken.CONFIG).http.drainTimeoutMs });
-        await runHooks(container, 'drained');
+        try {
+            // a no-op once createShutdown or runJob drained it
+            await engine.drain({ timeoutMs: container.resolve(AppToken.CONFIG).http.drainTimeoutMs });
+        } finally {
+            // also after a failed drain: a hook closes what nothing else would (a database, a sandbox)
+            await runHooks(container, 'drained');
+        }
     }
 }
 

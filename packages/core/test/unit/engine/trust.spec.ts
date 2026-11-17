@@ -8,16 +8,15 @@
 import { afterEach, expect, it } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
-    createMemoryStore,
     defineEffectTool,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type { AgentDefinition, IChannel } from '@chamvi/core';
+import type { AgentDefinition, Engine, IChannel } from '@chamvi/core';
 import { approvalWait } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import { fakeSkillRuntime } from '../../utils/skill-runtime.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: Engine[] = [];
 
@@ -106,13 +105,13 @@ it.each(['state', 'skill'] as const)('classifies assembled %s tools and rejects 
             { state: { items: z.object({ title: z.string() }) } } :
             { skills: [skill.input] }),
     };
-    const store = createMemoryStore();
+    const store = createTestServices();
     const agent = defineModelAgent({
         ...definition,
         model: mockModel([call(toolName), done]),
         trust: { tools: { [toolName]: { taint: true } } },
     });
-    const engine = new Engine({ store, agents: [agent] });
+    const engine = createTestEngine({ services: store, agents: [agent] });
 
     engines.push(engine);
     await engine.start();
@@ -126,15 +125,15 @@ it.each(['state', 'skill'] as const)('classifies assembled %s tools and rejects 
 
     await engine.idle();
 
-    const run = await store.runs.findOne(runId);
+    const run = await store.runService.findOne(runId);
 
     expect(run?.status).toBe('completed');
     expect(run?.taint).toEqual({ at: expect.any(Date), source: `tool:${toolName}` });
 
     const invalidModel = mockModel([done]);
-    const invalidStore = createMemoryStore();
-    const invalidEngine = new Engine({
-        store: invalidStore,
+    const invalidStore = createTestServices();
+    const invalidEngine = createTestEngine({
+        services: invalidStore,
         agents: [defineModelAgent({
             ...definition,
             model: invalidModel,
@@ -154,7 +153,7 @@ it.each(['state', 'skill'] as const)('classifies assembled %s tools and rejects 
 
     await invalidEngine.idle();
 
-    const invalidRun = await invalidStore.runs.findOne(invalidRunId);
+    const invalidRun = await invalidStore.runService.findOne(invalidRunId);
 
     expect(invalidRun?.status).toBe('failed');
     expect(invalidRun?.error?.message).toContain('missing');
@@ -163,7 +162,7 @@ it.each(['state', 'skill'] as const)('classifies assembled %s tools and rejects 
 
 it('persists untrusted result taint and denies subsequent outbound effects', async () => {
     let writes = 0;
-    const store = createMemoryStore();
+    const store = createTestServices();
     const agent = defineModelAgent({
         name: 'test',
         instructions: 'test',
@@ -186,7 +185,7 @@ it('persists untrusted result taint and denies subsequent outbound effects', asy
             }),
         },
     });
-    const engine = new Engine({ store, agents: [agent] });
+    const engine = createTestEngine({ services: store, agents: [agent] });
 
     engines.push(engine);
     await engine.start();
@@ -200,7 +199,7 @@ it('persists untrusted result taint and denies subsequent outbound effects', asy
 
     await engine.idle();
 
-    const run = await store.runs.findOne(runId);
+    const run = await store.runService.findOne(runId);
 
     expect(run?.taint).toEqual({ at: expect.any(Date), source: 'tool:read' });
     expect(writes).toBe(0);
@@ -217,9 +216,9 @@ it('binds automatic approval to final input and keeps arguments out of channel n
             notifications.push(message);
         },
     };
-    const store = createMemoryStore();
-    const engine = new Engine({
-        store,
+    const store = createTestServices();
+    const engine = createTestEngine({
+        services: store,
         channels: [source],
         agents: [defineModelAgent({
             name: 'test',
@@ -252,7 +251,7 @@ it('binds automatic approval to final input and keeps arguments out of channel n
 
     await engine.idle();
 
-    const waiting = await store.runs.findOne(runId);
+    const waiting = await store.runService.findOne(runId);
 
     expect(waiting?.status).toBe('waiting');
     expect(approvalWait(waiting)?.body).toContain('secret');
@@ -261,12 +260,12 @@ it('binds automatic approval to final input and keeps arguments out of channel n
     await engine.approve(runId, { approvalId: approvalWait(waiting)!.approvalId, approved: true });
     await engine.idle();
     expect(writes).toBe(1);
-    expect((await store.runs.findOne(runId))?.taint?.source).toBe('channel:source');
+    expect((await store.runService.findOne(runId))?.taint?.source).toBe('channel:source');
 });
 
 it.each(['plain', 'effect', 'reconciliation', 'stream'] as const)('taints externally controlled %s reader errors before the model can act on them', async (kind) => {
     let writes = 0;
-    const store = createMemoryStore();
+    const store = createTestServices();
     const fail = async (): Promise<string> => {
         throw new Error('external error instructions');
     };
@@ -295,8 +294,8 @@ it.each(['plain', 'effect', 'reconciliation', 'stream'] as const)('taints extern
         });
     }
 
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
@@ -328,15 +327,15 @@ it.each(['plain', 'effect', 'reconciliation', 'stream'] as const)('taints extern
     });
 
     await engine.idle();
-    expect((await store.runs.findOne(runId))?.taint?.source).toBe('tool:read');
+    expect((await store.runService.findOne(runId))?.taint?.source).toBe('tool:read');
     expect(writes).toBe(0);
 });
 
 it('does not expose content or checkpoint it when persisting taint fails', async () => {
-    const store = createMemoryStore();
-    const update = store.runs.update.bind(store.runs);
+    const store = createTestServices();
+    const update = store.runService.update.bind(store.runService);
 
-    store.runs.update = async (id, patch, options) => {
+    store.runService.update = async (id, patch, options) => {
         if (patch.taint) {
             throw new Error('taint storage unavailable');
         }
@@ -345,8 +344,8 @@ it('does not expose content or checkpoint it when persisting taint fails', async
     };
 
     const model = mockModel([call('read'), done]);
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'test',
             instructions: 'test',
@@ -372,17 +371,17 @@ it('does not expose content or checkpoint it when persisting taint fails', async
     });
 
     await engine.idle();
-    expect((await store.runs.findOne(runId))?.status).toBe('failed');
+    expect((await store.runService.findOne(runId))?.status).toBe('failed');
     expect(model.doStreamCalls).toHaveLength(1);
-    expect(await store.checkpoints.findOne(runId)).toBeUndefined();
+    expect(await store.checkpointService.findOne(runId)).toBeUndefined();
 });
 
 it('rechecks approval after a hook changes the final input on resume', async () => {
     let argument = 'first';
     let writes = 0;
-    const store = createMemoryStore();
-    const engine = new Engine({
-        store,
+    const store = createTestServices();
+    const engine = createTestEngine({
+        services: store,
         channels: [{ name: 'source', untrusted: true }],
         agents: [defineModelAgent({
             name: 'test',
@@ -415,13 +414,13 @@ it('rechecks approval after a hook changes the final input on resume', async () 
 
     await engine.idle();
 
-    const first = approvalWait(await store.runs.findOne(runId))!;
+    const first = approvalWait(await store.runService.findOne(runId))!;
 
     argument = 'changed';
     await engine.approve(runId, { approvalId: first.approvalId, approved: true });
     await engine.idle();
 
-    const next = approvalWait(await store.runs.findOne(runId))!;
+    const next = approvalWait(await store.runService.findOne(runId))!;
 
     expect(next.approvalId).not.toBe(first.approvalId);
     expect(next.body).toContain('changed');
@@ -437,9 +436,9 @@ it('gates direct channel emits to model-selected destinations but permits source
             sent.push(address);
         },
     };
-    const store = createMemoryStore();
-    const engine = new Engine({
-        store,
+    const store = createTestServices();
+    const engine = createTestEngine({
+        services: store,
         channels: [source],
         agents: [defineModelAgent({
             name: 'test',

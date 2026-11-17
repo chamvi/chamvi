@@ -15,18 +15,18 @@ import {
 import {
     createConnectionConfigStore,
     createKeyring,
-    createMemoryStore,
 } from '@chamvi/core';
-import type { IKeyring, IStore } from '@chamvi/core';
+import type { IKeyring } from '@chamvi/core';
 import {
     configModule,
     createLogger,
     engineModule,
     readStoredConnections,
-    storeModule,
 } from '@chamvi/app';
 import { createModuleHarness } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
+import { createTestStore, storeModuleOf } from '../../utils/store.ts';
+import type { TestStore } from '../../utils/store.ts';
 
 const SECRET = 'stored-secret-password';
 const keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
@@ -42,7 +42,7 @@ afterEach(async () => {
     }
 });
 
-async function harnessOf(store: IStore, options: Omit<ModuleHarnessOptions, 'modules'> = {}): Promise<ModuleHarness> {
+async function harnessOf(store: Omit<TestStore, 'connectionRepository'> & { connectionRepository: TestStore['connectionRepository'] | null }, options: Omit<ModuleHarnessOptions, 'modules'> = {}): Promise<ModuleHarness> {
     const harness = await createModuleHarness({
         ...options,
         modules: [
@@ -54,7 +54,7 @@ async function harnessOf(store: IStore, options: Omit<ModuleHarnessOptions, 'mod
                     },
                 }),
             }),
-            storeModule({ store }),
+            storeModuleOf(store),
             engineModule(),
         ],
     });
@@ -64,8 +64,12 @@ async function harnessOf(store: IStore, options: Omit<ModuleHarnessOptions, 'mod
     return harness;
 }
 
-async function seed(store: IStore, name: string, type: string, withKeyring: IKeyring = keyring): Promise<void> {
-    await createConnectionConfigStore({ store, keyring: () => withKeyring }).create(name, type, {
+async function seed(store: TestStore, name: string, type: string, withKeyring: IKeyring = keyring): Promise<void> {
+    await createConnectionConfigStore({
+        connectionService: store.connectionService,
+        lockService: store.lockService,
+        keyring: () => withKeyring,
+    }).create(name, type, {
         settings: { host: 'h' },
         secrets: { set: { password: SECRET } },
     });
@@ -87,12 +91,12 @@ async function rejectionOf(promise: Promise<unknown>): Promise<Error> {
 
 describe('readStoredConnections()', () => {
     it('returns the rows of the type with their values, revision and creation time', async () => {
-        const store = createMemoryStore();
+        const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');
         await seed(store, 'calendar-home', 'calendar');
 
-        const row = await store.connections!.findOneOrFail('mail-home');
+        const row = await store.connectionService.findOneOrFail('mail-home');
         const harness = await harnessOf(store, { keyring });
 
         expect(await readStoredConnections(harness.container, 'mail')).toEqual([{
@@ -104,7 +108,7 @@ describe('readStoredConnections()', () => {
     });
 
     it('with a name, reads only that row and skips an unreadable row of another name', async () => {
-        const store = createMemoryStore();
+        const store = createTestStore();
 
         await seed(store, 'mail-old', 'mail', createKeyring([{ id: 'k1', key: randomBytes(32) }]));
         await seed(store, 'mail-home', 'mail');
@@ -120,9 +124,7 @@ describe('readStoredConnections()', () => {
     });
 
     it('returns nothing for a store without connections', async () => {
-        const store: IStore = createMemoryStore();
-
-        delete store.connections;
+        const store = { ...createTestStore(), connectionRepository: null };
 
         const harness = await harnessOf(store);
 
@@ -130,7 +132,7 @@ describe('readStoredConnections()', () => {
     });
 
     it('names the connection when a row cannot be decrypted, never a value', async () => {
-        const store = createMemoryStore();
+        const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail', createKeyring([{ id: 'k1', key: randomBytes(32) }]));
 
@@ -142,7 +144,7 @@ describe('readStoredConnections()', () => {
     });
 
     it('names the connection and the variable when stored secrets meet no keyring', async () => {
-        const store = createMemoryStore();
+        const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');
 
@@ -154,10 +156,11 @@ describe('readStoredConnections()', () => {
     });
 
     it('names the connection for a driver failure, without the driver text', async () => {
-        const store = createMemoryStore();
+        const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');
-        store.connections!.findConfig = async () => {
+        // the config read of a row reads its secrets
+        store.connectionRepository.secrets.findManyBy = async () => {
             throw new Error('driver text');
         };
 
@@ -169,9 +172,9 @@ describe('readStoredConnections()', () => {
     });
 
     it('in a check, warns and returns nothing when the list meets a behind schema', async () => {
-        const store = createMemoryStore();
+        const store = createTestStore();
 
-        store.connections!.find = async () => {
+        store.connectionRepository.findMany = async () => {
             throw behindSchemaError();
         };
 
@@ -182,10 +185,11 @@ describe('readStoredConnections()', () => {
     });
 
     it('in a check, warns and returns nothing when a row meets a behind schema', async () => {
-        const store = createMemoryStore();
+        const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');
-        store.connections!.findConfig = async () => {
+        // the config read of a row reads its secrets
+        store.connectionRepository.secrets.findManyBy = async () => {
             throw behindSchemaError();
         };
 
@@ -196,9 +200,9 @@ describe('readStoredConnections()', () => {
     });
 
     it('outside a check a behind schema fails', async () => {
-        const store = createMemoryStore();
+        const store = createTestStore();
 
-        store.connections!.find = async () => {
+        store.connectionRepository.findMany = async () => {
             throw behindSchemaError();
         };
 

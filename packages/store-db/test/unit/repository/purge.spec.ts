@@ -13,10 +13,10 @@ import {
     it,
 } from 'vitest';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
-import { createDatabaseStore } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
+import { createTestServices } from '../../utils/store.ts';
 
-describePostgres('createDatabaseStore purgeExpired', () => {
+describePostgres('purgeExpired of the lock and idempotency services', () => {
     let dataSource: DataSource;
 
     beforeAll(async () => {
@@ -29,22 +29,22 @@ describePostgres('createDatabaseStore purgeExpired', () => {
 
     it('removes expired keys and locks only, never effects', async () => {
         const clock = new ControllableClock(new Date(0));
-        const store = createDatabaseStore({ dataSource, clock });
+        const store = createTestServices({ dataSource, clock });
 
-        await store.idempotency.claim('s', 'k1', testUuid('r1'), 1_000);
-        await store.idempotency.claim('s', 'k2', testUuid('r2'), 5_000);
-        await store.locks.acquire('l1', 'o', 1_000);
-        await store.locks.acquire('l2', 'o', 5_000);
-        await store.effects.save('e', 1);
+        await store.idempotencyService.claim('s', 'k1', testUuid('r1'), 1_000);
+        await store.idempotencyService.claim('s', 'k2', testUuid('r2'), 5_000);
+        await store.lockService.acquire('l1', 'o', 1_000);
+        await store.lockService.acquire('l2', 'o', 5_000);
+        await store.effectService.save('e', 1);
 
         clock.advance(1_000);
-        await expect(store.idempotency.purgeExpired()).resolves.toBe(1);
-        await expect(store.locks.purgeExpired()).resolves.toBe(1);
-        await expect(store.idempotency.claim('s', 'k2', testUuid('other'), 1_000)).resolves.toEqual({ created: false, runId: testUuid('r2') });
-        await expect(store.locks.acquire('l2', 'x', 1)).resolves.toBe(false);
-        await expect(store.effects.findOne('e')).resolves.toEqual({ result: 1 });
+        await expect(store.idempotencyService.purgeExpired()).resolves.toBe(1);
+        await expect(store.lockService.purgeExpired()).resolves.toBe(1);
+        await expect(store.idempotencyService.claim('s', 'k2', testUuid('other'), 1_000)).resolves.toEqual({ created: false, runId: testUuid('r2') });
+        await expect(store.lockService.acquire('l2', 'x', 1)).resolves.toBe(false);
+        await expect(store.effectService.findOne('e')).resolves.toEqual({ result: 1 });
 
-        await expect(store.idempotency.purgeExpired(new Date(5_000))).resolves.toBe(1);
-        await expect(store.locks.purgeExpired(new Date(5_000))).resolves.toBe(1);
+        await expect(store.idempotencyService.purgeExpired(new Date(5_000))).resolves.toBe(1);
+        await expect(store.lockService.purgeExpired(new Date(5_000))).resolves.toBe(1);
     });
 });

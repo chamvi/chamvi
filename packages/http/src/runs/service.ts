@@ -8,11 +8,11 @@
 import { Permission } from '@chamvi/access';
 import type {
     Agent,
-    Artifact,
     ChannelSubscription,
     DispatchEnvelope,
-    Run,
 } from '@chamvi/core';
+import type { Artifact, Run } from '@chamvi/store';
+import { and, defineQuery, inArray } from '@rapiq/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Container } from 'validup';
 import { requireAgent } from '../agents/helpers.ts';
@@ -37,33 +37,35 @@ import {
     requireHttpSubscription,
     serializeRun,
     serializeStep,
+    toRunListRequest,
 } from './helpers.ts';
 import type {
     ApproveBody,
     ApproveRunView,
     CancelRunView,
     DispatchRunInput,
-    IRunService,
+    IRunHttpService,
     RunArtifactView,
     RunDetailView,
     RunFindFilter,
     RunFindView,
+    RunHttpServiceContext,
+    RunListRequest,
     RunListView,
-    RunServiceContext,
     StartRunBody,
     StartRunInput,
     StartRunView,
 } from './types.ts';
 
-/** Starts, reads, cancels and answers runs. */
-export class RunService implements IRunService {
-    protected ctx: RunServiceContext;
+/** Starts, reads, cancels and answers runs over core's run, step and artifact services. */
+export class RunHttpService implements IRunHttpService {
+    protected ctx: RunHttpServiceContext;
 
     protected startContainer: Container<StartRunBody>;
 
     protected approveContainer: Container<ApproveBody>;
 
-    constructor(ctx: RunServiceContext) {
+    constructor(ctx: RunHttpServiceContext) {
         this.ctx = ctx;
         this.startContainer = createStartRunContainer();
         this.approveContainer = createApproveContainer();
@@ -104,34 +106,39 @@ export class RunService implements IRunService {
     }
 
     async list(query: URLSearchParams, principal: Principal): Promise<RunListView> {
-        const parsed = parseRunListQuery(query, this.ctx.agents.names());
-        const { data, total } = await this.find(parsed, principal);
+        const request = parseRunListQuery(query, this.ctx.agents.names());
+        const { data, total } = await this.findRuns(request, principal);
 
         return {
             data: data.map((run) => serializeRun(run, this.ctx.agents)),
             meta: {
                 total,
-                limit: parsed.limit,
-                offset: parsed.offset,
+                limit: request.limit,
+                offset: request.offset,
             },
         };
     }
 
     async find(filter: RunFindFilter, principal: Principal): Promise<RunFindView> {
-        const agents = await assertCanListRuns(this.ctx, principal, filter.agent);
-        const {
-            parent,
-            waiting,
-            ...options
-        } = filter;
-        const { data, total } = await this.ctx.store.runs.find({
-            ...options,
-            ...(agents !== undefined ? { agents } : {}),
-            parentRunId: parent,
-            waitKind: waiting,
-        });
+        return this.findRuns(toRunListRequest(filter), principal);
+    }
 
-        return { data, total };
+    /**
+     * The runs of a checked listing request the principal may list (403
+     * otherwise): one rapiq query to core's run service, the permission
+     * scope (`assertCanListRuns()`) joined to its filters, so `total` and
+     * the page stay exact.
+     */
+    protected async findRuns(request: RunListRequest, principal: Principal): Promise<RunFindView> {
+        const agents = await assertCanListRuns(this.ctx, principal, request.agent);
+        const filters = agents === undefined ? request.filters : [...request.filters, inArray('agent', [...agents])];
+        const { data, meta } = await this.ctx.runService.list(defineQuery({
+            ...(filters.length > 0 ? { filters: and(...filters) } : {}),
+            sorts: request.sorts,
+            pagination: { limit: request.limit, offset: request.offset },
+        }));
+
+        return { data, total: meta.total };
     }
 
     getReadable(id: string, principal: Principal): Promise<Run> {
@@ -141,13 +148,13 @@ export class RunService implements IRunService {
     async get(id: string, principal: Principal): Promise<RunDetailView> {
         const run = await this.getReadable(id, principal);
 
-        return { ...serializeRun(run, this.ctx.agents), steps: (await this.ctx.store.steps.find(run.id)).map(serializeStep) };
+        return { ...serializeRun(run, this.ctx.agents), steps: (await this.ctx.stepService.find(run.id)).map(serializeStep) };
     }
 
     async artifacts(id: string, principal: Principal): Promise<{ data: Artifact[] }> {
         const run = await this.getReadable(id, principal);
 
-        return { data: await this.ctx.store.artifacts.find(run.id) };
+        return { data: await this.ctx.artifactService.find(run.id) };
     }
 
     async artifact(id: string, artifactId: string, principal: Principal): Promise<RunArtifactView> {
@@ -159,7 +166,7 @@ export class RunService implements IRunService {
     async cancel(id: string, principal: Principal): Promise<CancelRunView> {
         await assertGranted(principal, this.ctx.clock, Permission.RUN_CANCEL);
 
-        const target = await this.ctx.store.runs.findOne(id);
+        const target = await this.ctx.runService.findOne(id);
 
         // a missing run is the engine's 404
         if (target && !await isGranted(principal, Permission.RUN_CANCEL, this.ctx.clock, { agent: target.agent })) {

@@ -13,16 +13,15 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
-    MemoryConversationRepository,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
-import type { IChannel, RunTaint } from '@chamvi/core';
+import type { Engine, IChannel } from '@chamvi/core';
+import type { RunTaint } from '@chamvi/store';
 import { memoryTools } from '../../../src/conversation/tools.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: Engine[] = [];
 const target = {
@@ -51,15 +50,15 @@ afterEach(async () => {
 });
 
 it.each(['chat', 'other'])('denies a tainted conversation emit to an arbitrary address on %s', async (destination) => {
-    const store = createMemoryStore();
+    const store = createTestServices();
     const out = vi.fn<NonNullable<IChannel['out']>>(async () => {});
     const channel: IChannel = {
         name: 'chat',
         untrusted: true,
         out,
     };
-    const engine = new Engine({
-        store: { ...store, conversations: new MemoryConversationRepository() },
+    const engine = createTestEngine({
+        services: store,
         channels: [channel, { name: 'other', out }],
         conversations: { authorize: () => true },
         agents: [defineModelAgent({
@@ -84,23 +83,22 @@ it.each(['chat', 'other'])('denies a tainted conversation emit to an arbitrary a
 
     await engine.idle();
 
-    expect((await store.runs.findOne(runId))?.taint?.source).toBe('channel:chat');
-    expect((await store.runs.findOne(runId))?.status).toBe('completed');
-    expect((await store.steps.find(runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
+    expect((await store.runService.findOne(runId))?.taint?.source).toBe('channel:chat');
+    expect((await store.runService.findOne(runId))?.status).toBe('completed');
+    expect((await store.stepService.find(runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
     expect(out).not.toHaveBeenCalled();
 });
 
 it.each(['memory_get', 'memory_list'])('taints explicit %s retrieval even when recall omitted all saved content', async (reader) => {
-    const store = createMemoryStore();
-    const conversations = new MemoryConversationRepository();
+    const store = createTestServices();
     const channel = { name: 'chat' };
     const send = vi.fn(async () => 'sent');
     const before: Array<RunTaint | undefined> = [];
     const after: Array<RunTaint | undefined> = [];
     const outputs: unknown[] = [];
     const note = { key: 'attacker-controlled-key', text: 'attacker-controlled note text' };
-    const engine = new Engine({
-        store: { ...store, conversations },
+    const engine = createTestEngine({
+        services: store,
         channels: [channel],
         conversations: {
             authorize: () => true,
@@ -125,14 +123,14 @@ it.each(['memory_get', 'memory_list'])('taints explicit %s retrieval even when r
                         return;
                     }
 
-                    before.push((await store.runs.findOne(context.run.runId))?.taint);
+                    before.push((await store.runService.findOne(context.run.runId))?.taint);
                 },
                 afterToolExecution: async (info, context) => {
                     if (info.toolName !== reader) {
                         return;
                     }
 
-                    after.push((await store.runs.findOne(context.run.runId))?.taint);
+                    after.push((await store.runService.findOne(context.run.runId))?.taint);
                     outputs.push(info.output);
                 },
             },
@@ -154,7 +152,7 @@ it.each(['memory_get', 'memory_list'])('taints explicit %s retrieval even when r
     const first = await dispatch();
 
     await engine.idle();
-    expect((await store.runs.findOne(first.runId))?.taint).toBeUndefined();
+    expect((await store.runService.findOne(first.runId))?.taint).toBeUndefined();
 
     const second = await dispatch();
 
@@ -166,8 +164,8 @@ it.each(['memory_get', 'memory_list'])('taints explicit %s retrieval even when r
         data: [expect.objectContaining({ key: note.key })],
         total: 1,
     }]);
-    expect((await store.runs.findOne(second.runId))?.taint?.source).toBe(`tool:${reader}`);
-    expect((await store.runs.findOne(second.runId))?.status).toBe('completed');
-    expect((await store.steps.find(second.runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
+    expect((await store.runService.findOne(second.runId))?.taint?.source).toBe(`tool:${reader}`);
+    expect((await store.runService.findOne(second.runId))?.status).toBe('completed');
+    expect((await store.stepService.find(second.runId)).find((step) => step.name === 'send')?.error).toMatchObject({ code: 'tool_denied' });
     expect(send).not.toHaveBeenCalled();
 });

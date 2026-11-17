@@ -17,7 +17,6 @@ import { open, seal } from '../keyring/module.ts';
 import { DEFAULT_CONNECTION_LEASE_TTL_MS } from './constants.ts';
 import { dataKeyContextOf, lockKeyOf, secretAadOf } from './helpers.ts';
 import type {
-    Connection,
     ConnectionConfigStoreOptions,
     ConnectionConfigUpdate,
     ConnectionConfigUpdateOptions,
@@ -26,6 +25,7 @@ import type {
     ConnectionValues,
     IConnectionConfigStore,
 } from './types.ts';
+import type { Connection } from '@chamvi/store';
 import { assertConnectionConfigWrite, assertConnectionName } from './validate.ts';
 
 /** The secrets `update` sets; a ValidationError for a value that is not a plain object (a string would map to fields `0`, `1`, ...). */
@@ -54,7 +54,7 @@ const encodeSecret = (value: string): Uint8Array => {
     return new TextEncoder().encode(value);
 };
 
-/** The repository write of `update`; `dataKey` is needed only when it sets a secret. */
+/** The config write of `update`; `dataKey` is needed only when it sets a secret. */
 function toConfigWrite(name: string, update: ConnectionConfigUpdate, dataKey?: Uint8Array): ConnectionConfigWrite {
     const { settings, secrets } = update;
     const set = secretsToSet(update);
@@ -74,17 +74,20 @@ function toConfigWrite(name: string, update: ConnectionConfigUpdate, dataKey?: U
 }
 
 /**
- * The connection config store over a store with `connections`. Throws
- * InvalidAgentDefinitionError when the store has no connections repository;
- * `keyring` is resolved only when a data key is really needed.
+ * The connection config store over the connection service. Throws
+ * InvalidAgentDefinitionError without a connection service; `keyring` is
+ * resolved only when a data key is really needed.
  */
 export function createConnectionConfigStore(options: ConnectionConfigStoreOptions): IConnectionConfigStore {
-    const { store, keyring } = options;
+    const {
+        connectionService: connections,
+        keyring,
+        lockService,
+    } = options;
     const clock = options.clock ?? systemClock;
-    const { connections } = store;
 
     if (!connections) {
-        throw new InvalidAgentDefinitionError('A connection config store needs a store with a connections repository.');
+        throw new InvalidAgentDefinitionError('A connection config store needs a connection service.');
     }
 
     /** Runs `use` with the unwrapped data key of connection `name` and zeroes it afterwards. */
@@ -127,7 +130,7 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             assertConnectionConfigWrite(write, wrapped.wrapped);
 
             const now = clock.now();
-            const inserted = await connections.insert({
+            const inserted = await connections.create({
                 name,
                 type,
                 keyId: wrapped.keyId,
@@ -205,7 +208,7 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             const lock = lockKeyOf(name);
             const holder = `${owner}:${randomUUID()}`;
 
-            if (!await store.locks.acquire(lock, holder, DEFAULT_CONNECTION_LEASE_TTL_MS)) {
+            if (!await lockService.acquire(lock, holder, DEFAULT_CONNECTION_LEASE_TTL_MS)) {
                 throw new ConnectionHeldError(name);
             }
 
@@ -213,7 +216,7 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
                 await connections.delete(name, { lock, owner: holder });
             } finally {
                 // the lease then expires on its own after its ttl
-                await store.locks.release(lock, holder).catch(() => undefined);
+                await lockService.release(lock, holder).catch(() => undefined);
             }
         },
     };

@@ -6,7 +6,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunStatusLiteral } from '@chamvi/core';
+import type { RunStatusLiteral } from '@chamvi/store';
 import { computed, shallowRef, watch } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import type { AgentWire, RunListFilter } from '@chamvi/ui-kit';

@@ -6,9 +6,7 @@
  */
 
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
@@ -27,13 +25,13 @@ import {
     AppToken,
     configModule,
     createApp,
-    storeModule,
 } from '@chamvi/app';
 import type { AppOptions, IApp, IModule } from '@chamvi/app';
 import { TOKENS, deferred, rejectionOf } from '../../utils/app.ts';
 import { agentFile } from '../../utils/agents-dir.ts';
 import { createTempDir, writeTree } from '../../utils/folder.ts';
 import { closeServer, freePort, listenOn } from '../../utils/port.ts';
+import { createTestStore, engineOver, storeModuleOf } from '../../utils/store.ts';
 
 const apps: IApp[] = [];
 const folders: Awaited<ReturnType<typeof createTempDir>>[] = [];
@@ -47,7 +45,7 @@ afterEach(async () => {
 
 function build(options: Partial<AppOptions> = {}) {
     const model = mockModel([{ parts: [{ type: 'text', text: 'done' }] }, { parts: [{ type: 'text', text: 'done' }] }]);
-    const store = createMemoryStore();
+    const store = createTestStore();
     let engine: IEngine | undefined;
     const events: string[] = [];
     const observe: IModule = {
@@ -83,7 +81,7 @@ function build(options: Partial<AppOptions> = {}) {
         })],
         models: { test: customProvider({ languageModels: { model } }) },
         ...options,
-        modules: [configModule(), storeModule({ store }), observe, ...options.modules ?? []],
+        modules: [configModule(), storeModuleOf(store), observe, ...options.modules ?? []],
     });
 
     apps.push(app);
@@ -174,7 +172,7 @@ describe('app skills lifecycle', () => {
         });
         const ctx = build({ skills: [source] });
         const { env, port } = await environment();
-        const waiting = new Engine({ store: ctx.store, agents: [...ctx.app.agents] });
+        const waiting = engineOver(ctx.store, { agents: [...ctx.app.agents] });
         const { runId } = await waiting.dispatch({
             agent: 'code',
             channel: 'http',

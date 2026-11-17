@@ -20,7 +20,8 @@ import type {
     IContainer,
     IModule,
 } from '@chamvi/app';
-import { InvalidAgentDefinitionError, MemoryRunRepository, RunStatus } from '@chamvi/core';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
 import type { IClock, IEngine } from '@chamvi/core';
 import { isObject } from 'smob';
 import { provideSandboxContext } from '../context/module.ts';
@@ -288,7 +289,7 @@ export class SandboxModule implements IModule {
                     detach = undefined;
                     // no run of a memory store resumes after this process: its
                     // workspaces would only wait for maxLifetimeMs
-                    await this.manager.close({ dispose: this.engine?.store.runs instanceof MemoryRunRepository });
+                    await this.manager.close({ dispose: container.has(AppToken.STORE_KIND) && container.resolve(AppToken.STORE_KIND) === 'memory' });
                 },
             },
         });

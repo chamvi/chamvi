@@ -12,6 +12,10 @@ import type { GithubEvent } from '@chamvi/github';
 import { defaultConcurrencyKey, matchesGithubSubscription } from '../../../src/subscription/helpers.ts';
 import { createGithubFixture } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
+import { createTestEngine } from '@chamvi/test-kit';
+
+/** The persistent-comment locks every channel of this spec takes. */
+const locks = createTestEngine({ agents: [] }).lockService;
 
 function event(overrides: Partial<GithubEvent> = {}): GithubEvent {
     return {
@@ -88,7 +92,11 @@ describe('github.on', () => {
 
     it('a channel instance subscribes under its own name', () => {
         const { gh } = createGithubFixture();
-        const enterprise = githubChannel({ app: gh, name: 'github-ent' });
+        const enterprise = githubChannel({
+            app: gh,
+            locks,
+            name: 'github-ent',
+        });
         const subscription = enterprise.on('issues.opened');
 
         expect(subscription.channel).toBe('github-ent');
@@ -102,7 +110,7 @@ describe('github.to', () => {
 
         const { gh } = createGithubFixture();
 
-        expect(githubChannel({ app: gh }).to({ repo: 'octo/demo', number: 7 })).toBe('octo/demo#7');
+        expect(githubChannel({ app: gh, locks }).to({ repo: 'octo/demo', number: 7 })).toBe('octo/demo#7');
     });
 
     it.each([

@@ -14,9 +14,7 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
@@ -24,6 +22,7 @@ import type { AgentDefinition, IEngine } from '@chamvi/core';
 import { injectGithubContext, provideGithubContext } from '@chamvi/github';
 import { createGithubFixture } from '../../utils/app.ts';
 import { mockModel } from '../../utils/model.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 const engines: IEngine[] = [];
 
@@ -37,10 +36,8 @@ afterEach(() => {
 
 function setup(model: LanguageModel, tools: AgentDefinition['tools']) {
     const { clock, gh } = createGithubFixture();
-    const store = createMemoryStore({ clock });
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
         agents: [defineModelAgent({
             name: 'triage',
             instructions: 'Triage.',
@@ -57,13 +54,12 @@ function setup(model: LanguageModel, tools: AgentDefinition['tools']) {
 
     return {
         engine,
-        store,
         gh,
         errors,
     };
 }
 
-async function run(engine: IEngine, store: ReturnType<typeof createMemoryStore>) {
+async function run(engine: IEngine) {
     const { runId } = await engine.dispatch({
         agent: 'triage',
         trigger: 'http',
@@ -73,7 +69,7 @@ async function run(engine: IEngine, store: ReturnType<typeof createMemoryStore>)
 
     await engine.idle();
 
-    return store.runs.findOne(runId);
+    return engine.runService.findOne(runId);
 }
 
 describe('github context', () => {
@@ -99,13 +95,12 @@ describe('github context', () => {
         ]);
         const {
             engine,
-            store,
             gh,
         } = setup(model, { use });
 
         provideGithubContext(engine, gh);
         await engine.start();
-        expect((await run(engine, store))?.status).toBe('completed');
+        expect((await run(engine))?.status).toBe('completed');
         expect(seen).toHaveLength(1);
         expect(seen[0]).toBe(gh);
     });
@@ -114,13 +109,12 @@ describe('github context', () => {
         const model = mockModel([{ parts: [{ type: 'text', text: 'done' }] }]);
         const {
             engine,
-            store,
             gh,
         } = setup(model, (ctx) => injectGithubContext(ctx).readTools());
 
         provideGithubContext(engine, gh);
         await engine.start();
-        expect((await run(engine, store))?.status).toBe('completed');
+        expect((await run(engine))?.status).toBe('completed');
 
         const offered = (model.doStreamCalls[0]?.tools ?? []).map((t) => t.name);
 
@@ -131,13 +125,12 @@ describe('github context', () => {
         const model = mockModel([{ parts: [{ type: 'text', text: 'done' }] }]);
         const {
             engine,
-            store,
             errors,
         } = setup(model, (ctx) => injectGithubContext(ctx).readTools());
 
         await engine.start();
 
-        const result = await run(engine, store);
+        const result = await run(engine);
 
         expect(result?.status).toBe('failed');
         expect(result?.error?.code).toBe('context_not_provided');

@@ -10,11 +10,11 @@ import {
     InvalidAgentDefinitionError,
     ToolDeniedError,
     ValidationError,
-    createMemoryStore,
     wrapToolsForRun,
 } from '@chamvi/core';
 import type { ToolSet } from 'ai';
 import type { GithubCreatedPullRequest, GithubMergeResult, GithubWriteToolsOptions } from '@chamvi/github';
+import { createTestEngine } from '@chamvi/test-kit';
 import { createGithubFixture } from '../../utils/app.ts';
 import { callTool, toolContext } from '../../utils/tools.ts';
 
@@ -24,7 +24,7 @@ function setup(options?: GithubWriteToolsOptions) {
 
     fixture.fake.installations.set('octo/demo', 9);
 
-    const wrap = (store = createMemoryStore()): ToolSet => wrapToolsForRun(fixture.gh.writeTools(options), ctx, store.effects);
+    const wrap = (effects = createTestEngine({ agents: [] }).effectService): ToolSet => wrapToolsForRun(fixture.gh.writeTools(options), ctx, effects);
     const call = <T = unknown>(tools: ToolSet, name: string, input: unknown) => callTool<T>(tools, name, input, ctx);
     const pullPosts = () => fixture.fake.requests.filter((r) => r.method === 'POST' && r.path === '/repos/octo/demo/pulls');
 

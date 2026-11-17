@@ -15,7 +15,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     InvalidAgentDefinitionError,
     agent,
     agentChannel,
@@ -33,9 +32,9 @@ import type {
     ToolContext,
 } from '@chamvi/core';
 import { EngineSkills } from '../../../src/engine/skills/module.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { EMPTY_SKILL_CONTRIBUTION } from '../../../src/skill/constants.ts';
 import { fakeSkillRuntime } from '../../utils/skill-runtime.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const run = () => 'ok';
 
@@ -83,29 +82,29 @@ describe('simple agents', () => {
         ['a simple kind without run', {
             kind: 'simple',
             definition: {
-                name: 'm', 
-                instructions: 'x', 
-                budget: {}, 
-            }, 
+                name: 'm',
+                instructions: 'x',
+                budget: {},
+            },
         }],
         ['a model kind with run', {
             kind: 'model',
             definition: {
-                name: 'm', 
-                run, 
-                budget: {}, 
-            }, 
+                name: 'm',
+                run,
+                budget: {},
+            },
         }],
     ])('refuses to register %s', async (_, patch) => {
         const base = defineModelAgent({
-            name: 'm', 
-            model: {} as LanguageModel, 
-            instructions: 'x', 
+            name: 'm',
+            model: {} as LanguageModel,
+            instructions: 'x',
         });
         const broken = { ...base, ...patch } as unknown as Agent;
-        const engine = new Engine({ store: createMemoryStore(), agents: [] });
+        const engine = createTestEngine({ services: createTestServices(), agents: [] });
 
-        expect(() => new Engine({ store: createMemoryStore(), agents: [broken] })).toThrow(InvalidAgentDefinitionError);
+        expect(() => createTestEngine({ services: createTestServices(), agents: [broken] })).toThrow(InvalidAgentDefinitionError);
         expect(() => engine.checkAgent(broken)).toThrow(InvalidAgentDefinitionError);
         await expect(engine.putAgent(broken)).rejects.toThrow(InvalidAgentDefinitionError);
         expect(engine.getAgent('m')).toBeUndefined();
@@ -113,7 +112,7 @@ describe('simple agents', () => {
 
     it('registers on an engine without a default model', async () => {
         const fan = defineSimpleAgent({ name: 'fan', run });
-        const engine = new Engine({ store: createMemoryStore(), agents: [fan] });
+        const engine = createTestEngine({ services: createTestServices(), agents: [fan] });
 
         expect(() => engine.checkAgent(fan)).not.toThrow();
         await expect(engine.putAgent(defineSimpleAgent({ name: 'other', run }))).resolves.toBeDefined();
@@ -142,13 +141,13 @@ describe('simple agents', () => {
         const fan = defineSimpleAgent({
             name: 'fan',
             run,
-            channels: [agent.on({ role: 'go' })], 
+            channels: [agent.on({ role: 'go' })],
         });
 
-        expect(() => new Engine({
-            store: createMemoryStore(), 
-            agents: [fan], 
-            channels: [agentChannel()], 
+        expect(() => createTestEngine({
+            services: createTestServices(),
+            agents: [fan],
+            channels: [agentChannel()],
         })).not.toThrow();
     });
 
@@ -161,9 +160,9 @@ describe('simple agents', () => {
         ['toolsContext', { toolsContext: {} }],
     ])('refuses run with %s', (field, extra) => {
         const def = {
-            name: 'fan', 
-            run, 
-            ...extra, 
+            name: 'fan',
+            run,
+            ...extra,
         } as unknown as SimpleAgentDefinition;
 
         expect(() => defineSimpleAgent(def)).toThrow(InvalidAgentDefinitionError);
@@ -172,9 +171,9 @@ describe('simple agents', () => {
 
     it('refuses a tools factory', () => {
         const def = {
-            name: 'fan', 
-            run, 
-            tools: () => ({}), 
+            name: 'fan',
+            run,
+            tools: () => ({}),
         } as unknown as SimpleAgentDefinition;
 
         expect(() => defineSimpleAgent(def)).toThrow(InvalidAgentDefinitionError);
@@ -190,18 +189,18 @@ describe('simple agents', () => {
 
     it('keeps the private flag', () => {
         expect(defineSimpleAgent({
-            name: 'fan', 
-            run, 
-            private: true, 
+            name: 'fan',
+            run,
+            private: true,
         }).definition.private).toBe(true);
         expect(defineSimpleAgent({ name: 'fan', run }).definition.private).toBeUndefined();
     });
 
     it('refuses a private flag that is not a boolean', () => {
         const def = {
-            name: 'fan', 
-            run, 
-            private: 'yes', 
+            name: 'fan',
+            run,
+            private: 'yes',
         } as unknown as SimpleAgentDefinition;
 
         expect(() => defineSimpleAgent(def)).toThrow(InvalidAgentDefinitionError);
@@ -212,7 +211,7 @@ describe('simple agents', () => {
         expect(() => defineSimpleAgent({
             name: 'fan',
             run,
-            description: '', 
+            description: '',
         })).toThrow(InvalidAgentDefinitionError);
     });
 
@@ -228,7 +227,7 @@ describe('simple agents', () => {
         expect(() => defineSimpleAgent({
             name: 'fan',
             run,
-            tools, 
+            tools,
         })).toThrow(/needsApproval/);
     });
 
@@ -293,8 +292,8 @@ describe('simple agents', () => {
 
         expectTypeOf(typed.definition.tools).toEqualTypeOf<typeof tools | undefined>();
 
-        const store = createMemoryStore();
-        const engine = new Engine({ store, agents: [typed] });
+        const store = createTestServices();
+        const engine = createTestEngine({ services: store, agents: [typed] });
 
         try {
             await engine.start();
@@ -307,7 +306,7 @@ describe('simple agents', () => {
             });
 
             await engine.idle();
-            expect((await store.runs.findOne(runId))?.output).toEqual({
+            expect((await store.runService.findOne(runId))?.output).toEqual({
                 value: 42,
                 count: 2,
                 transformed: 42,

@@ -10,8 +10,8 @@ import type {
     ConversationTarget,
     IChannel,
     IClock,
-    Invoker,
 } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 import type { Chat } from 'chat';
 import type { ChatIncoming, ChatIngress } from '../ingress/types.ts';
 import type { ChatSubscriber } from '../subscription/types.ts';

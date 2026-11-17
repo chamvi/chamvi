@@ -14,7 +14,7 @@ import { AuthorizationController } from '../authorization/controller.ts';
 import { AuthorizationService } from '../authorization/service.ts';
 import { registerChannelRoutes } from '../channels/module.ts';
 import { ConnectionController, ConnectionTypeController, UiPageController } from '../connections/controller/index.ts';
-import { ConnectionConfigService, ConnectionService } from '../connections/service/index.ts';
+import { ConnectionConfigService, ConnectionHttpService } from '../connections/service/index.ts';
 import { registerControllers } from '../controllers/module.ts';
 import { HealthController } from '../health/controller.ts';
 import { HealthService } from '../health/service.ts';
@@ -25,7 +25,7 @@ import { installPlugins } from '../plugins/module.ts';
 import { assertNoNul } from '../request/helpers.ts';
 import { registerRoutes } from '../routes/module.ts';
 import { RunController } from '../runs/controller.ts';
-import { RunService } from '../runs/service.ts';
+import { RunHttpService } from '../runs/service.ts';
 import { HTTP_CONTEXT } from './constants.ts';
 import { buildContext, createErrorHandler } from './helpers.ts';
 import type { HttpAppOptions } from './types.ts';
@@ -52,7 +52,7 @@ export function createHttpApp(options: HttpAppOptions): App {
     }));
 
     const agentService = new AgentService(ctx);
-    const runService = new RunService(ctx);
+    const runService = new RunHttpService(ctx);
     const connectionConfigService = new ConnectionConfigService(ctx);
 
     app.use(decorators({
@@ -63,7 +63,7 @@ export function createHttpApp(options: HttpAppOptions): App {
             new AgentController({ service: agentService, state: new AgentStateService(ctx) }),
             new ScheduleController({ service: agentService }),
             new RunController({ service: runService }),
-            new ConnectionController({ service: new ConnectionService(ctx), config: connectionConfigService }),
+            new ConnectionController({ service: new ConnectionHttpService(ctx), config: connectionConfigService }),
             new ConnectionTypeController({ config: connectionConfigService }),
             new UiPageController({ config: connectionConfigService }),
         ],

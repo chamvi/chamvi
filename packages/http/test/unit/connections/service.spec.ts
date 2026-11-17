@@ -12,10 +12,9 @@ import {
     vi,
 } from 'vitest';
 import { Permission } from '@chamvi/access';
-import { createMemoryStore } from '@chamvi/core';
 import type { ConnectionStatus, IConnectionHandle } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
-import { ConnectionService } from '../../../src/connections/service/index.ts';
+import { ConnectionHttpService } from '../../../src/connections/service/index.ts';
 import { flush, restricted } from '../../utils/app.ts';
 import { principalOf } from '../../utils/principal.ts';
 
@@ -35,10 +34,9 @@ function handleOf(name: string, options: { status?: ConnectionStatus; reset?: ()
 function setup(handles: IConnectionHandle[]) {
     const clock = new ControllableClock(new Date(1_000_000));
     const onError = vi.fn();
-    const service = new ConnectionService({
+    const service = new ConnectionHttpService({
         connections: () => handles,
         connectionTypes: () => [],
-        store: createMemoryStore({ clock }),
         clock,
         onError,
     });
@@ -50,7 +48,7 @@ const nobody = principalOf();
 const reader = principalOf(Permission.CONNECTION_READ);
 const writer = principalOf(Permission.CONNECTION_WRITE);
 
-describe('ConnectionService', () => {
+describe('ConnectionHttpService', () => {
     it('lists the connections the principal may read, never widgets', async () => {
         const { service } = setup([handleOf('alpha'), handleOf('beta')]);
 

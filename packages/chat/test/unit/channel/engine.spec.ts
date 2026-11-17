@@ -16,11 +16,10 @@ import {
 import { defineModelAgent, defineTool } from '@chamvi/core';
 import type {
     Agent,
-    ApprovalWaitPoint,
+    EffectService,
     IEngine,
-    IStore,
-    Run,
 } from '@chamvi/core';
+import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import { CHAT_REQUEST_ERROR_CODE, chatAddress } from '@chamvi/chat';
 import type { ChatApprovalRef, ChatChannel } from '@chamvi/chat';
 import { mockModel } from '@chamvi/test-kit';
@@ -96,25 +95,19 @@ async function trigger(fixture: IntakeFixture, text = 'hello'): Promise<Run> {
     return run!;
 }
 
-/** effects.save fails once for an emit effect */
-function failEmitSaveOnce(memory: IStore): IStore {
+/** The engine's effect service fails its first save of an emit effect. */
+function failEmitSaveOnce(effects: Pick<EffectService, 'save'>): void {
+    const save = effects.save.bind(effects);
     let failed = false;
 
-    return {
-        ...memory,
-        effects: {
-            findOne: (key) => memory.effects.findOne(key),
-            findOneOrFail: (key) => memory.effects.findOneOrFail(key),
-            save: async (key, result) => {
-                if (key.includes(':emit:') && !failed) {
-                    failed = true;
+    effects.save = async (key, result) => {
+        if (key.includes(':emit:') && !failed) {
+            failed = true;
 
-                    throw new Error('effect write failed');
-                }
+            throw new Error('effect write failed');
+        }
 
-                return memory.effects.save(key, result);
-            },
-        },
+        return save(key, result);
     };
 }
 
@@ -176,12 +169,12 @@ describe('chat channel out on an engine', () => {
 
         expect(run.status).toBe('completed');
         expect(fixture.adapter.posts).toEqual([{ threadId: 'fake:chat-1', message: { raw: 'Once.' } }]);
-        expect(await fixture.store.effects.findOne(`${run.id}:emit:chat:key:greeting`)).toBeDefined();
+        expect(await fixture.engine.effectService.findOne(`${run.id}:emit:chat:key:greeting`)).toBeDefined();
     });
 
     it('send_failure_records_no_effect: a failed post is a tool error and records nothing; the next emit sends', async () => {
         const seen: unknown[] = [];
-        let store!: IStore;
+        let effects!: Pick<EffectService, 'findOne'>;
         const fixture = await started({
             agents: (channel) => [agentWith(channel, async (context) => {
                 const handle = context.channels.findOneOrFail('chat');
@@ -192,12 +185,12 @@ describe('chat channel out on an engine', () => {
                     seen.push(error);
                 }
 
-                seen.push(await store.effects.findOne(`${context.run.runId}:emit:chat:key:k`));
+                seen.push(await effects.findOne(`${context.run.runId}:emit:chat:key:k`));
                 await handle.emit({ body: 'Retry me.', key: 'k' });
             })],
         });
 
-        store = fixture.store;
+        effects = fixture.engine.effectService;
 
         const post = fixture.adapter.postMessage.bind(fixture.adapter);
         let calls = 0;
@@ -218,7 +211,6 @@ describe('chat channel out on an engine', () => {
 
     it('effect_write_failure_may_resend: a post whose record failed is sent again (at-least-once, never exactly-once)', async () => {
         const fixture = await started({
-            store: failEmitSaveOnce,
             agents: (channel) => [agentWith(channel, async (context) => {
                 const handle = context.channels.findOneOrFail('chat');
 
@@ -226,6 +218,9 @@ describe('chat channel out on an engine', () => {
                 await handle.emit({ body: 'Maybe twice.', key: 'k' });
             })],
         });
+
+        failEmitSaveOnce(fixture.engine.effectService);
+
         const run = await trigger(fixture);
 
         expect(run.status).toBe('completed');

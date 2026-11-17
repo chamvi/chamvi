@@ -11,7 +11,8 @@ import {
     it,
     vi,
 } from 'vitest';
-import { ValidationError, createMemoryStore } from '@chamvi/core';
+import { ValidationError } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import { fileTools } from '@chamvi/tool-files';
 import { callTool, toolContext } from '../../utils/context.ts';
 
@@ -84,7 +85,7 @@ describe('process_files', () => {
     });
 
     it('rejects foreign artifacts before loading any bytes', async () => {
-        const store = createMemoryStore();
+        const store = createTestEngine({ agents: [] });
         const ctx = toolContext('own', undefined, store);
         const foreign = await toolContext('foreign', undefined, store).artifacts.put({ mediaType: 'text/plain', data: text('secret') });
         const get = vi.spyOn(ctx.artifacts, 'get');

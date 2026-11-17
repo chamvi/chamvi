@@ -17,14 +17,12 @@ import type {
     ChannelSubscription,
     ConversationAccess,
     ConversationRef,
+    Engine,
     IChannel,
 } from '@chamvi/core';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    MemoryConversationRepository,
     ValidationError,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
@@ -36,7 +34,7 @@ import {
     readCronOptions,
     runJob,
 } from '@chamvi/channel-cron';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { createScheduler } from '../../../src/scheduler/module.ts';
 import { mockModel } from '../../utils/model.ts';
 import type { MockResponse } from '../../utils/model.ts';
@@ -78,8 +76,6 @@ type SetupOptions = {
 
 function setup(opts: SetupOptions = {}) {
     const clock = opts.clock === false ? undefined : (opts.clock ?? new ControllableClock(T));
-    const store = createMemoryStore({ clock });
-    const conversations = new MemoryConversationRepository({ clock });
     const out = vi.fn<NonNullable<IChannel['out']>>(async () => {});
     const chat: IChannel = {
         name: 'chat',
@@ -117,8 +113,7 @@ function setup(opts: SetupOptions = {}) {
     });
     const authorize = vi.fn(opts.authorize ?? (() => true));
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store: { ...store, conversations },
+    const engine = createTestEngine({
         agents: [agent],
         channels: opts.channels === 'cron' ? [cronChannel()] : [cronChannel(), chat],
         conversations: { authorize },
@@ -130,6 +125,8 @@ function setup(opts: SetupOptions = {}) {
 
     engines.push(engine);
 
+    const conversations = engine.conversationService!;
+
     const fire = (scheduledAt: Date = T) => fireCronSubscription({
         engine,
         agent,
@@ -139,7 +136,7 @@ function setup(opts: SetupOptions = {}) {
 
     return {
         clock,
-        store,
+        storage: engine,
         conversations,
         chat,
         out,
@@ -154,7 +151,7 @@ function setup(opts: SetupOptions = {}) {
 }
 
 async function runOf(s: ReturnType<typeof setup>, runId: string) {
-    const run = await s.store.runs.findOne(runId);
+    const run = await s.storage.runService.findOne(runId);
 
     if (!run) {
         throw new Error('run missing');
@@ -271,7 +268,7 @@ describe('fireCronSubscription with a conversation', () => {
 
         expect(first).toMatchObject({ dispatched: true, deduplicated: false });
         expect(again).toEqual({ ...first, deduplicated: true });
-        expect((await s.store.runs.find({ agent: 'briefer' })).data).toHaveLength(1);
+        expect((await s.storage.runService.find({ agent: 'briefer' })).data).toHaveLength(1);
     });
 
     it('skips a tick while the previous run of the subscription is active', async () => {
@@ -280,14 +277,14 @@ describe('fireCronSubscription with a conversation', () => {
         expect(await s.fire()).toMatchObject({ dispatched: true });
         expect(await s.fire()).toEqual({ dispatched: false, reason: 'overlap' });
         expect(await s.fire(new Date('2026-03-02T07:00:00.000Z'))).toEqual({ dispatched: false, reason: 'overlap' });
-        expect((await s.store.runs.find({ agent: 'briefer' })).data).toHaveLength(1);
+        expect((await s.storage.runService.find({ agent: 'briefer' })).data).toHaveLength(1);
     });
 
     it('lets the authorizer refuse the cron dispatch: no run', async () => {
         const s = setup({ authorize: () => false });
 
         await expect(s.fire()).rejects.toBeInstanceOf(ValidationError);
-        expect((await s.store.runs.find({ agent: 'briefer' })).data).toHaveLength(0);
+        expect((await s.storage.runService.find({ agent: 'briefer' })).data).toHaveLength(0);
     });
 
     it('reports a refused dispatch to the scheduler onError', async () => {
@@ -306,7 +303,7 @@ describe('fireCronSubscription with a conversation', () => {
         try {
             await vi.advanceTimersByTimeAsync(60_000);
             expect(onError).toHaveBeenCalledWith(expect.any(ValidationError), { agent: 'briefer', subscription: 'briefing' });
-            expect((await s.store.runs.find({ agent: 'briefer' })).data).toHaveLength(0);
+            expect((await s.storage.runService.find({ agent: 'briefer' })).data).toHaveLength(0);
         } finally {
             await scheduler.stop();
         }
@@ -356,7 +353,7 @@ describe('fireCronSubscription with a conversation', () => {
         const s = setup({ channels: 'cron' });
 
         expect(await s.fire()).toEqual({ dispatched: false, reason: 'channel' });
-        expect((await s.store.runs.find({ agent: 'briefer' })).data).toHaveLength(0);
+        expect((await s.storage.runService.find({ agent: 'briefer' })).data).toHaveLength(0);
     });
 
     it('refuses to schedule a conversation on a channel the engine does not hold', async () => {
@@ -377,7 +374,7 @@ describe('fireCronSubscription with a conversation', () => {
         const s = setup({ responses: [call('send', { body: 'Briefing' }), done] });
 
         await expect(runJob({ engine: s.engine, agent: s.agent })).rejects.toThrow(/runs only in the app's scheduler/);
-        expect((await s.store.runs.find({ agent: 'briefer' })).data).toHaveLength(0);
+        expect((await s.storage.runService.find({ agent: 'briefer' })).data).toHaveLength(0);
         expect(s.out).not.toHaveBeenCalled();
     });
 
@@ -385,6 +382,6 @@ describe('fireCronSubscription with a conversation', () => {
         const s = setup({ channels: 'cron' });
 
         await expect(runJob({ engine: s.engine, agent: s.agent })).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
-        expect((await s.store.runs.find({ agent: 'briefer' })).data).toHaveLength(0);
+        expect((await s.storage.runService.find({ agent: 'briefer' })).data).toHaveLength(0);
     });
 });

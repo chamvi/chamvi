@@ -12,7 +12,10 @@ import type { GithubChannelOptions } from '../channel/types.ts';
 import type { GithubAppCredentialsOptions } from '../credentials/types.ts';
 
 /** `githubChannel()` options; `approvalUrl` defaults to the UI link from `CHAMVI_PUBLIC_URL`, `clock` is the app's. */
-export type GithubModuleChannelOptions = Omit<GithubChannelOptions, 'app' | 'clock'>;
+export type GithubModuleChannelOptions = Omit<GithubChannelOptions, 'app' | 'clock' | 'locks'> & {
+    /** Default the app's lock service (`AppToken.LOCK_SERVICE`). */
+    locks?: GithubChannelOptions['locks'];
+};
 
 export type GithubModuleOptions = Partial<GithubAppOptions> & {
     /**
@@ -30,7 +33,7 @@ export type GithubModuleOptions = Partial<GithubAppOptions> & {
     app?: IGithubApp;
     /** Default `process.env`, read when the factory is called; format errors throw there, a missing value in `setup`. */
     env?: Env;
-    /** The channel's options; named comment slots use the app store's locks by default. */
+    /** The channel's options; named comment slots use the app's lock service by default. */
     channel?: GithubModuleChannelOptions;
     /**
      * The App's git credentials (`githubAppCredentials()`), contributed to

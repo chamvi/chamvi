@@ -5,19 +5,73 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { WaitPoint } from './types.ts';
+import { isFilter, isFilters } from '@rapiq/core';
+import type { ICondition, IFilters, ISort } from '@rapiq/core';
+import { normalizeEnvelope, normalizeWaitPoint } from '@chamvi/store';
+import type { Run, WaitPoint } from '@chamvi/store';
+import { ValidationError } from '../errors/index.ts';
 
-/**
- * A stored wait point as it reads today: an approval wait point written
- * without the generic `id` gets `id = approvalId`. The input is not changed;
- * repository implementations call it on every wait point they read back.
- */
-export function normalizeWaitPoint(raw: Record<string, unknown>): WaitPoint {
-    if (raw.kind === 'approval' && raw.id === undefined && typeof raw.approvalId === 'string') {
-        return { ...raw, id: raw.approvalId } as WaitPoint;
+/** The run field a listing selects a wait point kind by (`Run.waiting.kind`). */
+const WAITING_FIELD = 'waiting';
+
+/** Whether any filter below `condition` (itself included) is on `field`. */
+function hasField(condition: ICondition, field: string): boolean {
+    if (isFilter(condition)) {
+        return condition.field === field;
     }
 
-    return raw as WaitPoint;
+    return isFilters(condition) && condition.value.some((child) => hasField(child, field));
+}
+
+/**
+ * The top-level conditions of a listing's filters without its `waiting`
+ * filter, and the wait point kind that filter selects: `eq` with
+ * `approval` or `dispatch`, given once and joined with `and`; a `waiting`
+ * condition of any other shape is a ValidationError (the field is a JSON
+ * document, no column a query compares).
+ */
+export function splitWaitKind(filters: IFilters): { conditions: ICondition[]; waitKind?: WaitPoint['kind'] } {
+    const children = filters.operator === 'and' ? filters.value : [filters];
+    const conditions: ICondition[] = [];
+    let waitKind: WaitPoint['kind'] | undefined;
+
+    for (const child of children) {
+        if (isFilter(child) && child.field === WAITING_FIELD) {
+            if (waitKind !== undefined || child.operator !== 'eq' || (child.value !== 'approval' && child.value !== 'dispatch')) {
+                throw new ValidationError('A run listing selects one wait point kind: waiting equal to approval or dispatch.');
+            }
+
+            waitKind = child.value;
+        } else if (hasField(child, WAITING_FIELD)) {
+            throw new ValidationError('A run listing selects one wait point kind: waiting equal to approval or dispatch.');
+        } else {
+            conditions.push(child);
+        }
+    }
+
+    return { conditions, ...(waitKind !== undefined ? { waitKind } : {}) };
+}
+
+/**
+ * A listing's sorts, then `id` in the direction of the last sort, so equal
+ * values page stably: `createdAt`, then `id`, ascending without sorts.
+ */
+export function withIdTieBreak(sorts: readonly ISort[]): Record<string, 'ASC' | 'DESC'> {
+    if (sorts.length === 0) {
+        return { createdAt: 'ASC', id: 'ASC' };
+    }
+
+    const record: Record<string, 'ASC' | 'DESC'> = {};
+
+    for (const sort of sorts) {
+        record[sort.name] = sort.operator;
+    }
+
+    if (!Object.hasOwn(record, 'id')) {
+        record.id = sorts.at(-1)!.operator;
+    }
+
+    return record;
 }
 
 /** The wait id of a stored wait point: `id`, else (a legacy approval wait point) `approvalId`. */
@@ -45,4 +99,25 @@ export function untilAborted<T>(work: Promise<T>, signal: AbortSignal): Promise<
         signal.addEventListener('abort', onAbort, { once: true });
         work.then(resolve, reject).finally(() => signal.removeEventListener('abort', onAbort));
     });
+}
+
+/**
+ * A run as the service returns it: a legacy envelope (`source`, `thread`)
+ * and an approval wait point without `id` in the current shape, a
+ * property set to `undefined` left out. The stored row is not changed.
+ */
+export function readRun(run: Run): Run {
+    const output: Run = { ...run, trigger: normalizeEnvelope(run.trigger as unknown as Record<string, unknown>) };
+
+    if (output.waiting) {
+        output.waiting = normalizeWaitPoint(output.waiting as unknown as Record<string, unknown>);
+    }
+
+    for (const key of Object.keys(output) as (keyof Run)[]) {
+        if (output[key] === undefined) {
+            delete output[key];
+        }
+    }
+
+    return output;
 }

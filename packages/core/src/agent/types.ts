@@ -241,13 +241,3 @@ export type SimpleAgent<S extends StateSchema = StateSchema, T extends ToolSet =
 
 /** A registrable agent; `kind` tells the two apart and narrows the definition. */
 export type Agent<S extends StateSchema = StateSchema> = ModelAgent<S> | SimpleAgent<S>;
-
-/**
- * The revision marker of a folder agent: the content hash of its folder
- * (never its code) and when that hash was recorded.
- */
-export type AgentRevision = {
-    agent: string;
-    hash: string;
-    changedAt: Date;
-};

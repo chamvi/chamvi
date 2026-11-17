@@ -5,22 +5,21 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { 
-    afterEach, 
-    describe, 
-    expect, 
-    it, 
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
 } from 'vitest';
 import {
-    Engine,
     ValidationError,
     defineModelAgent,
 } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { createRunArtifacts } from '../../../src/artifact/module.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -36,13 +35,13 @@ const RUN = { id: 'run-1', agent: 'a' };
 
 function setup() {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
-    const artifacts = createRunArtifacts(store.artifacts, RUN, clock);
+    const store = createTestServices({ clock });
+    const artifacts = createRunArtifacts(store.artifactService, RUN, clock);
 
     return {
-        clock, 
-        store, 
-        artifacts, 
+        clock,
+        store,
+        artifacts,
     };
 }
 
@@ -62,7 +61,7 @@ describe('keyed artifacts', () => {
             mediaType: 'text/plain',
             data: 'text' as unknown as Uint8Array,
         })).rejects.toThrow(ValidationError);
-        expect(await store.artifacts.find(RUN.id)).toHaveLength(0);
+        expect(await store.artifactService.find(RUN.id)).toHaveLength(0);
     });
 
     it('a repeated keyed put keeps id and createdAt', async () => {
@@ -95,7 +94,7 @@ describe('keyed artifacts', () => {
         });
 
         expect(artifact).not.toHaveProperty('key');
-        expect(await store.artifacts.findOne(artifact.id)).not.toHaveProperty('key');
+        expect(await store.artifactService.findOne(artifact.id)).not.toHaveProperty('key');
     });
 
     it('replaces the artifact on a put with the same key', async () => {
@@ -110,9 +109,9 @@ describe('keyed artifacts', () => {
         clock.advance(1_000);
 
         const second = await artifacts.put({
-            key: 'k', 
-            mediaType: 'image/jpeg', 
-            data: new Uint8Array([9]), 
+            key: 'k',
+            mediaType: 'image/jpeg',
+            data: new Uint8Array([9]),
         });
 
         expect(second.id).toBe(first.id);
@@ -139,14 +138,14 @@ describe('keyed artifacts', () => {
         const { artifacts } = setup();
         const [a, b] = await Promise.all([
             artifacts.put({
-                key: 'k', 
-                mediaType: 'text/plain', 
-                data: new Uint8Array([1]), 
+                key: 'k',
+                mediaType: 'text/plain',
+                data: new Uint8Array([1]),
             }),
             artifacts.put({
-                key: 'k', 
-                mediaType: 'text/plain', 
-                data: new Uint8Array([2]), 
+                key: 'k',
+                mediaType: 'text/plain',
+                data: new Uint8Array([2]),
             }),
         ]);
 
@@ -163,35 +162,35 @@ describe('keyed artifacts', () => {
         const { artifacts, store } = setup();
 
         await expect(artifacts.put({
-            key, 
-            mediaType: 'text/plain', 
-            data: new Uint8Array([1]), 
+            key,
+            mediaType: 'text/plain',
+            data: new Uint8Array([1]),
         } as never))
             .rejects.toBeInstanceOf(ValidationError);
-        expect(await store.artifacts.find(RUN.id)).toEqual([]);
+        expect(await store.artifactService.find(RUN.id)).toEqual([]);
     });
 
     it('accepts a key of 255 characters', async () => {
         const { artifacts } = setup();
 
         await expect(artifacts.put({
-            key: 'x'.repeat(255), 
-            mediaType: 'text/plain', 
-            data: new Uint8Array([1]), 
+            key: 'x'.repeat(255),
+            mediaType: 'text/plain',
+            data: new Uint8Array([1]),
         }))
             .resolves.toMatchObject({ runId: RUN.id });
     });
 
     it('refuses a dispatch attachment with a key', async () => {
         const clock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock });
-        const engine = new Engine({
-            store,
+        const store = createTestServices({ clock });
+        const engine = createTestEngine({
+            services: store,
             clock,
             agents: [defineModelAgent({
-                name: 'vision', 
-                instructions: 'x', 
-                model: mockModel([]), 
+                name: 'vision',
+                instructions: 'x',
+                model: mockModel([]),
             })],
         });
 
@@ -203,11 +202,11 @@ describe('keyed artifacts', () => {
             channel: 'http',
             payload: {},
             attachments: [{
-                key: 'k', 
-                mediaType: 'text/plain', 
-                data: new Uint8Array([1]), 
+                key: 'k',
+                mediaType: 'text/plain',
+                data: new Uint8Array([1]),
             }],
         })).rejects.toThrow('Attachments take no key.');
-        expect((await store.runs.find({})).data).toEqual([]);
+        expect((await store.runService.find({})).data).toEqual([]);
     });
 });

@@ -6,8 +6,9 @@
  */
 
 import type { ToolSet } from 'ai';
-import { createAgentState, createMemoryStore } from '@chamvi/core';
+import { createAgentState } from '@chamvi/core';
 import type { IRunArtifacts, ToolContext } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import type { ICalendarClient } from '@chamvi/tool-calendar';
 import { bindProvided } from '../../../core/src/context/helpers.ts';
 import { CALENDAR_CONTEXT } from '../../src/context/constants.ts';
@@ -38,7 +39,7 @@ export function toolContext(client?: ICalendarClient, signal?: AbortSignal): Too
             },
             signal: signal ?? new AbortController().signal,
         },
-        state: createAgentState('planner', undefined, createMemoryStore().state),
+        state: createAgentState('planner', undefined, createTestEngine({ agents: [] }).stateService),
         artifacts: NO_ARTIFACTS,
     };
 

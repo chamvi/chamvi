@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
-import type { IStore } from '@chamvi/core';
+import type { RunService } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -36,15 +36,15 @@ async function setup() {
 }
 
 /** Inserts one child of `parentId` per agent, in that order; returns their ids. */
-async function insertChildren(store: IStore, parentId: string, agents: string[]): Promise<string[]> {
-    const parent = await store.runs.findOneOrFail(parentId);
+async function insertChildren(store: { runService: RunService }, parentId: string, agents: string[]): Promise<string[]> {
+    const parent = await store.runService.findOneOrFail(parentId);
     const ids: string[] = [];
 
     for (const [index, agent] of agents.entries()) {
         const id = `${parentId}-child-${index}`;
         const at = new Date(parent.createdAt.getTime() + 10 + index);
 
-        await store.runs.insert({
+        await store.runService.create({
             id,
             agent,
             status: 'completed',
@@ -257,8 +257,8 @@ describe('GET /runs', () => {
             expiresAt,
         });
 
-        await store.runs.update(first, { status: 'waiting', waiting: approval('0:c1:0') });
-        await store.runs.update(second, {
+        await store.runService.update(first, { status: 'waiting', waiting: approval('0:c1:0') });
+        await store.runService.update(second, {
             status: 'waiting',
             waiting: {
                 kind: 'dispatch',
@@ -269,7 +269,7 @@ describe('GET /runs', () => {
                 expiresAt,
             },
         });
-        await store.runs.update(third, { status: 'waiting', waiting: approval('0:c1:1') });
+        await store.runService.update(third, { status: 'waiting', waiting: approval('0:c1:1') });
 
         const approvals = await (await call(app, 'GET', '/runs?filter[status]=waiting&filter[waiting]=approval&page[limit]=1', { token: READER_TOKEN })).json() as ListBody;
 

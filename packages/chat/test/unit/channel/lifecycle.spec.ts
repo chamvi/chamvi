@@ -16,13 +16,11 @@ import {
 } from 'vitest';
 import {
     ChamviError,
-    Engine,
     InvalidAgentDefinitionError,
     InvalidRunStateError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
-import type { IClock, IEngine } from '@chamvi/core';
+import type { Engine, IClock, IEngine } from '@chamvi/core';
 import {
     CHAT_STOP_TIMEOUT_ERROR_CODE,
     CHAT_STOP_TIMEOUT_MS,
@@ -30,7 +28,7 @@ import {
     createChatIngressAdapter,
 } from '@chamvi/chat';
 import type { ChatChannelOptions, ChatIngress } from '@chamvi/chat';
-import { ControllableClock, textModel } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine, textModel } from '@chamvi/test-kit';
 import { createChatChannel } from '../../../src/channel/module.ts';
 import type { ChatIntake, ChatIntakeContext } from '../../../src/channel/types.ts';
 import { bindIngress } from '../../../src/ingress/module.ts';
@@ -94,8 +92,7 @@ function setup(input: {
     }, input.intake ?? (async (incoming, ctx) => {
         accepted.push({ id: incoming.message.id, ctx });
     }));
-    const engine = new Engine({
-        store: createMemoryStore({ clock }),
+    const engine = createTestEngine({
         agents: [
             defineModelAgent({
                 name: 'assistant',
@@ -409,8 +406,7 @@ describe('chatChannel lifecycle', () => {
                 errors.push(error);
             },
         });
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
             channels: [channel],
             agents: [],
         });
@@ -419,7 +415,7 @@ describe('chatChannel lifecycle', () => {
         await engine.start();
 
         await expect(adapter.deliver(createTextMessage({ id: 'm-1' }))).resolves.toBeUndefined();
-        expect(await engine.store.runs.find({})).toEqual({ data: [], total: 0 });
+        expect(await engine.runService.find({})).toEqual({ data: [], total: 0 });
         expect(errors).toEqual([]);
     });
 });

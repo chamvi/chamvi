@@ -13,22 +13,13 @@ import {
     RequestEntityTooLargeError,
     UnsupportedMediaTypeError,
 } from '@ebec/http';
-import { createURLCodec } from '@rapiq/codec-url';
-import {
-    CodecError,
-    isFilter,
-    isFilters,
-    isParseError,
-} from '@rapiq/core';
-import type { Schema } from '@rapiq/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
 import type { IAppEvent } from 'routup';
 import { isObject } from 'smob';
 import type { Container } from 'validup';
-import { MAX_PAGE_LIMIT } from '../app/constants.ts';
 import { KEY_MAX_LENGTH, RECEIVED_MAX_LENGTH } from './constants.ts';
-import type { DecodedQuery, ReadRequestBodyOptions } from './types.ts';
+import type { ReadRequestBodyOptions } from './types.ts';
 
 /** `application/json` or a `+json` media type (parameters ignored). */
 export function isJsonMediaType(contentType: string | null): boolean {
@@ -300,73 +291,6 @@ export async function validatePayload(schema: StandardSchemaV1 | undefined, payl
     }
 
     return result.value;
-}
-
-const codec = createURLCodec();
-
-// rapiq's Schema is invariant in its record type; the codec takes any of them
-type AnySchema = Schema<any>;
-
-function decodeWithCodec(searchParams: URLSearchParams, schema: AnySchema) {
-    try {
-        return codec.decode(searchParams.toString(), {
-            schema,
-            fields: false,
-            relations: false,
-        });
-    } catch (error) {
-        if (isParseError(error) || error instanceof CodecError) {
-            const { issues } = error;
-            const message = issues.length > 0 ? flattenIssueItems(issues).map((issue) => issue.message).join('; ') : error.message;
-            throw new BadRequestError({ message, issues });
-        }
-
-        throw error;
-    }
-}
-
-/**
- * Decodes a rapiq URL query (bracket or expression dialect) against
- * `schema` (built with `throwOnFailure: true` and without `maxLimit`):
- * 400 for a rejected query, a compound filter or a limit above 100.
- */
-export function decodeQuery(searchParams: URLSearchParams, schema: AnySchema): DecodedQuery {
-    const query = decodeWithCodec(searchParams, schema);
-
-    // rapiq reads page values with parseInt ('1e2' -> 1, '50.5' -> 50); checked
-    // after the codec, so its own rejections keep their issues
-    for (const key of ['limit', 'offset']) {
-        for (const value of searchParams.getAll(`page[${key}]`)) {
-            if (!/^\d+$/.test(value.trim())) {
-                throw new BadRequestError({ message: `page[${key}] takes a non-negative integer.` });
-            }
-        }
-    }
-
-    if (!query) {
-        return { filters: [], sorts: [] };
-    }
-
-    const root = query.filters;
-    const children = isFilters(root) && root.operator === 'and' ? root.value : [root];
-    const filters = children.filter((child) => isFilter(child));
-
-    if (filters.length !== children.length) {
-        throw new BadRequestError({ message: 'Only top-level filters joined with "and" are supported.' });
-    }
-
-    const { limit, offset } = query.pagination;
-
-    if (limit !== undefined && limit > MAX_PAGE_LIMIT) {
-        throw new BadRequestError({ message: `The pagination limit must not exceed the value of ${MAX_PAGE_LIMIT}.` });
-    }
-
-    return {
-        filters,
-        ...(limit !== undefined ? { limit } : {}),
-        ...(offset !== undefined ? { offset } : {}),
-        sorts: query.sorts.value,
-    };
 }
 
 /** An `Idempotency-Key` header value (`null`: absent): 1 to `KEY_MAX_LENGTH` characters, else 400. */

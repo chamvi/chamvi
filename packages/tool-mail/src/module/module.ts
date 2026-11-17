@@ -75,7 +75,7 @@ export class ToolMailModule implements IModule {
             return;
         }
 
-        const editable = !this.pinned && container.resolve(AppToken.STORE).connections !== undefined;
+        const editable = !this.pinned && container.has(AppToken.CONNECTION_SERVICE);
         const definition = mailConnectionDefinition();
         const loaded = await loadMailAccounts({
             definition,

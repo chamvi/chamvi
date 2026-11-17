@@ -10,9 +10,10 @@ import { bindRunSnapshot } from '../../dispatch/helpers.ts';
 import { runToolCall } from '../../effect/frame.ts';
 import type { ToolCallFrame } from '../../effect/types.ts';
 import { InvalidAgentDefinitionError, ValidationError } from '../../errors/index.ts';
-import { RunStatus } from '../../run/constants.ts';
+import { RunStatus } from '@chamvi/store';
 import { untilAborted } from '../../run/helpers.ts';
-import type { RunContext, Step } from '../../run/types.ts';
+import type { RunContext } from '../../run/types.ts';
+import type { Step } from '@chamvi/store';
 import { assertTrust, bindTrust } from '../../trust/module.ts';
 import { resolveBudget, timeoutSignal } from '../budget.ts';
 import { createSimpleTools } from './simple-tools.ts';
@@ -65,7 +66,8 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
     const {
         run,
         agent,
-        store,
+        stepService,
+        effectService,
         clock,
     } = ctx;
 
@@ -106,7 +108,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
         toolName: agent.name,
         stepIndex: 0,
         approvals: 0,
-        effects: store.effects,
+        effects: effectService,
         artifacts: toolContext.artifacts,
     };
     // one write at a time, so concurrent ctx.tools calls get distinct step indexes
@@ -120,12 +122,12 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
 
             const stored: Step = {
                 runId: run.id,
-                index: (await store.steps.find(run.id)).length,
+                index: (await stepService.find(run.id)).length,
                 kind: 'tool',
                 ...step,
             };
 
-            await store.steps.insert(stored);
+            await stepService.create(stored);
             ctx.onStepAppended(stored);
         });
 
@@ -226,7 +228,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
     if (!ctx.ownsRun || await ctx.ownsRun()) {
         const step: Step = {
             runId: run.id,
-            index: (await store.steps.find(run.id)).length,
+            index: (await stepService.find(run.id)).length,
             kind: 'tool',
             name: agent.name,
             input: run.trigger.payload,
@@ -235,7 +237,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
             finishedAt: clock.now(),
         };
 
-        await store.steps.insert(step);
+        await stepService.create(step);
         ctx.onStepAppended(step);
     }
 

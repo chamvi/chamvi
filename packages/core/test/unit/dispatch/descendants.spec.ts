@@ -6,11 +6,12 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { RunStatus, findApprovalWaitBelow } from '@chamvi/core';
-import type { Run, WaitPoint } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
-import type { RunFindOptions } from '../../../src/repository/types.ts';
+import { findApprovalWaitBelow } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
+import type { Run, WaitPoint } from '@chamvi/store';
+import type { RunFindOptions } from '../../../src/run/types.ts';
 import { ControllableClock } from '../../utils/clock.ts';
+import { createTestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -67,11 +68,11 @@ const approvalWait: WaitPoint = {
 };
 
 function recordingStore() {
-    const store = createMemoryStore({ clock: new ControllableClock(START) });
+    const store = createTestServices({ clock: new ControllableClock(START) });
     const finds: RunFindOptions[] = [];
-    const find = store.runs.find.bind(store.runs);
+    const find = store.runService.find.bind(store.runService);
 
-    store.runs.find = async (q) => {
+    store.runService.find = async (q = {}) => {
         finds.push(q);
 
         return find(q);
@@ -85,20 +86,20 @@ describe('findApprovalWaitBelow', () => {
         const { store, finds } = recordingStore();
         const ids = Array.from({ length: 30 }, (_, i) => `c${i}`);
 
-        await store.runs.insert(makeRun('root', undefined, { status: RunStatus.WAITING, waiting: dispatchWait(ids) }));
+        await store.runService.create(makeRun('root', undefined, { status: RunStatus.WAITING, waiting: dispatchWait(ids) }));
 
         for (const id of ids) {
-            await store.runs.insert(makeRun(id, 'root'));
-            await store.runs.insert(makeRun(`g-${id}`, id));
+            await store.runService.create(makeRun(id, 'root'));
+            await store.runService.create(makeRun(`g-${id}`, id));
         }
 
-        await store.runs.update('g-c17', { status: RunStatus.WAITING, waiting: approvalWait });
+        await store.runService.update('g-c17', { status: RunStatus.WAITING, waiting: approvalWait });
 
-        const root = await store.runs.findOneOrFail('root');
+        const root = await store.runService.findOneOrFail('root');
 
         finds.length = 0;
 
-        const found = await findApprovalWaitBelow(store.runs, root);
+        const found = await findApprovalWaitBelow(store.runService, root);
 
         expect(found?.id).toBe('g-c17');
         expect(finds).toHaveLength(2);
@@ -109,17 +110,17 @@ describe('findApprovalWaitBelow', () => {
     it('follows a named run another run dispatched, each run once', async () => {
         const { store, finds } = recordingStore();
 
-        await store.runs.insert(makeRun('other'));
-        await store.runs.insert(makeRun('shared', 'other'));
-        await store.runs.insert(makeRun('root', undefined, { status: RunStatus.WAITING, waiting: dispatchWait(['shared', 'own']) }));
-        await store.runs.insert(makeRun('own', 'root', { status: RunStatus.WAITING, waiting: dispatchWait(['shared']) }));
-        await store.runs.insert(makeRun('leaf', 'shared', { status: RunStatus.WAITING, waiting: approvalWait }));
+        await store.runService.create(makeRun('other'));
+        await store.runService.create(makeRun('shared', 'other'));
+        await store.runService.create(makeRun('root', undefined, { status: RunStatus.WAITING, waiting: dispatchWait(['shared', 'own']) }));
+        await store.runService.create(makeRun('own', 'root', { status: RunStatus.WAITING, waiting: dispatchWait(['shared']) }));
+        await store.runService.create(makeRun('leaf', 'shared', { status: RunStatus.WAITING, waiting: approvalWait }));
 
-        const root = await store.runs.findOneOrFail('root');
+        const root = await store.runService.findOneOrFail('root');
 
         finds.length = 0;
 
-        expect((await findApprovalWaitBelow(store.runs, root))?.id).toBe('leaf');
+        expect((await findApprovalWaitBelow(store.runService, root))?.id).toBe('leaf');
         // level 1: own (child), then shared (named); level 2: their children, shared named again but visited
         expect(finds).toEqual([
             { parentRunIds: ['root'], status: expect.any(Array) },
@@ -131,11 +132,11 @@ describe('findApprovalWaitBelow', () => {
     it('skips settled subtrees and is undefined without an approval wait', async () => {
         const { store } = recordingStore();
 
-        await store.runs.insert(makeRun('root', undefined, { status: RunStatus.WAITING, waiting: dispatchWait(['done']) }));
-        await store.runs.insert(makeRun('done', 'root'));
-        await store.runs.insert(makeRun('below', 'done', { status: RunStatus.WAITING, waiting: approvalWait }));
-        await store.runs.update('done', { status: RunStatus.COMPLETED });
+        await store.runService.create(makeRun('root', undefined, { status: RunStatus.WAITING, waiting: dispatchWait(['done']) }));
+        await store.runService.create(makeRun('done', 'root'));
+        await store.runService.create(makeRun('below', 'done', { status: RunStatus.WAITING, waiting: approvalWait }));
+        await store.runService.update('done', { status: RunStatus.COMPLETED });
 
-        expect(await findApprovalWaitBelow(store.runs, await store.runs.findOneOrFail('root'))).toBeUndefined();
+        expect(await findApprovalWaitBelow(store.runService, await store.runService.findOneOrFail('root'))).toBeUndefined();
     });
 });

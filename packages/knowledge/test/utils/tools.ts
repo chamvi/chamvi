@@ -7,8 +7,9 @@
 
 import type { EmbeddingModel, ToolSet  } from 'ai';
 import { embedMany } from 'ai';
-import { createAgentState, createMemoryStore } from '@chamvi/core';
+import { createAgentState } from '@chamvi/core';
 import type { IRunArtifacts, ToolContext } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import type { IKnowledge, KnowledgeCollection, MemoryKnowledgeRepository } from '@chamvi/knowledge';
 import { bindProvided } from '../../../core/src/context/helpers.ts';
 import { KNOWLEDGE_CONTEXT } from '../../src/context/constants.ts';
@@ -39,7 +40,7 @@ export function toolContext(knowledge?: IKnowledge, signal?: AbortSignal): ToolC
             },
             signal: signal ?? new AbortController().signal,
         },
-        state: createAgentState('reader', undefined, createMemoryStore().state),
+        state: createAgentState('reader', undefined, createTestEngine({ agents: [] }).stateService),
         artifacts: NO_ARTIFACTS,
     };
 

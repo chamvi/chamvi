@@ -7,27 +7,23 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-    Engine,
     ValidationError,
     approve,
     defineSimpleAgent,
 } from '@chamvi/core';
-import type {
-    IChannel,
-    IStore,
-    Run,
-    SimpleAgentDefinition,
-} from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import type { Engine, IChannel, SimpleAgentDefinition } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
 function setup(def: Omit<SimpleAgentDefinition, 'name'>, channels: IChannel[] = []) {
     const clock = new ControllableClock(START);
-    const store: IStore = createMemoryStore({ clock });
-    const engine = new Engine({
-        store,
+    const store: TestServiceSet = createTestServices({ clock });
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [defineSimpleAgent({ name: 'simple', ...def })],
         channels,
@@ -35,9 +31,9 @@ function setup(def: Omit<SimpleAgentDefinition, 'name'>, channels: IChannel[] = 
     });
 
     return {
-        clock, 
-        store, 
-        engine, 
+        clock,
+        store,
+        engine,
     };
 }
 
@@ -81,12 +77,12 @@ describe('simple run execution', () => {
     it('completes with the returned value, one tool step and no checkpoint', async () => {
         const { store, engine } = setup({ run: (payload) => ({ ok: 1, payload }) });
         const runId = await runOnce(engine, { n: 2 });
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toEqual({ ok: 1, payload: { n: 2 } });
 
-        const steps = await store.steps.find(runId);
+        const steps = await store.stepService.find(runId);
 
         expect(steps).toHaveLength(1);
         expect(steps[0]).toMatchObject({
@@ -95,7 +91,7 @@ describe('simple run execution', () => {
             input: { n: 2 },
             output: { ok: 1, payload: { n: 2 } },
         });
-        expect(await store.checkpoints.findOne(runId)).toBeUndefined();
+        expect(await store.checkpointService.findOne(runId)).toBeUndefined();
 
         await engine.stop();
     });
@@ -107,18 +103,18 @@ describe('simple run execution', () => {
             },
         });
         const runId = await runOnce(engine);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'validation_error', message: 'x' });
 
-        const steps = await store.steps.find(runId);
+        const steps = await store.stepService.find(runId);
 
         expect(steps).toHaveLength(1);
         expect(steps[0]).toMatchObject({
-            kind: 'tool', 
-            name: 'simple', 
-            error: { code: 'validation_error', message: 'x' }, 
+            kind: 'tool',
+            name: 'simple',
+            error: { code: 'validation_error', message: 'x' },
         });
 
         await engine.stop();
@@ -136,25 +132,25 @@ describe('simple run execution', () => {
             },
         });
         const runId = await runOnce(engine);
-        const waiting = await store.runs.findOne(runId);
+        const waiting = await store.runService.findOne(runId);
 
         expect(waiting?.status).toBe('waiting');
         expect(waiting?.waiting).toMatchObject({
-            kind: 'approval', 
-            approvalId: '0:run:0', 
-            toolName: 'simple', 
+            kind: 'approval',
+            approvalId: '0:run:0',
+            toolName: 'simple',
         });
-        expect(await store.steps.find(runId)).toHaveLength(0);
+        expect(await store.stepService.find(runId)).toHaveLength(0);
 
         await engine.approve(runId, { approvalId: '0:run:0', approved: true });
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toEqual({ approved: true });
         expect(calls).toBe(2);
-        expect((await store.steps.find(runId)).map((s) => s.kind)).toEqual(['wait', 'tool']);
+        expect((await store.stepService.find(runId)).map((s) => s.kind)).toEqual(['wait', 'tool']);
 
         await engine.stop();
     });
@@ -172,7 +168,7 @@ describe('simple run execution', () => {
         await engine.approve(runId, { approvalId: '0:run:0', approved: false });
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('completed');
         expect(run?.output).toEqual({ approved: false });
@@ -193,11 +189,11 @@ describe('simple run execution', () => {
             },
         });
         const runId = await runOnce(engine);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('waiting');
         expect(run?.output).toBeUndefined();
-        expect(await store.steps.find(runId)).toHaveLength(0);
+        expect(await store.stepService.find(runId)).toHaveLength(0);
 
         await engine.stop();
     });
@@ -205,9 +201,9 @@ describe('simple run execution', () => {
     it('fails with Timeout after budget.timeoutMs', async () => {
         const entered = Promise.withResolvers<void>();
         const {
-            clock, 
-            store, 
-            engine, 
+            clock,
+            store,
+            engine,
         } = setup({
             budget: { timeoutMs: 1_000 },
             run: (_payload, ctx) => {
@@ -231,7 +227,7 @@ describe('simple run execution', () => {
         clock.advance(1_001);
         await engine.idle();
 
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error?.code).toBe('Timeout');
@@ -256,7 +252,7 @@ describe('simple run execution', () => {
         await engine.cancel(runId);
         await engine.idle();
 
-        expect((await store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(runId))?.status).toBe('cancelled');
 
         await engine.stop();
     });
@@ -281,12 +277,12 @@ describe('simple run execution', () => {
         }, [out]);
         const runId = await runOnce(engine);
 
-        expect((await store.runs.findOne(runId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(runId))?.status).toBe('waiting');
 
         await engine.approve(runId, { approvalId: '0:run:0', approved: true });
         await engine.idle();
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await store.runService.findOne(runId))?.status).toBe('completed');
         expect(sent.filter((body) => body === 'hi')).toHaveLength(1);
 
         await engine.stop();
@@ -299,9 +295,9 @@ describe('simple run execution', () => {
     ])('fails with a ValidationError and one step when the output is %s', async (_label, value) => {
         const errors: unknown[] = [];
         const clock = new ControllableClock(START);
-        const store: IStore = createMemoryStore({ clock });
-        const engine = new Engine({
-            store,
+        const store: TestServiceSet = createTestServices({ clock });
+        const engine = createTestEngine({
+            services: store,
             clock,
             agents: [defineSimpleAgent({ name: 'simple', run: () => value })],
             onError: (error) => {
@@ -309,11 +305,11 @@ describe('simple run execution', () => {
             },
         });
         const runId = await runOnce(engine);
-        const run = await store.runs.findOne(runId);
+        const run = await store.runService.findOne(runId);
 
         expect(run?.status).toBe('failed');
         expect(run?.error).toEqual({ code: 'validation_error', message: 'The output of simple agent "simple" is not JSON-serialisable.' });
-        expect(await store.steps.find(runId)).toEqual([expect.objectContaining({ kind: 'tool', error: expect.objectContaining({ code: 'validation_error' }) })]);
+        expect(await store.stepService.find(runId)).toEqual([expect.objectContaining({ kind: 'tool', error: expect.objectContaining({ code: 'validation_error' }) })]);
         expect(errors).toEqual([]);
 
         await engine.stop();
@@ -323,17 +319,17 @@ describe('simple run execution', () => {
         const at = new Date(START);
         const { store, engine } = setup({
             run: () => ({
-                at, 
-                m: new Map([['a', 1]]), 
-                list: [undefined], 
-            }), 
+                at,
+                m: new Map([['a', 1]]),
+                list: [undefined],
+            }),
         });
         const runId = await runOnce(engine);
 
-        expect((await store.runs.findOne(runId))?.output).toEqual({
-            at: at.toISOString(), 
-            m: {}, 
-            list: [null], 
+        expect((await store.runService.findOne(runId))?.output).toEqual({
+            at: at.toISOString(),
+            m: {},
+            list: [null],
         });
 
         await engine.stop();

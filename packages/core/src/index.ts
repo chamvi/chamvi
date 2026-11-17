@@ -6,8 +6,10 @@
  */
 
 export * from './agent/index.ts';
+export * from './agent-revision/index.ts';
 export * from './approval/index.ts';
 export * from './artifact/index.ts';
+export * from './checkpoint/index.ts';
 export * from './channel/index.ts';
 export * from './clock/index.ts';
 export * from './connection/index.ts';
@@ -18,14 +20,16 @@ export * from './effect/index.ts';
 export * from './engine/index.ts';
 export * from './errors/index.ts';
 export * from './extract/index.ts';
+export * from './idempotency/index.ts';
 export * from './keyring/index.ts';
+export * from './lock/index.ts';
 export * from './message/index.ts';
 export * from './model/index.ts';
 export * from './permission/index.ts';
 export * from './run/index.ts';
 export * from './skill/index.ts';
 export * from './state/index.ts';
-export * from './repository/index.ts';
+export * from './step/index.ts';
 export * from './tool/index.ts';
 export * from './trigger/index.ts';
 export * from './trust/index.ts';

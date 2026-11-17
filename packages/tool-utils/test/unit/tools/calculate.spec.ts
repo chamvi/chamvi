@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
-import { mockModel } from '@chamvi/test-kit';
+import { defineModelAgent } from '@chamvi/core';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 import { utilityTools } from '@chamvi/tool-utils';
 import { runTool } from '../../utils/run.ts';
 
@@ -43,7 +43,7 @@ describe('calculate', () => {
             instructions: 'Calculate.',
             tools,
         });
-        const engine = new Engine({ store: createMemoryStore(), agents: [agent] });
+        const engine = createTestEngine({ agents: [agent] });
 
         await engine.start();
 
@@ -56,7 +56,7 @@ describe('calculate', () => {
 
         await engine.idle();
 
-        const run = await engine.store.runs.findOneOrFail(runId);
+        const run = await engine.runService.findOneOrFail(runId);
 
         engine.stop();
 

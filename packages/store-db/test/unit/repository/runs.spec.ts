@@ -13,10 +13,16 @@ import {
     expect,
     it,
 } from 'vitest';
-import { InvalidRunStateError, RunNotFoundError } from '@chamvi/core';
-import type { Run } from '@chamvi/core';
+import {
+    CheckpointService,
+    InvalidRunStateError,
+    RunNotFoundError,
+    RunService,
+    StepService,
+} from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
-import { DatabaseRunRepository, createDatabaseStore } from '@chamvi/store-db';
+import { DatabaseCheckpointRepository, DatabaseRunRepository, DatabaseStepRepository } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
 
 function makeRun(id: string, overrides: Partial<Run> = {}): Run {
@@ -41,10 +47,11 @@ function makeRun(id: string, overrides: Partial<Run> = {}): Run {
     };
 }
 
-describePostgres('DatabaseRunRepository runs', () => {
+// the run rules of RunService on the PostgreSQL run repository
+describePostgres('RunService on DatabaseRunRepository', () => {
     let dataSource: DataSource;
     let clock: ControllableClock;
-    let store: DatabaseRunRepository;
+    let store: RunService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();
@@ -53,7 +60,7 @@ describePostgres('DatabaseRunRepository runs', () => {
     beforeEach(async () => {
         await truncateRepository(dataSource);
         clock = new ControllableClock(new Date(10_000));
-        store = new DatabaseRunRepository({ dataSource, clock });
+        store = new RunService({ repository: new DatabaseRunRepository(dataSource), clock });
     });
 
     afterAll(async () => {
@@ -92,7 +99,7 @@ describePostgres('DatabaseRunRepository runs', () => {
             finishedAt: new Date('2026-11-01T05:30:00.123Z'),
         });
 
-        await expect(store.insert(run)).resolves.toBe(true);
+        await expect(store.create(run)).resolves.toBe(true);
 
         const got = await store.findOne(testUuid('r1'));
 
@@ -119,7 +126,7 @@ describePostgres('DatabaseRunRepository runs', () => {
 
         const minimal = makeRun(testUuid('r2'));
 
-        await store.insert(minimal);
+        await store.create(minimal);
 
         const gotMinimal = await store.findOne(testUuid('r2'));
 
@@ -142,7 +149,7 @@ describePostgres('DatabaseRunRepository runs', () => {
             expiresAt: new Date('2026-03-08T07:15:00.456Z'),
         };
 
-        await store.insert(makeRun(testUuid('r1'), { status: 'waiting', waiting }));
+        await store.create(makeRun(testUuid('r1'), { status: 'waiting', waiting }));
 
         const got = await store.findOneOrFail(testUuid('r1'));
 
@@ -157,8 +164,8 @@ describePostgres('DatabaseRunRepository runs', () => {
     });
 
     it('stores lineage and subtree usage as columns', async () => {
-        await store.insert(makeRun(testUuid('p1')));
-        await store.insert(makeRun(testUuid('c1'), {
+        await store.create(makeRun(testUuid('p1')));
+        await store.create(makeRun(testUuid('c1'), {
             parentRunId: testUuid('forged'),
             subtreeUsage: { inputTokens: 3, outputTokens: 4 },
             trigger: {
@@ -181,7 +188,7 @@ describePostgres('DatabaseRunRepository runs', () => {
         expect(rows).toEqual([{ parent_run_id: testUuid('p1'), subtree_usage: { inputTokens: 3, outputTokens: 4 } }]);
 
         // a patch never moves a run to another parent
-        await store.insert(makeRun(testUuid('p2')));
+        await store.create(makeRun(testUuid('p2')));
         await expect(store.update(testUuid('c1'), { parentRunId: testUuid('p2') })).resolves.toMatchObject({ parentRunId: testUuid('p1') });
         await expect(store.find({ parentRunId: testUuid('p1') })).resolves.toMatchObject({ total: 1 });
         // the self reference refuses a parent row removal while a child names it
@@ -192,7 +199,7 @@ describePostgres('DatabaseRunRepository runs', () => {
     it('revives taint dates in update results and preserves taint through unrelated updates', async () => {
         const taint = { at: new Date('2026-10-30T12:34:56.789Z'), source: 'tool:web_fetch' };
 
-        await store.insert(makeRun(testUuid('r1')));
+        await store.create(makeRun(testUuid('r1')));
         expect((await store.findOneOrFail(testUuid('r1'))).taint).toBeUndefined();
 
         const tainted = await store.update(testUuid('r1'), { taint });
@@ -229,7 +236,7 @@ describePostgres('DatabaseRunRepository runs', () => {
             },
         });
 
-        await store.insert(run);
+        await store.create(run);
 
         const got = await store.findOne(testUuid('r1'));
 
@@ -239,14 +246,14 @@ describePostgres('DatabaseRunRepository runs', () => {
     });
 
     it('runs.insert keeps the stored run on a duplicate id', async () => {
-        await expect(store.insert(makeRun(testUuid('r1'), { address: 'first' }))).resolves.toBe(true);
-        await expect(store.insert(makeRun(testUuid('r1'), { address: 'second' }))).resolves.toBe(false);
+        await expect(store.create(makeRun(testUuid('r1'), { address: 'first' }))).resolves.toBe(true);
+        await expect(store.create(makeRun(testUuid('r1'), { address: 'second' }))).resolves.toBe(false);
         expect((await store.findOne(testUuid('r1')))!.address).toBe('first');
         await expect(store.findOne(testUuid('missing'))).resolves.toBeUndefined();
     });
 
     it('runs.update clears columns for keys set to undefined and keeps absent ones', async () => {
-        await store.insert(makeRun(testUuid('r1'), {
+        await store.create(makeRun(testUuid('r1'), {
             status: 'waiting',
             address: 'th',
             error: { code: 'X', message: 'm' },
@@ -281,7 +288,7 @@ describePostgres('DatabaseRunRepository runs', () => {
     });
 
     it('runs.update guard has one winner under concurrency', async () => {
-        await store.insert(makeRun(testUuid('r1')));
+        await store.create(makeRun(testUuid('r1')));
 
         const results = await Promise.allSettled(Array.from(
             { length: 10 },
@@ -300,7 +307,7 @@ describePostgres('DatabaseRunRepository runs', () => {
 
     it('runs.update reports a missing run and a foreign owner', async () => {
         await expect(store.update(testUuid('missing'), { address: 'x' })).rejects.toBeInstanceOf(RunNotFoundError);
-        await store.insert(makeRun(testUuid('r1')));
+        await store.create(makeRun(testUuid('r1')));
         await store.claim(testUuid('r1'), 'o1', 1_000);
         await expect(store.update(testUuid('r1'), { address: 'x' }, { expectOwner: 'o2' })).rejects.toBeInstanceOf(InvalidRunStateError);
         await expect(store.update(testUuid('r1'), { address: 'x' }, { expectOwner: 'o1', expectStatus: ['queued'] }))
@@ -308,7 +315,7 @@ describePostgres('DatabaseRunRepository runs', () => {
     });
 
     it('runs.update sets updatedAt from the clock unless the patch has one', async () => {
-        await store.insert(makeRun(testUuid('r1')));
+        await store.create(makeRun(testUuid('r1')));
         clock.advance(500);
 
         const a = await store.update(testUuid('r1'), { address: 'x' });
@@ -322,18 +329,18 @@ describePostgres('DatabaseRunRepository runs', () => {
     });
 
     it('runs.find with an empty status list matches nothing', async () => {
-        await store.insert(makeRun(testUuid('r1')));
+        await store.create(makeRun(testUuid('r1')));
         await expect(store.find({ status: [] })).resolves.toEqual({ data: [], total: 0 });
     });
 
     it('runs.find total ignores an offset past the end', async () => {
-        await store.insert(makeRun(testUuid('r1')));
-        await store.insert(makeRun(testUuid('r2')));
+        await store.create(makeRun(testUuid('r1')));
+        await store.create(makeRun(testUuid('r2')));
         await expect(store.find({ offset: 5 })).resolves.toEqual({ data: [], total: 2 });
     });
 
     it('runs.update ignores patch keys that are Object.prototype members', async () => {
-        await store.insert(makeRun(testUuid('r1')));
+        await store.create(makeRun(testUuid('r1')));
 
         const patch = {
             constructor: 1,
@@ -345,7 +352,7 @@ describePostgres('DatabaseRunRepository runs', () => {
     });
 
     it('malformed ids are absent', async () => {
-        await store.insert(makeRun(testUuid('r1')));
+        await store.create(makeRun(testUuid('r1')));
 
         const none = { data: [], total: 0 };
 
@@ -359,17 +366,19 @@ describePostgres('DatabaseRunRepository runs', () => {
         await expect(store.renewClaim('not-a-uuid', 'o1', 1_000)).resolves.toBe(false);
         await expect(store.update('not-a-uuid', { address: 'x' })).rejects.toBeInstanceOf(RunNotFoundError);
 
-        const { steps, checkpoints } = createDatabaseStore({ dataSource, clock });
+        const checkpoints = new CheckpointService({ repository: new DatabaseCheckpointRepository(dataSource) });
+        const steps = new StepService({ repository: new DatabaseStepRepository(dataSource) });
 
         await expect(steps.find('not-a-uuid')).resolves.toEqual([]);
         await expect(checkpoints.findOne('not-a-uuid')).resolves.toBeUndefined();
     });
 
     it('steps.insert and checkpoints.save with a malformed run id throw RunNotFoundError', async () => {
-        const { steps, checkpoints } = createDatabaseStore({ dataSource, clock });
+        const checkpoints = new CheckpointService({ repository: new DatabaseCheckpointRepository(dataSource) });
+        const steps = new StepService({ repository: new DatabaseStepRepository(dataSource) });
         const at = new Date(1_000);
 
-        await expect(steps.insert({
+        await expect(steps.create({
             runId: 'not-a-uuid',
             index: 0,
             kind: 'llm',
@@ -382,7 +391,7 @@ describePostgres('DatabaseRunRepository runs', () => {
             messages: [],
             createdAt: at,
         })).rejects.toBeInstanceOf(RunNotFoundError);
-        await expect(store.insert(makeRun(testUuid('c1'), {
+        await expect(store.create(makeRun(testUuid('c1'), {
             trigger: {
                 ...makeRun(testUuid('c1')).trigger,
                 parent: {

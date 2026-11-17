@@ -13,21 +13,15 @@ import {
     it,
 } from 'vitest';
 import { z } from 'zod';
-import type {
-    ApprovalWaitPoint,
-    ChamviError,
-    IEngine,
-    Run,
-} from '@chamvi/core';
+import type { ChamviError, IEngine } from '@chamvi/core';
+import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import {
-    Engine,
-    createMemoryStore,
     defineModelAgent,
     defineTool,
 } from '@chamvi/core';
 import { openclawChannel } from '@chamvi/channel-openclaw';
 import type { OpenclawChannelOptions } from '@chamvi/channel-openclaw';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { approvalModel, mockModel } from '../../utils/model.ts';
 import { createFakeOpenclaw } from '../../utils/openclaw.ts';
 
@@ -90,8 +84,7 @@ function setup(
         tools: { deploy, announce },
     });
     const errors: unknown[] = [];
-    const engine = new Engine({
-        store: createMemoryStore({ clock }),
+    const engine = createTestEngine({
         agents: [agent],
         channels: [
             openclawChannel({

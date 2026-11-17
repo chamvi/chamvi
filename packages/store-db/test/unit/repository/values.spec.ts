@@ -13,16 +13,15 @@ import {
     expect,
     it,
 } from 'vitest';
-import type { Checkpoint } from '@chamvi/core';
+import type { Checkpoint } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
-import { createDatabaseStore } from '@chamvi/store-db';
-import type { DatabaseStore } from '@chamvi/store-db';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
 import { seedRun } from '../../utils/conversation.ts';
+import { createTestServices } from '../../utils/store.ts';
 
-describePostgres('createDatabaseStore values', () => {
+describePostgres('database repository values', () => {
     let dataSource: DataSource;
-    let store: DatabaseStore;
+    let store: ReturnType<typeof createTestServices>;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();
@@ -30,7 +29,7 @@ describePostgres('createDatabaseStore values', () => {
 
     beforeEach(async () => {
         await truncateRepository(dataSource);
-        store = createDatabaseStore({ dataSource, clock: new ControllableClock(new Date(10_000)) });
+        store = createTestServices({ dataSource, clock: new ControllableClock(new Date(10_000)) });
     });
 
     afterAll(async () => {
@@ -39,20 +38,20 @@ describePostgres('createDatabaseStore values', () => {
 
     it('jsonb values round-trip arrays, null and strings', async () => {
         await seedRun(dataSource, testUuid('r1'));
-        await store.state.set('a', 'arr', [1, 2]);
-        await expect(store.state.findOne('a', 'arr')).resolves.toEqual([1, 2]);
-        await store.state.set('a', 'n', null);
-        await expect(store.state.findOne('a', 'n')).resolves.toBeNull();
-        await store.state.set('a', 's', 'text');
-        await expect(store.state.findOne('a', 's')).resolves.toBe('text');
-        await store.state.set('a', 'arr', undefined);
-        await expect(store.state.findOne('a', 'arr')).resolves.toBeUndefined();
+        await store.stateService.set('a', 'arr', [1, 2]);
+        await expect(store.stateService.findOne('a', 'arr')).resolves.toEqual([1, 2]);
+        await store.stateService.set('a', 'n', null);
+        await expect(store.stateService.findOne('a', 'n')).resolves.toBeNull();
+        await store.stateService.set('a', 's', 'text');
+        await expect(store.stateService.findOne('a', 's')).resolves.toBe('text');
+        await store.stateService.set('a', 'arr', undefined);
+        await expect(store.stateService.findOne('a', 'arr')).resolves.toBeUndefined();
 
-        await store.effects.save('e', [1]);
-        await expect(store.effects.findOne('e')).resolves.toEqual({ result: [1] });
-        await store.effects.save('u', undefined);
-        await expect(store.effects.findOne('u')).resolves.toEqual({ result: null });
-        await expect(store.effects.findOne('missing')).resolves.toBeUndefined();
+        await store.effectService.save('e', [1]);
+        await expect(store.effectService.findOne('e')).resolves.toEqual({ result: [1] });
+        await store.effectService.save('u', undefined);
+        await expect(store.effectService.findOne('u')).resolves.toEqual({ result: null });
+        await expect(store.effectService.findOne('missing')).resolves.toBeUndefined();
 
         const step = {
             runId: testUuid('r1'),
@@ -65,17 +64,17 @@ describePostgres('createDatabaseStore values', () => {
             finishedAt: new Date(2_000),
         };
 
-        await store.steps.insert(step);
+        await store.stepService.create(step);
 
-        const steps = await store.steps.find(testUuid('r1'));
+        const steps = await store.stepService.find(testUuid('r1'));
 
         expect(steps).toEqual([step]);
         expect(Object.keys(steps[0]!)).not.toContain('error');
 
-        await store.state.upsertDocument('a', 'c', '1', [1]);
-        await expect(store.state.findDocuments('a', 'c')).resolves.toEqual([{ id: '1', doc: [1] }]);
-        await store.state.upsertDocument('a', 'c', 'n', null);
-        await expect(store.state.findDocuments('a', 'c')).resolves.toContainEqual({ id: 'n', doc: null });
+        await store.stateService.upsertDocument('a', 'c', '1', [1]);
+        await expect(store.stateService.findDocuments('a', 'c')).resolves.toEqual([{ id: '1', doc: [1] }]);
+        await store.stateService.upsertDocument('a', 'c', 'n', null);
+        await expect(store.stateService.findDocuments('a', 'c')).resolves.toContainEqual({ id: 'n', doc: null });
 
         const cp: Checkpoint = {
             runId: testUuid('r1'),
@@ -95,8 +94,8 @@ describePostgres('createDatabaseStore values', () => {
             createdAt: new Date(3_000),
         };
 
-        await store.checkpoints.save(cp);
-        await expect(store.checkpoints.findOne(testUuid('r1'))).resolves.toEqual(cp);
+        await store.checkpointService.save(cp);
+        await expect(store.checkpointService.findOne(testUuid('r1'))).resolves.toEqual(cp);
     });
 
     it('upserts keep the id of the stored row', async () => {
@@ -117,24 +116,24 @@ describePostgres('createDatabaseStore values', () => {
         };
 
         await seedRun(dataSource, testUuid('r1'));
-        await twice('chamvi_effects', 'key = $1', ['e'], (n) => store.effects.save('e', n));
-        await twice('chamvi_kv', 'agent = $1 AND key = $2', ['a', 'k'], (n) => store.state.set('a', 'k', n));
-        await twice('chamvi_docs', 'agent = $1 AND document_id = $2', ['a', 'd'], (n) => store.state.upsertDocument('a', 'c', 'd', n));
-        await twice('chamvi_agent_revisions', 'agent = $1', ['a'], (n) => store.agentRevisions.save({
-            agent: 'a', 
-            hash: `h${n}`, 
-            changedAt: new Date(n), 
+        await twice('chamvi_effects', 'key = $1', ['e'], (n) => store.effectService.save('e', n));
+        await twice('chamvi_kv', 'agent = $1 AND key = $2', ['a', 'k'], (n) => store.stateService.set('a', 'k', n));
+        await twice('chamvi_docs', 'agent = $1 AND document_id = $2', ['a', 'd'], (n) => store.stateService.upsertDocument('a', 'c', 'd', n));
+        await twice('chamvi_agent_revisions', 'agent = $1', ['a'], (n) => store.agentRevisionService.save({
+            agent: 'a',
+            hash: `h${n}`,
+            changedAt: new Date(n),
         }));
-        await twice('chamvi_checkpoints', 'run_id = $1', [testUuid('r1')], (n) => store.checkpoints.save({
+        await twice('chamvi_checkpoints', 'run_id = $1', [testUuid('r1')], (n) => store.checkpointService.save({
             runId: testUuid('r1'),
             stepIndex: n,
             messages: [],
             createdAt: new Date(n),
         }));
 
-        await twice('chamvi_locks', 'key = $1', ['l'], (n) => store.locks.acquire('l', `o${n}`, 0));
-        await twice('chamvi_idempotency_keys', 'scope = $1 AND key = $2', ['s', 'k'], (n) => store.idempotency.claim('s', 'k', testUuid(`r${n}`), 0));
-        await expect(store.idempotency.claim('s', 'k', testUuid('r9'), 0)).resolves.toEqual({ created: true, runId: testUuid('r9') });
+        await twice('chamvi_locks', 'key = $1', ['l'], (n) => store.lockService.acquire('l', `o${n}`, 0));
+        await twice('chamvi_idempotency_keys', 'scope = $1 AND key = $2', ['s', 'k'], (n) => store.idempotencyService.claim('s', 'k', testUuid(`r${n}`), 0));
+        await expect(store.idempotencyService.claim('s', 'k', testUuid('r9'), 0)).resolves.toEqual({ created: true, runId: testUuid('r9') });
     });
 
     it('checkpoints.save keeps the row with the higher step index', async () => {
@@ -142,20 +141,20 @@ describePostgres('createDatabaseStore values', () => {
 
         const at = new Date(1_000);
 
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             runId: testUuid('r1'),
             stepIndex: 2,
             messages: [],
             createdAt: at,
         });
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             runId: testUuid('r1'),
             stepIndex: 1,
             messages: [{ role: 'user', content: 'stale' }],
             createdAt: at,
         });
 
-        expect(await store.checkpoints.findOne(testUuid('r1'))).toMatchObject({ stepIndex: 2, messages: [] });
+        expect(await store.checkpointService.findOne(testUuid('r1'))).toMatchObject({ stepIndex: 2, messages: [] });
     });
 
     it('steps.find orders by index, then insertion', async () => {
@@ -164,7 +163,7 @@ describePostgres('createDatabaseStore values', () => {
         const at = new Date(1_000);
 
         for (const [index, name] of [[2, 'two'], [0, 'zero'], [1, 'one-a'], [1, 'one-b']] as const) {
-            await store.steps.insert({
+            await store.stepService.create({
                 runId: testUuid('r1'),
                 index,
                 kind: 'llm',
@@ -174,7 +173,7 @@ describePostgres('createDatabaseStore values', () => {
             });
         }
 
-        const steps = await store.steps.find(testUuid('r1'));
+        const steps = await store.stepService.find(testUuid('r1'));
 
         expect(steps.map((s) => s.name)).toEqual(['zero', 'one-a', 'one-b', 'two']);
     });
@@ -195,19 +194,19 @@ describePostgres('createDatabaseStore values', () => {
             literal: '\\u0000 and \\\uFFFD and \\uD800',
         };
 
-        await store.state.set('a', 'k', raw);
-        await expect(store.state.findOne('a', 'k')).resolves.toEqual(clean);
+        await store.stateService.set('a', 'k', raw);
+        await expect(store.stateService.findOne('a', 'k')).resolves.toEqual(clean);
 
-        await store.effects.save('e', raw);
-        await expect(store.effects.findOne('e')).resolves.toEqual({ result: clean });
+        await store.effectService.save('e', raw);
+        await expect(store.effectService.findOne('e')).resolves.toEqual({ result: clean });
 
-        await store.state.upsertDocument('a', 'c', '1', raw);
-        await expect(store.state.findDocuments('a', 'c', { where: { nul: 'a\0b' } }))
+        await store.stateService.upsertDocument('a', 'c', '1', raw);
+        await expect(store.stateService.findDocuments('a', 'c', { where: { nul: 'a\0b' } }))
             .resolves.toEqual([{ id: '1', doc: clean }]);
 
         const at = new Date(1_000);
 
-        await store.runs.insert({
+        await store.runService.create({
             id: testUuid('r1'),
             agent: 'a',
             status: 'queued',
@@ -223,7 +222,7 @@ describePostgres('createDatabaseStore values', () => {
             createdAt: at,
             updatedAt: at,
         });
-        await store.steps.insert({
+        await store.stepService.create({
             runId: testUuid('r1'),
             index: 0,
             kind: 'tool',
@@ -234,7 +233,7 @@ describePostgres('createDatabaseStore values', () => {
             finishedAt: at,
         });
 
-        const [step] = await store.steps.find(testUuid('r1'));
+        const [step] = await store.stepService.find(testUuid('r1'));
 
         expect(step).toMatchObject({
             input: clean,
@@ -242,30 +241,30 @@ describePostgres('createDatabaseStore values', () => {
             error: clean,
         });
 
-        await store.checkpoints.save({
+        await store.checkpointService.save({
             runId: testUuid('r1'),
             stepIndex: 0,
             messages: [{ role: 'user', content: raw.nul }],
             createdAt: at,
         });
-        expect((await store.checkpoints.findOne(testUuid('r1')))?.messages).toEqual([{ role: 'user', content: clean.nul }]);
+        expect((await store.checkpointService.findOne(testUuid('r1')))?.messages).toEqual([{ role: 'user', content: clean.nul }]);
 
-        await store.runs.update(testUuid('r1'), { output: raw });
+        await store.runService.update(testUuid('r1'), { output: raw });
 
-        const run = await store.runs.findOne(testUuid('r1'));
+        const run = await store.runService.findOne(testUuid('r1'));
 
         expect(run?.trigger.payload).toEqual(clean);
         expect(run?.output).toEqual(clean);
     });
 
     it('state.findDocuments where with an undefined value matches object documents lacking the key, as MemoryStateRepository does', async () => {
-        await store.state.upsertDocument('a', 'c', '1', { a: 1 });
-        await store.state.upsertDocument('a', 'c', '2', { b: 1 });
-        await store.state.upsertDocument('a', 'c', '3', [1]);
-        await store.state.upsertDocument('a', 'c', '4', { a: 2, b: 1 });
-        await store.state.upsertDocument('a', 'c', '5', null);
+        await store.stateService.upsertDocument('a', 'c', '1', { a: 1 });
+        await store.stateService.upsertDocument('a', 'c', '2', { b: 1 });
+        await store.stateService.upsertDocument('a', 'c', '3', [1]);
+        await store.stateService.upsertDocument('a', 'c', '4', { a: 2, b: 1 });
+        await store.stateService.upsertDocument('a', 'c', '5', null);
 
-        const ids = async (where: Record<string, unknown>) => (await store.state.findDocuments('a', 'c', { where })).map((d) => d.id);
+        const ids = async (where: Record<string, unknown>) => (await store.stateService.findDocuments('a', 'c', { where })).map((d) => d.id);
 
         await expect(ids({ a: undefined })).resolves.toEqual(['2']);
         await expect(ids({ a: undefined, b: 1 })).resolves.toEqual(['2']);
@@ -273,21 +272,23 @@ describePostgres('createDatabaseStore values', () => {
         await expect(ids({ a: undefined, c: undefined })).resolves.toEqual(['2']);
     });
 
-    it('state.findDocuments where matches nested values by containment, null values and respects limit', async () => {
-        await store.state.upsertDocument('a', 'c', '1', { nested: { x: [1, 2], y: 1 }, k: null });
-        await store.state.upsertDocument('a', 'c', '2', { nested: { x: [3] }, k: 1 });
-        await store.state.upsertDocument('a', 'c', '3', { k: null });
+    it('state.findDocuments where matches nested values by equality, null values and respects limit', async () => {
+        await store.stateService.upsertDocument('a', 'c', '1', { nested: { x: [1, 2], y: 1 }, k: null });
+        await store.stateService.upsertDocument('a', 'c', '2', { nested: { x: [3] }, k: 1 });
+        await store.stateService.upsertDocument('a', 'c', '3', { k: null });
 
-        const ids = async (q: { where?: Record<string, unknown>; limit?: number }) => (await store.state.findDocuments('a', 'c', q)).map((d) => d.id);
+        const ids = async (q: { where?: Record<string, unknown>; limit?: number }) => (await store.stateService.findDocuments('a', 'c', q)).map((d) => d.id);
 
-        await expect(ids({ where: { nested: { x: [1] } } })).resolves.toEqual(['1']);
+        // equality at the top level, as memory: a nested subset no longer matches (it did by containment)
+        await expect(ids({ where: { nested: { x: [1] } } })).resolves.toEqual([]);
+        await expect(ids({ where: { nested: { x: [1, 2], y: 1 } } })).resolves.toEqual(['1']);
         await expect(ids({ where: { k: null } })).resolves.toEqual(['1', '3']);
         await expect(ids({ where: { k: null }, limit: 1 })).resolves.toEqual(['1']);
         await expect(ids({ where: {} })).resolves.toEqual(['1', '2', '3']);
     });
 
     it('state.upsertDocument with an undefined doc reads back a JSON null', async () => {
-        await store.state.upsertDocument('a', 'c', 'u', undefined);
-        await expect(store.state.findDocuments('a', 'c')).resolves.toEqual([{ id: 'u', doc: null }]);
+        await store.stateService.upsertDocument('a', 'c', 'u', undefined);
+        await expect(store.stateService.findDocuments('a', 'c')).resolves.toEqual([{ id: 'u', doc: null }]);
     });
 });

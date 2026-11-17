@@ -14,7 +14,9 @@ export default async function setup(project: TestProject) {
 
     try {
         container = await new PostgreSqlContainer('postgres:18-alpine')
-            .withCommand(['postgres', '-c', 'max_connections=200'])
+            // every DROP DATABASE forces a checkpoint; with fsync off a checkpoint writes nothing to disk, so the
+            // drops of parallel spec files no longer queue behind each other on a slow disk (a throwaway container)
+            .withCommand(['postgres', '-c', 'max_connections=200', '-c', 'fsync=off', '-c', 'full_page_writes=off', '-c', 'synchronous_commit=off'])
             .start();
     } catch (e) {
         if (process.env.CI) {

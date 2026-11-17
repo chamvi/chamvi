@@ -63,7 +63,7 @@ describe('automatic approvals with long provider call ids', () => {
 
             await setup.engine.idle();
 
-            const run = await setup.store.runs.findOneOrFail(runId);
+            const run = await setup.store.runService.findOneOrFail(runId);
 
             expect(run.status).toBe('waiting');
             expect(run.waiting?.toolCallId).toBe(toolCallId);
@@ -90,7 +90,7 @@ describe('automatic approvals with long provider call ids', () => {
             }
 
             await setup.engine.idle();
-            expect((await setup.store.runs.findOneOrFail(runId)).status).toBe('completed');
+            expect((await setup.store.runService.findOneOrFail(runId)).status).toBe('completed');
             expect(writes).toBe(1);
         } finally {
             setup.engine.stop();

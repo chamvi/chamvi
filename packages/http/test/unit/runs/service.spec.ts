@@ -19,7 +19,7 @@ import { http } from '@chamvi/http';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { createLiveAgents } from '../../../src/app/helpers.ts';
 import { KEY_MAX_LENGTH } from '../../../src/request/constants.ts';
-import { RunService } from '../../../src/runs/service.ts';
+import { RunHttpService } from '../../../src/runs/service.ts';
 import type { StartRunBody } from '../../../src/runs/types.ts';
 import { createRunAgents, createTestApp, restricted } from '../../utils/app.ts';
 import { textModel } from '../../utils/model.ts';
@@ -53,9 +53,11 @@ function setup(extra: Agent[] = []) {
             ...extra,
         ],
     });
-    const service = new RunService({
+    const service = new RunHttpService({
         engine,
-        store: engine.store,
+        runService: engine.runService,
+        stepService: engine.stepService,
+        artifactService: engine.artifactService,
         agents: createLiveAgents(engine),
         clock: engine.clock,
     });
@@ -63,7 +65,7 @@ function setup(extra: Agent[] = []) {
     return { engine, service };
 }
 
-describe('RunService.start', () => {
+describe('RunHttpService.start', () => {
     it('needs chamvi_agent_run, then answers 404 for an unknown agent', async () => {
         const { service } = setup();
 
@@ -101,7 +103,7 @@ describe('RunService.start', () => {
 
         expect(result).toEqual({ runId: expect.any(String), deduplicated: false });
 
-        const run = await engine.store.runs.findOne(result.runId);
+        const run = await engine.runService.findOne(result.runId);
 
         expect(run?.trigger).toMatchObject({
             channel: 'http',
@@ -203,11 +205,11 @@ describe('RunService.start', () => {
 
         await expect(service.start({ agent: 'swap', data: { payload: { n: 1 } } }, runner)).rejects.toMatchObject({ status: 403 });
         expect(dispatch).not.toHaveBeenCalled();
-        expect((await engine.store.runs.find({})).data).toEqual([]);
+        expect((await engine.runService.find({})).data).toEqual([]);
     });
 });
 
-describe('RunService reads', () => {
+describe('RunHttpService reads', () => {
     it('getReadable: 404 for a protected agent\'s run, else 403', async () => {
         const { service } = setup();
         const secret = await service.start({ agent: 'secret', data: {} }, admin);
@@ -240,7 +242,7 @@ describe('RunService reads', () => {
     });
 });
 
-describe('RunService.cancel', () => {
+describe('RunHttpService.cancel', () => {
     it('surfaces the engine\'s 404 for a missing run', async () => {
         const { service } = setup();
 
@@ -258,7 +260,7 @@ describe('RunService.cancel', () => {
     });
 });
 
-describe('RunService.approve', () => {
+describe('RunHttpService.approve', () => {
     it('answers 404 for an unknown run before 403', async () => {
         const { service } = setup();
 

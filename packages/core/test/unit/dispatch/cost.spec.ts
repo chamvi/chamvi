@@ -12,19 +12,19 @@ import {
     it,
 } from 'vitest';
 import {
-    Engine,
-    RunStatus,
     agent,
     agentChannel,
     defineModelAgent,
 } from '@chamvi/core';
-import type { IEngine, Run } from '@chamvi/core';
+import { RunStatus } from '@chamvi/store';
+import type { IEngine } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { recomputeSubtreeUsage } from '../../../src/engine/dispatch/module.ts';
 import type { DispatchEngineContext } from '../../../src/engine/dispatch/types.ts';
-import { createMemoryStore } from '../../../src/repository/index.ts';
-import type { RunFindOptions } from '../../../src/repository/types.ts';
+import type { RunFindOptions } from '../../../src/run/types.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -69,11 +69,11 @@ function makeRun(id: string, overrides: Partial<Run> = {}, parentRunId?: string)
 
 /** A memory store whose run finds are recorded. */
 function recordingStore(clock: ControllableClock) {
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const finds: RunFindOptions[] = [];
-    const find = store.runs.find.bind(store.runs);
+    const find = store.runService.find.bind(store.runService);
 
-    store.runs.find = async (q) => {
+    store.runService.find = async (q = {}) => {
         finds.push(q);
 
         return find(q);
@@ -89,8 +89,8 @@ describe('dispatch poll cost', () => {
     it('a tick on an engine without dispatch roles makes no unsettled-runs read', async () => {
         const clock = new ControllableClock(START);
         const { store, finds } = recordingStore(clock);
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
+            services: store,
             clock,
             agents: [defineModelAgent({
                 name: 'solo',
@@ -110,8 +110,8 @@ describe('dispatch poll cost', () => {
     it('with dispatch roles, the cascade heal reads only runs with a parent', async () => {
         const clock = new ControllableClock(START);
         const { store, finds } = recordingStore(clock);
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
+            services: store,
             clock,
             agents: [defineModelAgent({
                 name: 'lead',
@@ -124,9 +124,9 @@ describe('dispatch poll cost', () => {
         });
 
         engines.push(engine);
-        await store.runs.insert(makeRun('p1', { status: RunStatus.CANCELLED }));
-        await store.runs.insert(makeRun('c1', {}, 'p1'));
-        await store.runs.insert(makeRun('r1'));
+        await store.runService.create(makeRun('p1', { status: RunStatus.CANCELLED }));
+        await store.runService.create(makeRun('c1', {}, 'p1'));
+        await store.runService.create(makeRun('r1'));
         finds.length = 0;
         await engine.tick();
 
@@ -134,8 +134,8 @@ describe('dispatch poll cost', () => {
 
         expect(listings).toHaveLength(1);
         expect(listings[0]?.hasParent).toBe(true);
-        expect((await store.runs.findOne('c1'))?.status).toBe(RunStatus.CANCELLED);
-        expect((await store.runs.findOne('r1'))?.status).toBe(RunStatus.QUEUED);
+        expect((await store.runService.findOne('c1'))?.status).toBe(RunStatus.CANCELLED);
+        expect((await store.runService.findOne('r1'))?.status).toBe(RunStatus.QUEUED);
     });
 });
 
@@ -143,7 +143,7 @@ describe('subtree recompute cost', () => {
     function context(clock: ControllableClock) {
         const { store, finds } = recordingStore(clock);
         const ctx: DispatchEngineContext = {
-            store,
+            runService: store.runService,
             clock,
             claimTtlMs: 60_000,
             resume: async () => {},
@@ -167,18 +167,18 @@ describe('subtree recompute cost', () => {
             ctx,
         } = context(clock);
 
-        await store.runs.insert(makeRun('p1', { status: RunStatus.WAITING }));
+        await store.runService.create(makeRun('p1', { status: RunStatus.WAITING }));
 
         for (let i = 0; i < 20; i++) {
-            await store.runs.insert(makeRun(`c${i}`, {}, 'p1'));
-            await store.runs.update(`c${i}`, { status: RunStatus.COMPLETED, usage: { inputTokens: 1, outputTokens: 2 } });
+            await store.runService.create(makeRun(`c${i}`, {}, 'p1'));
+            await store.runService.update(`c${i}`, { status: RunStatus.COMPLETED, usage: { inputTokens: 1, outputTokens: 2 } });
         }
 
         finds.length = 0;
         await recomputeSubtreeUsage(ctx, 'p1');
 
         expect(finds).toEqual([{ parentRunId: 'p1' }]);
-        expect((await store.runs.findOneOrFail('p1')).subtreeUsage).toEqual({ inputTokens: 20, outputTokens: 40 });
+        expect((await store.runService.findOneOrFail('p1')).subtreeUsage).toEqual({ inputTokens: 20, outputTokens: 40 });
     });
 
     it('the re-check reads only the children that may still move', async () => {
@@ -189,21 +189,21 @@ describe('subtree recompute cost', () => {
             ctx,
         } = context(clock);
 
-        await store.runs.insert(makeRun('p1', { status: RunStatus.WAITING }));
+        await store.runService.create(makeRun('p1', { status: RunStatus.WAITING }));
 
         for (let i = 0; i < 5; i++) {
-            await store.runs.insert(makeRun(`c${i}`, {}, 'p1'));
-            await store.runs.update(`c${i}`, { status: RunStatus.COMPLETED, usage: { inputTokens: 1, outputTokens: 1 } });
+            await store.runService.create(makeRun(`c${i}`, {}, 'p1'));
+            await store.runService.update(`c${i}`, { status: RunStatus.COMPLETED, usage: { inputTokens: 1, outputTokens: 1 } });
         }
 
-        await store.runs.insert(makeRun('busy', {}, 'p1'));
-        await store.runs.update('busy', { status: RunStatus.RUNNING });
-        await store.runs.insert(makeRun('mid', {}, 'p1'));
-        await store.runs.update('mid', { status: RunStatus.COMPLETED, subtreeUsage: { inputTokens: 3, outputTokens: 3 } });
+        await store.runService.create(makeRun('busy', {}, 'p1'));
+        await store.runService.update('busy', { status: RunStatus.RUNNING });
+        await store.runService.create(makeRun('mid', {}, 'p1'));
+        await store.runService.update('mid', { status: RunStatus.COMPLETED, subtreeUsage: { inputTokens: 3, outputTokens: 3 } });
         finds.length = 0;
         await recomputeSubtreeUsage(ctx, 'p1');
 
         expect(finds).toEqual([{ parentRunId: 'p1' }, { ids: ['busy', 'mid'] }]);
-        expect((await store.runs.findOneOrFail('p1')).subtreeUsage).toEqual({ inputTokens: 8, outputTokens: 8 });
+        expect((await store.runService.findOneOrFail('p1')).subtreeUsage).toEqual({ inputTokens: 8, outputTokens: 8 });
     });
 });

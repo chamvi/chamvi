@@ -13,12 +13,11 @@ import {
 } from 'vitest';
 import { allPermissions } from '@chamvi/access';
 import {
-    Engine,
-    MemoryConversationRepository,
-    createMemoryStore,
+    ConversationService,
     defineModelAgent,
     toolContextSchema,
 } from '@chamvi/core';
+import type { ConversationOperationRecord, IConversationRepository } from '@chamvi/store';
 import type {
     AgentHooks,
     ConversationAccess,
@@ -32,6 +31,8 @@ import { EFFECT } from '../../../src/effect/constants.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
 import { ControllableClock } from '../../utils/clock.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const identity = {
     agent: 'helper',
@@ -56,10 +57,18 @@ const envelope = {
         bindings: [],
     },
 };
-class InspectableConversationRepository extends MemoryConversationRepository {
-    operationRecords() {
-        return Array.from(this.records.values()).flatMap((record) => Array.from(record.operations.values()));
-    }
+/** A test store whose conversation repository is kept, to read the stored note operations. */
+function inspectableStore(): TestServiceSet & { operationRecords(): Promise<ConversationOperationRecord[]> } {
+    let repository!: IConversationRepository;
+    const store = createTestServices({
+        conversationService: (ctx) => {
+            ({ repository } = ctx);
+
+            return new ConversationService(ctx);
+        },
+    });
+
+    return Object.assign(store, { operationRecords: () => repository.operations.findManyBy({}) });
 }
 
 const engines: IEngine[] = [];
@@ -90,14 +99,14 @@ function call(toolName: string, input: unknown, toolCallId = 'same'): MockRespon
 }
 function setup(options: {
     responses?: MockResponse[];
-    conversations?: MemoryConversationRepository;
+    store?: TestServiceSet;
     hooks?: AgentHooks;
     toolPolicy?: ToolPolicy;
     authorize?: (access: ConversationAccess) => boolean;
     factory?: (ctx: ToolContext) => ToolSet;
 } = {}) {
-    const store = createMemoryStore();
-    const conversations = options.conversations ?? new MemoryConversationRepository();
+    const store = options.store ?? createTestServices();
+    const conversations = store.conversationService;
     const model = mockModel([...(options.responses ?? []), { parts: [{ type: 'text', text: 'done' }] }]);
     let context: ToolContext;
     const channel = { name: 'chat' };
@@ -122,8 +131,8 @@ function setup(options: {
             }
         },
     };
-    const engine = new Engine({
-        store: { ...store, conversations },
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'helper',
             model,
@@ -162,7 +171,7 @@ async function run(s: ReturnType<typeof setup>, bound = true) {
     await s.engine.start();
     await s.engine.idle();
     expect(s.hookErrors).toEqual([]);
-    expect((await s.store.runs.findOne(result.runId))?.status).toBe('completed');
+    expect((await s.store.runService.findOne(result.runId))?.status).toBe('completed');
 
     return result.runId;
 }
@@ -257,12 +266,12 @@ describe('scoped memory tools', () => {
         const settled = Promise.withResolvers<void>();
         const peerEntered = Promise.withResolvers<void>();
         const peerRelease = Promise.withResolvers<void>();
-        const conversations = new MemoryConversationRepository();
-        const store = { ...createMemoryStore(), conversations };
+        const store = createTestServices();
+        const conversations = store.conversationService;
         const channel = { name: 'chat' };
-        const old = new Engine({
+        const old = createTestEngine({
             owner: 'old',
-            store,
+            services: store,
             channels: [channel],
             agents: [defineModelAgent({
                 name: 'helper',
@@ -298,9 +307,9 @@ describe('scoped memory tools', () => {
                 },
             },
         });
-        const peer = new Engine({
+        const peer = createTestEngine({
             owner: 'peer',
-            store,
+            services: store,
             channels: [channel],
             agents: [defineModelAgent({
                 name: 'helper',
@@ -329,12 +338,12 @@ describe('scoped memory tools', () => {
             await old.start();
             await entered.promise;
             await old.drain({ timeoutMs: 1 });
-            expect((await store.runs.findOne(runId))?.status).toBe('interrupted');
+            expect((await store.runService.findOne(runId))?.status).toBe('interrupted');
 
             await peer.start();
             await peerEntered.promise;
 
-            const recovered = (await store.runs.findOne(runId))!;
+            const recovered = (await store.runService.findOne(runId))!;
 
             expect(recovered).toMatchObject({ status: 'running', claim: { owner: 'peer' } });
 
@@ -348,7 +357,7 @@ describe('scoped memory tools', () => {
 
             peerRelease.resolve();
             await peer.idle();
-            expect((await store.runs.findOne(runId))?.status).toBe('completed');
+            expect((await store.runService.findOne(runId))?.status).toBe('completed');
         } finally {
             release.resolve();
             peerRelease.resolve();
@@ -356,9 +365,9 @@ describe('scoped memory tools', () => {
         }
     });
     it('set_remove_replay_once and forgotten_body_absent_from_ledger', async () => {
-        const conversations = new InspectableConversationRepository();
+        const store = inspectableStore();
         const s = setup({
-            conversations,
+            store,
             responses: [call('memory_set', { key: 'private', text: 'secret body' }), call('memory_remove', { key: 'private' }, 'remove')],
             hooks: {
                 afterToolExecution: async (info, ctx) => {
@@ -381,8 +390,8 @@ describe('scoped memory tools', () => {
 
         await run(s);
         expect(await s.conversations.findOneNote((await s.conversations.findOne(identity))!, 'private')).toBeUndefined();
-        expect(conversations.operationRecords()).toHaveLength(2);
-        expect(JSON.stringify(conversations.operationRecords())).not.toContain('secret body');
+        expect(await store.operationRecords()).toHaveLength(2);
+        expect(JSON.stringify(await store.operationRecords())).not.toContain('secret body');
     });
     it('reused_call_id_later_step_is_new_operation', async () => {
         const s = setup({ responses: [call('memory_set', { key: 'preference', text: 'first' }), call('memory_set', { key: 'preference', text: 'second' })] });
@@ -400,13 +409,13 @@ describe('scoped memory tools', () => {
         expect((await s.engine.inspectConversation(identity))?.notes.total).toBe(0);
     });
     it('notes_survive_restart, metadata list is bounded and get is scoped', async () => {
-        const conversations = new MemoryConversationRepository();
-        const writer = setup({ conversations, responses: [call('memory_set', { key: 'preference', text: 'saved preference' })] });
+        const store = createTestServices();
+        const writer = setup({ store, responses: [call('memory_set', { key: 'preference', text: 'saved preference' })] });
 
         await run(writer);
         await writer.engine.stop();
 
-        const reader = setup({ conversations, responses: [call('memory_list', {}), call('memory_get', { key: 'preference' })] });
+        const reader = setup({ store, responses: [call('memory_list', {}), call('memory_get', { key: 'preference' })] });
 
         await run(reader);
 
@@ -427,7 +436,7 @@ describe('scoped memory tools', () => {
     it('expired_note_not_recalled at the exact expiry', async () => {
         const clock = new ControllableClock();
         const s = setup({
-            conversations: new MemoryConversationRepository({ clock }),
+            store: createTestServices({ clock }),
             responses: [call('memory_set', {
                 key: 'temporary',
                 text: 'expires',

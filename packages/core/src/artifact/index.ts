@@ -7,4 +7,5 @@
 
 export * from './media-type.ts';
 export { artifactFilePart } from './module.ts';
+export * from './service.ts';
 export type * from './types.ts';

@@ -79,6 +79,17 @@ describe('public api', () => {
         expect(new Middleware().run).toBeTypeOf('function');
     });
 
+    it('exports the list schema and its decoder, and keeps the flat decoder of its own routes internal', () => {
+        expect(http.defineSchema).toBeTypeOf('function');
+        expect(http.decodeQuery).toBeTypeOf('function');
+        expect(http.scopeQuery).toBeTypeOf('function');
+        expect(http).not.toHaveProperty('decodeFlatQuery');
+        expect(http).not.toHaveProperty('decodeQueryRequest');
+        expect(http).not.toHaveProperty('LIST_DEFAULT_OPERATORS');
+        expectTypeOf<ReturnType<typeof http.defineSchema>>().toEqualTypeOf<http.ListSchema>();
+        expectTypeOf<http.ListSchemaOptions['maxLimit']>().toEqualTypeOf<number | undefined>();
+    });
+
     it.each([
         'agentResource',
         'authenticate',

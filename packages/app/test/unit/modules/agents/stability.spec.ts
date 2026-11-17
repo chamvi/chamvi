@@ -83,13 +83,13 @@ describe('a folder edited right after its stable poll', () => {
 
         expect(setup.engine().getAgent('greeter')?.definition.instructions).toBe('v1');
         expect(setup.issues()).toEqual([]);
-        expect((await setup.store.runs.findOne(runId))?.status).toBe('queued');
+        expect((await setup.store.runService.findOne(runId))?.status).toBe('queued');
 
         await setup.poll();
         expect(setup.engine().getAgent('greeter')?.definition.instructions).toBe('v1');
         await setup.poll();
         expect(setup.engine().getAgent('greeter')?.definition.instructions).toBe('v3');
-        expect((await setup.store.agentRevisions.findOne('greeter'))?.hash).toBe(await hashAgentFolder(dir));
-        expect((await setup.store.runs.findOne(runId))?.status).toBe('cancelled');
+        expect((await setup.store.agentRevisionService.findOne('greeter'))?.hash).toBe(await hashAgentFolder(dir));
+        expect((await setup.store.runService.findOne(runId))?.status).toBe('cancelled');
     });
 });

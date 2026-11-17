@@ -71,7 +71,7 @@ Models, messages and tools stay AI SDK types: `defineModelAgent()` takes a `Lang
 npm install @chamvi/core ai --save
 ```
 
-ESM only, Node.js `>=26.0.0`. `ai@^7` (the Vercel AI SDK) is a peer dependency; add the provider package of your model as well, for example `@ai-sdk/anthropic`.
+ESM only, Node.js `>=26.0.0`. `ai@^7` (the Vercel AI SDK) is a peer dependency; add the provider package of your model as well, for example `@ai-sdk/anthropic`. The example below keeps runs in memory with [`@chamvi/store-memory`](../store-memory) (`npm install @chamvi/store-memory --save`); [`@chamvi/app`](../app) builds the store for you.
 
 ## Usage
 
@@ -81,12 +81,34 @@ One agent, an in-memory store, the development console channel and one manually 
 import type { LanguageModel } from 'ai';
 import { z } from 'zod';
 import {
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    EffectService,
     Engine,
+    IdempotencyService,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
     consoleChannel,
-    createMemoryStore,
     defineEffectTool,
     defineModelAgent,
+    systemClock,
 } from '@chamvi/core';
+import {
+    MemoryAgentRevisionRepository,
+    MemoryArtifactRepository,
+    MemoryCheckpointRepository,
+    MemoryEffectRepository,
+    MemoryIdempotencyRepository,
+    MemoryLockRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+    MemoryStateDocumentRepository,
+    MemoryStateRepository,
+    MemoryStepRepository,
+} from '@chamvi/store-memory';
 
 export async function triageIssue(model: LanguageModel) {
     const labels: string[] = [];
@@ -113,8 +135,23 @@ export async function triageIssue(model: LanguageModel) {
         },
     });
 
+    // everything in memory: a process restart loses it (use @chamvi/store-db in production)
+    const registry = new MemoryRegistry();
+    const runs = new MemoryRunRepository({ registry });
+    const locks = new MemoryLockRepository({ registry });
     const engine = new Engine({
-        store: createMemoryStore(),
+        runService: new RunService({ repository: runs, clock: systemClock }),
+        stepService: new StepService({ repository: new MemoryStepRepository({ registry }) }),
+        checkpointService: new CheckpointService({ repository: new MemoryCheckpointRepository({ registry }) }),
+        effectService: new EffectService({ repository: new MemoryEffectRepository({ registry }) }),
+        artifactService: new ArtifactService({ repository: new MemoryArtifactRepository({ registry }) }),
+        stateService: new StateService({
+            repository: new MemoryStateRepository({ registry }),
+            documentRepository: new MemoryStateDocumentRepository({ registry }),
+        }),
+        agentRevisionService: new AgentRevisionService({ repository: new MemoryAgentRevisionRepository({ registry }) }),
+        lockService: new LockService({ repository: locks, clock: systemClock }),
+        idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock: systemClock }),
         agents: [triage],
         channels: [consoleChannel({
             write: (line) => {
@@ -224,6 +261,8 @@ const deployer = defineModelAgent({
 
 const engine = new Engine({
     store,
+    runService,
+    stepService,
     agents: [deployer],
 });
 
@@ -333,17 +372,40 @@ const digest = defineModelAgent({
 
 ### Stores and repositories
 
-`createMemoryStore()` keeps everything in process memory, for development and tests. The factory assembles separate capability repositories (runs, steps, checkpoints, idempotency keys, locks, effects, state, artifacts, agent revisions and optional conversations) into a plain `IStore` aggregate, not a facade with forwarding methods, and proves their contracts with the shared contract suite from [`@chamvi/test-kit`](../test-kit):
+Runs, steps, checkpoints, effects, artifacts, state, locks, idempotency keys and agent revision markers live behind services: `RunService` (`create`, `findOne`, `update` with its guards, `find`, `claim`, `renewClaim`), `StepService` (`create`, `find`), `CheckpointService` (`save` keeps the highest step index, `findOne`), `EffectService` (`findOne`, `save`), `ArtifactService` (`create` inserts if absent, `save` replaces a key's bytes, `findOne`, `findOneByKey`, `read`, `find`), `StateService` (`findOne`, `set`, `find`, `findDocuments`, `upsertDocument`, `deleteDocument`), `LockService` (`acquire`, `renew`, `release`, `holds`, `purgeExpired`: a lease taken at T with `ttlMs` expires at exactly T + `ttlMs`) `IdempotencyService` (`claim`, `purgeExpired`) and `AgentRevisionService` (`findOne`, `save` upserts by agent, `delete`, `find` by agent in code-point order) hold every rule and use the repository ports of [`@chamvi/store`](../store) (`IRunRepository`, `IStepRepository`, `ICheckpointRepository`, `IEffectRepository`, `IArtifactRepository`, `IStateRepository`, `IStateDocumentRepository`, `ILockRepository`, `IIdempotencyRepository`, `IAgentRevisionRepository`) that only store and read; the engine takes each (`runService`, `stepService`, `checkpointService`, `effectService`, `artifactService`, `stateService`, `lockService`, `idempotencyService`, `agentRevisionService`). `ConnectionService` (`create` inserts if absent, `findOne`, `find`, `delete`, `replace`, `findEntries`, `writeEntries`, `findConfig`, `writeConfig`) holds the connection rules over `IConnectionRepository` (its `entries` and `secrets` child repositories and `findFence`): a fenced write locks the connection row, then reads its lease's lock row, then the clock, and is refused with `LeaseLostError` unless the fence's owner holds the lease unexpired at that reading; the engine takes it as an optional `connectionService` and only exposes it (for `createHttpApp`); the connection vault and config store take it too. Its lock service must write the lock rows its repository's fence reads (the same database, or the same memory registry). `ConversationService` holds every conversation rule (turn ownership, stale scopes, emits, note limits and replays, reset, delete, retention, trimming and the recall) over `IConversationRepository` (its `items`, `notes` and `operations` child repositories); the engine takes it as an optional `conversationService`, required by the `conversations` capability. The memory repositories are in [`@chamvi/store-memory`](../store-memory), the PostgreSQL ones in [`@chamvi/store-db`](../store-db).
+
+There is no store aggregate: the engine takes each service by name, and each service its repository. Each repository port proves itself with its suite from [`@chamvi/test-kit`](../test-kit), for example a conversation repository:
 
 ```typescript
-import { describeRepositoryContract } from '@chamvi/test-kit';
+import {
+    MemoryCheckpointRepository,
+    MemoryConversationRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+} from '@chamvi/store-memory';
+import { describeConversationRepositoryContract } from '@chamvi/test-kit';
 
-describeRepositoryContract((clock) => createMemoryStore({ clock }));
+describeConversationRepositoryContract({
+    name: 'memory',
+    async create() {
+        const registry = new MemoryRegistry();
+
+        return {
+            repository: new MemoryConversationRepository({ registry }),
+            runs: new MemoryRunRepository({ registry }),
+            checkpoints: new MemoryCheckpointRepository({ registry }),
+        };
+    },
+    async untilBlocked() {
+        await Promise.resolve();
+        await Promise.resolve();
+    },
+});
 ```
 
-The factory receives a `ControllableClock` and must use it for every expiry decision. The suite runs on Vitest.
+The suites run on Vitest.
 
-Repository queries use `findOne` and `find`, with matching `findOneOrFail` and `findOrFail` methods when absence should throw. Collection results keep their existing shape: `runs.find` returns `{ data, total }`, while `artifacts.find` returns an array. `OrFail` checks the selected result, so an empty page throws even when its total is nonzero. State values such as `null`, `false` and `0` are present. Domain mutations keep their specific names, such as `claim` and `beginTurn`.
+Repository queries use `findOne` and `find`, with matching `findOneOrFail` and `findOrFail` methods when absence should throw. Collection results keep their existing shape: `RunService.find` returns `{ data, total }`, while `ArtifactService.find` returns an array. `OrFail` checks the selected result, so an empty page throws even when its total is nonzero. State values such as `null`, `false` and `0` are present. Domain mutations keep their specific names, such as `claim` and `beginTurn`.
 
 ### Context
 
@@ -371,7 +433,13 @@ A missing value throws `ContextNotProvidedError` (`context_not_provided`, naming
 
 | Option | Type | Default | Description |
 |---|---|---|---|
-| `store` | `IStore` | required | Where runs, steps, checkpoints and state live |
+| `runService` | `RunService` | required | The runs, on the same clock as the engine |
+| `stepService` | `StepService` | required | The steps of runs |
+| `checkpointService`, `effectService`, `artifactService`, `stateService` | the services | required | Checkpoints, effect results, run files, agent state |
+| `lockService`, `idempotencyService` | `LockService`, `IdempotencyService` | required | Leases (keyed runs, admission, the registry, approval deliveries) and dispatch idempotency keys, on the same clock as the engine |
+| `agentRevisionService` | `AgentRevisionService` | required | The revision markers of folder agents (the live registry and the execution guard) |
+| `connectionService` | `ConnectionService` | none | The connections of the store, when it keeps them; the engine uses none and exposes it (`engine.connectionService`) for `createHttpApp` |
+| `conversationService` | `ConversationService` | none | The conversations of the store, when it keeps them; required by `conversations`, exposed as `engine.conversationService` |
 | `agents` | `Agent[]` | required | The agents this engine runs |
 | `channels` | `IChannel[]` | `[]` | Channels by unique name, started by `start()` and stopped first by `drain()`/`stop()`; tools reach them through `ctx.channels` |
 | `concurrencyMaxRuns` | `number` | `4` | Runs executing at once in this process |
@@ -425,21 +493,24 @@ See the [instructions guide](https://chamvi.dev/guide/agents#instructions) for t
 | `UserContent`, `AssistantContent`, `TextPart`, `ImagePart`, `FilePart` | type | Native SDK content and part types |
 | `defineModelAgent` | function | Validates an agent definition and applies defaults |
 | `DEFAULT_MAX_STEPS`, `DEFAULT_TIMEOUT_MS` | constant | The default budget: `20` steps, `900_000` ms |
-| `Engine` | class | `store`, `clock`, `getAgent`, `listAgents`, `putAgent`, `removeAgent`, `getChannel`, `listChannels`, `provide`, `start`, `dispatch`, `getRun`, `on`, `approve`, `cancel`, `recover`, `tick`, `idle`, `stop`, `drain` |
-| `createMemoryStore()` | function | Assembles independent in-memory repositories, including conversations |
+| `Engine` | class | `runService`, `stepService`, `checkpointService`, `effectService`, `artifactService`, `stateService`, `lockService`, `idempotencyService`, `agentRevisionService`, `clock`, `getAgent`, `listAgents`, `putAgent`, `removeAgent`, `getChannel`, `listChannels`, `provide`, `start`, `dispatch`, `getRun`, `on`, `approve`, `cancel`, `recover`, `tick`, `idle`, `stop`, `drain` |
+| `RunService`, `StepService` | class | The rules of runs (creation, guarded updates, claims, queries) and steps, over the run and step repository ports of `@chamvi/store` |
+| `CheckpointService`, `EffectService`, `ArtifactService`, `StateService` | class | The latest checkpoint per run, recorded effect results, run files (insert-if-absent, keyed replace) and agent state (keys, documents), over their repository ports of `@chamvi/store` |
+| `LockService`, `IdempotencyService` | class | Leases on keys (acquire, takeover of an expired lease, renew, release, purge) and dispatch idempotency keys (first claim wins, purge), over the lock and idempotency key ports of `@chamvi/store` |
+| `AgentRevisionService` | class | The revision marker of each folder agent (upsert by agent, delete, list in code-point order), over the agent revision port of `@chamvi/store` |
 | `defineTool` | function | An AI SDK `tool()` whose `execute` gets the run's `ToolContext` as `context` |
 | `toolCallKey` | function | Opaque run/step/call identity, stable on replay; requires the run's active tool-call frame |
 | `defineContextKey`, `inject`, `tryInject` | function | Typed context keys, and reading a value provided on the engine from a `ToolContext` |
 | `toolContextSchema` | object | The `contextSchema` that marks a chamvi tool |
 | `defineEffectTool`, `effectMarker` | function | Recorded side-effecting tools and their hidden marker |
 | `EFFECT` | symbol | Marks a tool created by `defineEffectTool()` |
-| `wrapToolsForRun` | function | `wrapToolsForRun(tools, ctx, store, { allow?, hooks? })`: applies effect recording and the agent hooks to a `ToolSet` outside the engine, with a `ToolContext`; an optional `allow(toolName)` re-checks each call (a refused call throws `ToolNotAllowedError`) |
+| `wrapToolsForRun` | function | `wrapToolsForRun(tools, ctx, effects, { allow?, hooks? })` (`effects`: the effect service): applies effect recording and the agent hooks to a `ToolSet` outside the engine, with a `ToolContext`; an optional `allow(toolName)` re-checks each call (a refused call throws `ToolNotAllowedError`) |
 | `approve` | function | `approve(ctx, { title, body?, timeoutMs? })`: a durable approval from inside a tool call |
 | `DEFAULT_APPROVAL_TIMEOUT_MS`, `APPROVAL_TIMEOUT_MAX_MS` | constant | `86_400_000` (24 h), `2_147_483_647` |
-| `createAgentState`, `createStateTools` | function | State API over a store, and `createStateTools(schema)`, the generated state tools (they read `context.state`) |
+| `createAgentState`, `createStateTools` | function | State API over the state service, and `createStateTools(schema)`, the generated state tools (they read `context.state`) |
 | `requireToolPermission` | function | A `toolPolicy` that checks `chamvi_tool_use` with `{ agent, name }` on the invoker's bindings |
 | `consoleChannel` | function | `consoleChannel({ name?, write? })`: a development channel, out only, logging each message (default name `console`, default `write` `console.log`) |
-| `assertTriggerKey`, `normalizeEnvelope` | function | The 255-character, no-NUL rule for envelope keys and addresses; the read-back of envelopes stored before channels (`source`, `thread`) for store implementations |
+| `assertTriggerKey` | function | The 255-character, no-NUL rule for envelope keys and addresses |
 | `isArtifactMediaType` | function | The media type rule for attachments and artifacts (`type/subtype`, no parameters) |
 | `artifactFilePart` | function | The file item a tool's `toModelOutput` returns for an artifact: the marker in steps and checkpoints, the bytes for the model |
 | `ChamviError` | class | Base class of every error below |
@@ -453,9 +524,11 @@ See the [instructions guide](https://chamvi.dev/guide/agents#instructions) for t
 | `ErrorCode` | object | The `code` of every error above |
 | `systemClock` | object | The default `IClock` |
 
-Types: `Agent`, `AgentDefinition`, `ToolContext`, `ContextKey`, `IContextProvider`, `ToolPolicy`, `ToolPolicyContext`, `AgentHooks`, `ToolCallInfo`, `TriggerEnvelope`, `Invoker`, `Run`, `RunStatus`, `Step`, `Checkpoint`, `WaitPoint`, `Budget`, `Usage`, `ApprovalRequestInput`, `ApprovalDecision`, `ApprovalAnswer`, `IStore` and its capability interfaces, `MemoryStoreOptions`, `Artifact`, `ArtifactInput`, `IRunArtifacts`, `IChannel`, `ChannelSubscription`, `ChannelContext`, `ChannelMessage`, `ChannelSendOptions`, `ChannelHandle`, `EmitMessage`, `ConsoleChannelOptions`, `IAgentState`, `RunEvent`, `EngineOptions`, `ModelRef`, `IModelResolver`, `IClock`.
+Types: `Agent`, `AgentDefinition`, `ToolContext`, `ContextKey`, `IContextProvider`, `ToolPolicy`, `ToolPolicyContext`, `AgentHooks`, `ToolCallInfo`, `Budget`, `ApprovalRequestInput`, `ApprovalDecision`, `ApprovalAnswer`, `RunServiceContext`, `RunFindOptions`, `RunUpdateOptions`, `StepServiceContext`, `LockServiceContext`, `IdempotencyServiceContext`, `IdempotencyClaim`, `AgentRevisionServiceContext`, `ArtifactInput`, `IRunArtifacts`, `IChannel`, `ChannelSubscription`, `ChannelContext`, `ChannelMessage`, `ChannelSendOptions`, `ChannelHandle`, `EmitMessage`, `ConsoleChannelOptions`, `IAgentState`, `RunEvent`, `EngineOptions`, `ModelRef`, `IModelResolver`, `IClock`.
 
-Test helpers (`ControllableClock`, `describeRepositoryContract`) live in [`@chamvi/test-kit`](../test-kit).
+The stored records (`Run`, `RunStatus`, `Step`, `Checkpoint`, `WaitPoint`, `Usage`, `Artifact`, `TriggerEnvelope`, `Invoker`) and `normalizeEnvelope()` live in [`@chamvi/store`](../store).
+
+Test helpers (`ControllableClock`, `createTestEngine`, the repository port suites) live in [`@chamvi/test-kit`](../test-kit).
 
 ## Notes
 
@@ -465,7 +538,7 @@ Test helpers (`ControllableClock`, `describeRepositoryContract`) live in [`@cham
 - **Budgets settle runs.** A run stopped by `maxSteps` or `maxTokens` while the model still wanted to call tools fails with code `BudgetExceeded`; a run that hits its timeout fails with code `Timeout`.
 - **Effects are recorded after they happen.** A crash between a tool's side effect and the store write repeats the effect on resume, unless `alreadyApplied` finds it.
 - **Several approvals in one step are handled one at a time.** The run waits on the first in call order; the other suspended calls stay pending and ask again after the resume, before any further model call.
-- **`createMemoryStore()` is not durable.** Everything is gone with the process; use a persistent store to survive restarts or to run replicas.
+- **Memory repositories are not durable.** Everything is gone with the process; use database repositories to survive restarts or to run replicas.
 - **`stop()` stops polling and the channels.** It resolves once every channel stopped; runs in progress continue, so use `drain()` to shut down.
 
 ## License

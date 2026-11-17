@@ -6,9 +6,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { Engine, createMemoryStore, defineModelAgent } from '@chamvi/core';
+import { defineModelAgent } from '@chamvi/core';
 import { httpChannel } from '@chamvi/http';
-import { mockModel } from '@chamvi/test-kit';
+import { createTestEngine, mockModel } from '@chamvi/test-kit';
 import { calendarTools, provideCalendarContext } from '@chamvi/tool-calendar';
 import { createUnconfiguredCalendarClient } from '../../../src/client/unconfigured.ts';
 import { FAKE_CALDAV_URL, createFakeCalDav } from '../../utils/caldav.ts';
@@ -45,8 +45,7 @@ describe('calendar trust', () => {
                 fetch: server.fetch,
             }),
         });
-        const engine = new Engine({
-            store: createMemoryStore(),
+        const engine = createTestEngine({
             agents: [agent],
             channels: [httpChannel()],
         });
@@ -88,9 +87,7 @@ describe('calendar trust', () => {
             ]),
             tools: calendarTools(),
         });
-        const store = createMemoryStore();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [agent],
             channels: [httpChannel()],
         });
@@ -108,7 +105,7 @@ describe('calendar trust', () => {
         await engine.idle();
 
         const run = await engine.getRun(runId);
-        const steps = await store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
 
         engine.stop();
 
@@ -142,9 +139,7 @@ describe('calendar trust', () => {
                 fetch: async () => new Response('down', { status: 500 }),
             }),
         });
-        const store = createMemoryStore();
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [agent],
             channels: [httpChannel()],
         });
@@ -161,7 +156,7 @@ describe('calendar trust', () => {
         await engine.idle();
 
         const run = await engine.getRun(runId);
-        const steps = await store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
 
         engine.stop();
 

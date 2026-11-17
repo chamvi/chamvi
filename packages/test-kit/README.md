@@ -36,28 +36,54 @@ import { textModel } from '@chamvi/test-kit';
 const model = textModel('done');
 ```
 
-### Repository contract
+### Repository contracts
 
-Every `IStore` implementation proves itself with the shared Vitest suite. The factory gets a fresh `ControllableClock` per test and must use it for every expiry decision:
+The repositories behind services prove their ports with `describeRunRepositoryContract({ name, create })`, `describeStepRepositoryContract`, `describeCheckpointRepositoryContract`, `describeEffectRepositoryContract`, `describeArtifactRepositoryContract`, `describeStateRepositoryContract`, `describeLockRepositoryContract`, `describeIdempotencyRepositoryContract`, `describeAgentRevisionRepositoryContract`, `describeConnectionRepositoryContract` (its input returns the connection repository and the lock repository whose rows its fence reads) and `describeConversationRepositoryContract` (its input returns the conversation repository and the run and checkpoint repositories that reference it or that it references): rows stored as given, the queries the services build, `findByWaitKind` and `findContaining`, `upsert` by a natural key keeping the stored id, the bytes of an artifact apart from its metadata, `removeExpiredBy` and its boundary (the lock and idempotency inputs require `untilBlocked()`, resolving once a statement waits for a row lock: two microtask turns in process, a look at the database for a driver whose statements run elsewhere), row locks that serialize writers without blocking the rows referencing a run, child repositories bound to the root's transaction, the conversation item storage keys in the order items are stored, and the connection fence read waiting for a lock transaction in flight:
 
 ```typescript
-import { createMemoryStore } from '@chamvi/core';
-import { describeRepositoryContract } from '@chamvi/test-kit';
+import {
+    MemoryCheckpointRepository,
+    MemoryConversationRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+} from '@chamvi/store-memory';
+import { describeConversationRepositoryContract } from '@chamvi/test-kit';
 
-describeRepositoryContract((clock) => createMemoryStore({ clock }));
+describeConversationRepositoryContract({
+    name: 'memory',
+    async create() {
+        const registry = new MemoryRegistry();
+
+        return {
+            repository: new MemoryConversationRepository({ registry }),
+            runs: new MemoryRunRepository({ registry }),
+            checkpoints: new MemoryCheckpointRepository({ registry }),
+        };
+    },
+    async untilBlocked() {
+        await Promise.resolve();
+        await Promise.resolve();
+    },
+});
 ```
+
+### Test engine
+
+`createTestEngine(options)` builds an `Engine` on memory repositories: the services (runs, steps, checkpoints, effects, artifacts, state, locks, idempotency keys) on one memory registry, on the engine's `clock` (default the system clock). Options are `EngineOptions` without the storage; `replicaOf: engine` builds a replica on another engine's store and services (two processes over one database, or a restart), `conversationService: (service) => wrapped` wraps the conversation service to inject a fault or a recorder. Seed and read through the engine's services (`engine.runService`, `engine.checkpointService`, `engine.stateService`, ...), before `start()` if needed. Its `engine.connectionService` is on the same registry, so its fence reads the leases of `engine.lockService`; its `engine.conversationService` too, so its rows reference the engine's runs.
+
+### Test data source
+
+`createTestDataSource({ entities, url? })` builds a data source for a spec of an app's database code as `databaseModule()` builds the app's own: SQLite in memory by default, guarded for concurrent callers as the app's is, or a new database of its own on the PostgreSQL server `url` names (dropped again by `destroy()`), its schema synchronized from `entities`. Each call is a database of its own; the caller destroys it. It loads `@chamvi/store-db`, `typeorm` and the driver (`better-sqlite3` or `pg`) on its first call, so importing the kit loads none of them. A service spec that needs no database runs the service on `MemoryEntityRepository` of `@chamvi/store-memory`, and the same spec on the app's database repository over `createTestDataSource()`.
 
 ### Controllable clock
 
 `ControllableClock` implements `IClock` and only moves when told to, so engine timeouts, claim leases and approval expiry are tested without real timers:
 
 ```typescript
-import { createMemoryStore, Engine } from '@chamvi/core';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 
 const clock = new ControllableClock();
-const store = createMemoryStore({ clock });
-const engine = new Engine({ store, agents: [], clock });
+const engine = createTestEngine({ agents: [], clock });
 
 clock.advance(60_000); // fires every timer due within the next minute, in order
 ```
@@ -108,12 +134,13 @@ fake.failNext('POST', '/repos/octo/demo/issues/7/comments', 502); // one injecte
 | Export | Kind | Purpose |
 |---|---|---|
 | `ControllableClock` | class | `IClock` that advances only via `advance(ms)`; starts at `new Date(0)` unless given a date |
-| `describeRepositoryContract` | function | Vitest suite every `IStore` implementation must pass |
+| `describeConversationRepositoryContract` | function | Vitest suite every `IConversationRepository` must pass |
 | `describeWorkspaceContract` | function | Vitest suite every sandbox provider's `IWorkspace` must pass |
+| `createTestDataSource` | function | A data source for an app's database specs: SQLite in memory (guarded) or a database of its own on a PostgreSQL server |
 | `createGitFixture` | function | A temporary git repository with one commit (branch `main`, tag `v1`) |
 | `createFakeGithub` | function | An in-process GitHub (App JWTs, installation tokens, repository routes) for `createGithubApp({ fetch })` |
 
-Types: `ContractWorkspace`, `WorkspaceContractFactory`, `GitFixture`, `FakeGithub`, `FakeGithubOptions`, `FakeRequest`, `FakeRouteInput`, `FakeRouteResult`, `FakeRouteHandler`, `JwtClaims`.
+Types: `TestDataSourceOptions`, `ContractWorkspace`, `WorkspaceContractFactory`, `GitFixture`, `FakeGithub`, `FakeGithubOptions`, `FakeRequest`, `FakeRouteInput`, `FakeRouteResult`, `FakeRouteHandler`, `JwtClaims`.
 
 ## License
 

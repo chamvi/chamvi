@@ -13,7 +13,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     approve,
     defineModelAgent,
     defineTool,
@@ -23,13 +22,13 @@ import type {
     ChannelMessage,
     IChannel,
     IEngine,
-    IStore,
 } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
 import { approvalWait } from '../../utils/approvals.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServiceSet } from '../../utils/engine.ts';
 
 const engines: IEngine[] = [];
 
@@ -64,13 +63,13 @@ function resolve(ids: Map<string, string>, value: unknown): unknown {
 }
 
 /** The id of the artifact a tool put under `key`. */
-async function keyedId(store: IStore, runId: string, key: string): Promise<string> {
-    return (await store.artifacts.findOneByKey(runId, `tool:${key}`))!.id;
+async function keyedId(store: TestServiceSet, runId: string, key: string): Promise<string> {
+    return (await store.artifactService.findOneByKey(runId, `tool:${key}`))!.id;
 }
 
 function setup(request: Record<string, unknown>, opts: { channels?: IChannel[] } = {}) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const decisions: ApprovalDecision[] = [];
     let executions = 0;
     const shots = defineTool({
@@ -109,8 +108,8 @@ function setup(request: Record<string, unknown>, opts: { channels?: IChannel[] }
             return decision.approved ? 'accepted' : 'declined';
         },
     });
-    const engine = new Engine({
-        store,
+    const engine = createTestEngine({
+        services: store,
         agents: [defineModelAgent({
             name: 'visual',
             instructions: 'You compare.',
@@ -145,7 +144,7 @@ async function dispatch(ctx: ReturnType<typeof setup>) {
 
     await ctx.engine.idle();
 
-    return { runId, run: (await ctx.store.runs.findOne(runId))! };
+    return { runId, run: (await ctx.store.runService.findOne(runId))! };
 }
 
 const OPTIONS = [
@@ -192,13 +191,13 @@ describe('approve() with artifacts', () => {
         });
         await ctx.engine.idle();
 
-        const done = (await ctx.store.runs.findOne(runId))!;
+        const done = (await ctx.store.runService.findOne(runId))!;
 
         expect(done.status).toBe('completed');
         expect(ctx.executions()).toBe(2);
         expect(ctx.decisions).toEqual([{ approved: true, selected: ['bootstrap'] }]);
 
-        const wait = (await ctx.store.steps.find(runId)).find((s) => s.kind === 'wait');
+        const wait = (await ctx.store.stepService.find(runId)).find((s) => s.kind === 'wait');
         const id = (key: string) => keyedId(ctx.store, runId, key);
 
         expect(wait?.input).toMatchObject({
@@ -209,12 +208,12 @@ describe('approve() with artifacts', () => {
             ],
         });
 
-        const stored = await ctx.store.artifacts.find(runId);
+        const stored = await ctx.store.artifactService.find(runId);
 
         expect(stored.map((a) => a.id).sort()).toEqual((await Promise.all(KEYS.map(id))).sort());
 
         // the replayed call re-put the same keys: the wait point's ids still resolve to the latest bytes
-        expect(Array.from((await ctx.store.artifacts.read(await id('actual')))!)).toEqual([2, 6]);
+        expect(Array.from((await ctx.store.artifactService.read(await id('actual')))!)).toEqual([2, 6]);
     });
 
     it('returns a recorded decision on replay without listing the artifacts again', async () => {
@@ -226,7 +225,7 @@ describe('approve() with artifacts', () => {
         const { runId, run } = await dispatch(ctx);
 
         // a store that cannot list now must not hide the owner's recorded answer
-        ctx.store.artifacts.find = async () => {
+        ctx.store.artifactService.find = async () => {
             throw new Error('artifacts unavailable');
         };
 
@@ -237,7 +236,7 @@ describe('approve() with artifacts', () => {
         });
         await ctx.engine.idle();
 
-        expect((await ctx.store.runs.findOne(runId))!.status).toBe('completed');
+        expect((await ctx.store.runService.findOne(runId))!.status).toBe('completed');
         expect(ctx.decisions).toEqual([{ approved: true, selected: ['bootstrap'] }]);
     });
 
@@ -250,14 +249,14 @@ describe('approve() with artifacts', () => {
             },
         };
         const clock = new ControllableClock(new Date(1_000_000));
-        const store = createMemoryStore({ clock });
+        const store = createTestServices({ clock });
         const tool = defineTool({
             inputSchema: z.object({}),
             execute: async (_, { context }) => {
                 const artifact = await context.artifacts.put({
-                    key: 'k', 
-                    mediaType: 'image/png', 
-                    data: new Uint8Array([1]), 
+                    key: 'k',
+                    mediaType: 'image/png',
+                    data: new Uint8Array([1]),
                 });
 
                 await context.channels.findOneOrFail('ops').approve({
@@ -274,8 +273,8 @@ describe('approve() with artifacts', () => {
                 return 'ok';
             },
         });
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
+            services: store,
             clock,
             channels: [channel],
             agents: [defineModelAgent({
@@ -283,9 +282,9 @@ describe('approve() with artifacts', () => {
                 instructions: 'x',
                 model: mockModel([{
                     parts: [{
-                        type: 'tool-call', 
-                        toolName: 'tool', 
-                        input: {}, 
+                        type: 'tool-call',
+                        toolName: 'tool',
+                        input: {},
                         toolCallId: 'c1',
                     }],
                 }, text('done')]),
@@ -298,15 +297,15 @@ describe('approve() with artifacts', () => {
         await engine.start();
 
         const { runId } = await engine.dispatch({
-            agent: 'visual', 
-            trigger: 'http', 
-            channel: 'http', 
+            agent: 'visual',
+            trigger: 'http',
+            channel: 'http',
             payload: {},
         });
 
         await engine.idle();
 
-        const run = (await store.runs.findOne(runId))!;
+        const run = (await store.runService.findOne(runId))!;
 
         expect(approvalWait(run)?.artifacts).toEqual([await keyedId(store, runId, 'k')]);
         expect(sent).toHaveLength(1);
@@ -329,9 +328,9 @@ describe('approve() with artifacts', () => {
             title: 'Accept?',
             artifacts: [],
             options: [{
-                id: 'a', 
-                label: 'A', 
-                artifacts: [], 
+                id: 'a',
+                label: 'A',
+                artifacts: [],
             }],
         });
         const { run } = await dispatch(ctx);
@@ -349,32 +348,32 @@ describe('approve() with artifacts', () => {
         ['another run\'s id', { artifacts: ['foreign'] }],
         ['an unknown id on an option', {
             options: [{
-                id: 'a', 
-                label: 'A', 
-                artifacts: ['$actual', 'missing'], 
-            }], 
+                id: 'a',
+                label: 'A',
+                artifacts: ['$actual', 'missing'],
+            }],
         }],
         ['a duplicate id', { artifacts: ['$actual', '$actual'] }],
         ['a duplicate id on an option', {
             options: [{
-                id: 'a', 
-                label: 'A', 
-                artifacts: ['$diff', '$diff'], 
-            }], 
+                id: 'a',
+                label: 'A',
+                artifacts: ['$diff', '$diff'],
+            }],
         }],
         ['21 ids on one option', {
             options: [{
-                id: 'a', 
-                label: 'A', 
-                artifacts: many(21), 
-            }], 
+                id: 'a',
+                label: 'A',
+                artifacts: many(21),
+            }],
         }],
         ['101 ids in total', {
             artifacts: many(1),
             options: Array.from({ length: 5 }, (_, i) => ({
-                id: `o${i}`, 
-                label: `O${i}`, 
-                artifacts: many(20), 
+                id: `o${i}`,
+                label: `O${i}`,
+                artifacts: many(20),
             })),
         }],
         ['a non-string id', { artifacts: [1] }],
@@ -383,7 +382,7 @@ describe('approve() with artifacts', () => {
     ])('refuses %s as a tool error without pausing', async (_, extra) => {
         const ctx = setup({ title: 'Accept?', ...extra });
 
-        await ctx.store.artifacts.insert({
+        await ctx.store.artifactService.create({
             id: 'foreign',
             runId: 'other-run',
             agent: 'visual',
@@ -397,7 +396,7 @@ describe('approve() with artifacts', () => {
         expect(run.status).toBe('completed');
         expect(run.waiting).toBeUndefined();
 
-        const tools = (await ctx.store.steps.find(runId)).filter((s) => s.kind === 'tool');
+        const tools = (await ctx.store.stepService.find(runId)).filter((s) => s.kind === 'tool');
 
         expect(tools[0]).toMatchObject({ name: 'shots', error: { code: 'validation_error' } });
     });

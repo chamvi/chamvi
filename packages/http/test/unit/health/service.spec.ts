@@ -6,8 +6,9 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { createMemoryStore } from '@chamvi/core';
-import type { IEngine, IStore } from '@chamvi/core';
+import { RunService } from '@chamvi/core';
+import type { IEngine } from '@chamvi/core';
+import { MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';
 import { ControllableClock } from '@chamvi/test-kit';
 import type { IShutdown } from '@chamvi/http';
 import { HealthService } from '../../../src/health/service.ts';
@@ -24,10 +25,10 @@ function setup({
     hanging = false,
 }: Setup = {}) {
     const clock = new ControllableClock(new Date(1_000_000));
-    const store: IStore = createMemoryStore({ clock });
+    const runService = new RunService({ repository: new MemoryRunRepository({ registry: new MemoryRegistry() }), clock });
 
     if (hanging) {
-        store.runs.findOne = () => new Promise(() => {});
+        runService.findOne = () => new Promise(() => {});
     }
 
     const shutdown: IShutdown = {
@@ -37,7 +38,7 @@ function setup({
     };
     const service = new HealthService({
         engine: { isDraining: draining } as IEngine,
-        store,
+        runService,
         clock,
         shutdown,
         readyTimeoutMs: 2_000,

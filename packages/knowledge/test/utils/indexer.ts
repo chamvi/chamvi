@@ -5,9 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ILockRepository, IModelResolver } from '@chamvi/core';
-import { createMemoryStore } from '@chamvi/core';
-import { ControllableClock, mockEmbeddingModel } from '@chamvi/test-kit';
+import type { IModelResolver, LockService } from '@chamvi/core';
+import { ControllableClock, createTestEngine, mockEmbeddingModel } from '@chamvi/test-kit';
 import type { EmbeddingModel } from 'ai';
 import { MockEmbeddingModelV4 } from 'ai/test';
 import { vi } from 'vitest';
@@ -54,7 +53,7 @@ export function embeddingResolver(models: Record<string, EmbeddingModel>): IMode
     };
 }
 
-export type RecordedLocks = ILockRepository & {
+export type RecordedLocks = Pick<LockService, 'acquire' | 'renew' | 'release'> & {
     /** Every acquire with its owner and result, in call order. */
     readonly acquired: Array<{
         key: string; 
@@ -64,7 +63,7 @@ export type RecordedLocks = ILockRepository & {
 };
 
 /** Locks over a memory lock repository, recording every acquire. */
-export function recordingLocks(locks: ILockRepository): RecordedLocks {
+export function recordingLocks(locks: Pick<LockService, 'acquire' | 'renew' | 'release'>): RecordedLocks {
     const acquired: RecordedLocks['acquired'] = [];
 
     return {
@@ -96,7 +95,7 @@ export type IndexerSetup = {
 export function createIndexerSetup(): IndexerSetup {
     const clock = new ControllableClock(new Date('2026-11-01T00:00:00Z'));
     const repository = createMemoryKnowledgeRepository();
-    const locks = recordingLocks(createMemoryStore({ clock }).locks);
+    const locks = recordingLocks(createTestEngine({ agents: [], clock }).lockService);
     const errors: IndexerSetup['errors'] = [];
 
     return {

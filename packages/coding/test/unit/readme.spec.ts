@@ -16,12 +16,12 @@ import {
     expect,
     it,
 } from 'vitest';
-import { Engine, createMemoryStore } from '@chamvi/core';
-import type { ApprovalWaitPoint, Run } from '@chamvi/core';
+import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import { createLocalSandbox } from '@chamvi/sandbox-local';
 import { createCodingAgent } from '../fixtures/readme-example.ts';
 import { mockModel } from '../utils/model.ts';
+import { createTestEngine } from '@chamvi/test-kit';
 
 /** The run's approval wait point; throws when it waits on none. */
 function approvalOf(run: Pick<Run, 'waiting'> | undefined): ApprovalWaitPoint {
@@ -92,10 +92,7 @@ describe('README example', () => {
             },
             { parts: [{ type: 'text', text: 'Not allowed.' }] },
         ]), workspaces);
-        const engine = new Engine({
-            store: createMemoryStore(),
-            agents: [agent],
-        });
+        const engine = createTestEngine({ agents: [agent] });
 
         await engine.start();
 
@@ -125,7 +122,7 @@ describe('README example', () => {
 
         expect(run?.status).toBe('completed');
 
-        const steps = await engine.store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
         const bash = steps.find((step) => step.kind === 'tool' && step.name === 'bash');
 
         expect(bash?.error).toMatchObject({ code: 'tool_denied' });

@@ -6,8 +6,6 @@
  */
 
 import { join } from 'node:path';
-import { createMemoryStore } from '@chamvi/core';
-import type { IStore } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import {
     afterEach,
@@ -20,7 +18,6 @@ import {
     agentsModule,
     configModule,
     createApp,
-    storeModule,
 } from '@chamvi/app';
 import type { IApp } from '@chamvi/app';
 import { cronTrigger, provider } from '../../utils/agents-dir.ts';
@@ -29,6 +26,8 @@ import { createTempDir, writeTree } from '../../utils/folder.ts';
 import { createRecordingLogger } from '../../utils/logger.ts';
 import { freePort } from '../../utils/port.ts';
 import { installPackage } from '../../utils/packages.ts';
+import { createTestStore, storeModuleOf } from '../../utils/store.ts';
+import type { TestStore } from '../../utils/store.ts';
 
 const START = new Date('2026-11-02T00:00:00Z');
 const CRON = `, channels: [${cronTrigger('0 9 * * *')}]`;
@@ -50,7 +49,7 @@ afterEach(async () => {
 });
 
 /** Every call on the store that may write (not named find* or read*). */
-function recordWrites(store: IStore): { store: IStore; writes: string[] } {
+function recordWrites(store: TestStore): { store: TestStore; writes: string[] } {
     const writes: string[] = [];
     const wrapped = Object.fromEntries(Object.entries(store).map(([role, repository]) => [role, new Proxy(repository as object, {
         get(target, key, receiver) {
@@ -70,10 +69,10 @@ function recordWrites(store: IStore): { store: IStore; writes: string[] } {
         },
     })]));
 
-    return { store: wrapped as unknown as IStore, writes };
+    return { store: wrapped as unknown as TestStore, writes };
 }
 
-function build(agents: string[], store?: IStore) {
+function build(agents: string[], store?: TestStore) {
     const clock = new ControllableClock(START);
     const logger = createRecordingLogger(clock);
     const app = createApp({
@@ -81,7 +80,7 @@ function build(agents: string[], store?: IStore) {
         models: { test: provider() },
         modules: [
             configModule({ clock, logger }),
-            storeModule({ store: store ?? createMemoryStore({ clock }) }),
+            storeModuleOf(store ?? createTestStore({ clock })),
             agentsModule({ cwd }),
         ],
     });
@@ -139,7 +138,7 @@ describe('check of package agents', () => {
             extra: ', channels: [{ channel: \'nope\', id: \'nope\', options: {} }]',
         });
 
-        const { store, writes } = recordWrites(createMemoryStore());
+        const { store, writes } = recordWrites(createTestStore());
         const result = await build(['ok', 'broken', '@s/missing'], store).check({ env: await env() });
 
         expect(result.issues.map((issue) => issue.agent)).toEqual(['keeper', '@s/missing']);

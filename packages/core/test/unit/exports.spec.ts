@@ -13,8 +13,23 @@ import {
     it,
 } from 'vitest';
 import * as core from '@chamvi/core';
+import type * as store from '@chamvi/store';
 import type * as sdk from 'ai';
-import * as persistence from '@chamvi/core/conversation/persistence';
+import type {
+    AgentRevision,
+    IAgentRevisionRepository,
+    IArtifactRepository,
+    ICheckpointRepository,
+    IConnectionRepository,
+    IConversationRepository,
+    IEffectRepository,
+    IIdempotencyRepository,
+    ILockRepository,
+    IRunRepository,
+    IStateDocumentRepository,
+    IStateRepository,
+    IStepRepository,
+} from '@chamvi/store';
 
 describe('public api', () => {
     it('keeps the engine interface aligned with the public class contract', () => {
@@ -23,12 +38,80 @@ describe('public api', () => {
         expectTypeOf<core.IEngine>().toExtend<Pick<core.Engine, keyof core.IEngine>>();
     });
 
-    it('types the store as a collection of repositories with conversation support from the memory factory', () => {
-        expectTypeOf<core.EngineOptions['store']>().toEqualTypeOf<core.IStore>();
-        expectTypeOf<core.IEngine['store']>().toEqualTypeOf<core.IStore>();
-        expectTypeOf<ReturnType<typeof core.createMemoryStore>['conversations']>()
-            .toEqualTypeOf<core.IConversationRepository>();
-        expect(core).not.toHaveProperty('createMemoryRepositories');
+    it('has no store aggregate: the engine takes and exposes each service by name', () => {
+        expectTypeOf<core.EngineOptions>().not.toHaveProperty('store');
+        expectTypeOf<core.IEngine>().not.toHaveProperty('store');
+        expect(Object.keys(core).filter((name) => /^create(Memory|Database)(Store|Repositories)$/.test(name))).toEqual([]);
+        expect(Object.keys(core).filter((name) => /^(I|Memory)Store(Options)?$/.test(name))).toEqual([]);
+    });
+
+    it('serves runs and steps through services over the repository ports of @chamvi/store', () => {
+        expectTypeOf<core.EngineOptions['runService']>().toEqualTypeOf<core.RunService>();
+        expectTypeOf<core.EngineOptions['stepService']>().toEqualTypeOf<core.StepService>();
+        expectTypeOf<core.IEngine['runService']>().toEqualTypeOf<core.RunService>();
+        expectTypeOf<core.IEngine['stepService']>().toEqualTypeOf<core.StepService>();
+        expectTypeOf<core.RunServiceContext['repository']>().toEqualTypeOf<IRunRepository>();
+        expectTypeOf<core.StepServiceContext['repository']>().toEqualTypeOf<IStepRepository>();
+
+        // the ports and the memory repositories moved to @chamvi/store and @chamvi/store-memory
+        for (const name of ['MemoryRunRepository', 'MemoryStepRepository', 'IRunRepository', 'IStepRepository']) {
+            expect(core).not.toHaveProperty(name);
+        }
+    });
+
+    it('serves checkpoints, effects, artifacts and state through services over the repository ports of @chamvi/store', () => {
+        expectTypeOf<core.EngineOptions['checkpointService']>().toEqualTypeOf<core.CheckpointService>();
+        expectTypeOf<core.EngineOptions['effectService']>().toEqualTypeOf<core.EffectService>();
+        expectTypeOf<core.EngineOptions['artifactService']>().toEqualTypeOf<core.ArtifactService>();
+        expectTypeOf<core.EngineOptions['stateService']>().toEqualTypeOf<core.StateService>();
+        expectTypeOf<core.IEngine['checkpointService']>().toEqualTypeOf<core.CheckpointService>();
+        expectTypeOf<core.IEngine['effectService']>().toEqualTypeOf<core.EffectService>();
+        expectTypeOf<core.IEngine['artifactService']>().toEqualTypeOf<core.ArtifactService>();
+        expectTypeOf<core.IEngine['stateService']>().toEqualTypeOf<core.StateService>();
+        expectTypeOf<core.CheckpointServiceContext['repository']>().toEqualTypeOf<ICheckpointRepository>();
+        expectTypeOf<core.EffectServiceContext['repository']>().toEqualTypeOf<IEffectRepository>();
+        expectTypeOf<core.ArtifactServiceContext['repository']>().toEqualTypeOf<IArtifactRepository>();
+        expectTypeOf<core.StateServiceContext['repository']>().toEqualTypeOf<IStateRepository>();
+        expectTypeOf<core.StateServiceContext['documentRepository']>().toEqualTypeOf<IStateDocumentRepository>();
+        expectTypeOf<core.StateFindOptions>().toEqualTypeOf<{ limit?: number; offset?: number }>();
+        expectTypeOf<core.StateDocumentFindOptions>().toEqualTypeOf<{ where?: Record<string, unknown>; limit?: number }>();
+
+        // the ports and the memory repositories moved to @chamvi/store and @chamvi/store-memory
+        for (const name of [
+            'MemoryCheckpointRepository',
+            'MemoryEffectRepository',
+            'MemoryArtifactRepository',
+            'MemoryStateRepository',
+            'ICheckpointRepository',
+            'IEffectRepository',
+            'IArtifactRepository',
+            'IStateRepository',
+        ]) {
+            expect(core).not.toHaveProperty(name);
+        }
+    });
+
+    it('serves locks and idempotency keys through services over the repository ports of @chamvi/store', () => {
+        expectTypeOf<core.EngineOptions['lockService']>().toEqualTypeOf<core.LockService>();
+        expectTypeOf<core.EngineOptions['idempotencyService']>().toEqualTypeOf<core.IdempotencyService>();
+        expectTypeOf<core.IEngine['lockService']>().toEqualTypeOf<core.LockService>();
+        expectTypeOf<core.IEngine['idempotencyService']>().toEqualTypeOf<core.IdempotencyService>();
+        expectTypeOf<core.LockServiceContext['repository']>().toEqualTypeOf<ILockRepository>();
+        expectTypeOf<core.IdempotencyServiceContext['repository']>().toEqualTypeOf<IIdempotencyRepository>();
+        expectTypeOf<core.LockService['acquire']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
+        expectTypeOf<core.LockService['renew']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
+        expectTypeOf<core.LockService['release']>().toEqualTypeOf<(key: string, owner: string) => Promise<void>>();
+        expectTypeOf<core.LockService['holds']>().toEqualTypeOf<(key: string, owner: string) => Promise<boolean>>();
+        expectTypeOf<core.LockService['purgeExpired']>().toEqualTypeOf<(now?: Date) => Promise<number>>();
+        expectTypeOf<core.IdempotencyService['claim']>()
+            .toEqualTypeOf<(scope: string, key: string, runId: string, ttlMs: number) => Promise<core.IdempotencyClaim>>();
+        expectTypeOf<core.IdempotencyService['purgeExpired']>().toEqualTypeOf<(now?: Date) => Promise<number>>();
+        expectTypeOf<core.IdempotencyClaim>().toEqualTypeOf<{ created: boolean; runId: string }>();
+
+        // the ports and the memory repositories moved to @chamvi/store and @chamvi/store-memory
+        for (const name of ['MemoryLockRepository', 'MemoryIdempotencyRepository', 'ILockRepository', 'IIdempotencyRepository']) {
+            expect(core).not.toHaveProperty(name);
+        }
     });
 
     it('leaves permission checks to @chamvi/access', () => {
@@ -37,17 +120,12 @@ describe('public api', () => {
         }
     });
 
-    it('publishes conversation persistence separately from the agent api', () => {
+    it('keeps the conversation persistence policy internal: no package entry of its own', () => {
         const manifest = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
-        expect(manifest.exports['./conversation/persistence']).toEqual({
-            types: './dist/conversation/persistence.d.mts',
-            import: './dist/conversation/persistence.mjs',
-        });
-    });
+        expect(Object.keys(manifest.exports)).toEqual(['./package.json', '.']);
 
-    it('exposes only store persistence rules from its dedicated entry', () => {
-        const names = [
+        for (const name of [
             'assertConversationScope',
             'assertConversationText',
             'assertEmitItem',
@@ -59,12 +137,7 @@ describe('public api', () => {
             'identityId',
             'isSameEmit',
             'userItemId',
-        ];
-
-        expect(Object.keys(persistence).sort()).toEqual(names);
-
-        for (const name of names) {
-            expect(persistence[name as keyof typeof persistence]).toBeTypeOf('function');
+        ]) {
             expect(core).not.toHaveProperty(name);
         }
     });
@@ -87,22 +160,37 @@ describe('public api', () => {
         expect(core).not.toHaveProperty('splitInstructions');
     });
 
+    it('serves agent revision markers through a service over the repository port of @chamvi/store', () => {
+        expectTypeOf<core.EngineOptions['agentRevisionService']>().toEqualTypeOf<core.AgentRevisionService>();
+        expectTypeOf<core.IEngine['agentRevisionService']>().toEqualTypeOf<core.AgentRevisionService>();
+        expectTypeOf<core.AgentRevisionServiceContext['repository']>().toEqualTypeOf<IAgentRevisionRepository>();
+        expectTypeOf<core.AgentRevisionService['findOne']>().toEqualTypeOf<(agent: string) => Promise<AgentRevision | undefined>>();
+        expectTypeOf<core.AgentRevisionService['save']>().toEqualTypeOf<(revision: AgentRevision) => Promise<AgentRevision>>();
+        expectTypeOf<core.AgentRevisionService['delete']>().toEqualTypeOf<(agent: string) => Promise<void>>();
+        expectTypeOf<core.AgentRevisionService['find']>().toEqualTypeOf<() => Promise<AgentRevision[]>>();
+
+        // the port moved to @chamvi/store, the memory repository to @chamvi/store-memory
+        for (const name of ['MemoryAgentRevisionRepository', 'IAgentRevisionRepository']) {
+            expect(core).not.toHaveProperty(name);
+        }
+    });
+
     it.each([
-        'createMemoryStore',
         'defineModelAgent',
         'defineSimpleAgent',
         'Engine',
         'formatRevision',
-        'MemoryAgentRevisionRepository',
-        'MemoryArtifactRepository',
-        'MemoryCheckpointRepository',
-        'MemoryConnectionRepository',
-        'MemoryEffectRepository',
-        'MemoryIdempotencyRepository',
-        'MemoryLockRepository',
-        'MemoryRunRepository',
-        'MemoryStateRepository',
-        'MemoryStepRepository',
+        'ConnectionService',
+        'ConversationService',
+        'AgentRevisionService',
+        'ArtifactService',
+        'CheckpointService',
+        'EffectService',
+        'IdempotencyService',
+        'LockService',
+        'RunService',
+        'StateService',
+        'StepService',
         'defineEffectTool',
         'defineTool',
         'effectMarker',
@@ -122,8 +210,6 @@ describe('public api', () => {
         'artifactFilePart',
         'assertTriggerKey',
         'assertConcurrencyMaxRuns',
-        'normalizeEnvelope',
-        'normalizeWaitPoint',
         'waitIdOf',
         'consoleChannel',
         'ChannelNotFoundError',
@@ -205,7 +291,7 @@ describe('public api', () => {
             agents?: { agent: string; roles: string[] }[];
             wait?: boolean | core.DispatchWaitOptions;
         }>();
-        expectTypeOf<core.TriggerEnvelope>().toHaveProperty('parent').toEqualTypeOf<core.TriggerParent | undefined>();
+        expectTypeOf<store.TriggerEnvelope>().toHaveProperty('parent').toEqualTypeOf<store.TriggerParent | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatch>>().toEqualTypeOf<Promise<core.DispatchResult>>();
         expectTypeOf<core.DispatchInput>().toEqualTypeOf<{
             role?: string;
@@ -213,15 +299,15 @@ describe('public api', () => {
             idempotencyKey?: string;
             concurrencyKey?: string;
             address?: string;
-            source?: core.TriggerSource;
+            source?: store.TriggerSource;
         }>();
-        expectTypeOf<core.TriggerSource>().toEqualTypeOf<{ channel: string; address: string }>();
-        expectTypeOf<core.TriggerParent['source']>().toEqualTypeOf<core.TriggerSource | undefined>();
+        expectTypeOf<store.TriggerSource>().toEqualTypeOf<{ channel: string; address: string }>();
+        expectTypeOf<store.TriggerParent['source']>().toEqualTypeOf<store.TriggerSource | undefined>();
         expectTypeOf<core.AgentSubscriber['on']>().returns.toEqualTypeOf<core.ChannelSubscription<unknown>>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('maxDepth').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('from').toEqualTypeOf<string[] | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatchTo>>().toEqualTypeOf<Promise<core.DispatchResult>>();
-        expectTypeOf<ReturnType<typeof core.findApprovalWaitBelow>>().toEqualTypeOf<Promise<core.Run | undefined>>();
+        expectTypeOf<ReturnType<typeof core.findApprovalWaitBelow>>().toEqualTypeOf<Promise<store.Run | undefined>>();
         expectTypeOf<core.DispatchToInput>().toEqualTypeOf<core.DispatchInput & { agent: string }>();
         expectTypeOf<core.Budget>().toHaveProperty('maxSubtreeTokens').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.DispatchOutcome>().toEqualTypeOf<{
@@ -260,10 +346,16 @@ describe('public api', () => {
         expect(core.CONVERSATION_NOTE_KEY_MAX_LENGTH).toBe(128);
         expect(core.CONVERSATION_NOTE_TEXT_MAX_BYTES).toBe(2048);
         expect(core.CONVERSATION_NOTES_MAX).toBe(100);
-        expect(core.MemoryConversationRepository).toBeTypeOf('function');
-        expectTypeOf<core.MemoryConversationRepositoryOptions>().toEqualTypeOf<{ clock?: core.IClock; hasRun?: (runId: string) => boolean }>();
-        expectTypeOf<core.MemoryRunReferenceOptions>().toEqualTypeOf<{ hasRun?: (runId: string) => boolean }>();
-        expectTypeOf<core.MemoryConversationRepository>().toMatchTypeOf<core.IConversationRepository>();
+        expect(core.ConversationService).toBeTypeOf('function');
+        expectTypeOf<core.ConversationServiceContext>().toEqualTypeOf<{ repository: IConversationRepository; clock: core.IClock }>();
+        expectTypeOf<core.EngineOptions['conversationService']>().toEqualTypeOf<core.ConversationService | undefined>();
+        expectTypeOf<core.IEngine['conversationService']>().toEqualTypeOf<core.ConversationService | undefined>();
+        expectTypeOf<core.IConversations['service']>().toEqualTypeOf<core.ConversationService>();
+
+        // the port and the memory repository moved to @chamvi/store and @chamvi/store-memory
+        for (const name of ['MemoryConversationRepository', 'MemoryConversationRepositoryOptions', 'MemoryRunReferenceOptions', 'IConversationRepository']) {
+            expect(core).not.toHaveProperty(name);
+        }
 
         for (const name of [
             'normalizeConversationLimits',
@@ -281,17 +373,17 @@ describe('public api', () => {
             expect(core).not.toHaveProperty(name);
         }
 
-        expectTypeOf<core.ConversationIdentity>().toEqualTypeOf<{
+        expectTypeOf<store.ConversationIdentity>().toEqualTypeOf<{
             agent: string;
             channel: string;
             account: string;
             chat: string;
             audience: string;
         }>();
-        expectTypeOf<core.ConversationScope>().toEqualTypeOf<{
+        expectTypeOf<store.ConversationScope>().toEqualTypeOf<{
             id: string;
             generation: number;
-            identity: core.ConversationIdentity;
+            identity: store.ConversationIdentity;
         }>();
         expectTypeOf<core.ConversationTarget>().toEqualTypeOf<{
             account: string;
@@ -306,12 +398,12 @@ describe('public api', () => {
             audience: string;
             address?: string;
         }>();
-        expectTypeOf<core.ConversationBinding>().toEqualTypeOf<{ scope: core.ConversationScope; text: string }>();
+        expectTypeOf<store.ConversationBinding>().toEqualTypeOf<{ scope: store.ConversationScope; text: string }>();
         expectTypeOf<core.ConversationAccess>().toEqualTypeOf<{
             agent: string;
             operation: 'dispatch' | 'recall' | 'notes';
-            identity: core.ConversationIdentity;
-            invoker?: core.Invoker;
+            identity: store.ConversationIdentity;
+            invoker?: store.Invoker;
         }>();
         expectTypeOf<core.ConversationOptions>().toEqualTypeOf<{
             authorize: (access: core.ConversationAccess) => boolean | Promise<boolean>;
@@ -337,10 +429,9 @@ describe('public api', () => {
                 removed: boolean
             }
         >();
-        expectTypeOf<core.ConversationNoteOperation>().toHaveProperty('kind').toEqualTypeOf<'set' | 'remove'>();
-        expectTypeOf<core.IConversationRepository['findOne']>()
-            .toEqualTypeOf<(identity: core.ConversationIdentity) => Promise<core.ConversationScope | undefined>>();
-        expectTypeOf<core.IStore>().not.toHaveProperty('resolve');
+        expectTypeOf<store.ConversationNoteOperation>().toHaveProperty('kind').toEqualTypeOf<'set' | 'remove'>();
+        expectTypeOf<core.ConversationService['findOne']>()
+            .toEqualTypeOf<(identity: store.ConversationIdentity) => Promise<store.ConversationScope | undefined>>();
     });
 
     it('exports the trigger key bound', () => {
@@ -382,15 +473,15 @@ describe('public api', () => {
     });
 
     it('exports the approval option types', () => {
-        expectTypeOf<core.ApprovalOption>().toEqualTypeOf<{
+        expectTypeOf<store.ApprovalOption>().toEqualTypeOf<{
             id: string;
             label: string;
             detail?: string;
             artifacts?: string[]
         }>();
         expectTypeOf<core.ApprovalRequestInput['artifacts']>().toEqualTypeOf<string[] | undefined>();
-        expectTypeOf<core.ApprovalWaitPoint['artifacts']>().toEqualTypeOf<string[] | undefined>();
-        expectTypeOf<core.ApprovalRequestInput['options']>().toEqualTypeOf<core.ApprovalOption[] | undefined>();
+        expectTypeOf<store.ApprovalWaitPoint['artifacts']>().toEqualTypeOf<string[] | undefined>();
+        expectTypeOf<core.ApprovalRequestInput['options']>().toEqualTypeOf<store.ApprovalOption[] | undefined>();
         expectTypeOf<core.ApprovalRequestInput['multiple']>().toEqualTypeOf<boolean | undefined>();
     });
 
@@ -415,12 +506,12 @@ describe('public api', () => {
         expectTypeOf<core.ChannelRequest>().toEqualTypeOf<{ request: Request; subpath: string }>();
         expectTypeOf<core.ChannelDispatchEnvelope>().toEqualTypeOf<Omit<core.DispatchEnvelope, 'channel'>>();
         expectTypeOf<core.ChannelContext['dispatch']>().returns.toEqualTypeOf<Promise<core.DispatchResult>>();
-        expectTypeOf<core.ChannelSendOptions>().toEqualTypeOf<{ signal: AbortSignal; trigger: core.TriggerEnvelope }>();
+        expectTypeOf<core.ChannelSendOptions>().toEqualTypeOf<{ signal: AbortSignal; trigger: store.TriggerEnvelope }>();
         expectTypeOf<core.ChannelMessage['kind']>().toEqualTypeOf<'message' | 'approval'>();
         expectTypeOf<core.ChannelSubscription>().toHaveProperty('channel').toEqualTypeOf<string>();
         expectTypeOf<core.IChannel>().toHaveProperty('name').toEqualTypeOf<string>();
-        expectTypeOf<core.TriggerEnvelope>().toHaveProperty('channel').toEqualTypeOf<string>();
-        expectTypeOf<core.Run>().toHaveProperty('address').toEqualTypeOf<string | undefined>();
+        expectTypeOf<store.TriggerEnvelope>().toHaveProperty('channel').toEqualTypeOf<string>();
+        expectTypeOf<store.Run>().toHaveProperty('address').toEqualTypeOf<string | undefined>();
         expectTypeOf<core.EngineStartOptions>().toEqualTypeOf<{ channels?: boolean; signal?: AbortSignal }>();
         expectTypeOf<core.EmitMessage>().toEqualTypeOf<{
             title?: string;
@@ -432,12 +523,12 @@ describe('public api', () => {
         expectTypeOf<core.ChannelHandle['approve']>().returns.toEqualTypeOf<Promise<core.ApprovalDecision>>();
         expectTypeOf<Parameters<core.ChannelHandle['approve']>[0]>().toEqualTypeOf<core.ApprovalRequestInput & { address?: string; slot?: string }>();
         expectTypeOf<core.ChannelMessage['slot']>().toEqualTypeOf<string | undefined>();
-        expectTypeOf<core.ApprovalWaitPoint['slot']>().toEqualTypeOf<string | undefined>();
-        expectTypeOf<core.WaitPoint>().toEqualTypeOf<core.ApprovalWaitPoint | core.DispatchWaitPoint>();
-        expectTypeOf<core.DispatchWaitPoint['runIds']>().toEqualTypeOf<string[]>();
-        expectTypeOf<core.Run['parentRunId']>().toEqualTypeOf<string | undefined>();
-        expectTypeOf<core.Run['subtreeUsage']>().toEqualTypeOf<core.Usage | undefined>();
-        expectTypeOf<core.TriggerParent['kind']>().toEqualTypeOf<'dispatch'>();
+        expectTypeOf<store.ApprovalWaitPoint['slot']>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<store.WaitPoint>().toEqualTypeOf<store.ApprovalWaitPoint | store.DispatchWaitPoint>();
+        expectTypeOf<store.DispatchWaitPoint['runIds']>().toEqualTypeOf<string[]>();
+        expectTypeOf<store.Run['parentRunId']>().toEqualTypeOf<string | undefined>();
+        expectTypeOf<store.Run['subtreeUsage']>().toEqualTypeOf<store.Usage | undefined>();
+        expectTypeOf<store.TriggerParent['kind']>().toEqualTypeOf<'dispatch'>();
         expectTypeOf<core.RunFindOptions['parentRunId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<core.RunUpdateOptions['expectWaitId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<core.ConsoleChannelOptions>().toHaveProperty('name').toEqualTypeOf<string | undefined>();
@@ -467,14 +558,38 @@ describe('public api', () => {
         expectTypeOf<ReturnType<typeof core.parseKeyring>>().toEqualTypeOf<core.KeyringKey[]>();
     });
 
-    it('exports the connection repository contract', () => {
+    it('serves connections through a service over the repository port of @chamvi/store', () => {
         expect(core.CONNECTION_ENTRY_KEY_MAX_LENGTH).toBe(255);
         expect(core.CONNECTION_TYPE_MAX_LENGTH).toBe(64);
         expect(core.CONNECTION_SECRET_FIELD_MAX_LENGTH).toBe(64);
-        expectTypeOf<core.IStore['connections']>().toEqualTypeOf<core.IConnectionRepository | undefined>();
-        expectTypeOf<ReturnType<typeof core.createMemoryStore>['connections']>()
-            .toEqualTypeOf<core.IConnectionRepository>();
-        expectTypeOf<core.Connection>().toEqualTypeOf<{
+        expectTypeOf<core.EngineOptions['connectionService']>().toEqualTypeOf<core.ConnectionService | undefined>();
+        expectTypeOf<core.IEngine['connectionService']>().toEqualTypeOf<core.ConnectionService | undefined>();
+        expectTypeOf<core.ConnectionServiceContext>().toEqualTypeOf<{ repository: IConnectionRepository; clock: core.IClock }>();
+        expectTypeOf<core.ConnectionService['create']>().toEqualTypeOf<(connection: store.Connection) => Promise<boolean>>();
+        expectTypeOf<core.ConnectionService['findOne']>().toEqualTypeOf<(name: string) => Promise<store.Connection | undefined>>();
+        expectTypeOf<core.ConnectionService['findOneOrFail']>().toEqualTypeOf<(name: string) => Promise<store.Connection>>();
+        expectTypeOf<core.ConnectionService['find']>().toEqualTypeOf<() => Promise<store.Connection[]>>();
+        expectTypeOf<core.ConnectionService['delete']>().toEqualTypeOf<(name: string, fence?: core.ConnectionFence) => Promise<void>>();
+        expectTypeOf<core.ConnectionService['replace']>().toEqualTypeOf<(connection: store.Connection, fence: core.ConnectionFence) => Promise<void>>();
+        expectTypeOf<core.ConnectionService['findEntry']>().toEqualTypeOf<(name: string, key: string) => Promise<Uint8Array | undefined>>();
+        expectTypeOf<core.ConnectionService['findEntries']>()
+            .toEqualTypeOf<(name: string, keys: readonly string[]) => Promise<Map<string, Uint8Array>>>();
+        expectTypeOf<core.ConnectionService['writeEntries']>()
+            .toEqualTypeOf<(name: string, write: core.ConnectionEntryWrite, fence: core.ConnectionFence) => Promise<void>>();
+        expectTypeOf<core.ConnectionService['findConfig']>().toEqualTypeOf<(name: string) => Promise<core.ConnectionConfig | undefined>>();
+        expectTypeOf<core.ConnectionService['writeConfig']>().toEqualTypeOf<(
+            name: string,
+            write: core.ConnectionConfigWrite,
+            expectedWrappedKey: Uint8Array,
+            expectedRevision?: number,
+        ) => Promise<number>>();
+
+        // the port moved to @chamvi/store, the memory repository to @chamvi/store-memory, the fence lookup is gone
+        for (const name of ['MemoryConnectionRepository', 'IConnectionRepository', 'MemoryConnectionRepositoryOptions', 'MemoryLockLookup']) {
+            expect(core).not.toHaveProperty(name);
+        }
+
+        expectTypeOf<store.Connection>().toEqualTypeOf<{
             name: string;
             type: string;
             keyId: string;
@@ -500,7 +615,6 @@ describe('public api', () => {
             setSecrets?: Record<string, Uint8Array>;
             clearSecrets?: readonly string[];
         }>();
-        expectTypeOf<core.ILockRepository['renew']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
         expect(new core.LeaseLostError({ lock: 'connection:wa' })).toMatchObject({ code: 'lease_lost', lock: 'connection:wa' });
         expect(new core.LeaseLostError('r1')).toMatchObject({ code: 'lease_lost', runId: 'r1' });
     });
@@ -527,6 +641,10 @@ describe('public api', () => {
         expect(core).not.toHaveProperty('secretAadOf');
         expectTypeOf<ReturnType<typeof core.createConnectionConfigStore>>().toEqualTypeOf<core.IConnectionConfigStore>();
         expectTypeOf<Parameters<typeof core.createConnectionConfigStore>[0]>().toEqualTypeOf<core.ConnectionConfigStoreOptions>();
+        expectTypeOf<core.ConnectionConfigStoreOptions['lockService']>().toEqualTypeOf<Pick<core.LockService, 'acquire' | 'release'>>();
+        expectTypeOf<core.ConnectionConfigStoreOptions['connectionService']>().toEqualTypeOf<
+            Pick<core.ConnectionService, 'create' | 'findOne' | 'findOneOrFail' | 'findConfig' | 'writeConfig' | 'delete'>
+        >();
         expectTypeOf<core.ConnectionConfigView>().toEqualTypeOf<{
             settings: Record<string, unknown>;
             secretsSet: string[];
@@ -564,9 +682,10 @@ describe('public api', () => {
         }>();
         expectTypeOf<Parameters<core.IConnectionVault['open']>[1]>().toEqualTypeOf<core.ConnectionOpenOptionsInput>();
         expectTypeOf<core.ConnectionVaultOptions>().toEqualTypeOf<{
-            store: core.IStore; 
-            keyring: core.IKeyring; 
-            clock?: core.IClock 
+            connectionService: Pick<core.ConnectionService, 'create' | 'findOne' | 'findOneOrFail' | 'replace' | 'findEntries' | 'writeEntries'>;
+            lockService: Pick<core.LockService, 'acquire' | 'renew' | 'release'>;
+            keyring: core.IKeyring;
+            clock?: core.IClock
         }>();
     });
 
@@ -598,7 +717,7 @@ describe('public api', () => {
     });
 
     it('exports the agent folder types', () => {
-        expectTypeOf<core.AgentRevision>().toHaveProperty('hash').toEqualTypeOf<string>();
+        expectTypeOf<store.AgentRevision>().toHaveProperty('hash').toEqualTypeOf<string>();
     });
 
     it('keeps the context binding internal', () => {
@@ -623,8 +742,10 @@ describe('public api', () => {
         expectTypeOf<core.BeginTurnResult['kind']>().toEqualTypeOf<'ready' | 'busy' | 'stale'>();
     });
 
-    it('exports the RunStatus enum', () => {
-        expect(core.RunStatus.QUEUED).toBe('queued');
+    it('leaves the stored record types and their normalizers to @chamvi/store', () => {
+        expect(core).not.toHaveProperty('RunStatus');
+        expect(core).not.toHaveProperty('normalizeEnvelope');
+        expect(core).not.toHaveProperty('normalizeWaitPoint');
     });
 
     it('exports the ApprovalAnswer type', () => {
@@ -632,7 +753,7 @@ describe('public api', () => {
             approvalId: string;
             approved: boolean;
             reason?: string;
-            approver?: core.Invoker;
+            approver?: store.Invoker;
             selected?: string[];
         }>();
     });
@@ -641,7 +762,7 @@ describe('public api', () => {
         expectTypeOf<core.ApprovalDecision>().toEqualTypeOf<{
             approved: boolean;
             reason?: string;
-            approver?: core.Invoker;
+            approver?: store.Invoker;
             selected?: string[];
         }>();
     });

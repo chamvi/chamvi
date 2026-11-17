@@ -53,19 +53,41 @@ One GitHub App per agent repository (or organisation):
 
 ## Usage
 
-`createGithubApp()` holds the App credentials. `githubChannel({ app })` is the channel: register it on the engine and list it in `createHttpApp({ channels })`, which serves its deliveries at `POST /channels/github`. Agents subscribe with `github.on(events)`; `gh.readTools()` / `gh.writeTools()` are plain AI SDK `ToolSet`s:
+`createGithubApp()` holds the App credentials. `githubChannel({ app, locks })` is the channel (`locks`: the engine's lock service): register it on the engine and list it in `createHttpApp({ channels })`, which serves its deliveries at `POST /channels/github`. Agents subscribe with `github.on(events)`; `gh.readTools()` / `gh.writeTools()` are plain AI SDK `ToolSet`s:
 
 ```typescript
 import type { LanguageModel } from 'ai';
 import {
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    EffectService,
     Engine,
+    IdempotencyService,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
     ToolDeniedError,
-    createMemoryStore,
     defineModelAgent,
+    systemClock,
 } from '@chamvi/core';
 import { createGithubApp, github, githubChannel } from '@chamvi/github';
 import type { GithubAppOptions } from '@chamvi/github';
 import { createHttpApp, createShutdown, staticTokens } from '@chamvi/http';
+import {
+    MemoryAgentRevisionRepository,
+    MemoryArtifactRepository,
+    MemoryCheckpointRepository,
+    MemoryEffectRepository,
+    MemoryIdempotencyRepository,
+    MemoryLockRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+    MemoryStateDocumentRepository,
+    MemoryStateRepository,
+    MemoryStepRepository,
+} from '@chamvi/store-memory';
 
 export async function createTriageServer(
     model: LanguageModel,
@@ -88,8 +110,17 @@ export async function createTriageServer(
         webhookSecret: GITHUB_WEBHOOK_SECRET,
         ...options,
     });
-    // deliveries in, issue comments out
-    const channel = githubChannel({ app: gh, clock: options.clock });
+    // runs, steps, checkpoints, effects, artifacts and state in memory, gone with the process: @chamvi/app keeps them in PostgreSQL
+    const registry = new MemoryRegistry();
+    const runs = new MemoryRunRepository({ registry });
+    const locks = new MemoryLockRepository({ registry });
+    const lockService = new LockService({ repository: locks, clock: systemClock });
+    // deliveries in, issue comments out; named comment slots are coordinated through the lock service
+    const channel = githubChannel({
+        app: gh,
+        locks: lockService,
+        clock: options.clock,
+    });
 
     const triage = defineModelAgent({
         name: 'triage',
@@ -120,7 +151,18 @@ export async function createTriageServer(
     });
 
     const engine = new Engine({
-        store: createMemoryStore(),
+        runService: new RunService({ repository: runs, clock: systemClock }),
+        stepService: new StepService({ repository: new MemoryStepRepository({ registry }) }),
+        checkpointService: new CheckpointService({ repository: new MemoryCheckpointRepository({ registry }) }),
+        effectService: new EffectService({ repository: new MemoryEffectRepository({ registry }) }),
+        agentRevisionService: new AgentRevisionService({ repository: new MemoryAgentRevisionRepository({ registry }) }),
+        artifactService: new ArtifactService({ repository: new MemoryArtifactRepository({ registry }) }),
+        stateService: new StateService({
+            repository: new MemoryStateRepository({ registry }),
+            documentRepository: new MemoryStateDocumentRepository({ registry }),
+        }),
+        lockService,
+        idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock: systemClock }),
         agents: [triage],
         channels: [channel],
     });
@@ -353,6 +395,7 @@ export default createApp({ agents: [triage], modules: [githubModule()] });
 | Option | Type | Default | Description |
 |---|---|---|---|
 | `app` | `IGithubApp` | required | From `createGithubApp()` |
+| `locks` | `Pick<LockService, 'acquire' \| 'release'>` | required | Coordinates named comment slots across replicas: the engine's lock service (`engine.lockService`); `githubModule()` passes the app's |
 | `name` | `string` | `'github'` | The channel name (agent-name rules), served at `/channels/<name>` |
 | `mention` | `string \| string[]` | none | Logins (without `@`) mentioned at the top of every comment |
 | `approvalUrl` | `({ runId, approvalId, agent }) => string` | none | A link to the approval in the chamvi UI, e.g. `https://<app>/ui/approvals?run=<runId>&approval=<approvalId>`; it carries no token |

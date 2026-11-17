@@ -7,8 +7,12 @@
 
 import type { ModelMessage, ToolSet } from 'ai';
 import { describe, expect, it } from 'vitest';
-import { createMemoryStore, effectMarker, wrapToolsForRun } from '@chamvi/core';
+import {
+    effectMarker,
+    wrapToolsForRun,
+} from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import { START, createGithubFixture } from '../../utils/app.ts';
 import { assistant, callTool, toolContext } from '../../utils/tools.ts';
 
@@ -27,7 +31,7 @@ function setup() {
     });
 
     const ctx = toolContext();
-    const wrap = (store = createMemoryStore()): ToolSet => wrapToolsForRun(fixture.gh.writeTools(), ctx, store.effects);
+    const wrap = (effects = createTestEngine({ agents: [] }).effectService): ToolSet => wrapToolsForRun(fixture.gh.writeTools(), ctx, effects);
 
     return {
         ...fixture,
@@ -302,7 +306,11 @@ describe('write tools', () => {
 
             fixture.fake.installations.set('tada5hi/agents-dev', 77);
 
-            const wrap = (store = createMemoryStore()): ToolSet => wrapToolsForRun(fixture.gh.writeTools(), ctx, store.effects);
+            const wrap = (effects = createTestEngine({ agents: [] }).effectService): ToolSet => wrapToolsForRun(
+                fixture.gh.writeTools(),
+                ctx,
+                effects,
+            );
             const create = (tools: ToolSet) => callTool<{ number: number; url: string }>(tools, 'github_create_issue', {
                 repo: 'tada5hi/agents-dev',
                 title: 'Daily digest',

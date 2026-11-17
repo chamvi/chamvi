@@ -7,10 +7,8 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-    Engine,
     FatalToolError,
     ValidationError,
-    createMemoryStore,
     defineModelAgent,
     wrapToolsForRun,
 } from '@chamvi/core';
@@ -21,6 +19,10 @@ import { WEBHOOK_SECRET, createGithubFixture } from '../../utils/app.ts';
 import { callTool, toolContext } from '../../utils/tools.ts';
 import type { ToolContextInput } from '../../utils/tools.ts';
 import { mockModel } from '../../utils/model.ts';
+import { createTestEngine } from '@chamvi/test-kit';
+
+/** The persistent-comment locks every channel of this spec takes. */
+const locks = createTestEngine({ agents: [] }).lockService;
 
 const ISSUE = {
     number: 5,
@@ -39,7 +41,7 @@ const ISSUE = {
 function setup(github: Partial<GithubAppOptions> = {}, context: ToolContextInput = {}) {
     const fixture = createGithubFixture(github);
     const ctx = toolContext(context);
-    const tools: ToolSet = wrapToolsForRun(fixture.gh.readTools(), ctx, createMemoryStore().effects);
+    const tools: ToolSet = wrapToolsForRun(fixture.gh.readTools(), ctx, createTestEngine({ agents: [] }).effectService);
     const call = <T = unknown>(name: string, input: unknown) => callTool<T>(tools, name, input, ctx);
 
     return {
@@ -708,7 +710,11 @@ describe('read tools', () => {
     it('uses the delivery installation for a run of a renamed github channel of the app', async () => {
         const fixture = createGithubFixture({ installationId: 7 });
 
-        githubChannel({ app: fixture.gh, name: 'github-ent' });
+        githubChannel({
+            app: fixture.gh,
+            locks,
+            name: 'github-ent',
+        });
 
         const event = {
             name: 'issues',
@@ -718,7 +724,7 @@ describe('read tools', () => {
             payload: {},
         };
         const ctx = toolContext({ channel: 'github-ent', payload: event });
-        const tools: ToolSet = wrapToolsForRun(fixture.gh.readTools(), ctx, createMemoryStore().effects);
+        const tools: ToolSet = wrapToolsForRun(fixture.gh.readTools(), ctx, createTestEngine({ agents: [] }).effectService);
 
         fixture.fake.issues.set('octo/demo#5', { ...ISSUE });
         await callTool(tools, 'github_get_issue', { repo: 'octo/demo', number: 5 }, ctx);
@@ -858,7 +864,7 @@ describe('read tools', () => {
         });
         const controller = new AbortController();
         const ctx = toolContext({ signal: controller.signal });
-        const tools: ToolSet = wrapToolsForRun(gh.readTools(), ctx, createMemoryStore().effects);
+        const tools: ToolSet = wrapToolsForRun(gh.readTools(), ctx, createTestEngine({ agents: [] }).effectService);
         const result = callTool(tools, 'github_get_issue', { repo: 'octo/demo', number: 5 }, ctx).catch((e: unknown) => e);
 
         await started.promise;
@@ -876,7 +882,6 @@ describe('read tools', () => {
             fake,
             gh,
         } = createGithubFixture();
-        const store = createMemoryStore({ clock });
         const agent = defineModelAgent({
             name: 'triage',
             model: mockModel([
@@ -893,10 +898,13 @@ describe('read tools', () => {
             channels: [github.on('issues.opened')],
             tools: () => gh.readTools(),
         });
-        const engine = new Engine({
-            store,
+        const engine = createTestEngine({
             agents: [agent],
-            channels: [githubChannel({ app: gh, clock })],
+            channels: [githubChannel({
+                app: gh,
+                locks,
+                clock,
+            })],
             clock,
             onError: () => {},
         });
@@ -917,15 +925,15 @@ describe('read tools', () => {
         await engine.idle();
         await engine.drain();
 
-        expect((await store.runs.findOne(runId))?.status).toBe('completed');
+        expect((await engine.runService.findOne(runId))?.status).toBe('completed');
         expect(fake.requests.some((r) => r.path === '/repos/octo/demo/issues/99' && r.authorization === 'token ghs_1')).toBe(true);
 
-        const steps = await store.steps.find(runId);
+        const steps = await engine.stepService.find(runId);
         const toolStep = steps.find((s) => s.kind === 'tool');
 
         expect(toolStep?.error).toMatchObject({ message: expect.stringContaining('GitHub 404') });
 
-        const checkpoint = await store.checkpoints.findOne(runId);
+        const checkpoint = await engine.checkpointService.findOne(runId);
         const stored = JSON.stringify({ steps, checkpoint });
 
         expect(stored).not.toContain('ghs_');

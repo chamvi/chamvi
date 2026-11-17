@@ -17,6 +17,7 @@ export * from './mcp/index.ts';
 export * from './me/index.ts';
 export * from './middleware/index.ts';
 export * from './openapi/index.ts';
+export * from './query/index.ts';
 export * from './request/index.ts';
 export * from './runs/index.ts';
 export * from './shutdown/index.ts';

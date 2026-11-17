@@ -7,13 +7,12 @@
 
 import { describe, expect, it } from 'vitest';
 import {
-    Engine,
     InvalidAgentDefinitionError,
-    createMemoryStore,
     defineModelAgent,
 } from '@chamvi/core';
 import type { Agent, ChannelSubscription, ModelAgentDefinition } from '@chamvi/core';
 import { mockModel } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 
 const invalid = [0, -1, 1.5, NaN, Infinity, Number.MAX_SAFE_INTEGER + 1, true, null, '2'];
 
@@ -64,7 +63,7 @@ describe('agent concurrency configuration', () => {
     describe.each(['agent', 'subscription'] as const)('hand-built %s caps', (level) => {
         it.each(invalid)('rejects %s at every registration boundary before store access', async (value) => {
             const accesses: PropertyKey[] = [];
-            const store = new Proxy(createMemoryStore(), {
+            const store = new Proxy(createTestServices(), {
                 get(target, key, receiver) {
                     const capability = Reflect.get(target, key, receiver);
 
@@ -89,8 +88,8 @@ describe('agent concurrency configuration', () => {
                 },
             };
             const channels = [{ name: 'events' }];
-            const create = () => new Engine({
-                store,
+            const create = () => createTestEngine({
+                services: store,
                 agents: [agent],
                 channels,
             });
@@ -98,8 +97,8 @@ describe('agent concurrency configuration', () => {
             expect(create).toThrow(InvalidAgentDefinitionError);
             expect(create).toThrow(/concurrencyMaxRuns/);
 
-            const engine = new Engine({
-                store,
+            const engine = createTestEngine({
+                services: store,
                 agents: [],
                 channels,
             });

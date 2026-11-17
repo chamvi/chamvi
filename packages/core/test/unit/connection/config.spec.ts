@@ -18,11 +18,11 @@ import {
     createConnectionConfigStore,
     createConnectionVault,
     createKeyring,
-    createMemoryStore,
 } from '@chamvi/core';
-import type { IConnectionRepository, IKeyring, IStore } from '@chamvi/core';
+import type { IKeyring } from '@chamvi/core';
 import { DEFAULT_CONNECTION_LEASE_TTL_MS } from '../../../src/connection/constants.ts';
 import { ControllableClock } from '../../utils/clock.ts';
+import { createTestServices } from '../../utils/engine.ts';
 
 const PLAINTEXT = 'hunter2-plaintext-secret';
 
@@ -31,11 +31,12 @@ const decode = (value: Uint8Array | undefined) => (value ? new TextDecoder().dec
 
 const setup = () => {
     const clock = new ControllableClock();
-    const store = createMemoryStore({ clock });
+    const store = createTestServices({ clock });
     const keyring = createKeyring([{ id: 'k1', key: new Uint8Array(randomBytes(32)) }]);
     const calls = { keyring: 0 };
     const config = createConnectionConfigStore({
-        store,
+        connectionService: store.connectionService,
+        lockService: store.lockService,
         clock,
         keyring: () => {
             calls.keyring += 1;
@@ -44,7 +45,8 @@ const setup = () => {
         },
     });
     const vault = createConnectionVault({
-        store,
+        connectionService: store.connectionService,
+        lockService: store.lockService,
         keyring,
         clock,
     });
@@ -53,7 +55,7 @@ const setup = () => {
         calls,
         clock,
         config,
-        connections: store.connections as IConnectionRepository,
+        connections: store.connectionService,
         keyring,
         store,
         vault,
@@ -67,20 +69,23 @@ const throwingKeyring = (error: Error) => (): IKeyring => {
 };
 
 describe('createConnectionConfigStore', () => {
-    it('refuses a store without connections', () => {
+    it('refuses to be built without a connection service', () => {
         const { store, keyring } = setup();
-        const bare: IStore = { ...store, connections: undefined };
 
-        expect(() => createConnectionConfigStore({ store: bare, keyring: () => keyring }))
+        expect(() => createConnectionConfigStore({
+            connectionService: undefined as never,
+            lockService: store.lockService,
+            keyring: () => keyring,
+        }))
             .toThrow(InvalidAgentDefinitionError);
     });
 
     describe('create', () => {
         it('creates a row with a wrapped data key, also without a secret', async () => {
             const {
-                calls, 
-                config, 
-                connections, 
+                calls,
+                config,
+                connections,
             } = setup();
 
             await expect(config.create('mail-work', 'mail', { settings: { host: 'imap.example.org' } })).resolves.toBe(true);
@@ -131,8 +136,16 @@ describe('createConnectionConfigStore', () => {
 
         it('resolves false for a taken name without a keyring', async () => {
             const { store, keyring } = setup();
-            const seeded = createConnectionConfigStore({ store, keyring: () => keyring });
-            const keyless = createConnectionConfigStore({ store, keyring: throwingKeyring(new Error('no keys')) });
+            const seeded = createConnectionConfigStore({
+                connectionService: store.connectionService,
+                lockService: store.lockService,
+                keyring: () => keyring,
+            });
+            const keyless = createConnectionConfigStore({
+                connectionService: store.connectionService,
+                lockService: store.lockService,
+                keyring: throwingKeyring(new Error('no keys')),
+            });
 
             await seeded.create('mail-work', 'mail', {});
 
@@ -155,7 +168,11 @@ describe('createConnectionConfigStore', () => {
         it('rejects with the keyring error and writes nothing, also without a secret', async () => {
             const { store, connections } = setup();
             const failure = new Error('CHAMVI_ENCRYPTION_KEYS is not set');
-            const config = createConnectionConfigStore({ store, keyring: throwingKeyring(failure) });
+            const config = createConnectionConfigStore({
+                connectionService: store.connectionService,
+                lockService: store.lockService,
+                keyring: throwingKeyring(failure),
+            });
 
             await expect(config.create('mail-work', 'mail', { settings: { a: 1 } })).rejects.toBe(failure);
             await expect(connections.findOne('mail-work')).resolves.toBeUndefined();
@@ -177,9 +194,9 @@ describe('createConnectionConfigStore', () => {
 
         it('refuses its config write when another writer filled the row after the insert, keeping that writer\'s config', async () => {
             const { config, connections } = setup();
-            const { insert } = connections;
+            const { create: insert } = connections;
 
-            connections.insert = async (...args) => {
+            connections.create = async (...args) => {
                 const inserted = await insert.apply(connections, args);
 
                 // what a repair of the bare row does while this create is in flight
@@ -259,12 +276,16 @@ describe('createConnectionConfigStore', () => {
     describe('describe', () => {
         it('describe and an env-only read never call the keyring', async () => {
             const {
-                calls, 
-                config, 
-                keyring, 
-                store, 
+                calls,
+                config,
+                keyring,
+                store,
             } = setup();
-            const seeded = createConnectionConfigStore({ store, keyring: () => keyring });
+            const seeded = createConnectionConfigStore({
+                connectionService: store.connectionService,
+                lockService: store.lockService,
+                keyring: () => keyring,
+            });
 
             await seeded.create('secretless', 'mail', { settings: { host: 'a' } });
             await seeded.create('secretive', 'mail', { secrets: { set: { password: PLAINTEXT } } });
@@ -365,10 +386,10 @@ describe('createConnectionConfigStore', () => {
 
         it('a sealed secret does not open as an entry of the same key', async () => {
             const {
-                config, 
-                connections, 
-                store, 
-                vault, 
+                config,
+                connections,
+                store,
+                vault,
             } = setup();
 
             await config.create('shared', 'mail', { secrets: { set: { password: PLAINTEXT } } });
@@ -377,13 +398,13 @@ describe('createConnectionConfigStore', () => {
             const lock = 'connection:shared';
             const owner = 'writer';
 
-            await store.locks.acquire(lock, owner, 1_000);
+            await store.lockService.acquire(lock, owner, 1_000);
             await connections.writeEntries(
                 'shared',
                 { set: { password: stored?.secrets.get('password') as Uint8Array } },
                 { lock, owner },
             );
-            await store.locks.release(lock, owner);
+            await store.lockService.release(lock, owner);
 
             const session = await vault.open('shared', { type: 'mail', owner: 'test' });
 
@@ -401,9 +422,9 @@ describe('createConnectionConfigStore', () => {
 
             await expect(config.read('mail-work')).resolves.toEqual({
                 values: {
-                    host: 'imap.example.org', 
-                    port: 993, 
-                    password: PLAINTEXT, 
+                    host: 'imap.example.org',
+                    port: 993,
+                    password: PLAINTEXT,
                 },
                 revision: 1,
             });
@@ -489,9 +510,9 @@ describe('createConnectionConfigStore', () => {
     describe('update', () => {
         it('saves while another session holds the lease and leaves its entries and data key usable', async () => {
             const {
-                config, 
-                connections, 
-                vault, 
+                config,
+                connections,
+                vault,
             } = setup();
             const session = await vault.open('whatsapp', { type: 'whatsapp', owner: 'other-replica' });
 
@@ -546,8 +567,16 @@ describe('createConnectionConfigStore', () => {
 
         it('needs no keyring for settings and clears', async () => {
             const { store, keyring } = setup();
-            const seeded = createConnectionConfigStore({ store, keyring: () => keyring });
-            const keyless = createConnectionConfigStore({ store, keyring: throwingKeyring(new Error('no keys')) });
+            const seeded = createConnectionConfigStore({
+                connectionService: store.connectionService,
+                lockService: store.lockService,
+                keyring: () => keyring,
+            });
+            const keyless = createConnectionConfigStore({
+                connectionService: store.connectionService,
+                lockService: store.lockService,
+                keyring: throwingKeyring(new Error('no keys')),
+            });
 
             await seeded.create('mail-work', 'mail', { secrets: { set: { password: PLAINTEXT } } });
 
@@ -590,9 +619,9 @@ describe('createConnectionConfigStore', () => {
 
         it('a recreate between read and write surfaces ConnectionChangedError', async () => {
             const {
-                config, 
-                connections, 
-                vault, 
+                config,
+                connections,
+                vault,
             } = setup();
 
             await config.create('mail-work', 'mail', {
@@ -633,13 +662,21 @@ describe('createConnectionConfigStore', () => {
 
         it('saving a secret with a throwing keyring rejects with that error and writes nothing', async () => {
             const {
-                store, 
-                keyring, 
-                connections, 
+                store,
+                keyring,
+                connections,
             } = setup();
-            const seeded = createConnectionConfigStore({ store, keyring: () => keyring });
+            const seeded = createConnectionConfigStore({
+                connectionService: store.connectionService,
+                lockService: store.lockService,
+                keyring: () => keyring,
+            });
             const failure = new Error('CHAMVI_ENCRYPTION_KEYS is not set');
-            const keyless = createConnectionConfigStore({ store, keyring: throwingKeyring(failure) });
+            const keyless = createConnectionConfigStore({
+                connectionService: store.connectionService,
+                lockService: store.lockService,
+                keyring: throwingKeyring(failure),
+            });
 
             await seeded.create('mail-work', 'mail', { settings: { host: 'a' } });
 
@@ -659,23 +696,23 @@ describe('createConnectionConfigStore', () => {
     describe('delete', () => {
         it('removes the connection and releases its one-shot lease', async () => {
             const {
-                config, 
-                connections, 
-                store, 
+                config,
+                connections,
+                store,
             } = setup();
 
             await config.create('mail-work', 'mail', { secrets: { set: { password: PLAINTEXT } } });
             await config.delete('mail-work', 'api');
 
             await expect(connections.findOne('mail-work')).resolves.toBeUndefined();
-            await expect(store.locks.acquire('connection:mail-work', 'next', 1_000)).resolves.toBe(true);
+            await expect(store.lockService.acquire('connection:mail-work', 'next', 1_000)).resolves.toBe(true);
         });
 
         it('delete refuses a held lease', async () => {
             const {
-                config, 
-                connections, 
-                vault, 
+                config,
+                connections,
+                vault,
             } = setup();
             const session = await vault.open('whatsapp', { type: 'whatsapp', owner: 'other-replica' });
 
@@ -688,12 +725,12 @@ describe('createConnectionConfigStore', () => {
         it('acquires under a per-call owner, so one owner cannot pass as a holder', async () => {
             const { config, store } = setup();
             const owners: string[] = [];
-            const { acquire } = store.locks;
+            const { acquire } = store.lockService;
 
-            store.locks.acquire = async (key, owner, ttl) => {
+            store.lockService.acquire = async (key, owner, ttl) => {
                 owners.push(owner);
 
-                return acquire.call(store.locks, key, owner, ttl);
+                return acquire.call(store.lockService, key, owner, ttl);
             };
 
             await config.create('mail-work', 'mail', {});
@@ -719,7 +756,7 @@ describe('createConnectionConfigStore', () => {
             connections.delete = async (name, fence) => {
                 connections.delete = remove;
                 clock.advance(DEFAULT_CONNECTION_LEASE_TTL_MS);
-                expect(await store.locks.acquire('connection:mail-work', 'next', 60_000)).toBe(true);
+                expect(await store.lockService.acquire('connection:mail-work', 'next', 60_000)).toBe(true);
 
                 return remove.call(connections, name, fence);
             };
@@ -730,9 +767,9 @@ describe('createConnectionConfigStore', () => {
 
         it('releases the lease when the delete fails', async () => {
             const {
-                config, 
-                connections, 
-                store, 
+                config,
+                connections,
+                store,
             } = setup();
             const failure = new Error('store down');
 
@@ -742,7 +779,7 @@ describe('createConnectionConfigStore', () => {
             };
 
             await expect(config.delete('mail-work', 'api')).rejects.toBe(failure);
-            await expect(store.locks.acquire('connection:mail-work', 'next', 1_000)).resolves.toBe(true);
+            await expect(store.lockService.acquire('connection:mail-work', 'next', 1_000)).resolves.toBe(true);
         });
     });
 });

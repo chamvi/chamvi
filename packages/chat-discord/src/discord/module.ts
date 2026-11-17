@@ -11,7 +11,7 @@ import { Client } from 'discord.js';
 import { Chat, ConsoleLogger } from 'chat';
 import type { ChatInstance, Message } from 'chat';
 import { ChamviError, InvalidAgentDefinitionError, InvalidRunStateError } from '@chamvi/core';
-import type { Invoker } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 import { isObject } from 'smob';
 import { CHAT_REQUEST_ERROR_CODE, chatChannel, createChatIngressAdapter } from '@chamvi/chat';
 import type { ChatIncoming } from '@chamvi/chat';

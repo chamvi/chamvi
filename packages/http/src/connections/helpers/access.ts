@@ -10,7 +10,7 @@ import type { IConnectionHandle } from '@chamvi/core';
 import { NotFoundError } from '@ebec/http';
 import { forbidden, isGranted } from '../../auth/helpers.ts';
 import type { Principal } from '../../auth/types.ts';
-import type { ConnectionServiceContext } from '../types.ts';
+import type { ConnectionHttpServiceContext } from '../types.ts';
 
 /**
  * The resource attributes of a connection (`{ name, type }`), without
@@ -22,12 +22,12 @@ export function connectionResource(name: string, type: string | undefined): Reco
 }
 
 /** `chamvi_connection_write` for the connection. */
-export function canWrite(ctx: ConnectionServiceContext, principal: Principal, resource: Record<string, unknown>): Promise<boolean> {
+export function canWrite(ctx: ConnectionHttpServiceContext, principal: Principal, resource: Record<string, unknown>): Promise<boolean> {
     return isGranted(principal, Permission.CONNECTION_WRITE, ctx.clock, resource);
 }
 
 /** `chamvi_connection_read` or `chamvi_connection_write` (write implies read). */
-export async function canRead(ctx: ConnectionServiceContext, principal: Principal, resource: Record<string, unknown>): Promise<boolean> {
+export async function canRead(ctx: ConnectionHttpServiceContext, principal: Principal, resource: Record<string, unknown>): Promise<boolean> {
     return await canWrite(ctx, principal, resource) || isGranted(principal, Permission.CONNECTION_READ, ctx.clock, resource);
 }
 
@@ -36,7 +36,7 @@ export async function canRead(ctx: ConnectionServiceContext, principal: Principa
  * `write`: before a 404, so a refusal says nothing about the name.
  */
 export async function assertConnectionAccess(
-    ctx: ConnectionServiceContext,
+    ctx: ConnectionHttpServiceContext,
     principal: Principal,
     resource: Record<string, unknown>,
     write = false,
@@ -47,7 +47,12 @@ export async function assertConnectionAccess(
 }
 
 /** The handle of `name` the principal may read (403, then 404), or may write with `write`. */
-export async function requireHandle(ctx: ConnectionServiceContext, principal: Principal, name: string, write = false): Promise<IConnectionHandle> {
+export async function requireHandle(
+    ctx: ConnectionHttpServiceContext,
+    principal: Principal,
+    name: string,
+    write = false,
+): Promise<IConnectionHandle> {
     const handle = ctx.connections().find((candidate) => candidate.name === name);
 
     await assertConnectionAccess(ctx, principal, connectionResource(name, handle?.type), write);

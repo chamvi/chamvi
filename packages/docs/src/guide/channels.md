@@ -66,7 +66,7 @@ A subscription may carry `concurrencyKey(payload)` and `idempotencyKey(payload)`
 
 ## The envelope
 
-<<< ../../../core/src/trigger/types.ts{ts}
+<<< ../../../store/src/trigger/types.ts{ts}
 
 `dispatch()` takes the envelope without `id` and `receivedAt`; it fills in a random UUID and the current time. `trigger` is the subscription id (`'http'`, `'webhook:/issues'`, ...), `channel` the name of the channel the run came from (`'mcp'` for a run started through `http.on()` over MCP). `address` is where the run came from on that channel, as the channel defines it (the issue for GitHub, a chat recipient); it is stored on the run as `run.address` and is where [`ctx.channels.findOne()`](#outbound-from-tools) answers. An `idempotencyKey`, `concurrencyKey` or `address` above 255 characters or with a NUL is refused (`ValidationError`) before anything is written.
 
@@ -116,7 +116,7 @@ Rules for a channel:
 | `httpChannel()`, `mcpChannel()` | [`@chamvi/http`](/guide/http) | REST `POST /agents/:name/runs`, MCP `run_<agent>` (served by the app's routes) | none |
 | `webhookChannel({ auth })` | [`@chamvi/http`](/guide/http#channels) | `POST /channels/webhook/<agent><path>` | none |
 | `cronChannel()` | [`@chamvi/channel-cron`](/guide/scheduler) | ticks from `start()` | none |
-| `githubChannel({ app })` | [`@chamvi/github`](/deployment/github-app) | signed deliveries at `POST /channels/github` | a comment on an issue or pull request (`owner/repo#n`), deduplicated by a hidden marker |
+| `githubChannel({ app, locks })` | [`@chamvi/github`](/deployment/github-app) | signed deliveries at `POST /channels/github` | a comment on an issue or pull request (`owner/repo#n`), deduplicated by a hidden marker |
 | `openclawChannel({ ... })` | [`@chamvi/channel-openclaw`](/deployment/openclaw) | none | an OpenClaw chat through its hooks endpoint, deduplicated by `Idempotency-Key` |
 | `chatChannel({ ... })` | [`@chamvi/chat`](/reference/chat) | Chat SDK adapters: webhooks at `POST /channels/chat/<adapter>`, socket messages from `start()` | a text message in the chat (approvals as a UI link), at least once |
 | `createWhatsAppChat({ ... })` | [`@chamvi/chat-whatsapp`](/deployment/whatsapp) | WhatsApp Web socket messages from `start()` (a `chatChannel()` with the WhatsApp platform hooks) | a text message in the WhatsApp chat, at least once |
@@ -143,7 +143,7 @@ A dispatch with an [invoker](#the-envelope) claims the key under `<agent>:<chann
 
 Use a key that is stable across redeliveries: a GitHub delivery id, a cron subscription plus its scheduled time, or a key your client sends.
 
-If the store claimed the key but the run was never created (for example `runs.insert` failed right after the claim), the next dispatch with that key creates the run under the reserved id. `runs.insert` is insert-if-absent, so concurrent dispatches create it once.
+If the store claimed the key but the run was never created (for example `runService.create` failed right after the claim), the next dispatch with that key creates the run under the reserved id. `runService.create` is insert-if-absent, so concurrent dispatches create it once.
 
 ## Concurrency keys
 

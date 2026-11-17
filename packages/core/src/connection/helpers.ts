@@ -5,9 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { Connection, ConnectionRecord, ConnectionSecretRecord } from '@chamvi/store';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { CONNECTION_TYPE_MAX_LENGTH, DEFAULT_CONNECTION_LEASE_TTL_MS } from './constants.ts';
-import type { ConnectionOpenOptions, ConnectionOpenOptionsInput } from './types.ts';
+import type { ConnectionConfig, ConnectionOpenOptions, ConnectionOpenOptionsInput } from './types.ts';
 
 /** The longest delay a timer keeps; Node clamps a longer one to 1 ms. The lease deadline waits a whole ttl. */
 const TIMER_MAX_DELAY_MS = 2_147_483_647;
@@ -47,4 +48,32 @@ export function normalizeOpenOptions(input: ConnectionOpenOptionsInput): Connect
     }
 
     return { ...input, leaseTtlMs };
+}
+
+/** A stored connection as the service returns it: no storage id, settings or revision; fresh bytes and dates. */
+export function readConnection(record: ConnectionRecord): Connection {
+    return {
+        name: record.name,
+        type: record.type,
+        keyId: record.keyId,
+        wrappedKey: new Uint8Array(record.wrappedKey),
+        createdAt: new Date(record.createdAt.getTime()),
+        updatedAt: new Date(record.updatedAt.getTime()),
+    };
+}
+
+/** Whether two reads of a connection row hold the same config: the same row, data key and revision. */
+export function isSameConfig(a: ConnectionRecord, b: ConnectionRecord): boolean {
+    return a.id === b.id && a.configRevision === b.configRevision && Buffer.compare(a.wrappedKey, b.wrappedKey) === 0;
+}
+
+/** The config of a connection row and its secrets: fresh copies. */
+export function readConfig(record: ConnectionRecord, secrets: ConnectionSecretRecord[]): ConnectionConfig {
+    return {
+        keyId: record.keyId,
+        wrappedKey: new Uint8Array(record.wrappedKey),
+        settings: structuredClone(record.settings),
+        secrets: new Map(secrets.map((secret) => [secret.name, new Uint8Array(secret.value)])),
+        revision: record.configRevision,
+    };
 }

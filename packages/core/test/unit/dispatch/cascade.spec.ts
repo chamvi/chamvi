@@ -14,7 +14,6 @@ import {
 } from 'vitest';
 import { z } from 'zod';
 import {
-    Engine,
     agent,
     agentChannel,
     defineModelAgent,
@@ -23,12 +22,14 @@ import {
     dispatchTo,
     waitForDispatch,
 } from '@chamvi/core';
-import type { IEngine, IStore, Run } from '@chamvi/core';
-import { createMemoryStore } from '../../../src/repository/index.ts';
+import type { IEngine } from '@chamvi/core';
+import type { Run } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';
 import { gate, nextRun, treeModel } from '../../utils/dispatch.ts';
 import type { ChildTurn, ParentTurn } from '../../utils/dispatch.ts';
 import type { MockPart, MockResponse } from '../../utils/mock-model.ts';
+import { createTestEngine, createTestServices } from '../../utils/engine.ts';
+import type { TestServices } from '../../utils/engine.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 
@@ -96,9 +97,9 @@ function leadAgent(parent: ParentTurn[], child: ChildTurn) {
 
 function build(parent: ParentTurn[], child: ChildTurn, worker: ChildTurn = (_p, options) => hanging(options)) {
     const clock = new ControllableClock(START);
-    const store = createMemoryStore({ clock });
-    const engine = new Engine({
-        store,
+    const store = createTestServices({ clock });
+    const engine = createTestEngine({
+        services: store,
         clock,
         agents: [
             leadAgent(parent, child),
@@ -135,8 +136,8 @@ async function root(engine: IEngine): Promise<string> {
     return runId;
 }
 
-async function children(store: IStore, parentId: string): Promise<Run[]> {
-    const { data } = await store.runs.find({ parentRunId: parentId });
+async function children(store: TestServices, parentId: string): Promise<Run[]> {
+    const { data } = await store.runService.find({ parentRunId: parentId });
 
     return data;
 }
@@ -178,15 +179,15 @@ describe('dispatch cancel cascade', () => {
         const [g] = await children(store, a!.id);
 
         expect(g?.status).toBe('running');
-        expect((await store.runs.findOne(a!.id))?.status).toBe('waiting');
-        expect((await store.runs.findOne(parentId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(a!.id))?.status).toBe('waiting');
+        expect((await store.runService.findOne(parentId))?.status).toBe('waiting');
 
         await engine.cancel(parentId);
         await engine.idle();
 
-        expect((await store.runs.findOne(parentId))?.status).toBe('cancelled');
-        expect((await store.runs.findOne(a!.id))?.status).toBe('cancelled');
-        expect((await store.runs.findOne(g!.id))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(parentId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(a!.id))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(g!.id))?.status).toBe('cancelled');
     });
 
     it('fire-and-forget children are cancelled too', async () => {
@@ -201,7 +202,7 @@ describe('dispatch cancel cascade', () => {
         await engine.cancel(parentId);
         await engine.idle();
 
-        expect((await store.runs.findOne(parentId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(parentId))?.status).toBe('cancelled');
         expect((await children(store, parentId)).map((r) => r.status)).toEqual(['cancelled', 'cancelled']);
     });
 
@@ -239,7 +240,7 @@ describe('dispatch cancel cascade', () => {
         await paused;
 
         // cancelled behind the engine's back: no cascade reaches the child
-        const cancelled = await store.runs.update(parentId, {
+        const cancelled = await store.runService.update(parentId, {
             status: 'cancelled',
             waiting: undefined,
             finishedAt: START,
@@ -252,13 +253,13 @@ describe('dispatch cancel cascade', () => {
         await engine.idle();
         await engine.tick();
 
-        expect((await store.runs.findOne(a!.id))?.status).toBe('completed');
+        expect((await store.runService.findOne(a!.id))?.status).toBe('completed');
 
-        const after = await store.runs.findOne(parentId);
+        const after = await store.runService.findOne(parentId);
 
         expect(after?.status).toBe('cancelled');
         expect(after?.updatedAt).toEqual(cancelled.updatedAt);
-        expect((await store.steps.find(parentId)).filter((s) => s.kind === 'wait')).toHaveLength(0);
+        expect((await store.stepService.find(parentId)).filter((s) => s.kind === 'wait')).toHaveLength(0);
     });
 
     it('a lost cascade is healed by the next tick', async () => {
@@ -270,10 +271,10 @@ describe('dispatch cancel cascade', () => {
         await Promise.all([started, paused]);
 
         // the cascade's read of the children fails once
-        const find = store.runs.find.bind(store.runs);
+        const find = store.runService.find.bind(store.runService);
         let failed = false;
 
-        store.runs.find = async (q) => {
+        store.runService.find = async (q = {}) => {
             if (!failed && q.parentRunId !== undefined && q.status !== undefined) {
                 failed = true;
 
@@ -289,13 +290,13 @@ describe('dispatch cancel cascade', () => {
         const [a] = await children(store, parentId);
 
         expect(failed).toBe(true);
-        expect((await store.runs.findOne(parentId))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(parentId))?.status).toBe('cancelled');
         expect(a?.status).toBe('running');
 
         await engine.tick();
         await engine.idle();
 
-        expect((await store.runs.findOne(a!.id))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(a!.id))?.status).toBe('cancelled');
     });
 
     it('registry replacement cascades', async () => {
@@ -313,17 +314,17 @@ describe('dispatch cancel cascade', () => {
         const [w] = await children(store, parentId);
 
         expect(w?.agent).toBe('worker');
-        expect((await store.runs.findOne(parentId))?.status).toBe('waiting');
+        expect((await store.runService.findOne(parentId))?.status).toBe('waiting');
 
         // the replacement cancels the runs created before it
         clock.advance(1_000);
         await expect(engine.putAgent(leadAgent([], (_payload, options) => hanging(options)))).resolves.toBe('replaced');
         await engine.idle();
 
-        const parent = await store.runs.findOne(parentId);
+        const parent = await store.runService.findOne(parentId);
 
         expect(parent?.status).toBe('cancelled');
         expect(parent?.error?.code).toBe('agent_replaced');
-        expect((await store.runs.findOne(w!.id))?.status).toBe('cancelled');
+        expect((await store.runService.findOne(w!.id))?.status).toBe('cancelled');
     });
 });

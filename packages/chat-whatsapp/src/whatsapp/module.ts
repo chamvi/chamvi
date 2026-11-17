@@ -9,7 +9,7 @@ import { createHash } from 'node:crypto';
 import { makeWASocket } from 'baileys';
 import { Chat } from 'chat';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { Invoker } from '@chamvi/core';
+import type { Invoker } from '@chamvi/store';
 import { isObject } from 'smob';
 import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
 import type { ChatIncoming, ChatPlatformPost } from '@chamvi/chat';

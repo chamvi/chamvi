@@ -19,16 +19,16 @@ import {
 } from '../helpers/index.ts';
 import type {
     ConnectionDetailView,
-    ConnectionServiceContext,
+    ConnectionHttpServiceContext,
     ConnectionView,
-    IConnectionService,
+    IConnectionHttpService,
 } from '../types.ts';
 
 /** The connection handles joined with the declared and stored connections. */
-export class ConnectionService implements IConnectionService {
-    protected ctx: ConnectionServiceContext;
+export class ConnectionHttpService implements IConnectionHttpService {
+    protected ctx: ConnectionHttpServiceContext;
 
-    constructor(ctx: ConnectionServiceContext) {
+    constructor(ctx: ConnectionHttpServiceContext) {
         this.ctx = ctx;
     }
 

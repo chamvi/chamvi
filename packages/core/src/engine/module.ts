@@ -31,13 +31,21 @@ import {
 } from '../conversation/persistence/module.ts';
 import { conversationConcurrencyKey } from '../conversation/helpers.ts';
 import type {
-    ConversationBinding,
-    ConversationIdentity,
     ConversationInspection,
-    ConversationScope,
     ConversationTarget,
     IConversations,
 } from '../conversation/types.ts';
+import type {
+    ApprovalWaitPoint,
+    ConversationBinding,
+    ConversationIdentity,
+    ConversationScope,
+    Run,
+    Step,
+    TriggerEnvelope,
+    TriggerParent,
+    Usage,
+} from '@chamvi/store';
 import { CLOCK_KEY } from '../clock/context.ts';
 import { systemClock } from '../clock/index.ts';
 import type { IClock } from '../clock/index.ts';
@@ -54,14 +62,8 @@ import {
     LeaseLostError,
     ValidationError,
 } from '../errors/index.ts';
-import { RunStatus } from '../run/constants.ts';
+import { RunStatus } from '@chamvi/store';
 import { untilAborted } from '../run/helpers.ts';
-import type {
-    ApprovalWaitPoint,
-    Run,
-    Step,
-    Usage,
-} from '../run/types.ts';
 import { DISPATCH_CONTEXT } from '../dispatch/constants.ts';
 import type { DispatchHost } from '../dispatch/types.ts';
 import { assertDispatchRoles, declaresDispatchRole } from '../dispatch/helpers.ts';
@@ -71,10 +73,19 @@ import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
 import { EngineSkills } from './skills/module.ts';
 import type { IEngineSkills } from './skills/types.ts';
 import type { SkillContribution } from '../skill/types.ts';
-import type { IStore } from '../repository/types.ts';
+import type { ArtifactService } from '../artifact/service.ts';
+import type { CheckpointService } from '../checkpoint/service.ts';
+import type { EffectService } from '../effect/service.ts';
+import type { AgentRevisionService } from '../agent-revision/service.ts';
+import type { ConnectionService } from '../connection/service.ts';
+import type { ConversationService } from '../conversation/service.ts';
+import type { IdempotencyService } from '../idempotency/service.ts';
+import type { LockService } from '../lock/service.ts';
+import type { RunService } from '../run/service.ts';
+import type { StateService } from '../state/service.ts';
+import type { StepService } from '../step/service.ts';
 import { idempotencyScope, toInvoker } from '../trigger/helpers.ts';
 import { assertTriggerKey } from '../trigger/key.ts';
-import type { TriggerEnvelope, TriggerParent } from '../trigger/types.ts';
 import {
     APPROVAL_TIMED_OUT,
     DEFAULT_DRAIN_TIMEOUT_MS,
@@ -113,8 +124,38 @@ import type {
 type ApprovalDecisionInput = Omit<ApprovalAnswer, 'approvalId'>;
 
 export class Engine implements IEngine {
-    /** Persistence capabilities, independently replaceable by packages built on the engine. */
-    readonly store: IStore;
+    /** The rules of runs over the run repository. */
+    readonly runService: RunService;
+
+    /** The steps of runs over the step repository. */
+    readonly stepService: StepService;
+
+    /** The latest checkpoint of each run over the checkpoint repository. */
+    readonly checkpointService: CheckpointService;
+
+    /** Recorded effect results over the effect repository. */
+    readonly effectService: EffectService;
+
+    /** The files of runs over the artifact repository. */
+    readonly artifactService: ArtifactService;
+
+    /** Agent state over the key-value and document repositories. */
+    readonly stateService: StateService;
+
+    /** The revision markers of folder agents over the agent revision repository. */
+    readonly agentRevisionService: AgentRevisionService;
+
+    /** Leases on keys over the lock repository. */
+    readonly lockService: LockService;
+
+    /** Connections over the connection repository, when the store keeps them (unused by the engine). */
+    readonly connectionService: ConnectionService | undefined;
+
+    /** Conversations over the conversation repository, when the store keeps them (the conversation capability needs it). */
+    readonly conversationService: ConversationService | undefined;
+
+    /** The idempotency keys of dispatches over the idempotency repository. */
+    readonly idempotencyService: IdempotencyService;
 
     protected readonly agents: Map<string, Agent>;
 
@@ -225,18 +266,28 @@ export class Engine implements IEngine {
 
     constructor(opts: EngineOptions) {
         this.skills = new EngineSkills(opts.skills);
-        this.store = opts.store;
+        this.runService = opts.runService;
+        this.stepService = opts.stepService;
+        this.checkpointService = opts.checkpointService;
+        this.effectService = opts.effectService;
+        this.artifactService = opts.artifactService;
+        this.stateService = opts.stateService;
+        this.agentRevisionService = opts.agentRevisionService;
+        this.lockService = opts.lockService;
+        this.idempotencyService = opts.idempotencyService;
+        this.connectionService = opts.connectionService;
+        this.conversationService = opts.conversationService;
 
         if (opts.conversations !== undefined) {
-            if (!opts.store.conversations) {
-                throw new InvalidAgentDefinitionError('Conversations need store.conversations.');
+            if (!opts.conversationService) {
+                throw new InvalidAgentDefinitionError('Conversations need a conversation service.');
             }
 
             this.conversations = new Conversations(
                 opts.conversations,
-                opts.store.conversations,
-                opts.store.runs,
-                opts.store.effects,
+                opts.conversationService,
+                opts.runService,
+                opts.effectService,
             );
         }
 
@@ -288,7 +339,8 @@ export class Engine implements IEngine {
         this.onError = opts.onError ?? ((error) => console.error('[chamvi]', error));
 
         this.queue = new RunQueue({
-            store: this.store,
+            lockService: this.lockService,
+            runService: this.runService,
             getAgent: (name) => this.getAgent(name),
             clock: this.clock,
             owner: this.owner,
@@ -386,7 +438,7 @@ export class Engine implements IEngine {
         let runId: string = uuidv7();
 
         if (trigger.idempotencyKey !== undefined) {
-            const claimed = await this.store.idempotency.claim(
+            const claimed = await this.idempotencyService.claim(
                 idempotencyScope(conversation ? {
                     ...trigger,
                     agent: conversation.scope.identity.agent,
@@ -398,7 +450,7 @@ export class Engine implements IEngine {
             );
 
             if (!claimed.created) {
-                const original = await this.store.runs.findOne(claimed.runId);
+                const original = await this.runService.findOne(claimed.runId);
 
                 if (original) {
                     if (conversation && original.conversation?.scope.id !== conversation.scope.id) {
@@ -426,7 +478,7 @@ export class Engine implements IEngine {
 
             for (const [i, attachment] of attachments.entries()) {
                 trigger.attachments.push(await storeArtifact(
-                    this.store.artifacts,
+                    this.artifactService,
                     { id: runId, agent: trigger.agent },
                     attachment,
                     now,
@@ -439,7 +491,7 @@ export class Engine implements IEngine {
             id: runId,
             agent: trigger.agent,
             status: RunStatus.QUEUED,
-            taint: (parent ? (await this.store.runs.findOne(parent.runId))?.taint : undefined) ??
+            taint: (parent ? (await this.runService.findOne(parent.runId))?.taint : undefined) ??
                 (this.channels.get(trigger.channel)?.untrusted ? { at: now, source: `channel:${trigger.channel}` } : undefined),
             trigger,
             concurrencyKey: trigger.concurrencyKey,
@@ -458,7 +510,7 @@ export class Engine implements IEngine {
             run.conversation = structuredClone(conversation);
         }
 
-        if (!await this.store.runs.insert(run)) {
+        if (!await this.runService.create(run)) {
             return { runId, deduplicated: true };
         }
 
@@ -519,7 +571,7 @@ export class Engine implements IEngine {
 
         await capability.repair(copied);
 
-        return capability.repository.reset(copied, { keepNotes: options.keepNotes ?? false });
+        return capability.service.reset(copied, { keepNotes: options.keepNotes ?? false });
     }
 
     async deleteConversation(identity: ConversationIdentity): Promise<void> {
@@ -527,7 +579,7 @@ export class Engine implements IEngine {
         const copied = structuredClone(identity);
 
         await capability.repair(copied);
-        await capability.repository.delete(copied);
+        await capability.service.delete(copied);
     }
 
     pruneConversations(): Promise<void> {
@@ -545,12 +597,12 @@ export class Engine implements IEngine {
             getAgent: (name) => this.agents.get(name),
             hasChannel: (name) => this.channels.has(name),
             clock: this.clock,
-            effects: this.store.effects,
-            runs: this.store.runs,
+            effects: this.effectService,
+            runs: this.runService,
             // a backstop for a parent that settled or paused after dispatch() checked its frame: read
             // before createRun, so a refused child skips the idempotency claim (a read, not a guarded write)
             createRun: async (envelope, parent) => {
-                const stored = await this.store.runs.findOne(parent.runId);
+                const stored = await this.runService.findOne(parent.runId);
 
                 if (stored?.status !== RunStatus.RUNNING) {
                     throw new InvalidRunStateError(`Run "${parent.runId}" is not running: it cannot dispatch a run.`);
@@ -667,7 +719,7 @@ export class Engine implements IEngine {
         assertTriggerKey('idempotency key', input.idempotencyKey);
         assertTriggerKey('concurrency key', input.concurrencyKey);
 
-        const current = await capability.repository.findOne(identity);
+        const current = await capability.service.findOne(identity);
         const proposed = current ?? {
             id: identityId(identity),
             generation: 0,
@@ -678,7 +730,7 @@ export class Engine implements IEngine {
             throw new ValidationError('The conversation concurrency key conflicts with its scope.');
         }
 
-        const scope = await capability.repository.resolve(identity);
+        const scope = await capability.service.resolve(identity);
         const concurrencyKey = conversationConcurrencyKey(scope);
 
         if (input.concurrencyKey !== undefined && input.concurrencyKey !== concurrencyKey) {
@@ -884,7 +936,7 @@ export class Engine implements IEngine {
     }
 
     getRun(id: string): Promise<Run | undefined> {
-        return this.store.runs.findOne(id);
+        return this.runService.findOne(id);
     }
 
     on<T extends EngineEvent['type']>(event: T, listener: (e: Extract<EngineEvent, { type: T }>) => void): () => void {
@@ -1103,7 +1155,7 @@ export class Engine implements IEngine {
      * on every poll. Resolves the number of runs requeued.
      */
     async recover(): Promise<number> {
-        const { data } = await this.store.runs.find({ status: [RunStatus.RUNNING, RunStatus.INTERRUPTED] });
+        const { data } = await this.runService.find({ status: [RunStatus.RUNNING, RunStatus.INTERRUPTED] });
         let requeued = 0;
 
         for (const run of data) {
@@ -1121,7 +1173,7 @@ export class Engine implements IEngine {
 
             try {
                 // atomic: fails while another owner's claim is live
-                if (!await this.store.runs.claim(run.id, this.owner, this.claimTtlMs)) {
+                if (!await this.runService.claim(run.id, this.owner, this.claimTtlMs)) {
                     continue;
                 }
             } catch (error) {
@@ -1131,7 +1183,7 @@ export class Engine implements IEngine {
             }
 
             try {
-                const queued = await this.store.runs.update(run.id, {
+                const queued = await this.runService.update(run.id, {
                     status: RunStatus.QUEUED,
                     claim: undefined,
                     updatedAt: this.clock.now(),
@@ -1141,7 +1193,7 @@ export class Engine implements IEngine {
                 this.emit({ type: 'run.updated', run: queued });
             } catch (error) {
                 // the run settled since it was listed: drop the claim just taken
-                await this.store.runs.update(run.id, { claim: undefined }, { expectOwner: this.owner })
+                await this.runService.update(run.id, { claim: undefined }, { expectOwner: this.owner })
                     .catch(() => {});
 
                 if (!(error instanceof InvalidRunStateError)) {
@@ -1251,7 +1303,7 @@ export class Engine implements IEngine {
             }
 
             // the abort cannot stop a pause that was already writing: cancel the run it left waiting
-            const run = await this.store.runs.findOne(runId);
+            const run = await this.runService.findOne(runId);
 
             if (run?.status === RunStatus.WAITING || run?.status === RunStatus.QUEUED) {
                 await this.cancelStored(runId, [run.status], execution.cancelReason);
@@ -1261,7 +1313,7 @@ export class Engine implements IEngine {
         }
 
         for (let attempt = 0; ; attempt++) {
-            const run = await this.store.runs.findOneOrFail(runId);
+            const run = await this.runService.findOneOrFail(runId);
 
             const { status } = run;
 
@@ -1273,7 +1325,7 @@ export class Engine implements IEngine {
                 if (status === RunStatus.QUEUED || status === RunStatus.WAITING) {
                     await this.cancelStored(runId, [status], reason);
                 } else {
-                    const updated = await this.store.runs.update(runId, {
+                    const updated = await this.runService.update(runId, {
                         cancelRequested: true,
                         ...(reason && { error: reason }),
                         updatedAt: this.clock.now(),
@@ -1297,7 +1349,7 @@ export class Engine implements IEngine {
         await this.conversations?.idle(runId);
 
         const now = this.clock.now();
-        const updated = await this.store.runs.update(
+        const updated = await this.runService.update(
             runId,
             {
                 status: RunStatus.CANCELLED,
@@ -1331,7 +1383,7 @@ export class Engine implements IEngine {
 
         assertSelectionShape(answer.selected);
 
-        const run = await this.store.runs.findOneOrFail(runId);
+        const run = await this.runService.findOneOrFail(runId);
 
         if (run.status === RunStatus.WAITING && run.waiting?.kind === 'dispatch') {
             throw new InvalidRunStateError(`Run "${run.id}" waits on dispatched runs, not on an approval.`);
@@ -1370,7 +1422,7 @@ export class Engine implements IEngine {
     async tick(): Promise<void> {
         const now = this.clock.now().getTime();
         let resumed = false;
-        const { data } = await this.store.runs.find({ status: [RunStatus.WAITING] });
+        const { data } = await this.runService.find({ status: [RunStatus.WAITING] });
 
         for (const listed of data) {
             // a dispatch wait is neither delivered nor denied here
@@ -1388,7 +1440,7 @@ export class Engine implements IEngine {
 
             try {
                 // the listing may be stale by now: the run could wait on a newer approval
-                const run = await this.store.runs.findOne(listed.id);
+                const run = await this.runService.findOne(listed.id);
 
                 if (run?.status !== RunStatus.WAITING || run.waiting?.kind !== 'approval' ||
                     run.waiting.expiresAt.getTime() > now) {
@@ -1493,7 +1545,7 @@ export class Engine implements IEngine {
         stale: () => Error,
     ): Promise<void> {
         const now = this.clock.now();
-        const transitioned = await this.store.runs.update(run.id, {
+        const transitioned = await this.runService.update(run.id, {
             status: RunStatus.QUEUED,
             claim: { owner: this.owner, expiresAt: new Date(now.getTime() + this.claimTtlMs) },
             updatedAt: now,
@@ -1507,11 +1559,11 @@ export class Engine implements IEngine {
                 throw stale();
             }
 
-            await this.store.effects.save(record.key, record.value);
+            await this.effectService.save(record.key, record.value);
 
             const appended: Step = {
                 runId: run.id,
-                index: (await this.store.steps.find(run.id)).length,
+                index: (await this.stepService.find(run.id)).length,
                 kind: 'wait',
                 name: step.name,
                 input: step.input,
@@ -1520,16 +1572,16 @@ export class Engine implements IEngine {
                 finishedAt: now,
             };
 
-            await this.store.steps.insert(appended);
+            await this.stepService.create(appended);
             this.emit({ type: 'step.appended', step: appended });
-            queued = await this.store.runs.update(run.id, {
+            queued = await this.runService.update(run.id, {
                 waiting: undefined,
                 claim: undefined,
                 updatedAt: this.clock.now(),
             }, { expectStatus: [RunStatus.QUEUED] });
         } catch (error) {
             // undo, so the wait point (still on the run) stays answerable
-            await this.store.runs.update(run.id, {
+            await this.runService.update(run.id, {
                 status: RunStatus.WAITING,
                 claim: undefined,
                 updatedAt: this.clock.now(),
@@ -1650,14 +1702,14 @@ export class Engine implements IEngine {
         })), this.claimTtlMs);
 
         try {
-            acquired = await this.store.locks.acquire(lockKey, attempt, this.claimTtlMs);
+            acquired = await this.lockService.acquire(lockKey, attempt, this.claimTtlMs);
 
             if (!acquired) {
                 return;
             }
 
             // another attempt may have delivered it since `run` was read
-            const current = await this.store.runs.findOne(run.id);
+            const current = await this.runService.findOne(run.id);
 
             if (!currentWait(current) || currentWait(current)?.notifiedAt) {
                 return;
@@ -1701,13 +1753,13 @@ export class Engine implements IEngine {
             ]);
 
             // answered meanwhile: nothing left to record
-            if (!currentWait(await this.store.runs.findOne(run.id))) {
+            if (!currentWait(await this.runService.findOne(run.id))) {
                 return;
             }
 
             controller.signal.throwIfAborted();
 
-            const notified = await this.store.runs.update(
+            const notified = await this.runService.update(
                 run.id,
                 { waiting: { ...waiting, notifiedAt: this.clock.now() } },
                 { expectStatus: [RunStatus.WAITING] },
@@ -1723,7 +1775,7 @@ export class Engine implements IEngine {
             timer.clear();
 
             if (acquired) {
-                await this.store.locks.release(lockKey, attempt).catch((releaseError: unknown) => this.onError(releaseError, run));
+                await this.lockService.release(lockKey, attempt).catch((releaseError: unknown) => this.onError(releaseError, run));
             }
         }
     }
@@ -1849,7 +1901,11 @@ export class Engine implements IEngine {
             skills,
             model: agent.definition.model ?? this.model,
             models: this.models,
-            store: this.store,
+            stepService: this.stepService,
+            checkpointService: this.checkpointService,
+            effectService: this.effectService,
+            artifactService: this.artifactService,
+            stateService: this.stateService,
             clock: this.clock,
             signal,
             finish: (patch) => this.finish(run.id, patch),
@@ -1881,7 +1937,7 @@ export class Engine implements IEngine {
     protected async prepareStart(): Promise<(run: Run) => boolean> {
         const folder = this.revisions.values().some((revision) => revision !== undefined);
         const markers = folder ?
-            new Map((await this.store.agentRevisions.find()).map((marker) => [marker.agent, marker.hash])) :
+            new Map((await this.agentRevisionService.find()).map((marker) => [marker.agent, marker.hash])) :
             new Map<string, string>();
 
         return (run) => {
@@ -2005,7 +2061,7 @@ export class Engine implements IEngine {
             return true;
         }
 
-        return (await this.store.agentRevisions.findOne(name))?.hash === revision;
+        return (await this.agentRevisionService.findOne(name))?.hash === revision;
     }
 
     /** A throwing execution fails the run (and releases its claim) instead of leaking. */
@@ -2113,7 +2169,7 @@ export class Engine implements IEngine {
      */
     protected async ownedUpdate(id: string, patch: Partial<Run>): Promise<Run | undefined> {
         try {
-            return await this.store.runs.update(id, patch, { expectStatus: [RunStatus.RUNNING], expectOwner: this.owner });
+            return await this.runService.update(id, patch, { expectStatus: [RunStatus.RUNNING], expectOwner: this.owner });
         } catch (error) {
             if (error instanceof InvalidRunStateError && !await this.ownsRun(id)) {
                 return undefined;
@@ -2125,7 +2181,7 @@ export class Engine implements IEngine {
 
     /** Whether this engine still holds the run's claim; aborts its execution when not. */
     protected async ownsRun(id: string): Promise<boolean> {
-        const run = await this.store.runs.findOne(id);
+        const run = await this.runService.findOne(id);
 
         if (run?.claim?.owner === this.owner) {
             return true;
@@ -2196,7 +2252,9 @@ export class Engine implements IEngine {
 
     protected registry(): RegistryContext {
         return {
-            store: this.store,
+            agentRevisionService: this.agentRevisionService,
+            lockService: this.lockService,
+            runService: this.runService,
             clock: this.clock,
             claimTtlMs: this.claimTtlMs,
             cancel: (runId, reason) => this.cancelRun(runId, reason),
@@ -2206,7 +2264,7 @@ export class Engine implements IEngine {
 
     protected dispatchContext(): DispatchEngineContext {
         return {
-            store: this.store,
+            runService: this.runService,
             clock: this.clock,
             claimTtlMs: this.claimTtlMs,
             resume: (run, waitId, record, step, stale) => this.resume(run, waitId, record, step, stale),

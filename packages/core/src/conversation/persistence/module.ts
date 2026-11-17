@@ -9,13 +9,14 @@ import type { ModelMessage } from 'ai';
 import { isObject } from 'smob';
 import { stableHash } from '../../effect/helpers.ts';
 import { ValidationError } from '../../errors/index.ts';
-import { compareCodePoints } from '../../repository/memory/helpers.ts';
+import { compareCodePoints } from '../helpers.ts';
 import {
     CONVERSATION_FIELD_MAX_LENGTH,
     CONVERSATION_LIMITS_MAX,
     CONVERSATION_NOTE_KEY_MAX_LENGTH,
     CONVERSATION_NOTE_TEXT_MAX_BYTES,
 } from '../constants.ts';
+import type { ResolvedConversationLimits } from '../types.ts';
 import type {
     ConversationIdentity,
     ConversationItem,
@@ -23,8 +24,7 @@ import type {
     ConversationNoteOperation,
     ConversationScope,
     ConversationSnapshot,
-    ResolvedConversationLimits,
-} from '../types.ts';
+} from '@chamvi/store';
 
 const IDENTITY_FIELDS = ['agent', 'channel', 'account', 'chat', 'audience'] as const;
 
@@ -111,6 +111,45 @@ export function userItemId(runId: string): string {
 
 function utf8Bytes(text: string): number {
     return Buffer.byteLength(text, 'utf8');
+}
+
+/**
+ * The size an item counts against `maxHistoryBytes`: its text's UTF-8 byte
+ * length. The service stores it with every item (`ConversationItemRecord.bytes`)
+ * and the recall selects by the stored number, so the two must stay this one
+ * function.
+ */
+export function itemBytes(text: string): number {
+    return utf8Bytes(text);
+}
+
+/**
+ * The history rule: of `items` in chronological order, the newest first,
+ * each taken whole while it fits the remaining `maxHistoryBytes` (an item
+ * that does not fit is skipped and older, smaller ones are still taken),
+ * until `maxItems`; the taken ones in chronological order.
+ */
+export function selectRecent<T>(
+    items: readonly T[],
+    sizeOf: (item: T) => number,
+    limits: Pick<ResolvedConversationLimits, 'maxItems' | 'maxHistoryBytes'>,
+): T[] {
+    const chosen: T[] = [];
+    let used = 0;
+
+    for (let i = items.length - 1; i >= 0 && chosen.length < limits.maxItems; i--) {
+        const item = items[i]!;
+        const bytes = sizeOf(item);
+
+        if (used + bytes > limits.maxHistoryBytes) {
+            continue;
+        }
+
+        used += bytes;
+        chosen.push(item);
+    }
+
+    return chosen.reverse();
 }
 
 /** Refuses a scope whose id is neither a sha256 hex digest nor a UUID or whose generation is no non-negative integer. */
@@ -268,22 +307,7 @@ export function buildSnapshotContent(
     notes: readonly ConversationNote[],
     limits: ResolvedConversationLimits,
 ): Pick<ConversationSnapshot, 'messages' | 'itemIds' | 'noteKeys' | 'omitted'> {
-    const chosen: ConversationItem[] = [];
-    let historyBytes = 0;
-
-    for (let i = items.length - 1; i >= 0 && chosen.length < limits.maxItems; i--) {
-        const item = items[i]!;
-        const bytes = utf8Bytes(item.text);
-
-        if (historyBytes + bytes > limits.maxHistoryBytes) {
-            continue;
-        }
-
-        historyBytes += bytes;
-        chosen.push(item);
-    }
-
-    chosen.reverse();
+    const chosen = selectRecent(items, (item) => itemBytes(item.text), limits);
 
     const byRecency = [...notes].sort((a, b) => (b.updatedAt.getTime() - a.updatedAt.getTime()) ||
         compareCodePoints(a.key, b.key));

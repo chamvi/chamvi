@@ -5,7 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ChannelMessage, TriggerEnvelope } from '@chamvi/core';
+import type { ChannelMessage } from '@chamvi/core';
+import type { TriggerEnvelope } from '@chamvi/store';
 import { createGithubApp } from '@chamvi/github';
 import type { GithubAppOptions, GithubEvent } from '@chamvi/github';
 import { ControllableClock, createFakeGithub } from '@chamvi/test-kit';

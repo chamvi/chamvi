@@ -15,8 +15,8 @@ import {
 } from '../../dispatch/helpers.ts';
 import type { DispatchWaitRecord } from '../../dispatch/types.ts';
 import { ErrorCode, InvalidRunStateError } from '../../errors/index.ts';
-import { RunStatus } from '../../run/constants.ts';
-import type { DispatchWaitPoint, Run } from '../../run/types.ts';
+import { RunStatus } from '@chamvi/store';
+import type { DispatchWaitPoint, Run } from '@chamvi/store';
 import type { CancelReason } from '../registry/types.ts';
 import type { DispatchEngineContext } from './types.ts';
 
@@ -27,7 +27,7 @@ export async function settledOutcomes(
     ctx: DispatchEngineContext,
     waiting: DispatchWaitPoint,
 ): Promise<DispatchWaitRecord | undefined> {
-    const { data } = await ctx.store.runs.find({ ids: [...new Set(waiting.runIds)] });
+    const { data } = await ctx.runService.find({ ids: [...new Set(waiting.runIds)] });
 
     return toWaitRecord(waiting.runIds, data);
 }
@@ -64,9 +64,9 @@ export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: s
 
     for (let hop = 0; next !== undefined && hop <= DISPATCH_DEPTH_MAX; hop++) {
         const id: string = next;
-        let children = (await ctx.store.runs.find({ parentRunId: id })).data;
+        let children = (await ctx.runService.find({ parentRunId: id })).data;
         let subtreeUsage = sumSubtreeUsage(children);
-        let updated: Run = await ctx.store.runs.update(id, { subtreeUsage }, { keepUpdatedAt: true });
+        let updated: Run = await ctx.runService.update(id, { subtreeUsage }, { keepUpdatedAt: true });
 
         ctx.emit(updated);
 
@@ -77,7 +77,7 @@ export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: s
                 break;
             }
 
-            const fresh = new Map((await ctx.store.runs.find({ ids: volatile })).data.map((child) => [child.id, child]));
+            const fresh = new Map((await ctx.runService.find({ ids: volatile })).data.map((child) => [child.id, child]));
 
             children = children.map((child) => fresh.get(child.id) ?? child);
 
@@ -88,7 +88,7 @@ export async function recomputeSubtreeUsage(ctx: DispatchEngineContext, runId: s
             }
 
             subtreeUsage = again;
-            updated = await ctx.store.runs.update(id, { subtreeUsage }, { keepUpdatedAt: true });
+            updated = await ctx.runService.update(id, { subtreeUsage }, { keepUpdatedAt: true });
             ctx.emit(updated);
         }
 
@@ -146,7 +146,7 @@ async function resumeWait(
  * another answer won.
  */
 export async function answerDispatchWait(ctx: DispatchEngineContext, parentId: string): Promise<boolean> {
-    const parent = await ctx.store.runs.findOne(parentId);
+    const parent = await ctx.runService.findOne(parentId);
     const waiting = dispatchWaitOf(parent);
 
     if (!parent || !waiting) {
@@ -174,7 +174,7 @@ export async function answerDispatchWait(ctx: DispatchEngineContext, parentId: s
  * True when this call answered.
  */
 export async function expireDispatchWait(ctx: DispatchEngineContext, parent: Run): Promise<boolean> {
-    const run = await ctx.store.runs.findOne(parent.id);
+    const run = await ctx.runService.findOne(parent.id);
     const waiting = dispatchWaitOf(run);
     const now = ctx.clock.now().getTime();
 
@@ -188,7 +188,7 @@ export async function expireDispatchWait(ctx: DispatchEngineContext, parent: Run
         message: `The dispatched run did not settle before the wait expired at ${waiting.expiresAt.toISOString()}.`,
     };
     const ids = [...new Set(waiting.runIds)];
-    const { data } = await ctx.store.runs.find({ ids });
+    const { data } = await ctx.runService.find({ ids });
 
     for (const child of data) {
         if (child.parentRunId !== run.id || isSettled(child) || child.cancelRequested) {
@@ -204,7 +204,7 @@ export async function expireDispatchWait(ctx: DispatchEngineContext, parent: Run
     }
 
     // the cancels' pushes may have answered already (resumeWait then loses)
-    const { data: after } = await ctx.store.runs.find({ ids });
+    const { data: after } = await ctx.runService.find({ ids });
     const landing = after.some((child) => child.parentRunId === run.id && !isSettled(child));
 
     if (landing && now < waiting.expiresAt.getTime() + ctx.claimTtlMs) {
@@ -250,7 +250,7 @@ export async function healDispatchWaits(ctx: DispatchEngineContext, waiting: Run
     }
 
     const ids = new Set(open.flatMap((run) => dispatchWaitOf(run)!.runIds));
-    const { data } = await ctx.store.runs.find({ ids: [...ids] });
+    const { data } = await ctx.runService.find({ ids: [...ids] });
 
     for (const run of open) {
         if (!toWaitRecord(dispatchWaitOf(run)!.runIds, data)) {
@@ -273,7 +273,7 @@ export async function healDispatchWaits(ctx: DispatchEngineContext, waiting: Run
  * down from their own settle. A run another run owns is never reached.
  */
 export async function cancelChildren(ctx: DispatchEngineContext, runId: string, reason?: CancelReason): Promise<void> {
-    const { data } = await ctx.store.runs.find({ parentRunId: runId, status: UNSETTLED });
+    const { data } = await ctx.runService.find({ parentRunId: runId, status: UNSETTLED });
 
     for (const child of data) {
         try {
@@ -297,14 +297,14 @@ export async function cancelChildren(ctx: DispatchEngineContext, runId: string, 
  * cascade goes on down from each cancel's own settle, or from the next tick.
  */
 export async function healCancelCascade(ctx: DispatchEngineContext): Promise<void> {
-    const { data } = await ctx.store.runs.find({ status: UNSETTLED, hasParent: true });
+    const { data } = await ctx.runService.find({ status: UNSETTLED, hasParent: true });
     const orphans = data.filter((run) => run.parentRunId !== undefined && !run.cancelRequested);
 
     if (orphans.length === 0) {
         return;
     }
 
-    const { data: parents } = await ctx.store.runs.find({ ids: [...new Set(orphans.map((run) => run.parentRunId!))] });
+    const { data: parents } = await ctx.runService.find({ ids: [...new Set(orphans.map((run) => run.parentRunId!))] });
     const cancelled = new Set(parents.filter((run) => run.status === RunStatus.CANCELLED).map((run) => run.id));
 
     for (const child of orphans) {

@@ -23,8 +23,9 @@ import type {
     BashResult,
     GrepResult,
 } from '@chamvi/coding';
-import { SandboxError, createAgentState, createMemoryStore } from '@chamvi/core';
+import { SandboxError, createAgentState } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
+import { createTestEngine } from '@chamvi/test-kit';
 import { createWorkspaceManager } from '@chamvi/sandbox';
 import type { IWorkspaceManager } from '@chamvi/sandbox';
 import { createDockerSandbox } from '@chamvi/sandbox-docker';
@@ -55,7 +56,7 @@ function toolContext(runId: string): ToolContext {
             },
             signal: new AbortController().signal,
         },
-        state: createAgentState('coder', undefined, createMemoryStore().state),
+        state: createAgentState('coder', undefined, createTestEngine({ agents: [] }).stateService),
         artifacts: {
             // read_file stores the images it shows
             put: async (input) => ({

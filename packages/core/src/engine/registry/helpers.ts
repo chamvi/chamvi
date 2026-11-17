@@ -52,7 +52,7 @@ export async function withAgentLock<T>(ctx: RegistryContext, name: string, fn: (
     const owner = randomUUID();
     const deadline = ctx.clock.now().getTime() + AGENT_LOCK_TTL_MS;
 
-    while (!await ctx.store.locks.acquire(key, owner, AGENT_LOCK_TTL_MS)) {
+    while (!await ctx.lockService.acquire(key, owner, AGENT_LOCK_TTL_MS)) {
         if (ctx.clock.now().getTime() >= deadline) {
             throw new InvalidRunStateError(`The registry lock of agent "${name}" was not released within ${AGENT_LOCK_TTL_MS}ms.`);
         }
@@ -63,6 +63,6 @@ export async function withAgentLock<T>(ctx: RegistryContext, name: string, fn: (
     try {
         return await fn();
     } finally {
-        await ctx.store.locks.release(key, owner).catch((error: unknown) => ctx.onError(error));
+        await ctx.lockService.release(key, owner).catch((error: unknown) => ctx.onError(error));
     }
 }
