@@ -41,18 +41,31 @@ afterEach(async () => {
 });
 
 type Sent = {
-    message: ChannelMessage; 
-    address: string; 
-    options: ChannelSendOptions 
+    message: ChannelMessage;
+    address: string;
+    options: ChannelSendOptions;
 };
 
-/** A fake chat channel recording every `out`; `fail` makes the next sends reject. */
+/**
+ * A fake chat channel recording every `out`; `fail` makes the next sends
+ * reject, `gate` holds a send until it resolves (`started` counts the calls).
+ */
 function chatChannel() {
     const sent: Sent[] = [];
-    const state = { fail: 0 };
+    const state: {
+        fail: number; 
+        started: number; 
+        gate?: Promise<void> 
+    } = { fail: 0, started: 0 };
     const channel: IChannel = {
         name: 'chat',
         out: async (message, address, options) => {
+            state.started++;
+
+            if (state.gate) {
+                await state.gate;
+            }
+
             if (state.fail > 0) {
                 state.fail--;
 
@@ -222,6 +235,56 @@ describe('the stand-in run: remote approvals', () => {
         expect(chat.sent).toHaveLength(1);
         expect(chat.sent[0]!.message.body).toMatch(/dashboard/);
         expect(chat.sent[0]!.message.body).not.toMatch(/https?:/);
+    });
+
+    it('sends one notification per key across two engines on one store', async () => {
+        const {
+            engine,
+            store,
+            peers,
+            chat,
+            replica,
+        } = setup();
+        const other = replica();
+        const gate = Promise.withResolvers<void>();
+
+        engines.push(other);
+        chat.state.gate = gate.promise;
+        peers.script('start', { runId: 'r1' });
+        peers.script('read', waitingView('r1', PUSH));
+
+        const runId = await startStandIn(engine);
+
+        // A polls, stores the approval and is inside `out`
+        await engine.tick();
+
+        while (chat.state.started === 0) {
+            await new Promise<void>((resolve) => {
+                setTimeout(resolve, 1);
+            });
+        }
+
+        // B (and A's own retry) see the approval not yet notified: the notify lock is held
+        await other.tick();
+        await engine.tick();
+        await new Promise<void>((resolve) => {
+            setTimeout(resolve, 10);
+        });
+
+        expect(chat.state.started).toBe(1);
+
+        gate.resolve();
+        await Promise.all([engine.idle(), other.idle()]);
+        await tickIdle(other);
+        await tickIdle(engine);
+
+        expect(peers.calls.read).toHaveLength(1);
+        expect(chat.state.started).toBe(1);
+        expect(chat.sent.map((item) => item.message.key)).toEqual([`${runId}:remote:r1:0:c1:0`]);
+
+        const run = await readRun(store, runId);
+
+        expect(run.waiting?.kind === 'remote' ? run.waiting.remote?.approval?.notifiedAt : undefined).toBeInstanceOf(Date);
     });
 
     it('retries a failed notification on the next tick without a new read', async () => {

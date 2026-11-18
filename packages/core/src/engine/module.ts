@@ -71,6 +71,7 @@ import {
 } from '../errors/index.ts';
 import { RunStatus } from '@chamvi/store';
 import { untilAborted } from '../run/helpers.ts';
+import { deliverOnce } from './notify/module.ts';
 import { DISPATCH_CONTEXT } from '../dispatch/constants.ts';
 import type { DispatchHost } from '../dispatch/types.ts';
 import { assertDispatchRoles, declaresDispatchRole } from '../dispatch/helpers.ts';
@@ -1769,9 +1770,6 @@ export class Engine implements IEngine {
         }
 
         const key = `${run.id}:${waiting.approvalId}`;
-        const lockKey = `notify:${key}`;
-        const attempt = randomUUID();
-        let acquired = false;
         const currentWait = (current: Run | undefined): ApprovalWaitPoint | undefined => (
             current?.status === RunStatus.WAITING && current.waiting?.kind === 'approval' &&
             current.waiting.approvalId === waiting.approvalId ?
@@ -1782,40 +1780,27 @@ export class Engine implements IEngine {
 
         this.deliveryControllers.add(controller);
 
-        const timer = this.clock.setTimeout(() => controller.abort(new ChamviError({
-            message: `Channel "${channel.name}" did not deliver approval "${waiting.approvalId}" within ${this.claimTtlMs}ms.`,
-            code: ErrorCode.TIMEOUT,
-        })), this.claimTtlMs);
-
-        timer.unref?.();
-
         try {
-            acquired = await this.lockService.acquire(lockKey, attempt, this.claimTtlMs);
+            await deliverOnce({
+                clock: this.clock,
+                lockService: this.lockService,
+                claimTtlMs: this.claimTtlMs,
+                onError: (error, failed) => this.onError(error, failed),
+            }, {
+                key,
+                run,
+                signal: controller.signal,
+                timeout: () => new ChamviError({
+                    message: `Channel "${channel.name}" did not deliver approval "${waiting.approvalId}" within ${this.claimTtlMs}ms.`,
+                    code: ErrorCode.TIMEOUT,
+                }),
+                // another attempt may have delivered it since `run` was read
+                pending: async () => {
+                    const current = currentWait(await this.runService.findOne(run.id));
 
-            if (!acquired) {
-                return;
-            }
-
-            // another attempt may have delivered it since `run` was read
-            const current = await this.runService.findOne(run.id);
-
-            if (!currentWait(current) || currentWait(current)?.notifiedAt) {
-                return;
-            }
-
-            controller.signal.throwIfAborted();
-
-            const aborted = new Promise<never>((_, reject) => {
-                if (controller.signal.aborted) {
-                    reject(controller.signal.reason);
-                }
-
-                controller.signal.addEventListener('abort', () => reject(controller.signal.reason), { once: true });
-            });
-
-            // a transport that ignores the signal must not hold the pause (or tick) forever
-            await Promise.race([
-                channel.out({
+                    return current !== undefined && !current.notifiedAt;
+                },
+                send: (signal) => channel.out!({
                     kind: 'approval',
                     key,
                     runId: run.id,
@@ -1836,35 +1821,31 @@ export class Engine implements IEngine {
                         } :
                         {}),
                     ...(waiting.multiple === true ? { multiple: true } : {}),
-                }, waiting.address ?? '', { signal: controller.signal, trigger: run.trigger }),
-                aborted,
-            ]);
+                }, waiting.address ?? '', { signal, trigger: run.trigger }),
+                record: async (signal) => {
+                    // answered meanwhile: nothing left to record
+                    if (!currentWait(await this.runService.findOne(run.id))) {
+                        return;
+                    }
 
-            // answered meanwhile: nothing left to record
-            if (!currentWait(await this.runService.findOne(run.id))) {
-                return;
-            }
+                    signal.throwIfAborted();
 
-            controller.signal.throwIfAborted();
+                    const notified = await this.runService.update(
+                        run.id,
+                        { waiting: { ...waiting, notifiedAt: new Date(this.clock.now()) } },
+                        { expectStatus: [RunStatus.WAITING] },
+                    );
 
-            const notified = await this.runService.update(
-                run.id,
-                { waiting: { ...waiting, notifiedAt: new Date(this.clock.now()) } },
-                { expectStatus: [RunStatus.WAITING] },
-            );
-
-            this.emit({ type: 'run.updated', run: notified });
-        } catch (error) {
-            if (!(error instanceof InvalidRunStateError) && (!this.draining || !controller.signal.aborted)) {
-                this.onError(error, run);
-            }
+                    this.emit({ type: 'run.updated', run: notified });
+                },
+                fail: (error, signal) => {
+                    if (!this.draining || !signal.aborted) {
+                        this.onError(error, run);
+                    }
+                },
+            });
         } finally {
             this.deliveryControllers.delete(controller);
-            timer.clear();
-
-            if (acquired) {
-                await this.lockService.release(lockKey, attempt).catch((releaseError: unknown) => this.onError(releaseError, run));
-            }
         }
     }
 

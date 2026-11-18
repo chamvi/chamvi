@@ -11,6 +11,7 @@ import type { Invoker, RemoteWaitPoint, Run } from '@chamvi/store';
 import type { RemoteAgent } from '../../agent/types.ts';
 import { ChannelNotFoundError, InvalidRunStateError, TimeoutError } from '../../errors/index.ts';
 import type { PeerRunView } from '../../peer/types.ts';
+import { deliverOnce } from '../notify/module.ts';
 import {
     isSameApproval,
     nextRemoteState,
@@ -25,7 +26,6 @@ import {
     remoteWaitKey,
     remoteWaitOf,
     retryAfterOf,
-    untilAborted,
 } from './helpers.ts';
 import type { RemoteAnswerContext, RemoteEngineContext, RemoteOutcome } from './types.ts';
 
@@ -287,83 +287,66 @@ export async function deliverRemoteApproval(ctx: RemoteEngineContext, runId: str
     }
 
     const key = remoteNotifyKey(run.id, approval);
-    const lockKey = `notify:${key}`;
-    const attempt = randomUUID();
 
-    if (!await ctx.lockService.acquire(lockKey, attempt, ctx.claimTtlMs)) {
-        return;
-    }
-
-    const deadline = new AbortController();
-    const timer = ctx.clock.setTimeout(() => deadline.abort(new TimeoutError(
-        ctx.claimTtlMs,
-        `Channel "${channel.name}" did not deliver remote approval "${approval.approvalId}" within ${ctx.claimTtlMs}ms.`,
-    )), ctx.claimTtlMs);
-
-    timer.unref?.();
-
-    const combined = AbortSignal.any([signal, deadline.signal]);
-
-    try {
+    await deliverOnce(ctx, {
+        key,
+        run,
+        signal,
+        timeout: () => new TimeoutError(
+            ctx.claimTtlMs,
+            `Channel "${channel.name}" did not deliver remote approval "${approval.approvalId}" within ${ctx.claimTtlMs}ms.`,
+        ),
         // another attempt may have delivered it since `run` was read
-        const fresh = remoteWaitOf(await ctx.runService.findOne(run.id))?.remote?.approval;
+        pending: async () => {
+            const fresh = remoteWaitOf(await ctx.runService.findOne(run.id))?.remote?.approval;
 
-        if (!fresh || !isSameApproval(fresh, approval) || fresh.notifiedAt) {
-            return;
-        }
-
-        const where = approval.url === undefined ?
-            'waits in the dashboard of peer' :
-            'waits at peer';
-        const body = `An approval of remote agent "${waiting.agent}" ${where} "${waiting.peer}"${ 
-            approval.url === undefined ? '.' : `: ${approval.url}`}`;
-
-        await untilAborted(combined, () => channel.out!({
+            return fresh !== undefined && isSameApproval(fresh, approval) && !fresh.notifiedAt;
+        },
+        send: (sendSignal) => channel.out!({
             kind: 'message',
             key,
             runId: run.id,
             agent: run.agent,
             title: approval.title,
-            body,
-        }, destination.address, { signal: combined, trigger: run.trigger }));
+            body: approval.url === undefined ?
+                `An approval of remote agent "${waiting.agent}" waits in the dashboard of peer "${waiting.peer}".` :
+                `An approval of remote agent "${waiting.agent}" waits at peer "${waiting.peer}": ${approval.url}`,
+        }, destination.address, { signal: sendSignal, trigger: run.trigger }),
+        // merged into the locked wait point; an approval that changed meanwhile records nothing
+        record: async (recordSignal) => {
+            recordSignal.throwIfAborted();
 
-        combined.throwIfAborted();
+            const notified = await ctx.runService.updateWith(
+                run.id,
+                (stored) => {
+                    const current = remoteWaitOf(stored);
+                    const pending = current?.remote?.approval;
 
-        const notified = await ctx.runService.updateWith(
-            run.id,
-            (stored) => {
-                const current = remoteWaitOf(stored);
-                const pending = current?.remote?.approval;
+                    if (!current?.remote || !pending || !isSameApproval(pending, approval)) {
+                        throw new InvalidRunStateError(`Run "${run.id}" moved on from remote approval "${approval.approvalId}".`);
+                    }
 
-                if (!current?.remote || !pending || !isSameApproval(pending, approval)) {
-                    throw new InvalidRunStateError(`Run "${run.id}" moved on from remote approval "${approval.approvalId}".`);
-                }
+                    return {
+                        waiting: {
+                            ...current,
+                            remote: { ...current.remote, approval: { ...pending, notifiedAt: new Date(ctx.clock.now()) } },
+                        },
+                    };
+                },
+                {
+                    expectStatus: [RunStatus.WAITING],
+                    expectWaitId: waiting.id,
+                    keepUpdatedAt: true,
+                },
+            );
 
-                return {
-                    waiting: {
-                        ...current,
-                        remote: { ...current.remote, approval: { ...pending, notifiedAt: new Date(ctx.clock.now()) } },
-                    },
-                };
-            },
-            {
-                expectStatus: [RunStatus.WAITING],
-                expectWaitId: waiting.id,
-                keepUpdatedAt: true,
-            },
-        );
-
-        ctx.emit(notified);
-    } catch (error) {
-        // answered, cancelled or moved on to another approval meanwhile: nothing left to record
-        if (!(error instanceof InvalidRunStateError)) {
+            ctx.emit(notified);
+        },
+        // to detach(): onError, except an abort by drain
+        fail: (error) => {
             throw error;
-        }
-    } finally {
-        timer.clear();
-
-        await ctx.lockService.release(lockKey, attempt).catch((releaseError: unknown) => ctx.onError(releaseError, run));
-    }
+        },
+    });
 }
 
 /**

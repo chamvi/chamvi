@@ -108,20 +108,6 @@ export function nextRemoteState(
     };
 }
 
-/**
- * Settles `call` or rejects with `signal`'s reason once it aborts: a
- * transport that ignores the signal does not hold the caller.
- */
-export async function untilAborted<T>(signal: AbortSignal, call: () => Promise<T>): Promise<T> {
-    signal.throwIfAborted();
-
-    const aborted = new Promise<never>((_, reject) => {
-        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
-    });
-
-    return Promise.race([Promise.try(call), aborted]);
-}
-
 /** The store lock of a stand-in's poll window. */
 export function remotePollKey(runId: string): string {
     return `remote-poll:${runId}`;
