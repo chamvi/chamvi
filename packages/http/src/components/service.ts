@@ -7,6 +7,7 @@
 
 import { Permission } from '@chamvi/access';
 import type { ChannelStatus, IClock } from '@chamvi/core';
+import { isObject } from 'smob';
 import { assertGranted } from '../auth/helpers.ts';
 import type { Principal } from '../auth/types.ts';
 import type {
@@ -21,7 +22,8 @@ const TIMES = ['lastSuccessAt', 'lastErrorAt', 'lastRunAt', 'runningSince'] as c
 /**
  * The background jobs and the channels with a `status()`, for a holder of
  * `chamvi_component_read`. A `status()` that throws lists its entry without
- * times and goes to `onError`.
+ * times and goes to `onError`; one that returns no object lists it without
+ * times.
  */
 export class ComponentService implements IComponentService {
     protected ctx: ComponentServiceContext;
@@ -59,6 +61,11 @@ export class ComponentService implements IComponentService {
 
         try {
             status = read();
+
+            // a third-party status() that returns no object (undefined, null) has no times to list
+            if (!isObject(status)) {
+                return view;
+            }
         } catch (error) {
             this.ctx.onError(error);
 

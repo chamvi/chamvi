@@ -160,6 +160,24 @@ describe('GET /components', () => {
         });
     });
 
+    it('lists an entry whose status() returns no object without times', async () => {
+        const errors: unknown[] = [];
+        const { app } = createTestApp({
+            components: () => [
+                component('empty', () => undefined as unknown as ChannelStatus),
+                component('null', () => null as unknown as ChannelStatus),
+            ],
+            onError: (error) => {
+                errors.push(error);
+            },
+        });
+        const { response, body } = await list(app, ADMIN_TOKEN);
+
+        expect(response.status).toBe(200);
+        expect(body).toEqual({ data: [{ name: 'empty', kind: 'job' }, { name: 'null', kind: 'job' }] });
+        expect(errors).toEqual([]);
+    });
+
     it('answers an empty list without components and without a channel that reports a status', async () => {
         const { app } = createTestApp();
         const result = await list(app, ADMIN_TOKEN);
