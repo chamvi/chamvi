@@ -36,7 +36,7 @@ A connection is one configured account of a provider, in three tiers: plain sett
 | `app/src/keyring/` | `readKeyring(env)`, `ENV_ENCRYPTION_KEYS` |
 | `app/src/module/helpers.ts` | `readStoredConnections()`, `connectionIssuesOf()` (the `start --check` issues) |
 | `{tool-mail,tool-calendar,github,chat-discord}/src/module/` | The connection type of each (`type.ts`) over `readStoredConnections()`; `test` in `client/login.ts`, `app/verify.ts`, `discord/verify.ts` |
-| `ui-kit/src/connections/` | `createConnectionsApi()`, `openConnectionStream()` (`api.ts`), `useConnections()`, `useConnection()` (`composables.ts`), `statusBadge()`, `connectionBadge()`, `connectionProblem()` (`helpers.ts`), form state (`form.ts`), `STATUS_BADGES`, `CONNECTIONS_POLL_MS`, `StatusBadge.vue`, `ConnectionPanel.vue`, `ConnectionForm.vue`, `ConnectionsPage.vue` |
+| `ui-kit/src/connections/` | `useConnections()`, `useConnection()` (`composables.ts`), `statusBadge()`, `connectionBadge()`, `connectionProblem()` (`helpers.ts`), form state (`form.ts`), `STATUS_BADGES`, `CONNECTIONS_POLL_MS`, `StatusBadge.vue`, `ConnectionPanel.vue`, `ConnectionForm.vue`, `ConnectionsPage.vue`; the routes and `openConnectionStream()` live in `@chamvi/http-kit` (`domains/connection/`) |
 | `chat-whatsapp-ui/app/` | The WhatsApp page: `App.vue`, `QrWidget.vue`, `qrDataUrl()` (`helpers.ts`) |
 
 ## Testing

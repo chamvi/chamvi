@@ -2,7 +2,7 @@
     "name": "@chamvi/ui-kit",
     "version": "0.8.0",
     "type": "module",
-    "description": "The shared base of the chamvi dashboard and its *-ui pages: API client, session, shell pieces, connection components and the page bootstrap.",
+    "description": "The shared base of the chamvi dashboard and its *-ui pages: session, shell pieces, connection components and the page bootstrap, over @chamvi/http-kit.",
     "author": {
         "name": "Peter Placzek",
         "email": "contact@tada5hi.net",
