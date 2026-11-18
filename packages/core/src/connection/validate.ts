@@ -13,15 +13,64 @@ import {
     CONNECTION_SECRET_FIELD_MAX_LENGTH,
     CONNECTION_TYPE_MAX_LENGTH,
 } from './constants.ts';
-import type { ConnectionConfigWrite, ConnectionEntryWrite } from './types.ts';
+import type { ConnectionConfigWrite, ConnectionEntryWrite, ConnectionValue } from './types.ts';
 import type { ConnectionInput } from '@chamvi/store';
 
-// well-formed UTF-16: a lone surrogate would be stored as U+FFFD in Postgres and seal to a shared AAD
-const isText = (value: unknown, max: number): value is string => typeof value === 'string' &&
-    value.length > 0 &&
-    value.length <= max &&
+/**
+ * Text every driver stores as given: well-formed UTF-16 (a lone surrogate
+ * would be stored as U+FFFD in Postgres and seal to a shared AAD) without
+ * NUL (which a Postgres `jsonb` or `varchar` refuses).
+ */
+export const isStorableConnectionText = (value: unknown): value is string => typeof value === 'string' &&
     !value.includes('\0') &&
     value.isWellFormed();
+
+const isText = (value: unknown, max: number): value is string => isStorableConnectionText(value) &&
+    value.length > 0 &&
+    value.length <= max;
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+    if (!isObject(value)) {
+        return false;
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+
+    return prototype === Object.prototype || prototype === null;
+};
+
+const isSettingValue = (value: unknown): boolean => {
+    if (typeof value === 'number') {
+        return Number.isFinite(value);
+    }
+
+    if (Array.isArray(value)) {
+        return value.every(isStorableConnectionText);
+    }
+
+    return typeof value === 'boolean' || isStorableConnectionText(value);
+};
+
+/**
+ * Plain settings every driver stores and reads back alike: a plain object
+ * whose keys are storable text and whose values are storable text, finite
+ * numbers, booleans or arrays of storable text; a ValidationError otherwise
+ * (no key or value is echoed).
+ */
+export function assertConnectionSettings(settings: unknown): asserts settings is Record<string, ConnectionValue> {
+    if (!isPlainObject(settings)) {
+        throw new ValidationError('Connection settings must be a plain object.');
+    }
+
+    for (const key of Object.keys(settings)) {
+        if (!isStorableConnectionText(key) || !isSettingValue(settings[key])) {
+            throw new ValidationError(
+                'A connection setting must have a well-formed key without NUL and a value of well-formed text without NUL, ' +
+                'a finite number, a boolean or a list of such text.',
+            );
+        }
+    }
+}
 
 const isDate = (value: unknown): value is Date => value instanceof Date && !Number.isNaN(value.getTime());
 
@@ -90,8 +139,8 @@ export function assertConnectionConfigWrite(write: unknown, expected: unknown): 
         throw new ValidationError('An expected connection generation must be a string.');
     }
 
-    if (write.settings !== undefined && !isObject(write.settings)) {
-        throw new ValidationError('A connection config write settings must be an object.');
+    if (write.settings !== undefined) {
+        assertConnectionSettings(write.settings);
     }
 
     if (write.setSecrets !== undefined) {

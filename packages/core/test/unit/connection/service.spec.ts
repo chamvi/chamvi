@@ -557,7 +557,8 @@ describe('ConnectionService', () => {
             settings: {
                 host: 'imap.example',
                 port: 993,
-                nested: { tls: true, list: ['a'] },
+                tls: true,
+                list: ['a'],
             },
             setSecrets: { password: bytes(1, 2), token: bytes(3) },
         }, { wrappedKey: key })).toBe(1);
@@ -567,7 +568,8 @@ describe('ConnectionService', () => {
         expect(first.settings).toEqual({
             host: 'imap.example',
             port: 993,
-            nested: { tls: true, list: ['a'] },
+            tls: true,
+            list: ['a'],
         });
         expect(plain(first.secrets)).toEqual({ password: [1, 2], token: [3] });
         expect(first.revision).toBe(1);
@@ -768,6 +770,49 @@ describe('ConnectionService', () => {
         expect(await connections.findOneOrFail('wa')).toStrictEqual(before);
     });
 
+    it('refuses an unstorable settings value with ValidationError, naming no value, and writes nothing', async () => {
+        const { connections } = setup();
+        const key = makeConnection('wa').wrappedKey;
+
+        await connections.create(makeConnection('wa'));
+
+        const refused: Record<string, unknown>[] = [
+            { a: 'x\0secret-nul' },
+            { a: 'secret\ud800' },
+            { a: undefined },
+            { a: new Date(0) },
+            { a: () => 1 },
+            { a: { b: 1 } },
+            { a: null },
+            { a: Number.NaN },
+            { a: Number.POSITIVE_INFINITY },
+            { a: ['ok', 1] },
+            { a: ['secret\0'] },
+            { ['k\0']: 'v' },
+            Object.assign(Object.create({ inherited: 1 }), { a: 'x' }),
+        ];
+
+        for (const settings of refused) {
+            const refusal = connections.writeConfig('wa', { settings }, { wrappedKey: key });
+
+            await expect(refusal).rejects.toBeInstanceOf(ValidationError);
+            await expect(refusal).rejects.not.toThrow(/secret/);
+        }
+
+        expect(await connections.findConfig('wa')).toMatchObject({ settings: {}, revision: 0 });
+
+        const accepted = {
+            s: 'x',
+            n: 1.5,
+            b: false,
+            l: ['a', 'b'],
+            empty: [],
+        };
+
+        expect(await connections.writeConfig('wa', { settings: accepted }, { wrappedKey: key })).toBe(1);
+        expect((await connections.findConfig('wa'))!.settings).toEqual(accepted);
+    });
+
     it('a config write of an absent connection is RepositoryNotFoundError', async () => {
         const { connections } = setup();
 
@@ -900,25 +945,25 @@ describe('ConnectionService', () => {
         await connections.create(makeConnection('wa', { wrappedKey: bytes(1, 2, 3) }));
 
         const secret = bytes(1, 2);
-        const settings = { nested: { a: 1 } };
+        const settings = { list: ['a'] };
 
         await connections.writeConfig('wa', { settings, setSecrets: { s: secret, empty: new Uint8Array(0) } }, { wrappedKey: key });
         secret[0] = 99;
-        settings.nested.a = 99;
+        settings.list[0] = 'z';
 
         const read = (await connections.findConfig('wa'))!;
 
         expect(Object.getPrototypeOf(read.secrets.get('s'))).toBe(Uint8Array.prototype);
         expect(Array.from(read.secrets.get('s')!)).toEqual([1, 2]);
         expect(read.secrets.get('empty')!.length).toBe(0);
-        expect(read.settings).toEqual({ nested: { a: 1 } });
+        expect(read.settings).toEqual({ list: ['a'] });
         read.secrets.get('s')![0] = 99;
-        (read.settings.nested as { a: number }).a = 99;
+        (read.settings.list as string[])[0] = 'z';
 
         const again = (await connections.findConfig('wa'))!;
 
         expect(Array.from(again.secrets.get('s')!)).toEqual([1, 2]);
-        expect(again.settings).toEqual({ nested: { a: 1 } });
+        expect(again.settings).toEqual({ list: ['a'] });
     });
 
     it('findConfig sees one consistent revision', async () => {

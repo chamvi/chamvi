@@ -14,6 +14,7 @@ import {
     LeaseLostError, 
     LockService, 
     RepositoryNotFoundError, 
+    ValidationError,
 } from '@chamvi/core';
 import type { ConnectionInput } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
@@ -313,6 +314,50 @@ describePostgres('connection service in postgres', () => {
             generation: before.generation,
         })).rejects.toThrow(new ConnectionChangedError('wa'));
         expect(await connections.findConfig('wa')).toMatchObject({ settings: { a: 1 }, revision: before.revision + 1 });
+    });
+
+    it('refuses an unstorable settings value with ValidationError, naming no value, and writes nothing', async () => {
+        const ds = await create();
+        const { connections } = servicesOf(ds, new ControllableClock());
+        const key = connection('wa').wrappedKey;
+
+        await connections.create(connection('wa'));
+
+        const refused: Record<string, unknown>[] = [
+            { a: 'x\0secret-nul' },
+            { a: 'secret\ud800' },
+            { a: undefined },
+            { a: new Date(0) },
+            { a: () => 1 },
+            { a: { b: 1 } },
+            { a: null },
+            { a: Number.NaN },
+            { a: Number.POSITIVE_INFINITY },
+            { a: ['ok', 1] },
+            { a: ['secret\0'] },
+            { ['k\0']: 'v' },
+            Object.assign(Object.create({ inherited: 1 }), { a: 'x' }),
+        ];
+
+        for (const settings of refused) {
+            const refusal = connections.writeConfig('wa', { settings }, { wrappedKey: key });
+
+            await expect(refusal).rejects.toBeInstanceOf(ValidationError);
+            await expect(refusal).rejects.not.toThrow(/secret/);
+        }
+
+        expect(await connections.findConfig('wa')).toMatchObject({ settings: {}, revision: 0 });
+
+        const accepted = {
+            s: 'x',
+            n: 1.5,
+            b: false,
+            l: ['a', 'b'],
+            empty: [],
+        };
+
+        expect(await connections.writeConfig('wa', { settings: accepted }, { wrappedKey: key })).toBe(1);
+        expect((await connections.findConfig('wa'))!.settings).toEqual(accepted);
     });
 
     it('a stale wrappedKey or revision is ConnectionChangedError and writes nothing', async () => {

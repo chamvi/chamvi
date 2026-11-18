@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { isStorableConnectionText } from '@chamvi/core';
 import type {
     ConnectionConfigView,
     ConnectionField,
@@ -12,11 +13,6 @@ import type {
     ConnectionValue,
 } from '@chamvi/core';
 import type { ConfigTarget } from '../types.ts';
-
-/** Well-formed text without NUL: what a Postgres `jsonb` column accepts. */
-export function isStorableText(value: unknown): value is string {
-    return typeof value === 'string' && !value.includes('\0') && value.isWellFormed();
-}
 
 /** A field env or code sets: never written here. */
 export function lockOf(target: ConfigTarget | undefined, field: ConnectionField): ConnectionFieldSource | undefined {
@@ -49,7 +45,7 @@ export function normalizeSetting(field: ConnectionField, raw: unknown): Connecti
         case 'boolean':
             return typeof raw === 'boolean' ? raw : undefined;
         case 'list': {
-            const isTextList = Array.isArray(raw) && raw.every(isStorableText);
+            const isTextList = Array.isArray(raw) && raw.every(isStorableConnectionText);
 
             if (!isTextList) {
                 return undefined;
@@ -60,8 +56,8 @@ export function normalizeSetting(field: ConnectionField, raw: unknown): Connecti
             return items.length > 0 ? items : null;
         }
         case 'select':
-            return isStorableText(raw) && (!field.options || field.options.includes(raw)) ? raw : undefined;
+            return isStorableConnectionText(raw) && (!field.options || field.options.includes(raw)) ? raw : undefined;
         default:
-            return isStorableText(raw) ? raw : undefined;
+            return isStorableConnectionText(raw) ? raw : undefined;
     }
 }

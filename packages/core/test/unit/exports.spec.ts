@@ -240,6 +240,8 @@ describe('public api', () => {
         'assertConnectionEntryKey',
         'assertConnectionEntryWrite',
         'assertConnectionName',
+        'assertConnectionSettings',
+        'isStorableConnectionText',
         'createConnectionConfigStore',
         'createConnectionVault',
         'ConnectionHeldError',
