@@ -83,6 +83,7 @@ export interface IEngine extends IContextProvider {
         signal?: AbortSignal;
     }): Promise<'added' | 'replaced' | 'unchanged'>;
     removeAgent(name: string): Promise<boolean>;
+    releaseRevision(name: string): Promise<string[] | undefined>;
     getRun(id: string): Promise<Run | undefined>;
     on<T extends EngineEvent['type']>(event: T, listener: (e: Extract<EngineEvent, { type: T }>) => void): () => void;
     prepare(options?: { signal?: AbortSignal; agents?: readonly Agent[] }): Promise<void>;

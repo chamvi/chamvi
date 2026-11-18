@@ -108,6 +108,7 @@ import {
     cancelAgentRuns,
     claimRevision,
     dropRevision,
+    releaseRevision,
     syncRevision,
 } from './registry/module.ts';
 import type { CancelReason, RegistryContext } from './registry/types.ts';
@@ -863,6 +864,34 @@ export class Engine implements IEngine {
         } finally {
             release?.();
         }
+    }
+
+    /**
+     * For an agent this engine holds without a revision (an agent passed in
+     * code): a stored revision marker of its name is left from a folder or
+     * package agent of an earlier deployment, so it is cleared as a revision
+     * change under the lock `agents:<name>`: its unsettled runs are cancelled
+     * (`agent_replaced`) and the marker deleted; emits `agents.cancelled`.
+     * Without a marker, or for an agent held at a revision or not held,
+     * nothing happens. Resolves the cancelled run ids, or undefined.
+     */
+    async releaseRevision(name: string): Promise<string[] | undefined> {
+        if (!this.agents.has(name) || this.revisions.get(name) !== undefined) {
+            return undefined;
+        }
+
+        const cancelled = await releaseRevision(this.registry(), name);
+
+        if (cancelled) {
+            this.emit({
+                type: 'agents.cancelled',
+                name,
+                reason: 'agent_replaced',
+                runIds: cancelled,
+            });
+        }
+
+        return cancelled;
     }
 
     /**

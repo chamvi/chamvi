@@ -20,6 +20,7 @@ import { hashAgentFolder } from '@chamvi/app';
 import {
     START,
     agentFile,
+    agentInCode,
     buildAgentsDirHarness,
     queueRun,
 } from '../../../utils/agents-dir.ts';
@@ -251,5 +252,63 @@ describe('a job never reloads an agent', () => {
         expect(setup.issues()[0]?.message).toContain('A job never reloads an agent: start the app to apply the change.');
         expect((await store.runService.findOne(runId))?.status).toBe('queued');
         expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe(OLD);
+    });
+});
+
+describe('an agent passed in code over a stored revision marker', () => {
+    async function markedRun(store: TestStore, clock: ControllableClock): Promise<string> {
+        await store.agentRevisionService.save({
+            agent: 'greeter',
+            hash: 'h1',
+            changedAt: new Date(clock.now()),
+        });
+
+        const runId = await queueRun(store, clock, 'greeter');
+
+        clock.advance(1_000);
+
+        return runId;
+    }
+
+    it.each([
+        ['without an agents dir', false],
+        ['beside an agents dir', true],
+    ])('a start clears the marker as a revision change, %s', async (_label, withRoot) => {
+        const clock = new ControllableClock(START);
+        const store = createTestStore({ clock });
+        const runId = await markedRun(store, clock);
+        const setup = buildAgentsDirHarness({
+            ...(withRoot && { root: root.path }),
+            agents: [agentInCode('greeter')],
+            clock,
+            store,
+        });
+
+        harnesses.push(setup.harness);
+        await setup.harness.setup();
+
+        expect(await store.agentRevisionService.findOne('greeter')).toBeUndefined();
+        expect(await store.runService.findOne(runId)).toMatchObject({ status: 'cancelled', error: { code: 'agent_replaced' } });
+    });
+
+    it.each([
+        ['a job', { mode: 'job' as const }],
+        ['a check', { check: true }],
+    ])('%s leaves the marker and the run alone', async (_label, options) => {
+        const clock = new ControllableClock(START);
+        const store = createTestStore({ clock });
+        const runId = await markedRun(store, clock);
+        const setup = buildAgentsDirHarness({
+            agents: [agentInCode('greeter')],
+            clock,
+            store,
+            ...options,
+        });
+
+        harnesses.push(setup.harness);
+        await setup.harness.setup();
+
+        expect((await store.agentRevisionService.findOne('greeter'))?.hash).toBe('h1');
+        expect((await store.runService.findOne(runId))?.status).toBe('queued');
     });
 });

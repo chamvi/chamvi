@@ -159,6 +159,16 @@ export class AgentsModule implements IModule {
             }
         }
 
+        if (context.mode === 'start' && !context.check) {
+            // an agent passed in code never has a revision: a marker of its name is left from an earlier
+            // folder or package agent, and runs bound to it would wait for a revision no replica holds
+            const engine = container.resolve(AppToken.ENGINE);
+
+            for (const agent of context.agents) {
+                await engine.releaseRevision(agent.name);
+            }
+        }
+
         if (root === undefined && this.packages.length === 0) {
             if (context.mode === 'start' && !context.check) {
                 // the last package left the list: its stored package agents are removed; folder markers stay without an agents dir
