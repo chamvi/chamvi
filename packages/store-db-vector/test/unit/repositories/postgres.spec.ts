@@ -257,15 +257,18 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
 
         await gate.held;
 
-        const fenced = service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0])], { fence: fence! });
-        const unfenced = service.saveDocument(documentOf('docs', 'a'));
+        // each expectation attached at once: a write refused before another is awaited is no unhandled rejection
+        const fenced = expect(service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0])], { fence: fence! }))
+            .rejects.toMatchObject({ code: 'repository_not_found' });
+        const unfenced = expect(service.saveDocument(documentOf('docs', 'a')))
+            .rejects.toMatchObject({ code: 'repository_not_found' });
 
         await untilLockWait(dataSource, 2);
         gate.release();
 
         expect(await deleting).toBe(true);
-        await expect(fenced).rejects.toMatchObject({ code: 'repository_not_found' });
-        await expect(unfenced).rejects.toMatchObject({ code: 'repository_not_found' });
+        await fenced;
+        await unfenced;
 
         for (const table of Object.values(VectorTableName)) {
             expect(await count(table), table).toBe(0);
@@ -283,13 +286,15 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
 
         await gate.held;
 
-        const refused = service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'stale')], { fence: stale! });
+        // attached at once: refused may settle before writing is awaited
+        const refused = expect(service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'stale')], { fence: stale! }))
+            .rejects.toMatchObject({ code: 'lease_lost', lock: 'knowledge:docs' });
 
         await untilLockWait(dataSource);
         gate.release();
 
         await writing;
-        await expect(refused).rejects.toMatchObject({ code: 'lease_lost', lock: 'knowledge:docs' });
+        await refused;
         await expect(service.updateDocument('docs', 'a', { hash: 'sha256:a' }, { status: 'failed' }, { fence: stale! }))
             .rejects.toMatchObject({ code: 'lease_lost' });
 
