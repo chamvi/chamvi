@@ -91,6 +91,10 @@ export function normalizeOptions(options: KnowledgeOptions): NormalizedOptions {
         throw new InvalidAgentDefinitionError('createKnowledge() owner must be a non-empty string.');
     }
 
+    if (options.runManagedPoll !== undefined && typeof options.runManagedPoll !== 'boolean') {
+        throw new InvalidAgentDefinitionError('createKnowledge() runManagedPoll must be a boolean.');
+    }
+
     if (options.onError !== undefined && typeof options.onError !== 'function') {
         throw new InvalidAgentDefinitionError('createKnowledge() onError must be a function.');
     }
@@ -109,6 +113,7 @@ export function normalizeOptions(options: KnowledgeOptions): NormalizedOptions {
         clock,
         // per instance: two in one process never release each other's locks
         owner: options.owner ?? `${hostname()}-${process.pid}-${randomUUID()}`,
+        runManagedPoll: options.runManagedPoll ?? true,
         // a throwing onError is contained: it would reject an indexing loop nothing awaits
         onError: (error, context) => {
             try {

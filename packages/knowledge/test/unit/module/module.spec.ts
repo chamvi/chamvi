@@ -19,10 +19,11 @@ import {
 } from 'vitest';
 import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
 import type { Agent, IClock } from '@chamvi/core';
-import { mockEmbeddingModel, mockModel } from '@chamvi/test-kit';
+import { ControllableClock, mockEmbeddingModel, mockModel } from '@chamvi/test-kit';
 import {
     AppToken,
     ModuleName,
+    componentsModule,
     configModule,
     createLogger,
     engineModule,
@@ -35,6 +36,7 @@ import type { ILogger, IModule } from '@chamvi/app';
 import { buildModuleHarness, createModuleHarness, memoryStoreModule } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
 import {
+    KNOWLEDGE_MANAGED_POLL_MS,
     KNOWLEDGE_ROUTE_PATH,
     contentHash,
     createMemoryKnowledgeRepository,
@@ -220,10 +222,11 @@ async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
             ...env,
         },
         modules: [
-            configModule({ logger: logger ?? createRecordingLogger() }),
+            configModule({ logger: logger ?? createRecordingLogger(), ...(options.clock && { clock: options.clock }) }),
             storeModule(),
             ...(http ? [staticTokensModule()] : []),
             engineModule(),
+            componentsModule(),
             ...(http ? [httpModule({
                 metrics: false,
                 rateLimit: false,
@@ -468,12 +471,90 @@ describe('knowledgeModule()', () => {
         expect(hooks[0]!.engineCreated).toBeTypeOf('function');
         expect(hooks[0]!.started).toBeUndefined();
         expect(hooks[0]!.stopping).toBeUndefined();
+        expect(harness.container.resolveAll(AppToken.COMPONENTS).map((entry) => entry.name)).not.toContain('knowledge-managed');
 
         await runHooks(harness.container, 'started');
 
         expect(model.calls).toHaveLength(0);
         expect((await repository.findCollections()).map((entry) => entry.name)).toEqual(['notes']);
         expect((await repository.findOneDocument('notes', 'a'))?.status).toBe('pending');
+    });
+
+    it('contributes the managed poll as knowledge-managed and runs no poll of its own', async () => {
+        const model = mockEmbeddingModel();
+        const repository = createMemoryKnowledgeRepository();
+        const at = new Date('2026-11-01T00:00:00Z');
+
+        // a managed collection another instance left with a pending document
+        await repository.saveCollection({
+            ...record('notes', 'managed'),
+            model: 'mock-provider/mock-model-id',
+            status: 'ready',
+            generation: 1,
+            lastGeneration: 1,
+        });
+        await repository.saveDocument({
+            collection: 'notes',
+            id: 'a',
+            content: 'alpha beta',
+            hash: contentHash('alpha beta'),
+            status: 'pending',
+            generation: 0,
+            updatedAt: at,
+        });
+
+        const module = knowledgeModule({
+            repository, 
+            embeddingModel: model, 
+            env: {}, 
+        });
+        const harness = await harnessOf({ knowledge: module });
+        const { knowledge } = module;
+
+        expect(harness.container.resolve(AppToken.COMPONENT_LIST).map((entry) => entry.name)).toContain('knowledge-managed');
+
+        // the components module started it: the indexing first, so its first pass (at once) started the loop
+        await expect.poll(async () => (await repository.findOneDocument('notes', 'a'))?.status).toBe('ready');
+        expect(knowledge.managedPoll.status().lastSuccessAt).toBeTypeOf('number');
+
+        // runManagedPoll: false: the knowledge's own stop and start leave the poll to the components
+        await knowledge.stop();
+        knowledge.start();
+
+        const { lastRunAt } = knowledge.managedPoll.status();
+
+        await knowledge.stop();
+
+        expect(knowledge.managedPoll.status().lastRunAt).toBe(lastRunAt);
+        expect(harness.reported).toEqual([]);
+    });
+
+    it('the components module stops the managed poll', async () => {
+        const clock = new ControllableClock(new Date('2026-11-01T00:00:00Z'));
+        const module = knowledgeModule({
+            repository: createMemoryKnowledgeRepository(), 
+            embeddingModel: mockEmbeddingModel(), 
+            env: {}, 
+        });
+        const harness = await harnessOf({ knowledge: module, clock });
+        const poll = module.knowledge.managedPoll;
+        const startedAt = clock.now();
+
+        expect(poll.status().lastRunAt).toBe(startedAt);
+
+        clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
+        await expect.poll(() => poll.status().lastRunAt).toBe(startedAt + KNOWLEDGE_MANAGED_POLL_MS);
+
+        await runHooks(harness.container, 'stopping');
+
+        // the knowledge's own stop would leave the poll running: the components module stopped it
+        clock.advance(KNOWLEDGE_MANAGED_POLL_MS * 2);
+        await new Promise<void>((resolve) => {
+            setImmediate(resolve);
+        });
+
+        expect(poll.status().lastRunAt).toBe(startedAt + KNOWLEDGE_MANAGED_POLL_MS);
+        expect(harness.reported).toEqual([]);
     });
 
     it.each([

@@ -7,6 +7,7 @@
 
 import type { IClock, ILockService, IModelResolver } from '@chamvi/core';
 import type { EmbeddingModel } from 'ai';
+import type { IComponent } from 'hubwire';
 import type { EmbeddingModelRef, KnowledgeCollectionDefinition, ResolvedKnowledgeCollection } from '../collection/types.ts';
 import type { IKnowledgeRepository, KnowledgeCollection, KnowledgeDocumentStatus } from '../repository/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
@@ -34,6 +35,11 @@ export type KnowledgeOptions = {
     owner?: string;
     /** Receives indexing errors; default console.error. */
     onError?: (error: unknown, context: KnowledgeErrorContext) => void;
+    /**
+     * Whether `start()`/`stop()` run `managedPoll` too (default true); false
+     * when its owner runs the component (`knowledgeModule()`: the app's components).
+     */
+    runManagedPoll?: boolean;
 };
 
 /** What `putDocument()` did. */
@@ -47,6 +53,12 @@ export type KnowledgeDocumentPutResult = {
 /** The declared and managed collections, their repository and their indexing. */
 export interface IKnowledge {
     readonly repository: IKnowledgeRepository;
+    /**
+     * The managed poll (a hubwire component on the clock): lists the
+     * collections at once and every KNOWLEDGE_MANAGED_POLL_MS, starting and
+     * stopping the managed loops; a pass does nothing while not indexing.
+     */
+    readonly managedPoll: IComponent;
     /** A declared collection, or undefined. */
     collection(name: string): ResolvedKnowledgeCollection | undefined;
     /** The embedding model of a stored model identity; InvalidAgentDefinitionError for an unknown one. */

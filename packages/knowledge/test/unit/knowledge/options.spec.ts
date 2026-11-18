@@ -161,6 +161,7 @@ describe('createKnowledge', () => {
             { clock: {} },
             { owner: '' },
             { onError: 'log' },
+            { runManagedPoll: 'yes' },
         ];
 
         for (const options of bad) {

@@ -37,6 +37,7 @@ describe('public api', () => {
     it('exports the managed collection limits', () => {
         expect(knowledge.MANAGED_CONTENT_MAX_CHARS).toBe(1_048_576);
         expect(knowledge.KNOWLEDGE_MANAGED_POLL_MS).toBe(60_000);
+        expect(knowledge.KNOWLEDGE_MANAGED_COMPONENT_NAME).toBe('knowledge-managed');
     });
 
     it('exports the knowledge tools, their limits and the context pair', () => {
@@ -71,6 +72,7 @@ describe('public api', () => {
             'KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH',
             'KNOWLEDGE_EMBED_TIMEOUT_MS',
             'KNOWLEDGE_LOCK_TTL_MS',
+            'KNOWLEDGE_MANAGED_COMPONENT_NAME',
             'KNOWLEDGE_MANAGED_POLL_MS',
             'KNOWLEDGE_QUERY_MAX_LENGTH',
             'KNOWLEDGE_READ_PERMISSION',

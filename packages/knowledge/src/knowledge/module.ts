@@ -16,6 +16,8 @@ import {
 } from '@chamvi/core';
 import type { EmbeddingModel } from 'ai';
 import { embedMany } from 'ai';
+import { defineIntervalComponent } from 'hubwire';
+import type { IComponent } from 'hubwire';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import { contentHash } from '../chunk/module.ts';
 import { isCollectionName, isEmbeddingModelObject, managedNameError } from '../collection/helpers.ts';
@@ -31,11 +33,10 @@ import {
     messageOf,
     sameDetails,
     sameOrigin,
-    wait,
 } from '../indexer/helpers.ts';
 import { markOrphans, runCollection, syncCollection } from '../indexer/module.ts';
 import type { KnowledgeIndexLock, KnowledgeWake } from '../indexer/types.ts';
-import { KNOWLEDGE_MANAGED_POLL_MS } from '../managed/constants.ts';
+import { KNOWLEDGE_MANAGED_COMPONENT_NAME, KNOWLEDGE_MANAGED_POLL_MS } from '../managed/constants.ts';
 import { managedDocumentProblem, needsReembed } from '../managed/helpers.ts';
 import { syncManaged } from '../managed/module.ts';
 import type { ManagedLoop } from '../managed/types.ts';
@@ -65,6 +66,11 @@ class Knowledge implements IKnowledge {
 
     protected readonly onError: (error: unknown, context: KnowledgeErrorContext) => void;
 
+    readonly managedPoll: IComponent;
+
+    /** Whether `start()`/`stop()` run `managedPoll` (false when its owner runs it). */
+    protected readonly runManagedPoll: boolean;
+
     /** The declared collections by name, in declaration order. */
     protected readonly collections = new Map<string, ResolvedKnowledgeCollection>();
 
@@ -82,7 +88,7 @@ class Knowledge implements IKnowledge {
 
     /**
      * The indexing in flight: its abort, its tasks (one loop per collection,
-     * the orphan pass, the managed poll), the wake of each declared
+     * the orphan pass), the wake of each declared
      * collection's loop and the managed loops.
      */
     protected indexing: {
@@ -107,6 +113,17 @@ class Knowledge implements IKnowledge {
         this.clock = normalized.clock;
         this.owner = normalized.owner;
         this.onError = normalized.onError;
+        this.runManagedPoll = normalized.runManagedPoll;
+        this.managedPoll = defineIntervalComponent({
+            name: KNOWLEDGE_MANAGED_COMPONENT_NAME,
+            intervalMs: KNOWLEDGE_MANAGED_POLL_MS,
+            runOnStart: true,
+            clock: this.clock,
+            // as every chamvi timer: an idle poll never holds the process
+            unref: true,
+            handler: ({ signal }) => this.pollManaged(signal),
+            hooks: { onError: (error) => this.onError(error, {}) },
+        });
 
         for (const definition of normalized.collections) {
             const resolved = resolveCollection(definition, this.models);
@@ -237,36 +254,40 @@ class Knowledge implements IKnowledge {
             managed,
         };
 
-        tasks.push(this.pollManaged(signal));
-    }
-
-    /**
-     * Lists the collections now and every KNOWLEDGE_MANAGED_POLL_MS: starts a
-     * loop per managed record without one (created here before the start, or
-     * by another instance) and stops the loops whose record is gone or no
-     * longer managed. A failed read is reported and tried at the next poll.
-     */
-    protected async pollManaged(signal: AbortSignal): Promise<void> {
-        while (!signal.aborted) {
-            try {
-                await this.reconcileManaged(signal);
-            } catch (error) {
-                if (!signal.aborted) {
-                    this.onError(error, {});
-                }
-            }
-
-            await wait(this.clock, KNOWLEDGE_MANAGED_POLL_MS, signal);
+        if (this.runManagedPoll) {
+            // its first pass runs at once; it never rejects (a failed pass goes to onError)
+            this.managedPoll.start().catch(() => {});
         }
     }
 
-    protected async reconcileManaged(signal: AbortSignal): Promise<void> {
+    /**
+     * One pass of `managedPoll` (at once, then every
+     * KNOWLEDGE_MANAGED_POLL_MS): starts a loop per managed record without
+     * one (created here before the start, or by another instance) and stops
+     * the loops whose record is gone or no longer managed. A failed read is
+     * reported and tried at the next poll; a pass stopped meanwhile (the
+     * component's or the indexing's stop) reports nothing.
+     */
+    protected async pollManaged(signal: AbortSignal): Promise<void> {
         const { indexing } = this;
 
+        // nothing indexes: no loop to start or stop (a component started before or after start())
         if (!indexing) {
             return;
         }
 
+        const stopped = AbortSignal.any([signal, indexing.controller.signal]);
+
+        try {
+            await this.reconcileManaged(indexing, stopped);
+        } catch (error) {
+            if (!stopped.aborted) {
+                throw error;
+            }
+        }
+    }
+
+    protected async reconcileManaged(indexing: NonNullable<Knowledge['indexing']>, signal: AbortSignal): Promise<void> {
         // a loop started while the list is read (createCollection, also after a delete) is no stale one
         const before = new Map(indexing.managed);
         const deleted = new Set<string>();
@@ -607,7 +628,14 @@ class Knowledge implements IKnowledge {
         this.indexing = undefined;
         indexing.controller.abort();
 
-        const stopping = Promise.allSettled(indexing.tasks).then(() => {});
+        const tasks: Promise<unknown>[] = [...indexing.tasks];
+
+        if (this.runManagedPoll) {
+            // aborts a pass in flight; settled() waits for it, so a restart never overlaps it
+            tasks.push(this.managedPoll.stop().then(() => this.managedPoll.settled?.()));
+        }
+
+        const stopping = Promise.allSettled(tasks).then(() => {});
 
         this.stopping = stopping;
 
