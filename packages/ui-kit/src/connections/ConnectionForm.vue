@@ -56,6 +56,7 @@ const {
     testResult,
     confirmation,
     confirmError,
+    stale,
     rebindNotice,
 } = form;
 
@@ -405,12 +406,29 @@ watch(confirmation, async (open, previous) => {
                 {{ formError }}
             </p>
 
+            <div
+                v-if="stale"
+                class="form-err"
+                role="status"
+                data-testid="connection-stale"
+            >
+                This connection changed since you opened it.
+                <button
+                    type="button"
+                    class="btn"
+                    :disabled="busy"
+                    @click="form.reload()"
+                >
+                    Reload values
+                </button>
+            </div>
+
             <div class="connection-action-buttons">
                 <button
                     v-if="canEdit"
                     type="submit"
                     class="btn btn-primary"
-                    :disabled="busy"
+                    :disabled="busy || stale"
                 >
                     Save
                 </button>

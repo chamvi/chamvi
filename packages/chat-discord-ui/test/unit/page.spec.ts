@@ -41,6 +41,8 @@ const SETTINGS: ConnectionSettingsWire = {
     state: 'configured',
     settings: { guilds: ['1', '2'] },
     fields: POLICY.map((key) => ({ key, source: key === 'guilds' ? { kind: 'store' } : { kind: 'unset' } })),
+    revision: 1,
+    generation: 'gen-1',
     restartRequired: false,
     editable: true,
     deletable: false,

@@ -553,7 +553,7 @@ describe('githubModule configuration', () => {
                 name: GITHUB_CONNECTION_TYPE,
                 values,
                 revision: 1,
-                createdAt: new Date(clock.now()),
+                id: 'row-1',
             },
             // a code option createGithubApp refuses without naming a connection field
             options: { proposals: { repos: [] } as never },

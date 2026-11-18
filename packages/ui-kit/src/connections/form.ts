@@ -30,6 +30,9 @@ import type {
 } from './types.ts';
 import { ACCOUNT_KEY, buildConnectionContainer, parseNumberDraft } from './validators.ts';
 
+/** The code of a refused save made from a view another save, a reset or a delete and create replaced. */
+const CONNECTION_CHANGED = 'connection_changed';
+
 /** The code of a server issue shown at its field: untranslated, so its own message shows. */
 const SERVER_ISSUE_CODE = 'connection_config';
 
@@ -97,6 +100,8 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
     const testResult = shallowRef<ConnectionTestWire>();
     const confirmation = shallowRef<ConnectionFormConfirmation>();
     const confirmError = shallowRef<string>();
+    /** A save was refused as made from an older state: the edits stay, Save waits for a reload. */
+    const stale = shallowRef(false);
 
     const fields = computed<ConnectionFormField[]>(() => (definition.value?.fields ?? []).map((field) => toField(field, view.value)));
     const plainFields = () => fields.value.filter((field) => field.kind !== 'secret' && !field.lock);
@@ -187,9 +192,36 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
         values[key] = '';
     }
 
+    /** The version of the view the form shows, which a save sends back (revision 0 and no generation without a row). */
+    function versionOf(): { revision: number; generation?: string } {
+        const current = view.value;
+
+        return {
+            revision: current?.revision ?? 0,
+            ...(current?.generation !== undefined && { generation: current.generation }),
+        };
+    }
+
+    /** Whether a save was refused as made from an older state; marks the form stale. */
+    function markStale(error: ApiError): boolean {
+        if (error.status !== 409 || error.code !== CONNECTION_CHANGED) {
+            return false;
+        }
+
+        stale.value = true;
+
+        return true;
+    }
+
     /** The server's issues at their fields (its paths end in the field key), anything else at the form. */
     function showSaveError(cause: unknown): void {
         const error = asApiError(cause);
+
+        if (markStale(error)) {
+            formError.value = undefined;
+
+            return;
+        }
         const known = new Set([...(adding ? [ACCOUNT_KEY] : []), ...fields.value.map((field) => field.key)]);
         const issues = flattenIssueItems(error.issues ?? [])
             .filter((issue) => known.has(String(issue.path?.at(-1) ?? '')))
@@ -256,6 +288,10 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
     }
 
     async function save(): Promise<void> {
+        if (stale.value) {
+            return;
+        }
+
         await exclusive(async () => {
             formError.value = undefined;
             v.setExternalIssues([]);
@@ -290,6 +326,7 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
                 view.value = await client.connection.save(name, {
                     settings: buildSettings(),
                     ...(Object.keys(set).length > 0 && { secrets: { set } }),
+                    ...versionOf(),
                 });
                 replacing.value = {};
                 seedValues();
@@ -360,13 +397,41 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
                 }
 
                 // only the secret: edits still in the form stay unsaved and in the form
-                view.value = await client.connection.save(name, { secrets: { clear: [open.key] } });
+                view.value = await client.connection.save(name, { secrets: { clear: [open.key] }, ...versionOf() });
                 // the result was of the values before
                 testResult.value = undefined;
                 dropSecret(open.key);
                 confirmation.value = undefined;
             } catch (e) {
+                if (markStale(asApiError(e))) {
+                    confirmation.value = undefined;
+
+                    return;
+                }
+
                 confirmError.value = confirmFailure(e);
+            }
+        });
+    }
+
+    /** Loads the stored config again and drops every edit: the way out of a stale form. */
+    async function reload(): Promise<void> {
+        if (name === undefined) {
+            return;
+        }
+
+        await exclusive(async () => {
+            try {
+                view.value = await client.connection.getConfig(name);
+                replacing.value = {};
+                testResult.value = undefined;
+                formError.value = undefined;
+                v.setExternalIssues([]);
+                seedValues();
+                v.$reset();
+                stale.value = false;
+            } catch (e) {
+                formError.value = statusOf(asApiError(e));
             }
         });
     }
@@ -387,6 +452,7 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
         testResult,
         confirmation,
         confirmError,
+        stale,
         rebindNotice,
         showsSecretInput,
         save,
@@ -396,5 +462,6 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
         askDelete,
         cancelConfirmation,
         confirm,
+        reload,
     };
 }

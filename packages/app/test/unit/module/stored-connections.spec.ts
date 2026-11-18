@@ -321,7 +321,7 @@ describe('resolveStoredConnection()', () => {
         name: 'mail-home',
         values: unreadable ? { host: 'h' } : { host: 'h', password: SECRET },
         revision: 1,
-        createdAt: new Date(0),
+        id: 'row-1',
         ...(unreadable && { unreadable }),
     });
     const unreadable = { secrets: ['password'], reason: 'The stored secrets cannot be read (decryption_failed).' };
