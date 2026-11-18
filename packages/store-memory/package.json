@@ -1,6 +1,6 @@
 {
     "name": "@chamvi/store-memory",
-    "version": "0.8.0",
+    "version": "0.9.0",
     "type": "module",
     "description": "The in-memory store driver of chamvi: the memory repository base with row locks, transactions and declared references.",
     "author": {
@@ -49,7 +49,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "@chamvi/store": "^0.8.0",
+        "@chamvi/store": "^0.9.0",
         "@rapiq/adapter-memory": "^2.4.1",
         "@rapiq/core": "^2.4.1",
         "smob": "^1.6.2"
