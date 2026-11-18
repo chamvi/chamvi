@@ -46,7 +46,8 @@ export type DatabaseModuleOptions = {
     /**
      * The table the migrations are recorded in: a plain lower-case
      * identifier (no schema, no quotes), never `migrations`, which is
-     * chamvi's own, and no name starting with `chamvi_` or
+     * chamvi's own, and no name starting with `chamvi_` (but for
+     * `chamvi_vector_migrations`, chamvi's knowledge vector store) or
      * `typeorm_metadata`.
      */
     migrationsTableName: string;
@@ -61,6 +62,19 @@ export type DatabaseModuleOptions = {
      * under (`chamvi:db:<name>`); default `default`. A lower-case slug.
      */
     name?: string;
+    /**
+     * Require PostgreSQL: without `DATABASE_URL` the setup fails with an
+     * `InvalidAgentDefinitionError` instead of running on SQLite in
+     * memory; default `false`.
+     */
+    postgres?: boolean;
+    /**
+     * PostgreSQL only: whether TypeORM installs the extensions the
+     * entities' column types need (`CREATE EXTENSION`); default TypeORM's
+     * (it does). `false` for a database whose extensions an operator
+     * installs.
+     */
+    installExtensions?: boolean;
     /**
      * SQLite only (no `DATABASE_URL`): how long, in milliseconds, work may
      * wait for the one connection behind a single holder (a transaction
@@ -79,7 +93,7 @@ export type DatabaseDescriptor = Readonly<{
     /** An absolute path. */
     migrationsDirectory: string;
     migrationsTableName: string;
-    /** The advisory lock its migrations run under: `chamvi:db:<name>`, also the module's name. */
+    /** The advisory lock its migrations run under: `chamvi:db:<name>`, also the module's name unless a subclass overrides it. */
     lockName: string;
 }>;
 

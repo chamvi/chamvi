@@ -163,6 +163,18 @@ describePostgres('databaseModule on PostgreSQL', () => {
             .toBe('timestamp without time zone');
     });
 
+    it('installExtensions: false reaches the data source options', async () => {
+        const url = await createTestDatabaseUrl();
+        const { app, container } = build([databaseModule(notesDatabase({ installExtensions: false, postgres: true }))]);
+
+        await app.start({ env: await envFor(url) });
+
+        const dataSource = container().resolve(DatabaseToken.DATA_SOURCE);
+
+        expect(dataSource.options).toMatchObject({ type: 'postgres', installExtensions: false });
+        expect(await rowsOf(await admin(url), 'notes_migrations')).toEqual(['Init1795000000000']);
+    });
+
     it('a second start runs nothing', async () => {
         const url = await createTestDatabaseUrl();
         const first = build([databaseModule(notesDatabase())]);

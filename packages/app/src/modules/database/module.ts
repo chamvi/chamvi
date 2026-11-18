@@ -23,6 +23,7 @@ import { DATABASE_DESCRIPTOR } from './constants.ts';
 import {
     buildDescriptor,
     readDatabaseEnv,
+    readFlag,
     readSchemas,
     readWaitTimeout,
 } from './helpers.ts';
@@ -62,6 +63,12 @@ export class DatabaseModule implements IModule {
     /** SQLite's wait limit for the one connection, when the app set one. */
     protected waitTimeoutMs: number | undefined;
 
+    /** Without `DATABASE_URL` the setup fails instead of running on SQLite. */
+    protected postgres: boolean;
+
+    /** Whether TypeORM installs the extensions of the entities' column types on PostgreSQL; default TypeORM's. */
+    protected installExtensions: boolean | undefined;
+
     /** The list schemas checked against the entities in `setup`. */
     protected schemas: ListSchema[];
 
@@ -80,6 +87,8 @@ export class DatabaseModule implements IModule {
         this.name = descriptor.lockName;
         this.env = options.env;
         this.waitTimeoutMs = readWaitTimeout(options);
+        this.postgres = readFlag(options, 'postgres') ?? false;
+        this.installExtensions = readFlag(options, 'installExtensions');
         this.schemas = readSchemas(options, descriptor.name);
     }
 
@@ -89,6 +98,10 @@ export class DatabaseModule implements IModule {
         const logger = container.resolve(AppToken.LOGGER);
         const descriptor = this[DATABASE_DESCRIPTOR];
         const { url, production } = readDatabaseEnv(this.env ?? context.env, context.mode);
+
+        if (this.postgres && url === undefined) {
+            throw new InvalidAgentDefinitionError(`The database "${descriptor.name}" needs PostgreSQL: set DATABASE_URL.`);
+        }
 
         this.assertOwnTable(container, descriptor);
         container.registerMany(DatabaseToken.DESCRIPTORS, { useValue: descriptor });
@@ -104,6 +117,7 @@ export class DatabaseModule implements IModule {
             migrations: [...descriptor.migrations],
             migrationsTableName: descriptor.migrationsTableName,
             connectTimeoutMs: this.connectTimeoutMs,
+            ...(this.installExtensions !== undefined && { installExtensions: this.installExtensions }),
             production,
             mode: context.mode,
         }));
@@ -136,7 +150,8 @@ export class DatabaseModule implements IModule {
         // registered after every module's setup, so the drained hooks of the modules using the data source run first
         container.registerMany(AppToken.LIFECYCLE_HOOKS, {
             useValue: {
-                name: this.name,
+                // the descriptor's lock, not this.name: a subclass may rename the module
+                name: this[DATABASE_DESCRIPTOR].lockName,
                 drained: () => this.close(),
             },
         });

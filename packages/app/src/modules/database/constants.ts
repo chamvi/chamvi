@@ -45,3 +45,11 @@ export const RESERVED_MIGRATIONS_TABLE = 'migrations';
  * `@chamvi/store-db`'s `RESERVED_TABLE_PREFIXES` (a spec pins both).
  */
 export const RESERVED_MIGRATIONS_TABLE_PREFIXES: readonly string[] = ['chamvi_', 'typeorm_metadata'];
+
+/**
+ * The migrations tables of chamvi's own app databases (the knowledge
+ * vector store): the only `chamvi_` names a migrations table may take;
+ * the same list as `@chamvi/store-db`'s `CHAMVI_OWNED_MIGRATIONS_TABLES`
+ * (a spec pins both).
+ */
+export const OWNED_MIGRATIONS_TABLES: readonly string[] = ['chamvi_vector_migrations'];

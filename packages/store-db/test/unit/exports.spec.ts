@@ -78,6 +78,7 @@ describe('public api', () => {
             DATABASE_OPTIONS_INVALID: 'database_options_invalid',
         });
         expect(pkg.CHAMVI_MIGRATIONS_TABLE).toBe('migrations');
+        expect(pkg.CHAMVI_OWNED_MIGRATIONS_TABLES).toEqual(['chamvi_vector_migrations']);
         expect(pkg.POSTGRES_PROTOCOLS).toEqual(['postgres:', 'postgresql:']);
         expect(pkg.DATABASE_MIGRATIONS_TABLE_PATTERN).toBeInstanceOf(RegExp);
     });

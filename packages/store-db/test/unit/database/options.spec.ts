@@ -100,6 +100,21 @@ describe('buildDatabaseOptions', () => {
         expect(inspect({ ...options, url: undefined }, { depth: 5 })).not.toContain(MARKER);
     });
 
+    it('passes installExtensions to the PostgreSQL options, and leaves TypeORM\'s default without it', () => {
+        const input: DatabaseOptionsInput = {
+            url: 'postgres://u:p@db.local:5432/app',
+            entities: [NoteEntity],
+            migrations: [],
+            migrationsTableName: 'notes_migrations',
+            connectTimeoutMs: 10_000,
+            production: false,
+            mode: 'start',
+        };
+
+        expect(buildDatabaseOptions({ ...input, installExtensions: false }).options).toMatchObject({ installExtensions: false });
+        expect(buildDatabaseOptions(input).options).not.toHaveProperty('installExtensions');
+    });
+
     describe('refuses', () => {
         const input = (extra: Partial<DatabaseOptionsInput>): DatabaseOptionsInput => ({
             url: 'postgres://u:p@db.local:5432/app',
@@ -152,12 +167,12 @@ describe('buildDatabaseOptions', () => {
             expect(DATABASE_MIGRATIONS_TABLE_PATTERN.test('_m1')).toBe(true);
         });
 
-        it('a migrations table named like a table of chamvi\'s own store or TypeORM\'s metadata table', () => {
-            for (const table of ['chamvi_locks', 'chamvi_', 'chamvi_notes_migrations', 'typeorm_metadata', 'typeorm_metadata_2']) {
+        it('a migrations table named like a table of chamvi\'s own store or TypeORM\'s metadata table; chamvi_vector_migrations is accepted', () => {
+            for (const table of ['chamvi_locks', 'chamvi_', 'chamvi_notes_migrations', 'chamvi_vector_migrations_2', 'chamvi_vector', 'typeorm_metadata', 'typeorm_metadata_2']) {
                 expect(refusal({ migrationsTableName: table }).message, table).toMatch(/^migrationsTableName cannot start with "(chamvi_|typeorm_metadata)"/);
             }
 
-            for (const table of ['chamvinotes', 'my_chamvi_migrations', 'typeorm_migrations']) {
+            for (const table of ['chamvinotes', 'my_chamvi_migrations', 'typeorm_migrations', 'chamvi_vector_migrations']) {
                 expect(buildDatabaseOptions(input({ migrationsTableName: table })).kind, table).toBe('postgres');
             }
         });
