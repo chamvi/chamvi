@@ -32,6 +32,7 @@
             "@chamvi/skills": ["./packages/skills/src/index.ts"],
             "@chamvi/store": ["./packages/store/src/index.ts"],
             "@chamvi/store-db": ["./packages/store-db/src/index.ts"],
+            "@chamvi/store-db-vector": ["./packages/store-db-vector/src/index.ts"],
             "@chamvi/store-memory": ["./packages/store-memory/src/index.ts"],
             "@chamvi/test-kit": ["./packages/test-kit/src/index.ts"],
             "@chamvi/tool-calendar": ["./packages/tool-calendar/src/index.ts"],
