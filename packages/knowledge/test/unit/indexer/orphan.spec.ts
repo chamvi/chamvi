@@ -175,10 +175,14 @@ describe('orphaned collections', () => {
         started.push(knowledge);
         knowledge.start();
 
-        await expect.poll(() => held.mock.calls.length).toBe(1);
-        // another owner took the lock and advanced the fence
-        await service.advanceFence('old');
-        gate.resolve();
+        try {
+            await expect.poll(() => held.mock.calls.length).toBe(1);
+            // another owner took the lock and advanced the fence
+            await service.advanceFence('old');
+        } finally {
+            // also on a failure: stop() waits for the held mark
+            gate.resolve();
+        }
 
         await expect.poll(() => held.mock.settledResults[0]?.type).toBe('rejected');
         await knowledge.stop();
