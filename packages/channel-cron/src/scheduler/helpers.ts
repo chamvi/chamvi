@@ -6,8 +6,18 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { Agent, ChannelSubscription, IEngine } from '@chamvi/core';
-import type { IScheduleLock, IScheduledComponent, ScheduledComponentOptions } from 'hubwire';
+import type {
+    Agent,
+    ChannelStatus,
+    ChannelSubscription,
+    IEngine,
+} from '@chamvi/core';
+import type {
+    ComponentStatus,
+    IScheduleLock,
+    IScheduledComponent,
+    ScheduledComponentOptions,
+} from 'hubwire';
 import { defineScheduledComponent } from 'hubwire';
 import type { CronChannelErrorContext } from '../channel/types.ts';
 import { fireCronSubscription, readCronOptions } from '../tick/index.ts';
@@ -121,4 +131,29 @@ export function assertConversationChannel(engine: Pick<IEngine, 'getChannel'>, a
             `Agent "${agent.name}" subscription "${subscription.id}": its conversation names unknown channel "${channel}".`,
         );
     }
+}
+
+/**
+ * One status over several components: the latest `lastSuccessAt`,
+ * `lastErrorAt` and `lastRunAt`, the earliest `runningSince`; a time no
+ * component reports stays absent.
+ */
+export function aggregateStatus(statuses: ComponentStatus[]): ChannelStatus {
+    const status: ChannelStatus = {};
+
+    for (const item of statuses) {
+        for (const key of ['lastSuccessAt', 'lastErrorAt', 'lastRunAt'] as const) {
+            const value = item[key];
+
+            if (value !== undefined && (status[key] === undefined || value > status[key])) {
+                status[key] = value;
+            }
+        }
+
+        if (item.runningSince !== undefined && (status.runningSince === undefined || item.runningSince < status.runningSince)) {
+            status.runningSince = item.runningSince;
+        }
+    }
+
+    return status;
 }

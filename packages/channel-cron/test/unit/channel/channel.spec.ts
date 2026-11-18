@@ -239,6 +239,88 @@ describe('cronChannel', () => {
         expect(recording.holding()).toHaveLength(1);
     });
 
+    describe('status()', () => {
+        it('answers {} before the start and before any pass', async () => {
+            const channel = quiet();
+            const { engine } = make([channel], [agentWith([cron.on('* * * * *', { overlap: 'allow' })])]);
+
+            expect(channel.status()).toEqual({});
+
+            await engine.start();
+            expect(channel.status()).toEqual({});
+        });
+
+        it('answers the latest lastSuccessAt and lastRunAt over its subscriptions', async () => {
+            const channel = quiet();
+            const { engine } = make([channel], [agentWith([
+                cron.on('* * * * *', { overlap: 'allow', id: 'minutely' }),
+                cron.on('*/2 * * * *', { overlap: 'allow', id: 'even' }),
+            ])]);
+
+            await engine.start();
+            // 08:00 fires both, 08:01 the minutely one only
+            await advance(clock, 90_000);
+
+            const at = new Date('2026-03-01T08:01:00Z').getTime();
+            const status = channel.status();
+
+            expect(status?.lastSuccessAt).toBeGreaterThanOrEqual(at);
+            expect(status?.lastRunAt).toBe(status?.lastSuccessAt);
+            expect(status?.lastErrorAt).toBeUndefined();
+            expect(status?.runningSince).toBeUndefined();
+        });
+
+        it('answers the earliest runningSince of the ticks in flight and lastErrorAt of a failed one', async () => {
+            const storage = createTestEngine({ agents: [], clock });
+            const create = storage.runService.create.bind(storage.runService);
+            const { promise: gate, resolve: release } = Promise.withResolvers<void>();
+
+            vi.spyOn(storage.runService, 'create')
+                .mockImplementationOnce(async (...args) => {
+                    await gate;
+
+                    return create(...args);
+                })
+                .mockRejectedValueOnce(new Error('store down'))
+                .mockImplementation(create);
+
+            const channel = quiet();
+            const { engine } = make([channel], [agentWith([
+                cron.on('* * * * *', { overlap: 'allow', id: 'slow' }),
+                cron.on('*/2 * * * *', { overlap: 'allow', id: 'failing' }),
+            ])], storage);
+
+            await engine.start();
+            await advance(clock, 31_000);
+
+            const status = channel.status();
+            const tick = new Date('2026-03-01T08:00:00Z').getTime();
+
+            expect(status?.runningSince).toBeGreaterThanOrEqual(tick);
+            expect(status?.runningSince).toBeLessThan(tick + 1_000);
+            expect(status?.lastErrorAt).toBeGreaterThanOrEqual(tick);
+            expect(status?.lastSuccessAt).toBeUndefined();
+
+            release();
+            await advance(clock, 1_000);
+
+            expect(channel.status().runningSince).toBeUndefined();
+            expect(channel.status().lastSuccessAt).toBeGreaterThanOrEqual(tick);
+        });
+
+        it('answers {} again once stopped', async () => {
+            const channel = quiet();
+            const { engine } = make([channel], [agentWith([cron.on('* * * * *', { overlap: 'allow' })])]);
+
+            await engine.start();
+            await advance(clock, 60_000);
+            expect(channel.status().lastSuccessAt).toBeDefined();
+
+            await engine.drain();
+            expect(channel.status()).toEqual({});
+        });
+    });
+
     it('refuses an invalid lockTtlMs when built', () => {
         expect(() => cronChannel({ lockTtlMs: 0 })).toThrow(InvalidAgentDefinitionError);
         expect(() => cronChannel({ lockTtlMs: 1.5 })).toThrow(InvalidAgentDefinitionError);

@@ -21,6 +21,8 @@ import type { CronChannel, CronChannelOptions } from './types.ts';
  * `engine.start()` (InvalidAgentDefinitionError) for an agent passed in
  * code; a folder agent's goes to `onError` and leaves that agent unscheduled.
  * `engine.drain()`/`stop()` stop it first and wait for ticks in flight.
+ * `status()` aggregates its components' (the latest success, error and run,
+ * the earliest pass in flight); `{}` while not started.
  * Throws InvalidAgentDefinitionError for an invalid `lockTtlMs` or `owner`.
  */
 export function cronChannel(options: CronChannelOptions = {}): CronChannel {
@@ -55,6 +57,8 @@ export function cronChannel(options: CronChannelOptions = {}): CronChannel {
             await next.start();
         },
         stop,
+        // {} while not started: the status of the schedule this start set up
+        status: () => scheduler?.status() ?? {},
         on: (expression, subscriptionOptions) => createCronSubscription(name, expression, subscriptionOptions),
     };
 
