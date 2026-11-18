@@ -5,13 +5,18 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { TypedToken } from 'eldin';
 import type { EmbeddingModelRef, KnowledgeCollectionDefinition } from '../collection/types.ts';
 import type { IKnowledgeCollectionRepository } from '../store/types.ts';
 
 export type KnowledgeModuleOptions = {
     /** The declared collections (`knowledgeCollection()`); string models resolve through the app's providers. */
     collections?: readonly KnowledgeCollectionDefinition[];
-    /** Default an in-memory repository (every restart re-embeds; warned outside dev). */
+    /**
+     * Wins over a repository a backend module registered
+     * (`KnowledgeToken.REPOSITORY`); without either an in-memory repository
+     * (every restart re-embeds; warned outside dev).
+     */
     repository?: IKnowledgeCollectionRepository;
     /** The indexer's lock owner; default `${hostname}-${pid}`. */
     owner?: string;
@@ -25,4 +30,9 @@ export type KnowledgeModuleOptions = {
     env?: Record<string, string | undefined>;
     /** `false` contributes no `knowledgeRoutes()` to the http app. */
     routes?: false;
+};
+
+export type KnowledgeTokens = {
+    /** The collection repository of a backend module (`chamvi:knowledge-repository`). */
+    REPOSITORY: TypedToken<IKnowledgeCollectionRepository>;
 };

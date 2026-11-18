@@ -17,6 +17,8 @@ describe('public api', () => {
         'KNOWLEDGE_VECTOR_ENTITIES',
         'KNOWLEDGE_VECTOR_MIGRATIONS',
         'KNOWLEDGE_VECTOR_MIGRATIONS_TABLE',
+        'VectorStoreModule',
+        'vectorStoreModule',
     ])('exports %s', (name) => {
         expect(pkg).toHaveProperty(name);
     });

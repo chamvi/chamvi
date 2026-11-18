@@ -20,6 +20,11 @@ export default defineConfig({
     resolve: {
         // the sources, not dist
         alias: [
+            { find: /^@chamvi\/app$/, replacement: fileURLToPath(new URL('../../app/src/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/app\/testing$/, replacement: fileURLToPath(new URL('../../app/src/testing/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/channel-cron$/, replacement: fileURLToPath(new URL('../../channel-cron/src/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/http$/, replacement: fileURLToPath(new URL('../../http/src/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/knowledge\/module$/, replacement: fileURLToPath(new URL('../../knowledge/src/module/index.ts', import.meta.url)) },
             { find: /^@chamvi\/access$/, replacement: fileURLToPath(new URL('../../access/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/core$/, replacement: fileURLToPath(new URL('../../core/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/store$/, replacement: fileURLToPath(new URL('../../store/src/index.ts', import.meta.url)) },

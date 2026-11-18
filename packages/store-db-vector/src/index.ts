@@ -5,5 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+export * from './module/index.ts';
 export * from './repositories/index.ts';
 export * from './schema/index.ts';

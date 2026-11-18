@@ -115,10 +115,19 @@ describe('public api', () => {
     });
 
     it('exports knowledgeModule from /module', () => {
-        expect(Object.keys(knowledgeModuleEntry).sort()).toEqual(['KNOWLEDGE_MODEL_VARIABLE', 'KNOWLEDGE_MODULE_NAME', 'KnowledgeModule', 'knowledgeModule']);
+        expect(Object.keys(knowledgeModuleEntry).sort()).toEqual([
+            'KNOWLEDGE_MODEL_VARIABLE',
+            'KNOWLEDGE_MODULE_NAME',
+            'KNOWLEDGE_REPOSITORY_MODULE_NAME',
+            'KnowledgeModule',
+            'KnowledgeToken',
+            'knowledgeModule',
+        ]);
         expect(knowledgeModuleEntry.knowledgeModule).toBeTypeOf('function');
         expect(knowledgeModuleEntry.KnowledgeModule).toBeTypeOf('function');
         expect(knowledgeModuleEntry.KNOWLEDGE_MODULE_NAME).toBe('chamvi:knowledge');
         expect(knowledgeModuleEntry.KNOWLEDGE_MODEL_VARIABLE).toBe('CHAMVI_KNOWLEDGE_MODEL');
+        expect(knowledgeModuleEntry.KNOWLEDGE_REPOSITORY_MODULE_NAME).toBe('chamvi:knowledge-repository');
+        expect(knowledgeModuleEntry.KnowledgeToken.REPOSITORY.name).toBe('chamvi.knowledge-repository');
     });
 });
