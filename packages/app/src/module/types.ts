@@ -153,7 +153,8 @@ export interface ILifecycleHook {
 /**
  * A background job a module contributes to `AppToken.COMPONENTS` (a hubwire
  * component): the components module starts it in start mode (never in a
- * check, a job or a migration) and stops it before the engine drains.
+ * check, a job or a migration) and stops it in the `stopping` phase (its
+ * hook runs in setup order among the others), before the engine drains.
  */
 export type AppComponent = {
     /** Unique among the app's components; lower-kebab, at most 64 characters (the agent name rule). */

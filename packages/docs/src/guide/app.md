@@ -52,7 +52,7 @@ Modules are [orkos](https://github.com/tada5hi/orkos) `IModule`s on an [eldin](h
 | `staticTokensModule()` | The `staticTokens()` authenticator from `CHAMVI_TOKENS` |
 | `engineModule()` | Reads the [model settings](/guide/models) (env, `chamvi.json`, code) into the default model and the provider resolver, builds the `Engine` (which checks every agent's model) with every contributed channel (`AppToken.CHANNELS`) and starts it, which starts the channels |
 | `agentsModule()` | Loads the [agent packages](/guide/agent-packages) (createApp's specifiers, `chamvi.json`, `CHAMVI_AGENTS`) and the [agent folders](/guide/agent-folders) of `CHAMVI_AGENTS_DIR` (else `./agents` when it exists) before the engine starts and watches the folders (the `agents-watcher` component; a package whose skill preparation failed retries in `agents-packages`); an app with no agent at all starts with a warning |
-| `componentsModule()` | Runs every [component](#background-components) (`AppToken.COMPONENTS`) in start mode, after the engine and before the server listens, and stops them first in the shutdown |
+| `componentsModule()` | Runs every [component](#background-components) (`AppToken.COMPONENTS`) in start mode, after the engine and before the server listens, and stops them in the `stopping` phase, before the drain |
 | `schedulerModule()` | The `cron` channel (`cronChannel()` from `@chamvi/channel-cron`); `CHAMVI_SCHEDULER=false` leaves firing to Kubernetes CronJobs and `chamvi run-job` (`cron.on()` subscriptions still validate) |
 | `httpModule()` | The `http`, `mcp` and `webhook` channels, `createHttpApp()` with every contributed route and authenticator, mounting every contributed channel with an `in` at `/channels/<name>`, the graceful shutdown, `serve()` on `HOST`:`PORT` |
 
@@ -103,7 +103,7 @@ So a contribution never depends on module order. A module that resolves `ENGINE`
 `app.stop()` is memoized and also stops a start still setting up (which then never listens):
 
 1. `/readyz` answers 503, then `CHAMVI_READINESS_DELAY_MS` (0)
-2. the `stopping` hooks: the components stop, up to `CHAMVI_DRAIN_TIMEOUT_MS` (a component that does not stop in time is logged and `stop()` rejects)
+2. the `stopping` hooks, in setup order: the components stop among them, up to `CHAMVI_DRAIN_TIMEOUT_MS` (a component that does not stop in time is logged and `stop()` rejects)
 3. the app's closers (SSE streams, MCP waits)
 4. `server.close()`
 5. `engine.drain()`: every channel's `stop()` first, then the runs get what remains of the same `CHAMVI_DRAIN_TIMEOUT_MS` (30 s) budget, which began with the components' stop: the two together never take longer than one timeout
@@ -117,7 +117,7 @@ orkos swallows teardown errors; chamvi does not: every teardown error is logged,
 
 ## Background components
 
-A job that runs beside the engine, such as a poll or a periodic cleanup, is a [hubwire](https://github.com/tada5hi/hubwire) component contributed to `AppToken.COMPONENTS` as `{ name, component }`. The components module runs them as one group, in start mode outside a check only: they start in contribution order after `engine.start()` and before the server listens (a failing `start()` fails the app start and stops the ones already started), and stop in reverse order first in the shutdown. Names follow the agent-name rule and are unique; a bad or duplicate name throws `InvalidAgentDefinitionError`. Add `hubwire` to your app's dependencies:
+A job that runs beside the engine, such as a poll or a periodic cleanup, is a [hubwire](https://github.com/tada5hi/hubwire) component contributed to `AppToken.COMPONENTS` as `{ name, component }`. The components module runs them as one group, in start mode outside a check only: they start in contribution order (the order the modules set up, which follows their dependencies, not the order of the module list) after `engine.start()` and before the server listens (a failing `start()` fails the app start and stops the ones already started), and stop in the `stopping` phase, before the drain (a module set up before the components module runs its `stopping` hook first). Names follow the agent-name rule and are unique; a bad or duplicate name throws `InvalidAgentDefinitionError`. Add `hubwire` to your app's dependencies:
 
 <<< @/snippets/app-component.ts#component
 
