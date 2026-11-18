@@ -29,6 +29,7 @@ import {
     createIndexerSetup,
     gatedModel,
     mapSource,
+    waitForCollection,
     waitForReady,
 } from '../../utils/indexer.ts';
 
@@ -471,6 +472,102 @@ describe('the indexing lock', () => {
 
         expect(replace.mock.calls).toHaveLength(3);
         expect(replace.mock.calls.every((call) => call[4]?.fence !== undefined)).toBe(true);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose record appeared after the fence was advanced renews the lock before its own advance', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const save = service.saveCollection.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+        const now = new Date(setup.clock.now());
+        const record: KnowledgeCollection = {
+            name: 'docs',
+            kind: 'declared',
+            trusted: true,
+            generation: 0,
+            model: 'mock-provider/mock-model-id',
+            chunker: CHUNKER_VERSION,
+            status: 'pending',
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        // the record lands after the loop's advance (no row yet), then the lease runs out and another owner takes the lock
+        const fences = vi.spyOn(service, 'advanceFence').mockImplementationOnce(async (name) => {
+            const fence = await advance(name);
+
+            await save(record);
+            setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+            expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+
+            return fence;
+        });
+
+        await expect.poll(() => acquiresOf(setup, 'replica-a')).toEqual([true, false]);
+        await settle();
+
+        // the pass ended without a fence of its own: the intruder's token stays the newest
+        expect(fences).toHaveBeenCalledTimes(1);
+        expect(replace).not.toHaveBeenCalled();
+        expect(await setup.repository.findOneCollection('docs')).toEqual(record);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose record appeared after the fence was advanced decides on the record read after its own advance', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const save = service.saveCollection.bind(service);
+        const now = new Date(setup.clock.now());
+        const record: KnowledgeCollection = {
+            name: 'docs',
+            kind: 'declared',
+            trusted: true,
+            generation: 1,
+            model: 'mock-provider/mock-model-id',
+            chunker: CHUNKER_VERSION,
+            status: 'ready',
+            createdAt: now,
+            updatedAt: now,
+        };
+
+        vi.spyOn(service, 'advanceFence')
+            // the record lands between the loop's advance (no row yet) and the pass's own read
+            .mockImplementationOnce(async (name) => {
+                const fence = await advance(name);
+
+                await save(record);
+
+                return fence;
+            })
+            // the previous owner gave out generation 7 between the pass's read and its advance
+            .mockImplementationOnce(async (name) => {
+                await save({
+                    ...record,
+                    pending: {
+                        generation: 7,
+                        model: 'mock-provider/mock-model-id',
+                        chunker: CHUNKER_VERSION,
+                    },
+                    lastGeneration: 7,
+                });
+
+                return advance(name);
+            });
+
+        const synced = await waitForCollection(setup.repository, 'docs', (collection) => collection.syncedAt !== undefined);
+
+        // never a generation number given out before
+        expect(synced).toMatchObject({
+            generation: 1,
+            lastGeneration: 7,
+            status: 'ready',
+        });
+        expect(synced.pending).toBeUndefined();
         expect(setup.errors).toEqual([]);
     });
 

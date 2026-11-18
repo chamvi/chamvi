@@ -829,6 +829,111 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('a pass whose record appeared after the fence was advanced renews the lock before its own advance', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel(), owner: 'replica-a' });
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const save = service.saveCollection.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+
+        await knowledge.createCollection('notes');
+
+        const record = (await service.findOneCollection('notes'))!;
+        const document = {
+            collection: 'notes',
+            id: 'doc',
+            content: 'Refunds within thirty days.',
+            hash: contentHash('Refunds within thirty days.'),
+            status: 'pending' as const,
+            generation: 0,
+            updatedAt: new Date(setup.clock.now()),
+        };
+
+        // created again after the loop's advance (no row then), then the lease runs out and another owner takes the lock
+        const fences = vi.spyOn(service, 'advanceFence').mockImplementationOnce(async (name) => {
+            await service.deleteCollection(name);
+
+            const fence = await advance(name);
+
+            await save(record);
+            await service.saveDocument(document);
+            setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+            expect(await setup.locks.acquire('knowledge:notes', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+
+            return fence;
+        });
+
+        knowledge.start();
+
+        await expect.poll(() => setup.locks.acquired.filter((entry) => entry.owner === 'replica-a').map((entry) => entry.result)).toEqual([true, false]);
+        await settle();
+
+        // the pass ended without a fence of its own: the intruder's token stays the newest
+        expect(fences).toHaveBeenCalledTimes(1);
+        expect(replace).not.toHaveBeenCalled();
+        expect(await service.findOneDocument('notes', 'doc')).toEqual(document);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose record appeared after the fence was advanced decides on the record read after its own advance', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const save = service.saveCollection.bind(service);
+
+        await knowledge.createCollection('notes');
+
+        const record = (await service.findOneCollection('notes'))!;
+
+        vi.spyOn(service, 'advanceFence')
+            // deleted and created again between the loop's advance (no row then) and the pass's own read
+            .mockImplementationOnce(async (name) => {
+                await service.deleteCollection(name);
+
+                const fence = await advance(name);
+
+                await save(record);
+                await service.saveDocument({
+                    collection: name,
+                    id: 'doc',
+                    content: 'Refunds within thirty days.',
+                    hash: contentHash('Refunds within thirty days.'),
+                    status: 'pending',
+                    generation: 0,
+                    updatedAt: new Date(setup.clock.now()),
+                });
+
+                return fence;
+            })
+            // the previous owner started a re-embed toward another model between the pass's read and its advance
+            .mockImplementationOnce(async (name) => {
+                await save({
+                    ...record,
+                    pending: {
+                        generation: 2,
+                        model: 'other/model',
+                        chunker: CHUNKER_VERSION,
+                    },
+                    lastGeneration: 2,
+                });
+
+                return advance(name);
+            });
+
+        knowledge.start();
+
+        await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        // the pass abandoned the re-embed it found after its advance
+        const stored = await service.findOneCollection('notes');
+
+        expect(stored).toMatchObject({ generation: 1, lastGeneration: 2 });
+        expect(stored?.pending).toBeUndefined();
+        expect(setup.errors).toEqual([]);
+    });
+
     it('a document the provider rejects with a 400 is failed with the error; a 500 fails the pass and the document stays pending', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: rejectingModel() });

@@ -172,7 +172,18 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
     } = input;
     const { name } = definition;
     const label = `Knowledge collection "${name}"`;
-    const stored = await repository.findOneCollection(name);
+    let stored = await repository.findOneCollection(name);
+
+    if (stored && lock.fence === undefined) {
+        // the record appeared after the loop advanced the fence (no row then):
+        // take a token while the lock holds, then decide on what is stored from here on
+        if (!await lock.renew()) {
+            return;
+        }
+
+        await advanceLockFence(repository, name, lock);
+        stored = await repository.findOneCollection(name);
+    }
 
     if (stored?.kind === 'managed') {
         throw managedNameError(name);
@@ -225,11 +236,6 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
 
     if (target !== record.generation) {
         record = { ...record, status: record.generation > 0 ? 'stale' : 'pending' };
-    }
-
-    if (stored && lock.fence === undefined) {
-        // the record appeared after the loop advanced the fence (no row then)
-        await advanceLockFence(repository, name, lock);
     }
 
     // without a token only a create: a record another owner created meanwhile is never replaced

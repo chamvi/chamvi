@@ -338,11 +338,22 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
     }
 
     if (lock.fence === undefined) {
-        // the record appeared after the loop advanced the fence (no row then)
+        // the record appeared after the loop advanced the fence (no row then):
+        // take a token while the lock holds, then decide on what is stored from here on
+        if (!await lock.renew()) {
+            return;
+        }
+
         await advanceLockFence(repository, name, lock);
 
         if (lock.fence === undefined) {
             // gone again: nothing to write, and never a write without a token
+            return;
+        }
+
+        record = await repository.findOneCollection(name);
+
+        if (record?.kind !== 'managed') {
             return;
         }
     }
