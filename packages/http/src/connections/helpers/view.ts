@@ -39,10 +39,9 @@ export async function buildSettingsView(ctx: ConnectionHttpServiceContext, targe
         name,
     } = target;
     const stored = await ctx.connectionConfigs?.describe(name);
-    const loadedCreatedAt = declared?.loadedCreatedAt;
-    // a delete and create again restarts the revision count: only the row's age tells them apart
-    const row = loadedCreatedAt ? await ctx.connectionService?.findOne(name) : undefined;
-    const recreated = row !== undefined && row.createdAt.getTime() !== loadedCreatedAt?.getTime();
+    const loadedGeneration = declared?.loadedGeneration;
+    // a delete and create again restarts the revision count: only the row's generation tells them apart
+    const recreated = stored !== undefined && loadedGeneration !== undefined && stored.generation !== loadedGeneration;
     const fields: ConnectionSettingsFieldView[] = [];
     const settings: [string, unknown][] = [];
 
@@ -86,6 +85,8 @@ export async function buildSettingsView(ctx: ConnectionHttpServiceContext, targe
         ...((refused || failed) && declared?.resolved.reason !== undefined && { reason: declared.resolved.reason }),
         settings: Object.fromEntries(settings),
         fields,
+        revision: stored?.revision ?? 0,
+        ...(stored && { generation: stored.generation }),
         restartRequired,
         editable: isEditable(ctx, target),
         deletable: isDeletable(ctx, target),

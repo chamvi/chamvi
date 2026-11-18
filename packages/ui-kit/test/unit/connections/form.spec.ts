@@ -22,6 +22,7 @@ import {
     shallowRef,
 } from 'vue';
 import type { App } from 'vue';
+import { isObject } from 'smob';
 import { ApiError } from '@chamvi/http-kit';
 import type { ConnectionSettingsWire, ConnectionTypeWire } from '@chamvi/http-kit';
 import ConnectionForm from '../../../src/connections/ConnectionForm.vue';
@@ -86,6 +87,8 @@ function view(overrides: Partial<ConnectionSettingsWire> = {}): ConnectionSettin
                 set: true,
             },
         ],
+        revision: 3,
+        generation: 'gen-1',
         restartRequired: false,
         editable: true,
         deletable: false,
@@ -290,6 +293,8 @@ describe('ConnectionForm', () => {
                 security: '',
                 user: '',
             },
+            revision: 3,
+            generation: 'gen-1',
         });
     });
 
@@ -354,6 +359,8 @@ describe('ConnectionForm', () => {
                 dms: false,
                 other: '',
             },
+            revision: 3,
+            generation: 'gen-1',
         });
     });
 
@@ -460,7 +467,11 @@ describe('ConnectionForm', () => {
         form.type(form.input('port')!, ' -1.5 ');
         await form.submit();
 
-        expect(bodies).toEqual([{ settings: expect.objectContaining({ port: -1.5 }) }]);
+        expect(bodies).toEqual([{
+            settings: expect.objectContaining({ port: -1.5 }), 
+            revision: 3, 
+            generation: 'gen-1', 
+        }]);
     });
 
     it('needs an account id and a required secret while adding', async () => {
@@ -507,6 +518,157 @@ describe('ConnectionForm', () => {
         await form.submit();
 
         expect(put.mock.calls[0]![0 as never]).toMatchObject({ settings: { security: 'tls' } });
+    });
+
+    describe('a save made from an older state', () => {
+        const changed = () => {
+            throw new ApiError(409, 'connection_changed', 'The connection "mail-work" changed; load it again and retry.');
+        };
+
+        it('sends the revision and generation of the view it was made from', async () => {
+            const put = vi.fn(() => view({ revision: 4 }));
+            const form = await mount({ routes: { 'PUT /connections/mail-work/config': put } });
+
+            await form.submit();
+            expect(put.mock.calls[0]![0 as never]).toMatchObject({ revision: 3, generation: 'gen-1' });
+
+            // the next save sends what the last answer said
+            await form.submit();
+            expect(put.mock.calls[1]![0 as never]).toMatchObject({ revision: 4, generation: 'gen-1' });
+        });
+
+        it('sends revision 0 and no generation for a connection without a row', async () => {
+            const empty = view({ revision: 0 });
+
+            delete empty.generation;
+
+            const put = vi.fn(() => view());
+            const form = await mount({ current: empty, routes: { 'PUT /connections/mail-work/config': put } });
+
+            await form.submit();
+
+            expect(put.mock.calls[0]![0 as never]).toMatchObject({ revision: 0 });
+            expect(put.mock.calls[0]![0 as never]).not.toHaveProperty('generation');
+        });
+
+        it('keeps the typed values, says the connection changed and disables Save until reloaded', async () => {
+            const form = await mount({ routes: { 'PUT /connections/mail-work/config': changed } });
+
+            form.type(form.input('host')!, 'imap.mine');
+            await form.submit();
+
+            expect(form.root.textContent).toContain('This connection changed since you opened it.');
+            expect(form.input('host')?.value).toBe('imap.mine');
+            expect(form.button('Save')?.disabled).toBe(true);
+            expect(form.button('Reload values')).toBeDefined();
+        });
+
+        it('Reload values fetches the stored config, drops the edits and enables Save again', async () => {
+            let current = view();
+            const form = await mount({
+                routes: {
+                    'GET /connections/mail-work/config': () => current,
+                    'PUT /connections/mail-work/config': changed,
+                },
+            });
+
+            form.type(form.input('host')!, 'imap.mine');
+            await form.submit();
+            current = view({ settings: { host: 'imap.theirs', port: 993 }, revision: 5 });
+            form.button('Reload values')!.click();
+            await flush();
+
+            expect(form.input('host')?.value).toBe('imap.theirs');
+            expect(form.root.textContent).not.toContain('This connection changed since you opened it.');
+            expect(form.button('Save')?.disabled).toBe(false);
+        });
+
+        it('a stale clear of a secret shows the same notice', async () => {
+            const form = await mount({ current: view({ deletable: true }), routes: { 'PUT /connections/mail-work/config': changed } });
+
+            form.button('Clear')!.click();
+            await flush();
+            form.button('Clear secret')!.click();
+            await flush();
+
+            expect(form.root.textContent).toContain('This connection changed since you opened it.');
+            expect(form.root.querySelector('[role="alertdialog"]')).toBeNull();
+        });
+
+        it('adding an account shows a connection_changed refusal as a message, never the reload notice', async () => {
+            const form = await mount({ name: undefined, routes: { 'POST /connection-types/mail/connections': changed } });
+
+            form.type(form.input('account')!, 'work');
+            form.type(form.input('host')!, 'imap.example.com');
+            form.type(form.input('password')!, 'hunter2');
+            await form.submit();
+
+            expect(form.root.textContent).toContain('changed; load it again and retry.');
+            expect(form.root.textContent).not.toContain('This connection changed since you opened it.');
+            expect(form.button('Save')?.disabled).toBe(false);
+        });
+
+        it('a clear whose answer holds another save keeps the unsaved edits and asks for a reload', async () => {
+            const put = vi.fn((body: unknown) => {
+                // the clear committed revision 4; another tab saved revision 5 before the answer was read
+                if (isObject(body) && isObject(body.secrets)) {
+                    return withField(view({ settings: { host: 'imap.theirs', port: 993 }, revision: 5 }), 'password', { source: { kind: 'unset' }, set: false });
+                }
+
+                return view();
+            });
+            const form = await mount({ current: view({ deletable: true }), routes: { 'PUT /connections/mail-work/config': put } });
+
+            form.type(form.input('host')!, 'imap.mine');
+            form.button('Clear')!.click();
+            await flush();
+            form.button('Clear secret')!.click();
+            await flush();
+
+            expect(form.input('host')?.value).toBe('imap.mine');
+            expect(form.root.textContent).toContain('This connection changed since you opened it.');
+            expect(form.button('Save')?.disabled).toBe(true);
+            await form.submit();
+            expect(put).toHaveBeenCalledTimes(1);
+        });
+
+        it('a clear answered with exactly its own write lets the next save send the new revision', async () => {
+            const put = vi.fn((body: unknown) => (isObject(body) && isObject(body.secrets) ?
+                withField(view({ revision: 4, deletable: true }), 'password', { source: { kind: 'unset' }, set: false }) :
+                view({ revision: 5 })));
+            const form = await mount({ current: view({ deletable: true }), routes: { 'PUT /connections/mail-work/config': put } });
+
+            form.type(form.input('host')!, 'imap.mine');
+            form.button('Clear')!.click();
+            await flush();
+            form.button('Clear secret')!.click();
+            await flush();
+
+            expect(form.root.textContent).not.toContain('This connection changed since you opened it.');
+            form.type(form.input('password')!, 'new-secret');
+            await form.submit();
+            expect(put.mock.calls[1]![0 as never]).toMatchObject({
+                settings: { host: 'imap.mine' }, 
+                revision: 4, 
+                generation: 'gen-1', 
+            });
+        });
+
+        it('another 409 shows its message and no reload', async () => {
+            const form = await mount({
+                routes: {
+                    'PUT /connections/mail-work/config': () => {
+                        throw new ApiError(409, 'conflict', 'An account with the same identity already exists.');
+                    },
+                },
+            });
+
+            await form.submit();
+
+            expect(form.root.textContent).toContain('An account with the same identity already exists.');
+            expect(form.root.textContent).not.toContain('This connection changed since you opened it.');
+            expect(form.button('Reload values')).toBeUndefined();
+        });
     });
 
     it('reports a refused save at the form', async () => {
@@ -592,7 +754,11 @@ describe('ConnectionForm', () => {
 
         vi.stubGlobal('confirm', confirm);
 
-        const put = vi.fn(() => withField(view({ restartRequired: true, deletable: true }), 'password', { source: { kind: 'unset' }, set: false }));
+        const put = vi.fn(() => withField(view({
+            restartRequired: true, 
+            deletable: true, 
+            revision: 4, 
+        }), 'password', { source: { kind: 'unset' }, set: false }));
         const form = await mount({
             current: view({ deletable: true }),
             routes: { 'PUT /connections/mail-work/config': put },
@@ -608,10 +774,15 @@ describe('ConnectionForm', () => {
         form.button('Clear secret')!.click();
         await flush();
 
-        expect(put.mock.calls[0]![0 as never]).toEqual({ secrets: { clear: ['password'] } });
+        expect(put.mock.calls[0]![0 as never]).toEqual({
+            secrets: { clear: ['password'] }, 
+            revision: 3, 
+            generation: 'gen-1', 
+        });
         expect(form.input('password')?.value).toBe('');
         expect(form.input('host')?.value).toBe('imap.unsaved');
         expect(form.root.textContent).toContain('Saved. Restart the app to apply.');
+        expect(form.root.textContent).not.toContain('This connection changed since you opened it.');
         expect(confirm).not.toHaveBeenCalled();
     });
 
@@ -684,6 +855,8 @@ describe('ConnectionForm', () => {
             expect(bodies).toEqual([{
                 settings: expect.objectContaining({ host: 'other.example.com' }),
                 secrets: { set: { password: 'typed-again' } },
+                revision: 3,
+                generation: 'gen-1',
             }]);
         });
 
@@ -711,7 +884,11 @@ describe('ConnectionForm', () => {
 
             await form.submit();
 
-            expect(bodies).toEqual([{ settings: expect.objectContaining({ host: 'imap.example.com' }) }]);
+            expect(bodies).toEqual([{
+                settings: expect.objectContaining({ host: 'imap.example.com' }), 
+                revision: 3, 
+                generation: 'gen-1', 
+            }]);
 
             // the input opens empty again, the dropped text is gone
             form.type(form.input('host')!, 'other.example.com');
@@ -782,7 +959,7 @@ describe('ConnectionForm', () => {
             current: view({ deletable: true }),
             routes: {
                 'POST /connections/mail-work/test': () => ({ ok: true }),
-                'PUT /connections/mail-work/config': () => withField(view({ deletable: true }), 'password', { source: { kind: 'unset' }, set: false }),
+                'PUT /connections/mail-work/config': () => withField(view({ deletable: true, revision: 4 }), 'password', { source: { kind: 'unset' }, set: false }),
             },
         });
 
@@ -920,7 +1097,11 @@ describe('ConnectionForm', () => {
 
         await form.submit();
 
-        expect(put.mock.calls[0]![0 as never]).toEqual({ settings: { host: 'a\nb' } });
+        expect(put.mock.calls[0]![0 as never]).toEqual({
+            settings: { host: 'a\nb' }, 
+            revision: 3, 
+            generation: 'gen-1', 
+        });
     });
 
     it('shows the issues of a clear that failed', async () => {

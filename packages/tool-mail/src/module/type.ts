@@ -200,7 +200,7 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
                 editable,
                 deletable,
                 resolved,
-                ...(row && { loadedRevision: row.revision, loadedCreatedAt: row.createdAt }),
+                ...(row && { loadedRevision: row.revision, loadedGeneration: row.id }),
             });
         }
     };

@@ -40,6 +40,8 @@ const SETTINGS: ConnectionSettingsWire = {
     state: 'configured',
     settings: { appId: '1' },
     fields: [{ key: 'appId', source: { kind: 'store' } }],
+    revision: 1,
+    generation: 'gen-1',
     restartRequired: false,
     editable: true,
     deletable: false,

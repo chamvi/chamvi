@@ -94,7 +94,11 @@ export type ConnectionSettingsView = {
     reason?: string;
     settings: Record<string, unknown>;
     fields: ConnectionSettingsFieldView[];
-    /** The stored revision is not the one this process loaded. */
+    /** The stored config revision, 0 without a row: a save sends it back. */
+    revision: number;
+    /** The row's generation, absent without a row: a save sends it back. */
+    generation?: string;
+    /** The stored revision or generation is not the one this process loaded. */
     restartRequired: boolean;
     editable: boolean;
     deletable: boolean;
@@ -109,8 +113,15 @@ export type ConnectionTestView = {
 /** Secret values by field name; `''` or `null` keeps the stored value. */
 export type ConnectionSecretValues = Record<string, string | null>;
 
-/** `PUT /connections/{name}/config`. An empty value is unset. */
+/**
+ * `PUT /connections/{name}/config`. An empty value is unset. `revision` and
+ * `generation` are the ones of the view the save was made from: another save,
+ * a reset or a delete and create since then answers 409 `connection_changed`.
+ */
 export type ConnectionSaveBody = {
+    revision: number;
+    /** Absent when the view had none (no row yet). */
+    generation?: string;
     /** The complete settings: replaces the stored ones. Absent keeps them. */
     settings?: Record<string, unknown>;
     secrets?: {

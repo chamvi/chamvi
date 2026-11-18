@@ -102,6 +102,6 @@ export function declaredConnection(
         editable,
         deletable: false,
         resolved,
-        ...(row && { loadedRevision: row.revision, loadedCreatedAt: row.createdAt }),
+        ...(row && { loadedRevision: row.revision, loadedGeneration: row.id }),
     };
 }

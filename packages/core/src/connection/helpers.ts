@@ -50,9 +50,10 @@ export function normalizeOpenOptions(input: ConnectionOpenOptionsInput): Connect
     return { ...input, leaseTtlMs };
 }
 
-/** A stored connection as the service returns it: no storage id, settings or revision; fresh bytes and dates. */
+/** A stored connection as the service returns it: no settings or revision; fresh bytes and dates. */
 export function readConnection(record: ConnectionRecord): Connection {
     return {
+        id: record.id,
         name: record.name,
         type: record.type,
         keyId: record.keyId,
@@ -75,5 +76,6 @@ export function readConfig(record: ConnectionRecord, secrets: ConnectionSecretRe
         settings: structuredClone(record.settings),
         secrets: new Map(secrets.map((secret) => [secret.name, new Uint8Array(secret.value)])),
         revision: record.configRevision,
+        generation: record.id,
     };
 }

@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { Connection } from '@chamvi/store';
+import type { ConnectionInput } from '@chamvi/store';
 import { MemoryConnectionRepository, MemoryLockRepository, MemoryRegistry } from '@chamvi/store-memory';
 import {
     ConnectionChangedError,
@@ -26,7 +26,7 @@ const plain = (entries: Map<string, Uint8Array>) => Object.fromEntries(
     [...entries].map(([key, value]) => [key, Array.from(value)]),
 );
 
-function makeConnection(name: string, overrides: Partial<Connection> = {}): Connection {
+function makeConnection(name: string, overrides: Partial<ConnectionInput> = {}): ConnectionInput {
     return {
         name,
         type: 'whatsapp',
@@ -37,6 +37,9 @@ function makeConnection(name: string, overrides: Partial<Connection> = {}): Conn
         ...overrides,
     };
 }
+
+/** A connection as the service returns it: the input with the id the service assigned. */
+const stored = (connection: ConnectionInput) => ({ id: expect.any(String), ...connection });
 
 /** The service and a lock service on memory repositories of one registry, on one clock. */
 function setup() {
@@ -97,7 +100,7 @@ describe('ConnectionService', () => {
         expect(await connections.find()).toEqual([]);
         expect(await connections.create(makeConnection('wa'))).toBe(true);
         expect(await connections.create(makeConnection('wa', { type: 'other', keyId: 'k2' }))).toBe(false);
-        expect(await connections.findOneOrFail('wa')).toStrictEqual(makeConnection('wa'));
+        expect(await connections.findOneOrFail('wa')).toStrictEqual(stored(makeConnection('wa')));
 
         const results = await Promise.all(
             Array.from({ length: 10 }, (_, i) => connections.create(makeConnection('race', { keyId: `k${i}` }))),
@@ -105,6 +108,19 @@ describe('ConnectionService', () => {
 
         expect(results.filter(Boolean)).toHaveLength(1);
         expect((await connections.find()).map((c) => c.name)).toEqual(['race', 'wa']);
+    });
+
+    it('two rows created in the same millisecond have different uuid v7 ids', async () => {
+        const { connections } = setup();
+
+        await connections.create(makeConnection('a'));
+        await connections.create(makeConnection('b'));
+
+        const [a, b] = await connections.find();
+
+        expect(a!.createdAt).toEqual(b!.createdAt);
+        expect(a!.id).not.toBe(b!.id);
+        expect(a!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
     });
 
     it('find orders by name code point and returns the public connection only', async () => {
@@ -117,7 +133,7 @@ describe('ConnectionService', () => {
         const found = await connections.find();
 
         expect(found.map((c) => c.name)).toEqual(['a', 'a-b', 'a0', 'b']);
-        expect(Object.keys(found[0]!).sort()).toEqual(['createdAt', 'keyId', 'name', 'type', 'updatedAt', 'wrappedKey']);
+        expect(Object.keys(found[0]!).sort()).toEqual(['createdAt', 'id', 'keyId', 'name', 'type', 'updatedAt', 'wrappedKey']);
     });
 
     it('create refuses an invalid name, type or key id with ValidationError', async () => {
@@ -369,14 +385,15 @@ describe('ConnectionService', () => {
         });
 
         await connections.replace(replacement, fence);
-        expect(await connections.findOneOrFail('wa')).toStrictEqual(replacement);
+        // the same row: its createdAt stays
+        expect(await connections.findOneOrFail('wa')).toStrictEqual(stored({ ...replacement, createdAt: new Date(1_000) }));
         expect((await connections.findEntries('wa', ['a'])).size).toBe(0);
         expect(plain(await connections.findEntries('other', ['a']))).toEqual({ a: [2] });
 
         const absent = await hold('fresh');
 
         await connections.replace(makeConnection('fresh'), absent);
-        expect(await connections.findOneOrFail('fresh')).toStrictEqual(makeConnection('fresh'));
+        expect(await connections.findOneOrFail('fresh')).toStrictEqual(stored(makeConnection('fresh')));
     });
 
     it('replace with an expired, another owner\'s or another lock\'s fence throws LeaseLostError and changes nothing', async () => {
@@ -409,7 +426,7 @@ describe('ConnectionService', () => {
 
         await connections.writeEntries('wa', { set: { b: bytes(2) } }, taken);
         await expect(connections.replace(replacement, fence)).rejects.toBeInstanceOf(LeaseLostError);
-        expect(await connections.findOneOrFail('wa')).toStrictEqual({ ...makeConnection('wa'), updatedAt: new Date(clock.now()) });
+        expect(await connections.findOneOrFail('wa')).toStrictEqual(stored({ ...makeConnection('wa'), updatedAt: new Date(clock.now()) }));
         expect(plain(await connections.findEntries('wa', ['a', 'b']))).toEqual({ a: [1], b: [2] });
         expect(await connections.findOne('fresh')).toBeUndefined();
     });
@@ -466,16 +483,16 @@ describe('ConnectionService', () => {
 
         const found = await connections.findOneOrFail('wa');
 
-        expect(found).toStrictEqual(makeConnection('wa'));
+        expect(found).toStrictEqual(stored(makeConnection('wa')));
         expect(Object.getPrototypeOf(found.wrappedKey)).toBe(Uint8Array.prototype);
         found.wrappedKey[0] = 99;
         found.updatedAt.setTime(0);
 
         const [listed] = await connections.find();
 
-        expect(listed).toStrictEqual(makeConnection('wa'));
+        expect(listed).toStrictEqual(stored(makeConnection('wa')));
         listed!.wrappedKey[0] = 99;
-        expect(await connections.findOne('wa')).toStrictEqual(makeConnection('wa'));
+        expect(await connections.findOne('wa')).toStrictEqual(stored(makeConnection('wa')));
 
         const fence = await hold('wa');
         const value = bytes(1, 2);
@@ -532,6 +549,7 @@ describe('ConnectionService', () => {
             settings: {},
             secrets: new Map(),
             revision: 0,
+            generation: expect.any(String),
         });
 
         clock.advance(10);
@@ -539,17 +557,19 @@ describe('ConnectionService', () => {
             settings: {
                 host: 'imap.example',
                 port: 993,
-                nested: { tls: true, list: ['a'] },
+                tls: true,
+                list: ['a'],
             },
             setSecrets: { password: bytes(1, 2), token: bytes(3) },
-        }, key)).toBe(1);
+        }, { wrappedKey: key })).toBe(1);
 
         const first = (await connections.findConfig('wa'))!;
 
         expect(first.settings).toEqual({
             host: 'imap.example',
             port: 993,
-            nested: { tls: true, list: ['a'] },
+            tls: true,
+            list: ['a'],
         });
         expect(plain(first.secrets)).toEqual({ password: [1, 2], token: [3] });
         expect(first.revision).toBe(1);
@@ -559,15 +579,15 @@ describe('ConnectionService', () => {
         expect(await connections.writeConfig('wa', {
             setSecrets: { password: bytes(9), both: bytes(8) },
             clearSecrets: ['token', 'both', 'absent'],
-        }, key)).toBe(2);
+        }, { wrappedKey: key })).toBe(2);
 
         const second = (await connections.findConfig('wa'))!;
 
         expect(second.settings).toEqual(first.settings);
         expect(plain(second.secrets)).toEqual({ password: [9] });
-        expect(await connections.writeConfig('wa', { settings: { host: 'other' } }, key)).toBe(3);
+        expect(await connections.writeConfig('wa', { settings: { host: 'other' } }, { wrappedKey: key })).toBe(3);
         expect(await connections.findConfig('wa')).toMatchObject({ settings: { host: 'other' }, revision: 3 });
-        expect(await connections.writeConfig('wa', {}, key)).toBe(4);
+        expect(await connections.writeConfig('wa', {}, { wrappedKey: key })).toBe(4);
     });
 
     it('refuses a config write whose expected revision is stale, writing nothing', async () => {
@@ -575,19 +595,89 @@ describe('ConnectionService', () => {
         const key = makeConnection('wa').wrappedKey;
 
         await connections.create(makeConnection('wa'));
-        expect(await connections.writeConfig('wa', { settings: { host: 'a' } }, key, 0)).toBe(1);
+        expect(await connections.writeConfig('wa', { settings: { host: 'a' } }, { wrappedKey: key, revision: 0 })).toBe(1);
 
         // another save landed after this one read revision 0
         await expect(connections.writeConfig('wa', {
             settings: { host: 'b' },
             setSecrets: { password: bytes(7) },
-        }, key, 0)).rejects.toMatchObject({ code: 'connection_changed' });
+        }, { wrappedKey: key, revision: 0 })).rejects.toMatchObject({ code: 'connection_changed' });
         expect(await connections.findConfig('wa')).toMatchObject({
             settings: { host: 'a' },
             secrets: new Map(),
             revision: 1,
+            generation: expect.any(String),
         });
-        expect(await connections.writeConfig('wa', { settings: { host: 'b' } }, key, 1)).toBe(2);
+        expect(await connections.writeConfig('wa', { settings: { host: 'b' } }, { wrappedKey: key, revision: 1 })).toBe(2);
+    });
+
+    it('a delete and create under one name with equal revisions refuses a save expecting the old generation', async () => {
+        const { connections } = setup();
+        const key = makeConnection('wa').wrappedKey;
+
+        await connections.create(makeConnection('wa'));
+        await connections.writeConfig('wa', { settings: { host: 'a' } }, { wrappedKey: key });
+
+        const first = (await connections.findConfig('wa'))!;
+
+        await connections.delete('wa');
+        await connections.create(makeConnection('wa'));
+        await connections.writeConfig('wa', { settings: { host: 'b' } }, { wrappedKey: key });
+
+        const second = (await connections.findConfig('wa'))!;
+
+        expect(second.revision).toBe(first.revision);
+        expect(second.generation).not.toBe(first.generation);
+        expect(second.generation).toBe((await connections.findOneOrFail('wa')).id);
+        await expect(connections.writeConfig('wa', { settings: { host: 'c' } }, {
+            wrappedKey: key,
+            revision: first.revision,
+            generation: first.generation,
+        })).rejects.toThrow(new ConnectionChangedError('wa'));
+        expect(await connections.findConfig('wa')).toMatchObject({ settings: { host: 'b' }, revision: 1 });
+        expect(await connections.writeConfig('wa', { settings: { host: 'c' } }, {
+            wrappedKey: key,
+            revision: second.revision,
+            generation: second.generation,
+        })).toBe(2);
+    });
+
+    it('replace bumps the config revision and keeps the id and createdAt', async () => {
+        const {
+            clock, 
+            connections, 
+            hold, 
+        } = setup();
+        const key = makeConnection('wa').wrappedKey;
+
+        await connections.create(makeConnection('wa'));
+        await connections.writeConfig('wa', { settings: { a: 1 } }, { wrappedKey: key });
+
+        const before = (await connections.findConfig('wa'))!;
+        const row = await connections.findOneOrFail('wa');
+
+        clock.advance(10);
+
+        const replacement = makeConnection('wa', {
+            wrappedKey: bytes(7, 7),
+            createdAt: new Date(clock.now()),
+            updatedAt: new Date(clock.now()),
+        });
+
+        await connections.replace(replacement, await hold('wa'));
+
+        const after = (await connections.findConfig('wa'))!;
+
+        expect(after.revision).toBe(before.revision + 1);
+        expect(after.generation).toBe(before.generation);
+        expect(await connections.findOneOrFail('wa')).toMatchObject({ id: row.id, createdAt: row.createdAt });
+        // a save that read before the replace is stale, also with the replacement's key
+        await expect(connections.writeConfig('wa', { settings: { a: 2 } }, {
+            wrappedKey: replacement.wrappedKey,
+            revision: before.revision,
+            generation: before.generation,
+        })).rejects.toThrow(new ConnectionChangedError('wa'));
+        expect((await connections.findConfig('wa'))!.settings).toEqual({ a: 1 });
     });
 
     it('a stale wrappedKey or revision is ConnectionChangedError and writes nothing', async () => {
@@ -595,7 +685,7 @@ describe('ConnectionService', () => {
         const key = bytes(1, 2, 3, 4);
 
         await connections.create(makeConnection('wa', { wrappedKey: key }));
-        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: bytes(7) } }, key);
+        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: bytes(7) } }, { wrappedKey: key });
 
         const before = await connections.findOneOrFail('wa');
 
@@ -606,7 +696,7 @@ describe('ConnectionService', () => {
                 settings: { a: 2 },
                 setSecrets: { s: bytes(8), t: bytes(9) },
                 clearSecrets: ['s'],
-            }, stale, revision)).rejects.toThrow(new ConnectionChangedError('wa'));
+            }, { wrappedKey: stale, revision })).rejects.toThrow(new ConnectionChangedError('wa'));
         }
 
         expect(await connections.findConfig('wa')).toEqual({
@@ -615,6 +705,7 @@ describe('ConnectionService', () => {
             settings: { a: 1 },
             secrets: new Map([['s', bytes(7)]]),
             revision: 1,
+            generation: expect.any(String),
         });
         expect(await connections.findOneOrFail('wa')).toStrictEqual(before);
     });
@@ -624,11 +715,11 @@ describe('ConnectionService', () => {
         const key = makeConnection('wa').wrappedKey;
 
         await connections.create(makeConnection('wa'));
-        expect(await connections.writeConfig('wa', { settings: { a: 1 } }, key)).toBe(1);
+        expect(await connections.writeConfig('wa', { settings: { a: 1 } }, { wrappedKey: key })).toBe(1);
 
         // and while another process's session holds the lease
         await hold('wa', 'session', 60_000);
-        expect(await connections.writeConfig('wa', { setSecrets: { s: bytes(1) } }, key)).toBe(2);
+        expect(await connections.writeConfig('wa', { setSecrets: { s: bytes(1) } }, { wrappedKey: key })).toBe(2);
         expect(plain((await connections.findConfig('wa'))!.secrets)).toEqual({ s: [1] });
     });
 
@@ -645,7 +736,7 @@ describe('ConnectionService', () => {
             settings: { creds: 'not-an-entry' },
             setSecrets: { same: bytes(9) },
             clearSecrets: ['creds'],
-        }, stored.wrappedKey);
+        }, { wrappedKey: stored.wrappedKey });
 
         expect(plain(await connections.findEntries('wa', ['creds', 'same']))).toEqual({ creds: [1], same: [2] });
         expect(await connections.findOneOrFail('wa')).toMatchObject({
@@ -663,7 +754,7 @@ describe('ConnectionService', () => {
         const key = bytes(1, 2, 3, 4);
 
         await connections.create(makeConnection('wa', { wrappedKey: key }));
-        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: bytes(7) } }, key);
+        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: bytes(7) } }, { wrappedKey: key });
 
         const before = await connections.findOneOrFail('wa');
 
@@ -672,7 +763,7 @@ describe('ConnectionService', () => {
                 settings: { a: 2 },
                 setSecrets: { s: bytes(8) },
                 clearSecrets: ['s'],
-            }, stale)).rejects.toBeInstanceOf(ConnectionChangedError);
+            }, { wrappedKey: stale })).rejects.toBeInstanceOf(ConnectionChangedError);
         }
 
         const config = (await connections.findConfig('wa'))!;
@@ -683,10 +774,55 @@ describe('ConnectionService', () => {
         expect(await connections.findOneOrFail('wa')).toStrictEqual(before);
     });
 
+    it('refuses an unstorable settings value with ValidationError, naming no value, and writes nothing', async () => {
+        const { connections } = setup();
+        const key = makeConnection('wa').wrappedKey;
+
+        await connections.create(makeConnection('wa'));
+
+        const refused: Record<string, unknown>[] = [
+            { a: 'x\0secret-nul' },
+            { a: 'secret\ud800' },
+            { a: undefined },
+            { a: new Date(0) },
+            { a: () => 1 },
+            { a: { b: 1 } },
+            { a: null },
+            { a: NaN },
+            { a: Infinity },
+            { a: ['ok', 1] },
+            { a: ['secret\0'] },
+            // eslint-disable-next-line no-sparse-arrays
+            { a: [, 'a'] },
+            { 'k\0': 'v' },
+            Object.assign(Object.create({ inherited: 1 }), { a: 'x' }),
+        ];
+
+        for (const settings of refused) {
+            const refusal = connections.writeConfig('wa', { settings }, { wrappedKey: key });
+
+            await expect(refusal).rejects.toBeInstanceOf(ValidationError);
+            await expect(refusal).rejects.not.toThrow(/secret/);
+        }
+
+        expect(await connections.findConfig('wa')).toMatchObject({ settings: {}, revision: 0 });
+
+        const accepted = {
+            s: 'x',
+            n: 1.5,
+            b: false,
+            l: ['a', 'b'],
+            empty: [],
+        };
+
+        expect(await connections.writeConfig('wa', { settings: accepted }, { wrappedKey: key })).toBe(1);
+        expect((await connections.findConfig('wa'))!.settings).toEqual(accepted);
+    });
+
     it('a config write of an absent connection is RepositoryNotFoundError', async () => {
         const { connections } = setup();
 
-        await expect(connections.writeConfig('missing', { settings: {} }, bytes(1)))
+        await expect(connections.writeConfig('missing', { settings: {} }, { wrappedKey: bytes(1) }))
             .rejects.toThrow(new RepositoryNotFoundError('connections'));
         expect(await connections.findConfig('missing')).toBeUndefined();
     });
@@ -712,12 +848,12 @@ describe('ConnectionService', () => {
         ] as unknown as ConnectionConfigWrite[];
 
         for (const write of writes) {
-            await expect(connections.writeConfig('wa', write, key)).rejects.toBeInstanceOf(ValidationError);
+            await expect(connections.writeConfig('wa', write, { wrappedKey: key })).rejects.toBeInstanceOf(ValidationError);
         }
 
-        await expect(connections.writeConfig('wa', {}, 'nope' as unknown as Uint8Array))
+        await expect(connections.writeConfig('wa', {}, { wrappedKey: 'nope' as unknown as Uint8Array }))
             .rejects.toBeInstanceOf(ValidationError);
-        await expect(connections.writeConfig('Bad', {}, key)).rejects.toBeInstanceOf(ValidationError);
+        await expect(connections.writeConfig('Bad', {}, { wrappedKey: key })).rejects.toBeInstanceOf(ValidationError);
         await expect(connections.findConfig('Bad')).rejects.toBeInstanceOf(ValidationError);
         expect(await connections.findConfig('wa')).toEqual({
             keyId: 'k1',
@@ -725,15 +861,16 @@ describe('ConnectionService', () => {
             settings: {},
             secrets: new Map(),
             revision: 0,
+            generation: expect.any(String),
         });
     });
 
-    it('replace keeps settings and the revision and drops secrets', async () => {
+    it('replace keeps settings, bumps the revision and drops secrets', async () => {
         const { connections, hold } = setup();
         const key = makeConnection('wa').wrappedKey;
 
         await connections.create(makeConnection('wa'));
-        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: bytes(7) } }, key);
+        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: bytes(7) } }, { wrappedKey: key });
 
         const replacement = makeConnection('wa', { wrappedKey: bytes(7, 7) });
 
@@ -744,12 +881,13 @@ describe('ConnectionService', () => {
             wrappedKey: replacement.wrappedKey,
             settings: { a: 1 },
             secrets: new Map(),
-            revision: 1,
+            revision: 2,
+            generation: expect.any(String),
         });
-        expect(await connections.findOneOrFail('wa')).toStrictEqual(replacement);
+        expect(await connections.findOneOrFail('wa')).toStrictEqual(stored(replacement));
         // the replaced key is stale now, the replacement's is current
-        await expect(connections.writeConfig('wa', { settings: {} }, key)).rejects.toBeInstanceOf(ConnectionChangedError);
-        expect(await connections.writeConfig('wa', { setSecrets: { s: bytes(1) } }, replacement.wrappedKey)).toBe(2);
+        await expect(connections.writeConfig('wa', { settings: {} }, { wrappedKey: key })).rejects.toBeInstanceOf(ConnectionChangedError);
+        expect(await connections.writeConfig('wa', { setSecrets: { s: bytes(1) } }, { wrappedKey: replacement.wrappedKey })).toBe(3);
 
         const absent = await hold('fresh');
 
@@ -760,6 +898,7 @@ describe('ConnectionService', () => {
             settings: {},
             secrets: new Map(),
             revision: 0,
+            generation: expect.any(String),
         });
     });
 
@@ -768,7 +907,7 @@ describe('ConnectionService', () => {
         const key = makeConnection('wa').wrappedKey;
 
         await connections.create(makeConnection('wa'));
-        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: bytes(7) } }, key);
+        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: bytes(7) } }, { wrappedKey: key });
         await connections.delete('wa');
         expect(await connections.findConfig('wa')).toBeUndefined();
         await connections.create(makeConnection('wa'));
@@ -778,6 +917,7 @@ describe('ConnectionService', () => {
             settings: {},
             secrets: new Map(),
             revision: 0,
+            generation: expect.any(String),
         });
     });
 
@@ -811,25 +951,25 @@ describe('ConnectionService', () => {
         await connections.create(makeConnection('wa', { wrappedKey: bytes(1, 2, 3) }));
 
         const secret = bytes(1, 2);
-        const settings = { nested: { a: 1 } };
+        const settings = { list: ['a'] };
 
-        await connections.writeConfig('wa', { settings, setSecrets: { s: secret, empty: new Uint8Array(0) } }, key);
+        await connections.writeConfig('wa', { settings, setSecrets: { s: secret, empty: new Uint8Array(0) } }, { wrappedKey: key });
         secret[0] = 99;
-        settings.nested.a = 99;
+        settings.list[0] = 'z';
 
         const read = (await connections.findConfig('wa'))!;
 
         expect(Object.getPrototypeOf(read.secrets.get('s'))).toBe(Uint8Array.prototype);
         expect(Array.from(read.secrets.get('s')!)).toEqual([1, 2]);
         expect(read.secrets.get('empty')!.length).toBe(0);
-        expect(read.settings).toEqual({ nested: { a: 1 } });
+        expect(read.settings).toEqual({ list: ['a'] });
         read.secrets.get('s')![0] = 99;
-        (read.settings.nested as { a: number }).a = 99;
+        (read.settings.list as string[])[0] = 'z';
 
         const again = (await connections.findConfig('wa'))!;
 
         expect(Array.from(again.secrets.get('s')!)).toEqual([1, 2]);
-        expect(again.settings).toEqual({ nested: { a: 1 } });
+        expect(again.settings).toEqual({ list: ['a'] });
     });
 
     it('findConfig sees one consistent revision', async () => {
@@ -837,7 +977,7 @@ describe('ConnectionService', () => {
         const key = makeConnection('wa').wrappedKey;
 
         await connections.create(makeConnection('wa'));
-        await connections.writeConfig('wa', { settings: { v: 1 }, setSecrets: { s: bytes(1) } }, key);
+        await connections.writeConfig('wa', { settings: { v: 1 }, setSecrets: { s: bytes(1) } }, { wrappedKey: key });
 
         // a config write lands between the read of the row and the read of its secrets, three times over
         const { findManyBy } = repository.secrets;
@@ -846,7 +986,7 @@ describe('ConnectionService', () => {
         repository.secrets.findManyBy = async function racing(this: unknown, where) {
             if (raced < 3) {
                 raced += 1;
-                await connections.writeConfig('wa', { settings: { v: raced + 1 }, setSecrets: { s: bytes(raced + 1) } }, key);
+                await connections.writeConfig('wa', { settings: { v: raced + 1 }, setSecrets: { s: bytes(raced + 1) } }, { wrappedKey: key });
             }
 
             return Reflect.apply(findManyBy, this, [where]);
@@ -859,6 +999,7 @@ describe('ConnectionService', () => {
             settings: { v: 4 },
             secrets: new Map([['s', bytes(4)]]),
             revision: 4,
+            generation: expect.any(String),
         });
         expect(raced).toBe(3);
     });
@@ -872,7 +1013,7 @@ describe('ConnectionService', () => {
         const key = makeConnection('wa').wrappedKey;
 
         await connections.create(makeConnection('wa'));
-        await connections.writeConfig('wa', { settings: { v: 1 } }, key);
+        await connections.writeConfig('wa', { settings: { v: 1 } }, { wrappedKey: key });
         await hold('wa');
 
         // a batch holds the connection row (as a fenced write does until it commits)
@@ -1061,7 +1202,7 @@ describe('ConnectionService', () => {
         done();
         await holding;
         await replacing;
-        expect(await connections.findOneOrFail('wa')).toStrictEqual(replacement);
+        expect(await connections.findOneOrFail('wa')).toStrictEqual(stored(replacement));
         expect((await connections.find()).map((c) => c.name)).toEqual(['wa']);
     });
 
@@ -1077,7 +1218,7 @@ describe('ConnectionService', () => {
 
         const fence = await hold('wa', 'o1', 60_000);
 
-        await connections.writeConfig('wa', { settings: { a: 1 } }, stored.wrappedKey);
+        await connections.writeConfig('wa', { settings: { a: 1 } }, { wrappedKey: stored.wrappedKey });
 
         const release = await holdRow('wa');
         const replacement = { ...stored, wrappedKey: bytes(9) };
@@ -1085,7 +1226,7 @@ describe('ConnectionService', () => {
 
         await untilBlocked();
 
-        const saving = connections.writeConfig('wa', { setSecrets: { s: bytes(7) } }, stored.wrappedKey);
+        const saving = connections.writeConfig('wa', { setSecrets: { s: bytes(7) } }, { wrappedKey: stored.wrappedKey });
 
         await untilBlocked();
         await release();
@@ -1096,7 +1237,8 @@ describe('ConnectionService', () => {
             wrappedKey: replacement.wrappedKey,
             settings: { a: 1 },
             secrets: new Map(),
-            revision: 1,
+            revision: 2,
+            generation: expect.any(String),
         });
     });
 
@@ -1109,8 +1251,7 @@ describe('ConnectionService', () => {
         const results = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => connections.writeConfig(
             'wa',
             { setSecrets: { [`s${i}`]: bytes(i) } },
-            key,
-            0,
+            { wrappedKey: key, revision: 0 },
         )));
 
         expect(results.filter((result) => result.status === 'fulfilled')).toEqual([{ status: 'fulfilled', value: 1 }]);
@@ -1134,7 +1275,7 @@ describe('ConnectionService', () => {
         const revisions = await Promise.all(Array.from({ length: 10 }, (_, i) => connections.writeConfig(
             'wa',
             { setSecrets: { [`s${i}`]: bytes(i) } },
-            stored.wrappedKey,
+            { wrappedKey: stored.wrappedKey },
         )));
 
         expect([...revisions].sort((a, b) => a - b)).toEqual(Array.from({ length: 10 }, (_, i) => i + 1));
@@ -1150,11 +1291,11 @@ describe('ConnectionService', () => {
         const key = makeConnection('wa').wrappedKey;
 
         await connections.create(makeConnection('wa'));
-        await connections.writeConfig('wa', { settings: { host: 'secret-host' }, setSecrets: { password: text('secret-password') } }, key);
+        await connections.writeConfig('wa', { settings: { host: 'secret-host' }, setSecrets: { password: text('secret-password') } }, { wrappedKey: key });
 
         const errors = await Promise.all([
-            connections.writeConfig('wa', { settings: { host: 'secret-other' } }, key, 0).catch((error: Error) => error),
-            connections.writeConfig('wa', { settings: { host: 'secret-other' } }, bytes(9)).catch((error: Error) => error),
+            connections.writeConfig('wa', { settings: { host: 'secret-other' } }, { wrappedKey: key, revision: 0 }).catch((error: Error) => error),
+            connections.writeConfig('wa', { settings: { host: 'secret-other' } }, { wrappedKey: bytes(9) }).catch((error: Error) => error),
             connections.writeEntries('wa', { set: { 'secret-key': text('secret-value') } }, { lock: 'connection:wa', owner: 'o2' })
                 .catch((error: Error) => error),
             connections.writeEntries('wa', { set: { 'secret-key': 'secret-value' as unknown as Uint8Array } }, await hold('wa'))

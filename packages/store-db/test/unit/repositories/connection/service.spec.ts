@@ -14,8 +14,9 @@ import {
     LeaseLostError, 
     LockService, 
     RepositoryNotFoundError, 
+    ValidationError,
 } from '@chamvi/core';
-import type { Connection } from '@chamvi/store';
+import type { ConnectionInput } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseConnectionRepository } from '../../../../src/repositories/connection/index.ts';
 import { TableName } from '../../../../src/entities/constants.ts';
@@ -23,7 +24,7 @@ import { ConnectionEntity, ConnectionEntryEntity, ConnectionSecretEntity } from 
 import { DatabaseLockRepository } from '../../../../src/repositories/lock/index.ts';
 import { createTestDataSource, describePostgres, untilLockWait } from '../../../utils/database.ts';
 
-const connection = (name: string): Connection => ({
+const connection = (name: string): ConnectionInput => ({
     name,
     type: 'whatsapp',
     keyId: 'k1',
@@ -123,7 +124,7 @@ describePostgres('connection service in postgres', () => {
         const stored = connection('wa');
 
         await connections.create(stored);
-        await connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, stored.wrappedKey);
+        await connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, { wrappedKey: stored.wrappedKey });
 
         const { id: connectionId } = await ds.getRepository(ConnectionEntity).findOneByOrFail({ name: 'wa' });
         const secret = await ds.getRepository(ConnectionSecretEntity).findOneOrFail({
@@ -152,7 +153,7 @@ describePostgres('connection service in postgres', () => {
 
         await connections.create(stored);
         await lockService.acquire(fence.lock, fence.owner, 60_000);
-        await connections.writeConfig('wa', { settings: { a: 1 } }, stored.wrappedKey);
+        await connections.writeConfig('wa', { settings: { a: 1 } }, { wrappedKey: stored.wrappedKey });
 
         const release = await holdConnectionRow(ds, 'wa');
         const replacement = { ...stored, wrappedKey: new Uint8Array([9]) };
@@ -160,7 +161,7 @@ describePostgres('connection service in postgres', () => {
 
         await untilLockWait(ds);
 
-        const saving = connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, stored.wrappedKey);
+        const saving = connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, { wrappedKey: stored.wrappedKey });
 
         await untilLockWait(ds, 2);
         await release();
@@ -171,7 +172,8 @@ describePostgres('connection service in postgres', () => {
             wrappedKey: replacement.wrappedKey,
             settings: { a: 1 },
             secrets: new Map(),
-            revision: 1,
+            revision: 2,
+            generation: expect.any(String),
         });
     });
 
@@ -184,7 +186,7 @@ describePostgres('connection service in postgres', () => {
         await connections.create(stored);
         await lockService.acquire(fence.lock, fence.owner, 60_000);
         await connections.writeEntries('wa', { set: { a: new Uint8Array([1]) } }, fence);
-        await connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, stored.wrappedKey);
+        await connections.writeConfig('wa', { setSecrets: { s: new Uint8Array([7]) } }, { wrappedKey: stored.wrappedKey });
 
         const { id } = await ds.getRepository(ConnectionEntity).findOneByOrFail({ name: 'wa' });
 
@@ -223,7 +225,7 @@ describePostgres('connection service in postgres', () => {
 
         expect(row.id).toBe(id);
         expect(row.keyId).toBe('k2');
-        expect(await connections.findOneOrFail('wa')).toEqual(replacement);
+        expect(await connections.findOneOrFail('wa')).toEqual({ ...replacement, id });
     });
 
     it('concurrent config writes each get their own revision', async () => {
@@ -236,7 +238,7 @@ describePostgres('connection service in postgres', () => {
         const revisions = await Promise.all(Array.from({ length: 10 }, (_, i) => connections.writeConfig(
             'wa',
             { setSecrets: { [`s${i}`]: new Uint8Array([i]) } },
-            stored.wrappedKey,
+            { wrappedKey: stored.wrappedKey },
         )));
 
         expect([...revisions].sort((a, b) => a - b)).toEqual(Array.from({ length: 10 }, (_, i) => i + 1));
@@ -247,6 +249,123 @@ describePostgres('connection service in postgres', () => {
         expect(config.secrets.size).toBe(10);
     });
 
+    it('two rows created in the same millisecond have different uuid v7 ids', async () => {
+        const ds = await create();
+        const { connections } = servicesOf(ds, new ControllableClock());
+
+        await connections.create(connection('a'));
+        await connections.create(connection('b'));
+
+        const [a, b] = await connections.find();
+
+        expect(a!.createdAt).toEqual(b!.createdAt);
+        expect(a!.id).not.toBe(b!.id);
+        expect(a!.id).toMatch(/^[0-9a-f]{8}-[0-9a-f]{4}-7[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/);
+    });
+
+    it('a delete and create under one name with equal revisions refuses a save expecting the old generation', async () => {
+        const ds = await create();
+        const { connections } = servicesOf(ds, new ControllableClock());
+        const key = connection('wa').wrappedKey;
+
+        await connections.create(connection('wa'));
+        await connections.writeConfig('wa', { settings: { host: 'a' } }, { wrappedKey: key });
+
+        const first = (await connections.findConfig('wa'))!;
+
+        await connections.delete('wa');
+        await connections.create(connection('wa'));
+        await connections.writeConfig('wa', { settings: { host: 'b' } }, { wrappedKey: key });
+
+        const second = (await connections.findConfig('wa'))!;
+
+        expect(second.revision).toBe(first.revision);
+        expect(second.generation).not.toBe(first.generation);
+        await expect(connections.writeConfig('wa', { settings: { host: 'c' } }, {
+            wrappedKey: key,
+            revision: first.revision,
+            generation: first.generation,
+        })).rejects.toThrow(new ConnectionChangedError('wa'));
+        expect(await connections.findConfig('wa')).toMatchObject({ settings: { host: 'b' }, revision: 1 });
+    });
+
+    it('a save after a replace with the revision read before it is refused', async () => {
+        const ds = await create();
+        const { connections, lockService } = servicesOf(ds, new ControllableClock());
+        const fence = { lock: 'connection:wa', owner: 'o1' };
+        const stored = connection('wa');
+
+        await connections.create(stored);
+        await connections.writeConfig('wa', { settings: { a: 1 } }, { wrappedKey: stored.wrappedKey });
+
+        const before = (await connections.findConfig('wa'))!;
+        const replacement = {
+            ...stored, 
+            wrappedKey: new Uint8Array([9]), 
+            createdAt: new Date(2_000), 
+        };
+
+        await lockService.acquire(fence.lock, fence.owner, 60_000);
+        await connections.replace(replacement, fence);
+
+        const after = await connections.findOneOrFail('wa');
+
+        expect(after.id).toBe(before.generation);
+        expect(after.createdAt).toEqual(stored.createdAt);
+        await expect(connections.writeConfig('wa', { settings: { a: 2 } }, {
+            wrappedKey: replacement.wrappedKey,
+            revision: before.revision,
+            generation: before.generation,
+        })).rejects.toThrow(new ConnectionChangedError('wa'));
+        expect(await connections.findConfig('wa')).toMatchObject({ settings: { a: 1 }, revision: before.revision + 1 });
+    });
+
+    it('refuses an unstorable settings value with ValidationError, naming no value, and writes nothing', async () => {
+        const ds = await create();
+        const { connections } = servicesOf(ds, new ControllableClock());
+        const key = connection('wa').wrappedKey;
+
+        await connections.create(connection('wa'));
+
+        const refused: Record<string, unknown>[] = [
+            { a: 'x\0secret-nul' },
+            { a: 'secret\ud800' },
+            { a: undefined },
+            { a: new Date(0) },
+            { a: () => 1 },
+            { a: { b: 1 } },
+            { a: null },
+            { a: NaN },
+            { a: Infinity },
+            { a: ['ok', 1] },
+            { a: ['secret\0'] },
+            // eslint-disable-next-line no-sparse-arrays
+            { a: [, 'a'] },
+            { 'k\0': 'v' },
+            Object.assign(Object.create({ inherited: 1 }), { a: 'x' }),
+        ];
+
+        for (const settings of refused) {
+            const refusal = connections.writeConfig('wa', { settings }, { wrappedKey: key });
+
+            await expect(refusal).rejects.toBeInstanceOf(ValidationError);
+            await expect(refusal).rejects.not.toThrow(/secret/);
+        }
+
+        expect(await connections.findConfig('wa')).toMatchObject({ settings: {}, revision: 0 });
+
+        const accepted = {
+            s: 'x',
+            n: 1.5,
+            b: false,
+            l: ['a', 'b'],
+            empty: [],
+        };
+
+        expect(await connections.writeConfig('wa', { settings: accepted }, { wrappedKey: key })).toBe(1);
+        expect((await connections.findConfig('wa'))!.settings).toEqual(accepted);
+    });
+
     it('a stale wrappedKey or revision is ConnectionChangedError and writes nothing', async () => {
         const ds = await create();
         const clock = new ControllableClock();
@@ -254,7 +373,7 @@ describePostgres('connection service in postgres', () => {
         const stored = connection('wa');
 
         await connections.create(stored);
-        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: new Uint8Array([7]) } }, stored.wrappedKey);
+        await connections.writeConfig('wa', { settings: { a: 1 }, setSecrets: { s: new Uint8Array([7]) } }, { wrappedKey: stored.wrappedKey });
 
         const before = await connections.findOneOrFail('wa');
 
@@ -265,7 +384,7 @@ describePostgres('connection service in postgres', () => {
                 settings: { a: 2 },
                 setSecrets: { s: new Uint8Array([8]), t: new Uint8Array([9]) },
                 clearSecrets: ['s'],
-            }, key, revision)).rejects.toThrow(new ConnectionChangedError('wa'));
+            }, { wrappedKey: key, revision })).rejects.toThrow(new ConnectionChangedError('wa'));
         }
 
         expect(await connections.findConfig('wa')).toEqual({
@@ -274,6 +393,7 @@ describePostgres('connection service in postgres', () => {
             settings: { a: 1 },
             secrets: new Map([['s', new Uint8Array([7])]]),
             revision: 1,
+            generation: expect.any(String),
         });
         expect(await connections.findOneOrFail('wa')).toEqual(before);
     });
@@ -286,7 +406,7 @@ describePostgres('connection service in postgres', () => {
         const stored = connection('wa');
 
         await connections.create(stored);
-        await connections.writeConfig('wa', { settings: { v: 1 }, setSecrets: { s: new Uint8Array([1]) } }, stored.wrappedKey);
+        await connections.writeConfig('wa', { settings: { v: 1 }, setSecrets: { s: new Uint8Array([1]) } }, { wrappedKey: stored.wrappedKey });
 
         // a config write lands between the read of the row and the read of its secrets, three times over
         const { findManyBy } = repository.secrets;
@@ -298,7 +418,7 @@ describePostgres('connection service in postgres', () => {
                 await connections.writeConfig('wa', {
                     settings: { v: raced + 1 },
                     setSecrets: { s: new Uint8Array([raced + 1]) },
-                }, stored.wrappedKey);
+                }, { wrappedKey: stored.wrappedKey });
             }
 
             return Reflect.apply(findManyBy, this, [where]);
@@ -310,6 +430,7 @@ describePostgres('connection service in postgres', () => {
             settings: { v: 4 },
             secrets: new Map([['s', new Uint8Array([4])]]),
             revision: 4,
+            generation: expect.any(String),
         });
         expect(raced).toBe(3);
     });
@@ -320,7 +441,7 @@ describePostgres('connection service in postgres', () => {
         const stored = connection('wa');
 
         await connections.create(stored);
-        await connections.writeConfig('wa', { settings: { v: 1 } }, stored.wrappedKey);
+        await connections.writeConfig('wa', { settings: { v: 1 } }, { wrappedKey: stored.wrappedKey });
 
         // a batch holds the connection row FOR UPDATE until it commits
         const release = await holdConnectionRow(ds, 'wa');
@@ -339,8 +460,7 @@ describePostgres('connection service in postgres', () => {
         const results = await Promise.allSettled(Array.from({ length: 8 }, (_, i) => connections.writeConfig(
             'wa',
             { setSecrets: { [`s${i}`]: new Uint8Array([i]) } },
-            stored.wrappedKey,
-            0,
+            { wrappedKey: stored.wrappedKey, revision: 0 },
         )));
 
         expect(results.filter((result) => result.status === 'fulfilled')).toEqual([{ status: 'fulfilled', value: 1 }]);

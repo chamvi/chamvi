@@ -100,6 +100,7 @@ describe('createConnectionConfigStore', () => {
                 settings: { host: 'imap.example.org' },
                 secretsSet: [],
                 revision: 1,
+                generation: expect.any(String),
             });
         });
 
@@ -112,6 +113,7 @@ describe('createConnectionConfigStore', () => {
                 settings: {},
                 secretsSet: [],
                 revision: 0,
+                generation: expect.any(String),
             });
         });
 
@@ -131,6 +133,7 @@ describe('createConnectionConfigStore', () => {
             await expect(config.read('mail-work')).resolves.toEqual({
                 values: { password: PLAINTEXT },
                 revision: 1,
+                generation: expect.any(String),
             });
         });
 
@@ -211,6 +214,7 @@ describe('createConnectionConfigStore', () => {
                 settings: { host: 'other' },
                 secretsSet: ['token'],
                 revision: 1,
+                generation: expect.any(String),
             });
         });
 
@@ -230,6 +234,7 @@ describe('createConnectionConfigStore', () => {
                 settings: {},
                 secretsSet: [],
                 revision: 0,
+                generation: expect.any(String),
             });
 
             // what the http repair of a bare row does
@@ -239,6 +244,7 @@ describe('createConnectionConfigStore', () => {
             await expect(config.read('mail-work')).resolves.toEqual({
                 values: { host: 'a', password: PLAINTEXT },
                 revision: 1,
+                generation: expect.any(String),
             });
         });
 
@@ -294,14 +300,20 @@ describe('createConnectionConfigStore', () => {
                 settings: { host: 'a' },
                 secretsSet: [],
                 revision: 1,
+                generation: expect.any(String),
             });
             await expect(config.describe('secretive')).resolves.toEqual({
                 settings: {},
                 secretsSet: ['password'],
                 revision: 1,
+                generation: expect.any(String),
             });
             await expect(config.describe('missing')).resolves.toBeUndefined();
-            await expect(config.read('secretless')).resolves.toEqual({ values: { host: 'a' }, revision: 1 });
+            await expect(config.read('secretless')).resolves.toEqual({
+                values: { host: 'a' }, 
+                revision: 1, 
+                generation: expect.any(String), 
+            });
             await expect(config.read('missing')).resolves.toBeUndefined();
 
             expect(calls.keyring).toBe(0);
@@ -333,6 +345,7 @@ describe('createConnectionConfigStore', () => {
             await expect(config.read('mail-work')).resolves.toEqual({
                 values: { password: PLAINTEXT },
                 revision: 1,
+                generation: expect.any(String),
             });
         });
 
@@ -347,7 +360,7 @@ describe('createConnectionConfigStore', () => {
             await connections.writeConfig(
                 'mail-work',
                 { setSecrets: { token: stored?.secrets.get('password') as Uint8Array }, clearSecrets: ['password'] },
-                row.wrappedKey,
+                { wrappedKey: row.wrappedKey },
             );
 
             await expect(config.read('mail-work')).rejects.toBeInstanceOf(DecryptionFailedError);
@@ -365,7 +378,7 @@ describe('createConnectionConfigStore', () => {
             await connections.writeConfig(
                 'two',
                 { setSecrets: { password: stored?.secrets.get('password') as Uint8Array } },
-                target.wrappedKey,
+                { wrappedKey: target.wrappedKey },
             );
 
             await expect(config.read('two')).rejects.toBeInstanceOf(DecryptionFailedError);
@@ -427,6 +440,7 @@ describe('createConnectionConfigStore', () => {
                     password: PLAINTEXT,
                 },
                 revision: 1,
+                generation: expect.any(String),
             });
         });
 
@@ -532,6 +546,7 @@ describe('createConnectionConfigStore', () => {
             await expect(config.read('whatsapp')).resolves.toEqual({
                 values: { label: 'main', token: PLAINTEXT },
                 revision: 1,
+                generation: expect.any(String),
             });
 
             await session.write({ set: { creds: text('rotated') } });
@@ -552,6 +567,7 @@ describe('createConnectionConfigStore', () => {
             await expect(config.read('mail-work')).resolves.toEqual({
                 values: { host: 'b', password: PLAINTEXT },
                 revision: 2,
+                generation: expect.any(String),
             });
         });
 
@@ -652,11 +668,12 @@ describe('createConnectionConfigStore', () => {
             await expect(config.update('mail-work', { secrets: { set: { password: 'sealed-under-a-dead-key' } } }))
                 .rejects.toBeInstanceOf(ConnectionChangedError);
 
-            // the swap dropped the secrets; nothing was sealed under the replaced key
+            // the swap dropped the secrets and bumped the revision; nothing was sealed under the replaced key
             await expect(connections.findConfig('mail-work')).resolves.toMatchObject({
                 settings: { host: 'a' },
                 secrets: new Map(),
-                revision: 1,
+                revision: 2,
+                generation: expect.any(String),
             });
         });
 
@@ -689,6 +706,7 @@ describe('createConnectionConfigStore', () => {
                 settings: { host: 'a' },
                 secrets: new Map(),
                 revision: 1,
+                generation: expect.any(String),
             });
         });
     });

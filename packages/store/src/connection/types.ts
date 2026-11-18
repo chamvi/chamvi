@@ -13,6 +13,12 @@ import type { Lock } from '../lock/types.ts';
  * store holds only its wrapped data key; its entries are sealed bytes.
  */
 export type Connection = {
+    /**
+     * The row's storage id (a uuid v7), set at insert and never changed: the
+     * connection's generation. Another id under the same name is another row
+     * (deleted and created again), whatever its revision says.
+     */
+    id: string;
     /** Agent-name rule (`^[a-z0-9]+(-[a-z0-9]+)*$`, at most 64). */
     name: string;
     /** Set by the provider (`whatsapp`), 1 to 64 characters. */
@@ -24,10 +30,11 @@ export type Connection = {
     updatedAt: Date;
 };
 
-/** The row a connection stores: the connection, its storage id, its plain settings and its config revision. */
+/** A connection to store: the service assigns its id. */
+export type ConnectionInput = Omit<Connection, 'id'>;
+
+/** The row a connection stores: the connection (its id referenced by its entries and secrets), its plain settings and its config revision. */
 export type ConnectionRecord = Connection & {
-    /** The row's storage id (a uuid); its entries and secrets reference it. */
-    id: string;
     /** Plain settings; never secret material. */
     settings: Record<string, unknown>;
     /** The revision of the settings and secrets. */

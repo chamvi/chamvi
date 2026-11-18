@@ -127,7 +127,7 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             }
 
             // the whole write is checked before the row exists: a malformed one leaves nothing behind
-            assertConnectionConfigWrite(write, wrapped.wrapped);
+            assertConnectionConfigWrite(write, { wrappedKey: wrapped.wrapped });
 
             const now = new Date(clock.now());
             const inserted = await connections.create({
@@ -147,7 +147,8 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
                 // the row is bare until this write: a writer that filled it meanwhile keeps it, and this create is refused.
                 // A failure leaves the bare row for a retry to fill (an update expecting revision 0), never a delete:
                 // a session may hold the lease and its entries by then
-                await connections.writeConfig(name, write, wrapped.wrapped, 0);
+                // the fresh wrapped key is this insert's alone, so it also tells this row from one created after a delete
+                await connections.writeConfig(name, write, { wrappedKey: wrapped.wrapped, revision: 0 });
             }
 
             return true;
@@ -164,6 +165,7 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
                 settings: config.settings,
                 secretsSet: config.secrets.keys().toArray().sort(),
                 revision: config.revision,
+                generation: config.generation,
             };
         },
 
@@ -188,7 +190,11 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             // spread defines own properties: an assignment of `__proto__` would set the prototype instead
             const values = { ...config.settings, ...secrets } as ConnectionValues;
 
-            return { values, revision: config.revision };
+            return {
+                values, 
+                revision: config.revision, 
+                generation: config.generation, 
+            };
         },
 
         async update(name: string, update: ConnectionConfigUpdate, options: ConnectionConfigUpdateOptions = {}): Promise<number> {
@@ -198,8 +204,13 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
                 toConfigWrite(name, update);
 
             // the guard on the wrapped key refuses a secret sealed under a key a recreate replaced meanwhile,
-            // the one on the revision a save checked against a snapshot another save replaced
-            return connections.writeConfig(name, write, connection.wrappedKey, options.revision);
+            // the ones on the revision and the generation a save checked against a snapshot another save, a replace
+            // or a delete and create replaced
+            return connections.writeConfig(name, write, {
+                wrappedKey: connection.wrappedKey,
+                revision: options.revision,
+                generation: options.generation,
+            });
         },
 
         async delete(name: string, owner: string): Promise<void> {

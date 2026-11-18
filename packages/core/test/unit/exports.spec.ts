@@ -240,6 +240,8 @@ describe('public api', () => {
         'assertConnectionEntryKey',
         'assertConnectionEntryWrite',
         'assertConnectionName',
+        'assertConnectionSettings',
+        'isStorableConnectionText',
         'createConnectionConfigStore',
         'createConnectionVault',
         'ConnectionHeldError',
@@ -572,12 +574,12 @@ describe('public api', () => {
         expectTypeOf<core.EngineOptions['connectionService']>().toEqualTypeOf<core.IConnectionService | undefined>();
         expectTypeOf<core.IEngine['connectionService']>().toEqualTypeOf<core.IConnectionService | undefined>();
         expectTypeOf<core.ConnectionServiceContext>().toEqualTypeOf<{ repository: IConnectionRepository; clock: core.IClock }>();
-        expectTypeOf<core.ConnectionService['create']>().toEqualTypeOf<(connection: store.Connection) => Promise<boolean>>();
+        expectTypeOf<core.ConnectionService['create']>().toEqualTypeOf<(connection: store.ConnectionInput) => Promise<boolean>>();
         expectTypeOf<core.ConnectionService['findOne']>().toEqualTypeOf<(name: string) => Promise<store.Connection | undefined>>();
         expectTypeOf<core.ConnectionService['findOneOrFail']>().toEqualTypeOf<(name: string) => Promise<store.Connection>>();
         expectTypeOf<core.ConnectionService['find']>().toEqualTypeOf<() => Promise<store.Connection[]>>();
         expectTypeOf<core.ConnectionService['delete']>().toEqualTypeOf<(name: string, fence?: core.ConnectionFence) => Promise<void>>();
-        expectTypeOf<core.ConnectionService['replace']>().toEqualTypeOf<(connection: store.Connection, fence: core.ConnectionFence) => Promise<void>>();
+        expectTypeOf<core.ConnectionService['replace']>().toEqualTypeOf<(connection: store.ConnectionInput, fence: core.ConnectionFence) => Promise<void>>();
         expectTypeOf<core.ConnectionService['findEntry']>().toEqualTypeOf<(name: string, key: string) => Promise<Uint8Array | undefined>>();
         expectTypeOf<core.ConnectionService['findEntries']>()
             .toEqualTypeOf<(name: string, keys: readonly string[]) => Promise<Map<string, Uint8Array>>>();
@@ -587,9 +589,13 @@ describe('public api', () => {
         expectTypeOf<core.ConnectionService['writeConfig']>().toEqualTypeOf<(
             name: string,
             write: core.ConnectionConfigWrite,
-            expectedWrappedKey: Uint8Array,
-            expectedRevision?: number,
+            expected: core.ConnectionWriteExpectation,
         ) => Promise<number>>();
+        expectTypeOf<core.ConnectionWriteExpectation>().toEqualTypeOf<{
+            wrappedKey: Uint8Array;
+            revision?: number;
+            generation?: string;
+        }>();
 
         // the port moved to @chamvi/store, the memory repository to @chamvi/store-memory, the fence lookup is gone
         for (const name of ['MemoryConnectionRepository', 'IConnectionRepository', 'MemoryConnectionRepositoryOptions', 'MemoryLockLookup']) {
@@ -597,6 +603,7 @@ describe('public api', () => {
         }
 
         expectTypeOf<store.Connection>().toEqualTypeOf<{
+            id: string;
             name: string;
             type: string;
             keyId: string;
@@ -616,6 +623,7 @@ describe('public api', () => {
             settings: Record<string, unknown>;
             secrets: Map<string, Uint8Array>;
             revision: number;
+            generation: string;
         }>();
         expectTypeOf<core.ConnectionConfigWrite>().toEqualTypeOf<{
             settings?: Record<string, unknown>;
@@ -656,6 +664,7 @@ describe('public api', () => {
             settings: Record<string, unknown>;
             secretsSet: string[];
             revision: number;
+            generation: string;
         }>();
         expectTypeOf<core.ConnectionConfigUpdate>().toEqualTypeOf<{
             settings?: Record<string, unknown>;

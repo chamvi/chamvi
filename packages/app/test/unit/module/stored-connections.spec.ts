@@ -95,7 +95,7 @@ async function rejectionOf(promise: Promise<unknown>): Promise<Error> {
 }
 
 describe('readStoredConnections()', () => {
-    it('returns the rows of the type with their values, revision and creation time', async () => {
+    it('returns the rows of the type with their values, revision and id', async () => {
         const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');
@@ -108,7 +108,7 @@ describe('readStoredConnections()', () => {
             name: 'mail-home',
             values: { host: 'h', password: SECRET },
             revision: 1,
-            createdAt: row.createdAt,
+            id: row.id,
         }]);
     });
 
@@ -152,7 +152,7 @@ describe('readStoredConnections()', () => {
                 name: 'mail-old',
                 values: { host: 'h' },
                 revision: 1,
-                createdAt: old.createdAt,
+                id: old.id,
                 unreadable: {
                     secrets: ['password'],
                     reason: expect.stringContaining('decryption_failed'),
@@ -209,6 +209,28 @@ describe('readStoredConnections()', () => {
 
         expect(error.message).toContain('mail-home');
         expect(error.message).toContain('misconfigured');
+    });
+
+    it('pairs the id with the config it read, also when the row was deleted and created between the listing and the read', async () => {
+        const store = createTestStore();
+
+        await seed(store, 'mail-home', 'mail');
+
+        const harness = await harnessOf(store, { keyring });
+        const configs = harness.container.resolve(AppToken.CONNECTION_CONFIGS);
+        const read = configs.read.bind(configs);
+
+        configs.read = async (name) => {
+            configs.read = read;
+            await store.connectionService.delete(name);
+            await seed(store, name, 'mail');
+
+            return read(name);
+        };
+
+        const [row] = await readStoredConnections(harness.container, 'mail');
+
+        expect(row!.id).toBe((await store.connectionService.findOneOrFail('mail-home')).id);
     });
 
     it('loads a row repaired between the failed read and the settings read', async () => {
@@ -321,7 +343,7 @@ describe('resolveStoredConnection()', () => {
         name: 'mail-home',
         values: unreadable ? { host: 'h' } : { host: 'h', password: SECRET },
         revision: 1,
-        createdAt: new Date(0),
+        id: 'row-1',
         ...(unreadable && { unreadable }),
     });
     const unreadable = { secrets: ['password'], reason: 'The stored secrets cannot be read (decryption_failed).' };

@@ -163,7 +163,7 @@ function isUnreadable(error: unknown): error is ChamviError {
 async function readStoredConnection(
     container: IContainer,
     name: string,
-): Promise<Pick<StoredConnection, 'values' | 'revision' | 'unreadable'> | undefined> {
+): Promise<Pick<StoredConnection, 'values' | 'revision' | 'id' | 'unreadable'> | undefined> {
     const configs = container.resolve(AppToken.CONNECTION_CONFIGS);
     // a value, or the failure of an unreadable row; any other failure throws
     const attempt = async (): Promise<Awaited<ReturnType<typeof configs.read>> | ChamviError> => {
@@ -188,7 +188,11 @@ async function readStoredConnection(
     const first = await attempt();
 
     if (!(first instanceof ChamviError)) {
-        return first;
+        return first && {
+            values: first.values, 
+            revision: first.revision, 
+            id: first.generation, 
+        };
     }
 
     // describe never resolves the keyring: the settings and the names of the secrets stay readable
@@ -203,7 +207,11 @@ async function readStoredConnection(
     const failure = await attempt();
 
     if (!(failure instanceof ChamviError)) {
-        return failure;
+        return failure && {
+            values: failure.values, 
+            revision: failure.revision, 
+            id: failure.generation, 
+        };
     }
 
     const unreadable: StoredConnectionFailure = {
@@ -217,6 +225,7 @@ async function readStoredConnection(
         // spread defines own properties: an assignment of `__proto__` would set the prototype instead
         values: { ...view.settings } as ConnectionValues,
         revision: view.revision,
+        id: view.generation,
         unreadable,
     };
 }
@@ -256,7 +265,8 @@ export async function readStoredConnections(
                     name: row.name,
                     values: config.values,
                     revision: config.revision,
-                    createdAt: row.createdAt,
+                    // the row the config was read from: the listing's may be one deleted since
+                    id: config.id,
                     ...(config.unreadable && { unreadable: config.unreadable }),
                 });
             }

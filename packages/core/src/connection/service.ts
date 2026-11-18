@@ -8,7 +8,12 @@
 import { defineQuery } from '@rapiq/core';
 import { uuidv7 } from 'uuidv7';
 import { EntityConflictError } from '@chamvi/store';
-import type { Connection, ConnectionRecord, IConnectionRepository } from '@chamvi/store';
+import type { 
+    Connection, 
+    ConnectionInput, 
+    ConnectionRecord, 
+    IConnectionRepository, 
+} from '@chamvi/store';
 import type { IClock } from '../clock/index.ts';
 import { ConnectionChangedError, LeaseLostError, RepositoryNotFoundError } from '../errors/index.ts';
 import {
@@ -23,6 +28,7 @@ import type {
     ConnectionEntryWrite, 
     ConnectionFence, 
     ConnectionServiceContext, 
+    ConnectionWriteExpectation,
     IConnectionService, 
 } from './types.ts';
 import {
@@ -64,7 +70,7 @@ export class ConnectionService implements IConnectionService {
         this.clock = ctx.clock;
     }
 
-    async create(connection: Connection): Promise<boolean> {
+    async create(connection: ConnectionInput): Promise<boolean> {
         assertConnection(connection);
 
         try {
@@ -123,7 +129,7 @@ export class ConnectionService implements IConnectionService {
         });
     }
 
-    async replace(connection: Connection, fence: ConnectionFence): Promise<void> {
+    async replace(connection: ConnectionInput, fence: ConnectionFence): Promise<void> {
         assertConnection(connection);
 
         try {
@@ -231,9 +237,9 @@ export class ConnectionService implements IConnectionService {
         });
     }
 
-    async writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array, expectedRevision?: number): Promise<number> {
+    async writeConfig(name: string, write: ConnectionConfigWrite, expected: ConnectionWriteExpectation): Promise<number> {
         assertConnectionName(name);
-        assertConnectionConfigWrite(write, expectedWrappedKey);
+        assertConnectionConfigWrite(write, expected);
 
         return this.repository.transaction(async (repository) => {
             const record = await repository.findOneBy({ name });
@@ -242,9 +248,10 @@ export class ConnectionService implements IConnectionService {
                 throw new RepositoryNotFoundError('connections');
             }
 
-            // the row lock holds the key and the revision until the commit: a save that read older ones lost the race
-            if (Buffer.compare(record.wrappedKey, expectedWrappedKey) !== 0 ||
-                (expectedRevision !== undefined && record.configRevision !== expectedRevision)) {
+            // the row lock holds the key, the revision and the id until the commit: a save that read older ones lost the race
+            if (Buffer.compare(record.wrappedKey, expected.wrappedKey) !== 0 ||
+                (expected.revision !== undefined && record.configRevision !== expected.revision) ||
+                (expected.generation !== undefined && record.id !== expected.generation)) {
                 throw new ConnectionChangedError(name);
             }
 
@@ -297,7 +304,7 @@ export class ConnectionService implements IConnectionService {
         return now;
     }
 
-    protected async replaceOnce(connection: Connection, fence: ConnectionFence): Promise<void> {
+    protected async replaceOnce(connection: ConnectionInput, fence: ConnectionFence): Promise<void> {
         await this.repository.transaction(async (repository) => {
             const stored = await repository.findOneBy({ name: connection.name });
 
@@ -309,13 +316,14 @@ export class ConnectionService implements IConnectionService {
                 return;
             }
 
-            // in place, never delete and insert: a config write queued on this row must see the new key, not a deleted row
+            // in place, never delete and insert: a config write queued on this row must see the new key, not a deleted row.
+            // The id and createdAt stay (the same row); the revision moves, so a save that read before is stale
             await this.removeChildren(repository, stored);
             repository.merge(stored, {
                 type: connection.type,
                 keyId: connection.keyId,
                 wrappedKey: connection.wrappedKey,
-                createdAt: connection.createdAt,
+                configRevision: stored.configRevision + 1,
                 updatedAt: connection.updatedAt,
             });
             await repository.save(stored);
@@ -332,7 +340,7 @@ export class ConnectionService implements IConnectionService {
     }
 
     /** A new row of a connection: no settings, revision 0. */
-    protected recordOf(connection: Connection): ConnectionRecord {
+    protected recordOf(connection: ConnectionInput): ConnectionRecord {
         return {
             id: uuidv7(),
             name: connection.name,

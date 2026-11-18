@@ -13,15 +13,65 @@ import {
     CONNECTION_SECRET_FIELD_MAX_LENGTH,
     CONNECTION_TYPE_MAX_LENGTH,
 } from './constants.ts';
-import type { ConnectionConfigWrite, ConnectionEntryWrite } from './types.ts';
-import type { Connection } from '@chamvi/store';
+import type { ConnectionConfigWrite, ConnectionEntryWrite, ConnectionValue } from './types.ts';
+import type { ConnectionInput } from '@chamvi/store';
 
-// well-formed UTF-16: a lone surrogate would be stored as U+FFFD in Postgres and seal to a shared AAD
-const isText = (value: unknown, max: number): value is string => typeof value === 'string' &&
-    value.length > 0 &&
-    value.length <= max &&
+/**
+ * Text every driver stores as given: well-formed UTF-16 (a lone surrogate
+ * would be stored as U+FFFD in Postgres and seal to a shared AAD) without
+ * NUL (which a Postgres `jsonb` or `varchar` refuses).
+ */
+export const isStorableConnectionText = (value: unknown): value is string => typeof value === 'string' &&
     !value.includes('\0') &&
     value.isWellFormed();
+
+const isText = (value: unknown, max: number): value is string => isStorableConnectionText(value) &&
+    value.length > 0 &&
+    value.length <= max;
+
+const isPlainObject = (value: unknown): value is Record<string, unknown> => {
+    if (!isObject(value)) {
+        return false;
+    }
+
+    const prototype = Object.getPrototypeOf(value);
+
+    return prototype === Object.prototype || prototype === null;
+};
+
+const isSettingValue = (value: unknown): boolean => {
+    if (typeof value === 'number') {
+        return Number.isFinite(value);
+    }
+
+    if (Array.isArray(value)) {
+        // Array.from visits the holes `every` skips: a hole would be stored as null in Postgres
+        return Array.from(value).every(isStorableConnectionText);
+    }
+
+    return typeof value === 'boolean' || isStorableConnectionText(value);
+};
+
+/**
+ * Plain settings every driver stores and reads back alike: a plain object
+ * whose keys are storable text and whose values are storable text, finite
+ * numbers, booleans or arrays of storable text; a ValidationError otherwise
+ * (no key or value is echoed).
+ */
+export function assertConnectionSettings(settings: unknown): asserts settings is Record<string, ConnectionValue> {
+    if (!isPlainObject(settings)) {
+        throw new ValidationError('Connection settings must be a plain object.');
+    }
+
+    for (const [key, value] of Object.entries(settings)) {
+        if (!isStorableConnectionText(key) || !isSettingValue(value)) {
+            throw new ValidationError(
+                'A connection setting must have a well-formed key without NUL and a value of well-formed text without NUL, ' +
+                'a finite number, a boolean or a list of such text.',
+            );
+        }
+    }
+}
 
 const isDate = (value: unknown): value is Date => value instanceof Date && !Number.isNaN(value.getTime());
 
@@ -42,7 +92,7 @@ export function assertConnectionEntryKey(key: unknown): asserts key is string {
 }
 
 /** The whole shape of a connection to insert; a ValidationError otherwise. */
-export function assertConnection(connection: unknown): asserts connection is Connection {
+export function assertConnection(connection: unknown): asserts connection is ConnectionInput {
     if (!isObject(connection)) {
         throw new ValidationError('A connection must be an object.');
     }
@@ -72,18 +122,26 @@ function assertConnectionSecretField(field: unknown): asserts field is string {
     }
 }
 
-/** A whole config write and the wrapped key it expects, before anything is written; a ValidationError otherwise (no field or value is echoed). */
-export function assertConnectionConfigWrite(write: unknown, expectedWrappedKey: unknown): asserts write is ConnectionConfigWrite {
+/** A whole config write and what it expects, before anything is written; a ValidationError otherwise (no field or value is echoed). */
+export function assertConnectionConfigWrite(write: unknown, expected: unknown): asserts write is ConnectionConfigWrite {
     if (!isObject(write)) {
         throw new ValidationError('A connection config write must be an object.');
     }
 
-    if (!(expectedWrappedKey instanceof Uint8Array)) {
+    if (!isObject(expected) || !(expected.wrappedKey instanceof Uint8Array)) {
         throw new ValidationError('A connection wrapped key must be a Uint8Array.');
     }
 
-    if (write.settings !== undefined && !isObject(write.settings)) {
-        throw new ValidationError('A connection config write settings must be an object.');
+    if (expected.revision !== undefined && (!Number.isSafeInteger(expected.revision) || (expected.revision as number) < 0)) {
+        throw new ValidationError('An expected connection revision must be a non-negative integer.');
+    }
+
+    if (expected.generation !== undefined && typeof expected.generation !== 'string') {
+        throw new ValidationError('An expected connection generation must be a string.');
+    }
+
+    if (write.settings !== undefined) {
+        assertConnectionSettings(write.settings);
     }
 
     if (write.setSecrets !== undefined) {

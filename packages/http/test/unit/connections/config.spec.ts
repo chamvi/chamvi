@@ -27,6 +27,7 @@ import type {
     IConnectionConfigStore,
     IConnectionTypeProvider,
 } from '@chamvi/core';
+import { isObject } from 'smob';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import {
     ADMIN_TOKEN,
@@ -147,6 +148,31 @@ async function json(response: Response): Promise<any> {
     return response.json();
 }
 
+/**
+ * A PUT as the dashboard form sends it: with the revision and generation of
+ * the view it just read (revision 0 and no generation without a row). A body
+ * that names its own revision is sent as it is.
+ */
+async function put(app: Parameters<typeof call>[0], path: string, options: NonNullable<Parameters<typeof call>[3]> = {}): Promise<Response> {
+    const { body } = options;
+
+    if (!isObject(body) || Object.hasOwn(body, 'revision')) {
+        return call(app, 'PUT', path, options);
+    }
+
+    const read = await call(app, 'GET', path, { token: ADMIN_TOKEN });
+    const view = read.status === 200 ? await json(read) : undefined;
+
+    return call(app, 'PUT', path, {
+        ...options,
+        body: {
+            revision: view?.revision ?? 0,
+            ...(view?.generation !== undefined && { generation: view.generation }),
+            ...body,
+        },
+    });
+}
+
 function twoSecretsDefinition(): ConnectionTypeDefinition {
     return mailDefinition({
         fields: [
@@ -181,11 +207,11 @@ describe('connection configuration', () => {
                 },
             });
 
-            const first = await call(app, 'PUT', '/connections/mail-work/config', {
+            const first = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { secrets: { clear: ['password'] } },
             });
-            const second = await call(app, 'PUT', '/connections/mail-work/config', {
+            const second = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { secrets: { clear: ['token'] } },
             });
@@ -207,7 +233,7 @@ describe('connection configuration', () => {
                 },
             });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: {}, secrets: { clear: ['password'] } },
             });
@@ -349,6 +375,8 @@ describe('connection configuration', () => {
                         set: true,
                     },
                 ],
+                revision: 1,
+                generation: expect.any(String),
                 restartRequired: false,
                 editable: true,
                 deletable: false,
@@ -370,10 +398,10 @@ describe('connection configuration', () => {
             const { app } = world();
             const reader = tokenFor(restricted(Permission.CONNECTION_READ, { name: 'nope' }));
 
-            expect((await call(app, 'PUT', '/connections/nope/config', { token: reader, body: {} })).status).toBe(403);
+            expect((await put(app, '/connections/nope/config', { token: reader, body: {} })).status).toBe(403);
             expect((await call(app, 'DELETE', '/connections/nope', { token: reader })).status).toBe(403);
             expect((await call(app, 'POST', '/connections/nope/test', { token: reader })).status).toBe(403);
-            expect((await call(app, 'PUT', '/connections/nope/config', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'nope' })), body: {} })).status).toBe(404);
+            expect((await put(app, '/connections/nope/config', { token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'nope' })), body: {} })).status).toBe(404);
         });
 
         it('stays readable on a store without connections', async () => {
@@ -401,7 +429,7 @@ describe('connection configuration', () => {
         it('never returns a secret, on success and on a failed save', async () => {
             const { app, errors } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
-            const saved = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+            const saved = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
             const savedBody = await saved.text();
 
             expect(saved.status).toBe(200);
@@ -409,11 +437,11 @@ describe('connection configuration', () => {
 
             const failures = await Promise.all([
                 // a secret in the wrong place, of the wrong type and under an unknown field
-                call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ settings: { host: 'h', password: PASSWORD } }) }),
-                call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ secrets: { set: { password: [PASSWORD] } } }) }),
-                call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ secrets: { set: { host: PASSWORD } } }) }),
-                call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ secrets: PASSWORD }) }),
-                call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ settings: { host: `${PASSWORD}\0` } }) }),
+                put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ settings: { host: 'h', password: PASSWORD } }) }),
+                put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ secrets: { set: { password: [PASSWORD] } } }) }),
+                put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ secrets: { set: { host: PASSWORD } } }) }),
+                put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ secrets: PASSWORD }) }),
+                put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody({ settings: { host: `${PASSWORD}\0` } }) }),
             ]);
 
             for (const failure of failures) {
@@ -435,7 +463,7 @@ describe('connection configuration', () => {
                 }),
             });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+            const response = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
             expect(response.status).toBe(500);
             expect(await response.text()).not.toContain(PASSWORD);
@@ -446,15 +474,15 @@ describe('connection configuration', () => {
         it('a locked env field refuses a write', async () => {
             const { app, connections } = world({ declared: (definition) => [declare(definition, 'mail-work', { MAIL_HOST: 'env-host.example', MAIL_PASSWORD: 'x' })] });
 
-            const settings = await call(app, 'PUT', '/connections/mail-work/config', {
+            const settings = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'other' } },
             });
-            const secret = await call(app, 'PUT', '/connections/mail-work/config', {
+            const secret = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { secrets: { set: { password: PASSWORD } } },
             });
-            const clear = await call(app, 'PUT', '/connections/mail-work/config', {
+            const clear = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { secrets: { clear: ['password'] } },
             });
@@ -469,11 +497,11 @@ describe('connection configuration', () => {
         it('requires chamvi_connection_write to save', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
-            const read = await call(app, 'PUT', '/connections/mail-work/config', {
+            const read = await put(app, '/connections/mail-work/config', {
                 token: tokenFor(restricted(Permission.CONNECTION_READ, { name: 'mail-work' })),
                 body: saveBody(),
             });
-            const write = await call(app, 'PUT', '/connections/mail-work/config', {
+            const write = await put(app, '/connections/mail-work/config', {
                 token: tokenFor(restricted(Permission.CONNECTION_WRITE, { name: 'mail-work' })),
                 body: saveBody(),
             });
@@ -485,7 +513,7 @@ describe('connection configuration', () => {
         it('creates the row of a declared connection on the first save, with the provider type', async () => {
             const { app, connections } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
-            await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+            await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
             expect(await connections.findOne('mail-work')).toMatchObject({ type: 'mail' });
         });
@@ -493,7 +521,7 @@ describe('connection configuration', () => {
         it('a save missing a required field not in env is 400', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { port: 1 }, secrets: { set: { password: PASSWORD } } },
             });
@@ -505,11 +533,11 @@ describe('connection configuration', () => {
         it('treats an empty form value as unset', async () => {
             const { app, real } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
-            const missing = await call(app, 'PUT', '/connections/mail-work/config', {
+            const missing = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: '', port: '' }, secrets: { set: { password: PASSWORD } } },
             });
-            const saved = await call(app, 'PUT', '/connections/mail-work/config', {
+            const saved = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'h', port: '' }, secrets: { set: { password: PASSWORD } } },
             });
@@ -519,7 +547,7 @@ describe('connection configuration', () => {
             expect((await real.describe('mail-work'))?.settings).toEqual({ host: 'h' });
 
             // an untouched secret input keeps the stored value
-            const again = await call(app, 'PUT', '/connections/mail-work/config', {
+            const again = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'h' }, secrets: { set: { password: '' } } },
             });
@@ -531,7 +559,7 @@ describe('connection configuration', () => {
         it('refuses a value of the wrong kind without echoing it', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: saveBody({ settings: { host: 'h', port: 'not-a-port-value' } }),
             });
@@ -543,9 +571,9 @@ describe('connection configuration', () => {
         it('clearing a required secret is accepted and reports incomplete', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
-            await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+            await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { secrets: { clear: ['password'] } },
             });
@@ -566,7 +594,7 @@ describe('connection configuration', () => {
             await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
 
             const before = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
-            const after = await json(await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() }));
+            const after = await json(await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() }));
 
             expect(before.restartRequired).toBe(false);
             expect(after.restartRequired).toBe(true);
@@ -576,17 +604,18 @@ describe('connection configuration', () => {
             const {
                 app,
                 real,
-                clock,
+                connections,
+                declared,
             } = world({
                 declared: (definition) => [declare(definition, 'mail-work', {}, {
                     account: 'work',
                     deletable: true,
                     loadedRevision: 1,
-                    loadedCreatedAt: new Date(1_000_000),
                 })],
             });
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+            declared[0]!.loadedGeneration = (await connections.findOneOrFail('mail-work')).id;
 
             const before = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
 
@@ -595,7 +624,6 @@ describe('connection configuration', () => {
             const deleted = await call(app, 'DELETE', '/connections/mail-work', { token: ADMIN_TOKEN });
 
             expect(deleted.status).toBe(200);
-            clock.advance(5_000);
 
             const created = await call(app, 'POST', '/connection-types/mail/connections', {
                 token: ADMIN_TOKEN,
@@ -623,10 +651,192 @@ describe('connection configuration', () => {
             expect(view.restartRequired).toBe(false);
         });
 
+        it('the view carries the revision and generation a save sends back', async () => {
+            const {
+                app, 
+                real, 
+                connections, 
+            } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+            const empty = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
+            expect(empty.revision).toBe(0);
+            expect(empty).not.toHaveProperty('generation');
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            const view = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
+            expect(view.revision).toBe(1);
+            expect(view.generation).toBe((await connections.findOneOrFail('mail-work')).id);
+        });
+
+        it('a save with a stale revision is 409 connection_changed and stores nothing', async () => {
+            const { app, real } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            // two tabs read the same view; the first saves
+            const tab = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+            const version = { revision: tab.revision, generation: tab.generation };
+
+            expect((await put(app, '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'first' }, ...version },
+            })).status).toBe(200);
+
+            const stale = await put(app, '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { settings: { host: 'second' }, ...version },
+            });
+
+            expect(stale.status).toBe(409);
+            expect((await json(stale)).code).toBe('connection_changed');
+            expect(await real.describe('mail-work')).toMatchObject({ settings: { host: 'first' }, revision: 2 });
+        });
+
+        it('a save carrying the generation of a deleted and recreated row is 409, with equal revisions', async () => {
+            const { app, real } = world({ creatable: true });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            const tab = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
+            await real.delete('mail-work', 'test');
+            await real.create('mail-work', 'mail', { settings: { host: 'other' }, secrets: { set: { password: PASSWORD } } });
+
+            const response = await put(app, '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: {
+                    settings: { host: 'mine' },
+                    revision: tab.revision,
+                    generation: tab.generation,
+                },
+            });
+
+            expect((await real.describe('mail-work'))!.revision).toBe(tab.revision);
+            expect(response.status).toBe(409);
+            expect((await json(response)).code).toBe('connection_changed');
+            expect((await real.describe('mail-work'))!.settings).toEqual({ host: 'other' });
+        });
+
+        it('a save without a revision is 400 and stores nothing', async () => {
+            const { app, real } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+
+            for (const revision of [undefined, -1, 1.5, '1']) {
+                const response = await call(app, 'PUT', '/connections/mail-work/config', {
+                    token: ADMIN_TOKEN,
+                    body: { ...saveBody(), ...(revision !== undefined && { revision }) },
+                });
+
+                expect(response.status).toBe(400);
+            }
+
+            expect(await real.describe('mail-work')).toBeUndefined();
+        });
+
+        it('the first save of a declared connection sends revision 0 and no generation; a generation without a row is 409', async () => {
+            const { app, real } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+            const ghost = await put(app, '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: {
+                    ...saveBody(),
+                    revision: 0,
+                    generation: '01890000-0000-7000-8000-000000000000',
+                },
+            });
+
+            expect(ghost.status).toBe(409);
+            expect(await real.describe('mail-work')).toBeUndefined();
+            expect((await put(app, '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { ...saveBody(), revision: 0 },
+            })).status).toBe(200);
+            // a second first save read the same empty view: the row exists now
+            expect((await put(app, '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: { ...saveBody(), revision: 0 },
+            })).status).toBe(409);
+        });
+
+        it('a save after a vault replace with the revision read before it is 409', async () => {
+            const {
+                app, 
+                real, 
+                connections, 
+                lockService, 
+            } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            const tab = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+            const row = await connections.findOneOrFail('mail-work');
+            const fence = { lock: 'connection:mail-work', owner: 'session' };
+
+            await lockService.acquire(fence.lock, fence.owner, 60_000);
+            await connections.replace({
+                name: row.name,
+                type: row.type,
+                keyId: row.keyId,
+                wrappedKey: row.wrappedKey,
+                createdAt: row.createdAt,
+                updatedAt: row.updatedAt,
+            }, fence);
+            await lockService.release(fence.lock, fence.owner);
+
+            const response = await put(app, '/connections/mail-work/config', {
+                token: ADMIN_TOKEN,
+                body: {
+                    settings: { host: 'h2' },
+                    revision: tab.revision,
+                    generation: tab.generation,
+                },
+            });
+
+            expect(response.status).toBe(409);
+            expect((await json(response)).code).toBe('connection_changed');
+            expect((await real.describe('mail-work'))!.settings).toEqual({ host: 'h' });
+        });
+
+        it('a replaced row stays the declared connection, and asks for a restart', async () => {
+            const {
+                app, 
+                real, 
+                connections, 
+                lockService, 
+                declared, 
+            } = world({ declared: (definition) => [declare(definition, 'mail-work', {}, { account: 'work', deletable: true })] });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            const row = await connections.findOneOrFail('mail-work');
+
+            declared[0]!.loadedRevision = (await real.describe('mail-work'))!.revision;
+            declared[0]!.loadedGeneration = row.id;
+            expect((await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }))).restartRequired).toBe(false);
+
+            const fence = { lock: 'connection:mail-work', owner: 'session' };
+
+            await lockService.acquire(fence.lock, fence.owner, 60_000);
+            await connections.replace({
+                name: row.name,
+                type: row.type,
+                keyId: row.keyId,
+                wrappedKey: row.wrappedKey,
+                createdAt: row.createdAt,
+                updatedAt: row.updatedAt,
+            }, fence);
+
+            const read = await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN });
+
+            // still the account the start loaded (the same id), not a deleted one
+            expect(read.status).toBe(200);
+            expect((await json(read)).restartRequired).toBe(true);
+        });
+
         it('refuses a connection that is not editable', async () => {
             const { app } = world({ declared: (definition) => [declare(definition, 'mail-work', {}, { editable: false })] });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+            const response = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
             expect(response.status).toBe(409);
         });
@@ -644,7 +854,7 @@ describe('connection configuration', () => {
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' } });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+            const response = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
             expect(response.status).toBe(409);
             expect((await json(response)).code).toBe('connection_changed');
@@ -658,7 +868,7 @@ describe('connection configuration', () => {
                 },
             });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+            const response = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
             expect(response.status).toBe(409);
             expect((await json(response)).message).toContain('CHAMVI_ENCRYPTION_KEYS');
@@ -674,7 +884,7 @@ describe('connection configuration', () => {
             await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
             keyring = createKeyring([{ id: 'k2', key: randomBytes(32) }]);
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+            const response = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
             expect(response.status).toBe(409);
             expect((await json(response)).code).toBe('decryption_failed');
@@ -683,7 +893,7 @@ describe('connection configuration', () => {
         it('answers no save on a store without connections', async () => {
             const { app } = world({ noConfigs: true, declared: (definition) => [declare(definition, 'mail-work')] });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+            const response = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
 
             expect(response.status).toBe(409);
         });
@@ -1007,7 +1217,7 @@ describe('connection configuration', () => {
         it('refuses editing an account to the identity of another with 409', async () => {
             const { app, real } = await worldOfTwo();
 
-            const response = await call(app, 'PUT', '/connections/mail-b/config', {
+            const response = await put(app, '/connections/mail-b/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'a.test' }, secrets: { set: { password: PASSWORD } } },
             });
@@ -1021,11 +1231,11 @@ describe('connection configuration', () => {
 
             await real.update('mail-a', { settings: { host: 'moved.test' } });
 
-            const taken = await call(app, 'PUT', '/connections/mail-b/config', {
+            const taken = await put(app, '/connections/mail-b/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'moved.test' }, secrets: { set: { password: PASSWORD } } },
             });
-            const freed = await call(app, 'PUT', '/connections/mail-b/config', {
+            const freed = await put(app, '/connections/mail-b/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'a.test' }, secrets: { set: { password: PASSWORD } } },
             });
@@ -1037,7 +1247,7 @@ describe('connection configuration', () => {
         it('lets an account keep its own identity', async () => {
             const { app } = await worldOfTwo();
 
-            const response = await call(app, 'PUT', '/connections/mail-b/config', {
+            const response = await put(app, '/connections/mail-b/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'b.test', port: 1 } },
             });
@@ -1137,10 +1347,16 @@ describe('connection configuration', () => {
                 secrets: { set: { password: PASSWORD, token: 'second-secret' } },
             });
 
+            const { revision, generation } = (await context.real.describe('mail-work'))!;
+
             // checked against host old.test it moves nothing, so it brings no secret: it must not write
-            const response = await call(context.app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(context.app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
-                body: { settings: { host: 'old.test', port: 993 } },
+                body: {
+                    settings: { host: 'old.test', port: 993 },
+                    revision,
+                    generation,
+                },
             });
 
             expect(response.status).toBe(409);
@@ -1158,7 +1374,7 @@ describe('connection configuration', () => {
         it('refuses moving the field without every stored secret, naming each, and stores nothing', async () => {
             const { app, real } = await saved();
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'new.test' }, secrets: { set: { password: 'typed-again' } } },
             });
@@ -1174,7 +1390,7 @@ describe('connection configuration', () => {
         it('accepts the move with every secret re-entered, or a secret cleared', async () => {
             const { app, real } = await saved();
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'new.test' }, secrets: { set: { password: 'typed-again' }, clear: ['token'] } },
             });
@@ -1186,7 +1402,7 @@ describe('connection configuration', () => {
         it('leaves other edits alone, and a save that keeps the value', async () => {
             const { app } = await saved();
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'old.test', port: 2 } },
             });
@@ -1206,7 +1422,7 @@ describe('connection configuration', () => {
 
             await context.real.create('mail-work', 'mail', { settings: {}, secrets: { set: { password: PASSWORD } } });
 
-            const response = await call(context.app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(context.app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'evil.test' } },
             });
@@ -1217,7 +1433,7 @@ describe('connection configuration', () => {
         it('refuses the move with 409 for a secret from env, naming the field and never the value', async () => {
             const { app, real } = await saved({ MAIL_PASSWORD: 'env-secret-value' });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'new.test' }, secrets: { set: { token: 'typed-again' } } },
             });
@@ -1457,13 +1673,13 @@ describe('connection configuration', () => {
             await call(app, 'DELETE', '/connections/mail-work', { token: ADMIN_TOKEN });
 
             const list = await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }));
-            const put = await call(app, 'PUT', '/connections/mail-work/config', {
+            const saved = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'other' }, secrets: { set: { password: PASSWORD } } },
             });
 
             expect(list.data).toEqual([]);
-            expect(put.status).toBe(404);
+            expect(saved.status).toBe(404);
             expect(await connections.findOne('mail-work')).toBeUndefined();
         });
 
@@ -1533,7 +1749,6 @@ describe('connection configuration', () => {
                     account: 'work',
                     deletable: true,
                     loadedRevision: 1,
-                    loadedCreatedAt: new Date(1_000_000),
                 })],
             });
 
@@ -1548,6 +1763,8 @@ describe('connection configuration', () => {
             } = context;
 
             await real.create('mail-work', 'mail', { settings: { port: 1 } });
+            // the start loaded this row
+            context.declared[0]!.loadedGeneration = (await context.connections.findOneOrFail('mail-work')).id;
 
             const deleted = await call(app, 'DELETE', '/connections/mail-work', { token: ADMIN_TOKEN });
 
@@ -1637,11 +1854,11 @@ describe('connection configuration', () => {
 
             await recreate(context);
 
-            const bare = await call(context.app, 'PUT', '/connections/mail-work/config', {
+            const bare = await put(context.app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'moved.test' } },
             });
-            const carried = await call(context.app, 'PUT', '/connections/mail-work/config', {
+            const carried = await put(context.app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { host: 'moved.test' }, secrets: { set: { password: 'again' } } },
             });
@@ -1668,7 +1885,7 @@ describe('connection configuration', () => {
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: {} });
+            const response = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: {} });
 
             expect(response.status).toBe(200);
             expect((await real.describe('mail-work'))?.revision).toBe(1);
@@ -1679,7 +1896,7 @@ describe('connection configuration', () => {
 
             await real.create('mail-work', 'mail', { settings: { host: 'h', port: 993 }, secrets: { set: { password: PASSWORD } } });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { settings: { port: 993, host: 'h' }, secrets: { set: { password: '' } } },
             });
@@ -1694,7 +1911,7 @@ describe('connection configuration', () => {
 
             await real.create('mail-work', 'mail', { settings: { host: 'h', port: 993 }, secrets: { set: { password: PASSWORD } } });
 
-            await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: { settings: { host: 'h' } } });
+            await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: { settings: { host: 'h' } } });
 
             expect(await real.describe('mail-work')).toMatchObject({ settings: { host: 'h' }, revision: 2 });
         });
@@ -1702,7 +1919,7 @@ describe('connection configuration', () => {
         it('creates no row for a declared connection', async () => {
             const { app, connections } = world({ declared: (definition) => [declare(definition, 'mail-work', { MAIL_HOST: 'h', MAIL_PASSWORD: 'x' })] });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: {} });
+            const response = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: {} });
 
             expect(response.status).toBe(200);
             expect((await json(response)).restartRequired).toBe(false);
@@ -1716,7 +1933,7 @@ describe('connection configuration', () => {
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { secrets: { set: { password: 'new-secret-value' }, clear: ['password'] } },
             });
@@ -1733,7 +1950,7 @@ describe('connection configuration', () => {
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
 
-            const response = await call(app, 'PUT', '/connections/mail-work/config', {
+            const response = await put(app, '/connections/mail-work/config', {
                 token: ADMIN_TOKEN,
                 body: { secrets: { set: { password: '' }, clear: ['password'] } },
             });
@@ -1898,16 +2115,16 @@ describe('connection configuration', () => {
             const reader = tokenFor(Permission.CONNECTION_READ);
             const save = { settings: { host: 'imap.example' }, secrets: { set: { password: PASSWORD } } };
             const responses = [
-                await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: save }),
-                await call(app, 'PUT', '/connections/mail-work/config', { token: reader, body: save }),
-                await call(app, 'PUT', '/connections/mail-code/config', { token: ADMIN_TOKEN, body: save }),
-                await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: { settings: 'no object' } }),
+                await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: save }),
+                await put(app, '/connections/mail-work/config', { token: reader, body: save }),
+                await put(app, '/connections/mail-code/config', { token: ADMIN_TOKEN, body: save }),
+                await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN, body: { settings: 'no object' } }),
             ];
 
             expect(responses.map((response) => response.status)).toEqual([200, 403, 409, 400]);
             expect(responses.map((response) => response.headers.get('cache-control'))).toEqual([NO_STORE, NO_STORE, NO_STORE, NO_STORE]);
 
-            const empty = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN });
+            const empty = await put(app, '/connections/mail-work/config', { token: ADMIN_TOKEN });
 
             expect(empty.status).toBe(400);
             expect(empty.headers.get('cache-control')).toBeNull();
