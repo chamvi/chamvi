@@ -17,6 +17,7 @@ import {
 } from 'vitest';
 import type { IKnowledge, IKnowledgeSource, KnowledgeCollection } from '@chamvi/knowledge';
 import {
+    CHUNKER_VERSION,
     KNOWLEDGE_LOCK_TTL_MS,
     KNOWLEDGE_RETRY_MS,
     createKnowledge,
@@ -404,6 +405,72 @@ describe('the indexing lock', () => {
 
         expect(matches.map((match) => match.text)).not.toContain(stale);
         expect(await setup.repository.findOneCollection('docs')).toMatchObject({ status: 'ready', generation: 1 });
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a stale pass that read no record never replaces the record another owner created', async () => {
+        const setup = createIndexerSetup();
+        const first = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel(), mapSource(new Map([['old.md', 'An older deploy.']]))));
+        const { service } = first;
+        const save = service.saveCollection.bind(service);
+        const gate = Promise.withResolvers<void>();
+        // the creating save waits, as a store slower than the lease would
+        const held = vi.spyOn(service, 'saveCollection').mockImplementationOnce(async (...args) => {
+            await gate.promise;
+
+            return save(...args);
+        });
+
+        await expect.poll(() => held.mock.calls.length).toBe(1);
+
+        setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+        start(setup, 'replica-b', mockEmbeddingModel());
+
+        const ready = await waitForReady(setup.repository, 'docs');
+
+        gate.resolve();
+
+        await expect.poll(() => held.mock.settledResults[0]?.type).toBe('rejected');
+        await settle();
+
+        expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost', lock: 'knowledge:docs' } });
+        expect(await setup.repository.findOneCollection('docs')).toEqual(ready);
+        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose record appeared after the fence was advanced writes with a fence', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const save = service.saveCollection.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+
+        // the record lands between the loop's advance (no row yet) and the pass's own read
+        vi.spyOn(service, 'advanceFence').mockImplementationOnce(async (name) => {
+            const fence = await advance(name);
+            const now = new Date(setup.clock.now());
+
+            await save({
+                name,
+                kind: 'declared',
+                trusted: true,
+                generation: 0,
+                model: 'mock-provider/mock-model-id',
+                chunker: CHUNKER_VERSION,
+                status: 'pending',
+                createdAt: now,
+                updatedAt: now,
+            });
+
+            return fence;
+        });
+
+        await waitForReady(setup.repository, 'docs');
+
+        expect(replace.mock.calls).toHaveLength(3);
+        expect(replace.mock.calls.every((call) => call[4]?.fence !== undefined)).toBe(true);
         expect(setup.errors).toEqual([]);
     });
 

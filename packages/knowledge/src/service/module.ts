@@ -346,6 +346,11 @@ export class KnowledgeService implements IKnowledgeService {
     ): Promise<KnowledgeCollectionRecord> {
         return this.repository.transaction(async (repository) => {
             const stored = await this.lockCollection(repository, collection.name, options);
+
+            if (stored && options.create) {
+                throw new LeaseLostError({ lock: lockKey(collection.name) });
+            }
+
             // a record read earlier may carry a row id and a fence: neither is the caller's to write
             const fields = toCollection(collection as KnowledgeCollectionRecord);
 

@@ -839,6 +839,20 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.findOneCollection('docs')).toEqual(collectionOf('docs'));
             });
 
+            it('a create-only save over an existing row is a LeaseLostError and writes nothing', async () => {
+                const service = await create();
+                const created = await service.saveCollection(collectionOf('docs'), { create: true });
+
+                expect(created).toMatchObject({ fence: 0, ...collectionOf('docs') });
+
+                await service.advanceFence('docs');
+
+                await expect(service.saveCollection(collectionOf('docs', { status: 'stale' }), { create: true }))
+                    .rejects.toMatchObject({ code: 'lease_lost', lock: 'knowledge:docs' });
+                expect(await service.findOneCollection('docs')).toEqual(collectionOf('docs'));
+                expect(await service.advanceFence('docs')).toEqual({ id: created.id, fence: 2 });
+            });
+
             it('a fenced write after deleteCollection is RepositoryNotFoundError and creates no row', async () => {
                 for (const { method, write } of writes) {
                     const service = await seed();

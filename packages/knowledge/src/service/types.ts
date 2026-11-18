@@ -43,6 +43,12 @@ export type KnowledgeFence = {
  */
 export type KnowledgeWriteOptions = {
     fence?: KnowledgeFence;
+    /**
+     * `saveCollection` only: insert, never replace; a stored row of the name
+     * is `LeaseLostError` on the lock `knowledge:<name>` (another owner
+     * created it), nothing written.
+     */
+    create?: boolean;
 };
 
 /**

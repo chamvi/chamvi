@@ -7,6 +7,7 @@
 
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import {
+    advanceLockFence,
     highestGeneration,
     messageOf,
     sameOrigin,
@@ -276,6 +277,11 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
 
     if (record?.kind !== 'managed') {
         return;
+    }
+
+    if (lock.fence === undefined) {
+        // the record appeared after the loop advanced the fence (no row then)
+        await advanceLockFence(repository, name, lock);
     }
 
     if (needsReembed(record, input.model) && (input.reembed || record.pending?.model === input.model)) {

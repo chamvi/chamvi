@@ -88,6 +88,8 @@ export type ContractKnowledgeFence = {
 
 export type ContractKnowledgeWriteOptions = {
     fence?: ContractKnowledgeFence;
+    /** `saveCollection` only: insert, never replace. */
+    create?: boolean;
 };
 
 export type ContractKnowledgeService = {

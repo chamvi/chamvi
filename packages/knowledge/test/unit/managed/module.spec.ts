@@ -426,6 +426,47 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('a pass whose record appeared after the fence was advanced writes with a fence', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const save = service.saveCollection.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+
+        await knowledge.createCollection('notes');
+
+        const record = (await service.findOneCollection('notes'))!;
+
+        // deleted and created again between the loop's advance (no row then) and the pass's own read
+        vi.spyOn(service, 'advanceFence').mockImplementationOnce(async (name) => {
+            await service.deleteCollection(name);
+
+            const fence = await advance(name);
+
+            await save(record);
+            await service.saveDocument({
+                collection: name,
+                id: 'doc',
+                content: 'Refunds within thirty days.',
+                hash: contentHash('Refunds within thirty days.'),
+                status: 'pending',
+                generation: 0,
+                updatedAt: new Date(setup.clock.now()),
+            });
+
+            return fence;
+        });
+
+        knowledge.start();
+
+        await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        expect(replace.mock.calls).toHaveLength(1);
+        expect(replace.mock.calls[0]![4]?.fence).toBeDefined();
+        expect(setup.errors).toEqual([]);
+    });
+
     it('a document the provider rejects with a 400 is failed with the error; a 500 fails the pass and the document stays pending', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: rejectingModel() });

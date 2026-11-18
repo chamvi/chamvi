@@ -11,6 +11,7 @@ import {
     describe, 
     expect, 
     it, 
+    vi,
 } from 'vitest';
 import type { IKnowledge, KnowledgeCollectionKind } from '@chamvi/knowledge';
 import {
@@ -151,6 +152,37 @@ describe('orphaned collections', () => {
         await waitForReady(setup.repository, 'docs');
         await knowledge.stop();
 
+        expect((await setup.repository.findOneCollection('old'))?.status).toBe('ready');
+        expect(setup.errors).toEqual([]);
+    });
+    it('leaves a record alone when another owner advanced its fence during the mark', async () => {
+        const setup = createIndexerSetup();
+
+        await seed(setup, 'old', 'declared');
+
+        const knowledge = setup.adopt(createKnowledge(setup.options({})));
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        const gate = Promise.withResolvers<void>();
+        // the mark waits, as a store slower than the lease would
+        const held = vi.spyOn(service, 'saveCollection').mockImplementationOnce(async (...args) => {
+            await gate.promise;
+
+            return save(...args);
+        });
+
+        started.push(knowledge);
+        knowledge.start();
+
+        await expect.poll(() => held.mock.calls.length).toBe(1);
+        // another owner took the lock and advanced the fence
+        await service.advanceFence('old');
+        gate.resolve();
+
+        await expect.poll(() => held.mock.settledResults[0]?.type).toBe('rejected');
+        await knowledge.stop();
+
+        expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost' } });
         expect((await setup.repository.findOneCollection('old'))?.status).toBe('ready');
         expect(setup.errors).toEqual([]);
     });

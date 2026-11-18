@@ -159,8 +159,8 @@ export async function embedDocument(input: EmbedDocumentInput): Promise<Embedded
  * the previous one. A document with unchanged content, title and source costs
  * nothing (its chunks carry the title and source). Ends early, without an
  * error, once `lock.renew()` answers false. Every write carries the lock's
- * fence (a first pass creates the record, then advances it), so a write
- * after another owner took the lock is a `LeaseLostError`.
+ * fence (a first pass creates the record create-only, then advances it), so
+ * a write after another owner took the lock is a `LeaseLostError`.
  */
 export async function syncCollection(input: SyncCollectionInput): Promise<void> {
     const {
@@ -227,9 +227,15 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         record = { ...record, status: record.generation > 0 ? 'stale' : 'pending' };
     }
 
-    await repository.saveCollection(record, writeOptionsOf(lock));
+    if (stored && lock.fence === undefined) {
+        // the record appeared after the loop advanced the fence (no row then)
+        await advanceLockFence(repository, name, lock);
+    }
 
-    if (!stored) {
+    // without a token only a create: a record another owner created meanwhile is never replaced
+    await repository.saveCollection(record, lock.fence === undefined ? { create: true } : writeOptionsOf(lock));
+
+    if (lock.fence === undefined) {
         // the record exists from here on: the writes that follow carry its fence
         await advanceLockFence(repository, name, lock);
     }
@@ -638,7 +644,9 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
  * Marks every declared record without a definition `orphaned`: kept with its
  * documents and chunks, searchable by no agent. Each mark is written under
  * the record's `knowledge:<name>` lock (a held one means a replica that
- * declares it is syncing it: left alone), re-read once the lock is held.
+ * declares it is syncing it: left alone), re-read once the lock is held and
+ * its fence advanced; a mark the fence refuses (another owner took the lock
+ * meanwhile) leaves the record alone too.
  */
 export async function markOrphans(
     repository: IKnowledgeService,
@@ -664,14 +672,19 @@ export async function markOrphans(
         }
 
         try {
+            const fence = await repository.advanceFence(candidate.name);
             const record = await repository.findOneCollection(candidate.name);
 
-            if (isOrphan(record)) {
+            if (fence && isOrphan(record)) {
                 await repository.saveCollection({
                     ...record,
                     status: 'orphaned',
                     updatedAt: new Date(clock.now()),
-                });
+                }, { fence });
+            }
+        } catch (error) {
+            if (!isLeaseLost(error)) {
+                throw error;
             }
         } finally {
             await locks.release(key, owner);
