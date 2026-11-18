@@ -23,6 +23,6 @@ export type APIRequestOptions = {
 };
 
 /** What a domain API needs of the client. */
-export type ApiTransport = Pick<IBaseClient, 'request'> & { readonly timeoutMs: number };
+export type ApiTransport = Pick<IBaseClient, 'request' | 'getBaseURL'> & { readonly timeoutMs: number };
 
 export type BaseAPIContext = { client: ApiTransport };

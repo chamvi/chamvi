@@ -26,6 +26,7 @@ import { fakeClient } from '../../../utils/client.ts';
 import type { FakeClientOverrides } from '../../../utils/client.ts';
 import { wireRun } from '../../../utils/runs.ts';
 import { mountView, settle } from '../../../utils/view.ts';
+import { filterFromQuery } from '../../../../app/runs/query.ts';
 
 /** A 403 as `@chamvi/http` answers a missing permission. */
 const refused = (permission: string) => new ApiError(403, 'FORBIDDEN', `Missing permission "${permission}".`);
@@ -117,6 +118,13 @@ describe('the agent page: start run', () => {
         const { root } = await openAgent([Permission.AGENT_RUN]);
 
         expect(button(root, 'Start run')).toBeDefined();
+    });
+
+    it('links View all runs to the run list filtered by the agent', async () => {
+        const { root } = await openAgent([Permission.RUN_READ]);
+        const link = Array.from(root.querySelectorAll<HTMLAnchorElement>('a')).find((element) => element.textContent?.trim() === 'View all runs');
+
+        expect(filterFromQuery(Object.fromEntries(new URL(link!.href, 'http://x').searchParams))).toMatchObject({ agent: AGENT.name });
     });
 
     it('offers no Start run without chamvi_agent_run', async () => {

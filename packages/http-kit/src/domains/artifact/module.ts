@@ -17,13 +17,15 @@ export class ArtifactAPI extends BaseAPI implements IArtifactAPI {
     }
 
     async read(runId: string, artifactId: string, options?: APIRequestOptions): Promise<Blob> {
+        // a stream, read after the answer: the deadline bounds the answer, never the download
         const response = await this.requestRaw({
             url: `${path('runs', runId)}/artifacts${path(artifactId)}`,
             method: 'GET',
-            responseType: 'blob',
+            responseType: 'stream',
             headers: { accept: '*/*' },
         }, options);
+        const type = response.headers.get('content-type');
 
-        return response.data as Blob;
+        return new Response(response.data as ReadableStream<Uint8Array> | null, type ? { headers: { 'content-type': type } } : {}).blob();
     }
 }

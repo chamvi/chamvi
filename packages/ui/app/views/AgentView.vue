@@ -33,6 +33,7 @@ import { panelId, tabId } from '../components/tab-list/helpers.ts';
 import TabList from '../components/tab-list/TabList.vue';
 import { RouteName } from '../router/constants.ts';
 import { formatTokens, shortId } from '../runs/helpers.ts';
+import { queryFromFilter } from '../runs/query.ts';
 import { formatFireTime } from '../schedules/helpers.ts';
 import { useAgentState } from '../state/composables.ts';
 
@@ -157,7 +158,7 @@ function scheduleOf(chip: Chip) {
                         </VCButton>
                         <RouterLink
                             class="btn"
-                            :to="{ name: RouteName.RUNS, query: { agent: agent.name } }"
+                            :to="{ name: RouteName.RUNS, query: queryFromFilter({ agent: agent.name }) }"
                         >
                             View all runs
                         </RouterLink>

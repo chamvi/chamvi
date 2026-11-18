@@ -65,4 +65,19 @@ describe('run list query', () => {
         });
         expect(toRunQuery({})).toEqual({ filters: {}, pagination: {} });
     });
+
+    it.each(['null', '007', '1e5', '42'])('keeps the agent %s through the route query', (agent) => {
+        const query = queryFromFilter({
+            agent, 
+            status: ['failed'], 
+            offset: 25, 
+        });
+
+        expect(filterFromQuery(query as Record<string, string>)).toEqual({
+            agent,
+            status: ['failed'],
+            limit: 25,
+            offset: 25,
+        });
+    });
 });

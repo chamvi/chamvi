@@ -55,6 +55,8 @@ export class BaseAPI {
         try {
             return await this.client.request({
                 ...config,
+                // joined here: hapic (ufo's withBase) skips a base the path already starts with (`/agents` + `/agents`)
+                url: `${this.client.getBaseURL() ?? ''}${config.url}`,
                 ...extra,
                 headers: { ...Object.fromEntries(new Headers(config.headers)), ...Object.fromEntries(new Headers(extra.headers)) },
                 signal: deadline.signal,
@@ -72,7 +74,7 @@ export class BaseAPI {
                 throw toApiError(e.response, await bodyOf(e.response.data));
             }
 
-            throw asApiError(isClientError(e) && Error.isError(e.cause) ? e.cause : e);
+            throw asApiError(isClientError(e) && e.cause instanceof Error ? e.cause : e);
         } finally {
             deadline.clear();
         }

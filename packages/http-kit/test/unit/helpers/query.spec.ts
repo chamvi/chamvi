@@ -10,7 +10,7 @@ import { buildQueryString, path } from '@chamvi/http-kit';
 import { parseRunListQuery } from '../../../../http/src/runs/helpers.ts';
 
 /** What the server decodes from a client-built query (http cannot devDepend on http-kit: a cycle). */
-const decode = (text: string) => parseRunListQuery(new URLSearchParams(text.slice(1)), ['a']);
+const decode = (text: string, agents: string[] = ['a']) => parseRunListQuery(new URLSearchParams(text.slice(1)), agents);
 
 describe('buildQueryString', () => {
     it('is empty without input', () => {
@@ -39,6 +39,12 @@ describe('buildQueryString', () => {
             expect.objectContaining({ value: 'a' }),
             expect.objectContaining({ value: ['queued', 'running'] }),
         ]));
+    });
+
+    it.each(['null', '007', '1e5', '42', 'true'])('encodes and round-trips the agent name %s', (name) => {
+        const request = decode(buildQueryString({ filters: { agent: name, status: ['queued'] } }), [name, 'a']);
+
+        expect(request.agent).toBe(name);
     });
 
     it('round-trips parent and waiting', () => {

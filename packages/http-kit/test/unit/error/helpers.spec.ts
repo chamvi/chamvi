@@ -5,7 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { describe, expect, it } from 'vitest';
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from 'vitest';
 import {
     ApiError,
     RATE_LIMIT_BACKOFF_MS,
@@ -68,6 +74,16 @@ describe('retryDelayOf', () => {
 });
 
 describe('asApiError', () => {
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('works where Error.isError is missing (the dashboard\'s browser target)', () => {
+        vi.stubGlobal('Error', Object.assign(() => {}, { prototype: Error.prototype, isError: undefined }));
+
+        expect(asApiError(new TypeError('Failed to fetch'))).toMatchObject({ code: 'network_error', message: 'Failed to fetch' });
+    });
+
     it('keeps an ApiError and wraps anything else as network_error', () => {
         const error = new ApiError(404, 'x', 'x');
 

@@ -61,8 +61,9 @@ export function filterFromQuery(query: LocationQuery): RunListFilter {
     let status: RunStatusLiteral[] = [];
 
     for (const leaf of leavesOf(decoded.filters)) {
-        if (leaf.field === 'agent' && typeof leaf.value === 'string') {
-            agent = leaf.value;
+        if (leaf.field === 'agent') {
+            // rapiq reads a name like `007` or `null` as a number or null: the raw parameter keeps it
+            agent = typeof leaf.value === 'string' ? leaf.value : (params.get('filter[agent]') ?? String(leaf.value));
         }
 
         if (leaf.field === 'status') {

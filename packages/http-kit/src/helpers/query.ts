@@ -18,7 +18,16 @@ export function buildQueryString<T extends ObjectLiteral>(input?: EntityQueryInp
         return '';
     }
 
-    const encoded = codec.encode(isQuery(input) ? input : defineQuery<T>(input));
+    const query = isQuery(input) ? input : defineQuery<T>(input);
+    let encoded: string | null;
+
+    // the simple (bracket) dialect first: the expression dialect refuses a text
+    // value that reads as another literal (an agent named `null` or `007`)
+    try {
+        encoded = codec.encode(query, { codec: 'url-simple' });
+    } catch {
+        encoded = codec.encode(query);
+    }
 
     return encoded ? `?${encoded}` : '';
 }

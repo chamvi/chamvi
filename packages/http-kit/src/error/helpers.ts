@@ -52,5 +52,5 @@ export function asApiError(error: unknown): ApiError {
         return error;
     }
 
-    return new ApiError(0, 'network_error', Error.isError(error) ? error.message : String(error));
+    return new ApiError(0, 'network_error', error instanceof Error ? error.message : String(error));
 }
