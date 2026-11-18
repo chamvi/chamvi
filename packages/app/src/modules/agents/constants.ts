@@ -5,11 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-/** The lifecycle hook that starts and stops the agent packages' retries. */
-export const AGENTS_WATCHER_HOOK_NAME = 'chamvi:agents-watcher';
-
 /** The agents dir's polls among the app's components. */
 export const AGENTS_WATCHER_COMPONENT_NAME = 'agents-watcher';
+
+/** The agent packages' skill preparation retries among the app's components. */
+export const AGENT_PACKAGES_COMPONENT_NAME = 'agents-packages';
 
 /** The agents dir without `CHAMVI_AGENTS_DIR`, used when it is a directory of the cwd. */
 export const DEFAULT_AGENTS_DIR = 'agents';

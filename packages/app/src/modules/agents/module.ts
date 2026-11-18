@@ -19,7 +19,7 @@ import { APP_ERROR_CODE, AppToken, ModuleName } from '../../module/constants.ts'
 import { isPackageMarker, mergePackageSpecifiers } from '../../package/helpers.ts';
 import {
     AGENTS_WATCHER_COMPONENT_NAME,
-    AGENTS_WATCHER_HOOK_NAME,
+    AGENT_PACKAGES_COMPONENT_NAME,
     AGENT_RELOADED_MESSAGE,
     AGENT_REMOVED_MESSAGE,
     NO_AGENTS_MESSAGE,
@@ -46,8 +46,8 @@ import { createAgentsWatcher } from './watcher.ts';
  * (`CHAMVI_AGENTS_DIR`, else `./agents` when that is a directory; start and
  * job mode, nothing in migrate mode). Without a dir or a package an app
  * without agents passed in code starts empty (a warning). With one, `setup` registers `AGENT_ISSUES` and (start mode outside a check)
- * the package retries' lifecycle hook and, with a dir, the watcher's polls
- * as the component `agents-watcher`; `onReady` loads every folder into the engine before any
+ * contributes the package retries as the component `agents-packages` and
+ * the watcher's polls as `agents-watcher`; `onReady` loads every folder into the engine before any
  * start step runs (a folder changed while the app was down cancels its old
  * runs once, logged `agent reloaded`/`agent removed` with the ids of the
  * runs whose cancel went through (a run on another replica may still
@@ -55,7 +55,8 @@ import { createAgentsWatcher } from './watcher.ts';
  * removes that agent, also without a dir, unless a package did not load,
  * whose stored package markers also keep folders of their name out), and the
  * watcher polls every `CHAMVI_AGENTS_POLL_MS` once the components module
- * started it until that stops it, awaiting a reload in flight. A job never cancels:
+ * started it until that stops it, awaiting a reload in flight (the package
+ * retries alike, on the same poll ticks). A job never cancels:
  * a revision conflict of the job's own agent fails the job
  * (InvalidRunStateError), another agent's is an issue. A folder agent whose
  * skill preparation fails is an issue (the others start, polling retries);
@@ -120,22 +121,21 @@ export class AgentsModule implements IModule {
             return;
         }
 
-        container.registerMany(AppToken.LIFECYCLE_HOOKS, {
-            useValue: {
-                name: AGENTS_WATCHER_HOOK_NAME,
-                started: () => {
-                    this.packageAgents?.start();
-                },
-                stopping: () => this.stopAll(),
-            },
-        });
+        // the factories run in the components module's onReady, after this module's onReady created both
+        if (this.packages.length > 0) {
+            container.registerMany(AppToken.COMPONENTS, {
+                useFactory: () => ({
+                    name: AGENT_PACKAGES_COMPONENT_NAME,
+                    component: this.loadedOrFail(this.packageAgents).component,
+                }),
+            });
+        }
 
         if (this.root !== undefined) {
-            // resolved by the components module's onReady, after this module's onReady created the watcher
             container.registerMany(AppToken.COMPONENTS, {
                 useFactory: () => ({
                     name: AGENTS_WATCHER_COMPONENT_NAME,
-                    component: this.watcherOrFail().component,
+                    component: this.loadedOrFail(this.watcher).component,
                 }),
             });
         }
@@ -320,28 +320,23 @@ export class AgentsModule implements IModule {
 
     /** Resolves once the watcher's poll and the package retry in flight, if any, settled. */
     async idle(): Promise<void> {
-        await this.packageAgents?.idle();
+        await this.packageAgents?.component.settled();
         await this.watcher?.component.settled();
     }
 
-    protected watcherOrFail(): IAgentsWatcher {
-        if (!this.watcher) {
-            throw new InvalidAgentDefinitionError(`The module ${this.name} has not loaded the agents dir yet.`);
+    /** The watcher or package agents `onReady` created; a component resolved before it throws. */
+    protected loadedOrFail<T>(value: T | undefined): T {
+        if (value === undefined) {
+            throw new InvalidAgentDefinitionError(`The module ${this.name} has not loaded its agents yet.`);
         }
 
-        return this.watcher;
+        return value;
     }
 
     async teardown(): Promise<void> {
-        // idempotent; the issues stay readable
+        // idempotent; the issues stay readable; the components module stopped the polls and retries
         this.unsubscribe?.();
         this.unsubscribe = undefined;
-        await this.stopAll();
-    }
-
-    /** The package retries; the components module stops the watcher's polls. */
-    protected async stopAll(): Promise<void> {
-        await this.packageAgents?.stop();
     }
 }
 
