@@ -1,5 +1,42 @@
 # Changelog
 
+## [0.9.0](https://github.com/chamvi/chamvi/compare/v0.8.0...v0.9.0) (2026-11-18)
+
+
+### ⚠ BREAKING CHANGES
+
+* IClock.now() returns epoch milliseconds (a number), not a Date. IClock.setTimeout(fn, ms) takes no options and returns ClockTimer { clear(), unref?() }; ClockTimerOptions is removed. Timers of systemClock hold the process unless unref() is called (chamvi's own timers unref). ControllableClock.now() returns milliseconds.
+* IStore, createMemoryStore(), createDatabaseStore(), engine.store and describeRepositoryContract() are removed. An engine takes services, a custom store implements the ports of @chamvi/store, and a start with CHAMVI_MIGRATE=false refuses an unmigrated store.
+
+### Features
+
+* **access:** add the permission check over authup bindings ([#202](https://github.com/chamvi/chamvi/issues/202)) ([9304038](https://github.com/chamvi/chamvi/commit/930403896b0db5e7bc3c34b9230dabdefca7c17c))
+* **core,store-db:** store connection settings and sealed secrets ([#192](https://github.com/chamvi/chamvi/issues/192)) ([21ab44f](https://github.com/chamvi/chamvi/commit/21ab44f3b2034fb42ac515eb2d930826d1ce10ba))
+* **http,ui-kit:** test saved connections and show configuration state ([#193](https://github.com/chamvi/chamvi/issues/193)) ([18cd2dc](https://github.com/chamvi/chamvi/commit/18cd2dc6b65bb6ce4c74fecff3c4fb6a4ba26387))
+* services over repository ports, and a database layer for apps ([0eb684e](https://github.com/chamvi/chamvi/commit/0eb684e8469dc49f740114aa57e55af797479f1b))
+
+
+### Bug Fixes
+
+* close the 0.9.0 release review findings ([#240](https://github.com/chamvi/chamvi/issues/240)) ([ab400cd](https://github.com/chamvi/chamvi/commit/ab400cd55d185bd294f8c6ccc734a789b09b3397))
+* **core,http:** bind a dispatched run to the agent revision its check saw ([#213](https://github.com/chamvi/chamvi/issues/213)) ([2479f77](https://github.com/chamvi/chamvi/commit/2479f77a854b469002b65b128502e6001579582d))
+
+
+### Code Refactoring
+
+* align IClock with hubwire's clock shape ([9f112db](https://github.com/chamvi/chamvi/commit/9f112db437a6b5060d56226a76a756c620c7aabe))
+
+
+### Dependencies
+
+* The following workspace dependencies were updated
+  * dependencies
+    * @chamvi/store bumped from ^0.8.0 to ^0.9.0
+  * devDependencies
+    * @chamvi/core bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/store-memory bumped from ^0.8.0 to ^0.9.0
+    * @chamvi/test-kit bumped from ^0.8.0 to ^0.9.0
+
 ## [0.8.0](https://github.com/chamvi/chamvi/compare/v0.7.3...v0.8.0) (2026-11-08)
 
 
