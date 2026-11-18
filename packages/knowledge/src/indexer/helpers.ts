@@ -179,9 +179,23 @@ export function sameOrigin(stored: KnowledgeDocument, input: KnowledgeDocumentIn
     return stored.title === input.title && stored.source === input.source;
 }
 
-/** The JSON of `value` with every object's keys sorted (arrays keep their order, `toJSON` applies first). */
+/** Whether `value` is a plain object (`{}` or without a prototype), not a boxed primitive or a class instance. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (!isObject(value)) {
+        return false;
+    }
+
+    const prototype: unknown = Object.getPrototypeOf(value);
+
+    return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * The JSON of `value` with every plain object's keys sorted (arrays keep
+ * their order, `toJSON` applies first, a boxed primitive stays its value).
+ */
 function canonicalJson(value: unknown): string | undefined {
-    return JSON.stringify(value, (_key, item: unknown) => (isObject(item) ?
+    return JSON.stringify(value, (_key, item: unknown) => (isPlainObject(item) ?
         Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]])) :
         item));
 }
