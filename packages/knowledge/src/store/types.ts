@@ -97,6 +97,12 @@ export type KnowledgeDocumentVersion = {
     source?: string;
 };
 
+/** The title and source `updateDetails()` writes; one not given is removed. */
+export type KnowledgeDocumentDetails = {
+    title?: string;
+    source?: string;
+};
+
 /** The fields `updateDocument()` writes; an `error` not given is removed. */
 export type KnowledgeDocumentPatch = {
     status: KnowledgeDocumentStatus;

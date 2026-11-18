@@ -453,6 +453,66 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.findDocuments('docs')).toEqual({ data: [], total: 0 });
             });
 
+            it('updateDetails rewrites the document and its chunks of every generation', async () => {
+                const service = await create();
+                const origin = { title: 'A', source: 'a.md' };
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.saveDocument(documentOf('docs', 'a', { ...origin, metadata: { n: 1 } }));
+                await service.saveDocument(documentOf('docs', 'b', origin));
+                await service.replaceChunks('docs', 'a', 1, [
+                    chunkOf(0, [1, 0], 'a0', origin),
+                    chunkOf(1, [1, 0], 'a1', origin),
+                ]);
+                await service.replaceChunks('docs', 'a', 2, [chunkOf(0, [1, 0], 'a0', origin)]);
+                await service.replaceChunks('docs', 'b', 1, [chunkOf(0, [1, 0], 'b0', origin)]);
+
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', ...origin }, { title: 'B' })).toBe(true);
+
+                const updated = await service.findOneDocumentOrFail('docs', 'a');
+
+                // an absent source is removed, everything but the details and updatedAt is kept
+                expect(updated).toEqual({
+                    ...documentOf('docs', 'a', { title: 'B', metadata: { n: 1 } }),
+                    updatedAt: expect.any(Date),
+                });
+                expect(updated.source).toBeUndefined();
+
+                const details = (matches: Array<{
+                    document: string; 
+                    title?: string; 
+                    source?: string 
+                }>) => matches
+                    .map((match) => [match.document, match.title, match.source]);
+
+                expect(details(await service.search('docs', 1, [1, 0], { topK: 10 }))).toEqual([
+                    ['a', 'B', undefined],
+                    ['a', 'B', undefined],
+                    ['b', 'A', 'a.md'],
+                ]);
+                expect(details(await service.search('docs', 2, [1, 0], { topK: 10 }))).toEqual([['a', 'B', undefined]]);
+                expect(await service.findOneDocumentOrFail('docs', 'b')).toEqual(documentOf('docs', 'b', origin));
+            });
+
+            it('updateDetails with a stale version changes nothing', async () => {
+                const service = await create();
+                const origin = { title: 'A', source: 'a.md' };
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.saveDocument(documentOf('docs', 'a', origin));
+                await service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'a0', origin)]);
+
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:other', ...origin }, { title: 'B' })).toBe(false);
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', title: 'A' }, { title: 'B' })).toBe(false);
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', source: 'a.md' }, { title: 'B' })).toBe(false);
+                expect(await service.updateDetails('docs', 'missing', { hash: 'sha256:missing' }, { title: 'B' })).toBe(false);
+                expect(await service.updateDetails('missing', 'a', { hash: 'sha256:a', ...origin }, { title: 'B' })).toBe(false);
+
+                expect(await service.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', origin));
+                expect(await service.findOneDocument('docs', 'missing')).toBeUndefined();
+                expect(await service.search('docs', 1, [1, 0], { topK: 10 })).toMatchObject([{ title: 'A', source: 'a.md' }]);
+            });
+
             it('lists document ids in code point order, per collection', async () => {
                 const service = await create();
 

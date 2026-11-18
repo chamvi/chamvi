@@ -531,17 +531,28 @@ class Knowledge implements IKnowledge {
         await this.managedRecord(collection);
 
         const hash = contentHash(input.content);
-        const existing = await this.service.findOneDocument(collection, input.id);
-        const details = {
+        let existing = await this.service.findOneDocument(collection, input.id);
+        const origin = {
             ...(input.title === undefined ? {} : { title: input.title }),
             ...(input.source === undefined ? {} : { source: input.source }),
+        };
+        const details = {
+            ...origin,
             ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
         };
+        let updated = false;
+
+        // new title or source only, embedded already: the vectors hold, the document and its chunks take the details
+        if (existing?.status === 'ready' && existing.hash === hash && !sameOrigin(existing, input)) {
+            updated = await this.service.updateDetails(collection, input.id, existing, origin);
+            // updated, or replaced meanwhile: decide on what is stored now
+            existing = await this.service.findOneDocument(collection, input.id);
+        }
 
         // a failed document is embedded again, also for the same content (the provider may accept it now)
         if (existing && existing.status !== 'failed' && existing.hash === hash && sameOrigin(existing, input)) {
             if (sameDetails(existing, input)) {
-                return { status: existing.status, changed: false };
+                return { status: existing.status, changed: updated };
             }
 
             // new metadata only: the chunks carry title and source, nothing to embed

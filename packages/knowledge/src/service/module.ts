@@ -22,6 +22,7 @@ import type {
     KnowledgeCollection,
     KnowledgeCollectionRecord,
     KnowledgeDocument,
+    KnowledgeDocumentDetails,
     KnowledgeDocumentFindOptions,
     KnowledgeDocumentPage,
     KnowledgeDocumentPatch,
@@ -30,7 +31,13 @@ import type {
     KnowledgeMatch,
     KnowledgeSearchOptions,
 } from '../store/types.ts';
-import { documentFieldsOf, toCollection, toDocument } from './helpers.ts';
+import {
+    documentFieldsOf,
+    isVersion,
+    toCollection,
+    toDocument,
+    withDetails,
+} from './helpers.ts';
 import type {
     IKnowledgeService,
     KnowledgeFence,
@@ -219,12 +226,7 @@ export class KnowledgeService implements IKnowledgeService {
 
             const document = await repository.documents.findOneBy({ collectionId: record.id, id });
 
-            if (
-                !document ||
-                document.hash !== version.hash ||
-                document.title !== version.title ||
-                document.source !== version.source
-            ) {
+            if (!document || !isVersion(document, version)) {
                 return false;
             }
 
@@ -241,6 +243,41 @@ export class KnowledgeService implements IKnowledgeService {
             }
 
             await repository.documents.upsertMany([updated]);
+
+            return true;
+        });
+    }
+
+    async updateDetails(
+        collection: string,
+        id: string,
+        version: KnowledgeDocumentVersion,
+        details: KnowledgeDocumentDetails,
+    ): Promise<boolean> {
+        return this.repository.transaction(async (repository) => {
+            const record = await this.lockCollection(repository, collection, {});
+
+            if (!record) {
+                return false;
+            }
+
+            const document = await repository.documents.findOneBy({ collectionId: record.id, id });
+
+            if (!document || !isVersion(document, version)) {
+                return false;
+            }
+
+            await repository.documents.upsertMany([{
+                ...withDetails(document, details),
+                updatedAt: new Date(this.clock.now()),
+            }]);
+
+            // every generation: the served one and a pending re-embed's never keep the old details
+            const chunks = await repository.chunks.findManyBy({ collectionId: record.id, document: id });
+
+            if (chunks.length > 0) {
+                await repository.chunks.upsertMany(chunks.map((chunk) => withDetails(chunk, details)));
+            }
 
             return true;
         });

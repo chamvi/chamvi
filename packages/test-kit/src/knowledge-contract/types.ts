@@ -129,6 +129,16 @@ export type ContractKnowledgeService = {
         },
         options?: ContractKnowledgeWriteOptions,
     ): Promise<boolean>;
+    updateDetails(
+        collection: string,
+        id: string,
+        version: {
+            hash: string;
+            title?: string;
+            source?: string
+        },
+        details: { title?: string; source?: string },
+    ): Promise<boolean>;
     deleteDocument(collection: string, id: string, options?: ContractKnowledgeWriteOptions): Promise<boolean>;
     replaceChunks(
         collection: string,

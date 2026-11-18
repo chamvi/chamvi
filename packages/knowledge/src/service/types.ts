@@ -12,6 +12,7 @@ import type {
     KnowledgeCollection,
     KnowledgeCollectionRecord,
     KnowledgeDocument,
+    KnowledgeDocumentDetails,
     KnowledgeDocumentFindOptions,
     KnowledgeDocumentPage,
     KnowledgeDocumentPatch,
@@ -102,6 +103,19 @@ export interface IKnowledgeService {
         version: KnowledgeDocumentVersion,
         patch: KnowledgeDocumentPatch,
         options?: KnowledgeWriteOptions,
+    ): Promise<boolean>;
+    /**
+     * Rewrites the document's title and source (a detail not given is
+     * removed) and those of its chunks of every generation, stamping
+     * `updatedAt`, only while the stored document has that version's hash,
+     * title and source (atomic check and write); `false` for a missing
+     * document or another version. Unfenced: an API write.
+     */
+    updateDetails(
+        collection: string,
+        id: string,
+        version: KnowledgeDocumentVersion,
+        details: KnowledgeDocumentDetails,
     ): Promise<boolean>;
     /** Deletes the document and its chunks of every generation; whether the document existed. */
     deleteDocument(collection: string, id: string, options?: KnowledgeWriteOptions): Promise<boolean>;

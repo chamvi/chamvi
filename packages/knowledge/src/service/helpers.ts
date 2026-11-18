@@ -11,7 +11,9 @@ import type {
     KnowledgeCollection,
     KnowledgeCollectionRecord,
     KnowledgeDocument,
+    KnowledgeDocumentDetails,
     KnowledgeDocumentRecord,
+    KnowledgeDocumentVersion,
 } from '../store/types.ts';
 
 export const copy = <T>(value: T): T => structuredClone(value);
@@ -72,6 +74,31 @@ export function documentFieldsOf(document: KnowledgeDocument): Omit<KnowledgeDoc
     delete fields.collection;
 
     return fields as Omit<KnowledgeDocument, 'collection'>;
+}
+
+/** Whether the document has that version's hash, title and source (absent matches absent only). */
+export function isVersion(document: KnowledgeDocumentVersion, version: KnowledgeDocumentVersion): boolean {
+    return document.hash === version.hash &&
+        document.title === version.title &&
+        document.source === version.source;
+}
+
+/** A copy of the row with the given title and source; one not given is removed. */
+export function withDetails<T extends KnowledgeDocumentDetails>(row: T, details: KnowledgeDocumentDetails): T {
+    const next: T = { ...row };
+
+    delete next.title;
+    delete next.source;
+
+    if (details.title !== undefined) {
+        next.title = details.title;
+    }
+
+    if (details.source !== undefined) {
+        next.source = details.source;
+    }
+
+    return next;
 }
 
 const REPOSITORY_METHODS = ['findOneBy', 'findMany', 'findManyBy', 'create', 'save', 'upsert', 'upsertMany', 'remove', 'removeManyBy', 'transaction'] as const;

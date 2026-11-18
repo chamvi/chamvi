@@ -269,7 +269,7 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
-    it('a same-content PUT with a new title during the ready write leaves it pending and re-embeds the new title', async () => {
+    it('a same-content PUT with a new title during the ready write leaves it pending, then ready under the new title', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
         const { repository } = setup;
@@ -302,13 +302,150 @@ describe('managed collections', () => {
             expect(put).toEqual({ status: 'pending', changed: true });
         });
 
-        // the next round embeds the new title; ready is never written for the old one
+        // the chunks are written again under the new title; ready is never written for the old one
         await vi.waitFor(async () => {
             const matches = await repository.search('notes', 1, await vectorOf('Alpha.'), { topK: 10 });
 
             expect(matches.map((match) => match.title)).toEqual(['New title']);
         });
         expect(await waitForDocument(setup, 'notes', 'a', 'ready')).toMatchObject({ title: 'New title' });
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a PUT with unchanged content and a new title embeds nothing and search shows the new title', async () => {
+        const setup = createIndexerSetup();
+        const model = mockEmbeddingModel();
+        const knowledge = create(setup, { embeddingModel: model });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+
+        const input = {
+            id: 'refunds',
+            content: 'Refunds within thirty days.',
+            title: 'Refunds',
+            source: 'crm/refunds',
+        };
+
+        await knowledge.putDocument('notes', input);
+        await waitForDocument(setup, 'notes', 'refunds', 'ready');
+
+        const calls = model.calls.length;
+
+        expect(await knowledge.putDocument('notes', {
+            id: input.id,
+            content: input.content,
+            title: 'Returns',
+            metadata: { v: 2 },
+        })).toEqual({ status: 'ready', changed: true });
+
+        const document = (await setup.repository.findOneDocument('notes', 'refunds'))!;
+
+        expect(document).toMatchObject({
+            status: 'ready',
+            generation: 1,
+            title: 'Returns',
+            metadata: { v: 2 },
+        });
+        expect(document.source).toBeUndefined();
+
+        knowledge.sync('notes');
+        await settle();
+
+        expect(model.calls).toHaveLength(calls);
+
+        const [match] = await setup.repository.search('notes', 1, await vectorOf(input.content), { topK: 1 });
+
+        expect(match).toMatchObject({ document: 'refunds', title: 'Returns' });
+        expect(match!.source).toBeUndefined();
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a PUT with a new title during an embed never leaves old details ready under the new version', async () => {
+        const setup = createIndexerSetup();
+        const model = gatedModel();
+        const knowledge = create(setup, { embeddingModel: model });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+
+        const content = 'Kubernetes pods are scheduled onto nodes.';
+
+        await knowledge.putDocument('notes', {
+            id: 'doc',
+            content,
+            title: 'Old title',
+        });
+        await expect.poll(() => model.started.length).toBe(1);
+
+        // the embed is in flight: the document is pending, so the PUT takes the pending path
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content,
+            title: 'New title',
+        })).toEqual({ status: 'pending', changed: true });
+
+        model.open(0);
+        model.open(1);
+
+        const document = await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        expect(document.title).toBe('New title');
+
+        const matches = await setup.repository.search('notes', 1, await vectorOf(content), { topK: 10 });
+
+        expect(matches.map((match) => match.title)).toEqual(['New title']);
+        // same content: the vectors hold, only the details changed
+        expect(model.started).toHaveLength(1);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a PUT with a new title during a re-embed keeps the document searchable under the new title', async () => {
+        const setup = createIndexerSetup();
+        const next = gatedModel();
+        const models = { 'mock/a': mockEmbeddingModel(), 'mock/b': next };
+        const first = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+
+        await first.createCollection('notes');
+        first.start();
+
+        const content = 'Our refund policy allows returns within thirty days.';
+
+        await first.putDocument('notes', {
+            id: 'refunds',
+            content,
+            title: 'Refunds',
+        });
+        await waitForDocument(setup, 'notes', 'refunds', 'ready');
+        await first.stop();
+
+        const second = create(setup, { embeddingModel: 'mock/b', models: embeddingResolver(models) });
+
+        second.start();
+        await vi.waitFor(() => second.sync('notes'));
+        await expect.poll(() => next.started.length).toBe(1);
+
+        // the document is ready at the served generation while the re-embed embeds it
+        expect(await second.putDocument('notes', {
+            id: 'refunds',
+            content,
+            title: 'Returns',
+        })).toEqual({ status: 'ready', changed: true });
+
+        next.open(0);
+        next.open(1);
+        await waitForCollection(setup.repository, 'notes', (collection) => collection.generation === 2);
+
+        expect(await setup.repository.findOneDocument('notes', 'refunds')).toMatchObject({
+            status: 'ready',
+            generation: 2,
+            title: 'Returns',
+        });
+
+        const [vector] = (await mockEmbeddingModel().doEmbed({ values: [content] })).embeddings;
+
+        expect(await setup.repository.search('notes', 2, vector!, { topK: 10 })).toMatchObject([{ document: 'refunds', title: 'Returns' }]);
+        expect(next.started).toHaveLength(1);
         expect(setup.errors).toEqual([]);
     });
 

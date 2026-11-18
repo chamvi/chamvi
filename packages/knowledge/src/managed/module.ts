@@ -10,11 +10,11 @@ import {
     advanceLockFence,
     highestGeneration,
     messageOf,
-    sameOrigin,
     settled,
     writeOptionsOf,
 } from '../indexer/helpers.ts';
 import { embedDocument } from '../indexer/module.ts';
+import { withDetails } from '../service/helpers.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import { MANAGED_PAGE_SIZE } from './constants.ts';
 import { isProviderRejection, needsReembed } from './helpers.ts';
@@ -37,9 +37,11 @@ async function isSameCollection(input: SyncManagedInput, record: KnowledgeCollec
 /**
  * Embeds one document with `model` and writes its chunks at `generation`,
  * then marks it `ready` there, both only while the stored document still has
- * the hash, title and source that were embedded (the chunks carry a copy of
- * title and source; a PUT meanwhile leaves it `pending` for the next round)
- * and the collection is the one the pass read. A document deleted between
+ * the hash that was embedded (new content PUT meanwhile leaves it `pending`
+ * for the next round) and the collection is the one the pass read. The
+ * chunks carry the title and source stored at the ready write: a PUT of new
+ * details meanwhile has the chunks written again under them, never the old
+ * details `ready` under the new version. A document deleted between
  * the re-read and the ready write gets its chunks of that generation removed
  * again. A provider rejection
  * marks it `failed` with the error and removes its chunks of that generation
@@ -87,16 +89,16 @@ async function embedOne(
         return { stop: true };
     }
 
-    const current = await repository.findOneDocument(name, document.id);
+    let current = await repository.findOneDocument(name, document.id);
 
-    if (!current || current.hash !== document.hash || !sameOrigin(current, document)) {
+    if (!current || current.hash !== document.hash) {
         // replaced or deleted while it was embedded
         return { stop: false, dimensions: embedded?.dimensions ?? dimensions };
     }
 
     if (!embedded) {
         await repository.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
-        await repository.updateDocument(name, document.id, document, {
+        await repository.updateDocument(name, document.id, current, {
             status: 'failed',
             error: messageOf(rejection),
             generation,
@@ -105,14 +107,29 @@ async function embedOne(
         return { stop: false, dimensions };
     }
 
-    await repository.replaceChunks(name, document.id, generation, embedded.chunks, writeOptionsOf(lock));
+    // same content: the vectors hold, the chunks take the title and source stored now (a PUT may have changed them)
+    for (;;) {
+        const chunks = embedded.chunks.map((chunk) => withDetails(chunk, current!));
 
-    if (
-        !await repository.updateDocument(name, document.id, document, { status: 'ready', generation }, writeOptionsOf(lock)) &&
-        !await repository.findOneDocument(name, document.id)
-    ) {
-        // deleted after the re-read: the chunks just written would be searchable orphans
-        await repository.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
+        await repository.replaceChunks(name, document.id, generation, chunks, writeOptionsOf(lock));
+
+        if (await repository.updateDocument(name, document.id, current, { status: 'ready', generation }, writeOptionsOf(lock))) {
+            break;
+        }
+
+        current = await repository.findOneDocument(name, document.id);
+
+        if (!current) {
+            // deleted after the re-read: the chunks just written would be searchable orphans
+            await repository.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
+
+            break;
+        }
+
+        // replaced: pending for the next round; new details only: written again under them
+        if (current.hash !== document.hash || !await lock.renew()) {
+            break;
+        }
     }
 
     return { stop: false, dimensions: embedded.dimensions };
