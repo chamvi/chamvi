@@ -36,7 +36,7 @@ const failMark = (component: ComponentWire, key: ComponentTimeKey) => key === 'l
 <template>
     <PageHead
         title="Components"
-        lede="The background jobs and channels of this app and when each last worked. Times are local to this browser."
+        lede="The background jobs and channels of the app replica that answered, and when each last worked. Times are local to this browser."
     >
         <span
             v-if="loaded && !error"
