@@ -20,6 +20,19 @@ function parseJson(text: string): unknown {
     }
 }
 
+/** A refused answer's body: a stream (a `stream`/`blob` call) is read as text, text is parsed as JSON when it is JSON. */
+async function bodyOf(data: unknown): Promise<unknown> {
+    if (data instanceof ReadableStream || data instanceof Blob) {
+        try {
+            return parseJson(await new Response(data).text());
+        } catch {
+            return undefined;
+        }
+    }
+
+    return typeof data === 'string' ? parseJson(data) : data;
+}
+
 /**
  * The base of every domain API: one call through the client, bounded by
  * the answer deadline, every failure an `ApiError` (a caller's abort stays
@@ -56,9 +69,7 @@ export class BaseAPI {
             }
 
             if (isClientError(e) && e.response) {
-                const { data } = e.response;
-
-                throw toApiError(e.response, typeof data === 'string' ? parseJson(data) : data);
+                throw toApiError(e.response, await bodyOf(e.response.data));
             }
 
             throw asApiError(isClientError(e) && Error.isError(e.cause) ? e.cause : e);

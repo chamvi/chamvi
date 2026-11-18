@@ -6,11 +6,10 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ApiError } from '../../../src/api/error.ts';
-import { createApiClient } from '../../../src/api/module.ts';
-import { createConnectionsApi, openConnectionStream } from '../../../src/connections/api.ts';
-import type { ConnectionStreamEvent } from '../../../src/connections/types.ts';
-import { RECONNECT_DELAYS_MS } from '../../../src/sse/constants.ts';
+import { ApiError, RECONNECT_DELAYS_MS, createClient } from '@chamvi/http-kit';
+import type { ConnectionStreamEvent } from '@chamvi/http-kit';
+import { FetchTransport } from 'hapic';
+import { openConnectionStream } from '../../../src/domains/connection/helpers.ts';
 import {
     createFakeFetch,
     json,
@@ -20,19 +19,23 @@ import type { FakeAnswer } from '../../utils/fetch.ts';
 
 function setup(answers: FakeAnswer[]) {
     const { fetch, requests } = createFakeFetch(answers);
-    const client = createApiClient({
-        apiBase: '/api',
+    const client = createClient({
+        baseURL: '/api',
+        transport: new FetchTransport({ fetch }),
         token: async () => 't',
-        fetch,
     });
 
-    return { api: createConnectionsApi(client), requests };
+    return {
+        api: client.connection, 
+        client, 
+        requests, 
+    };
 }
 
 const status = (value: string) => `event: status\ndata: ${JSON.stringify({ status: value })}\n\n`;
 const widgets = (list: unknown[]) => `event: widgets\ndata: ${JSON.stringify({ widgets: list })}\n\n`;
 
-describe('createConnectionsApi', () => {
+describe('ConnectionAPI', () => {
     it('lists the connections with the bearer token', async () => {
         const list = [{
             name: 'whatsapp',
@@ -41,7 +44,7 @@ describe('createConnectionsApi', () => {
         }];
         const { api, requests } = setup([json({ data: list })]);
 
-        await expect(api.list()).resolves.toEqual(list);
+        await expect(api.getMany()).resolves.toEqual(list);
         expect(requests[0]!.url).toBe('/api/connections');
         expect(requests[0]!.method).toBe('GET');
         expect(requests[0]!.headers.get('authorization')).toBe('Bearer t');
@@ -50,7 +53,7 @@ describe('createConnectionsApi', () => {
     it('answers an empty list for a body without data', async () => {
         const { api } = setup([json({})]);
 
-        await expect(api.list()).resolves.toEqual([]);
+        await expect(api.getMany()).resolves.toEqual([]);
     });
 
     it('reads one connection with its name encoded', async () => {
@@ -62,7 +65,7 @@ describe('createConnectionsApi', () => {
         };
         const { api, requests } = setup([json(detail)]);
 
-        await expect(api.get('a b')).resolves.toEqual(detail);
+        await expect(api.getOne('a b')).resolves.toEqual(detail);
         expect(requests[0]!.url).toBe('/api/connections/a%20b');
     });
 
@@ -86,16 +89,47 @@ describe('createConnectionsApi', () => {
             message: 'no',
         }, 403)]);
 
-        await expect(api.get('whatsapp')).rejects.toMatchObject({ status: 403, code: 'forbidden' });
+        await expect(api.getOne('whatsapp')).rejects.toMatchObject({ status: 403, code: 'forbidden' });
     });
 
     it('opens the event stream as text/event-stream', async () => {
         const { api, requests } = setup([sse([])]);
         const controller = new AbortController();
 
-        await api.stream('whatsapp', controller.signal);
+        await expect(api.stream('whatsapp', controller.signal)).resolves.toBeInstanceOf(ReadableStream);
         expect(requests[0]!.url).toBe('/api/connections/whatsapp/events');
         expect(requests[0]!.headers.get('accept')).toBe('text/event-stream');
+    });
+
+    it('reads, creates, saves, deletes and tests an account\'s configuration', async () => {
+        const settings = { type: 'mail', values: { host: 'h' } };
+        const { client, requests } = setup([
+            json(settings),
+            json({ ...settings, name: 'mail-a' }, 201),
+            json(settings),
+            json({ restartRequired: true }),
+            json({ ok: true }),
+            json({ data: [{ type: 'mail' }] }),
+        ]);
+        const api = client.connection;
+
+        await expect(api.getConfig('mail a')).resolves.toEqual(settings);
+        await expect(api.create('mail', { values: { host: 'h' }, secrets: { password: 'p' } } as never)).resolves.toMatchObject({ name: 'mail-a' });
+        await expect(api.save('mail-a', { values: { host: 'h' } } as never)).resolves.toEqual(settings);
+        await expect(api.delete('mail-a')).resolves.toEqual({ restartRequired: true });
+        await expect(api.test('mail-a')).resolves.toEqual({ ok: true });
+        await expect(client.connectionType.getMany()).resolves.toEqual([{ type: 'mail' }]);
+
+        expect(requests.map((request) => `${request.method} ${request.url}`)).toEqual([
+            'GET /api/connections/mail%20a/config',
+            'POST /api/connection-types/mail/connections',
+            'PUT /api/connections/mail-a/config',
+            'DELETE /api/connections/mail-a',
+            'POST /api/connections/mail-a/test',
+            'GET /api/connection-types',
+        ]);
+        expect(JSON.parse(requests[1]!.body!)).toEqual({ values: { host: 'h' }, secrets: { password: 'p' } });
+        expect(requests[1]!.headers.get('content-type')).toContain('application/json');
     });
 });
 
