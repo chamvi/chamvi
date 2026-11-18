@@ -443,7 +443,7 @@ describe('answering an approval with options', () => {
             engine,
             decisions,
         } = setup(mockModel([text('done')]));
-        const now = clock.now();
+        const now = new Date(clock.now());
         const runId = 'pre-upgrade';
         const trigger = {
             id: 't-1',

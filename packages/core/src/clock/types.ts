@@ -5,15 +5,17 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export type ClockTimerOptions = {
+export type ClockTimer = {
+    clear(): void;
     /**
-     * Keep the process alive until the timer fires (default false: engine
-     * timers never hold the event loop open). Test clocks ignore it.
+     * Lets the process exit while the timer is pending; a fake clock
+     * leaves it out.
      */
-    keepAlive?: boolean;
+    unref?(): void;
 };
 
 export interface IClock {
-    now(): Date;
-    setTimeout(fn: () => void, ms: number, opts?: ClockTimerOptions): { clear(): void };
+    /** Epoch milliseconds, wall time. */
+    now(): number;
+    setTimeout(fn: () => void, ms: number): ClockTimer;
 }

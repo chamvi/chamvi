@@ -72,6 +72,8 @@ function wait(clock: IClock, ms: number, signal: AbortSignal): Promise<void> {
             resolve();
         }, ms);
 
+        timer.unref?.();
+
         signal.addEventListener('abort', onAbort, { once: true });
     });
 }

@@ -176,7 +176,7 @@ export async function answerDispatchWait(ctx: DispatchEngineContext, parentId: s
 export async function expireDispatchWait(ctx: DispatchEngineContext, parent: Run): Promise<boolean> {
     const run = await ctx.runService.findOne(parent.id);
     const waiting = dispatchWaitOf(run);
-    const now = ctx.clock.now().getTime();
+    const now = ctx.clock.now();
 
     if (!run || !waiting || waiting.expiresAt.getTime() > now) {
         return false;

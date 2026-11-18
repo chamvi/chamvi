@@ -242,7 +242,7 @@ describe('App.runJob', () => {
             await store.agentRevisionService.save({
                 agent: 'greeter',
                 hash: old,
-                changedAt: clock.now(),
+                changedAt: new Date(clock.now()),
             });
 
             const runId = await queueRun(store, clock, 'greeter');

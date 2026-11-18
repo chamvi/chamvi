@@ -828,7 +828,7 @@ export class Engine implements IEngine {
                     this.syncing.delete(name);
                 }
             } else if (registered && reload) {
-                cancelled = await cancelAgentRuns(this.registry(), name, agentCancelReason(name, 'replaced'), this.clock.now());
+                cancelled = await cancelAgentRuns(this.registry(), name, agentCancelReason(name, 'replaced'), new Date(this.clock.now()));
             }
 
             if (cancelled) {
@@ -1186,7 +1186,7 @@ export class Engine implements IEngine {
                 const queued = await this.runService.update(run.id, {
                     status: RunStatus.QUEUED,
                     claim: undefined,
-                    updatedAt: this.clock.now(),
+                    updatedAt: new Date(this.clock.now()),
                 }, { expectStatus: [RunStatus.RUNNING, RunStatus.INTERRUPTED], expectOwner: this.owner });
 
                 requeued++;
@@ -1223,8 +1223,8 @@ export class Engine implements IEngine {
 
         let timer: { clear(): void } | undefined;
         const timedOut = new Promise<true>((resolve) => {
-            // keepAlive: the process must not exit before the leftovers are marked interrupted
-            timer = this.clock.setTimeout(() => resolve(true), opts.timeoutMs ?? DEFAULT_DRAIN_TIMEOUT_MS, { keepAlive: true });
+            // not unref'd: the process must not exit before the leftovers are marked interrupted
+            timer = this.clock.setTimeout(() => resolve(true), opts.timeoutMs ?? DEFAULT_DRAIN_TIMEOUT_MS);
         });
 
         try {
@@ -1328,7 +1328,7 @@ export class Engine implements IEngine {
                     const updated = await this.runService.update(runId, {
                         cancelRequested: true,
                         ...(reason && { error: reason }),
-                        updatedAt: this.clock.now(),
+                        updatedAt: new Date(this.clock.now()),
                     }, { expectStatus: [status] });
 
                     this.emit({ type: 'run.updated', run: updated });
@@ -1348,7 +1348,7 @@ export class Engine implements IEngine {
     protected async cancelStored(runId: string, expectStatus: Run['status'][], reason?: CancelReason): Promise<void> {
         await this.conversations?.idle(runId);
 
-        const now = this.clock.now();
+        const now = new Date(this.clock.now());
         const updated = await this.runService.update(
             runId,
             {
@@ -1397,7 +1397,7 @@ export class Engine implements IEngine {
             throw new InvalidRunStateError(`Run "${run.id}" does not wait on approval "${answer.approvalId}".`);
         }
 
-        if (this.clock.now().getTime() >= run.waiting.expiresAt.getTime()) {
+        if (this.clock.now() >= run.waiting.expiresAt.getTime()) {
             throw new InvalidRunStateError(`Approval "${answer.approvalId}" of run "${run.id}" expired.`);
         }
 
@@ -1420,7 +1420,7 @@ export class Engine implements IEngine {
      * cancelled parent a lost cascade left. Also runs on every poll.
      */
     async tick(): Promise<void> {
-        const now = this.clock.now().getTime();
+        const now = this.clock.now();
         let resumed = false;
         const { data } = await this.runService.find({ status: [RunStatus.WAITING] });
 
@@ -1544,7 +1544,7 @@ export class Engine implements IEngine {
         step: ResumeStep,
         stale: () => Error,
     ): Promise<void> {
-        const now = this.clock.now();
+        const now = new Date(this.clock.now());
         const transitioned = await this.runService.update(run.id, {
             status: RunStatus.QUEUED,
             claim: { owner: this.owner, expiresAt: new Date(now.getTime() + this.claimTtlMs) },
@@ -1577,14 +1577,14 @@ export class Engine implements IEngine {
             queued = await this.runService.update(run.id, {
                 waiting: undefined,
                 claim: undefined,
-                updatedAt: this.clock.now(),
+                updatedAt: new Date(this.clock.now()),
             }, { expectStatus: [RunStatus.QUEUED] });
         } catch (error) {
             // undo, so the wait point (still on the run) stays answerable
             await this.runService.update(run.id, {
                 status: RunStatus.WAITING,
                 claim: undefined,
-                updatedAt: this.clock.now(),
+                updatedAt: new Date(this.clock.now()),
             }, { expectStatus: [RunStatus.QUEUED] }).catch((undoError: unknown) => this.onError(undoError, run));
 
             throw error;
@@ -1607,7 +1607,7 @@ export class Engine implements IEngine {
     protected async pause(run: Run, request: SuspendRequest, usage: Usage): Promise<void> {
         await this.conversations?.idle(run.id);
 
-        const now = this.clock.now();
+        const now = new Date(this.clock.now());
         const waiting = sameWait(run.waiting, request.kind === 'approval' ? request.approvalId : request.id) &&
             run.waiting?.kind === request.kind ?
             run.waiting :
@@ -1701,6 +1701,8 @@ export class Engine implements IEngine {
             code: ErrorCode.TIMEOUT,
         })), this.claimTtlMs);
 
+        timer.unref?.();
+
         try {
             acquired = await this.lockService.acquire(lockKey, attempt, this.claimTtlMs);
 
@@ -1761,7 +1763,7 @@ export class Engine implements IEngine {
 
             const notified = await this.runService.update(
                 run.id,
-                { waiting: { ...waiting, notifiedAt: this.clock.now() } },
+                { waiting: { ...waiting, notifiedAt: new Date(this.clock.now()) } },
                 { expectStatus: [RunStatus.WAITING] },
             );
 
@@ -2110,7 +2112,7 @@ export class Engine implements IEngine {
             return undefined;
         }
 
-        const now = this.clock.now();
+        const now = new Date(this.clock.now());
         const settled: Partial<Run> = stop === 'drain' && patch.status === RunStatus.CANCELLED ?
             {
                 status: RunStatus.INTERRUPTED,
@@ -2286,7 +2288,7 @@ export class Engine implements IEngine {
 
     /** Strictly increasing per process, so FIFO order survives identical clock readings. */
     protected nextCreatedAt(): Date {
-        const t = Math.max(this.clock.now().getTime(), this.lastCreatedAt + 1);
+        const t = Math.max(this.clock.now(), this.lastCreatedAt + 1);
 
         this.lastCreatedAt = t;
 

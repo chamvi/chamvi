@@ -628,7 +628,7 @@ describe('agentsModule', () => {
         expect(issues()).toEqual([{
             agent: 'greeter',
             message: expect.stringMatching(/^greeter\/agent\.ts: /),
-            at: clock.now(),
+            at: new Date(clock.now()),
         }]);
         await poll();
         expect(logger.entries.filter((entry) => entry.msg === 'agent load failed')).toHaveLength(1);

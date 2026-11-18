@@ -288,7 +288,7 @@ describe('connection session', () => {
         const renew = store.lockService.renew.bind(store.lockService);
 
         store.lockService.renew = async (...args) => {
-            renewals.push(clock.now().getTime());
+            renewals.push(clock.now());
 
             return renew(...args);
         };

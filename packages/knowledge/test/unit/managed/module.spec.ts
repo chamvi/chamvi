@@ -129,7 +129,7 @@ describe('managed collections', () => {
             embeddingModel: mockEmbeddingModel(),
             collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(new Map())] })],
         });
-        const at = setup.clock.now();
+        const at = new Date(setup.clock.now());
 
         await setup.repository.saveCollection({
             name: 'old',
@@ -608,7 +608,7 @@ describe('managed collections', () => {
             embeddingModel: mockEmbeddingModel(),
             collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(new Map())] })],
         });
-        const at = setup.clock.now();
+        const at = new Date(setup.clock.now());
         const declared = {
             kind: 'declared' as const,
             trusted: true,
@@ -648,7 +648,7 @@ describe('managed collections', () => {
     it('putDocument and deleteDocument refuse a missing or unmanaged collection and invalid input', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
-        const at = setup.clock.now();
+        const at = new Date(setup.clock.now());
 
         await setup.repository.saveCollection({
             name: 'docs',

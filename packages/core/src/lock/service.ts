@@ -37,7 +37,7 @@ export class LockService implements ILockService {
         const current = await this.repository.findOneBy({ key });
 
         if (current) {
-            if (current.expiresAt.getTime() > this.clock.now().getTime()) {
+            if (current.expiresAt.getTime() > this.clock.now()) {
                 return false;
             }
 
@@ -55,7 +55,7 @@ export class LockService implements ILockService {
                         id: uuidv7(),
                         key,
                         owner,
-                        expiresAt: new Date(this.clock.now().getTime() + ttlMs),
+                        expiresAt: new Date(this.clock.now() + ttlMs),
                     }));
                 });
 
@@ -86,7 +86,7 @@ export class LockService implements ILockService {
             }
 
             // after the row lock: a takeover that just committed is compared with a fresh time
-            const now = this.clock.now().getTime();
+            const now = this.clock.now();
 
             if (lock.owner !== owner || lock.expiresAt.getTime() <= now) {
                 return false;
@@ -112,10 +112,10 @@ export class LockService implements ILockService {
     async holds(key: string, owner: string): Promise<boolean> {
         const lock = await this.repository.findOneBy({ key });
 
-        return !!lock && lock.owner === owner && lock.expiresAt.getTime() > this.clock.now().getTime();
+        return !!lock && lock.owner === owner && lock.expiresAt.getTime() > this.clock.now();
     }
 
-    async purgeExpired(now: Date = this.clock.now()): Promise<number> {
+    async purgeExpired(now: Date = new Date(this.clock.now())): Promise<number> {
         return this.repository.transaction((repository) => repository.removeExpiredBy(now));
     }
 
@@ -132,7 +132,7 @@ export class LockService implements ILockService {
                 return undefined;
             }
 
-            const now = this.clock.now().getTime();
+            const now = this.clock.now();
 
             if (lock.expiresAt.getTime() > now) {
                 return false;

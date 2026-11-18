@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock } from '../clock/types.ts';
+import type { ClockTimer, IClock } from '../clock/types.ts';
 import { InvalidRunStateError, LeaseLostError } from '../errors/index.ts';
 import { open, seal } from '../keyring/module.ts';
 import type { ILockService } from '../lock/types.ts';
@@ -39,7 +39,7 @@ export class ConnectionSession implements IConnectionSession {
     /** The last confirmed lease expiry; the session is lost once the clock reaches it. */
     protected expiresAt: number;
 
-    protected deadline?: { clear(): void };
+    protected deadline?: ClockTimer;
 
     protected state: 'open' | 'lost' | 'closed' = 'open';
 
@@ -53,7 +53,7 @@ export class ConnectionSession implements IConnectionSession {
     /** The first write failure since the last flush. */
     protected failure?: { error: unknown };
 
-    protected timer?: { clear(): void };
+    protected timer?: ClockTimer;
 
     protected closing?: Promise<void>;
 
@@ -75,6 +75,7 @@ export class ConnectionSession implements IConnectionSession {
         this.timer = this.opts.clock.setTimeout(() => {
             void this.renew();
         }, Math.floor(this.opts.leaseTtlMs / 3));
+        this.timer.unref?.();
     }
 
     /** Loses the session when no renewal is confirmed before the last confirmed expiry. */
@@ -82,7 +83,8 @@ export class ConnectionSession implements IConnectionSession {
         this.deadline?.clear();
         this.deadline = this.opts.clock.setTimeout(() => {
             this.lose();
-        }, Math.max(0, this.expiresAt - this.opts.clock.now().getTime()));
+        }, Math.max(0, this.expiresAt - this.opts.clock.now()));
+        this.deadline.unref?.();
     }
 
     /** Renewal runs while open, also while close drains the accepted writes. */
@@ -96,7 +98,7 @@ export class ConnectionSession implements IConnectionSession {
         }
 
         // the store extends from its own reading, taken after this one: started + ttl is a lower bound
-        const started = this.opts.clock.now().getTime();
+        const started = this.opts.clock.now();
         let renewed: boolean | undefined;
 
         try {
@@ -126,7 +128,7 @@ export class ConnectionSession implements IConnectionSession {
 
     /** Loses the session when the clock passed the last confirmed expiry (a timer may not have fired yet). */
     protected checkExpiry(): void {
-        if (this.state === 'open' && this.opts.clock.now().getTime() >= this.expiresAt) {
+        if (this.state === 'open' && this.opts.clock.now() >= this.expiresAt) {
             this.lose();
         }
     }

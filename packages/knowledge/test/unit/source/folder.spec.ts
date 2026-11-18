@@ -81,7 +81,7 @@ async function indexOnce(setup: IndexerSetup, root: string): Promise<string[]> {
     await waitForCollection(
         setup.repository,
         'docs',
-        (found) => found.updatedAt.getTime() === setup.clock.now().getTime() && found.status === 'ready',
+        (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
     );
     await knowledge.stop();
 

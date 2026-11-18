@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ClockTimer } from '@chamvi/core';
 import { join } from 'node:path';
 import type { AgentIssue } from '@chamvi/http';
 import { formerAgentFolderHash, messageOf, relativize } from '../../loader/helpers.ts';
@@ -67,7 +68,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
     // agents whose skill preparation failed, with the error (a job of one of them fails with it)
     const preparationFailures = new Map<string, { error: unknown }>();
 
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     let started = false;
     let stopped = false;
     let inFlight: Promise<void> | undefined;
@@ -77,7 +78,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
         issues.set(agent, {
             agent,
             message,
-            at: clock.now(),
+            at: new Date(clock.now()),
         });
         logger.warn('agent load failed', { agent, message });
     };
@@ -90,7 +91,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
         issues.set(agent, {
             agent,
             message,
-            at: clock.now(),
+            at: new Date(clock.now()),
         });
         logger.warn('agent revision moved', { agent, message });
     };
@@ -188,7 +189,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
 
             const delay = nextRetryDelay(previousRetry?.delay, pollMs);
 
-            preparationRetries.set(name, { delay, at: clock.now().getTime() + delay });
+            preparationRetries.set(name, { delay, at: clock.now() + delay });
             record(name, relativize(messageOf(outcome.error), root));
 
             return 'done';
@@ -295,7 +296,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
             const retry = preparationRetries.get(name);
 
             if (hash === attempted.get(name)) {
-                if (!retry || clock.now().getTime() < retry.at) {
+                if (!retry || clock.now() < retry.at) {
                     continue;
                 }
             }
@@ -372,7 +373,8 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
                     inFlight = undefined;
                     arm();
                 });
-        }, pollMs, { keepAlive: false });
+        }, pollMs);
+        timer.unref?.();
     };
 
     return {

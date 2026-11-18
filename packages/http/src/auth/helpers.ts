@@ -98,7 +98,7 @@ function isIdentity(value: unknown): boolean {
  * at the clock's time; without attributes, for every resource of that kind.
  */
 export function isGranted(principal: Principal, permission: string, clock: IClock, attributes?: Record<string, unknown>): Promise<boolean> {
-    return can(principal, permission, { ...(attributes !== undefined ? { attributes } : {}), now: clock.now() });
+    return can(principal, permission, { ...(attributes !== undefined ? { attributes } : {}), now: new Date(clock.now()) });
 }
 
 /**
@@ -111,7 +111,7 @@ export function agentResource(name: string, agent: Agent | undefined): { name: s
 
 /** Whether the principal holds `permission` for some resource (a collection gate). */
 export function isGrantedSome(principal: Principal, permission: string, clock: IClock): Promise<boolean> {
-    return canSome(principal, permission, { now: clock.now() });
+    return canSome(principal, permission, { now: new Date(clock.now()) });
 }
 
 /**

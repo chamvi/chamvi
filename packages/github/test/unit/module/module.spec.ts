@@ -282,7 +282,7 @@ describe('githubModule', () => {
                 trigger: 'http',
                 channel: 'http',
                 payload: {},
-                receivedAt: clock.now(),
+                receivedAt: new Date(clock.now()),
             },
         };
 
@@ -337,7 +337,7 @@ describe('githubModule', () => {
                 trigger: 'http',
                 channel: 'http',
                 payload: {},
-                receivedAt: clock.now(),
+                receivedAt: new Date(clock.now()),
             },
         });
 

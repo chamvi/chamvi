@@ -111,7 +111,7 @@ describe('syncing a declared collection', () => {
         const collection = await waitForCollection(
             setup.repository,
             'docs',
-            (found) => found.updatedAt.getTime() === setup.clock.now().getTime(),
+            (found) => found.updatedAt.getTime() === setup.clock.now(),
         );
 
         expect(collection).toMatchObject({ status: 'ready', generation: 1 });
@@ -138,7 +138,7 @@ describe('syncing a declared collection', () => {
 
         start(createKnowledge(setup.options({ collections })));
 
-        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now().getTime());
+        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
 
         const embedded = model.calls.slice(calls).flatMap((call) => call.values);
 
@@ -195,7 +195,7 @@ describe('syncing a declared collection', () => {
         setup.clock.advance(1000);
         start(createKnowledge(setup.options({ collections })));
 
-        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now().getTime());
+        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
 
         expect(await search()).toMatchObject({
             document: 'a.md', 
@@ -236,7 +236,7 @@ describe('syncing a declared collection', () => {
         setup.clock.advance(1000);
         start(createKnowledge(setup.options({ collections })));
 
-        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now().getTime());
+        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
 
         expect(model.calls).toHaveLength(calls);
         expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({ metadata: { tag: 'two' }, status: 'ready' });
@@ -323,7 +323,7 @@ describe('syncing a declared collection', () => {
         const collection = await waitForCollection(
             setup.repository,
             'docs',
-            (found) => found.updatedAt.getTime() === setup.clock.now().getTime() && found.status === 'ready',
+            (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
         );
 
         expect(collection.error).toBeUndefined();
@@ -441,7 +441,7 @@ describe('syncing a declared collection', () => {
         const ready = await waitForCollection(
             setup.repository,
             'docs',
-            (found) => found.updatedAt.getTime() === setup.clock.now().getTime() && found.status === 'ready',
+            (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
         );
 
         expect(ready.trusted).toBe(true);
@@ -474,7 +474,7 @@ describe('syncing a declared collection', () => {
     it('refuses a collection the store holds as managed', async () => {
         const setup = createIndexerSetup();
         const model = mockEmbeddingModel();
-        const now = setup.clock.now();
+        const now = new Date(setup.clock.now());
 
         await setup.repository.saveCollection({
             name: 'docs',

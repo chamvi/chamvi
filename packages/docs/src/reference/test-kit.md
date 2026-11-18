@@ -96,14 +96,14 @@ A request whose `signal` aborts, also while a route handler is pending, rejects 
 
 ```ts
 class ControllableClock implements IClock {
-    constructor(start?: Date); // default new Date(0)
-    now(): Date;
-    setTimeout(fn: () => void, ms: number): { clear(): void };
+    constructor(start?: Date | number); // default 0
+    now(): number; // epoch milliseconds
+    setTimeout(fn: () => void, ms: number): ClockTimer; // { clear }, no unref
     advance(ms: number): void;
 }
 ```
 
-Time moves only through `advance(ms)`, which fires every timer due within the window in order, including timers scheduled by fired callbacks. The `keepAlive` timer option has no meaning without a real event loop and is ignored.
+Time moves only through `advance(ms)`, which fires every timer due within the window in order, including timers scheduled by fired callbacks. Its timers have no `unref()`: without a real event loop nothing holds a process.
 
 <<< @/snippets/testing.ts#clock
 

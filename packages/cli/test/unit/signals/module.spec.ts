@@ -112,17 +112,26 @@ describe('installSignalHandlers', () => {
     });
 
     it('the force timer keeps the process alive until it fired or was cleared', () => {
-        const options: unknown[] = [];
+        const armed: number[] = [];
+        const unrefed: number[] = [];
         const setTimeout = fake.clock.setTimeout.bind(fake.clock);
 
-        fake.clock.setTimeout = (fn, ms, opts?: unknown) => {
-            options.push(opts);
+        fake.clock.setTimeout = (fn, ms) => {
+            const timer = setTimeout(fn, ms);
 
-            return setTimeout(fn, ms);
+            armed.push(ms);
+
+            return {
+                clear: () => timer.clear(),
+                unref: () => {
+                    unrefed.push(ms);
+                },
+            };
         };
         install();
         fake.signals.emit('SIGTERM');
-        expect(options).toEqual([{ keepAlive: true }]);
+        expect(armed).toHaveLength(1);
+        expect(unrefed).toEqual([]);
     });
 
     it('force timer exits 1 after forceExitMs', async () => {

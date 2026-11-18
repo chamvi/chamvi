@@ -427,7 +427,7 @@ class Knowledge implements IKnowledge {
                 throw new InvalidRunStateError(`Knowledge collection "${name}" exists.`);
             }
 
-            const now = this.clock.now();
+            const now = new Date(this.clock.now());
 
             record = {
                 name,
@@ -520,7 +520,7 @@ class Knowledge implements IKnowledge {
             }
 
             // new metadata only: the chunks carry title and source, nothing to embed
-            const kept: KnowledgeDocument = { ...existing, updatedAt: this.clock.now() };
+            const kept: KnowledgeDocument = { ...existing, updatedAt: new Date(this.clock.now()) };
 
             delete kept.metadata;
 
@@ -538,7 +538,7 @@ class Knowledge implements IKnowledge {
             status: 'pending',
             // the chunks still served until the new content is embedded
             generation: existing?.generation ?? 0,
-            updatedAt: this.clock.now(),
+            updatedAt: new Date(this.clock.now()),
         });
 
         this.indexing?.managed.get(collection)?.wake.notify();
@@ -633,6 +633,9 @@ class Knowledge implements IKnowledge {
             message: `The embedding model did not answer within ${KNOWLEDGE_EMBED_TIMEOUT_MS}ms.`,
             code: KNOWLEDGE_REQUEST_ERROR_CODE,
         })), KNOWLEDGE_EMBED_TIMEOUT_MS);
+
+        timer.unref?.();
+
         const combined = AbortSignal.any([signal, timeout.signal]);
         let cleanup = () => {};
         const aborted = new Promise<never>((_, reject) => {

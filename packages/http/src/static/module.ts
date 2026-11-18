@@ -48,7 +48,7 @@ export function staticRoutes(options: StaticRoutesOptions): HttpRoute[] {
     let build: Promise<Map<string, BuildFile>> | undefined;
     let failedAt: number | undefined;
     const load = (clock: IClock): Promise<Map<string, BuildFile>> | undefined => {
-        if (failedAt !== undefined && clock.now().getTime() - failedAt < BUILD_RETRY_MS) {
+        if (failedAt !== undefined && clock.now() - failedAt < BUILD_RETRY_MS) {
             return undefined;
         }
 
@@ -63,7 +63,7 @@ export function staticRoutes(options: StaticRoutesOptions): HttpRoute[] {
         }).catch(() => {
             // not memoized for good: the build may land later (e.g. a volume mounted after start)
             build = undefined;
-            failedAt = clock.now().getTime();
+            failedAt = clock.now();
 
             throw new InvalidAgentDefinitionError(`staticRoutes: no build in ${root}.`);
         });

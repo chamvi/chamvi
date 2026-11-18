@@ -70,7 +70,7 @@ export function createGithubApp(options: GithubAppOptions): IGithubApp {
         const key = `${owner}/${repo}`.toLowerCase();
         const cached = installationCache.get(key);
 
-        if (cached && clock.now().getTime() < cached.expiresAt) {
+        if (cached && clock.now() < cached.expiresAt) {
             return Promise.resolve(cached.installation);
         }
 
@@ -82,7 +82,7 @@ export function createGithubApp(options: GithubAppOptions): IGithubApp {
                 .then(({ data }) => {
                     const installation = toInstallation(data);
 
-                    installationCache.set(key, { installation, expiresAt: clock.now().getTime() + INSTALLATION_CACHE_TTL_MS });
+                    installationCache.set(key, { installation, expiresAt: clock.now() + INSTALLATION_CACHE_TTL_MS });
 
                     return installation;
                 }, (error: unknown) => {

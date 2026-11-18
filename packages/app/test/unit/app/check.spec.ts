@@ -141,7 +141,7 @@ const triage = defineModelAgent({
 
 /** A run of `agent` parked on an approval. */
 async function parkWaiting(store: TestStore, clock: ControllableClock, id: string, agent: string): Promise<void> {
-    const now = clock.now();
+    const now = new Date(clock.now());
     const run: Run = {
         id,
         agent,

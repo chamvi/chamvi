@@ -51,7 +51,7 @@ function tokenSource(clock: ControllableClock) {
             return {
                 username: 'x-access-token',
                 password: `${request.access}-token-${issued}`,
-                expiresAt: new Date(clock.now().getTime() + HOUR),
+                expiresAt: new Date(clock.now() + HOUR),
             } satisfies GitCredential;
         },
     };
@@ -282,9 +282,9 @@ describe('workspace manager credentials', () => {
                             return undefined;
                         }
 
-                        if (clock.now().getTime() >= token.expiresAt.getTime() - 300_000) {
+                        if (clock.now() >= token.expiresAt.getTime() - 300_000) {
                             issued++;
-                            token = { password: `cached-token-${issued}`, expiresAt: new Date(clock.now().getTime() + HOUR) };
+                            token = { password: `cached-token-${issued}`, expiresAt: new Date(clock.now() + HOUR) };
                         }
 
                         return { username: 'x-access-token', ...token };

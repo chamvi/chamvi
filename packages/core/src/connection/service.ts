@@ -266,7 +266,7 @@ export class ConnectionService implements IConnectionService {
             repository.merge(record, {
                 ...(write.settings && { settings: write.settings }),
                 configRevision: revision,
-                updatedAt: this.clock.now(),
+                updatedAt: new Date(this.clock.now()),
             });
             await repository.save(record);
 
@@ -288,7 +288,7 @@ export class ConnectionService implements IConnectionService {
         }
 
         const lease = await repository.findFence(fence.lock);
-        const now = this.clock.now();
+        const now = new Date(this.clock.now());
 
         if (!lease || lease.owner !== fence.owner || lease.expiresAt.getTime() <= now.getTime()) {
             throw new LeaseLostError({ lock: fence.lock });

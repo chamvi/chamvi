@@ -483,7 +483,7 @@ describe('tool artifacts', () => {
             agent: 'vision',
             filename: 'report.md',
             size: 4,
-            createdAt: ctx.clock.now(),
+            createdAt: new Date(ctx.clock.now()),
         });
 
         const got = await ofA!.get(saved.id);

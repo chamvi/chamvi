@@ -38,7 +38,7 @@ export function agentCancelReason(agent: string, kind: 'replaced' | 'removed', r
 
 function delay(ctx: RegistryContext, ms: number): Promise<void> {
     return new Promise((resolve) => {
-        ctx.clock.setTimeout(resolve, ms);
+        ctx.clock.setTimeout(resolve, ms).unref?.();
     });
 }
 
@@ -50,10 +50,10 @@ function delay(ctx: RegistryContext, ms: number): Promise<void> {
 export async function withAgentLock<T>(ctx: RegistryContext, name: string, fn: () => Promise<T>): Promise<T> {
     const key = `agents:${name}`;
     const owner = randomUUID();
-    const deadline = ctx.clock.now().getTime() + AGENT_LOCK_TTL_MS;
+    const deadline = ctx.clock.now() + AGENT_LOCK_TTL_MS;
 
     while (!await ctx.lockService.acquire(key, owner, AGENT_LOCK_TTL_MS)) {
-        if (ctx.clock.now().getTime() >= deadline) {
+        if (ctx.clock.now() >= deadline) {
             throw new InvalidRunStateError(`The registry lock of agent "${name}" was not released within ${AGENT_LOCK_TTL_MS}ms.`);
         }
 

@@ -49,7 +49,7 @@ export function createCatalogCache(load: () => Promise<unknown>, options: Catalo
 
                 pending = false;
                 value = result;
-                loadedAt = options.clock.now().getTime();
+                loadedAt = options.clock.now();
             },
             () => {
                 if (current !== promise) {
@@ -66,7 +66,7 @@ export function createCatalogCache(load: () => Promise<unknown>, options: Catalo
 
     return {
         get: () => {
-            if (current && (pending || options.clock.now().getTime() - loadedAt < options.maxAgeMs)) {
+            if (current && (pending || options.clock.now() - loadedAt < options.maxAgeMs)) {
                 return current;
             }
 

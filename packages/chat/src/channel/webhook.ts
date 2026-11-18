@@ -6,7 +6,7 @@
  */
 
 import { ChamviError } from '@chamvi/core';
-import type { ChannelContext, ChannelRequest } from '@chamvi/core';
+import type { ChannelContext, ChannelRequest, ClockTimer } from '@chamvi/core';
 import { readRequestBody } from '@chamvi/http';
 import { trackIngress } from '../ingress/module.ts';
 import { isRetryableIntakeError } from '../intake/module.ts';
@@ -131,9 +131,10 @@ export async function receiveWebhook(
         return { response, rejected: await settleAll(tasks) };
     })();
 
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     const timeout = new Promise<undefined>((resolve) => {
         timer = ctx.engine.clock.setTimeout(() => resolve(undefined), CHAT_WEBHOOK_TIMEOUT_MS);
+        timer.unref?.();
     });
 
     let outcome: Awaited<typeof work> | undefined;

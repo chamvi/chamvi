@@ -60,7 +60,7 @@ describe('option checks', () => {
     it('assertClockOption takes undefined or an IClock', () => {
         expect(() => assertClockOption(undefined)).not.toThrow();
         expect(() => assertClockOption(new ControllableClock())).not.toThrow();
-        expect(() => assertClockOption({ now: () => new Date() })).toThrow('clock must be an IClock.');
+        expect(() => assertClockOption({ now: () => 0 })).toThrow('clock must be an IClock.');
     });
 });
 

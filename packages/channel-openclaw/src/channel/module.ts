@@ -38,6 +38,9 @@ export function openclawChannel(options: OpenclawChannelOptions): IChannel {
         const controller = new AbortController();
         const timeout = requestError(`OpenClaw did not answer within ${resolved.timeoutMs}ms.`);
         const timer = resolved.clock.setTimeout(() => controller.abort(timeout), resolved.timeoutMs);
+
+        timer.unref?.();
+
         const signal = opts.signal ? AbortSignal.any([opts.signal, controller.signal]) : controller.signal;
         const aborted = (): unknown => (opts.signal?.aborted ? opts.signal.reason : timeout);
 

@@ -1103,7 +1103,7 @@ describe('github channel out', () => {
             id: 1,
             body: `copied ${marker}`,
             user: { login: 'mallory', type: 'User' },
-            updated_at: clock.now().toISOString(),
+            updated_at: new Date(clock.now()).toISOString(),
         }]);
         await send();
         expect(posts()).toHaveLength(1);
@@ -1114,7 +1114,7 @@ describe('github channel out', () => {
             id: 2,
             body: `posted earlier\n${marker}`,
             user: { login: 'Chamvi-Test[bot]', type: 'Bot' },
-            updated_at: other.clock.now().toISOString(),
+            updated_at: new Date(other.clock.now()).toISOString(),
         }]);
         await other.send();
         expect(other.posts()).toHaveLength(0);

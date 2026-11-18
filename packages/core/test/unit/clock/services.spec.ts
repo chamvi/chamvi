@@ -25,14 +25,14 @@ describe('services on one clock', () => {
                 trigger: 'test',
                 channel: 'test',
                 payload: {},
-                receivedAt: clock.now(),
+                receivedAt: new Date(clock.now()),
             },
             usage: {
                 inputTokens: 0,
                 outputTokens: 0,
             },
-            createdAt: clock.now(),
-            updatedAt: clock.now(),
+            createdAt: new Date(clock.now()),
+            updatedAt: new Date(clock.now()),
         };
 
         await services.runService.create(run);
@@ -49,7 +49,7 @@ describe('services on one clock', () => {
         expect(await services.runService.claim('run', 'second', 10)).toBe(true);
         expect(await services.idempotencyService.claim('scope', 'key', 'second', 10)).toEqual({ created: true, runId: 'second' });
         expect(await services.lockService.acquire('lock', 'second', 10)).toBe(true);
-        expect((await services.runService.update('run', { status: 'running' })).updatedAt).toEqual(clock.now());
+        expect((await services.runService.update('run', { status: 'running' })).updatedAt).toEqual(new Date(clock.now()));
 
         const scope = await services.conversationService.resolve({
             agent: 'agent',
@@ -61,7 +61,7 @@ describe('services on one clock', () => {
 
         expect(await services.conversationService.beginTurn(scope, 'run', 'hello', DEFAULT_CONVERSATION_LIMITS)).toMatchObject({
             kind: 'ready',
-            snapshot: { createdAt: clock.now() },
+            snapshot: { createdAt: new Date(clock.now()) },
         });
     });
 });

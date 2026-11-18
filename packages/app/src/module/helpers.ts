@@ -110,7 +110,7 @@ export function isSchemaBehindError(error: unknown): boolean {
 
 /** The `start --check` issues of the connections a module lists as incomplete; field names only, never a value. */
 export function connectionIssuesOf(container: IContainer): AgentIssue[] {
-    const at = container.resolve(AppToken.CLOCK).now();
+    const at = new Date(container.resolve(AppToken.CLOCK).now());
 
     return container.resolveAll(AppToken.CONNECTION_TYPES)
         .flatMap((provider) => provider.connections())

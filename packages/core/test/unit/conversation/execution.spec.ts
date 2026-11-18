@@ -362,7 +362,7 @@ describe('conversation execution admission', () => {
         expect((await s.store.runService.findOne(first))?.status).toBe('cancelled');
         expect((await s.store.runService.findOne(next.runId))?.status).toBe('completed');
         expect(s.model.doStreamCalls).toHaveLength(2);
-        expect(clock.now()).toEqual(new Date(0));
+        expect(clock.now()).toBe(0);
         expect(s.errors).toEqual([]);
     });
 

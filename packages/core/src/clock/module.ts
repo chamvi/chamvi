@@ -7,16 +7,17 @@
 
 import type { IClock } from './types.ts';
 
+/** Wall time and the global timers; a timer holds the process until its `unref()` is called. */
 export const systemClock: IClock = {
-    now: () => new Date(),
-    setTimeout: (fn, ms, opts) => {
+    now: () => Date.now(),
+    setTimeout: (fn, ms) => {
         const handle = setTimeout(fn, ms);
 
-        // never keep the process alive just for engine timers, unless asked to
-        if (!opts?.keepAlive) {
-            handle.unref?.();
-        }
-
-        return { clear: () => clearTimeout(handle) };
+        return {
+            clear: () => clearTimeout(handle),
+            unref: () => {
+                handle.unref?.();
+            },
+        };
     },
 };

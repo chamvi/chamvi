@@ -90,7 +90,7 @@ export function createLocalSandbox(options: LocalSandboxOptions = {}): ISandboxP
 
             const id = randomUUID();
             const dir = join(root, id);
-            const info = buildWorkspaceInfo(input, LOCAL_PROVIDER_NAME, clock.now(), limits.maxLifetimeMs);
+            const info = buildWorkspaceInfo(input, LOCAL_PROVIDER_NAME, new Date(clock.now()), limits.maxLifetimeMs);
 
             try {
                 // the cache folders appear once a tool writes to them
@@ -130,7 +130,7 @@ export function createLocalSandbox(options: LocalSandboxOptions = {}): ISandboxP
 
         async find(runId, findOptions = {}) {
             const deployment = assertDeployment(findOptions.deployment);
-            const now = clock.now().getTime();
+            const now = clock.now();
             const found: IWorkspace[] = [];
 
             for (const { id, record } of await listRecords(root)) {

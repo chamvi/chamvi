@@ -14,7 +14,7 @@ import {
 } from 'discord.js';
 import type { ClientOptions } from 'discord.js';
 import { ChamviError, InvalidRunStateError } from '@chamvi/core';
-import type { IClock } from '@chamvi/core';
+import type { ClockTimer, IClock } from '@chamvi/core';
 import { isObject } from 'smob';
 import {
     DISCORD_AUTH_ERROR_CODE,
@@ -39,7 +39,7 @@ type Generation = {
     failed: boolean;
     client?: DiscordClient;
     detach?: () => void;
-    timer?: { clear(): void };
+    timer?: ClockTimer;
     /** failed login attempts in a row */
     failures: number;
     /** the close code of the current client's last shard disconnect */
@@ -155,9 +155,10 @@ function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promise<T> {
 
 /** Whether `work` settled within `ms` on the clock; its rejection rethrown. */
 async function within(clock: IClock, ms: number, work: Promise<void>): Promise<boolean> {
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     const timeout = new Promise<false>((resolve) => {
         timer = clock.setTimeout(() => resolve(false), ms);
+        timer.unref?.();
     });
 
     try {
@@ -438,6 +439,7 @@ export function createDiscordConnection(options: DiscordConnectionOptions): Disc
                 },
             );
         }, delay);
+        generation.timer.unref?.();
     };
 
     const closeGeneration = async (generation: Generation): Promise<void> => {

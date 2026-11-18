@@ -83,7 +83,7 @@ export function makeEmit(clock: ControllableClock, runId: string, n: number, tex
         role: 'assistant',
         text,
         runId,
-        createdAt: clock.now(),
+        createdAt: new Date(clock.now()),
         status: 'pending',
         effectKey: `${runId}:emit:${n}`,
         target: { channel: 'openclaw', address: 'chat-1' },
@@ -252,7 +252,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
             } = await setup();
 
             await store.beginTurn(scope, uuidOf('run-a'), 'hello', LIMITS);
-            await store.applyNote(scope, makeSet(uuidOf('run-a'), 'name', 'Ada', { expiresAt: new Date(clock.now().getTime() + 1_000) }));
+            await store.applyNote(scope, makeSet(uuidOf('run-a'), 'name', 'Ada', { expiresAt: new Date(clock.now() + 1_000) }));
 
             const found = await store.findOneOrFail(identity);
 
@@ -471,8 +471,8 @@ export function describeConversationServiceCases(input: ConversationServiceCases
 
             const result = await begun;
 
-            expect(result).toMatchObject({ kind: 'ready', snapshot: { createdAt: clock.now() } });
-            expect((await store.findItems(scope, { limit: 10, offset: 0 })).data.at(-1)?.createdAt).toEqual(clock.now());
+            expect(result).toMatchObject({ kind: 'ready', snapshot: { createdAt: new Date(clock.now()) } });
+            expect((await store.findItems(scope, { limit: 10, offset: 0 })).data.at(-1)?.createdAt).toEqual(new Date(clock.now()));
         });
 
         it('same_run_reuses_snapshot', async () => {
@@ -807,7 +807,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
 
             await store.beginTurn(scope, uuidOf('run-a'), 'hello', LIMITS);
             await store.applyNote(scope, makeSet(uuidOf('run-a'), 'live', 'stays'));
-            await store.applyNote(scope, makeSet(uuidOf('run-a'), 'short', 'goes', { expiresAt: new Date(clock.now().getTime() + 10) }));
+            await store.applyNote(scope, makeSet(uuidOf('run-a'), 'short', 'goes', { expiresAt: new Date(clock.now() + 10) }));
             await store.endTurn(scope, uuidOf('run-a'), []);
             clock.advance(10);
 
@@ -834,7 +834,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
             expect(created).toEqual({
                 kind: 'set',
                 key: 'name',
-                updatedAt: clock.now(),
+                updatedAt: new Date(clock.now()),
             });
             expect(created).not.toHaveProperty('text');
 
@@ -863,12 +863,12 @@ export function describeConversationServiceCases(input: ConversationServiceCases
             expect(updated).toEqual({
                 kind: 'set',
                 key: 'name',
-                updatedAt: clock.now(),
+                updatedAt: new Date(clock.now()),
             });
             expect(await store.findOneNote(scope, 'name')).toMatchObject({
                 text: 'Grace',
                 createdAt,
-                updatedAt: clock.now(),
+                updatedAt: new Date(clock.now()),
             });
 
             const remove = makeRemove(uuidOf('run-a'), 'name');
@@ -924,7 +924,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
             await expect(store.applyNote(scope, makeSet(uuidOf('run-a'), 'a\nb', 'v'))).rejects.toMatchObject(INVALID);
             await expect(store.applyNote(scope, makeSet(uuidOf('run-a'), 'k0', 'é'.repeat(1025), { toolCallId: 'long' })))
                 .rejects.toMatchObject(INVALID);
-            await expect(store.applyNote(scope, makeSet(uuidOf('run-a'), 'k0', 'v', { toolCallId: 'past', expiresAt: clock.now() })))
+            await expect(store.applyNote(scope, makeSet(uuidOf('run-a'), 'k0', 'v', { toolCallId: 'past', expiresAt: new Date(clock.now()) })))
                 .rejects.toMatchObject(INVALID);
             // a refused operation records nothing: the same id applies once valid
             expect(await store.applyNote(scope, makeSet(uuidOf('run-a'), 'k0', 'w', { toolCallId: 'long' })))
@@ -949,7 +949,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
                 await store.applyNote(scope, makeSet(uuidOf('run-a'), `k${i}`, 'v'));
             }
 
-            await store.applyNote(scope, makeSet(uuidOf('run-a'), 'short', 'v', { expiresAt: new Date(clock.now().getTime() + 5) }));
+            await store.applyNote(scope, makeSet(uuidOf('run-a'), 'short', 'v', { expiresAt: new Date(clock.now() + 5) }));
             await expect(store.applyNote(scope, makeSet(uuidOf('run-a'), 'more', 'v'))).rejects.toMatchObject(INVALID);
             clock.advance(5);
             expect(await store.applyNote(scope, makeSet(uuidOf('run-a'), 'more', 'v'))).toMatchObject({ kind: 'set', key: 'more' });
@@ -1026,7 +1026,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
             } = await setup();
 
             await store.beginTurn(scope, uuidOf('run-a'), 'hello', LIMITS);
-            await store.applyNote(scope, makeSet(uuidOf('run-a'), 'temp', 'short-lived', { expiresAt: new Date(clock.now().getTime() + 1000) }));
+            await store.applyNote(scope, makeSet(uuidOf('run-a'), 'temp', 'short-lived', { expiresAt: new Date(clock.now() + 1000) }));
             await store.applyNote(scope, makeSet(uuidOf('run-a'), 'keep', 'forever'));
             await store.endTurn(scope, uuidOf('run-a'), []);
 
@@ -1103,7 +1103,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
 
             await completeTurn(store, clock, scope, uuidOf('run-a'), 'old', ['old reply'], limits);
             await store.beginTurn(scope, uuidOf('run-b'), 'active', limits);
-            await store.applyNote(scope, makeSet(uuidOf('run-b'), 'temp', 't', { expiresAt: new Date(clock.now().getTime() + 5) }));
+            await store.applyNote(scope, makeSet(uuidOf('run-b'), 'temp', 't', { expiresAt: new Date(clock.now() + 5) }));
 
             const other = await store.resolve(makeIdentity('chat-2'));
 
@@ -1302,7 +1302,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
 
             const admitted = await store.findItems(scope, { limit: 100, offset: 0 });
 
-            expect(admitted.data.find((item) => item.id === `user:${uuidOf('run-b')}`)?.createdAt).toEqual(clock.now());
+            expect(admitted.data.find((item) => item.id === `user:${uuidOf('run-b')}`)?.createdAt).toEqual(new Date(clock.now()));
 
             const replay = await store.beginTurn(scope, uuidOf('run-b'), 'again', LIMITS);
 
@@ -1312,7 +1312,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
 
             expect(replay.snapshot.messages).toHaveLength(2);
             expect(replay.snapshot.itemIds).toEqual([`user:${uuidOf('run-a')}`, `assistant:${uuidOf('run-a')}:0`]);
-            expect(replay.snapshot.createdAt).toEqual(clock.now());
+            expect(replay.snapshot.createdAt).toEqual(new Date(clock.now()));
 
             const item = makeEmit(clock, uuidOf('run-b'), 0, 'original');
 
@@ -1340,7 +1340,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
 
             const note = (await store.findOneNote(scope, 'name'))!;
 
-            expect(note.updatedAt).toEqual(clock.now());
+            expect(note.updatedAt).toEqual(new Date(clock.now()));
             note.text = 'mutated';
             note.source.runId = 'mutated';
             expect(await store.findOneNote(scope, 'name')).toMatchObject({ text: 'Ada', source: { runId: uuidOf('run-b') } });
@@ -1348,7 +1348,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
                 .toEqual({
                     kind: 'set',
                     key: 'name',
-                    updatedAt: clock.now(),
+                    updatedAt: new Date(clock.now()),
                 });
         });
 
@@ -1569,7 +1569,7 @@ export function describeConversationServiceCases(input: ConversationServiceCases
                 role: 'assistant',
                 text: texts[1]!,
                 runId: runs[1]!,
-                createdAt: clock.now(),
+                createdAt: new Date(clock.now()),
                 status: 'pending',
             };
 

@@ -92,7 +92,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
     bindTrust(runContext, {
         taint: run.taint,
         policy: agent.definition.trust,
-        now: () => clock.now(),
+        now: () => new Date(clock.now()),
         persist: (taint) => ctx.update({ taint }),
         engine: ctx.engine,
     });
@@ -135,7 +135,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
 
         return write;
     };
-    const startedAt = clock.now();
+    const startedAt = new Date(clock.now());
     const inflight = new Set<Promise<unknown>>();
     let fatal: { error: unknown } | undefined;
     let outcome: { output: unknown } | { error: unknown };
@@ -164,7 +164,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
                 frame,
                 signal,
                 onStep: appendStep,
-                now: () => clock.now(),
+                now: () => new Date(clock.now()),
                 inflight,
                 onFatal: (error) => {
                     fatal ??= { error };
@@ -234,7 +234,7 @@ export async function executeSimpleRun(ctx: ExecuteContext): Promise<void> {
             input: run.trigger.payload,
             ...('error' in outcome ? { error: toRunError(outcome.error) } : { output: outcome.output }),
             startedAt,
-            finishedAt: clock.now(),
+            finishedAt: new Date(clock.now()),
         };
 
         await stepService.create(step);

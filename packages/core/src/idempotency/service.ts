@@ -31,7 +31,7 @@ export class IdempotencyService implements IIdempotencyService {
         const current = await this.repository.findOneBy({ scope, key });
 
         if (current) {
-            if (current.expiresAt.getTime() > this.clock.now().getTime()) {
+            if (current.expiresAt.getTime() > this.clock.now()) {
                 return { created: false, runId: current.runId };
             }
 
@@ -50,7 +50,7 @@ export class IdempotencyService implements IIdempotencyService {
                         scope,
                         key,
                         runId,
-                        expiresAt: new Date(this.clock.now().getTime() + ttlMs),
+                        expiresAt: new Date(this.clock.now() + ttlMs),
                     }));
                 });
 
@@ -72,7 +72,7 @@ export class IdempotencyService implements IIdempotencyService {
         }
     }
 
-    async purgeExpired(now: Date = this.clock.now()): Promise<number> {
+    async purgeExpired(now: Date = new Date(this.clock.now())): Promise<number> {
         return this.repository.transaction((repository) => repository.removeExpiredBy(now));
     }
 
@@ -84,7 +84,7 @@ export class IdempotencyService implements IIdempotencyService {
                 return undefined;
             }
 
-            const now = this.clock.now().getTime();
+            const now = this.clock.now();
 
             if (stored.expiresAt.getTime() > now) {
                 return { created: false, runId: stored.runId };

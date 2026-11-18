@@ -114,7 +114,7 @@ export function createFakeGithub(input: FakeGithubOptions): FakeGithub {
 
         const head = base64UrlJson(header) as { alg?: string };
         const claims = base64UrlJson(payload) as JwtClaims;
-        const now = Math.floor(input.clock.now().getTime() / 1000);
+        const now = Math.floor(input.clock.now() / 1000);
 
         if (head.alg !== 'RS256' || String(claims.iss) !== input.appId || claims.exp - claims.iat > 600 || claims.exp <= now || claims.iat > now) {
             return false;
@@ -134,7 +134,7 @@ export function createFakeGithub(input: FakeGithubOptions): FakeGithub {
 
         const token = tokens.get(match[1]);
 
-        if (!token || token.expiresAt <= input.clock.now().getTime()) {
+        if (!token || token.expiresAt <= input.clock.now()) {
             return undefined;
         }
 
@@ -205,7 +205,7 @@ export function createFakeGithub(input: FakeGithubOptions): FakeGithub {
 
                 const token = `ghs_${issued}`;
                 const installationId = Number(exchange[1]);
-                const expiresAt = input.clock.now().getTime() + 3_600_000;
+                const expiresAt = input.clock.now() + 3_600_000;
 
                 tokens.set(token, { installationId, expiresAt });
                 fake.tokenInstallations.push(installationId);

@@ -139,6 +139,9 @@ export function createCommentSender(options: ResolvedGithubChannelOptions) {
             code: GITHUB_REQUEST_ERROR_CODE,
         });
         const timer = options.clock.setTimeout(() => controller.abort(timeout), options.timeoutMs);
+
+        timer.unref?.();
+
         const signal = opts.signal ? AbortSignal.any([opts.signal, controller.signal]) : controller.signal;
         const slotKey = message.slot !== undefined ? `github:comment:${createHash('sha256').update(JSON.stringify([
             String(app.appId),

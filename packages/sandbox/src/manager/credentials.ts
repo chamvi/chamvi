@@ -127,7 +127,7 @@ export function createCredentialSupport(input: {
 
         // a source may keep answering a token inside the window (IGithubApp until 5 minutes
         // before its expiry): try again a minute later instead of before every exec
-        return Math.max(Math.min(...expiries) - CREDENTIAL_REFRESH_MS, clock.now().getTime() + CREDENTIAL_RETRY_MS);
+        return Math.max(Math.min(...expiries) - CREDENTIAL_REFRESH_MS, clock.now() + CREDENTIAL_RETRY_MS);
     };
 
     const stateOf = (workspace: IWorkspace): InstallState | undefined => {
@@ -158,7 +158,7 @@ export function createCredentialSupport(input: {
             state.empty = true;
         }
 
-        const now = clock.now().getTime();
+        const now = clock.now();
 
         if (state.installed && (state.refreshAt === undefined || now < state.refreshAt)) {
             return;
@@ -178,7 +178,7 @@ export function createCredentialSupport(input: {
                 current.refreshAt = refreshAt;
                 delete current.retryAt;
             }, (error: unknown) => {
-                current.retryAt = clock.now().getTime() + CREDENTIAL_RETRY_MS;
+                current.retryAt = clock.now() + CREDENTIAL_RETRY_MS;
                 onError(redactor.redactError(error));
             }).finally(() => {
                 delete current.pending;

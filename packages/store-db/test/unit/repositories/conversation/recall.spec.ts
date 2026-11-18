@@ -67,7 +67,7 @@ describePostgres('conversation recall golden file, by the service on PostgreSQL'
                     role: 'assistant',
                     text,
                     runId,
-                    createdAt: clock.now(),
+                    createdAt: new Date(clock.now()),
                     status: 'pending',
                     effectKey: `${id}:effect`,
                     target: { channel: 'chat', address: 'room' },

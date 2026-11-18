@@ -211,7 +211,7 @@ export class ConversationService implements IConversationService {
                     throw new InvalidRunStateError('The conversation turn has already ended.');
                 }
 
-                const now = this.clock.now();
+                const now = new Date(this.clock.now());
 
                 await this.trimExpired(repository, record.id, runId, limits, now);
                 await this.dropExpiredNotes(repository, record.id, now);
@@ -313,7 +313,7 @@ export class ConversationService implements IConversationService {
                 role: 'assistant',
                 text: item.text,
                 runId: item.runId,
-                createdAt: this.clock.now(),
+                createdAt: new Date(this.clock.now()),
                 status: 'pending',
             };
 
@@ -430,7 +430,7 @@ export class ConversationService implements IConversationService {
             key,
         });
 
-        return note && isNoteActive(note, this.clock.now()) ? readNote(note) : undefined;
+        return note && isNoteActive(note, new Date(this.clock.now())) ? readNote(note) : undefined;
     }
 
     async findOneNoteOrFail(scope: ConversationScope, key: string): Promise<ConversationNote> {
@@ -468,7 +468,7 @@ export class ConversationService implements IConversationService {
                 return resultOf(recorded);
             }
 
-            const now = this.clock.now();
+            const now = new Date(this.clock.now());
 
             assertNoteOperationContent(operation, now);
             await this.dropExpiredNotes(repository, record.id, now);
@@ -554,7 +554,7 @@ export class ConversationService implements IConversationService {
                 throw new InvalidRunStateError('The conversation has an active turn and cannot be reset.');
             }
 
-            const now = this.clock.now();
+            const now = new Date(this.clock.now());
             const generation = record.generation + 1;
             const saved = await repository.save(repository.merge(record, {
                 generation,
@@ -656,7 +656,7 @@ export class ConversationService implements IConversationService {
                 return;
             }
 
-            const now = this.clock.now();
+            const now = new Date(this.clock.now());
 
             await this.trimExpired(repository, record.id, record.activeRunId, limits, now);
 
@@ -690,7 +690,7 @@ export class ConversationService implements IConversationService {
                 return failure;
             }
 
-            const before = new Date(this.clock.now().getTime() - limits.retentionMs);
+            const before = new Date(this.clock.now() - limits.retentionMs);
             const conditions: ICondition[] = [eq('scopeId', id), lte('createdAt', before)];
 
             if (record.activeRunId !== undefined) {
@@ -743,7 +743,7 @@ export class ConversationService implements IConversationService {
                     return;
                 }
 
-                const threshold = this.clock.now().getTime() - limits.retentionMs;
+                const threshold = this.clock.now() - limits.retentionMs;
                 // re-read under the row lock: a record may have gone or changed, or its run become active again
                 const stale = (await repository.operations.findManyBy({ id: removable }))
                     .filter((operation) => settled.get(operation.runId) === true &&
@@ -946,7 +946,7 @@ export class ConversationService implements IConversationService {
             return [];
         }
 
-        const now = this.clock.now();
+        const now = new Date(this.clock.now());
 
         return (await this.repository.notes.findManyBy({ scopeId: record.id, generation: record.generation }))
             .filter((note) => isNoteActive(note, now))

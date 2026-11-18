@@ -79,7 +79,7 @@ export function optionalString(value: unknown, name: string): string | undefined
 
 /** The engine clock's now, in `zone`. */
 export function nowZoned(context: ToolContext, zone: string): Temporal.ZonedDateTime {
-    return Temporal.Instant.fromEpochMilliseconds(injectClock(context).now().getTime()).toZonedDateTimeISO(zone);
+    return Temporal.Instant.fromEpochMilliseconds(injectClock(context).now()).toZonedDateTimeISO(zone);
 }
 
 /** The calendar date of an optional date input in `zone`, today when absent. */

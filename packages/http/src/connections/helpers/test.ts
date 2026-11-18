@@ -6,7 +6,7 @@
  */
 
 import { ChamviError, ErrorCode } from '@chamvi/core';
-import type { ConnectionTypeDefinition, ConnectionValues } from '@chamvi/core';
+import type { ClockTimer, ConnectionTypeDefinition, ConnectionValues } from '@chamvi/core';
 import { TEST_MESSAGE_MAX_LENGTH, TEST_TIMEOUT_MS } from '../constants.ts';
 import type { ConnectionHttpServiceContext } from '../types.ts';
 
@@ -21,7 +21,7 @@ export async function runTest(
     outer: AbortSignal,
 ): Promise<void> {
     const controller = new AbortController();
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     const deadline = new Promise<never>((_resolve, reject) => {
         timer = ctx.clock.setTimeout(() => {
             const error = new ChamviError({ message: 'The connection test timed out.', code: ErrorCode.TIMEOUT });
@@ -29,6 +29,7 @@ export async function runTest(
             controller.abort(error);
             reject(error);
         }, TEST_TIMEOUT_MS);
+        timer.unref?.();
     });
 
     try {

@@ -254,7 +254,7 @@ describe('RunService', () => {
                 ...before,
                 status: RunStatus.RUNNING,
                 waiting: undefined,
-                updatedAt: clock.now(),
+                updatedAt: new Date(clock.now()),
             });
             expect(await service.findOneOrFail(uuid('r1'))).toEqual(updated);
             expect(updated.taint?.at).toBeInstanceOf(Date);

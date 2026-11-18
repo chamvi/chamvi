@@ -255,6 +255,8 @@ class CalendarClient implements ICalendarClient {
             controller.abort(calendarError(`${tool}: ${state.account.id}: timed out`));
         }, this.options.timeoutMs);
 
+        timer.unref?.();
+
         try {
             return await Promise.race([run(signal), timeout]);
         } catch (error) {

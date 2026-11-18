@@ -31,7 +31,7 @@ export function currentTimeTool(options: UtilityToolsOptionsNormalized): Tool<Cu
         execute: async (input, { context }) => {
             const body = inputObject(input ?? {});
             const zone = zoneOf(body, options.timezone);
-            const now = Temporal.Instant.fromEpochMilliseconds(injectClock(context).now().getTime());
+            const now = Temporal.Instant.fromEpochMilliseconds(injectClock(context).now());
             // a stored run may hold receivedAt serialized
             const started = Temporal.Instant.fromEpochMilliseconds(new Date(context.run.trigger.receivedAt).getTime());
 

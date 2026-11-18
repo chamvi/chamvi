@@ -26,7 +26,7 @@ import {
     join,
     sep,
 } from 'node:path';
-import type { IClock } from '@chamvi/core';
+import type { ClockTimer, IClock } from '@chamvi/core';
 import { SandboxError, ValidationError } from '@chamvi/core';
 import {
     EXEC_TIMEOUT_MAX_MS,
@@ -91,7 +91,7 @@ export class LocalWorkspace implements IWorkspace {
     protected readonly lingering = new Set<number>();
 
     /** Forgets the lingering groups that ended, while there are any. */
-    protected lingerTimer: { clear(): void } | undefined;
+    protected lingerTimer: ClockTimer | undefined;
 
     protected disposing: Promise<void> | undefined;
 
@@ -306,7 +306,7 @@ export class LocalWorkspace implements IWorkspace {
             throw new SandboxError(this.goneMessage());
         }
 
-        if (this.clock.now().getTime() >= this.info.expiresAt.getTime()) {
+        if (this.clock.now() >= this.info.expiresAt.getTime()) {
             throw new SandboxError('workspace expired');
         }
     }
@@ -407,7 +407,13 @@ export class LocalWorkspace implements IWorkspace {
 
         this.lingering.add(pid);
         trackLingering(this);
-        this.lingerTimer ??= this.clock.setTimeout(() => this.checkLingering(), LINGER_CHECK_MS, { keepAlive: false });
+
+        if (this.lingerTimer) {
+            return;
+        }
+
+        this.lingerTimer = this.clock.setTimeout(() => this.checkLingering(), LINGER_CHECK_MS);
+        this.lingerTimer.unref?.();
     }
 
     protected checkLingering(): void {
@@ -423,9 +429,12 @@ export class LocalWorkspace implements IWorkspace {
             untrackLingering(this);
         }
 
-        if (this.lingering.size > 0 && !this.disposing) {
-            this.lingerTimer = this.clock.setTimeout(() => this.checkLingering(), LINGER_CHECK_MS, { keepAlive: false });
+        if (!(this.lingering.size > 0) || this.disposing) {
+            return;
         }
+
+        this.lingerTimer = this.clock.setTimeout(() => this.checkLingering(), LINGER_CHECK_MS);
+        this.lingerTimer.unref?.();
     }
 
     /** The requested timeout (default `EXEC_TIMEOUT_MS`), at most `EXEC_TIMEOUT_MAX_MS` and never past the expiry. */
@@ -434,7 +443,7 @@ export class LocalWorkspace implements IWorkspace {
             throw new ValidationError('timeoutMs must be a positive number.');
         }
 
-        const remaining = this.info.expiresAt.getTime() - this.clock.now().getTime();
+        const remaining = this.info.expiresAt.getTime() - this.clock.now();
 
         return Math.max(1, Math.min(requested ?? EXEC_TIMEOUT_MS, EXEC_TIMEOUT_MAX_MS, remaining));
     }
@@ -446,7 +455,7 @@ export class LocalWorkspace implements IWorkspace {
         options: ExecOptions,
     ): Promise<ExecResult> {
         return new Promise<ExecResult>((resolve, reject) => {
-            const started = this.clock.now().getTime();
+            const started = this.clock.now();
             const stdout = createOutputCollector(OUTPUT_MAX_BYTES);
             const stderr = createOutputCollector(OUTPUT_MAX_BYTES);
             const { signal } = options;
@@ -468,9 +477,9 @@ export class LocalWorkspace implements IWorkspace {
 
             let settled = false;
             let timedOut = false;
-            let killTimer: { clear(): void } | undefined;
-            let graceTimer: { clear(): void } | undefined;
-            let pipeTimer: { clear(): void } | undefined;
+            let killTimer: ClockTimer | undefined;
+            let graceTimer: ClockTimer | undefined;
+            let pipeTimer: ClockTimer | undefined;
 
             const kill = () => {
                 if (child.pid !== undefined) {
@@ -517,7 +526,7 @@ export class LocalWorkspace implements IWorkspace {
                 stdoutTruncated: stdout.truncated,
                 stderrTruncated: stderr.truncated,
                 timedOut,
-                durationMs: this.clock.now().getTime() - started,
+                durationMs: this.clock.now() - started,
             });
 
             this.live.add(entry);
@@ -562,6 +571,7 @@ export class LocalWorkspace implements IWorkspace {
                 }
 
                 pipeTimer = this.clock.setTimeout(closePipes, KILL_GRACE_MS);
+                pipeTimer.unref?.();
             });
 
             child.on('close', (code, closeSignal) => {
@@ -577,7 +587,9 @@ export class LocalWorkspace implements IWorkspace {
                 kill();
                 // a process that left the group may hold the pipes open
                 graceTimer = this.clock.setTimeout(closePipes, KILL_GRACE_MS);
+                graceTimer.unref?.();
             }, timeoutMs);
+            killTimer.unref?.();
         });
     }
 }

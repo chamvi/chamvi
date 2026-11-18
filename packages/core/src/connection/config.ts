@@ -129,7 +129,7 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             // the whole write is checked before the row exists: a malformed one leaves nothing behind
             assertConnectionConfigWrite(write, wrapped.wrapped);
 
-            const now = clock.now();
+            const now = new Date(clock.now());
             const inserted = await connections.create({
                 name,
                 type,

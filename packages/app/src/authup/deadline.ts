@@ -25,6 +25,9 @@ export function withDeadline<T>(clock: IClock, timeoutMs: number, label: string,
             settled = true;
             reject(new TimeoutError(timeoutMs, `authup: the ${label} did not answer within ${timeoutMs}ms.`));
         }, timeoutMs);
+
+        timer.unref?.();
+
         const settle = (fn: () => void) => {
             if (settled) {
                 return;

@@ -85,8 +85,8 @@ export async function syncRevision(
         }
 
         const reason = agentCancelReason(agent, 'replaced', revision);
-        const cancelled = marker ? await cancelAgentRuns(ctx, agent, reason, ctx.clock.now()) : [];
-        const changedAt = ctx.clock.now();
+        const cancelled = marker ? await cancelAgentRuns(ctx, agent, reason, new Date(ctx.clock.now())) : [];
+        const changedAt = new Date(ctx.clock.now());
 
         await ctx.agentRevisionService.save({
             agent,
@@ -144,7 +144,7 @@ export async function claimRevision(
         await ctx.agentRevisionService.save({
             agent,
             hash: revision,
-            changedAt: ctx.clock.now(),
+            changedAt: new Date(ctx.clock.now()),
         });
     });
 }

@@ -42,7 +42,7 @@ function sendOptions(clock: ControllableClock): ChannelSendOptions {
             trigger: 'http',
             channel: 'http',
             payload: {},
-            receivedAt: clock.now(),
+            receivedAt: new Date(clock.now()),
         },
     };
 }

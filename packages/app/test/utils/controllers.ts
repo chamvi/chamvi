@@ -20,7 +20,7 @@ export class NoteController {
 
     @DGet('/now')
     async now(): Promise<{ now: string }> {
-        return { now: this.clock.now().toISOString() };
+        return { now: new Date(this.clock.now()).toISOString() };
     }
 }
 

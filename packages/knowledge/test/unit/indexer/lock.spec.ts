@@ -328,7 +328,7 @@ describe('the indexing lock', () => {
         expect(seen).toEqual([2, 2, 3, 3, 3, 3, 4]);
         expect(await setup.repository.findOneCollection('docs')).toMatchObject({
             failures: 4,
-            retryAt: new Date(setup.clock.now().getTime() + (KNOWLEDGE_RETRY_MS * 8)),
+            retryAt: new Date(setup.clock.now() + (KNOWLEDGE_RETRY_MS * 8)),
         });
     });
 

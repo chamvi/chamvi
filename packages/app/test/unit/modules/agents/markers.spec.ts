@@ -58,7 +58,7 @@ describe('revision markers moved by another process', () => {
             await store.agentRevisionService.save({
                 agent: 'greeter',
                 hash: 'h0',
-                changedAt: clock.now(),
+                changedAt: new Date(clock.now()),
             });
         }, /registered other content for this agent/],
     ])('a marker %s elsewhere is an issue on the replica whose folder did not change, until it matches again', async (_label, act, message) => {
@@ -101,7 +101,7 @@ describe('revision markers moved by another process', () => {
         await store.agentRevisionService.save({
             agent: 'elsewhere',
             hash: 'h1',
-            changedAt: clock.now(),
+            changedAt: new Date(clock.now()),
         });
 
         const runId = await queueRun(store, clock, 'elsewhere');

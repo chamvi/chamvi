@@ -161,7 +161,7 @@ async function reembed(
                 chunker: CHUNKER_VERSION,
             },
             lastGeneration: target,
-            updatedAt: clock.now(),
+            updatedAt: new Date(clock.now()),
         };
         await repository.saveCollection(record);
 
@@ -208,7 +208,7 @@ async function reembed(
             record = {
                 ...current,
                 pending: { ...current.pending, dimensions: outcome.dimensions },
-                updatedAt: clock.now(),
+                updatedAt: new Date(clock.now()),
             };
             await repository.saveCollection(record);
         }
@@ -241,7 +241,7 @@ async function reembed(
         ...(dimensions === undefined ? {} : { dimensions }),
         chunker: CHUNKER_VERSION,
         status: 'ready',
-        updatedAt: clock.now(),
+        updatedAt: new Date(clock.now()),
     };
 
     await repository.saveCollection(next);

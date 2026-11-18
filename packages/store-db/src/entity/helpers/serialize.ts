@@ -39,13 +39,16 @@ const queues = new WeakMap<DataSource, Queue>();
 const scope = new AsyncLocalStorage<QueueScope>();
 
 const systemClock: QueueClock = {
-    now: () => new Date(),
+    now: () => Date.now(),
     setTimeout(fn, ms) {
         const timer = setTimeout(fn, ms);
 
-        timer.unref();
-
-        return { clear: () => clearTimeout(timer) };
+        return {
+            clear: () => clearTimeout(timer),
+            unref: () => {
+                timer.unref();
+            },
+        };
     },
 };
 
@@ -108,7 +111,7 @@ export function runInUnit<R>(unit: QueueUnit, fn: () => R): R {
 }
 
 function now(queue: Queue): number {
-    return queue.clock.now().getTime();
+    return queue.clock.now();
 }
 
 function grant(queue: Queue, unit: QueueUnit): void {
@@ -159,7 +162,10 @@ function watch(queue: Queue): void {
 
     const due = Math.max(first.since, queue.heldSince) + queue.waitTimeoutMs;
 
-    queue.timer = queue.clock.setTimeout(() => expire(queue), Math.max(0, due - now(queue)));
+    const timer = queue.clock.setTimeout(() => expire(queue), Math.max(0, due - now(queue)));
+
+    timer.unref?.();
+    queue.timer = timer;
 }
 
 /** Resolves once `unit` holds the connection. */

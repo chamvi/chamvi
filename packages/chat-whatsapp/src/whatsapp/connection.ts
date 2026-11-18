@@ -13,7 +13,7 @@ import type {
     SignalKeyStore,
 } from 'baileys';
 import { ChamviError, ErrorCode, InvalidRunStateError } from '@chamvi/core';
-import type { IClock } from '@chamvi/core';
+import type { ClockTimer, IClock } from '@chamvi/core';
 import { isObject } from 'smob';
 import {
     WHATSAPP_AUTH_ERROR_CODE,
@@ -54,7 +54,7 @@ type Generation = {
     acquiring?: Promise<void>;
     socket?: WhatsAppSocket;
     detach?: () => void;
-    timer?: { clear(): void };
+    timer?: ClockTimer;
     /** failed reconnect attempts in a row */
     failures: number;
     closing?: Promise<void>;
@@ -67,7 +67,7 @@ type Run = {
     closed: boolean;
     generation?: Generation;
     /** the pending acquire retry */
-    retry?: { clear(): void };
+    retry?: ClockTimer;
     /** acquire retries since the last acquired lease (the backoff step) */
     retries: number;
     /** failed (not held) acquires since the last acquired lease */
@@ -139,9 +139,10 @@ export function untilAborted<T>(promise: Promise<T>, signal: AbortSignal): Promi
 
 /** Whether `work` settled within `ms` on the clock; its rejection rethrown. */
 async function within(clock: IClock, ms: number, work: Promise<void>): Promise<boolean> {
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     const timeout = new Promise<false>((resolve) => {
         timer = clock.setTimeout(() => resolve(false), ms);
+        timer.unref?.();
     });
 
     try {
@@ -414,6 +415,7 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
                 scheduleReconnect(generation);
             }
         }, delay);
+        generation.timer.unref?.();
     };
 
     const closeGeneration = (generation: Generation): Promise<void> => {
@@ -708,6 +710,7 @@ export function createWhatsAppConnection(options: WhatsAppConnectionOptions): Wh
                 void establish(run, false);
             }
         }, delay);
+        run.retry.unref?.();
     };
 
     const connect = async ({ signal, clock }: { signal: AbortSignal; clock: IClock }): Promise<void> => {

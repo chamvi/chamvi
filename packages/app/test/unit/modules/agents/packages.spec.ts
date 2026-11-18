@@ -172,7 +172,7 @@ describe('package agents', () => {
         await store.agentRevisionService.save({
             agent: 'elsewhere',
             hash: 'h1',
-            changedAt: clock.now(),
+            changedAt: new Date(clock.now()),
         });
 
         const runId = await queueRun(store, clock, 'elsewhere');
@@ -205,7 +205,7 @@ describe('package agents', () => {
         await store.agentRevisionService.save({
             agent: 'elsewhere',
             hash: 'h1',
-            changedAt: clock.now(),
+            changedAt: new Date(clock.now()),
         });
 
         const setup = build({

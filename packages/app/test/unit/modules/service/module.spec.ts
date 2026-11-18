@@ -199,7 +199,7 @@ describe('the services of the store step', () => {
 
         // the app built every service from them, on the app clock
         const runs = container.resolve(AppToken.RUN_SERVICE);
-        const at = clock.now();
+        const at = new Date(clock.now());
 
         expect(runs).toBeInstanceOf(RunService);
         await runs.create({
@@ -220,7 +220,7 @@ describe('the services of the store step', () => {
         });
         expect(await repositories.run.findOneById('r1')).toMatchObject({ id: 'r1' });
         clock.advance(500);
-        expect((await runs.update('r1', { status: 'running' })).updatedAt).toEqual(clock.now());
+        expect((await runs.update('r1', { status: 'running' })).updatedAt).toEqual(new Date(clock.now()));
         await expect(container.resolve(AppToken.LOCK_SERVICE).acquire('k', 'a', 10)).resolves.toBe(true);
         expect(await repositories.lock.findOneBy({ key: 'k' })).toMatchObject({ owner: 'a' });
 

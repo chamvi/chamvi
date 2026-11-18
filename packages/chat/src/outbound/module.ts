@@ -5,7 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ChannelMessage, ChannelSendOptions, IChannel } from '@chamvi/core';
+import type { 
+    ChannelMessage, 
+    ChannelSendOptions, 
+    ClockTimer, 
+    IChannel, 
+} from '@chamvi/core';
 import type { Adapter } from 'chat';
 import { decodeChatAddress, reportError } from '../channel/helpers.ts';
 import { messageOf, renderChatMessage, requestError } from './helpers.ts';
@@ -69,7 +74,7 @@ export function createChatSender(options: ChatSenderOptions): NonNullable<IChann
 
         await new Promise<void>((resolve, reject) => {
             let waiting = true;
-            let timer: { clear(): void } | undefined;
+            let timer: ClockTimer | undefined;
             let onAbort: () => void = () => undefined;
             const stop = (): boolean => {
                 if (!waiting) {
@@ -95,6 +100,7 @@ export function createChatSender(options: ChatSenderOptions): NonNullable<IChann
                 posted.abort(error);
                 reject(error);
             }, options.timeoutMs);
+            timer.unref?.();
             onAbort = () => {
                 if (!stop()) {
                     return;

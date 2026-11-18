@@ -58,7 +58,7 @@ function readHandler(knowledge: IKnowledge): Handler {
 
         if (name === undefined) {
             const records = await repository.findCollections();
-            const now = ctx.clock.now();
+            const now = new Date(ctx.clock.now());
             const readable = await Promise.all(records.map((record) => can(principal, KNOWLEDGE_READ_PERMISSION, {
                 attributes: { name: record.name },
                 now,

@@ -63,7 +63,7 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
                 signal?.throwIfAborted();
 
                 const create = (): Connection => {
-                    const now = clock.now();
+                    const now = new Date(clock.now());
                     const { key, wrapped } = keyring.createDataKey(dataKeyContextOf(name));
 
                     key.fill(0);
@@ -105,7 +105,7 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
                 }
 
                 // the initialization may have outlasted the lease: confirm it before handing out the session
-                const confirmed = clock.now().getTime();
+                const confirmed = clock.now();
 
                 if (!await lockService.renew(lock, owner, leaseTtlMs)) {
                     throw new LeaseLostError({ lock });

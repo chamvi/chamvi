@@ -19,7 +19,7 @@ describe('webTools options', () => {
         ['a fractional maxBytes', { maxBytes: 1.5 }],
         ['a timeoutMs that is no positive integer', { timeoutMs: -1 }],
         ['a timeoutMs above the timer maximum', { timeoutMs: 2 ** 31 }],
-        ['a clock without setTimeout', { clock: { now: () => new Date() } }],
+        ['a clock without setTimeout', { clock: { now: () => 0 } }],
     ])('refuses %s', (_name, options) => {
         expect(() => webTools(options as never)).toThrow(InvalidAgentDefinitionError);
     });

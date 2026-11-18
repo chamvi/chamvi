@@ -114,6 +114,8 @@ export function waitOn(clock: IClock, ms: number, signal: AbortSignal): Promise<
             resolve();
         }, ms);
 
+        timer.unref?.();
+
         signal.addEventListener('abort', onAbort, { once: true });
     });
 }

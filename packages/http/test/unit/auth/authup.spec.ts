@@ -269,7 +269,7 @@ describe('authup', () => {
             clock,
             catalogMaxAgeMs: 30_000,
         });
-        const now = clock.now();
+        const now = new Date(clock.now());
         const attributes = { name: 'triage', private: false };
 
         expect(await can((await authenticate(request('Bearer good')))!, Permission.AGENT_RUN, { attributes, now })).toBe(true);
@@ -294,7 +294,7 @@ describe('authup', () => {
             clock,
             catalogMaxAgeMs: 30_000,
         });
-        const now = clock.now();
+        const now = new Date(clock.now());
         const attributes = { name: 'triage', private: false };
 
         expect(await can((await authenticate(request('Bearer good')))!, Permission.AGENT_RUN, { attributes, now })).toBe(true);

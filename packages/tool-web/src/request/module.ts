@@ -23,6 +23,9 @@ export async function getPage(input: string, options: WebToolsOptionsNormalized,
     const timer = options.clock.setTimeout(() => {
         timeout.abort(requestError(`The request did not finish within ${options.timeoutMs}ms.`));
     }, options.timeoutMs);
+
+    timer.unref?.();
+
     const combined = AbortSignal.any([signal, timeout.signal]);
 
     try {

@@ -135,7 +135,7 @@ function createFixture(extra: Partial<KnowledgeOptions> = {}): Fixture {
 }
 
 async function saveDeclared(setup: IndexerSetup, name: string): Promise<void> {
-    const at = setup.clock.now();
+    const at = new Date(setup.clock.now());
 
     await setup.repository.saveCollection({
         name,
@@ -222,7 +222,7 @@ describe('knowledgeRoutes', () => {
                     status: 'ready',
                     model: 'mock-provider/mock-model-id',
                     generation: 1,
-                    updatedAt: setup.clock.now().toISOString(),
+                    updatedAt: new Date(setup.clock.now()).toISOString(),
                 },
                 {
                     name: 'notes',
@@ -231,7 +231,7 @@ describe('knowledgeRoutes', () => {
                     status: 'ready',
                     model: 'mock-provider/mock-model-id',
                     generation: 1,
-                    updatedAt: setup.clock.now().toISOString(),
+                    updatedAt: new Date(setup.clock.now()).toISOString(),
                 },
             ],
         });
@@ -277,7 +277,7 @@ describe('knowledgeRoutes', () => {
 
     it('GET of a managed collection at another model reports it stale', async () => {
         const { send, setup } = createFixture();
-        const at = setup.clock.now();
+        const at = new Date(setup.clock.now());
 
         await setup.repository.saveCollection({
             name: 'notes',
@@ -413,7 +413,7 @@ describe('knowledgeRoutes', () => {
             status: 'pending',
             hash: contentHash('Alpha text.'),
             content: 'Alpha text.',
-            updatedAt: setup.clock.now().toISOString(),
+            updatedAt: new Date(setup.clock.now()).toISOString(),
         });
         expect((await send('GET', `${base}/notes/documents/b`)).status).toBe(404);
         expect((await send('GET', `${base}/missing/documents/a`)).status).toBe(404);
@@ -461,7 +461,7 @@ describe('knowledgeRoutes', () => {
             metadata: { id: 'b' },
             status: 'ready',
             hash: contentHash('Text b.'),
-            updatedAt: setup.clock.now().toISOString(),
+            updatedAt: new Date(setup.clock.now()).toISOString(),
         });
 
         const pending = await (await send('GET', `${base}/notes/documents?filter[status]=pending`)).json() as {

@@ -64,7 +64,7 @@ export function createFakeOpenclaw(input: {
     clock?: IClock
 }): FakeOpenclaw {
     const hooksPath = input.hooksPath ?? '/hooks';
-    const now = () => input.clock?.now().getTime() ?? 0;
+    const now = () => input.clock?.now() ?? 0;
     const replays = new Map<string, Replay>();
     const queue: Next[] = [];
     let runs = 0;

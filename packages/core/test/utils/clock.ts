@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock } from '@chamvi/core';
+import type { ClockTimer, IClock } from '@chamvi/core';
 
 type Timer = {
     at: number;
@@ -24,16 +24,18 @@ export class ControllableClock implements IClock {
 
     protected seq = 0;
 
-    constructor(start: Date = new Date(0)) {
-        this.current = start.getTime();
+    /** `start`: a Date or epoch milliseconds (default 0). */
+    constructor(start: Date | number = 0) {
+        this.current = typeof start === 'number' ? start : start.getTime();
     }
 
-    now(): Date {
-        return new Date(this.current);
+    /** Epoch milliseconds. */
+    now(): number {
+        return this.current;
     }
 
-    /** Clock options (keepAlive) have no meaning without a real event loop and are ignored. */
-    setTimeout(fn: () => void, ms: number): { clear(): void } {
+    /** No `unref()`: without a real event loop nothing holds a process. */
+    setTimeout(fn: () => void, ms: number): ClockTimer {
         const timer: Timer = {
             at: this.current + ms,
             seq: this.seq++,

@@ -156,7 +156,7 @@ describe('re-embedding a collection', () => {
         const collection = await waitForCollection(
             setup.repository,
             'docs',
-            (found) => found.updatedAt.getTime() === setup.clock.now().getTime() && found.pending === undefined,
+            (found) => found.updatedAt.getTime() === setup.clock.now() && found.pending === undefined,
         );
 
         expect(collection).toMatchObject({
@@ -255,7 +255,7 @@ describe('re-embedding a collection', () => {
         await waitForCollection(
             setup.repository,
             'docs',
-            (found) => found.updatedAt.getTime() === setup.clock.now().getTime() && found.status === 'ready',
+            (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
         );
 
         expect(await setup.repository.search('docs', 1, await queryVector('refund'), { topK: 10 })).toEqual([]);
@@ -297,7 +297,7 @@ describe('re-embedding a collection', () => {
         const after = await waitForCollection(
             setup.repository,
             'docs',
-            (found) => found.updatedAt.getTime() === setup.clock.now().getTime() && found.status === 'ready',
+            (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
         );
 
         expect(after).toMatchObject({ generation: 2, dimensions: 8 });

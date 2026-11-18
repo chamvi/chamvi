@@ -120,8 +120,8 @@ describe('storeModule', () => {
             type: 'whatsapp',
             keyId: 'k1',
             wrappedKey: new Uint8Array([1]),
-            createdAt: clock.now(),
-            updatedAt: clock.now(),
+            createdAt: new Date(clock.now()),
+            updatedAt: new Date(clock.now()),
         });
         await expect(write()).rejects.toMatchObject({ code: 'lease_lost' });
         await locks.acquire('connection:wa', 'a', 1000);
@@ -136,7 +136,7 @@ describe('storeModule', () => {
         const { harness, clock } = await setup();
         const runs = harness.container.resolve(AppToken.RUN_SERVICE);
         const checkpoints = harness.container.resolve(AppToken.CHECKPOINT_SERVICE);
-        const at = clock.now();
+        const at = new Date(clock.now());
 
         await expect(checkpoints.save({
             runId: 'r1',
@@ -167,7 +167,7 @@ describe('storeModule', () => {
             createdAt: at,
         });
         clock.advance(500);
-        expect((await runs.update('r1', { status: 'running' })).updatedAt).toEqual(clock.now());
+        expect((await runs.update('r1', { status: 'running' })).updatedAt).toEqual(new Date(clock.now()));
         await harness.stop();
     });
 
@@ -195,16 +195,16 @@ describe('storeModule', () => {
                 trigger: 'chat',
                 channel: 'chat',
                 payload: {},
-                receivedAt: clock.now(),
+                receivedAt: new Date(clock.now()),
             },
             usage: { inputTokens: 0, outputTokens: 0 },
-            createdAt: clock.now(),
-            updatedAt: clock.now(),
+            createdAt: new Date(clock.now()),
+            updatedAt: new Date(clock.now()),
         });
 
         const begun = await conversations.beginTurn(await conversations.resolve(identity), 'run', 'hello', DEFAULT_CONVERSATION_LIMITS);
 
-        expect(begun).toMatchObject({ kind: 'ready', snapshot: { createdAt: clock.now() } });
+        expect(begun).toMatchObject({ kind: 'ready', snapshot: { createdAt: new Date(clock.now()) } });
         await harness.stop();
     });
 
@@ -221,8 +221,8 @@ describe('storeModule', () => {
             type: 'whatsapp',
             keyId: 'k1',
             wrappedKey: new Uint8Array([1]),
-            createdAt: clock.now(),
-            updatedAt: clock.now(),
+            createdAt: new Date(clock.now()),
+            updatedAt: new Date(clock.now()),
         });
         expect(await harness.container.resolve(AppToken.LOCK_SERVICE).acquire(fence.lock, fence.owner, 1000)).toBe(true);
         await expect(connections.writeEntries('wa', { set: { k: new Uint8Array([1]) } }, fence)).resolves.toBeUndefined();
@@ -247,8 +247,8 @@ describe('storeModule', () => {
             type: 'whatsapp',
             keyId: 'k1',
             wrappedKey: new Uint8Array([1]),
-            createdAt: clock.now(),
-            updatedAt: clock.now(),
+            createdAt: new Date(clock.now()),
+            updatedAt: new Date(clock.now()),
         });
         await expect(write()).rejects.toMatchObject({ code: 'lease_lost' });
         expect(await locks.acquire('connection:wa', 'a', 1000)).toBe(true);

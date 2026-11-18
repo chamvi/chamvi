@@ -32,7 +32,7 @@ export function createLogger(options: LoggerOptions = {}): ILogger {
         try {
             const head = {
                 level,
-                time: clock.now().toISOString(),
+                time: new Date(clock.now()).toISOString(),
                 msg,
             };
 

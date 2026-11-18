@@ -74,7 +74,7 @@ export async function collectExpired(
     options: { deployment: string; isSettled?: GarbageCollectOptions['isSettled'] },
 ): Promise<number> {
     const records = await listRecords(root);
-    const now = clock.now().getTime();
+    const now = clock.now();
     let count = 0;
     const failures: SandboxError[] = [];
     const isSettled = createSettledCheck(options.isSettled);

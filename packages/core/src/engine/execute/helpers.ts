@@ -302,7 +302,7 @@ export async function assembleTools(
     }
 
     // evaluated at each check with the engine clock, so a date or time policy can change its verdict
-    const allow = (name: string) => toolPolicy(name, { run: runContext, now: ctx.clock.now() });
+    const allow = (name: string) => toolPolicy(name, { run: runContext, now: new Date(ctx.clock.now()) });
     const names = Object.keys(tools);
     const verdicts = await Promise.all(names.map(async (name) => allow(name)));
 

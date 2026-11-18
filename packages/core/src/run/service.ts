@@ -132,7 +132,7 @@ export class RunService implements IRunService {
             repository.merge(run, {
                 ...patch,
                 id,
-                updatedAt: patch.updatedAt ?? (expect.keepUpdatedAt ? updatedAt : this.clock.now()),
+                updatedAt: patch.updatedAt ?? (expect.keepUpdatedAt ? updatedAt : new Date(this.clock.now())),
             });
 
             // lineage is fixed at insert: a patch never moves a run to another parent
@@ -236,7 +236,7 @@ export class RunService implements IRunService {
             }
 
             // after the row lock: a lease another claim just wrote is compared with a fresh time
-            const now = this.clock.now().getTime();
+            const now = this.clock.now();
 
             if (run.claim && run.claim.expiresAt.getTime() > now) {
                 return false;
@@ -257,7 +257,7 @@ export class RunService implements IRunService {
                 return false;
             }
 
-            const now = this.clock.now().getTime();
+            const now = this.clock.now();
 
             if (!run.claim || run.claim.owner !== owner || run.claim.expiresAt.getTime() <= now) {
                 return false;

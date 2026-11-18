@@ -827,7 +827,7 @@ describe('sandboxModule: suspension', () => {
         const { isSuspendable } = await gcOptionsOf(module);
         const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
         const getRun = vi.spyOn(engine, 'getRun');
-        const updatedAt = clock.now();
+        const updatedAt = new Date(clock.now());
         const run = (status: Run['status']) => ({
             id: 'r1', 
             status, 
@@ -860,7 +860,7 @@ describe('sandboxModule: suspension', () => {
         const { isSuspendable } = await gcOptionsOf(module);
         const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
         const getRun = vi.spyOn(engine, 'getRun');
-        const updatedAt = clock.now();
+        const updatedAt = new Date(clock.now());
 
         clock.advance(1_000);
         getRun.mockResolvedValueOnce({
@@ -909,7 +909,7 @@ describe('sandboxModule: suspension', () => {
         const { isSuspendable } = await gcOptionsOf(module);
         const engine: IEngine = harness.container.resolve(AppToken.ENGINE);
         const getRun = vi.spyOn(engine, 'getRun');
-        const updatedAt = clock.now();
+        const updatedAt = new Date(clock.now());
 
         clock.advance(1_000);
         getRun.mockResolvedValueOnce({

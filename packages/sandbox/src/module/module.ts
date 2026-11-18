@@ -22,7 +22,7 @@ import type {
 } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
-import type { IClock, IEngine } from '@chamvi/core';
+import type { ClockTimer, IClock, IEngine } from '@chamvi/core';
 import { isObject } from 'smob';
 import { provideSandboxContext } from '../context/module.ts';
 import { staticGitCredentials } from '../credentials/module.ts';
@@ -87,7 +87,7 @@ export class SandboxModule implements IModule {
     protected gcIntervalMs: number = GC_INTERVAL_MS;
 
     /** The armed collector timer, while one runs. */
-    protected collector: { clear(): void } | undefined;
+    protected collector: ClockTimer | undefined;
 
     /** Set by `stopCollector`: a collection in flight arms no further timer. */
     protected collectorStopped = false;
@@ -326,6 +326,7 @@ export class SandboxModule implements IModule {
 
                 this.collecting = collecting;
             }, this.gcIntervalMs);
+            this.collector.unref?.();
         };
 
         arm();
@@ -425,7 +426,7 @@ export class SandboxModule implements IModule {
             return false;
         }
 
-        return run.updatedAt.getTime() + this.suspendAfterMs <= this.engine.clock.now().getTime();
+        return run.updatedAt.getTime() + this.suspendAfterMs <= this.engine.clock.now();
     }
 
     protected reportError(error: unknown): void {

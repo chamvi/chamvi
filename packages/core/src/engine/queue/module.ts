@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ClockTimer } from '../../clock/types.ts';
 import { RunStatus } from '@chamvi/store';
 import type { Run } from '@chamvi/store';
 import { admitRun } from './admission.ts';
@@ -43,7 +44,7 @@ export class RunQueue {
 
     protected pollGeneration = 0;
 
-    protected poll: { clear(): void } | undefined;
+    protected poll: ClockTimer | undefined;
 
     protected halted = false;
 
@@ -83,6 +84,7 @@ export class RunQueue {
 
                 this.inflight.add(work);
             }, Math.max(1, Math.floor(this.opts.claimTtlMs / 3)));
+            this.poll.unref?.();
         };
 
         tick();
@@ -180,7 +182,7 @@ export class RunQueue {
                         status: RunStatus.QUEUED,
                         claim: undefined,
                         startedAt: undefined,
-                        updatedAt: this.opts.clock.now(),
+                        updatedAt: new Date(this.opts.clock.now()),
                     }, { expectStatus: [RunStatus.RUNNING], expectOwner: this.opts.owner });
 
                     this.opts.onRunUpdated(queued);
@@ -266,7 +268,7 @@ export class RunQueue {
         this.running.set(run.id, group);
 
         try {
-            const now = clock.now();
+            const now = new Date(clock.now());
 
             return await runService.update(run.id, {
                 status: RunStatus.RUNNING,
@@ -307,7 +309,7 @@ export class RunQueue {
             claimTtlMs,
         } = this.opts;
         let stopped = false;
-        let timer: { clear(): void } | undefined;
+        let timer: ClockTimer | undefined;
         const schedule = () => {
             timer = clock.setTimeout(() => {
                 runService.renewClaim(runId, owner, claimTtlMs).then(
@@ -330,6 +332,7 @@ export class RunQueue {
                     },
                 );
             }, Math.max(1, Math.floor(claimTtlMs / 3)));
+            timer.unref?.();
         };
 
         schedule();

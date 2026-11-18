@@ -285,7 +285,7 @@ describe('package agents across restarts', () => {
         await store.agentRevisionService.save({
             agent: 'folder', 
             hash: folderHash, 
-            changedAt: clock.now(), 
+            changedAt: new Date(clock.now()), 
         });
 
         const runId = await queueRun(store, clock, 'other');
@@ -307,7 +307,7 @@ describe('package agents across restarts', () => {
         await store.agentRevisionService.save({
             agent: 'folder', 
             hash: folderHash, 
-            changedAt: clock.now(), 
+            changedAt: new Date(clock.now()), 
         });
 
         const runId = await queueRun(store, clock, 'folder');

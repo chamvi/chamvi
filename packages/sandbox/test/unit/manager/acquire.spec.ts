@@ -499,7 +499,7 @@ describe('workspace manager: acquire', () => {
         const { workspace } = await manager.acquire('r1', {});
 
         provider.stop(workspace.id, { removed: true });
-        clock.advance(workspace.info.expiresAt.getTime() - clock.now().getTime());
+        clock.advance(workspace.info.expiresAt.getTime() - clock.now());
         await expect(manager.get('r1')).rejects.toThrow(SandboxError);
         await until(() => provider.disposed.length === 1);
         expect(provider.disposed).toEqual([workspace.id]);

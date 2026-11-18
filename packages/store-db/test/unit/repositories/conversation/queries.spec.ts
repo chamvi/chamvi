@@ -89,7 +89,7 @@ describePostgres('conversation query bounds', () => {
             generation: scope.generation,
             key: `item-${index}`,
             runId: testUuid('writer'),
-            createdAt: clock.now(),
+            createdAt: new Date(clock.now()),
             role: 'assistant' as const,
             text: index === 0 ? 'é' : 'éé',
             bytes: index === 0 ? 2 : 4,
@@ -211,7 +211,7 @@ describePostgres('conversation query bounds', () => {
             generation: scope.generation,
             key: `item-${index}`,
             runId: testUuid('writer'),
-            createdAt: clock.now(),
+            createdAt: new Date(clock.now()),
             role: 'user' as const,
             text: 'discarded text',
             bytes: 14,
@@ -258,7 +258,7 @@ describePostgres('conversation query bounds', () => {
                     toolCallId: key,
                     stepIndex: 0,
                 },
-                expiresAt: new Date(clock.now().getTime() + (key === 'expired' ? 1000 : 2000)),
+                expiresAt: new Date(clock.now() + (key === 'expired' ? 1000 : 2000)),
             });
         }
 

@@ -152,7 +152,7 @@ async function start(
     if (checked) {
         const allowed = await can(run.invoker, Permission.AGENT_RUN, {
             attributes: { name: target, private: agent.definition.private === true },
-            now: host.clock.now(),
+            now: new Date(host.clock.now()),
         });
 
         if (!allowed) {

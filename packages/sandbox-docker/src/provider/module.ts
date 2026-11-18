@@ -278,7 +278,7 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             const imageName = input.image ?? image;
 
             const id = randomUUID();
-            const info = { ...buildWorkspaceInfo(input, PROVIDER_NAME, clock.now(), limits.maxLifetimeMs), image: imageName };
+            const info = { ...buildWorkspaceInfo(input, PROVIDER_NAME, new Date(clock.now()), limits.maxLifetimeMs), image: imageName };
             const container = await createContainer(buildContainerOptions({
                 id,
                 deployment,
@@ -347,7 +347,7 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
         async find(runId, findOptions = {}) {
             const deployment = assertDeployment(findOptions.deployment);
             const containers = await listWorkspaceContainers(deployment, runId);
-            const now = clock.now().getTime();
+            const now = clock.now();
             const found: IWorkspace[] = [];
             /**
              * Starts a stopped container and unpauses a paused one; false when
@@ -481,7 +481,7 @@ export function createDockerSandbox(options: DockerSandboxOptions = {}): ISandbo
             const deployment = assertDeployment(gcOptions.deployment);
             const containers = await listWorkspaceContainers(deployment);
 
-            const now = clock.now().getTime();
+            const now = clock.now();
             let count = 0;
             // one container that cannot go never keeps the others
             const failures: SandboxError[] = [];

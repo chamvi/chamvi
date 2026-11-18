@@ -85,7 +85,7 @@ describe('resyncing a declared collection', () => {
 
         const first = await waitForReady(setup.repository, 'docs');
 
-        expect(first.syncedAt).toEqual(setup.clock.now());
+        expect(first.syncedAt).toEqual(new Date(setup.clock.now()));
 
         docs.set('b.md', 'Kubernetes pods are scheduled onto nodes.');
 

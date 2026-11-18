@@ -173,7 +173,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         throw managedNameError(name);
     }
 
-    const startedAt = clock.now();
+    const startedAt = new Date(clock.now());
     let record: KnowledgeCollection = {
         ...(stored ?? {
             name,
@@ -273,7 +273,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                 sameOrigin(existing, document)
             ) {
                 if (!sameDetails(existing, document)) {
-                    await repository.saveDocument(documentOf(name, document, hash, target, clock.now()));
+                    await repository.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())));
                 }
 
                 continue;
@@ -306,7 +306,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
             }
 
             await repository.replaceChunks(name, document.id, target, embedded.chunks);
-            await repository.saveDocument(documentOf(name, document, hash, target, clock.now()));
+            await repository.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())));
         }
     }
 
@@ -335,7 +335,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         }
     }
 
-    const finishedAt = clock.now();
+    const finishedAt = new Date(clock.now());
 
     if (target === record.generation) {
         await repository.saveCollection({
@@ -396,7 +396,7 @@ async function recordErrorUnderLock(
         return false;
     }
 
-    const now = clock.now();
+    const now = new Date(clock.now());
     const failures = (record.failures ?? 0) + 1;
 
     await repository.saveCollection({
@@ -420,7 +420,7 @@ async function retryDelayOf(repository: IKnowledgeRepository, name: string, cloc
     }
 
     // a clock skewed between replicas never parks the loop longer than the cap
-    return Math.min(Math.max(retryAt.getTime() - clock.now().getTime(), 0), KNOWLEDGE_RETRY_MAX_MS);
+    return Math.min(Math.max(retryAt.getTime() - clock.now(), 0), KNOWLEDGE_RETRY_MAX_MS);
 }
 
 /**
@@ -444,7 +444,7 @@ async function dueDelayOf(
     }
 
     // a clock skewed between replicas never parks the loop longer than the interval
-    return Math.min(Math.max(idleMs - (clock.now().getTime() - syncedAt.getTime()), 0), idleMs);
+    return Math.min(Math.max(idleMs - (clock.now() - syncedAt.getTime()), 0), idleMs);
 }
 
 /**
@@ -646,7 +646,7 @@ export async function markOrphans(
                 await repository.saveCollection({
                     ...record,
                     status: 'orphaned',
-                    updatedAt: clock.now(),
+                    updatedAt: new Date(clock.now()),
                 });
             }
         } finally {

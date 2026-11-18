@@ -28,6 +28,9 @@ export function delay(
             signal?.removeEventListener('abort', onAbort);
             resolve();
         }, ms);
+
+        timer.unref?.();
+
         function onAbort() {
             timer.clear();
             reject(abortError());

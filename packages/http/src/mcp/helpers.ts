@@ -12,7 +12,7 @@ import {
     rebaseJsonSchemaRefs,
 } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
-import type { IEngine } from '@chamvi/core';
+import type { ClockTimer, IEngine } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
 import { isHTTPError } from '@ebec/http';
 import type { CallToolResult } from '@modelcontextprotocol/server';
@@ -116,8 +116,8 @@ export async function findWaitingApproval(engine: IEngine, runId: string): Promi
 export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOptions): Promise<WaitForRunResult> {
     return new Promise<WaitForRunResult>((resolve, reject) => {
         let done = false;
-        let poll: { clear(): void } | undefined;
-        let timeout: { clear(): void } | undefined;
+        let poll: ClockTimer | undefined;
+        let timeout: ClockTimer | undefined;
         let unsubscribe: (() => void) | undefined;
         const { signal } = opts;
 
@@ -213,6 +213,7 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
                 poll = ctx.clock.setTimeout(() => {
                     void check();
                 }, opts.pollMs);
+                poll.unref?.();
             } catch (error) {
                 fail(error);
             }
@@ -242,6 +243,7 @@ export function waitForRun(ctx: HttpContext, runId: string, opts: WaitForRunOpti
         });
         signal?.addEventListener('abort', settleLatest, { once: true });
         timeout = ctx.clock.setTimeout(settleLatest, opts.timeoutMs);
+        timeout.unref?.();
         void check();
     });
 }

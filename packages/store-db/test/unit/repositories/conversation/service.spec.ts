@@ -110,7 +110,7 @@ describePostgres('postgres conversation service: batches', () => {
             generation: scope.generation,
             key: `item-${index}`,
             runId: testUuid('writer'),
-            createdAt: clock.now(),
+            createdAt: new Date(clock.now()),
             role: 'user' as const,
             text: 'stored',
             bytes: 6,
@@ -145,7 +145,7 @@ describePostgres('postgres conversation service: batches', () => {
                 role: 'assistant',
                 text: `reply ${index}`,
                 runId: testUuid('run'),
-                createdAt: clock.now(),
+                createdAt: new Date(clock.now()),
                 status: 'pending',
             });
             ids.push(id);

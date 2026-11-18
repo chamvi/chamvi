@@ -465,7 +465,7 @@ describe('waitForRun', () => {
                 toolName: 'delegate',
                 toolCallId: 'c1',
                 runIds: ['child'],
-                expiresAt: new Date(clock.now().getTime() + 60_000),
+                expiresAt: new Date(clock.now() + 60_000),
             },
         });
 

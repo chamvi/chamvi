@@ -55,7 +55,7 @@ async function recallOnMemory(index: number): Promise<RecallResult> {
                 role: 'assistant',
                 text,
                 runId,
-                createdAt: clock.now(),
+                createdAt: new Date(clock.now()),
                 status: 'pending',
                 effectKey: `${id}:effect`,
                 target: { channel: 'chat', address: 'room' },
@@ -123,7 +123,7 @@ describe('the recall budget', () => {
                 role: 'user',
                 text: key.repeat(300),
                 runId: 'r1',
-                createdAt: clock.now(),
+                createdAt: new Date(clock.now()),
                 status: 'sent',
                 bytes: 0,
             }));

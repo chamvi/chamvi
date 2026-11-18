@@ -30,7 +30,7 @@ export class TicketService {
             reporter,
             status: 'open',
             version: 0,
-            openedAt: this.clock.now().toISOString(),
+            openedAt: new Date(this.clock.now()).toISOString(),
             closedAt: null,
         }));
     }
@@ -54,7 +54,7 @@ export class TicketService {
             return repository.save(repository.merge(ticket, {
                 status: 'closed',
                 version: version + 1,
-                closedAt: this.clock.now().toISOString(),
+                closedAt: new Date(this.clock.now()).toISOString(),
             }));
         });
     }

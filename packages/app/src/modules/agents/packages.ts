@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Agent } from '@chamvi/core';
+import type { Agent, ClockTimer } from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/http';
 import { messageOf, relativize } from '../../loader/helpers.ts';
 import { isDevMarkerOf } from '../../package/helpers.ts';
@@ -57,7 +57,7 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
     const conflicts = new Map<string, string>();
     const retries = new Map<string, { delay: number; at: number }>();
 
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     let started = false;
     let stopped = false;
     let inFlight: Promise<void> | undefined;
@@ -66,7 +66,7 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
         issues.set(key, {
             agent,
             message,
-            at: clock.now(),
+            at: new Date(clock.now()),
         });
 
         if (error !== undefined) {
@@ -128,12 +128,12 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
 
         const delay = nextRetryDelay(retries.get(name)?.delay, pollMs);
 
-        retries.set(name, { delay, at: clock.now().getTime() + delay });
+        retries.set(name, { delay, at: clock.now() + delay });
         record(name, name, `${name} (${spec}): ${relativize(messageOf(outcome.error), cwd)}`, outcome.error);
     };
 
     const retryDue = async (): Promise<void> => {
-        const now = clock.now().getTime();
+        const now = clock.now();
 
         for (const [name, retry] of [...retries]) {
             if (stopped) {
@@ -168,7 +168,8 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
                     inFlight = undefined;
                     arm();
                 });
-        }, pollMs, { keepAlive: false });
+        }, pollMs);
+        timer.unref?.();
     };
 
     return {

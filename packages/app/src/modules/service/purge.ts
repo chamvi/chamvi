@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ClockTimer } from '@chamvi/core';
 import type { IPurgeTimer, PurgeTimerOptions } from './types.ts';
 
 /**
@@ -18,7 +19,7 @@ export function createPurgeTimer(options: PurgeTimerOptions): IPurgeTimer {
         intervalMs,
         logger,
     } = options;
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     let stopped = false;
     let inFlight: Promise<void> | undefined;
 
@@ -45,7 +46,8 @@ export function createPurgeTimer(options: PurgeTimerOptions): IPurgeTimer {
                     inFlight = undefined;
                     arm();
                 });
-        }, intervalMs, { keepAlive: false });
+        }, intervalMs);
+        timer.unref?.();
     };
 
     return {

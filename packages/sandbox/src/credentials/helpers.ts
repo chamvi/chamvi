@@ -121,7 +121,7 @@ export function createRedactor(options: { clock?: IClock } = {}): Redactor {
     const replacement = Buffer.from(REDACTED);
 
     const prune = (): void => {
-        const now = clock.now().getTime();
+        const now = clock.now();
         let dropped = false;
 
         for (const [secret, at] of dropAt) {

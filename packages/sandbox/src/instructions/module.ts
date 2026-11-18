@@ -80,7 +80,7 @@ export async function readRepositoryInstructions(
 ): Promise<RepositoryInstructions> {
     const { signal } = options;
     const clock = options.clock ?? systemClock;
-    const deadline = clock.now().getTime() + INSTRUCTION_REQUEST_TIMEOUT_MS;
+    const deadline = clock.now() + INSTRUCTION_REQUEST_TIMEOUT_MS;
     const redact = (text: string) => (workspace.redact ? workspace.redact(text) : text);
     const diagnostics = createDiagnosticList(redact);
     const requested = paths ?? ['.'];
@@ -123,14 +123,14 @@ export async function readRepositoryInstructions(
             throw new SandboxError('Repository instruction discovery aborted.');
         }
 
-        const left = deadline - clock.now().getTime();
+        const left = deadline - clock.now();
 
         if (left <= 0) {
             throw new DeadlineSignal();
         }
 
         const timeoutMs = Math.min(INSTRUCTION_EXEC_TIMEOUT_MS, left);
-        const execDeadline = clock.now().getTime() + timeoutMs;
+        const execDeadline = clock.now() + timeoutMs;
         const operation = new AbortController();
         const execSignal = AbortSignal.any(signal ?
             [signal, expiry.signal, operation.signal] : [expiry.signal, operation.signal]);
@@ -139,6 +139,9 @@ export async function readRepositoryInstructions(
         return new Promise<ExecResult>((resolve, reject) => {
             let settled = false;
             const timer = clock.setTimeout(() => operation.abort(), timeoutMs);
+
+            timer.unref?.();
+
             const finish = () => {
                 if (settled) {
                     return false;
@@ -157,7 +160,7 @@ export async function readRepositoryInstructions(
 
                 if (signal?.aborted) {
                     reject(new SandboxError('Repository instruction discovery aborted.'));
-                } else if (expiry.signal.aborted || clock.now().getTime() >= deadline) {
+                } else if (expiry.signal.aborted || clock.now() >= deadline) {
                     reject(new DeadlineSignal());
                 } else {
                     reject(new SandboxError('Repository instruction discovery timed out.'));
@@ -184,7 +187,7 @@ export async function readRepositoryInstructions(
                     return;
                 }
 
-                if (execSignal.aborted || clock.now().getTime() >= execDeadline) {
+                if (execSignal.aborted || clock.now() >= execDeadline) {
                     onAbort();
 
                     return;
@@ -532,6 +535,8 @@ export async function readRepositoryInstructions(
     };
     const timer = clock.setTimeout(() => expiry.abort(), INSTRUCTION_REQUEST_TIMEOUT_MS);
 
+    timer.unref?.();
+
     try {
         await collect();
     } catch (error) {
@@ -556,7 +561,7 @@ export async function readRepositoryInstructions(
         includedBy: source.includedBy.map(redact),
     }));
 
-    if (expiry.signal.aborted || clock.now().getTime() >= deadline) {
+    if (expiry.signal.aborted || clock.now() >= deadline) {
         stop(`The request took longer than ${INSTRUCTION_REQUEST_TIMEOUT_MS / 1000} s; the rest was skipped.`);
     }
 

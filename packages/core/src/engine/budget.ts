@@ -44,5 +44,7 @@ export function timeoutSignal(clock: IClock, ms: number): { signal: AbortSignal;
     const controller = new AbortController();
     const timer = clock.setTimeout(() => controller.abort(new TimeoutError(ms)), ms);
 
+    timer.unref?.();
+
     return { signal: controller.signal, clear: () => timer.clear() };
 }

@@ -35,7 +35,7 @@ export function installSignalHandlers(input: SignalHandlersInput): SignalHandler
 
     const onSignal = (signal: StopSignal) => {
         if (signalled) {
-            if (input.clock.now().getTime() - firstAt >= SIGNAL_REPEAT_MS) {
+            if (input.clock.now() - firstAt >= SIGNAL_REPEAT_MS) {
                 input.exit(EXIT_CODE.FAILURE);
             }
 
@@ -43,7 +43,7 @@ export function installSignalHandlers(input: SignalHandlersInput): SignalHandler
         }
 
         signalled = true;
-        firstAt = input.clock.now().getTime();
+        firstAt = input.clock.now();
 
         input.stderr(`received ${signal}, stopping (again to force)\n`);
 
@@ -52,7 +52,7 @@ export function installSignalHandlers(input: SignalHandlersInput): SignalHandler
         const timer = input.clock.setTimeout(() => {
             input.stderr('forced exit\n');
             input.exit(EXIT_CODE.FAILURE);
-        }, input.forceExitMs, { keepAlive: true });
+        }, input.forceExitMs);
 
         input.stop().then(
             () => input.setExitCode(EXIT_CODE.OK),

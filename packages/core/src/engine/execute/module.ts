@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ClockTimer } from '../../clock/types.ts';
 import { bindConversationRun } from '../../conversation/context.ts';
 import { assertTrust, bindTrust, markUntrusted } from '../../trust/module.ts';
 import { ToolLoopAgent, isStepCount } from 'ai';
@@ -156,7 +157,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
             }
 
             try {
-                const parsed: unknown = await output.parseCompleteOutput({ text }, outputContext(checkpoint, clock.now()));
+                const parsed: unknown = await output.parseCompleteOutput({ text }, outputContext(checkpoint, new Date(clock.now())));
 
                 await ctx.finish({ status: RunStatus.COMPLETED, output: parsed });
             } catch (error) {
@@ -197,7 +198,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
     bindTrust(runContext, {
         taint: run.taint,
         policy: agent.definition.trust,
-        now: () => clock.now(),
+        now: () => new Date(clock.now()),
         persist: (taint) => ctx.update({ taint }),
         engine: ctx.engine,
     });
@@ -256,7 +257,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
     // set once the run settles on abort; a still running stream must not write anymore
     let abandoned = false;
     let pendingStepEnd: Promise<void> = Promise.resolve();
-    let stepStartedAt = clock.now();
+    let stepStartedAt = new Date(clock.now());
     // the wait the last step suspended on (the first in call order); the loop stops on it
     let paused: SuspendRequest | undefined;
     // set when the provider's finish part arrived for the current step; without
@@ -312,7 +313,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
             assertTrust(runContext);
             assertTranscriptMessages(step.response.messages);
 
-            const finishedAt = clock.now();
+            const finishedAt = new Date(clock.now());
             const tokens = stepTokens(step);
 
             await append({
@@ -395,9 +396,9 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
             usage.inputTokens += tokens.inputTokens;
             usage.outputTokens += tokens.outputTokens;
             await guarded(async () => {
-                await ctx.update({ usage: { ...usage }, updatedAt: clock.now() });
+                await ctx.update({ usage: { ...usage }, updatedAt: new Date(clock.now()) });
             }, { checkOwner: false });
-            stepStartedAt = clock.now();
+            stepStartedAt = new Date(clock.now());
 
             // an error part ends the step with 'error' and fails the run with that error
             if (!complete && step.finishReason === 'other') {
@@ -426,7 +427,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
                 return 'done';
             }
 
-            const startedAt = clock.now();
+            const startedAt = new Date(clock.now());
 
             assertTrust(runContext);
 
@@ -445,7 +446,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
                 return 'paused';
             }
 
-            const finishedAt = clock.now();
+            const finishedAt = new Date(clock.now());
 
             pendingWrite = (async () => {
                 const part = await toToolResultPart(call, Object.hasOwn(tools, call.toolName) ? tools[call.toolName] : undefined, result);
@@ -502,11 +503,12 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
             return;
         }
 
-        let grace: { clear(): void } | undefined;
+        let grace: ClockTimer | undefined;
 
         try {
             await Promise.race([journal, new Promise<void>((resolve) => {
                 grace = clock.setTimeout(resolve, CONVERSATION_SEND_GRACE_MS);
+                grace.unref?.();
             })]);
         } finally {
             grace?.clear();

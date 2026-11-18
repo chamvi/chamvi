@@ -158,8 +158,8 @@ const lookupTools = () => ({
 
 /** Real time for timestamps, manually fired timers (polls, renewals). */
 class ManualTimers extends ControllableClock {
-    override now(): Date {
-        return new Date();
+    override now(): number {
+        return Date.now();
     }
 }
 
@@ -353,12 +353,25 @@ describe('graceful drain', () => {
 
         await vi.waitFor(() => expect(calls).toHaveLength(2));
 
-        const timers = vi.spyOn(systemClock, 'setTimeout');
+        const original = systemClock.setTimeout;
+        const unrefed: number[] = [];
+        const timers = vi.spyOn(systemClock, 'setTimeout').mockImplementation((fn, ms) => {
+            const timer = original(fn, ms);
+
+            return {
+                clear: () => timer.clear(),
+                unref: () => {
+                    unrefed.push(ms);
+                    timer.unref?.();
+                },
+            };
+        });
 
         await engine.drain({ timeoutMs: 50 });
 
-        // the deadline keeps the process alive, so the run is marked before exit
-        expect(timers).toHaveBeenCalledWith(expect.any(Function), 50, { keepAlive: true });
+        // the deadline keeps the process alive (never unref'd), so the run is marked before exit
+        expect(timers).toHaveBeenCalledWith(expect.any(Function), 50);
+        expect(unrefed).not.toContain(50);
 
         const run = await store.runService.findOne(runId);
 
@@ -370,10 +383,13 @@ describe('graceful drain', () => {
         expect(errors).toEqual([]);
     });
 
-    it('only the drain deadline holds the event loop open', () => {
+    it('a system clock timer holds the event loop open until unref() is called', () => {
         const native = vi.spyOn(globalThis, 'setTimeout');
-        const kept = systemClock.setTimeout(() => {}, 10_000, { keepAlive: true });
+        const kept = systemClock.setTimeout(() => {}, 10_000);
         const unref = systemClock.setTimeout(() => {}, 10_000);
+
+        unref.unref?.();
+
         const [keptHandle, unrefHandle] = native.mock.results.map((r) => r.value as NodeJS.Timeout);
 
         expect(keptHandle?.hasRef()).toBe(true);
@@ -385,9 +401,11 @@ describe('graceful drain', () => {
         const asClock: IClock = manual;
         let fired = false;
 
-        asClock.setTimeout(() => {
+        const timer = asClock.setTimeout(() => {
             fired = true;
-        }, 10, { keepAlive: true });
+        }, 10);
+
+        expect(timer.unref).toBeUndefined();
         manual.advance(10);
         expect(fired).toBe(true);
     });

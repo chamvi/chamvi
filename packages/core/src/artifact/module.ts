@@ -92,10 +92,10 @@ export function createGuardedRunArtifacts(
             assertArtifactInput(input);
 
             if (input.key === undefined) {
-                return storeArtifact(artifacts, run, input, clock.now());
+                return storeArtifact(artifacts, run, input, new Date(clock.now()));
             }
 
-            return artifacts.save(createArtifact(run, input, clock.now()), input.data, `tool:${input.key}`);
+            return artifacts.save(createArtifact(run, input, new Date(clock.now())), input.data, `tool:${input.key}`);
         },
         async get(id) {
             const artifact = await artifacts.findOne(id);

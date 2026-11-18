@@ -130,7 +130,7 @@ const env = (agent = 'triage') => ({
 
 /** Stores a run parked on an approval, as a paused execution leaves it. */
 async function parkWaiting(store: TestServices, clock: ControllableClock, id: string, agent = 'triage'): Promise<void> {
-    const now = clock.now();
+    const now = new Date(clock.now());
     const run: Run = {
         id,
         agent,
@@ -240,7 +240,7 @@ describe('Engine agent registry', () => {
         expect(await store.agentRevisionService.findOne('triage')).toEqual({
             agent: 'triage',
             hash: 'h1',
-            changedAt: clock.now(),
+            changedAt: new Date(clock.now()),
         });
         expect(engine.agentRevision('triage')).toBe('h1');
     });
@@ -269,7 +269,7 @@ describe('Engine agent registry', () => {
         expect(await statusOf(a.engine, queued)).toBe('cancelled');
         expect(await statusOf(a.engine, 'waiting-run')).toBe('cancelled');
 
-        const changedAt = clock.now();
+        const changedAt = new Date(clock.now());
 
         expect(await store.agentRevisionService.findOne('triage')).toEqual({
             agent: 'triage',

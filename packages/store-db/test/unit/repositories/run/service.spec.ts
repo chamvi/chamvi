@@ -211,7 +211,7 @@ describePostgres('run service on postgres', () => {
         expect(stored.claim?.owner).toBe('w1');
         expect(stored.concurrencyKey).toBe('k');
         expect(stored.subtreeUsage).toEqual({ inputTokens: 1, outputTokens: 2 });
-        expect(stored.updatedAt).toEqual(clock.now());
+        expect(stored.updatedAt).toEqual(new Date(clock.now()));
     });
 
     it('returns from update the value the next read returns', async () => {

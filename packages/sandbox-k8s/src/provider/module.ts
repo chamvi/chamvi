@@ -163,7 +163,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
     }
 
     /** Resolves once the pod runs; SandboxError when it never will, takes too long or the signal fires. */
-    async function waitForRunning(name: string, signal?: AbortSignal, started = clock.now().getTime()): Promise<void> {
+    async function waitForRunning(name: string, signal?: AbortSignal, started = clock.now()): Promise<void> {
         for (;;) {
             if (signal?.aborted) {
                 throw abortedCreate();
@@ -179,7 +179,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
                 throw new SandboxError(`workspace pod ${name} cannot start: ${state.reason}`);
             }
 
-            const remaining = started + startTimeoutMs - clock.now().getTime();
+            const remaining = started + startTimeoutMs - clock.now();
 
             if (remaining <= 0) {
                 throw new SandboxError(`workspace pod ${name} did not start within ${startTimeoutMs} ms.`);
@@ -282,7 +282,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
                 return false;
             }
 
-            const remaining = started + startTimeoutMs - clock.now().getTime();
+            const remaining = started + startTimeoutMs - clock.now();
 
             if (remaining <= 0) {
                 throw new SandboxError(`workspace pod ${name} was still being deleted after ${startTimeoutMs} ms.`);
@@ -307,7 +307,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
         findOptions: WorkspaceFindOptions,
     ): Promise<IWorkspace | undefined> {
         const name = `${POD_NAME_PREFIX}${id}`;
-        const started = clock.now().getTime();
+        const started = clock.now();
         const remaining = Math.max(1, Math.ceil((info.expiresAt.getTime() - started) / 1000));
         const pod = buildPod({
             id,
@@ -435,7 +435,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
 
         const info = readWorkspaceInfo({ ...claim.metadata?.annotations, ...claim.metadata?.labels }, PROVIDER_NAME);
 
-        if (!info || info.runId !== runId || info.expiresAt.getTime() <= clock.now().getTime()) {
+        if (!info || info.runId !== runId || info.expiresAt.getTime() <= clock.now()) {
             return undefined;
         }
 
@@ -544,7 +544,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             const id = randomUUID();
             const name = `${POD_NAME_PREFIX}${id}`;
             const info = {
-                ...buildWorkspaceInfo(input, PROVIDER_NAME, clock.now(), limits.maxLifetimeMs),
+                ...buildWorkspaceInfo(input, PROVIDER_NAME, new Date(clock.now()), limits.maxLifetimeMs),
                 image: input.image ?? image,
             };
             const transport = transportOf(name);
@@ -623,7 +623,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             const claims = persistence ?
                 await guard('list the workspace claims', () => client.listClaims!(selector)) :
                 [];
-            const now = clock.now().getTime();
+            const now = clock.now();
             const found: IWorkspace[] = [];
             const claimed = new Set<string>();
 
@@ -689,7 +689,7 @@ export function createKubernetesSandbox(options: KubernetesSandboxOptions): ISan
             const claims = persistence ?
                 await guard('list the workspace claims', () => client.listClaims!(selector)) :
                 [];
-            const now = clock.now().getTime();
+            const now = clock.now();
             let count = 0;
             // one workspace that cannot go never keeps the others
             const failures: unknown[] = [];

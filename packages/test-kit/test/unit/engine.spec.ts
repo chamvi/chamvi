@@ -45,7 +45,7 @@ describe('createTestEngine', () => {
             runId: 'missing',
             stepIndex: 0,
             messages: [],
-            createdAt: clock.now(),
+            createdAt: new Date(clock.now()),
         })).rejects.toMatchObject({ code: 'run_not_found' });
     });
 
@@ -60,8 +60,8 @@ describe('createTestEngine', () => {
             type: 'whatsapp',
             keyId: 'k1',
             wrappedKey: new Uint8Array([1]),
-            createdAt: clock.now(),
-            updatedAt: clock.now(),
+            createdAt: new Date(clock.now()),
+            updatedAt: new Date(clock.now()),
         });
 
         await expect(write('o1')).rejects.toBeInstanceOf(LeaseLostError);

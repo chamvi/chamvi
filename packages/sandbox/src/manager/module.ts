@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ClockTimer } from '@chamvi/core';
 import {
     InvalidAgentDefinitionError,
     SandboxError,
@@ -175,7 +176,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
      * the next lookup finds them again when their container restarts.
      */
     const sweep = (runId: string): { expired: IWorkspace[]; gone: IWorkspace[] } => {
-        const now = clock.now();
+        const now = new Date(clock.now());
         const expired: IWorkspace[] = [];
         const gone: IWorkspace[] = [];
 
@@ -225,7 +226,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
         .filter((entry) => entry.workspace !== undefined);
 
     const collectGarbage = async (): Promise<number> => {
-        lastGcAt = clock.now().getTime();
+        lastGcAt = clock.now();
 
         const expired = runs.keys().toArray().flatMap((runId) => sweep(runId).expired);
         // an expired workspace found gone may still leave a stopped container
@@ -337,7 +338,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
             return;
         }
 
-        const now = clock.now().getTime();
+        const now = clock.now();
 
         if (lastGcAt !== undefined && now - lastGcAt < gcIntervalMs) {
             return;
@@ -429,7 +430,7 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
      * one held or being created, never a repository's without its commit.
      */
     const adopt = (runId: string, found: readonly IWorkspace[]): void => {
-        const now = clock.now();
+        const now = new Date(clock.now());
         let entries = runs.get(runId);
 
         for (const workspace of found) {
@@ -981,11 +982,12 @@ export function createWorkspaceManager(options: WorkspaceManagerOptions): IWorks
 
             runs.clear();
 
-            let timer: { clear(): void } | undefined;
+            let timer: ClockTimer | undefined;
             const timedOut = await Promise.race([
                 Promise.all([...started, ...creating, ...work]).then(() => false),
                 new Promise<boolean>((resolve) => {
                     timer = clock.setTimeout(() => resolve(true), timeoutMs);
+                    timer.unref?.();
                 }),
             ]);
 

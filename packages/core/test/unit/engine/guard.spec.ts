@@ -204,7 +204,7 @@ describe('execution guard', () => {
         await store.agentRevisionService.save({
             agent: 'triage',
             hash: 'h9',
-            changedAt: clock.now(),
+            changedAt: new Date(clock.now()),
         });
 
         const { engine, errors } = make({
@@ -298,7 +298,7 @@ describe('execution guard', () => {
             await store.agentRevisionService.save({
                 agent: 'triage',
                 hash: 'h2',
-                changedAt: clock.now(),
+                changedAt: new Date(clock.now()),
             });
         };
 
@@ -392,7 +392,7 @@ describe('execution guard', () => {
         await store.agentRevisionService.save({
             agent: 'triage',
             hash: 'h1',
-            changedAt: clock.now(),
+            changedAt: new Date(clock.now()),
         });
         await store.runService.create(makeRun('r1', {
             agent: 'triage',
@@ -461,7 +461,7 @@ describe('execution guard', () => {
             await store.agentRevisionService.save({
                 agent: 'triage',
                 hash: 'h2',
-                changedAt: clock.now(),
+                changedAt: new Date(clock.now()),
             });
             e.adopt('triage', 'h2');
         };

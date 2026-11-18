@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock } from '@chamvi/core';
+import type { ClockTimer, IClock } from '@chamvi/core';
 import { ChamviError, ValidationError } from '@chamvi/core';
 import type {
     FetchMessageObject,
@@ -426,13 +426,14 @@ class MailClient implements IMailClient {
         this.connections.clear();
 
         await Promise.all(connections.map(async (connection) => {
-            let timer: { clear(): void } | undefined;
+            let timer: ClockTimer | undefined;
 
             try {
                 await Promise.race([
                     connection.logout(),
                     new Promise<void>((resolve) => {
                         timer = this.clock.setTimeout(resolve, this.timeoutMs);
+                        timer.unref?.();
                     }),
                 ]);
             } catch {
@@ -491,12 +492,13 @@ class MailClient implements IMailClient {
     ): Promise<T> {
         signal?.throwIfAborted();
 
-        let timer: { clear(): void } | undefined;
+        let timer: ClockTimer | undefined;
         let stopped = false;
         let used: ImapFlow | undefined;
         let onAbort: (() => void) | undefined;
         const interrupted = new Promise<never>((_, reject) => {
             timer = this.clock.setTimeout(() => reject(TIMED_OUT), this.timeoutMs);
+            timer.unref?.();
             onAbort = () => reject(signal?.reason);
             signal?.addEventListener('abort', onAbort, { once: true });
         });

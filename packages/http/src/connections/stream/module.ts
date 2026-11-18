@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IConnectionHandle } from '@chamvi/core';
+import type { ClockTimer, IConnectionHandle } from '@chamvi/core';
 import { createEventStream } from 'routup';
 import type { IAppEvent } from 'routup';
 import { acquireStreamSlot, refuseStreamOverCap, refuseWhenClosed } from '../../app/helpers.ts';
@@ -39,7 +39,7 @@ export function streamConnection(event: IAppEvent, ctx: HttpContext, handle: ICo
     let ended = false;
     let lastStatus: string | undefined;
     let lastWidgets: string | undefined;
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     let unsubscribe: (() => void) | undefined;
 
     function cleanup(): void {
@@ -96,6 +96,7 @@ export function streamConnection(event: IAppEvent, ctx: HttpContext, handle: ICo
             write({ event: 'ping', data: '' });
             arm();
         }, ctx.streamPollMs);
+        timer.unref?.();
     }
 
     ctx.closers.add(cleanup);

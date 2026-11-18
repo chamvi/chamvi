@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ClockTimer } from '@chamvi/core';
 import { randomBytes } from 'node:crypto';
 import { SandboxError, ValidationError, systemClock } from '@chamvi/core';
 import { toSandboxError } from '../manager/helpers.ts';
@@ -93,7 +94,7 @@ export function createRemoteWorkspace(input: RemoteWorkspaceInput): IWorkspace {
             throw new SandboxError(goneMessage());
         }
 
-        if (clock.now().getTime() >= info.expiresAt.getTime()) {
+        if (clock.now() >= info.expiresAt.getTime()) {
             throw new SandboxError('workspace expired');
         }
     };
@@ -104,7 +105,7 @@ export function createRemoteWorkspace(input: RemoteWorkspaceInput): IWorkspace {
             throw new ValidationError('timeoutMs must be a positive number.');
         }
 
-        const remaining = info.expiresAt.getTime() - clock.now().getTime();
+        const remaining = info.expiresAt.getTime() - clock.now();
 
         return Math.max(1, Math.min(requested ?? EXEC_TIMEOUT_MS, EXEC_TIMEOUT_MAX_MS, remaining));
     };
@@ -124,6 +125,9 @@ export function createRemoteWorkspace(input: RemoteWorkspaceInput): IWorkspace {
                 controller.abort();
                 resolve(true);
             }, ALIVE_PROBE_TIMEOUT_MS);
+
+            timer.unref?.();
+
             const answer = (value: boolean) => {
                 timer.clear();
                 resolve(value);
@@ -145,7 +149,7 @@ export function createRemoteWorkspace(input: RemoteWorkspaceInput): IWorkspace {
             return Promise.reject(new SandboxError('exec aborted'));
         }
 
-        const started = clock.now().getTime();
+        const started = clock.now();
         const guard = new AbortController();
         // the workspace settled the exec itself (the command exited, its output stays open)
         const detach = new AbortController();
@@ -160,8 +164,10 @@ export function createRemoteWorkspace(input: RemoteWorkspaceInput): IWorkspace {
             let settled = false;
             /** When the exec script reported the exit. */
             let exitedAt: number | undefined;
-            let drain: { clear(): void } | undefined;
+            let drain: ClockTimer | undefined;
             const timer = clock.setTimeout(() => guard.abort(), timeoutMs + EXEC_GRACE_MS);
+
+            timer.unref?.();
 
             const finish = (): boolean => {
                 if (settled) {
@@ -179,7 +185,7 @@ export function createRemoteWorkspace(input: RemoteWorkspaceInput): IWorkspace {
             const result = (exitCode: number, timedOut?: boolean): RunResult => {
                 filter.flush();
 
-                const durationMs = (exitedAt ?? clock.now().getTime()) - started;
+                const durationMs = (exitedAt ?? clock.now()) - started;
 
                 return {
                     exitCode,
@@ -225,7 +231,7 @@ export function createRemoteWorkspace(input: RemoteWorkspaceInput): IWorkspace {
                     return;
                 }
 
-                exitedAt = clock.now().getTime();
+                exitedAt = clock.now();
 
                 if (value === EXIT_MARKER_CWD) {
                     if (!finish()) {
@@ -253,6 +259,7 @@ export function createRemoteWorkspace(input: RemoteWorkspaceInput): IWorkspace {
                     detach.abort();
                     resolve(result(exitCode));
                 }, EXIT_DRAIN_MS);
+                drain.unref?.();
             });
 
             let pending: Promise<TransportExecResult>;

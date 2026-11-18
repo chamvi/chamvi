@@ -23,7 +23,7 @@ const sha = '0123456789abcdef0123456789abcdef01234567';
 
 /** Fires every timer at once, so the retry waits take no time. */
 const immediateClock: IClock = {
-    now: () => new Date(0),
+    now: () => 0,
     setTimeout: (fn) => {
         queueMicrotask(fn);
 

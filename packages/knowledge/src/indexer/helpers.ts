@@ -36,6 +36,8 @@ export function wait(clock: IClock, ms: number, signal: AbortSignal): Promise<vo
         };
         const timer = clock.setTimeout(done, ms);
 
+        timer.unref?.();
+
         signal.addEventListener('abort', done, { once: true });
     });
 }
@@ -76,6 +78,9 @@ export function createWake(): KnowledgeWake {
             return new Promise<KnowledgeWakeReason>((resolve) => {
                 const onAbort = () => done('abort');
                 const timer = ms === undefined ? undefined : clock.setTimeout(() => done('timeout'), ms);
+
+                timer?.unref?.();
+
                 const done = (reason: KnowledgeWakeReason) => {
                     waiter = undefined;
                     timer?.clear();
@@ -100,7 +105,7 @@ export function createIndexLock(
     owner: string,
     clock: IClock,
 ): KnowledgeIndexLock & { readonly lost: boolean } {
-    let acquiredAt = clock.now().getTime();
+    let acquiredAt = clock.now();
     let lost = false;
 
     return {
@@ -112,7 +117,7 @@ export function createIndexLock(
                 return false;
             }
 
-            const now = clock.now().getTime();
+            const now = clock.now();
 
             if (now - acquiredAt < KNOWLEDGE_LOCK_TTL_MS / 2) {
                 return true;

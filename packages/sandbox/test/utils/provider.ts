@@ -127,7 +127,7 @@ export function createFakeProvider(options: {
                 throw error;
             }
 
-            const now = clock.now();
+            const now = new Date(clock.now());
             const workspace = createScriptedWorkspace(options.onExec, {
                 runId: input.runId,
                 provider: 'fake',
@@ -164,7 +164,7 @@ export function createFakeProvider(options: {
             }
 
             const deployment = options?.deployment ?? DEFAULT_DEPLOYMENT;
-            const now = clock.now().getTime();
+            const now = clock.now();
 
             return provider.workspaces.values().toArray().filter((workspace) => !workspace.disposed &&
                 workspace.info.runId === runId &&

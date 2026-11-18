@@ -36,6 +36,9 @@ export function withAppTimeout(octokit: GithubOctokit, clock: IClock): GithubOct
             message: `The GitHub App request did not answer within ${APP_REQUEST_TIMEOUT_MS}ms.`,
             code: GITHUB_REQUEST_ERROR_CODE,
         })), APP_REQUEST_TIMEOUT_MS);
+
+        timer.unref?.();
+
         const own = options.request?.signal;
         const signal = own ? AbortSignal.any([own, controller.signal]) : controller.signal;
 
@@ -72,7 +75,7 @@ export function createInstallationTokens(input: InstallationTokensInput): {
     const scoped = new Map<string, CachedToken>();
     const scopedPending = new Map<string, Promise<CachedToken>>();
     const isFresh = (cached: CachedToken | undefined): cached is CachedToken => cached !== undefined &&
-        input.clock.now().getTime() < cached.expiresAt - TOKEN_REFRESH_MARGIN_MS;
+        input.clock.now() < cached.expiresAt - TOKEN_REFRESH_MARGIN_MS;
     const request = input.fetch ? { fetch: input.fetch } : {};
 
     /**
@@ -82,7 +85,7 @@ export function createInstallationTokens(input: InstallationTokensInput): {
      */
     async function app(): Promise<GithubOctokit> {
         const octokit = new PaginatedOctokit({
-            auth: createAppJwt(input.appId, input.key, input.clock.now()),
+            auth: createAppJwt(input.appId, input.key, new Date(input.clock.now())),
             baseUrl: input.baseUrl,
             userAgent: GITHUB_USER_AGENT,
             request,
@@ -137,7 +140,7 @@ export function createInstallationTokens(input: InstallationTokensInput): {
         get(installationId: number): Promise<string> {
             const cached = cache.get(installationId);
 
-            if (cached && input.clock.now().getTime() < cached.expiresAt - TOKEN_REFRESH_MARGIN_MS) {
+            if (cached && input.clock.now() < cached.expiresAt - TOKEN_REFRESH_MARGIN_MS) {
                 return Promise.resolve(cached.token);
             }
 

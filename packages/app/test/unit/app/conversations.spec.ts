@@ -128,7 +128,7 @@ describe('app conversation capability', () => {
 
         expect(await engine.inspectConversation(identity)).toBeUndefined();
 
-        const at = built.clock.now();
+        const at = new Date(built.clock.now());
 
         // the memory store refuses a turn for a run it does not hold, as a foreign key would
         await built.container().resolve(AppToken.RUN_SERVICE).create({
@@ -158,7 +158,7 @@ describe('app conversation capability', () => {
             maxStoredItems: 1000,
         });
 
-        expect(begun.kind === 'ready' && begun.snapshot.createdAt).toEqual(built.clock.now());
+        expect(begun.kind === 'ready' && begun.snapshot.createdAt).toEqual(new Date(built.clock.now()));
         expect(built.logger.entries.some((entry) => entry.level === 'warn' && /conversation.*restart/i.test(entry.msg))).toBe(true);
     });
 

@@ -43,7 +43,7 @@ export class AgentService implements IAgentService {
     async schedules(principal: Principal): Promise<{ data: ScheduleSummary[] }> {
         await assertGranted(principal, this.ctx.clock, Permission.RUN_READ);
 
-        return { data: listSchedules(await this.listedAgents(principal), this.ctx.clock.now()) };
+        return { data: listSchedules(await this.listedAgents(principal), new Date(this.ctx.clock.now())) };
     }
 
     /** The agents whose runs the principal may read (`chamvi_run_read` for `{ agent }`), in registration order. */

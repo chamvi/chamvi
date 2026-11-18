@@ -6,7 +6,7 @@
  */
 
 import { ChamviError, InvalidRunStateError } from '@chamvi/core';
-import type { ChannelContext, ChannelRequest } from '@chamvi/core';
+import type { ChannelContext, ChannelRequest, ClockTimer } from '@chamvi/core';
 import { createChatIntake } from '../intake/module.ts';
 import { bindIngress } from '../ingress/module.ts';
 import type { ChatIncoming, IChatReceiver } from '../ingress/types.ts';
@@ -105,9 +105,10 @@ async function waitInFlight(run: ChatRun, options: ResolvedChatChannelOptions): 
     }
 
     const pending = [...run.inFlight];
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     const timedOut = new Promise<boolean>((resolve) => {
         timer = run.context.engine.clock.setTimeout(() => resolve(true), CHAT_STOP_TIMEOUT_MS);
+        timer.unref?.();
     });
 
     const late = await Promise.race([

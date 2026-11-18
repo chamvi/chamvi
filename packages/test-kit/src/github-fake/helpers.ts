@@ -99,7 +99,7 @@ export function addRepoRoutes(fake: FakeGithub, botLogin: string, clock: IClock)
         }
 
         const id = nextCommentId++;
-        const now = clock.now().toISOString();
+        const now = new Date(clock.now()).toISOString();
         const comment = {
             id,
             body: (body as { body: string }).body,
@@ -123,7 +123,7 @@ export function addRepoRoutes(fake: FakeGithub, botLogin: string, clock: IClock)
 
             if (comment) {
                 comment.body = (body as { body: string }).body;
-                comment.updated_at = clock.now().toISOString();
+                comment.updated_at = new Date(clock.now()).toISOString();
 
                 return { status: 200, body: comment };
             }
@@ -248,7 +248,7 @@ export function addRepoRoutes(fake: FakeGithub, botLogin: string, clock: IClock)
             labels?: string[]
         };
         const number = nextNumber(name);
-        const now = clock.now().toISOString();
+        const now = new Date(clock.now()).toISOString();
         const issue: Record<string, unknown> = {
             number,
             title: input.title,
@@ -297,7 +297,7 @@ export function addRepoRoutes(fake: FakeGithub, botLogin: string, clock: IClock)
         }
 
         const number = nextNumber(name);
-        const now = clock.now().toISOString();
+        const now = new Date(clock.now()).toISOString();
         const pull: Record<string, unknown> = {
             number,
             title: input.title,

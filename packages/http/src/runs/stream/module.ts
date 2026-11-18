@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunDelta, RunEvent } from '@chamvi/core';
+import type { ClockTimer, RunDelta, RunEvent } from '@chamvi/core';
 import type { Run, Step } from '@chamvi/store';
 import { createEventStream } from 'routup';
 import type { IAppEvent } from 'routup';
@@ -56,7 +56,7 @@ export async function streamRun(event: IAppEvent, ctx: HttpContext, runId: strin
     let lastRun: Run | undefined;
     let ended = false;
     let ready = false;
-    let timer: { clear(): void } | undefined;
+    let timer: ClockTimer | undefined;
     const buffered: RunEvent[] = [];
 
     const unsubscribeRun = ctx.engine.on('run.updated', (e) => {
@@ -218,6 +218,7 @@ export async function streamRun(event: IAppEvent, ctx: HttpContext, runId: strin
         timer = ctx.clock.setTimeout(() => {
             void poll();
         }, ctx.streamPollMs);
+        timer.unref?.();
     }
 
     async function poll(): Promise<void> {

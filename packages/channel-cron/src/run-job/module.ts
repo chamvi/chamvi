@@ -67,7 +67,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
         engine,
         agent,
         subscription,
-        scheduledAt: clock.now(),
+        scheduledAt: new Date(clock.now()),
     });
 
     let timer: { clear(): void } | undefined;
@@ -156,7 +156,7 @@ export async function runJob(opts: RunJobOptions): Promise<RunJobResult> {
 
                     // a poll in flight when the run settled must not re-arm the timer
                     if (!settled) {
-                        timer = clock.setTimeout(() => poll().catch(reject), pollMs, { keepAlive: true });
+                        timer = clock.setTimeout(() => poll().catch(reject), pollMs);
                     }
                 };
 

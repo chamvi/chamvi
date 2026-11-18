@@ -10,7 +10,8 @@ import { ControllableClock } from '@chamvi/test-kit';
 
 describe('ControllableClock', () => {
     it('starts at the given date', () => {
-        expect(new ControllableClock(new Date(5)).now().getTime()).toBe(5);
+        expect(new ControllableClock(new Date(5)).now()).toBe(5);
+        expect(new ControllableClock(7).now()).toBe(7);
     });
 
     it('fires due timers in order while advancing', () => {
@@ -25,7 +26,7 @@ describe('ControllableClock', () => {
         }, 10);
         clock.advance(15);
         expect(fired).toEqual(['a']);
-        expect(clock.now().getTime()).toBe(15);
+        expect(clock.now()).toBe(15);
         clock.advance(5);
         expect(fired).toEqual(['a', 'b']);
     });
@@ -35,9 +36,9 @@ describe('ControllableClock', () => {
         const fired: number[] = [];
 
         clock.setTimeout(() => {
-            fired.push(clock.now().getTime());
+            fired.push(clock.now());
             clock.setTimeout(() => {
-                fired.push(clock.now().getTime());
+                fired.push(clock.now());
             }, 5);
         }, 10);
         clock.advance(20);

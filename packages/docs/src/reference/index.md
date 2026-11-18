@@ -312,7 +312,7 @@ const systemClock: IClock;
 
 <<< ../../../core/src/clock/types.ts{ts}
 
-`systemClock` timers never keep the process alive unless `keepAlive` is set; only the drain deadline sets it.
+`now()` is wall time in epoch milliseconds. A `systemClock` timer keeps the process alive until its `unref()` is called; chamvi unrefs every timer of its own except the drain deadline, the `runJob()` poll and the shutdown and force-exit deadlines.
 
 ## Errors
 

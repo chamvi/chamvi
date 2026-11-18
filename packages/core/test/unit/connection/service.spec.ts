@@ -185,7 +185,7 @@ describe('ConnectionService', () => {
         const stored = await connections.findOneOrFail('wa');
 
         expect(stored.createdAt).toEqual(new Date(1_000));
-        expect(stored.updatedAt).toEqual(clock.now());
+        expect(stored.updatedAt).toEqual(new Date(clock.now()));
     });
 
     it('writeEntries with an expired fence throws LeaseLostError and writes nothing', async () => {
@@ -409,7 +409,7 @@ describe('ConnectionService', () => {
 
         await connections.writeEntries('wa', { set: { b: bytes(2) } }, taken);
         await expect(connections.replace(replacement, fence)).rejects.toBeInstanceOf(LeaseLostError);
-        expect(await connections.findOneOrFail('wa')).toStrictEqual({ ...makeConnection('wa'), updatedAt: clock.now() });
+        expect(await connections.findOneOrFail('wa')).toStrictEqual({ ...makeConnection('wa'), updatedAt: new Date(clock.now()) });
         expect(plain(await connections.findEntries('wa', ['a', 'b']))).toEqual({ a: [1], b: [2] });
         expect(await connections.findOne('fresh')).toBeUndefined();
     });
@@ -553,7 +553,7 @@ describe('ConnectionService', () => {
         });
         expect(plain(first.secrets)).toEqual({ password: [1, 2], token: [3] });
         expect(first.revision).toBe(1);
-        expect((await connections.findOneOrFail('wa')).updatedAt).toEqual(clock.now());
+        expect((await connections.findOneOrFail('wa')).updatedAt).toEqual(new Date(clock.now()));
 
         // settings replace the stored ones as a whole, absent settings keep them; a clear beats a set of one field
         expect(await connections.writeConfig('wa', {

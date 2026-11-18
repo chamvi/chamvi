@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { ClockTimer } from '@chamvi/core';
 import { READINESS_PROBE_RUN_ID } from './constants.ts';
 import type { HealthServiceContext, IHealthService, ReadinessView } from './types.ts';
 
@@ -33,9 +34,10 @@ export class HealthService implements IHealthService {
     }
 
     protected async isStoreReachable(): Promise<boolean> {
-        let timer: { clear(): void } | undefined;
+        let timer: ClockTimer | undefined;
         const timeout = new Promise<boolean>((resolve) => {
             timer = this.ctx.clock.setTimeout(() => resolve(false), this.ctx.readyTimeoutMs);
+            timer.unref?.();
         });
         const probe = this.ctx.runService.findOne(READINESS_PROBE_RUN_ID).then(() => true, () => false);
 

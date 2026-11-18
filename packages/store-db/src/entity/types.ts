@@ -101,14 +101,16 @@ export type EntityColumn = EntityMetadata['columns'][number];
 
 /** The clock the queue's wait deadline runs on (core's `IClock` fits). */
 export type QueueClock = {
-    now(): Date;
-    setTimeout(fn: () => void, ms: number): { clear(): void };
+    /** Epoch milliseconds. */
+    now(): number;
+    /** The queue calls `unref()`, when present, right after arming. */
+    setTimeout(fn: () => void, ms: number): { clear(): void; unref?(): void };
 };
 
 export type QueueOptions = {
     /** How long work may wait behind one holder of the connection before it is refused (default `QUEUE_WAIT_TIMEOUT_MS`). */
     waitTimeoutMs?: number;
-    /** Default: the system clock, with timers that do not keep the process alive. */
+    /** Default: the system clock; the queue's timers never keep the process alive. */
     clock?: QueueClock;
 };
 

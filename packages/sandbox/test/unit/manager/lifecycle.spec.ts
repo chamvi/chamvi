@@ -330,7 +330,7 @@ describe('workspace manager: run lifecycle', () => {
         const expiring = await gated('r2');
 
         engine.emit({ id: 'r1', status: RunStatus.COMPLETED });
-        Object.assign(expiring.info, { expiresAt: new Date(clock.now().getTime()) });
+        Object.assign(expiring.info, { expiresAt: new Date(clock.now()) });
         await expect(manager.get('r2')).rejects.toThrow(/expired/);
 
         let closed = false;

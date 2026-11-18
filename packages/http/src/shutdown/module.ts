@@ -12,7 +12,7 @@ import type { IShutdown, ShutdownOptions } from './types.ts';
 function delay(clock: IClock, ms: number): { promise: Promise<'timeout'>; clear(): void } {
     let clear = () => {};
     const promise = new Promise<'timeout'>((resolve) => {
-        const timer = clock.setTimeout(() => resolve('timeout'), ms, { keepAlive: true });
+        const timer = clock.setTimeout(() => resolve('timeout'), ms);
 
         clear = () => timer.clear();
     });

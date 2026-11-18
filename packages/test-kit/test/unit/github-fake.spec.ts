@@ -30,7 +30,7 @@ describe('createFakeGithub', () => {
         const fake = createFakeGithub({ appId: '123', clock });
         const response = await fake.fetch('https://api.github.com/app/installations/42/access_tokens', {
             method: 'POST',
-            headers: { authorization: `Bearer ${appJwt(fake.privateKey, '123', clock.now())}` },
+            headers: { authorization: `Bearer ${appJwt(fake.privateKey, '123', new Date(clock.now()))}` },
         });
 
         expect(response.status).toBe(201);
@@ -43,7 +43,7 @@ describe('createFakeGithub', () => {
         const fake = createFakeGithub({ appId: '123', clock });
         const exchange = await fake.fetch('https://api.github.com/app/installations/42/access_tokens', {
             method: 'POST',
-            headers: { authorization: `Bearer ${appJwt(fake.privateKey, '123', clock.now())}` },
+            headers: { authorization: `Bearer ${appJwt(fake.privateKey, '123', new Date(clock.now()))}` },
         });
         const { token } = await exchange.json() as { token: string };
 
@@ -60,7 +60,7 @@ describe('createFakeGithub', () => {
         const fake = createFakeGithub({ appId: '123', clock });
         const exchange = await fake.fetch('https://api.github.com/app/installations/42/access_tokens', {
             method: 'POST',
-            headers: { authorization: `Bearer ${appJwt(fake.privateKey, '123', clock.now())}` },
+            headers: { authorization: `Bearer ${appJwt(fake.privateKey, '123', new Date(clock.now()))}` },
         });
         const { token } = await exchange.json() as { token: string };
 
@@ -86,7 +86,7 @@ describe('createFakeGithub', () => {
     it('refuses a JWT of another app', async () => {
         const clock = new ControllableClock(new Date('2026-10-21T09:00:00Z'));
         const fake = createFakeGithub({ appId: '123', clock });
-        const response = await fake.fetch('https://api.github.com/app', { headers: { authorization: `Bearer ${appJwt(fake.privateKey, '999', clock.now())}` } });
+        const response = await fake.fetch('https://api.github.com/app', { headers: { authorization: `Bearer ${appJwt(fake.privateKey, '999', new Date(clock.now()))}` } });
 
         expect(response.status).toBe(401);
     });
@@ -96,7 +96,7 @@ describe('createFakeGithub', () => {
         const fake = createFakeGithub({ appId: '123', clock });
         const exchange = await fake.fetch('https://api.github.com/app/installations/42/access_tokens', {
             method: 'POST',
-            headers: { authorization: `Bearer ${appJwt(fake.privateKey, '123', clock.now())}` },
+            headers: { authorization: `Bearer ${appJwt(fake.privateKey, '123', new Date(clock.now()))}` },
         });
         const { token } = await exchange.json() as { token: string };
 
@@ -128,7 +128,7 @@ describe('createFakeGithub', () => {
         fake.installations.set('octo/demo', 42);
         fake.users.set('chamvi-test[bot]', 7);
 
-        const jwt = { authorization: `Bearer ${appJwt(fake.privateKey, '123', clock.now())}` };
+        const jwt = { authorization: `Bearer ${appJwt(fake.privateKey, '123', new Date(clock.now()))}` };
         const found = await fake.fetch('https://api.github.com/repos/Octo/Demo/installation', { headers: jwt });
 
         expect(await found.json()).toEqual({ id: 42 });
@@ -150,7 +150,7 @@ describe('createFakeGithub repository routes', () => {
 
     async function setup() {
         const fake = createFakeGithub({ appId: '123', clock });
-        const jwt = { authorization: `Bearer ${appJwt(fake.privateKey, '123', clock.now())}` };
+        const jwt = { authorization: `Bearer ${appJwt(fake.privateKey, '123', new Date(clock.now()))}` };
         const tokenOf = async (installationId: number) => {
             const exchange = await fake.fetch(`https://api.github.com/app/installations/${installationId}/access_tokens`, {
                 method: 'POST',

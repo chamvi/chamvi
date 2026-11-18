@@ -70,11 +70,11 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
                         trigger: 'message',
                         channel: 'chat',
                         payload: 'input',
-                        receivedAt: clock.now(),
+                        receivedAt: new Date(clock.now()),
                     },
                     usage: { inputTokens: 0, outputTokens: 0 },
-                    createdAt: clock.now(),
-                    updatedAt: clock.now(),
+                    createdAt: new Date(clock.now()),
+                    updatedAt: new Date(clock.now()),
                 });
             }
 
@@ -130,7 +130,7 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
             generation: s.scope.generation,
             key: `item-${index}`,
             runId: testUuid('writer'),
-            createdAt: s.clock.now(),
+            createdAt: new Date(s.clock.now()),
             role: 'user' as const,
             text: 'input',
             bytes: 5,
@@ -172,7 +172,9 @@ describePostgres('conversation pruning on a shared single-connection pool', () =
                     await seedRun(dataSource, testUuid('recoverable'));
                     await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, operationId: runId }, { runId: testUuid('recoverable'), inputHash: 'replacement' }));
                 } else {
-                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, operationId: runId }, { createdAt: s.clock.now() }));
+                    const createdAt = new Date(s.clock.now());
+
+                    await withinPoolDeadline(s.operations.update({ scopeId: s.scope.id, operationId: runId }, { createdAt }));
                 }
 
                 return true;

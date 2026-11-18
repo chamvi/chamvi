@@ -94,6 +94,9 @@ export async function probeImage(
         timedOut = true;
         controller.abort();
     }, IMAGE_PROBE_TIMEOUT_MS);
+
+    timer.unref?.();
+
     const onAbort = () => controller.abort();
 
     signal?.addEventListener('abort', onAbort, { once: true });

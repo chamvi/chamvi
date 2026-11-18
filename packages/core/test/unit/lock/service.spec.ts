@@ -256,7 +256,7 @@ describe('LockService', () => {
             await repository.transaction(async (bound) => {
                 const lock = (await bound.findOneBy({ key: 'k' }))!;
 
-                bound.merge(lock, { expiresAt: new Date(clock.now().getTime() + 1_000) });
+                bound.merge(lock, { expiresAt: new Date(clock.now() + 1_000) });
                 await bound.save(lock);
             });
         };

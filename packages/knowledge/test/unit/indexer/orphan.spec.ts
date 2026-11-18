@@ -34,7 +34,7 @@ afterEach(async () => {
 });
 
 async function seed(setup: IndexerSetup, name: string, kind: KnowledgeCollectionKind): Promise<void> {
-    const now = setup.clock.now();
+    const now = new Date(setup.clock.now());
 
     await setup.repository.saveCollection({
         name,
