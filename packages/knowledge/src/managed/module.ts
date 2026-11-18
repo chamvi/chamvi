@@ -109,6 +109,9 @@ async function embedOne(
 
     // same content: the vectors hold, the chunks take the title and source stored now (a PUT may have changed them)
     for (;;) {
+        // a stop ends the loop: each round writes again
+        signal.throwIfAborted();
+
         const chunks = embedded.chunks.map((chunk) => withOrigin(chunk, current!));
 
         await repository.replaceChunks(name, document.id, generation, chunks, writeOptionsOf(lock));

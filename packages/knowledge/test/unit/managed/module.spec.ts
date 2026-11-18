@@ -531,6 +531,37 @@ describe('managed collections', () => {
         });
     });
 
+    it('a stop during the ready write ends the rewrite loop before another round', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const update = service.updateDocument.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+        let stopping: Promise<void> | undefined;
+
+        await knowledge.createCollection('notes');
+
+        // the ready write loses to new details and the knowledge stops meanwhile
+        vi.spyOn(service, 'updateDocument').mockImplementationOnce(async (...args) => {
+            const [name, id, current] = args;
+
+            await service.updateDetails(name, id, current, { title: 'Moved' });
+            stopping = knowledge.stop();
+
+            return update(...args);
+        });
+
+        knowledge.start();
+        await knowledge.putDocument('notes', { id: 'doc', content: 'Refunds within thirty days.' });
+
+        // a promise from poll() would be awaited: poll for the flag
+        await expect.poll(() => stopping !== undefined).toBe(true);
+        await stopping;
+
+        expect(replace).toHaveBeenCalledTimes(1);
+        expect(await service.findOneDocument('notes', 'doc')).toMatchObject({ status: 'pending', title: 'Moved' });
+    });
+
     it('a metadata PUT on a pending document keeps the served chunks\' details until the new content is embedded', async () => {
         const setup = createIndexerSetup();
         const model = gatedModel({ opened: 1 });
