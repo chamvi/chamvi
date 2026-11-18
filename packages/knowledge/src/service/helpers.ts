@@ -18,33 +18,9 @@ import type {
 
 export const copy = <T>(value: T): T => structuredClone(value);
 
-/**
- * Orders strings by Unicode code point, like Postgres `COLLATE "C"` on
- * UTF-8 (`<` compares UTF-16 code units, which puts an astral character
- * such as U+1F600 before U+FFFD).
- */
-export function compareCodePoints(a: string, b: string): number {
-    const left = a[Symbol.iterator]();
-    const right = b[Symbol.iterator]();
-
-    for (;;) {
-        const l = left.next();
-        const r = right.next();
-
-        if (l.done || r.done) {
-            if (l.done && r.done) {
-                return 0;
-            }
-
-            return l.done ? -1 : 1;
-        }
-
-        const diff = l.value.codePointAt(0)! - r.value.codePointAt(0)!;
-
-        if (diff !== 0) {
-            return diff;
-        }
-    }
+/** The store lock of a collection's indexer. */
+export function lockKey(collection: string): string {
+    return `knowledge:${collection}`;
 }
 
 /** The collection a row holds, without its row id and fence. */

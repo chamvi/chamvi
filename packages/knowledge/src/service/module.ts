@@ -15,7 +15,6 @@ import {
     ne,
 } from '@rapiq/core';
 import { uuidv7 } from 'uuidv7';
-import { lockKey } from '../indexer/helpers.ts';
 import type {
     IKnowledgeCollectionRepository,
     KnowledgeChunkInput,
@@ -34,6 +33,7 @@ import type {
 import {
     documentFieldsOf,
     isVersion,
+    lockKey,
     toCollection,
     toDocument,
     withDetails,

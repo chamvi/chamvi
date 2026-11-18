@@ -29,7 +29,6 @@ import {
 } from '../indexer/constants.ts';
 import {
     createWake,
-    lockKey,
     messageOf,
     sameDetails,
     sameOrigin,
@@ -40,7 +39,7 @@ import { KNOWLEDGE_MANAGED_COMPONENT_NAME, KNOWLEDGE_MANAGED_POLL_MS } from '../
 import { managedDocumentProblem, needsReembed } from '../managed/helpers.ts';
 import { syncManaged } from '../managed/module.ts';
 import type { ManagedLoop } from '../managed/types.ts';
-import { copy } from '../service/helpers.ts';
+import { copy, lockKey } from '../service/helpers.ts';
 import type { IKnowledgeService, KnowledgeServiceContext } from '../service/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import type { KnowledgeCollection } from '../store/types.ts';

@@ -12,6 +12,7 @@ import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import { managedNameError } from '../collection/helpers.ts';
 import { chunkText, contentHash } from '../chunk/module.ts';
 import type { KnowledgeErrorContext } from '../knowledge/types.ts';
+import { lockKey } from '../service/helpers.ts';
 import type { IKnowledgeService } from '../service/types.ts';
 import type {
     KnowledgeChunkInput,
@@ -31,7 +32,6 @@ import {
     highestGeneration,
     isLeaseLost,
     isRepositoryNotFound,
-    lockKey,
     messageOf,
     sameDetails,
     sameOrigin,

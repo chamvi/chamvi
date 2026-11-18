@@ -16,11 +16,6 @@ import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { KNOWLEDGE_LOCK_TTL_MS } from './constants.ts';
 import type { KnowledgeIndexLock, KnowledgeWake, KnowledgeWakeReason } from './types.ts';
 
-/** The store lock of a collection's indexer. */
-export function lockKey(collection: string): string {
-    return `knowledge:${collection}`;
-}
-
 export function messageOf(error: unknown): string {
     return Error.isError(error) ? error.message : String(error);
 }

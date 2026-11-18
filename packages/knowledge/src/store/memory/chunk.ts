@@ -7,7 +7,7 @@
 
 import { MemoryEntityRepository } from '@chamvi/store-memory';
 import type { MemoryRepositoryOptions } from '@chamvi/store-memory';
-import { compareCodePoints } from '../../service/helpers.ts';
+import { compareCodePoints } from '../helpers.ts';
 import { KNOWLEDGE_CHUNK_ENTITY, KNOWLEDGE_COLLECTION_ENTITY } from '../constants.ts';
 import type {
     IKnowledgeChunkRepository,
