@@ -61,6 +61,7 @@ export * from './logger/index.ts';
 export * from './models/index.ts';
 export * from './module/index.ts';
 export * from './modules/agents/index.ts';
+export * from './modules/components/index.ts';
 export * from './modules/config/index.ts';
 export * from './modules/console-channel/index.ts';
 export * from './modules/database/index.ts';

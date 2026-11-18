@@ -13,6 +13,7 @@ import type { IModule } from 'orkos';
 import { isObject } from 'smob';
 import { APP_ERROR_CODE, AppToken } from '../module/constants.ts';
 import { agentsModule } from '../modules/agents/module.ts';
+import { componentsModule } from '../modules/components/module.ts';
 import { configModule } from '../modules/config/module.ts';
 import { engineModule } from '../modules/engine/module.ts';
 import { httpModule } from '../modules/http/module.ts';
@@ -66,6 +67,7 @@ export function buildModules(modules: AppOptions['modules'] = []): IModule[] {
         engineModule(),
         agentsModule(),
         schedulerModule(),
+        componentsModule(),
         httpModule(),
     ];
     const builtinNames = new Set(builtins.map((module) => module.name));
