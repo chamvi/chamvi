@@ -10,11 +10,9 @@ import { defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import {
     afterEach,
-    beforeEach,
     describe,
     expect,
     it,
-    vi,
 } from 'vitest';
 import {
     AppToken,
@@ -28,7 +26,7 @@ import type { AppMode } from '@chamvi/app';
 import { createHarness } from '../../../utils/harness.ts';
 import type { Harness } from '../../../utils/harness.ts';
 import { createRecordingLogger } from '../../../utils/logger.ts';
-import { mockModel } from '@chamvi/test-kit';
+import { ControllableClock, mockModel } from '@chamvi/test-kit';
 
 
 function sweep(): Agent {
@@ -41,12 +39,22 @@ function sweep(): Agent {
 }
 
 let harnesses: Harness[] = [];
+let clock: ControllableClock;
 
-beforeEach(() => {
-    vi.useFakeTimers({ now: new Date('2026-03-01T07:59:30Z') });
+/** Lets the promise chains a fired timer started (lock, dispatch, run) settle. */
+const flush = () => new Promise<void>((resolve) => {
+    setImmediate(resolve);
 });
 
-/** Advances the faked timers until the promise settled (a drain waits on the engine's timers). */
+/** Advances the clock in one-second steps, flushing after each, as a real event loop would. */
+async function advance(ms: number): Promise<void> {
+    for (let left = ms; left > 0; left -= 1_000) {
+        clock.advance(Math.min(1_000, left));
+        await flush();
+    }
+}
+
+/** Advances the clock until the promise settled (a drain waits on the engine's timers). */
 async function settle(promise: Promise<void>): Promise<void> {
     let done = false;
     const tracked = promise.finally(() => {
@@ -54,27 +62,32 @@ async function settle(promise: Promise<void>): Promise<void> {
     });
 
     while (!done) {
-        await vi.advanceTimersByTimeAsync(1_000);
+        await advance(1_000);
     }
 
     await tracked;
 }
 
 afterEach(async () => {
+    if (harnesses.length === 0) {
+        return;
+    }
+
     await settle(Promise.all(harnesses.map((h) => h.stop())).then(() => undefined));
     harnesses = [];
-    vi.useRealTimers();
 });
 
 async function setup(options: { mode?: AppMode; env?: Record<string, string> } = {}) {
-    // systemClock follows the faked Date (hubwire takes no IClock)
-    const logger = createRecordingLogger();
+    // the engine, its cron channel and the components run on this clock
+    clock = new ControllableClock(new Date('2026-03-01T07:59:30Z'));
+
+    const logger = createRecordingLogger(clock);
     const harness = await createHarness({
         mode: options.mode,
         env: { ...options.env },
         agents: [sweep()],
         modules: [
-            configModule({ logger }),
+            configModule({ clock, logger }),
             storeModule(),
             engineModule(),
             schedulerModule(),
@@ -104,7 +117,7 @@ describe('schedulerModule', () => {
 
         expect(engine.getChannel('cron')?.start).toBeTypeOf('function');
 
-        await vi.advanceTimersByTimeAsync(30_000);
+        await advance(30_000);
         expect(await runs(harness)).toHaveLength(1);
     });
 
@@ -115,7 +128,7 @@ describe('schedulerModule', () => {
         expect(channel?.name).toBe('cron');
         expect(channel?.start).toBeUndefined();
 
-        await vi.advanceTimersByTimeAsync(120_000);
+        await advance(120_000);
         expect(await runs(harness)).toHaveLength(0);
     });
 
@@ -124,7 +137,7 @@ describe('schedulerModule', () => {
 
         expect(harness.container.resolve(AppToken.ENGINE).getChannel('cron')?.start).toBeTypeOf('function');
 
-        await vi.advanceTimersByTimeAsync(120_000);
+        await advance(120_000);
         expect(await runs(harness)).toHaveLength(0);
     });
 
@@ -132,11 +145,11 @@ describe('schedulerModule', () => {
         const harness = await setup();
         const runService = harness.container.resolve(AppToken.RUN_SERVICE);
 
-        await vi.advanceTimersByTimeAsync(30_000);
+        await advance(30_000);
         expect(await runs(harness)).toHaveLength(1);
 
         await settle(harness.stop());
-        await vi.advanceTimersByTimeAsync(180_000);
+        await advance(180_000);
         expect((await runService.find({ agent: 'sweep' })).data).toHaveLength(1);
     });
 });
