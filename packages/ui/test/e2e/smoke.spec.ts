@@ -190,7 +190,7 @@ test('the components page lists the cron channel and its status', async ({ page 
 
     await expect(cron).toBeVisible();
     await expect(cron.locator('.kind')).toHaveText('channel');
-    await expect(cron.getByTestId('component-status')).toHaveText(/^(never run|running|healthy|failing)$/);
+    await expect(cron.getByTestId('component-status')).toHaveText(/^(idle|running|healthy|failing)$/);
     expect(errors).toEqual([]);
 });
 

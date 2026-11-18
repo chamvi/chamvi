@@ -35,8 +35,8 @@ describe('componentState', () => {
         }))).toEqual({ label: 'running', tone: 'running' });
     });
 
-    it('reads never run without any time', () => {
-        expect(componentState(job())).toEqual({ label: 'never run', tone: 'queued' });
+    it('reads idle, in the neutral tone, without any time', () => {
+        expect(componentState(job())).toEqual({ label: 'idle', tone: 'queued' });
     });
 
     it('reads failing when the last error is newer than the last success, or there was no success', () => {

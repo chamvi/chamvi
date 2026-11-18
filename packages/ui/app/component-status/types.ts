@@ -10,7 +10,7 @@ export type ComponentTone = 'running' | 'failed' | 'completed' | 'queued';
 
 /** What the status column shows for a component. */
 export type ComponentState = {
-    label: 'running' | 'failing' | 'healthy' | 'never run';
+    label: 'running' | 'failing' | 'healthy' | 'idle';
     tone: ComponentTone;
 };
 

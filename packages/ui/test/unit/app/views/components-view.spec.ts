@@ -103,7 +103,10 @@ describe('the components view', () => {
         expect(cell(failing, 'lastErrorAt').querySelector('.when-fail')).not.toBeNull();
         expect(cell(failing, 'lastSuccessAt').querySelector('.when-fail')).toBeNull();
 
-        expect(row(view.root, 'knowledge-managed').querySelector('[data-testid="component-status"]')?.textContent).toBe('never run');
+        const idle = row(view.root, 'knowledge-managed').querySelector('[data-testid="component-status"]');
+
+        expect(idle?.textContent).toBe('idle');
+        expect(idle?.className).toContain('chip-queued');
 
         const cron = row(view.root, 'cron');
 

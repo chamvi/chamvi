@@ -32,8 +32,10 @@ export function isFailing(component: ComponentWire): boolean {
 }
 
 /**
- * A pass in flight reads `running`; else no time at all `never run`; else
- * the last error newer than the last success `failing`; else `healthy`.
+ * A pass in flight reads `running`; else no time at all `idle` (a job that
+ * runs only when needed, a channel that has not fired yet: neutral, not a
+ * warning); else the last error newer than the last success `failing`; else
+ * `healthy`.
  */
 export function componentState(component: ComponentWire): ComponentState {
     if (component.runningSince) {
@@ -41,7 +43,7 @@ export function componentState(component: ComponentWire): ComponentState {
     }
 
     if (!component.lastSuccessAt && !component.lastErrorAt && !component.lastRunAt) {
-        return { label: 'never run', tone: 'queued' };
+        return { label: 'idle', tone: 'queued' };
     }
 
     if (isFailing(component)) {
