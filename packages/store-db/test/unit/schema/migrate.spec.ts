@@ -22,9 +22,7 @@ import type { TestDataSourceOptions } from '../../utils/database.ts';
 import { createTestServices } from '../../utils/store.ts';
 
 const BASELINE = 'UuidBaseline1794096000000';
-const CONNECTION_CONFIG = 'ConnectionConfig1794230765000';
-const RUN_AGENT_REVISION = 'RunAgentRevision1794484800000';
-const ITEM_BYTES = 'ConversationItemBytes1794873600000';
+const UPGRADE = 'ConnectionsRevisionsItemBytes1794230765000';
 
 /** The unique key that carries each table's natural identity, as Postgres lists the columns. */
 const NATURAL_KEYS: [string, string][] = [
@@ -80,7 +78,7 @@ describePostgres('schema', () => {
             await ds.undoLastMigration({ transaction: 'each' });
         }
 
-        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG, RUN_AGENT_REVISION, ITEM_BYTES]);
+        expect(await pendingMigrations(ds)).toEqual([UPGRADE]);
     };
 
     afterEach(async () => {
@@ -241,9 +239,9 @@ describePostgres('schema', () => {
 
         expect((await ds.query('SHOW server_encoding'))[0].server_encoding).toBe('LATIN1');
 
-        // the step before the backfill
+        // the released baseline, before the backfill
         await ds.undoLastMigration({ transaction: 'each' });
-        expect(await pendingMigrations(ds)).toEqual([ITEM_BYTES]);
+        expect(await pendingMigrations(ds)).toEqual([UPGRADE]);
 
         await ds.query(
             `INSERT INTO "${TableName.RUNS}" (id, agent, status, trigger, usage, created_at, updated_at)
@@ -296,21 +294,13 @@ describePostgres('schema', () => {
         const ds = await create();
 
         await ds.undoLastMigration({ transaction: 'each' });
-        expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
-        expect(await itemColumns(ds)).not.toContain('bytes');
-        expect(await pendingMigrations(ds)).toEqual([ITEM_BYTES]);
-
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
-        expect(await pendingMigrations(ds)).toEqual([RUN_AGENT_REVISION, ITEM_BYTES]);
-
-        await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 1);
-        expect(await pendingMigrations(ds)).toEqual([CONNECTION_CONFIG, RUN_AGENT_REVISION, ITEM_BYTES]);
+        expect(await itemColumns(ds)).not.toContain('bytes');
+        expect(await pendingMigrations(ds)).toEqual([UPGRADE]);
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(0);
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG, RUN_AGENT_REVISION, ITEM_BYTES]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE]);
 
         await migrateStore(ds);
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
@@ -552,7 +542,7 @@ describePostgres('schema', () => {
     it('pendingMigrations lists every migration on an empty database and none after migrateStore', async () => {
         const ds = await create({ migrate: false });
 
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, CONNECTION_CONFIG, RUN_AGENT_REVISION, ITEM_BYTES]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE]);
         await migrateStore(ds);
         expect(await pendingMigrations(ds)).toEqual([]);
     });
@@ -577,10 +567,6 @@ describePostgres('schema', () => {
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
         expect(await tablesIn(ds, 'public')).toBe(0);
 
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length);
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length - 1);
         await ds.undoLastMigration({ transaction: 'each' });
