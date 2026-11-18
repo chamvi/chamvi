@@ -876,11 +876,15 @@ export class Engine implements IEngine {
      * nothing happens. Resolves the cancelled run ids, or undefined.
      */
     async releaseRevision(name: string): Promise<string[] | undefined> {
-        if (!this.agents.has(name) || this.revisions.get(name) !== undefined) {
+        // not while a putAgent of the name is in flight: it may publish a revision whose marker this would delete
+        const eligible = () => this.agents.has(name) && this.revisions.get(name) === undefined &&
+            !this.replacing.has(name) && !this.syncing.has(name);
+
+        if (!eligible()) {
             return undefined;
         }
 
-        const cancelled = await releaseRevision(this.registry(), name);
+        const cancelled = await releaseRevision(this.registry(), name, eligible);
 
         if (cancelled) {
             this.emit({
@@ -1961,13 +1965,16 @@ export class Engine implements IEngine {
 
     /**
      * The start guard of one scheduling pass, built from one read of the
-     * revision markers (skipped while no folder agent is registered): a run
-     * may start when cancel asked for it, or when its agent is registered
-     * here and has no revision or is loaded at the stored marker's hash.
+     * revision markers (skipped while no agent is registered): a run may
+     * start when cancel asked for it, or when its agent is registered here
+     * and has no revision (an unstamped run) or is loaded at the stored
+     * marker's hash. A stamped run of an agent held without a revision is
+     * cancelled once no marker of its agent is stored: no replica holds a
+     * revision for it any more.
      */
     protected async prepareStart(): Promise<(run: Run) => boolean> {
-        const folder = this.revisions.values().some((revision) => revision !== undefined);
-        const markers = folder ?
+        // a folder agent's runs start at its marker; an agent without a revision cancels stamped runs without one
+        const markers = this.agents.size > 0 ?
             new Map((await this.agentRevisionService.find()).map((marker) => [marker.agent, marker.hash])) :
             new Map<string, string>();
 
@@ -1994,9 +2001,18 @@ export class Engine implements IEngine {
                 return false;
             }
 
-            // a stamped run is left for a replica that holds the agent at a revision
             if (revision === undefined) {
-                return run.agentRevision === undefined;
+                if (run.agentRevision === undefined) {
+                    return true;
+                }
+
+                // a stamped run is left for a replica that holds the agent at a revision; without a stored
+                // marker none does any more (releaseRevision retired it, or a dispatch committed after that)
+                if (!markers.has(run.agent)) {
+                    this.cancelStale(run, undefined);
+                }
+
+                return false;
             }
 
             if (revision !== markers.get(run.agent)) {

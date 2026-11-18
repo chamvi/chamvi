@@ -13,11 +13,14 @@ import {
     it,
 } from 'vitest';
 import {
+    DecryptionFailedError,
+    InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
 } from '@chamvi/core';
 import type { ConnectionTypeDefinition, IKeyring } from '@chamvi/core';
 import {
+    AppToken,
     configModule,
     createLogger,
     engineModule,
@@ -188,6 +191,51 @@ describe('readStoredConnections()', () => {
         expect(error.message).toContain('mail-home');
         expect(error.message).toContain('CHAMVI_ENCRYPTION_KEYS');
         expect(error.message).not.toContain('not-a-keyring');
+    });
+
+    it('another configuration error of the read still fails without CHAMVI_ENCRYPTION_KEYS', async () => {
+        const store = createTestStore();
+
+        await seed(store, 'mail-home', 'mail');
+
+        const harness = await harnessOf(store);
+        const configs = harness.container.resolve(AppToken.CONNECTION_CONFIGS);
+
+        configs.read = async () => {
+            throw new InvalidAgentDefinitionError('The config backend is misconfigured.');
+        };
+
+        const error = await rejectionOf(readStoredConnections(harness.container, 'mail'));
+
+        expect(error.message).toContain('mail-home');
+        expect(error.message).toContain('misconfigured');
+    });
+
+    it('loads a row repaired between the failed read and the settings read', async () => {
+        const store = createTestStore();
+
+        await seed(store, 'mail-home', 'mail');
+
+        const harness = await harnessOf(store, { keyring });
+        const configs = harness.container.resolve(AppToken.CONNECTION_CONFIGS);
+        const read = configs.read.bind(configs);
+        let reads = 0;
+
+        configs.read = async (name) => {
+            reads++;
+
+            if (reads === 1) {
+                throw new DecryptionFailedError();
+            }
+
+            return read(name);
+        };
+
+        const [row] = await readStoredConnections(harness.container, 'mail');
+
+        expect(reads).toBe(2);
+        expect(row).toMatchObject({ name: 'mail-home', values: { host: 'h', password: SECRET } });
+        expect(row).not.toHaveProperty('unreadable');
     });
 
     it('names the connection for a driver failure, without the driver text', async () => {

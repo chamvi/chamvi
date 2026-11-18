@@ -188,10 +188,17 @@ export async function dropRevision(ctx: RegistryContext, agent: string, options:
  * lock, as a revision change: its unsettled runs created before the change
  * are cancelled (`agent_replaced`, swept before and after the delete like
  * syncRevision) and the marker deleted, so no run waits for a revision no
- * replica holds. Resolves the cancelled run ids, or undefined without a marker.
+ * replica holds; a run stamped after it is cancelled by the start guard
+ * (no marker left). `eligible` is checked under the lock. Resolves the
+ * cancelled run ids, or undefined without a marker or when not eligible.
  */
-export async function releaseRevision(ctx: RegistryContext, agent: string): Promise<string[] | undefined> {
+export async function releaseRevision(ctx: RegistryContext, agent: string, eligible: () => boolean): Promise<string[] | undefined> {
     return withAgentLock(ctx, agent, async () => {
+        // re-checked under the lock: a putAgent at a revision may have published meanwhile
+        if (!eligible()) {
+            return undefined;
+        }
+
         const marker = await ctx.agentRevisionService.findOne(agent);
 
         if (!marker) {

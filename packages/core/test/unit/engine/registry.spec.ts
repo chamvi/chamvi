@@ -1056,6 +1056,48 @@ describe('releaseRevision', () => {
         expect(await statusOf(code.engine, runId)).toBe('queued');
     });
 
+    it('a start cancels a run stamped at the cutoff or committed after the release, once no marker is stored', async () => {
+        const clock = new ControllableClock(new Date(1_000_000));
+        const store = createCountingStore({ clock });
+        const folder = make({
+            store,
+            clock,
+            agents: [],
+        });
+
+        await folder.engine.putAgent(triage, { revision: 'h1' });
+
+        // same millisecond as the release: the timestamp sweeps skip it
+        const atCutoff = await folder.engine.dispatch({ ...env(), checked: triage });
+        const code = make({ store, clock });
+
+        await code.engine.releaseRevision('triage');
+        expect(await statusOf(code.engine, atCutoff.runId)).toBe('queued');
+
+        // the old replica commits a checked dispatch after the marker is gone
+        const late = await folder.engine.dispatch({ ...env(), checked: triage });
+
+        await code.engine.start({ channels: false });
+        await code.engine.idle();
+
+        expect(await code.engine.getRun(atCutoff.runId)).toMatchObject({ status: 'cancelled', error: { code: 'agent_replaced' } });
+        expect(await code.engine.getRun(late.runId)).toMatchObject({ status: 'cancelled', error: { code: 'agent_replaced' } });
+    });
+
+    it('a start keeps a stamped run queued while its marker is stored', async () => {
+        const {
+            store, 
+            code, 
+            stamped, 
+        } = await moved();
+
+        await code.engine.start({ channels: false });
+        await code.engine.idle();
+
+        expect(await statusOf(code.engine, stamped)).toBe('queued');
+        expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe('h1');
+    });
+
     it('leaves the store alone without a marker, for an agent held at a revision, or one not held', async () => {
         const { engine, store } = make();
         const { runId } = await engine.dispatch(env());

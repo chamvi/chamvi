@@ -18,7 +18,7 @@ import type { IModule } from 'orkos';
 import { isObject } from 'smob';
 import { envString, envUrl } from '../env/module.ts';
 import type { Env } from '../env/types.ts';
-import { ENV_ENCRYPTION_KEYS } from '../keyring/constants.ts';
+import { isKeyringUnsetError } from '../keyring/helpers.ts';
 import { APP_ERROR_CODE, AppToken, SCHEMA_BEHIND_SQLSTATES } from './constants.ts';
 import type {
     AppContext,
@@ -147,14 +147,12 @@ export function connectionIssuesOf(container: IContainer): AgentIssue[] {
  * the keyring), or stored secrets while `CHAMVI_ENCRYPTION_KEYS` is unset. A
  * malformed keyring is a deployment error and still fails the start.
  */
-function isUnreadable(container: IContainer, error: unknown): error is ChamviError {
+function isUnreadable(error: unknown): error is ChamviError {
     if (error instanceof DecryptionFailedError) {
         return true;
     }
 
-    const { env } = container.resolve(AppToken.CONTEXT);
-
-    return error instanceof InvalidAgentDefinitionError && (env[ENV_ENCRYPTION_KEYS] ?? '').trim().length === 0;
+    return isKeyringUnsetError(error);
 }
 
 /**
@@ -167,23 +165,30 @@ async function readStoredConnection(
     name: string,
 ): Promise<Pick<StoredConnection, 'values' | 'revision' | 'unreadable'> | undefined> {
     const configs = container.resolve(AppToken.CONNECTION_CONFIGS);
-    let failure: ChamviError;
+    // a value, or the failure of an unreadable row; any other failure throws
+    const attempt = async (): Promise<Awaited<ReturnType<typeof configs.read>> | ChamviError> => {
+        try {
+            return await configs.read(name);
+        } catch (error) {
+            if (isSchemaBehindError(error)) {
+                throw error;
+            }
 
-    try {
-        return await configs.read(name);
-    } catch (error) {
-        if (isSchemaBehindError(error)) {
-            throw error;
+            if (!isUnreadable(error)) {
+                // our messages name variables, key ids and connections; a driver's may quote anything
+                const reason = error instanceof ChamviError ? error.message : 'the read failed';
+
+                throw new InvalidAgentDefinitionError(`The connection "${name}" cannot be read: ${reason}`);
+            }
+
+            return error;
         }
+    };
 
-        if (!isUnreadable(container, error)) {
-            // our messages name variables, key ids and connections; a driver's may quote anything
-            const reason = error instanceof ChamviError ? error.message : 'the read failed';
+    const first = await attempt();
 
-            throw new InvalidAgentDefinitionError(`The connection "${name}" cannot be read: ${reason}`);
-        }
-
-        failure = error;
+    if (!(first instanceof ChamviError)) {
+        return first;
     }
 
     // describe never resolves the keyring: the settings and the names of the secrets stay readable
@@ -191,6 +196,14 @@ async function readStoredConnection(
 
     if (!view) {
         return undefined;
+    }
+
+    // read again after describe: a repair saved in between loads, and a row still unreadable reports a
+    // revision no newer than the one that failed, so a later repair still shows as a pending restart
+    const failure = await attempt();
+
+    if (!(failure instanceof ChamviError)) {
+        return failure;
     }
 
     const unreadable: StoredConnectionFailure = {

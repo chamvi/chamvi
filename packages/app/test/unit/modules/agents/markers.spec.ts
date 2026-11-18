@@ -291,6 +291,24 @@ describe('an agent passed in code over a stored revision marker', () => {
         expect(await store.runService.findOne(runId)).toMatchObject({ status: 'cancelled', error: { code: 'agent_replaced' } });
     });
 
+    it('a start that fails on a missing agents dir leaves the marker and the run alone', async () => {
+        const clock = new ControllableClock(START);
+        const store = createTestStore({ clock });
+        const runId = await markedRun(store, clock);
+        const setup = buildAgentsDirHarness({
+            root: join(root.path, 'missing'),
+            agents: [agentInCode('greeter')],
+            clock,
+            store,
+        });
+
+        harnesses.push(setup.harness);
+        await expect(setup.harness.setup()).rejects.toThrow();
+
+        expect((await store.agentRevisionService.findOne('greeter'))?.hash).toBe('h1');
+        expect((await store.runService.findOne(runId))?.status).toBe('queued');
+    });
+
     it.each([
         ['a job', { mode: 'job' as const }],
         ['a check', { check: true }],
