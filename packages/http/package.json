@@ -62,9 +62,9 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "@authup/access": "^1.0.0-beta.75",
-        "@authup/server-adapter-kit": "^1.0.0-beta.75",
-        "@authup/server-adapter-web": "^1.0.0-beta.75",
+        "@authup/access": "^1.0.0-beta.76",
+        "@authup/server-adapter-kit": "^1.0.0-beta.76",
+        "@authup/server-adapter-web": "^1.0.0-beta.76",
         "@chamvi/access": "^0.9.0",
         "@ebec/core": "^1.3.2",
         "@ebec/http": "^4.3.2",
