@@ -137,8 +137,9 @@ describe('public api', () => {
     });
 
     it('exports the connection port with its child repositories and the fence read', () => {
+        expectTypeOf<store.Connection['id']>().toEqualTypeOf<string>();
+        expectTypeOf<store.ConnectionInput>().toEqualTypeOf<Omit<store.Connection, 'id'>>();
         expectTypeOf<store.ConnectionRecord>().toEqualTypeOf<store.Connection & {
-            id: string;
             settings: Record<string, unknown>;
             configRevision: number;
         }>();

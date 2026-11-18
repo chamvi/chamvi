@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Connection, IConnectionRepository  } from '@chamvi/store';
+import type { Connection, ConnectionInput, IConnectionRepository  } from '@chamvi/store';
 import type { IClock } from '../clock/types.ts';
 import type { LeaseLostError } from '../errors/index.ts';
 import type { IKeyring } from '../keyring/types.ts';
@@ -29,8 +29,21 @@ export type ConnectionConfig = {
     settings: Record<string, unknown>;
     /** Sealed bytes by field name; the store never sees plaintext. */
     secrets: Map<string, Uint8Array>;
-    /** Bumped by every `writeConfig`, starting at 0. */
+    /** Bumped by every `writeConfig` and `replace`, starting at 0. */
     revision: number;
+    /** The row's id: another one means the connection was deleted and created again. */
+    generation: string;
+};
+
+/**
+ * What a config write expects to find under the connection row's lock:
+ * the data key it sealed under and, when given, the revision and the
+ * generation its checks read.
+ */
+export type ConnectionWriteExpectation = {
+    wrappedKey: Uint8Array;
+    revision?: number;
+    generation?: string;
 };
 
 /**
@@ -168,6 +181,8 @@ export type ConnectionConfigView = {
     /** The names of the stored secrets, sorted; never their values. */
     secretsSet: string[];
     revision: number;
+    /** The row's id: another one means the connection was deleted and created again. */
+    generation: string;
 };
 
 /** One config save: `settings` replaces the stored settings as a whole (absent keeps them). */
@@ -182,6 +197,8 @@ export type ConnectionConfigUpdate = {
 export type ConnectionConfigUpdateOptions = {
     /** The revision the caller's checks read; another save since then refuses the write. */
     revision?: number;
+    /** The generation the caller's checks read; a delete and create since then refuses the write. */
+    generation?: string;
 };
 
 /**
@@ -203,7 +220,7 @@ export interface IConnectionConfigStore {
     /** Never resolves the keyring. */
     describe(name: string): Promise<ConnectionConfigView | undefined>;
     /** The settings and decrypted secrets; resolves the keyring only when secrets exist. */
-    read(name: string): Promise<{ values: ConnectionValues; revision: number } | undefined>;
+    read(name: string): Promise<{ values: ConnectionValues; revision: number; generation: string } | undefined>;
     /**
      * Saves `update` and returns the new revision; resolves the keyring only
      * to set a secret. RepositoryNotFoundError when absent,
@@ -364,7 +381,7 @@ export type ResolveConnectionInput = {
  */
 export interface IConnectionService {
     /** Insert-if-absent: resolves false and keeps the stored connection when the name is taken. */
-    create(connection: Connection): Promise<boolean>;
+    create(connection: ConnectionInput): Promise<boolean>;
 
     findOne(name: string): Promise<Connection | undefined>;
 
@@ -384,12 +401,13 @@ export interface IConnectionService {
     /**
      * All or nothing: swaps the connection of `connection.name` for
      * `connection` (inserts it if absent), dropping its entries and secrets
-     * (they are sealed under the replaced data key) and keeping its settings
-     * and config revision. The replacement is validated as by `create`
+     * (they are sealed under the replaced data key), keeping its id,
+     * `createdAt` and settings and bumping its config revision, so a config
+     * write that read before the replace is stale. The replacement is validated as by `create`
      * (ValidationError) before anything else; the fence holds at write time or
      * LeaseLostError and nothing changes.
      */
-    replace(connection: Connection, fence: ConnectionFence): Promise<void>;
+    replace(connection: ConnectionInput, fence: ConnectionFence): Promise<void>;
 
     findEntry(name: string, key: string): Promise<Uint8Array | undefined>;
 
@@ -417,16 +435,16 @@ export interface IConnectionService {
     /**
      * Saves the config and returns the new revision (bumped by one, with
      * `updatedAt`). RepositoryNotFoundError when absent; ConnectionChangedError
-     * when the stored wrappedKey differs from `expectedWrappedKey`, or the
-     * stored revision from a given `expectedRevision` (another save landed
-     * since it was read; nothing is written). Takes no fence: any replica may
+     * when the stored wrappedKey differs from `expected.wrappedKey`, or the
+     * stored revision or id from a given `expected.revision` or
+     * `expected.generation` (another save, a replace or a delete and create
+     * landed since it was read; nothing is written). Takes no fence: any replica may
      * write while a session holds the lease, and entries and the data key
      * stay untouched.
      */
     writeConfig(
         name: string,
         write: ConnectionConfigWrite,
-        expectedWrappedKey: Uint8Array,
-        expectedRevision?: number,
+        expected: ConnectionWriteExpectation,
     ): Promise<number>;
 }

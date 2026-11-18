@@ -20,7 +20,7 @@ import type {
     IConnectionSession,
     IConnectionVault,
 } from './types.ts';
-import type { Connection } from '@chamvi/store';
+import type { Connection, ConnectionInput } from '@chamvi/store';
 import { assertConnection, assertConnectionName } from './validate.ts';
 
 /**
@@ -62,7 +62,7 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
             try {
                 signal?.throwIfAborted();
 
-                const create = (): Connection => {
+                const create = (): ConnectionInput => {
                     const now = new Date(clock.now());
                     const { key, wrapped } = keyring.createDataKey(dataKeyContextOf(name));
 

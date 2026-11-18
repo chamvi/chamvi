@@ -14,7 +14,7 @@ import {
     CONNECTION_TYPE_MAX_LENGTH,
 } from './constants.ts';
 import type { ConnectionConfigWrite, ConnectionEntryWrite } from './types.ts';
-import type { Connection } from '@chamvi/store';
+import type { ConnectionInput } from '@chamvi/store';
 
 // well-formed UTF-16: a lone surrogate would be stored as U+FFFD in Postgres and seal to a shared AAD
 const isText = (value: unknown, max: number): value is string => typeof value === 'string' &&
@@ -42,7 +42,7 @@ export function assertConnectionEntryKey(key: unknown): asserts key is string {
 }
 
 /** The whole shape of a connection to insert; a ValidationError otherwise. */
-export function assertConnection(connection: unknown): asserts connection is Connection {
+export function assertConnection(connection: unknown): asserts connection is ConnectionInput {
     if (!isObject(connection)) {
         throw new ValidationError('A connection must be an object.');
     }
@@ -72,14 +72,22 @@ function assertConnectionSecretField(field: unknown): asserts field is string {
     }
 }
 
-/** A whole config write and the wrapped key it expects, before anything is written; a ValidationError otherwise (no field or value is echoed). */
-export function assertConnectionConfigWrite(write: unknown, expectedWrappedKey: unknown): asserts write is ConnectionConfigWrite {
+/** A whole config write and what it expects, before anything is written; a ValidationError otherwise (no field or value is echoed). */
+export function assertConnectionConfigWrite(write: unknown, expected: unknown): asserts write is ConnectionConfigWrite {
     if (!isObject(write)) {
         throw new ValidationError('A connection config write must be an object.');
     }
 
-    if (!(expectedWrappedKey instanceof Uint8Array)) {
+    if (!isObject(expected) || !(expected.wrappedKey instanceof Uint8Array)) {
         throw new ValidationError('A connection wrapped key must be a Uint8Array.');
+    }
+
+    if (expected.revision !== undefined && (!Number.isSafeInteger(expected.revision) || (expected.revision as number) < 0)) {
+        throw new ValidationError('An expected connection revision must be a non-negative integer.');
+    }
+
+    if (expected.generation !== undefined && typeof expected.generation !== 'string') {
+        throw new ValidationError('An expected connection generation must be a string.');
     }
 
     if (write.settings !== undefined && !isObject(write.settings)) {
