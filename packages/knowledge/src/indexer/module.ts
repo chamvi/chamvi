@@ -160,8 +160,9 @@ export async function embedDocument(input: EmbedDocumentInput): Promise<Embedded
  * the previous one. A document with unchanged content, title and source costs
  * nothing (its chunks carry the title and source). Ends early, without an
  * error, once `lock.renew()` answers false. Every write carries the lock's
- * fence (a first pass creates the record create-only, then advances it), so
- * a write after another owner took the lock is a `LeaseLostError`.
+ * fence (a first pass creates the record create-only, then advances it,
+ * ending when the token is not the created row's), so a write after another
+ * owner took the lock is a `LeaseLostError`.
  */
 export async function syncCollection(input: SyncCollectionInput): Promise<void> {
     const {
@@ -240,11 +241,17 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
     }
 
     // without a token only a create: a record another owner created meanwhile is never replaced
-    await repository.saveCollection(record, lock.fence === undefined ? { create: true } : writeOptionsOf(lock));
+    const saved = await repository.saveCollection(record, lock.fence === undefined ? { create: true } : writeOptionsOf(lock));
 
     if (lock.fence === undefined) {
         // the record exists from here on: the writes that follow carry its fence
-        await advanceLockFence(repository, name, lock);
+        const fence = await advanceLockFence(repository, name, lock);
+
+        // deleted (or deleted and created again) since the create: never a write without
+        // a token, nor one into another row of the name
+        if (fence?.id !== saved.id) {
+            return;
+        }
     }
 
     if (serves) {

@@ -440,6 +440,69 @@ describe('the indexing lock', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('a pass whose created record is deleted before its fence advance writes nothing more', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+        const save = vi.spyOn(service, 'saveCollection');
+        const fences = vi.spyOn(service, 'advanceFence')
+            // the loop's advance: no row yet
+            .mockImplementationOnce(advance)
+            // the record the pass created is deleted before the pass's own advance
+            .mockImplementationOnce(async (name) => {
+                await service.deleteCollection(name);
+
+                return advance(name);
+            });
+
+        await expect.poll(() => fences.mock.calls.length).toBe(2);
+        await settle();
+
+        // no write without a token: nothing recreates the deleted record
+        expect(save).toHaveBeenCalledTimes(1);
+        expect(replace).not.toHaveBeenCalled();
+        expect(await setup.repository.findOneCollection('docs')).toBeUndefined();
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose created record is replaced before its fence advance never claims the replacement', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+        const now = new Date(setup.clock.now());
+        const theirs: KnowledgeCollection = {
+            name: 'docs',
+            kind: 'declared',
+            trusted: true,
+            generation: 0,
+            model: 'mock-provider/mock-model-id',
+            chunker: CHUNKER_VERSION,
+            status: 'pending',
+            createdAt: now,
+            updatedAt: now,
+        };
+        const fences = vi.spyOn(service, 'advanceFence')
+            .mockImplementationOnce(advance)
+            // deleted and created again by another owner before the pass's own advance
+            .mockImplementationOnce(async (name) => {
+                await service.deleteCollection(name);
+                await service.saveCollection(theirs);
+
+                return advance(name);
+            });
+
+        await expect.poll(() => fences.mock.calls.length).toBe(2);
+        await settle();
+
+        expect(replace).not.toHaveBeenCalled();
+        expect(await setup.repository.findOneCollection('docs')).toEqual(theirs);
+        expect(setup.errors).toEqual([]);
+    });
+
     it('a pass whose record appeared after the fence was advanced writes with a fence', async () => {
         const setup = createIndexerSetup();
         const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
