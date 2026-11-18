@@ -403,9 +403,9 @@ describe('componentsModule', () => {
             const response = await fetch(`http://127.0.0.1:${port}/agents/triage/runs`, {
                 method: 'POST',
                 headers: {
-                    authorization: `Bearer ${TOKEN}`, 
-                    'content-type': 'application/json', 
-                    connection: 'close', 
+                    authorization: `Bearer ${TOKEN}`,
+                    'content-type': 'application/json',
+                    connection: 'close',
                 },
                 body: JSON.stringify({ input: 'go' }),
             });
