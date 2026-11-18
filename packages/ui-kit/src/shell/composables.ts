@@ -5,17 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isObject } from 'smob';
 import { computed, onScopeDispose, shallowRef } from 'vue';
-import { asApiError, retryDelayOf } from '../api/helpers.ts';
-import { createConnectionsApi } from '../connections/api.ts';
+import { asApiError, retryDelayOf } from '@chamvi/http-kit';
+import type { ConnectionTypeWire, UiPageWire } from '@chamvi/http-kit';
 import { useConnections } from '../connections/composables.ts';
 import { CONNECTIONS_POLL_MS } from '../connections/constants.ts';
-import type { ConnectionTypeWire } from '../connections/types.ts';
 import { useAppContext } from '../context/module.ts';
 import { createPoller } from '../polling/module.ts';
 import { visibleUiPages } from './helpers.ts';
-import type { UiPageWire } from './types.ts';
 
 /**
  * The registered `*-ui` pages this principal gets a sidebar item for, with
@@ -29,22 +26,16 @@ export function useUiPages() {
         connections,
         loaded,
         refresh,
-    } = useConnections(createConnectionsApi(client));
+    } = useConnections(client.connection);
     const registered = shallowRef<UiPageWire[]>([]);
     const types = shallowRef<ConnectionTypeWire[]>([]);
     const typesLoaded = shallowRef(false);
 
-    const read = async <T>(url: string): Promise<T[]> => {
-        const body: unknown = await (await client.send(url)).json();
-
-        return isObject(body) && Array.isArray(body.data) ? body.data as T[] : [];
-    };
-
     // one poller per list: a failing or stalled page list never holds back the types an add form waits for
-    const readOnce = <T>(url: string, apply: (items: T[]) => void) => {
+    const readOnce = <T>(read: () => Promise<T[]>, apply: (items: T[]) => void) => {
         const poller = createPoller(async () => {
             try {
-                apply(await read<T>(url));
+                apply(await read());
                 poller.stop();
 
                 return undefined;
@@ -57,10 +48,10 @@ export function useUiPages() {
         onScopeDispose(() => poller.stop());
     };
 
-    readOnce<UiPageWire>('/ui-pages', (items) => {
+    readOnce<UiPageWire>(() => client.uiPage.getMany(), (items) => {
         registered.value = items;
     });
-    readOnce<ConnectionTypeWire>('/connection-types', (items) => {
+    readOnce<ConnectionTypeWire>(() => client.connectionType.getMany(), (items) => {
         types.value = items;
         typesLoaded.value = true;
     });

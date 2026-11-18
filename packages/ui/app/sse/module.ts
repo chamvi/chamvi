@@ -11,8 +11,8 @@ import {
     RECONNECT_DELAYS_MS,
     sleep as defaultSleep,
     parseEventStream,
-} from '@chamvi/ui-kit';
-import type { RunWire, SseEvent, StepWire  } from '@chamvi/ui-kit';
+} from '@chamvi/http-kit';
+import type { RunWire, SseEvent, StepWire } from '@chamvi/http-kit';
 import { SETTLED_RUN_STATUSES } from './constants.ts';
 import type {
     IRunStream,
@@ -67,13 +67,9 @@ export function openRunStream(options: RunStreamOptions): IRunStream {
             let delay: number | undefined;
 
             try {
-                const response = await options.client.streamRun(options.runId, { lastEventId: lastStep, signal });
+                const body = await options.client.run.stream(options.runId, { lastEventId: lastStep, signal });
 
-                if (!response.body) {
-                    throw new ApiError(response.status, 'empty_stream', 'The stream has no body.');
-                }
-
-                for await (const event of parseEventStream(response.body)) {
+                for await (const event of parseEventStream(body)) {
                     if (signal.aborted) {
                         return;
                     }

@@ -17,7 +17,7 @@ import { useRoute, useRouter } from 'vue-router';
 import { failedSummary, oldestWaiting, tokenShares } from '../agents/helpers.ts';
 import { useAgents } from '../agents/composables.ts';
 import { INBOX } from '../approvals/constants.ts';
-import type { RunListFilter } from '@chamvi/ui-kit';
+import type { RunListFilter } from '../runs/types.ts';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';
 import RunsTable from '../components/runs-table/RunsTable.vue';

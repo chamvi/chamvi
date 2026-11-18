@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope } from 'vue';
-import type { ScheduleWire } from '@chamvi/ui-kit';
+import type { ScheduleWire } from '@chamvi/http-kit';
 import { groupByAgent } from '../../../../app/schedules/helpers.ts';
 import { withoutIteratorHelpers } from '../../../utils/iterator.ts';
 import { useSchedules } from '../../../../app/schedules/composables.ts';
@@ -26,7 +26,7 @@ const schedule = (agent: string, trigger: string, nextAt: string): ScheduleWire 
 describe('useSchedules', () => {
     it('lists schedules', async () => {
         const list = [schedule('digest', 'cron:a', '2026-10-22T06:00:00.000Z')];
-        const client = fakeClient({ listSchedules: async () => list });
+        const client = fakeClient({ schedule: { getMany: async () => list } });
         const scope = effectScope();
         const schedules = scope.run(() => useSchedules(client))!;
 
@@ -37,8 +37,10 @@ describe('useSchedules', () => {
 
     it('a 403 sets error without throwing', async () => {
         const client = fakeClient({
-            listSchedules: async () => {
-                throw apiError(403, 'forbidden');
+            schedule: {
+                getMany: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();

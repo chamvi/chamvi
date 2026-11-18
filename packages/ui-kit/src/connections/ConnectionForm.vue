@@ -22,7 +22,6 @@ import {
     watch,
 } from 'vue';
 import { useAppContext } from '../context/module.ts';
-import { createConnectionConfigApi } from './api.ts';
 import { useConnectionForm } from './form.ts';
 import { connectionProblem } from './helpers.ts';
 import type { ConnectionCreated, ConnectionDeleted, ConnectionFormField } from './types.ts';
@@ -38,7 +37,7 @@ const props = defineProps<{
 const emit = defineEmits<{ created: [result: ConnectionCreated]; deleted: [result: ConnectionDeleted] }>();
 
 const { client, session } = useAppContext();
-const form = useConnectionForm(createConnectionConfigApi(client), {
+const form = useConnectionForm(client, {
     ...(props.name === undefined ? {} : { name: props.name }),
     type: props.type,
     onCreated: (result) => emit('created', result),

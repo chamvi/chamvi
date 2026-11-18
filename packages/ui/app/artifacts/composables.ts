@@ -75,7 +75,7 @@ export function useArtifactTiles(options: ArtifactTilesOptions) {
         let metadata: Map<string, { mediaType: string; filename?: string }>;
 
         try {
-            metadata = new Map((await options.client.listArtifacts(runId)).map((item) => [item.id, item]));
+            metadata = new Map((await options.client.artifact.getMany(runId)).map((item) => [item.id, item]));
         } catch {
             failed = current === generation;
 
@@ -126,7 +126,7 @@ export function useArtifactTiles(options: ArtifactTilesOptions) {
                 let blob: Blob;
 
                 try {
-                    blob = await options.client.readArtifact(runId, id, signal);
+                    blob = await options.client.artifact.read(runId, id, { signal });
                 } catch {
                     if (current === generation) {
                         failed = true;
@@ -201,7 +201,7 @@ export function useArtifactTiles(options: ArtifactTilesOptions) {
         const current = generation;
 
         try {
-            await save(await options.client.readArtifact(runId, id), tile.name);
+            await save(await options.client.artifact.read(runId, id), tile.name);
         } catch {
             set(current, { ...tile, status: 'missing' });
         }

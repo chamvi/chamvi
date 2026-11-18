@@ -21,11 +21,15 @@ import {
 } from 'vue';
 import type { App } from 'vue';
 import { Permission } from '@chamvi/access';
-import type { IApiClient, MeWire } from '../../../src/api/types.ts';
+import type { 
+    ConnectionTypeWire, 
+    ConnectionWire, 
+    IClient, 
+    MeWire, 
+} from '@chamvi/http-kit';
 import ConnectionsPage from '../../../src/connections/ConnectionsPage.vue';
-import type { ConnectionTypeWire, ConnectionWire } from '../../../src/connections/types.ts';
 import { install } from '../../../src/module.ts';
-import { fakeClient } from '../../utils/client.ts';
+import { routedClient } from '../../utils/client.ts';
 import { installFormKit } from '../../utils/forms.ts';
 import { json } from '../../utils/fetch.ts';
 import { ALL, verdicts } from '../../utils/permissions.ts';
@@ -85,34 +89,32 @@ async function mountPage(search: string, options: {
         kind: 'token',
     };
     const opened: string[] = [];
-    const client: IApiClient = fakeClient({
-        send: async (url: string) => {
-            if (url === '/connections') {
-                return json({ data: CONNECTIONS });
+    const client: IClient = routedClient(async (url: string) => {
+        if (url === '/connections') {
+            return json({ data: CONNECTIONS });
+        }
+
+        if (url === '/ui-pages') {
+            if (options.pages === 'fail') {
+                // the API client throws on a non-2xx answer
+                throw new Error('ui-pages down');
             }
 
-            if (url === '/ui-pages') {
-                if (options.pages === 'fail') {
-                    // the API client throws on a non-2xx answer
-                    throw new Error('ui-pages down');
-                }
-
-                if (options.pages === 'hang') {
-                    // a request that never answers: the client has no timeout of its own
-                    return new Promise<never>(() => {});
-                }
-
-                return json({ data: [] });
+            if (options.pages === 'hang') {
+                // a request that never answers: the client has no timeout of its own
+                return new Promise<never>(() => {});
             }
 
-            if (url === '/connection-types') {
-                return json({ data: [options.type ?? MAIL] });
-            }
+            return json({ data: [] });
+        }
 
-            opened.push(url);
+        if (url === '/connection-types') {
+            return json({ data: [options.type ?? MAIL] });
+        }
 
-            return json(SETTINGS);
-        },
+        opened.push(url);
+
+        return json(SETTINGS);
     });
     const app = createApp(defineComponent(() => () => h(ConnectionsPage, { slug: 'tool-mail', type: 'mail' })));
 

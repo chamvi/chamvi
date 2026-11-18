@@ -12,16 +12,13 @@ import {
     watch,
 } from 'vue';
 import type { Ref } from 'vue';
-import {
-    ApiError,
-    asApiError,
-    createPoller,
-    retryDelayOf,
-} from '@chamvi/ui-kit';
-import type { IApiClient, RunDetail, RunWire } from '@chamvi/ui-kit';
+import { createPoller } from '@chamvi/ui-kit';
+import { ApiError, asApiError, retryDelayOf } from '@chamvi/http-kit';
+import type { IClient, RunDetail, RunWire } from '@chamvi/http-kit';
 import { INBOX_PAGE_SIZE, INBOX_POLL_MS } from './constants.ts';
 import { approvalWaitOf } from './helpers.ts';
 import type { AnswerResult, ApprovalLink } from './types.ts';
+import { toRunQuery } from '../runs/query.ts';
 
 function reasonOf(reason: string | undefined): { reason?: string } {
     const trimmed = reason?.trim();
@@ -36,18 +33,18 @@ function reasonOf(reason: string | undefined): { reason?: string } {
  * expired, or moved on to another approval) is `already-answered`, a 403
  * `forbidden`; the list refreshes either way.
  */
-export function useApprovals(client: IApiClient) {
+export function useApprovals(client: IClient) {
     const runs = shallowRef<RunWire[]>([]);
     const error = shallowRef<ApiError>();
     const poller = createPoller(async () => {
         try {
             // a run waiting on its dispatched runs waits on no person: the server leaves it out
-            const page = await client.listRuns({
+            const page = await client.run.getMany(toRunQuery({
                 status: ['waiting'],
                 waiting: 'approval',
                 limit: INBOX_PAGE_SIZE,
                 offset: 0,
-            });
+            }));
 
             runs.value = page.data;
             error.value = undefined;
@@ -71,7 +68,7 @@ export function useApprovals(client: IApiClient) {
         }
 
         try {
-            await client.approve(run.id, {
+            await client.run.approve(run.id, {
                 approvalId: waiting.approvalId,
                 approved,
                 ...reasonOf(reason),
@@ -112,7 +109,7 @@ export function useApprovals(client: IApiClient) {
  * on when first loaded, so answering it never jumps to the run's next
  * approval. A failed reload keeps the run loaded earlier.
  */
-export function useLinkedApproval(client: IApiClient, target: Ref<ApprovalLink | undefined>, reload?: Ref<unknown>) {
+export function useLinkedApproval(client: IClient, target: Ref<ApprovalLink | undefined>, reload?: Ref<unknown>) {
     const run = shallowRef<RunWire>();
     const error = shallowRef<ApiError>();
     const pinned = shallowRef<string>();
@@ -137,7 +134,7 @@ export function useLinkedApproval(client: IApiClient, target: Ref<ApprovalLink |
         }
 
         try {
-            const detail: Partial<RunDetail> = { ...await client.getRun(value.runId) };
+            const detail: Partial<RunDetail> = { ...await client.run.getOne(value.runId) };
 
             delete detail.steps;
 

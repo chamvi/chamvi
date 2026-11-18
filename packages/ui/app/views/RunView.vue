@@ -16,11 +16,7 @@ import {
 import { RouterLink, useRoute } from 'vue-router';
 import { useAgents } from '../agents/composables.ts';
 import { Permission } from '@chamvi/access';
-import {
-    NavIcon,
-    StatusChip,
-    useAppContext,
-} from '@chamvi/ui-kit';
+import { NavIcon, StatusChip, useAppContext } from '@chamvi/ui-kit';
 import { approvalLinkQuery, approvalWaitOf } from '../approvals/helpers.ts';
 import JsonBlock from '../components/json-block/JsonBlock.vue';
 import StepItem from '../components/step-item/StepItem.vue';
@@ -29,7 +25,7 @@ import { refusalText } from '../errors/helpers.ts';
 import UntrustedChip from '../components/untrusted-chip/UntrustedChip.vue';
 import UsageMeter from '../components/usage-meter/UsageMeter.vue';
 import { RouteName } from '../router/constants.ts';
-import type { RunWire } from '@chamvi/ui-kit';
+import type { RunWire } from '@chamvi/http-kit';
 import { useRunChildren, useRunDetail } from '../runs/composables.ts';
 import {
     canCancel,

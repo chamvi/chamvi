@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunWire } from '@chamvi/ui-kit';
+import type { RunWire } from '@chamvi/http-kit';
 
 /** A run's approval wait point on the wire (a dispatch wait is no human wait). */
 export type ApprovalWaitWire = Extract<NonNullable<RunWire['waiting']>, { kind: 'approval' }>;

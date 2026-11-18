@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { asApiError } from '@chamvi/ui-kit';
+import { asApiError } from '@chamvi/http-kit';
 
 /**
  * The inline line of an action the API refused. A 403 names the permission

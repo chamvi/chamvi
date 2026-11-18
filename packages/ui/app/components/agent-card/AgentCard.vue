@@ -9,13 +9,13 @@
 import { ACTIVITY_LIMIT } from '../../agents/constants.ts';
 import { formatBudgetTime } from '../../agents/helpers.ts';
 import type { AgentRollup, ChannelChip as Chip } from '../../agents/types.ts';
-import type { AgentWire } from '@chamvi/ui-kit';
+import type { AgentWire } from '@chamvi/http-kit';
 import { RouteName } from '../../router/constants.ts';
 import { shortId } from '../../runs/helpers.ts';
 import ActivityStrip from '../activity-strip/ActivityStrip.vue';
 import ChannelChip from '../channel-chip/ChannelChip.vue';
 import ExpiryCountdown from '../expiry-countdown/ExpiryCountdown.vue';
-import { NavIcon, StatusChip  } from '@chamvi/ui-kit';
+import { NavIcon, StatusChip } from '@chamvi/ui-kit';
 
 defineProps<{
     agent: AgentWire;

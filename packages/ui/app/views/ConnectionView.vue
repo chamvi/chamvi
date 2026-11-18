@@ -9,16 +9,11 @@
 import { computed } from 'vue';
 import { RouterLink, useRoute } from 'vue-router';
 import { Permission } from '@chamvi/access';
-import {
-    ConnectionPanel,
-    NavIcon,
-    createConnectionsApi,
-    useAppContext,
-} from '@chamvi/ui-kit';
+import { ConnectionPanel, NavIcon, useAppContext } from '@chamvi/ui-kit';
 import { RouteName } from '../router/constants.ts';
 
 const { client, session } = useAppContext();
-const api = createConnectionsApi(client);
+const api = client.connection;
 const route = useRoute();
 const name = computed(() => String(route.params.name));
 // widgets, the live stream and reset: an upper bound, a refused reset shows its 403 inline

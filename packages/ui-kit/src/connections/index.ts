@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export * from './api.ts';
 export * from './composables.ts';
 export { default as ConnectionForm } from './ConnectionForm.vue';
 export { default as ConnectionPanel } from './ConnectionPanel.vue';

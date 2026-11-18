@@ -6,28 +6,27 @@
  */
 
 import { onScopeDispose, shallowRef } from 'vue';
-import type { ApiError } from '../api/error.ts';
-import { asApiError, retryDelayOf } from '../api/helpers.ts';
-import { createPoller } from '../polling/module.ts';
-import { openConnectionStream } from './api.ts';
-import { CONNECTIONS_POLL_MS } from './constants.ts';
+import { asApiError, openConnectionStream, retryDelayOf } from '@chamvi/http-kit';
 import type {
+    ApiError,
     ConnectionDetailWire,
     ConnectionWidgetWire,
     ConnectionWire,
+    IConnectionAPI,
     IConnectionStream,
-    IConnectionsApi,
-    UseConnectionOptions,
-} from './types.ts';
+} from '@chamvi/http-kit';
+import { createPoller } from '../polling/module.ts';
+import { CONNECTIONS_POLL_MS } from './constants.ts';
+import type { UseConnectionOptions } from './types.ts';
 
 /** `GET /connections`, refreshed every `CONNECTIONS_POLL_MS` while the scope lives. */
-export function useConnections(api: IConnectionsApi) {
+export function useConnections(api: IConnectionAPI) {
     const connections = shallowRef<ConnectionWire[]>([]);
     const error = shallowRef<ApiError>();
     const loaded = shallowRef(false);
     const poller = createPoller(async () => {
         try {
-            connections.value = await api.list();
+            connections.value = await api.getMany();
             error.value = undefined;
 
             return undefined;
@@ -60,7 +59,7 @@ export function useConnections(api: IConnectionsApi) {
  * The reset asks for a confirmation in the page (`askReset`, then
  * `confirmReset`).
  */
-export function useConnection(api: IConnectionsApi, name: string, options: UseConnectionOptions) {
+export function useConnection(api: IConnectionAPI, name: string, options: UseConnectionOptions) {
     const connection = shallowRef<ConnectionDetailWire>();
     const widgets = shallowRef<ConnectionWidgetWire[]>([]);
     const writable = shallowRef(false);
@@ -100,7 +99,7 @@ export function useConnection(api: IConnectionsApi, name: string, options: UseCo
 
     const poller = createPoller(async () => {
         try {
-            const detail = await api.get(name);
+            const detail = await api.getOne(name);
 
             connection.value = detail;
             // write may be held for another connection only: the server sends widgets to a writer of this one

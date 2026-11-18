@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { UiPage } from '@chamvi/http';
 import type { Router } from 'vue-router';
 import type { ISession } from '../auth/types.ts';
 import type { UiConfig } from '../config/types.ts';
@@ -22,6 +21,3 @@ export type MountPageOptions = {
      */
     router?: (context: { config: UiConfig; session: ISession }) => Router;
 };
-
-/** One entry of `GET /ui-pages`; `path` carries the app's `basePath`, so a plain link works. */
-export type UiPageWire = UiPage;

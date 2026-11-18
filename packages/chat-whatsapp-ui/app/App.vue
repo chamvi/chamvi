@@ -11,7 +11,6 @@ import {
     AccountsColumn,
     AppShell,
     ConnectionPanel,
-    createConnectionsApi,
     useAppContext,
     useUiPages,
 } from '@chamvi/ui-kit';
@@ -20,7 +19,7 @@ import QrWidget from './QrWidget.vue';
 
 const { client, session } = useAppContext();
 const { connections, loaded } = useUiPages();
-const api = createConnectionsApi(client);
+const api = client.connection;
 
 const chosen = shallowRef(new URLSearchParams(globalThis.location.search).get('connection') ?? undefined);
 const sessions = computed(() => connections.value.filter((connection) => connection.type === WHATSAPP_TYPE.type));

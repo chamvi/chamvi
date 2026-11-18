@@ -26,7 +26,7 @@ import {
     summarizeActivity,
     tokenShares,
 } from '../../../../app/agents/helpers.ts';
-import type { AgentWire, ScheduleWire } from '@chamvi/ui-kit';
+import type { AgentWire, ScheduleWire } from '@chamvi/http-kit';
 import { withoutIteratorHelpers } from '../../../utils/iterator.ts';
 import { ALL, allowedOf } from '../../../utils/permissions.ts';
 import { wireRun } from '../../../utils/runs.ts';

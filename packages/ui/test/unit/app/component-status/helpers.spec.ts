@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ComponentWire } from '@chamvi/ui-kit';
+import type { ComponentWire } from '@chamvi/http-kit';
 import {
     absoluteTime,
     componentState,

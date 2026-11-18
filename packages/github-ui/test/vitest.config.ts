@@ -17,6 +17,7 @@ export default defineConfig({
             { find: /^@chamvi\/channel-cron$/, replacement: fileURLToPath(new URL('../../channel-cron/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/store-db$/, replacement: fileURLToPath(new URL('../../store-db/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/github-ui\/module$/, replacement: fileURLToPath(new URL('../src/module/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/http-kit$/, replacement: fileURLToPath(new URL('../../http-kit/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/ui-kit$/, replacement: fileURLToPath(new URL('../../ui-kit/src/index.ts', import.meta.url)) },
             // a page's Vite build gets this from definePageConfig's icon plugin
             { find: /^virtual:chamvi-icons$/, replacement: fileURLToPath(new URL('../../ui-kit/test/utils/icons.ts', import.meta.url)) },

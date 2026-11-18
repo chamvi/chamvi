@@ -7,10 +7,10 @@
 
 import type {
     ApiError,
-    IApiClient,
+    IClient,
     RunWire,
     StepWire,
-} from '@chamvi/ui-kit';
+} from '@chamvi/http-kit';
 
 export type RunStreamEvent = { type: 'run'; run: RunWire } |
     { type: 'step'; step: StepWire } |
@@ -22,7 +22,7 @@ export type RunStreamEvent = { type: 'run'; run: RunWire } |
     };
 
 export type RunStreamOptions = {
-    client: IApiClient;
+    client: IClient;
     runId: string;
     /** Start after this step index (sent as `Last-Event-ID`). */
     after?: number;

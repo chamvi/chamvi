@@ -1,6 +1,6 @@
 # @chamvi/ui-kit
 
-The shared base of the chamvi dashboard (`@chamvi/ui`) and its `*-ui` pages: the API client, the session, the shell pieces, the connection components and the page bootstrap.
+The shared base of the chamvi dashboard (`@chamvi/ui`) and its `*-ui` pages: the session, the shell pieces, the connection components and the page bootstrap, over the API client of `@chamvi/http-kit`.
 
 Vue, vue-router and the vuecs packages are peer dependencies. A page bundles the kit at build time, so nothing but the built page reaches the app.
 

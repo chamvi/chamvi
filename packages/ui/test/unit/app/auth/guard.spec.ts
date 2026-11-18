@@ -29,10 +29,12 @@ function setup(storage = new MemoryStorage()) {
     const session = createSession(DEV_CONFIG, {
         storage,
         client: () => fakeClient({
-            me: async (token) => {
-                meCalls++;
+            account: {
+                getMe: async (token) => {
+                    meCalls++;
 
-                return me(token);
+                    return me(token);
+                },
             },
         }),
     });
@@ -92,12 +94,14 @@ describe('auth guard', () => {
         const session = createSession(DEV_CONFIG, {
             storage,
             client: () => fakeClient({
-                me: async () => {
-                    if (!up) {
-                        throw apiError(503, 'service_unavailable');
-                    }
+                account: {
+                    getMe: async () => {
+                        if (!up) {
+                            throw apiError(503, 'service_unavailable');
+                        }
 
-                    return ME;
+                        return ME;
+                    },
                 },
             }),
         });

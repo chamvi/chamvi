@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IApiClient } from '@chamvi/ui-kit';
+import type { IClient } from '@chamvi/http-kit';
 
 /**
  * One artifact as the dashboard shows it: `loading` (metadata or bytes on
@@ -31,7 +31,7 @@ export type ObjectUrls = {
 
 /** Options of `useArtifactTiles()`. */
 export type ArtifactTilesOptions = {
-    client: IApiClient;
+    client: IClient;
     runId: () => string | undefined;
     /** A new key (the approval id) drops every tile, revokes its URLs and loads again. */
     key: () => string | undefined;

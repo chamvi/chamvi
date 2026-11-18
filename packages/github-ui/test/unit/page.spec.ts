@@ -15,8 +15,10 @@ import {
 } from 'vitest';
 import { createApp, shallowRef } from 'vue';
 import type { App } from 'vue';
-import { APP_CONTEXT, ApiError, installVuecs } from '@chamvi/ui-kit';
-import type { AppContext, ConnectionSettingsWire, ConnectionTypeWire } from '@chamvi/ui-kit';
+import { APP_CONTEXT, installVuecs } from '@chamvi/ui-kit';
+import { ApiError, Client } from '@chamvi/http-kit';
+import type { AppContext } from '@chamvi/ui-kit';
+import type { ConnectionSettingsWire, ConnectionTypeWire } from '@chamvi/http-kit';
 import Page from '../../app/App.vue';
 
 const TYPE: ConnectionTypeWire = {
@@ -87,7 +89,8 @@ async function mount(names: string[], options: { permissions?: string[]; refuseS
             uiBase: '/ui', 
             auth: { tokens: true }, 
         },
-        client: { send },
+        // a custom transport hands every request to the spec's router
+        client: new Client({ baseURL: '', transport: { dispatch: (request) => send(request.url, { method: request.method }) } }),
         session: {
             principal: shallowRef({ id: 'a', kind: 'token' }),
             // the names POST /authorization/check answered

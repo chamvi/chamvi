@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { DocEntry } from '@chamvi/ui-kit';
+import type { DocEntry } from '@chamvi/http-kit';
 
 /** One line of JSON for a table cell. */
 export function inlineJson(value: unknown): string {

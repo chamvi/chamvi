@@ -6,8 +6,8 @@
  */
 
 import { shallowRef } from 'vue';
-import { ApiError } from '../api/error.ts';
-import type { MeWire } from '../api/types.ts';
+import { ApiError } from '@chamvi/http-kit';
+import type { MeWire } from '@chamvi/http-kit';
 import type { UiConfig } from '../config/types.ts';
 import { RETURN_STORAGE_KEY, TOKEN_STORAGE_KEY, VERDICT_REFRESH_MS } from './constants.ts';
 import { clearStorage, safeReturnPath } from './helpers.ts';
@@ -21,7 +21,7 @@ import type {
 /**
  * Who is signed in, and with which credential: a pasted static token (kept
  * in `sessionStorage` once `GET /me` accepted it) or an authup session.
- * Every credential check passes the token to `me()` explicitly, so a
+ * Every credential check passes the token to `account.getMe()` explicitly, so a
  * refused one never triggers the client's sign-out.
  *
  * The session also holds the permission names `POST /authorization/check`
@@ -71,7 +71,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
         const request = ++requested;
 
         try {
-            const view = await client().checkAuthorization(undefined, token);
+            const view = await client().authorization.check(undefined, token === undefined ? {} : { token });
 
             // an older request that answers late never overwrites a newer answer
             if (current === generation && request > applied) {
@@ -124,7 +124,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
 
             if (stored) {
                 try {
-                    principal.value = await client().me(stored);
+                    principal.value = await client().account.getMe({ token: stored });
                     method = 'token';
                     await verify(stored);
 
@@ -150,7 +150,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
                     const token = await (await authup()).token();
 
                     if (token) {
-                        principal.value = await client().me(token);
+                        principal.value = await client().account.getMe({ token });
                         method = 'authup';
                         await verify(token);
 
@@ -168,7 +168,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
             return false;
         },
         async signInWithToken(token) {
-            const me = await client().me(token);
+            const me = await client().account.getMe({ token });
 
             deps.storage.setItem(TOKEN_STORAGE_KEY, token);
             principal.value = me;
@@ -203,7 +203,7 @@ export function createSession(config: UiConfig, deps: SessionDeps): ISession {
                 throw new Error('authup answered no access token.');
             }
 
-            principal.value = await client().me(token);
+            principal.value = await client().account.getMe({ token });
             method = 'authup';
             await verify(token);
 

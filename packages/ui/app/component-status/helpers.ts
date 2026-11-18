@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ComponentWire } from '@chamvi/ui-kit';
+import type { ComponentWire } from '@chamvi/http-kit';
 import type { ComponentState } from './types.ts';
 
 const timeOf = (iso: string | undefined): number | undefined => {

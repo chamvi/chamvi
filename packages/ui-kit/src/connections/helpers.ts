@@ -7,7 +7,8 @@
 
 import type { ConnectionStatus } from '@chamvi/core';
 import { STATUS_BADGES } from './constants.ts';
-import type { ConnectionBadge, ConnectionWire } from './types.ts';
+import type { ConnectionWire } from '@chamvi/http-kit';
+import type { ConnectionBadge } from './types.ts';
 
 export function statusBadge(status: ConnectionStatus): ConnectionBadge {
     return Object.hasOwn(STATUS_BADGES, status) ? STATUS_BADGES[status] : { label: String(status), tone: 'queued' };

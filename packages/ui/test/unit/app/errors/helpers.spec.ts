@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ApiError } from '@chamvi/ui-kit';
+import { ApiError } from '@chamvi/http-kit';
 import { refusalText } from '../../../../app/errors/helpers.ts';
 
 describe('refusalText', () => {

@@ -6,8 +6,8 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { ApiError } from '../../../src/api/error.ts';
-import type { IApiClient } from '../../../src/api/types.ts';
+import { ApiError } from '@chamvi/http-kit';
+import type { IAccountAPI, IAuthorizationAPI } from '@chamvi/http-kit';
 import { RETURN_STORAGE_KEY, TOKEN_STORAGE_KEY, VERDICT_REFRESH_MS } from '../../../src/auth/constants.ts';
 import { createSession } from '../../../src/auth/module.ts';
 import type { IAuthupAdapter } from '../../../src/auth/types.ts';
@@ -58,7 +58,7 @@ function fakeAdapter(token?: string) {
 describe('createSession', () => {
     it('signInWithToken stores the token only after me() accepted it', async () => {
         const storage = new MemoryStorage();
-        const session = createSession(DEV_CONFIG, { storage, client: () => fakeClient({ me: meFor('good') }) });
+        const session = createSession(DEV_CONFIG, { storage, client: () => fakeClient({ account: { getMe: meFor('good') } }) });
 
         await session.signInWithToken('good');
         expect(storage.getItem(TOKEN_STORAGE_KEY)).toBe('good');
@@ -69,7 +69,7 @@ describe('createSession', () => {
 
     it('signInWithToken with a refused token stores nothing and throws', async () => {
         const storage = new MemoryStorage();
-        const session = createSession(DEV_CONFIG, { storage, client: () => fakeClient({ me: meFor('good') }) });
+        const session = createSession(DEV_CONFIG, { storage, client: () => fakeClient({ account: { getMe: meFor('good') } }) });
 
         await expect(session.signInWithToken('bad')).rejects.toBeInstanceOf(ApiError);
         expect(storage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
@@ -81,7 +81,7 @@ describe('createSession', () => {
 
         storage.setItem(TOKEN_STORAGE_KEY, 'good');
 
-        const session = createSession(DEV_CONFIG, { storage, client: () => fakeClient({ me: meFor('good') }) });
+        const session = createSession(DEV_CONFIG, { storage, client: () => fakeClient({ account: { getMe: meFor('good') } }) });
 
         expect(await session.restore()).toBe(true);
         expect(session.principal.value).toEqual(ME);
@@ -92,7 +92,7 @@ describe('createSession', () => {
 
         storage.setItem(TOKEN_STORAGE_KEY, 'revoked');
 
-        const session = createSession(DEV_CONFIG, { storage, client: () => fakeClient({ me: meFor('good') }) });
+        const session = createSession(DEV_CONFIG, { storage, client: () => fakeClient({ account: { getMe: meFor('good') } }) });
 
         expect(await session.restore()).toBe(false);
         expect(storage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
@@ -108,8 +108,10 @@ describe('createSession', () => {
             const session = createSession(DEV_CONFIG, {
                 storage,
                 client: () => fakeClient({
-                    me: async () => {
-                        throw error;
+                    account: {
+                        getMe: async () => {
+                            throw error;
+                        },
                     },
                 }),
             });
@@ -130,7 +132,7 @@ describe('createSession', () => {
         const adapter = fakeAdapter('authup-token');
         const session = createSession(AUTHUP_CONFIG, {
             storage: new MemoryStorage(),
-            client: () => fakeClient({ me: meFor('authup-token') }),
+            client: () => fakeClient({ account: { getMe: meFor('authup-token') } }),
             authup: async () => adapter,
         });
 
@@ -144,7 +146,7 @@ describe('createSession', () => {
         const adapter = fakeAdapter('authup-token');
         const session = createSession(AUTHUP_CONFIG, {
             storage,
-            client: () => fakeClient({ me: meFor('authup-token') }),
+            client: () => fakeClient({ account: { getMe: meFor('authup-token') } }),
             authup: async () => adapter,
         });
 
@@ -166,7 +168,7 @@ describe('createSession', () => {
         const adapter = fakeAdapter('authup-token');
         const session = createSession(AUTHUP_CONFIG, {
             storage: new MemoryStorage(),
-            client: () => fakeClient({ me: meFor('authup-token', 'good') }),
+            client: () => fakeClient({ account: { getMe: meFor('authup-token', 'good') } }),
             authup: async () => adapter,
         });
 
@@ -185,7 +187,7 @@ describe('createSession', () => {
         const visited: string[] = [];
         const session = createSession(AUTHUP_CONFIG, {
             storage,
-            client: () => fakeClient({ me: meFor('authup-token') }),
+            client: () => fakeClient({ account: { getMe: meFor('authup-token') } }),
             authup: async () => adapter,
             navigate: (url) => {
                 visited.push(url);
@@ -210,7 +212,7 @@ describe('createSession', () => {
 
         const session = createSession(AUTHUP_CONFIG, {
             storage,
-            client: () => fakeClient({ me: meFor('authup-token') }),
+            client: () => fakeClient({ account: { getMe: meFor('authup-token') } }),
             authup: async () => fakeAdapter(),
         });
 
@@ -245,9 +247,9 @@ describe('createSession verdicts', () => {
     /** A check that answers only when the test resolves the pending call. */
     function gatedCheck() {
         const calls: Pending[] = [];
-        const check: IApiClient['checkAuthorization'] = (_names, token) => new Promise((resolve, reject) => {
+        const check: IAuthorizationAPI['check'] = (_names, options) => new Promise((resolve, reject) => {
             calls.push({
-                token,
+                token: options?.token,
                 resolve: (permissions) => resolve({ permissions }),
                 reject,
             });
@@ -256,12 +258,12 @@ describe('createSession verdicts', () => {
         return { calls, check };
     }
 
-    function setup(options: { check: IApiClient['checkAuthorization']; me?: IApiClient['me'] }) {
+    function setup(options: { check: IAuthorizationAPI['check']; me?: IAccountAPI['getMe'] }) {
         const storage = new MemoryStorage();
         const intervals = createFakeIntervals();
         const session = createSession(DEV_CONFIG, {
             storage,
-            client: () => fakeClient({ me: options.me ?? meFor('good', 'other'), checkAuthorization: options.check }),
+            client: () => fakeClient({ account: { getMe: options.me ?? meFor('good', 'other') }, authorization: { check: options.check } }),
             timers: intervals.timers,
         });
 

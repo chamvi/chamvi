@@ -20,7 +20,7 @@ import {
     watch,
 } from 'vue';
 import { RouterLink } from 'vue-router';
-import type { RunWire } from '@chamvi/ui-kit';
+import type { RunWire } from '@chamvi/http-kit';
 import {
     approvalWaitOf,
     canApprove,
@@ -31,7 +31,7 @@ import {
 import { useArtifactTiles } from '../../artifacts/composables.ts';
 import { approvalArtifactIds } from '../../artifacts/helpers.ts';
 import type { ArtifactTile } from '../../artifacts/types.ts';
-import { NavIcon, StatusChip, useAppContext  } from '@chamvi/ui-kit';
+import { NavIcon, StatusChip, useAppContext } from '@chamvi/ui-kit';
 import { RouteName } from '../../router/constants.ts';
 import { shortId } from '../../runs/helpers.ts';
 import ArtifactStrip from '../artifact-strip/ArtifactStrip.vue';

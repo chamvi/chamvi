@@ -18,7 +18,7 @@ import { Permission } from '@chamvi/access';
 import { createStartKeys } from '../../agents/helpers.ts';
 import { refusalText } from '../../errors/helpers.ts';
 import { isPayload } from '../../forms/validators.ts';
-import type { StartRunResult } from '@chamvi/ui-kit';
+import type { StartRunResult } from '@chamvi/http-kit';
 
 const props = defineProps<{
     agent: string;

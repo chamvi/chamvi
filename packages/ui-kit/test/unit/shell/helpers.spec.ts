@@ -7,9 +7,8 @@
 
 import { Permission } from '@chamvi/access';
 import { describe, expect, it } from 'vitest';
-import type { ConnectionWire } from '../../../src/connections/types.ts';
+import type { ConnectionWire, UiPageWire } from '@chamvi/http-kit';
 import { visibleUiPages } from '../../../src/shell/helpers.ts';
-import type { UiPageWire } from '../../../src/shell/types.ts';
 
 const MAIL: UiPageWire = {
     slug: 'tool-mail',

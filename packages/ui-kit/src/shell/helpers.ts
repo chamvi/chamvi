@@ -6,8 +6,7 @@
  */
 
 import { Permission } from '@chamvi/access';
-import type { ConnectionWire } from '../connections/types.ts';
-import type { UiPageWire } from './types.ts';
+import type { ConnectionWire, UiPageWire } from '@chamvi/http-kit';
 
 /**
  * The pages this principal gets a sidebar item for: it may read a connection

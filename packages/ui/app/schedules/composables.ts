@@ -6,17 +6,18 @@
  */
 
 import { onScopeDispose, shallowRef } from 'vue';
-import type { ApiError, IApiClient, ScheduleWire  } from '@chamvi/ui-kit';
-import { asApiError, createPoller, retryDelayOf  } from '@chamvi/ui-kit';
+import type { ApiError, IClient, ScheduleWire } from '@chamvi/http-kit';
+import { createPoller } from '@chamvi/ui-kit';
+import { asApiError, retryDelayOf } from '@chamvi/http-kit';
 import { SCHEDULES_POLL_MS } from './constants.ts';
 
 /** `GET /schedules`, refreshed every `SCHEDULES_POLL_MS` while the scope lives. */
-export function useSchedules(client: IApiClient) {
+export function useSchedules(client: IClient) {
     const schedules = shallowRef<ScheduleWire[]>([]);
     const error = shallowRef<ApiError>();
     const poller = createPoller(async () => {
         try {
-            schedules.value = await client.listSchedules();
+            schedules.value = await client.schedule.getMany();
             error.value = undefined;
 
             return undefined;

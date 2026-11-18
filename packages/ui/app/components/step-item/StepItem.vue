@@ -7,7 +7,7 @@
  */
 
 import { computed } from 'vue';
-import type { StepWire } from '@chamvi/ui-kit';
+import type { StepWire } from '@chamvi/http-kit';
 import JsonBlock from '../json-block/JsonBlock.vue';
 import {
     approverName,

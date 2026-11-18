@@ -10,11 +10,11 @@ import { nextTick, ref, watch } from 'vue';
 import { useConnection } from './composables.ts';
 import { connectionProblem } from './helpers.ts';
 import StatusBadge from './StatusBadge.vue';
-import type { IConnectionsApi } from './types.ts';
+import type { IConnectionAPI } from '@chamvi/http-kit';
 
 // mounted once per connection name (the caller keys it by the name)
 const props = defineProps<{
-    api: IConnectionsApi;
+    api: IConnectionAPI;
     name: string;
     /** The session is allowed chamvi_connection_write by name (an upper bound): the loaded view decides. */
     write: boolean;

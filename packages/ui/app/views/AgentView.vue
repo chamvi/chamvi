@@ -19,13 +19,9 @@ import {
     oldestWaiting,
 } from '../agents/helpers.ts';
 import type { ChannelChip as Chip } from '../agents/types.ts';
-import type { StartRunResult } from '@chamvi/ui-kit';
+import type { StartRunResult } from '@chamvi/http-kit';
 import { approvalLinkQuery } from '../approvals/helpers.ts';
-import {
-    NavIcon,
-    StatusChip,
-    useAppContext,
-} from '@chamvi/ui-kit';
+import { NavIcon, StatusChip, useAppContext } from '@chamvi/ui-kit';
 import AgentRuns from '../components/agent-runs/AgentRuns.vue';
 import AgentStatePanel from '../components/agent-state/AgentStatePanel.vue';
 import ChannelChip from '../components/channel-chip/ChannelChip.vue';
@@ -37,6 +33,7 @@ import { panelId, tabId } from '../components/tab-list/helpers.ts';
 import TabList from '../components/tab-list/TabList.vue';
 import { RouteName } from '../router/constants.ts';
 import { formatTokens, shortId } from '../runs/helpers.ts';
+import { queryFromFilter } from '../runs/query.ts';
 import { formatFireTime } from '../schedules/helpers.ts';
 import { useAgentState } from '../state/composables.ts';
 
@@ -161,7 +158,7 @@ function scheduleOf(chip: Chip) {
                         </VCButton>
                         <RouterLink
                             class="btn"
-                            :to="{ name: RouteName.RUNS, query: { agent: agent.name } }"
+                            :to="{ name: RouteName.RUNS, query: queryFromFilter({ agent: agent.name }) }"
                         >
                             View all runs
                         </RouterLink>

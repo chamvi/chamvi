@@ -16,8 +16,10 @@ import {
 import { createApp, shallowRef } from 'vue';
 import type { App } from 'vue';
 import { APP_CONTEXT, installVuecs } from '@chamvi/ui-kit';
-import type { AppContext, ConnectionSettingsWire, ConnectionTypeWire } from '@chamvi/ui-kit';
+import type { AppContext } from '@chamvi/ui-kit';
+import type { ConnectionSettingsWire, ConnectionTypeWire } from '@chamvi/http-kit';
 import Page from '../../app/App.vue';
+import { Client } from '@chamvi/http-kit';
 
 const POLICY = ['guilds', 'channels', 'users', 'roles', 'dmUsers'];
 
@@ -82,7 +84,8 @@ async function mount(): Promise<HTMLElement> {
             uiBase: '/ui', 
             auth: { tokens: true }, 
         },
-        client: { send },
+        // a custom transport hands every request to the spec's router
+        client: new Client({ baseURL: '', transport: { dispatch: (request) => send(request.url) } }),
         session: {
             principal: shallowRef({ id: 'a', kind: 'token' }),
             // POST /authorization/check answered no names

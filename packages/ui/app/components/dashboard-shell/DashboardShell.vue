@@ -9,7 +9,7 @@
 import { computed, provide } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import { AppShell, useAppContext } from '@chamvi/ui-kit';
-import type { MeWire } from '@chamvi/ui-kit';
+import type { MeWire } from '@chamvi/http-kit';
 import { useApprovals } from '../../approvals/composables.ts';
 import { INBOX } from '../../approvals/constants.ts';
 import { RouteName } from '../../router/constants.ts';

@@ -15,9 +15,9 @@ import {
 import { effectScope } from 'vue';
 import { useConnection, useConnections } from '../../../src/connections/composables.ts';
 import { CONNECTIONS_POLL_MS } from '../../../src/connections/constants.ts';
-import type { ConnectionDetailWire, IConnectionsApi } from '../../../src/connections/types.ts';
-import { ApiError } from '../../../src/api/error.ts';
-import { apiError } from '../../utils/client.ts';
+import { ApiError } from '@chamvi/http-kit';
+import type { ConnectionDetailWire, IConnectionAPI } from '@chamvi/http-kit';
+import { apiError, fakeClient } from '../../utils/client.ts';
 import { sse } from '../../utils/fetch.ts';
 import { flush } from '../../utils/timers.ts';
 
@@ -28,18 +28,8 @@ const DETAIL: ConnectionDetailWire = {
     widgets: [{ kind: 'qr', value: 'first' }],
 };
 
-function fakeApi(overrides: Partial<IConnectionsApi> = {}): IConnectionsApi {
-    const missing = (name: string) => () => {
-        throw new Error(`${name} not faked`);
-    };
-
-    return {
-        list: missing('list'),
-        get: missing('get'),
-        reset: missing('reset'),
-        stream: missing('stream'),
-        ...overrides,
-    };
+function fakeApi(overrides: Partial<IConnectionAPI> = {}): IConnectionAPI {
+    return fakeClient({ connection: overrides }).connection;
 }
 
 /** A stream body the test feeds event by event. */
@@ -72,7 +62,7 @@ describe('useConnections', () => {
             status: 'connected' as const,
         }];
         const scope = effectScope();
-        const state = scope.run(() => useConnections(fakeApi({ list: async () => list })))!;
+        const state = scope.run(() => useConnections(fakeApi({ getMany: async () => list })))!;
 
         await flush();
         expect(state.connections.value).toEqual(list);
@@ -83,7 +73,7 @@ describe('useConnections', () => {
     it('keeps an error without throwing', async () => {
         const scope = effectScope();
         const state = scope.run(() => useConnections(fakeApi({
-            list: async () => {
+            getMany: async () => {
                 throw apiError(503);
             },
         })))!;
@@ -102,7 +92,7 @@ describe('useConnection', () => {
         });
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
-            get: async () => ({
+            getOne: async () => ({
                 name: 'whatsapp',
                 type: 'whatsapp',
                 status: 'pairing',
@@ -131,7 +121,7 @@ describe('useConnection', () => {
                 status: 'pairing' as const,
             }));
             const scope = effectScope();
-            const state = scope.run(() => useConnection(fakeApi({ get, stream }), 'whatsapp', { write: true }))!;
+            const state = scope.run(() => useConnection(fakeApi({ getOne: get, stream }), 'whatsapp', { write: true }))!;
 
             await vi.advanceTimersByTimeAsync(0);
             await vi.advanceTimersByTimeAsync(CONNECTIONS_POLL_MS * 2);
@@ -151,11 +141,11 @@ describe('useConnection', () => {
         let signal: AbortSignal | undefined;
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
-            get: async () => DETAIL,
+            getOne: async () => DETAIL,
             stream: async (_name, s) => {
                 signal = s;
 
-                return live.response;
+                return live.response.body!;
             },
         }), 'whatsapp', { write: true }))!;
 
@@ -179,7 +169,7 @@ describe('useConnection', () => {
     it('a stream refused with 403 shows the error', async () => {
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
-            get: async () => DETAIL,
+            getOne: async () => DETAIL,
             stream: async () => {
                 throw apiError(403, 'forbidden');
             },
@@ -198,7 +188,7 @@ describe('useConnection', () => {
         });
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
-            get: async () => ({
+            getOne: async () => ({
                 name: 'mail-work',
                 type: 'mail',
                 status: 'disconnected',
@@ -221,7 +211,7 @@ describe('useConnection', () => {
 
         try {
             const live = liveStream();
-            const stream = vi.fn(async () => live.response);
+            const stream = vi.fn(async () => live.response.body!);
             let hasHandle = false;
             const get = vi.fn(async () => ({
                 name: 'mail-work',
@@ -232,7 +222,7 @@ describe('useConnection', () => {
                 live: hasHandle,
             }));
             const scope = effectScope();
-            const state = scope.run(() => useConnection(fakeApi({ get, stream }), 'mail-work', { write: true }))!;
+            const state = scope.run(() => useConnection(fakeApi({ getOne: get, stream }), 'mail-work', { write: true }))!;
 
             await vi.advanceTimersByTimeAsync(0);
             expect(get).toHaveBeenCalledTimes(1);
@@ -256,7 +246,7 @@ describe('useConnection', () => {
     it('a missing connection is a 404 error', async () => {
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
-            get: async () => {
+            getOne: async () => {
                 throw apiError(404, 'not_found');
             },
         }), 'gone', { write: true }))!;
@@ -275,12 +265,12 @@ describe('useConnection', () => {
         const resets: string[] = [];
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
-            get: async () => ({
+            getOne: async () => ({
                 ...DETAIL,
                 status: 'logged_out',
                 widgets: [],
             }),
-            stream: async () => sse([]),
+            stream: async () => sse([]).body!,
             reset: async (name) => {
                 resets.push(name);
 
@@ -310,15 +300,15 @@ describe('useConnection', () => {
 
     it('a delayed reset response does not replace a newer status from the stream', async () => {
         const live = liveStream();
-        const answer = Promise.withResolvers<Awaited<ReturnType<IConnectionsApi['reset']>>>();
+        const answer = Promise.withResolvers<Awaited<ReturnType<IConnectionAPI['reset']>>>();
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
-            get: async () => ({
+            getOne: async () => ({
                 ...DETAIL,
                 status: 'logged_out',
                 widgets: [],
             }),
-            stream: async () => live.response,
+            stream: async () => live.response.body!,
             reset: () => answer.promise,
         }), 'whatsapp', { write: true, sleep: () => new Promise(() => {}) }))!;
 
@@ -345,8 +335,8 @@ describe('useConnection', () => {
     it('a failed reset keeps the error and the status', async () => {
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
-            get: async () => DETAIL,
-            stream: async () => sse([]),
+            getOne: async () => DETAIL,
+            stream: async () => sse([]).body!,
             reset: async () => {
                 throw apiError(403, 'forbidden');
             },
@@ -364,12 +354,12 @@ describe('useConnection', () => {
         const message = 'The connection "whatsapp" is held by another process; reset it where it is held, or once it is no longer held elsewhere.';
         const scope = effectScope();
         const state = scope.run(() => useConnection(fakeApi({
-            get: async () => ({
+            getOne: async () => ({
                 ...DETAIL,
                 status: 'held_elsewhere',
                 widgets: [],
             }),
-            stream: async () => sse([]),
+            stream: async () => sse([]).body!,
             reset: async () => {
                 throw new ApiError(409, 'conflict', message);
             },

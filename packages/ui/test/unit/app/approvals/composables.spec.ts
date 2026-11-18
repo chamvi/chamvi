@@ -7,10 +7,11 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope } from 'vue';
-import type { ApproveBody, RunListFilter } from '@chamvi/ui-kit';
+import type { ApproveBody } from '@chamvi/http-kit';
+import type { RunListFilter } from '../../../../app/runs/types.ts';
 import { useApprovals } from '../../../../app/approvals/composables.ts';
 import { apiError, fakeClient } from '../../../utils/client.ts';
-import { wireRun } from '../../../utils/runs.ts';
+import { runsBy, wireRun } from '../../../utils/runs.ts';
 import { flush } from '../../../utils/timers.ts';
 
 const waitingRun = (id = 'r1', approvalId = 'a1') => wireRun({
@@ -31,20 +32,22 @@ function inboxClient(approve: (id: string, body: ApproveBody) => Promise<void>) 
     const queries: RunListFilter[] = [];
     let lists = 0;
     const client = fakeClient({
-        listRuns: async (filter) => {
-            queries.push(filter);
-            lists++;
+        run: {
+            getMany: runsBy(async (filter) => {
+                queries.push(filter);
+                lists++;
 
-            return {
-                data: [waitingRun()],
-                meta: {
-                    total: 1,
-                    limit: 100,
-                    offset: 0,
-                },
-            };
+                return {
+                    data: [waitingRun()],
+                    meta: {
+                        total: 1,
+                        limit: 100,
+                        offset: 0,
+                    },
+                };
+            }),
+            approve,
         },
-        approve,
     });
 
     return {
@@ -86,17 +89,19 @@ describe('useApprovals', () => {
         }));
         const all = [...dispatching, waitingRun()];
         const client = fakeClient({
-            listRuns: async (filter) => {
-                const matching = all.filter((run) => !filter.waiting || run.waiting?.kind === filter.waiting);
+            run: {
+                getMany: runsBy(async (filter) => {
+                    const matching = all.filter((run) => !filter.waiting || run.waiting?.kind === filter.waiting);
 
-                return {
-                    data: matching.slice(0, filter.limit),
-                    meta: {
-                        total: matching.length,
-                        limit: 100,
-                        offset: 0,
-                    },
-                };
+                    return {
+                        data: matching.slice(0, filter.limit),
+                        meta: {
+                            total: matching.length,
+                            limit: 100,
+                            offset: 0,
+                        },
+                    };
+                }),
             },
         });
         const scope = effectScope();
@@ -198,8 +203,10 @@ describe('useApprovals', () => {
 
     it('keeps a 403 listing as error', async () => {
         const client = fakeClient({
-            listRuns: async () => {
-                throw apiError(403, 'forbidden');
+            run: {
+                getMany: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();

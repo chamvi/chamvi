@@ -10,10 +10,10 @@ import type { Ref } from 'vue';
 import type {
     ApiError,
     DocEntry,
-    IApiClient,
+    IClient,
     KvEntry,
-} from '@chamvi/ui-kit';
-import { asApiError } from '@chamvi/ui-kit';
+} from '@chamvi/http-kit';
+import { asApiError } from '@chamvi/http-kit';
 import { DOC_PAGE_SIZE, KV_PAGE_SIZE } from './constants.ts';
 
 /**
@@ -22,7 +22,7 @@ import { DOC_PAGE_SIZE, KV_PAGE_SIZE } from './constants.ts';
  * documents, loaded when a collection opens. Everything resets on another
  * agent; a 403 (no `chamvi_state_read`) lands in `error`.
  */
-export function useAgentState(client: IApiClient, agent: Ref<string | undefined>) {
+export function useAgentState(client: IClient, agent: Ref<string | undefined>) {
     const kv = shallowRef<KvEntry[]>([]);
     const moreKv = shallowRef(false);
     const collections = shallowRef<string[]>([]);
@@ -31,7 +31,7 @@ export function useAgentState(client: IApiClient, agent: Ref<string | undefined>
     let generation = 0;
 
     const loadKv = async (name: string, offset: number, current: number) => {
-        const page = await client.listKv(name, { limit: KV_PAGE_SIZE, offset });
+        const page = await client.state.getKv(name, { pagination: { limit: KV_PAGE_SIZE, offset } });
 
         if (current !== generation) {
             return;
@@ -55,7 +55,7 @@ export function useAgentState(client: IApiClient, agent: Ref<string | undefined>
         }
 
         try {
-            const { data: agents } = await client.listAgents();
+            const { data: agents } = await client.agent.getMany();
 
             if (current !== generation) {
                 return;
@@ -99,7 +99,7 @@ export function useAgentState(client: IApiClient, agent: Ref<string | undefined>
             const current = generation;
 
             try {
-                const list = await client.listDocs(name, collection, { limit: DOC_PAGE_SIZE });
+                const list = await client.state.getDocs(name, collection, { pagination: { limit: DOC_PAGE_SIZE } });
 
                 if (current === generation) {
                     docs.value = { ...docs.value, [collection]: list };

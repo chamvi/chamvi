@@ -14,15 +14,11 @@ import {
 import { effectScope, nextTick, ref } from 'vue';
 import { ACTIVITY_LIMIT, AGENTS_POLL_MS } from '../../../../app/agents/constants.ts';
 import { useAgentDetail, useAgentRollups } from '../../../../app/agents/composables.ts';
-import { ApiError } from '@chamvi/ui-kit';
-import type {
-    AgentWire,
-    RunListFilter,
-    RunPage,
-    RunWire,
-} from '@chamvi/ui-kit';
+import { ApiError } from '@chamvi/http-kit';
+import type { AgentWire, RunPage, RunWire } from '@chamvi/http-kit';
+import type { RunListFilter } from '../../../../app/runs/types.ts';
 import { apiError, fakeClient } from '../../../utils/client.ts';
-import { wireRun } from '../../../utils/runs.ts';
+import { runsBy, wireRun } from '../../../utils/runs.ts';
 import { flush } from '../../../utils/timers.ts';
 
 const AGENTS: AgentWire[] = [
@@ -63,7 +59,7 @@ const page = (data: RunWire[], total = data.length): RunPage => ({
 
 /** Runs per agent; a status filter narrows them, `total` counts them. */
 function listRunsOver(runs: RunWire[], seen: RunListFilter[] = []) {
-    return async (filter: RunListFilter): Promise<RunPage> => {
+    return runsBy((filter: RunListFilter): RunPage => {
         seen.push(filter);
 
         const matching = runs.filter((run) => (!filter.agent || run.agent === filter.agent) &&
@@ -71,7 +67,7 @@ function listRunsOver(runs: RunWire[], seen: RunListFilter[] = []) {
             (!filter.waiting || run.waiting?.kind === filter.waiting));
 
         return page(matching.slice(0, filter.limit), matching.length);
-    };
+    });
 }
 
 const now = new Date().toISOString();
@@ -100,16 +96,18 @@ describe('useAgentRollups', () => {
         ];
         const seen: RunListFilter[] = [];
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [] }),
-            listSchedules: async () => [{
-                agent: 'digest',
-                channel: 'cron',
-                trigger: 'cron:0 8 * * *',
-                expression: '0 8 * * *',
-                overlap: 'skip',
-                nextAt: now,
-            }],
-            listRuns: listRunsOver(runs, seen),
+            agent: { getMany: async () => ({ data: AGENTS, issues: [] }) },
+            schedule: {
+                getMany: async () => [{
+                    agent: 'digest',
+                    channel: 'cron',
+                    trigger: 'cron:0 8 * * *',
+                    expression: '0 8 * * *',
+                    overlap: 'skip',
+                    nextAt: now,
+                }],
+            },
+            run: { getMany: listRunsOver(runs, seen) },
         });
         const scope = effectScope();
         const state = scope.run(() => useAgentRollups(client))!;
@@ -137,9 +135,9 @@ describe('useAgentRollups', () => {
             at: now,
         };
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [issue] }),
-            listSchedules: async () => [],
-            listRuns: listRunsOver([]),
+            agent: { getMany: async () => ({ data: AGENTS, issues: [issue] }) },
+            schedule: { getMany: async () => [] },
+            run: { getMany: listRunsOver([]) },
         });
         const scope = effectScope();
         const state = scope.run(() => useAgentRollups(client))!;
@@ -154,20 +152,26 @@ describe('useAgentRollups', () => {
         const many: AgentWire[] = Array.from({ length: 40 }, (_, i) => ({ ...AGENTS[0]!, name: `agent-${i}` }));
         let requests = 0;
         const client = fakeClient({
-            listAgents: async () => {
-                requests++;
+            agent: {
+                getMany: async () => {
+                    requests++;
 
-                return { data: many, issues: [] };
+                    return { data: many, issues: [] };
+                },
             },
-            listSchedules: async () => {
-                requests++;
+            schedule: {
+                getMany: async () => {
+                    requests++;
 
-                return [];
+                    return [];
+                },
             },
-            listRuns: async (filter) => {
-                requests++;
+            run: {
+                getMany: async (query) => {
+                    requests++;
 
-                return listRunsOver([])(filter);
+                    return listRunsOver([])(query);
+                },
             },
         });
         const scope = effectScope();
@@ -187,9 +191,9 @@ describe('useAgentRollups', () => {
             createdAt: now,
         }));
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [] }),
-            listSchedules: async () => [],
-            listRuns: listRunsOver(runs),
+            agent: { getMany: async () => ({ data: AGENTS, issues: [] }) },
+            schedule: { getMany: async () => [] },
+            run: { getMany: listRunsOver(runs) },
         });
         const scope = effectScope();
         const state = scope.run(() => useAgentRollups(client))!;
@@ -207,13 +211,15 @@ describe('useAgentRollups', () => {
         try {
             let calls = 0;
             const client = fakeClient({
-                listAgents: async () => {
-                    calls++;
+                agent: {
+                    getMany: async () => {
+                        calls++;
 
-                    throw new ApiError(429, 'too_many_requests', 'slow down', 45);
+                        throw new ApiError(429, 'too_many_requests', 'slow down', 45);
+                    },
                 },
-                listSchedules: async () => [],
-                listRuns: listRunsOver([]),
+                schedule: { getMany: async () => [] },
+                run: { getMany: listRunsOver([]) },
             });
             const scope = effectScope();
             const state = scope.run(() => useAgentRollups(client))!;
@@ -232,11 +238,13 @@ describe('useAgentRollups', () => {
 
     it('a 403 sets error without throwing', async () => {
         const client = fakeClient({
-            listAgents: async () => {
-                throw apiError(403, 'forbidden');
+            agent: {
+                getMany: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
-            listSchedules: async () => [],
-            listRuns: listRunsOver([]),
+            schedule: { getMany: async () => [] },
+            run: { getMany: listRunsOver([]) },
         });
         const scope = effectScope();
         const state = scope.run(() => useAgentRollups(client))!;
@@ -279,9 +287,9 @@ describe('useAgentDetail', () => {
             }),
         ];
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [] }),
-            listSchedules: async () => [],
-            listRuns: listRunsOver(runs),
+            agent: { getMany: async () => ({ data: AGENTS, issues: [] }) },
+            schedule: { getMany: async () => [] },
+            run: { getMany: listRunsOver(runs) },
         });
         const scope = effectScope();
         const detail = scope.run(() => useAgentDetail(client, ref('deploy')))!;
@@ -331,9 +339,9 @@ describe('useAgentDetail', () => {
         ];
         const seen: RunListFilter[] = [];
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [] }),
-            listSchedules: async () => [],
-            listRuns: listRunsOver(runs, seen),
+            agent: { getMany: async () => ({ data: AGENTS, issues: [] }) },
+            schedule: { getMany: async () => [] },
+            run: { getMany: listRunsOver(runs, seen) },
         });
         const scope = effectScope();
         const detail = scope.run(() => useAgentDetail(client, ref('deploy')))!;
@@ -355,17 +363,19 @@ describe('useAgentDetail', () => {
         })];
         const gate = Promise.withResolvers<void>();
         const client = fakeClient({
-            listAgents: async () => {
-                if (fail) {
-                    throw apiError(0, 'network_error');
-                }
+            agent: {
+                getMany: async () => {
+                    if (fail) {
+                        throw apiError(0, 'network_error');
+                    }
 
-                await gate.promise;
+                    await gate.promise;
 
-                return { data: AGENTS, issues: [] };
+                    return { data: AGENTS, issues: [] };
+                },
             },
-            listSchedules: async () => [],
-            listRuns: listRunsOver(runs),
+            schedule: { getMany: async () => [] },
+            run: { getMany: listRunsOver(runs) },
         });
         const name = ref('digest');
         const scope = effectScope();
@@ -386,9 +396,9 @@ describe('useAgentDetail', () => {
 
     it('reports an unknown agent', async () => {
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [] }),
-            listSchedules: async () => [],
-            listRuns: listRunsOver([]),
+            agent: { getMany: async () => ({ data: AGENTS, issues: [] }) },
+            schedule: { getMany: async () => [] },
+            run: { getMany: listRunsOver([]) },
         });
         const scope = effectScope();
         const detail = scope.run(() => useAgentDetail(client, ref('nope')))!;
@@ -400,10 +410,12 @@ describe('useAgentDetail', () => {
 
     it('a private agent whose runs answer 403 is forbidden, not failed', async () => {
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [] }),
-            listSchedules: async () => [],
-            listRuns: async () => {
-                throw apiError(403, 'forbidden');
+            agent: { getMany: async () => ({ data: AGENTS, issues: [] }) },
+            schedule: { getMany: async () => [] },
+            run: {
+                getMany: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();
@@ -422,10 +434,12 @@ describe('useAgentDetail', () => {
 
     it('an agent the app does not hold is not found, even when its runs answer 403', async () => {
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [] }),
-            listSchedules: async () => [],
-            listRuns: async () => {
-                throw apiError(403, 'forbidden');
+            agent: { getMany: async () => ({ data: AGENTS, issues: [] }) },
+            schedule: { getMany: async () => [] },
+            run: {
+                getMany: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();
@@ -440,10 +454,12 @@ describe('useAgentDetail', () => {
 
     it('a 403 on a public agent\'s runs stays an error', async () => {
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [] }),
-            listSchedules: async () => [],
-            listRuns: async () => {
-                throw apiError(403, 'forbidden');
+            agent: { getMany: async () => ({ data: AGENTS, issues: [] }) },
+            schedule: { getMany: async () => [] },
+            run: {
+                getMany: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();
@@ -459,20 +475,22 @@ describe('useAgentDetail', () => {
         const runs: RunWire[] = [];
         const started: Array<[string, unknown, string | undefined]> = [];
         const client = fakeClient({
-            listAgents: async () => ({ data: AGENTS, issues: [] }),
-            listSchedules: async () => [],
-            listRuns: listRunsOver(runs),
-            startRun: async (name, body) => {
-                started.push([name, body.payload, body.idempotencyKey]);
-                runs.unshift(wireRun({
-                    id: 'new',
-                    agent: name,
-                    status: 'queued',
-                    createdAt: now,
-                }));
+            agent: {
+                getMany: async () => ({ data: AGENTS, issues: [] }),
+                startRun: async (name, body) => {
+                    started.push([name, body.payload, body.idempotencyKey]);
+                    runs.unshift(wireRun({
+                        id: 'new',
+                        agent: name,
+                        status: 'queued',
+                        createdAt: now,
+                    }));
 
-                return { runId: 'new', deduplicated: false };
+                    return { runId: 'new', deduplicated: false };
+                },
             },
+            schedule: { getMany: async () => [] },
+            run: { getMany: listRunsOver(runs) },
         });
         const scope = effectScope();
         const detail = scope.run(() => useAgentDetail(client, ref('deploy')))!;

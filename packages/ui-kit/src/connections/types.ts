@@ -5,58 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConnectionStatus, ConnectionWidget } from '@chamvi/core';
-import type {
-    ConnectionCreateBody,
-    ConnectionDetailView,
-    ConnectionSaveBody,
-    ConnectionSettingsFieldView,
-    ConnectionSettingsView,
-    ConnectionTestView,
-    ConnectionTypeView,
-    ConnectionView,
-} from '@chamvi/http';
-import type { ApiError } from '../api/error.ts';
-import type { IApiClient } from '../api/types.ts';
-
-export type ConnectionWire = ConnectionView;
-
-/** `GET /connections/:name`: `widgets` only for a holder of `chamvi_connection_write` for it. */
-export type ConnectionDetailWire = ConnectionDetailView;
-
-export type ConnectionWidgetWire = ConnectionWidget;
-
-/** One entry of `GET /connection-types`. */
-export type ConnectionTypeWire = ConnectionTypeView;
-
-/** `GET /connections/:name/config`: a secret only ever as a `set` flag. */
-export type ConnectionSettingsWire = ConnectionSettingsView;
-
-export type ConnectionTestWire = ConnectionTestView;
+import type { ConnectionSettingsFieldView } from '@chamvi/http';
+import type { ConnectionStreamOptions, ConnectionTypeWire } from '@chamvi/http-kit';
 
 /** The chip a status renders as: its words and one of the dashboard's status tones. */
 export type ConnectionBadge = {
     label: string;
     tone: 'queued' | 'running' | 'waiting' | 'completed' | 'failed' | 'cancelled';
 };
-
-/** The `/connections` routes; `stream` answers the raw SSE response. */
-export interface IConnectionsApi {
-    list(): Promise<ConnectionWire[]>;
-    get(name: string): Promise<ConnectionDetailWire>;
-    reset(name: string): Promise<ConnectionWire>;
-    stream(name: string, signal: AbortSignal): Promise<Response>;
-}
-
-/** The configuration routes: types, an account's settings, create, save, delete and test. */
-export interface IConnectionConfigApi {
-    types(): Promise<ConnectionTypeWire[]>;
-    read(name: string): Promise<ConnectionSettingsWire>;
-    create(type: string, body: ConnectionCreateBody): Promise<ConnectionSettingsWire & { name: string }>;
-    save(name: string, body: ConnectionSaveBody): Promise<ConnectionSettingsWire>;
-    remove(name: string): Promise<{ restartRequired: boolean }>;
-    test(name: string): Promise<ConnectionTestWire>;
-}
 
 /** One field as the form draws it: its definition, what locks it, whether a secret has a value. */
 export type ConnectionFormField = ConnectionTypeWire['fields'][number] & {
@@ -90,25 +46,6 @@ export type ConnectionCreated = { name: string; restartRequired: boolean };
 export type ConnectionDeleted = { name: string; restartRequired: boolean };
 
 /** What the connections client needs of the app's API client. */
-export type ConnectionsTransport = Pick<IApiClient, 'send'>;
-
-export type ConnectionStreamEvent = { type: 'status'; status: ConnectionStatus } |
-    { type: 'widgets'; widgets: ConnectionWidgetWire[] };
-
-export type ConnectionStreamOptions = {
-    api: IConnectionsApi;
-    name: string;
-    onEvent: (event: ConnectionStreamEvent) => void;
-    /** A 400, 401, 403 or 404: no reconnect. */
-    onError?: (error: ApiError) => void;
-    /** Waits between reconnects; resolves early when the signal aborts. */
-    sleep?: (ms: number, signal: AbortSignal) => Promise<void>;
-};
-
-export interface IConnectionStream {
-    close(): void;
-}
-
 export type UseConnectionOptions = {
     /** The session is allowed `chamvi_connection_write` by name; widgets, the stream and reset also need the writer view of this connection. */
     write: boolean;
