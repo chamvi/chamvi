@@ -909,6 +909,42 @@ describe('connection configuration', () => {
             expect(after.reason).toBeUndefined();
         });
 
+        it('reports a connection whose stored secrets the last start could not read as failed, until a save waits for a restart', async () => {
+            const reason = 'The stored secrets cannot be read (decryption_failed): Decryption failed: wrong key, wrong context or tampered data.';
+            const declared = (definition: ConnectionTypeDefinition) => {
+                const entry = declare(definition, 'mail-work', {}, { loadedRevision: 1 });
+
+                entry.resolved = {
+                    ...entry.resolved,
+                    state: 'failed',
+                    reason,
+                };
+
+                return [entry];
+            };
+            const { app, real } = world({ declared });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            const view = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+            const list = await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }));
+
+            expect(view).toMatchObject({
+                state: 'failed', 
+                reason, 
+                restartRequired: false, 
+            });
+            expect(view.missing).toBeUndefined();
+            expect(list.data[0]).toMatchObject({ state: 'failed', reason });
+
+            await real.update('mail-work', { secrets: { set: { password: PASSWORD } } });
+
+            const after = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
+            expect(after).toMatchObject({ state: 'configured', restartRequired: true });
+            expect(after.reason).toBeUndefined();
+        });
+
         it('joins a live handle with its configuration', async () => {
             const definition = mailDefinition();
             const clock = new ControllableClock(new Date(1_000_000));

@@ -5,9 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { envSecret } from '@chamvi/app';
+import { envSecret, resolveStoredConnection } from '@chamvi/app';
 import type { Env, ILogger, StoredConnection } from '@chamvi/app';
-import { InvalidAgentDefinitionError, resolveConnection } from '@chamvi/core';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import type {
     ConnectionField,
     ConnectionFieldSource,
@@ -165,8 +165,8 @@ type LoadInput = {
 
 /**
  * Resolves the connection (env, then the store) and builds its App: none
- * while it is not configured or a refused stored value leaves it without a
- * required field. A refused stored value is dropped and the connection listed
+ * while it is not configured, its stored secrets cannot be read (`failed`)
+ * or a refused stored value leaves it without a required field. A refused stored value is dropped and the connection listed
  * `incomplete`, so the dashboard can repair it. A required field missing from
  * env and store while another comes from env throws naming the variable
  * (`resolveConnection`), as does a refused value that is not stored or a
@@ -181,16 +181,14 @@ export function loadGithubConnection(input: LoadInput): { resolved: ResolvedConn
         row,
         options,
     } = input;
-    const resolve = (stored: ConnectionValues | undefined) => resolveConnection({
+    const build = (resolved: ResolvedConnection) => createGithubApp({ ...options, ...appOptionsOf(resolved.values) });
+
+    const resolved = resolveStoredConnection({
         definition,
         name,
         readVariable: (variable) => envSecret(env, variable),
         preset: presetOf(options),
-        ...(stored && { stored }),
-    });
-    const build = (resolved: ResolvedConnection) => createGithubApp({ ...options, ...appOptionsOf(resolved.values) });
-
-    const resolved = resolve(row?.values);
+    }, row);
 
     if (resolved.state !== 'configured') {
         logger.warn(`The GitHub connection "${name}" is ${resolved.state.replace('_', ' ')}; it stays idle until it is configured.`);

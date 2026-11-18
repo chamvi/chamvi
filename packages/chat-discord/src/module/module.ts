@@ -9,7 +9,6 @@ import {
     ConnectionNotConfiguredError,
     InvalidAgentDefinitionError,
     assertConnectionName,
-    resolveConnection,
 } from '@chamvi/core';
 import type {
     ChannelSubscription,
@@ -24,6 +23,7 @@ import {
     approvalUrlOf,
     envSecret,
     readStoredConnections,
+    resolveStoredConnection,
 } from '@chamvi/app';
 import type {
     Env,
@@ -255,13 +255,12 @@ export class DiscordModule implements IModule {
     }
 
     protected resolve(row: StoredConnection | undefined): ResolvedConnection {
-        const resolved = resolveConnection({
+        const resolved = resolveStoredConnection({
             definition: discordConnectionDefinition(),
             name: this.connection,
             readVariable: (variable) => envSecret(this.env, variable),
             preset: presetOf(this.options),
-            ...(row && { stored: row.values }),
-        });
+        }, row);
         const onlyCode = Object.values(resolved.sources).every((source) => source.kind === 'code' || source.kind === 'unset');
 
         // options in code alone are no attempt to configure the bot: env and the store are still empty

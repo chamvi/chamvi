@@ -375,6 +375,47 @@ describe('App.check', () => {
         expect(issues[0]?.message).toContain('password');
     });
 
+    it('reports a failed connection as an issue with its reason', async () => {
+        const connections: IModule = {
+            name: 'connection-types',
+            setup: async (container) => {
+                container.registerMany(AppToken.CONNECTION_TYPES, {
+                    useValue: {
+                        definition: {
+                            type: 'mail',
+                            label: 'Mail',
+                            multiple: true,
+                            fields: [],
+                        },
+                        creatable: () => true,
+                        connections: () => [{
+                            name: 'mail-old',
+                            editable: true,
+                            deletable: true,
+                            resolved: {
+                                name: 'mail-old',
+                                values: {},
+                                sources: {},
+                                missing: [],
+                                state: 'failed',
+                                reason: 'The stored secrets cannot be read (decryption_failed).',
+                            },
+                        }],
+                    },
+                });
+            },
+        };
+        const { app } = build({ modules: [connections] });
+        const { env } = await envFor();
+
+        const { issues } = await app.check({ env });
+
+        expect(issues).toHaveLength(1);
+        expect(issues[0]).toMatchObject({ agent: 'mail-old' });
+        expect(issues[0]?.message).toContain('mail-old');
+        expect(issues[0]?.message).toContain('decryption_failed');
+    });
+
     it('runs the paired engineCreated and drained hooks, never started or stopping', async () => {
         const phases: string[] = [];
         const hooks: IModule = {

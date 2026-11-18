@@ -28,6 +28,10 @@ export function connectionBadge(connection: Pick<ConnectionWire, 'status' | 'sta
         return { label: 'incomplete', tone: 'waiting' };
     }
 
+    if (connection.state === 'failed') {
+        return { label: 'failed', tone: 'failed' };
+    }
+
     if (connection.state === 'configured' && connection.live === false) {
         return { label: 'configured', tone: 'completed' };
     }
@@ -39,6 +43,10 @@ export function connectionBadge(connection: Pick<ConnectionWire, 'status' | 'sta
 export function connectionProblem(connection: Pick<ConnectionWire, 'state' | 'missing' | 'reason'>): string | undefined {
     if (connection.state === 'not_configured') {
         return 'Not configured yet.';
+    }
+
+    if (connection.state === 'failed') {
+        return connection.reason ? `Failed: ${connection.reason}` : 'Failed.';
     }
 
     if (connection.state !== 'incomplete') {

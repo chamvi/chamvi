@@ -25,6 +25,7 @@ import { MemoryConnectionRepository, MemoryRegistry } from '@chamvi/store-memory
 import type {
     DeclaredConnection,
     IConnectionTypeProvider,
+    IKeyring,
 } from '@chamvi/core';
 import {
     AppToken,
@@ -164,12 +165,13 @@ function world(input: WorldInput = {}) {
 async function storedWorld(
     name: string,
     update: { settings?: Record<string, unknown>; secrets?: { set: Record<string, string> } },
+    sealedWith: IKeyring = keyring,
 ): Promise<TestStore> {
     const store = storeOf();
     const configs = createConnectionConfigStore({
         connectionService: store.connectionService,
         lockService: createTestEngine({ agents: [] }).lockService,
-        keyring: () => keyring,
+        keyring: () => sealedWith,
     });
 
     await configs.create(name, DISCORD_CONNECTION_TYPE, update);
@@ -444,6 +446,29 @@ describe('discordModule', () => {
         expect(w.channels().find((channel) => channel.name === 'discord')?.start).toBeUndefined();
         expect(w.connection().resolved.state).toBe('incomplete');
         expect(w.connection().loadedRevision).toBe(1);
+        expect(w.lines.join('\n')).not.toContain(SENTINEL_TOKEN);
+    });
+
+    it('a stored token that cannot be read leaves it idle and listed failed: the app starts', async () => {
+        const store = await storedWorld('discord', {
+            settings: { applicationId: APP_ID, guilds: [GUILD] },
+            secrets: { set: { token: SENTINEL_TOKEN } },
+        }, createKeyring([{ id: 'k1', key: randomBytes(32) }]));
+        // the application id from env: a token only the unreadable row holds is no deployment error
+        const w = world({ moduleEnv: { CHAMVI_DISCORD_APPLICATION_ID: APP_ID }, store });
+
+        await w.harness.setup();
+
+        const channel = w.channels().find((item) => item.name === 'discord');
+
+        expect(w.clients.clients).toEqual([]);
+        expect(channel?.start).toBeUndefined();
+        await expect(channel?.out?.({} as never, 'address', {} as never))
+            .rejects.toBeInstanceOf(ConnectionNotConfiguredError);
+        expect(w.connection().resolved).toMatchObject({
+            state: 'failed',
+            reason: expect.stringContaining('decryption_failed'),
+        });
         expect(w.lines.join('\n')).not.toContain(SENTINEL_TOKEN);
     });
 

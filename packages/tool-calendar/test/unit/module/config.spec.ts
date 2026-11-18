@@ -582,16 +582,50 @@ describe('toolCalendarModule() configuration', () => {
         })).rejects.toThrow(/CHAMVI_CALENDAR_WORK_PASSWORD/);
     });
 
-    it('an unreadable stored account fails the start naming the connection', async () => {
+    it('an unreadable stored account is listed failed and not used; the app starts and the env account works', async () => {
+        const server = fake();
         const store = storeOf();
 
         await seed(store, 'home');
 
-        await expect(harnessOf({
+        // the row was sealed under a key this keyring does not hold
+        const harness = await harnessOf({
             store,
             keyring: createKeyring([{ id: 'k1', key: randomBytes(32) }]),
-            options: { env: {} },
-        })).rejects.toThrow(/calendar-home/);
+            agents: [listAgent()],
+            options: { env: envOf(), fetch: server.fetch },
+        });
+
+        expect(connectionOf(harness, 'calendar-home').resolved).toMatchObject({
+            state: 'failed',
+            reason: expect.stringContaining('decryption_failed'),
+        });
+
+        const { run, step } = await runList(harness);
+
+        expect(run?.status).toBe('completed');
+        expect((step?.output as CalendarListResult).calendars.map((calendar) => calendar.account)).toEqual(['work']);
+        expect(logLines.join('\n')).not.toContain(STORED_PASSWORD);
+    });
+
+    it('a declared account whose password only an unreadable row holds is listed failed and not used', async () => {
+        const store = storeOf();
+
+        await configsOf(store).create('calendar-work', CALENDAR_CONNECTION_TYPE, { secrets: { set: { password: STORED_PASSWORD } } });
+
+        const harness = await harnessOf({
+            store,
+            keyring: createKeyring([{ id: 'k1', key: randomBytes(32) }]),
+            agents: [listAgent()],
+            options: { env: { ...envOf(), CHAMVI_CALENDAR_WORK_PASSWORD: '' } },
+        });
+
+        expect(connectionOf(harness, 'calendar-work').resolved.state).toBe('failed');
+
+        const { run, step } = await runList(harness);
+
+        expect(run?.status).toBe('completed');
+        expect(step?.error).toMatchObject({ code: 'connection_not_configured' });
     });
 
     it('an invalid stored value on a declared account is dropped and the account listed incomplete', async () => {

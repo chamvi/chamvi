@@ -390,6 +390,51 @@ describe('githubModule configuration', () => {
         expect(logger.lines.join('\n')).not.toContain('not-a-key');
     });
 
+    it('an unreadable stored row starts the app with the module idle, listed failed', async () => {
+        const store = storeOf();
+
+        // sealed under a key the app's keyring does not hold
+        await createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => createKeyring([{ id: 'k1', key: randomBytes(32) }]),
+        }).create('github', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '7' },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'stored-webhook-secret' } },
+        });
+
+        const logger = createRecordingLogger();
+        const module = githubModule({ env: {} });
+        const harness = await setup([module], { store, logger });
+
+        expect(() => module.app.appId).toThrow(ConnectionNotConfiguredError);
+        expect(connectionsOf(harness)[0]!.resolved).toMatchObject({
+            state: 'failed',
+            reason: expect.stringContaining('decryption_failed'),
+        });
+        expect(harness.container.resolveAll(AppToken.GIT_CREDENTIALS)).toEqual([]);
+        expect(logger.lines.join('\n')).not.toContain('stored-webhook-secret');
+    });
+
+    it('a complete environment shadows an unreadable stored row', async () => {
+        const store = storeOf();
+
+        await createConnectionConfigStore({
+            connectionService: store.connectionService,
+            lockService: createTestEngine({ agents: [] }).lockService,
+            keyring: () => createKeyring([{ id: 'k1', key: randomBytes(32) }]),
+        }).create('github', GITHUB_CONNECTION_TYPE, {
+            settings: { appId: '7' },
+            secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'stored' } },
+        });
+
+        const module = githubModule({ env: envOf('GITHUB_') });
+        const harness = await setup([module], { store });
+
+        expect(module.app.appId).toBe('1');
+        expect(connectionsOf(harness)[0]!.resolved.state).toBe('configured');
+    });
+
     it('a refused stored optional value is dropped: required stored values stay and the App starts', async () => {
         const store = storeOf();
         const configs = createConnectionConfigStore({

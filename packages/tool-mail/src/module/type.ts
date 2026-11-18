@@ -5,11 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { envSecret } from '@chamvi/app';
+import { envSecret, resolveStoredConnection } from '@chamvi/app';
 import type { Env, ILogger, StoredConnection } from '@chamvi/app';
 import {
     InvalidAgentDefinitionError,
-    resolveConnection,
     storedConnectionName,
 } from '@chamvi/core';
 import type {
@@ -19,6 +18,7 @@ import type {
     ConnectionValue,
     ConnectionValues,
     DeclaredConnection,
+    ResolveConnectionInput,
     ResolvedConnection,
 } from '@chamvi/core';
 import { verifyMailLogin } from '../client/login.ts';
@@ -32,7 +32,7 @@ import {
 import { variableOf } from './helpers.ts';
 import type { MailEnvAccount } from './types.ts';
 
-type Preset = NonNullable<Parameters<typeof resolveConnection>[0]['preset']>;
+type Preset = NonNullable<ResolveConnectionInput['preset']>;
 
 type LoadInput = {
     definition: ConnectionTypeDefinition;
@@ -166,7 +166,9 @@ function storedSecretsOf(definition: ConnectionTypeDefinition, values: Connectio
  * id), then the stored ones, which take every value from the store: a
  * variable named after such an account is ignored with a warning, since
  * whoever added the row chose where its secrets go (#197). A stored account
- * that is incomplete or invalid is listed for repair and not used; a declared one drops a stored setting
+ * that is incomplete or invalid is listed for repair and not used, and so is
+ * an account whose stored password cannot be read (`failed`, unless env sets
+ * it); a declared one drops a stored setting
  * the client refuses, is listed incomplete and stays in use, and fails the
  * start only for what env and store both lack (never echoing a value).
  */
@@ -206,15 +208,22 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
     for (const account of declared) {
         const row = stored.get(account.id);
         const source: ConnectionFieldSource = pinned ? { kind: 'code' } : { kind: 'env', variable: MAIL_ACCOUNTS_VARIABLE };
-        const resolve = (values: ConnectionValues | undefined) => resolveConnection({
+        const resolve = (stored: Pick<StoredConnection, 'values' | 'unreadable'> | undefined) => resolveStoredConnection({
             definition,
             name: storedConnectionName(MAIL_CONNECTION_TYPE, account.id),
             readVariable,
             preset: presetOf(account, source, pinned),
-            ...(values && { stored: values }),
-        });
+        }, stored);
         const label = `Mail account "${account.id}"`;
-        let resolved = resolve(row?.values);
+        let resolved = resolve(row);
+
+        if (resolved.state === 'failed') {
+            // its stored password did not open: listed for repair, not used
+            list(account.id, resolved, false, row);
+
+            continue;
+        }
+
         let merged = pinned ? account as MailAccount : toAccount(account.id, resolved.values, account);
 
         try {
@@ -227,7 +236,7 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             // a stored setting the client refuses must not stop the app whose dashboard repairs it
             logger.warn(`${error.message} The stored settings are dropped.`);
             resolved = {
-                ...resolve(storedSecretsOf(definition, row.values)),
+                ...resolve({ values: storedSecretsOf(definition, row.values) }),
                 state: 'incomplete',
                 reason: error.message,
             };
@@ -253,12 +262,11 @@ export async function loadMailAccounts(input: LoadInput): Promise<{ accounts: Ma
             logger.warn(`The variable ${variable} is ignored: the mail account "${id}" is not listed in ${MAIL_ACCOUNTS_VARIABLE} and takes its values from the store.`);
         }
 
-        const resolved = resolveConnection({
+        const resolved = resolveStoredConnection({
             definition,
             name,
             readVariable: () => undefined,
-            stored: row.values,
-        });
+        }, row);
 
         if (resolved.state !== 'configured') {
             logger.warn(`Mail account "${id}" is ${resolved.state.replace('_', ' ')} and is not used.`);
