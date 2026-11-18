@@ -5,6 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+export * from './client/index.ts';
+export * from './domains/index.ts';
 export * from './error/index.ts';
 export * from './helpers/index.ts';
 export * from './sse/index.ts';
