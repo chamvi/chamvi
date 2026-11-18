@@ -6,7 +6,7 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { KnowledgeService } from '@chamvi/knowledge';
+import { KnowledgeService, createKnowledge } from '@chamvi/knowledge';
 import type {
     KnowledgeChunkInput,
     KnowledgeCollection,
@@ -14,7 +14,7 @@ import type {
     KnowledgeDocument,
 } from '@chamvi/knowledge';
 import type { EntityWhere } from '@chamvi/store';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, createTestEngine, mockEmbeddingModel } from '@chamvi/test-kit';
 import type { DataSource, EntityManager } from 'typeorm';
 import {
     afterAll,
@@ -193,6 +193,37 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
             // UTF-16 offsets hold: every replaced character is one code unit
             index: 0,
         }]);
+    });
+
+    it('a PUT with the same metadata answers unchanged although jsonb reorders its keys', async () => {
+        const knowledge = createKnowledge({
+            repository,
+            locks: createTestEngine({ agents: [], clock }).lockService,
+            clock,
+            embeddingModel: mockEmbeddingModel(),
+        });
+        // jsonb orders keys by length, then bytes: read back as { n, topic, nested }
+        const metadata = {
+            topic: 'x',
+            nested: { bb: 2, a: 1 },
+            n: 1,
+        };
+
+        await knowledge.createCollection('notes');
+
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content: 'Refunds.',
+            metadata,
+        }))
+            .toEqual({ status: 'pending', changed: true });
+        expect(Object.keys((await service.findOneDocumentOrFail('notes', 'doc')).metadata!)).not.toEqual(Object.keys(metadata));
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content: 'Refunds.',
+            metadata,
+        }))
+            .toEqual({ status: 'pending', changed: false });
     });
 
     it('a delete while a pass writes never resurrects a row', async () => {
