@@ -46,7 +46,8 @@ function readUrl(options: VectorStoreModuleOptions | undefined): string | undefi
  * connects, migrates and checks as every app database does, then
  * registers a `DatabaseKnowledgeRepository` under
  * `KnowledgeToken.REPOSITORY` (in a check that passes with migrations
- * pending, an empty in-memory one: the tables do not exist yet). The module is named
+ * pending, an empty in-memory one: the stored-collection rules are not
+ * checked while vector migrations are pending). The module is named
  * `chamvi:knowledge-repository`, which `knowledgeModule()` depends on
  * optionally: it then indexes into these tables.
  */
@@ -79,8 +80,8 @@ export class VectorStoreModule extends DatabaseModule {
 
         await super.setup(container);
 
-        // a check that passed with migrations pending (the start would apply them) has no tables to read:
-        // the knowledge's check then reads an empty repository, as the migrated database would start
+        // a check that passed with vector migrations pending (the start would apply them) reads no vector table:
+        // the knowledge's check then reads an empty repository, so the stored-collection rules are not checked
         const { check } = container.resolve(AppToken.CONTEXT);
         const pending = check && (await pendingDatabaseMigrations(this.dataSource!)).length > 0;
 
