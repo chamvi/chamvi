@@ -51,7 +51,7 @@
         "@chamvi/app": "^0.8.0",
         "@chamvi/http-kit": "^0.8.0",
         "@chamvi/ui-kit": "^0.8.0",
-        "vite": "^8.3.6",
+        "vite": "^8.3.8",
         "vue": "^3.5.45",
         "vue-tsc": "^3.3.14"
     },

@@ -60,7 +60,7 @@
         "@chamvi/core": "^0.8.0",
         "@chamvi/store": "^0.8.0",
         "@chamvi/store-memory": "^0.8.0",
-        "ai": "^7.0.165",
+        "ai": "^7.0.173",
         "zod": "^4.6.7"
     },
     "peerDependencies": {
