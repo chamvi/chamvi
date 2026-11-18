@@ -8,11 +8,11 @@
 import type { IClock } from '@chamvi/core';
 import { LeaseLostError, RepositoryNotFoundError } from '@chamvi/core';
 import { EntityConflictError } from '@chamvi/store';
-import { 
-    and, 
-    defineQuery, 
-    eq, 
-    ne, 
+import {
+    and,
+    defineQuery,
+    eq,
+    ne,
 } from '@rapiq/core';
 import { uuidv7 } from 'uuidv7';
 import { lockKey } from '../indexer/helpers.ts';

@@ -87,7 +87,6 @@ function chunkOf(
 export function describeKnowledgeRepositoryContract(options: KnowledgeRepositoryContractOptions): void {
     const { name, create } = options;
 
-
     describe(`knowledge repository contract: ${name}`, () => {
         describe('collections', () => {
             it('reads a missing collection as undefined and OrFail rejects', async () => {
@@ -483,9 +482,9 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect((await service.findOneDocumentOrFail('docs', 'a')).metadata).toBeUndefined();
 
                 const details = (matches: Array<{
-                    document: string; 
-                    title?: string; 
-                    source?: string 
+                    document: string;
+                    title?: string;
+                    source?: string
                 }>) => matches
                     .map((match) => [match.document, match.title, match.source]);
 
@@ -512,9 +511,9 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.updateDetails('docs', 'b', { hash: 'sha256:b', title: 'B' }, { title: 'C' })).toBe(true);
 
                 expect(await service.findOneDocumentOrFail('docs', 'a')).toMatchObject({
-                    status: 'pending', 
-                    title: 'B', 
-                    metadata: { n: 2 }, 
+                    status: 'pending',
+                    title: 'B',
+                    metadata: { n: 2 },
                 });
                 expect(await service.findOneDocumentOrFail('docs', 'b')).toMatchObject({ status: 'failed', title: 'C' });
                 expect((await service.search('docs', 1, [1, 0], { topK: 10 })).map((match) => [match.document, match.title]))
@@ -972,16 +971,16 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 const fence = await service.advanceFence('docs');
                 // a record carrying another row's id and fence: neither is written
                 const foreign = {
-                    ...collectionOf('docs', { status: 'stale' }), 
-                    id: 'another-row', 
-                    fence: 99, 
+                    ...collectionOf('docs', { status: 'stale' }),
+                    id: 'another-row',
+                    fence: 99,
                 };
                 const saved = await service.saveCollection(foreign);
 
                 expect(saved).toMatchObject({
-                    id: created.id, 
-                    fence: 2, 
-                    status: 'stale', 
+                    id: created.id,
+                    fence: 2,
+                    status: 'stale',
                 });
                 expect(await service.saveCollection(collectionOf('docs'), { fence: fence! })).toMatchObject({ id: created.id, fence: 2 });
                 expect(await service.advanceFence('docs')).toEqual({ id: created.id, fence: 3 });
