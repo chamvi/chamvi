@@ -719,6 +719,17 @@ export function toWaitPoint(request: SuspendRequest, now: Date): WaitPoint {
         };
     }
 
+    if (request.kind === 'remote') {
+        return {
+            kind: 'remote',
+            id: request.id,
+            peer: request.peer,
+            agent: request.agent,
+            remoteRunId: request.remoteRunId,
+            expiresAt: new Date(now.getTime() + request.timeoutMs),
+        };
+    }
+
     const { timeoutMs, ...asked } = request;
 
     return {

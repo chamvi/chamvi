@@ -191,31 +191,4 @@ describe('remote agents', () => {
 
         expect(() => createTestEngine({ agents: [broken], peers: peers.resolver })).toThrow(InvalidAgentDefinitionError);
     });
-
-    it('fails a run of a remote agent instead of executing it as a model agent', async () => {
-        const peers = fakePeers({ dev: {} });
-        const developer = defineRemoteAgent({ name: 'developer', peer: 'dev' });
-        const engine = createTestEngine({ agents: [developer], peers: peers.resolver });
-
-        try {
-            await engine.start();
-
-            const { runId } = await engine.dispatch({
-                agent: 'developer',
-                channel: 'test',
-                trigger: 'test',
-                payload: {},
-            });
-
-            await engine.idle();
-
-            const run = await engine.getRun(runId);
-
-            expect(run?.status).toBe('failed');
-            expect(run?.error?.message).toMatch(/remote agent/);
-            expect(peers.calls.start).toHaveLength(0);
-        } finally {
-            await engine.stop();
-        }
-    });
 });

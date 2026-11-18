@@ -57,7 +57,7 @@ import {
     withoutPartialOutput,
     withoutResults,
 } from './helpers.ts';
-import type { ExecuteContext, ExecutionGate, SuspendRequest } from './types.ts';
+import type { CallSuspendRequest, ExecuteContext, ExecutionGate } from './types.ts';
 
 /**
  * One execution of a claimed, `running` run: first runs the tool calls a
@@ -212,7 +212,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
     const toolContext = createToolContext(ctx, runContext, gate);
 
     // the calls approve() or waitForDispatch() suspended in this execution, in the order they suspended
-    const suspended: SuspendRequest[] = [];
+    const suspended: CallSuspendRequest[] = [];
     // while the pending calls run they belong to the checkpoint's step, later ones to the step being made
     let replaying = pending.length > 0;
     let assembled: Awaited<ReturnType<typeof assembleTools>>;
@@ -259,7 +259,7 @@ async function runExecution(ctx: ExecuteContext, gate: ExecutionGate): Promise<v
     let pendingStepEnd: Promise<void> = Promise.resolve();
     let stepStartedAt = new Date(clock.now());
     // the wait the last step suspended on (the first in call order); the loop stops on it
-    let paused: SuspendRequest | undefined;
+    let paused: CallSuspendRequest | undefined;
     // set when the provider's finish part arrived for the current step; without
     // it the AI SDK synthesizes a finish ('other') and never runs the step's tools
     let modelCallEnded = false;

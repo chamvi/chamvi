@@ -8,7 +8,7 @@
 import { isObject } from 'smob';
 import { assertFrameActive, currentToolCall } from '../effect/frame.ts';
 import { stableHash } from '../effect/helpers.ts';
-import type { ApprovalRequest, SuspendRequest } from '../engine/execute/types.ts';
+import type { ApprovalRequest, CallSuspendRequest } from '../engine/execute/types.ts';
 import {
     ChamviError,
     ErrorCode,
@@ -35,9 +35,9 @@ import type { ApprovalDecision, ApprovalRequestInput, ApprovalReservation } from
  * reads as what it is.
  */
 export class SuspendSignal extends ChamviError {
-    readonly request: SuspendRequest;
+    readonly request: CallSuspendRequest;
 
-    constructor(request: SuspendRequest) {
+    constructor(request: CallSuspendRequest) {
         super({
             message: request.kind === 'approval' ?
                 `The tool call "${request.toolName}" is suspended until approval "${request.approvalId}" is answered.` :

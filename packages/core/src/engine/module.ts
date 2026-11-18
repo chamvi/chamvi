@@ -100,7 +100,8 @@ import {
 import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
 import { executeSimpleRun } from './execute/simple.ts';
 import { executeRun } from './execute/module.ts';
-import type { ExecuteContext, SuspendRequest } from './execute/types.ts';
+import { executeRemoteRun } from './execute/remote.ts';
+import type { ExecuteContext, RemoteExecuteContext, SuspendRequest } from './execute/types.ts';
 import {
     answerDispatchWait,
     healCancelCascade,
@@ -1877,10 +1878,7 @@ export class Engine implements IEngine {
 
         if (agent.kind === 'remote') {
             // never a model run: a remote agent's runs are stand-ins
-            await this.finish(run.id, {
-                status: RunStatus.FAILED,
-                error: toRunError(new InvalidRunStateError(`Agent "${agent.name}" is a remote agent; this engine does not execute remote agents yet.`)),
-            });
+            await executeRemoteRun(this.remoteExecuteContext(run, agent, signal));
 
             return;
         }
@@ -1964,22 +1962,46 @@ export class Engine implements IEngine {
             clock: this.clock,
             signal,
             finish: (patch) => this.finish(run.id, patch),
-            update: async (patch) => {
-                const updated = await this.ownedUpdate(run.id, patch);
-
-                if (!updated) {
-                    throw new InvalidRunStateError(`Run "${run.id}" was taken over by another owner.`);
-                }
-
-                this.emit({ type: 'run.updated', run: updated });
-
-                return updated;
-            },
+            update: (patch) => this.executionUpdate(run.id, patch),
             onStepAppended: (step) => this.emit({ type: 'step.appended', step }),
             onDelta: (delta) => this.emit({ type: 'run.delta', delta }),
             pause: (request, usage) => this.pause(run, request, usage),
             ownsRun: () => this.ownsRun(run.id),
             provided: this.provided,
+        };
+    }
+
+    /** An execution's patch of its still `running` run, emitted; InvalidRunStateError once another owner took it over. */
+    protected async executionUpdate(runId: string, patch: Partial<Run>): Promise<Run> {
+        const updated = await this.ownedUpdate(runId, patch);
+
+        if (!updated) {
+            throw new InvalidRunStateError(`Run "${runId}" was taken over by another owner.`);
+        }
+
+        this.emit({ type: 'run.updated', run: updated });
+
+        return updated;
+    }
+
+    /** What one execution of a remote agent's stand-in `run` gets from this engine. */
+    protected remoteExecuteContext(run: Run, agent: RemoteAgent, signal: AbortSignal): RemoteExecuteContext {
+        if (!this.peers) {
+            throw new InvalidRunStateError(`Agent "${agent.name}" is a remote agent, but the engine has no peers.`);
+        }
+
+        return {
+            run,
+            agent,
+            peers: this.peers,
+            effectService: this.effectService,
+            artifactService: this.artifactService,
+            clock: this.clock,
+            signal,
+            finish: (patch) => this.finish(run.id, patch),
+            update: (patch) => this.executionUpdate(run.id, patch),
+            pause: (request, usage) => this.pause(run, request, usage),
+            onError: (error, failed) => this.onError(error, failed),
         };
     }
 
