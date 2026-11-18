@@ -471,9 +471,10 @@ async function retryDelayOf(repository: IKnowledgeService, name: string, clock: 
 
 /**
  * How long until a pass is due (0: now; undefined: only on a wake): at once
- * for a missing record (deleted elsewhere: rebuilt), else, with `idleMs`,
- * that long after the stored `syncedAt`, the end of the last successful pass
- * on any replica.
+ * for a missing record (deleted elsewhere: rebuilt) or one no pass completed
+ * yet (a failed rebuild is retried, after its stored backoff), else, with
+ * `idleMs`, that long after the stored `syncedAt`, the end of the last
+ * successful pass on any replica.
  */
 async function dueDelayOf(
     repository: IKnowledgeService,
@@ -483,16 +484,12 @@ async function dueDelayOf(
 ): Promise<number | undefined> {
     const record = await repository.findOneCollection(name);
 
-    if (!record) {
+    if (!record?.syncedAt) {
         return 0;
     }
 
     if (idleMs === undefined) {
         return undefined;
-    }
-
-    if (!record.syncedAt) {
-        return 0;
     }
 
     // a clock skewed between replicas never parks the loop longer than the interval
@@ -529,8 +526,8 @@ function idleWaitOf(dueIn: number | undefined, checkMs: number | undefined): num
  * collection's fence (`lock.fence`); a write the fence refuses (`LeaseLostError`: another owner
  * took the lock) ends the pass like a lost lock: nothing reported or stored,
  * no backoff. With `checkMs`, an idle loop also reads its record that often:
- * a missing one (deleted on another replica) runs a pass whatever `idleMs`
- * says; an existing one costs that read only. Never rejects; an abort ends it.
+ * a missing one (deleted on another replica) or one no pass completed yet
+ * runs a pass whatever `idleMs` says; a synced one costs that read only. Never rejects; an abort ends it.
  */
 export async function runCollection(input: CollectionLoopInput): Promise<void> {
     const {
