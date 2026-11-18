@@ -9,4 +9,5 @@ export * from './client/index.ts';
 export * from './domains/index.ts';
 export * from './error/index.ts';
 export * from './helpers/index.ts';
+export * from './hook/index.ts';
 export * from './sse/index.ts';
