@@ -199,9 +199,24 @@ describe('vectorStoreModule()', () => {
     });
 
     it('refuses a url that is no PostgreSQL URL without naming it', () => {
-        expect(() => vectorStoreModule({ url: 'mysql://user:secret@host/db' })).toThrow(InvalidAgentDefinitionError);
-        expect(() => vectorStoreModule({ url: 'mysql://user:secret@host/db' })).toThrow('vectorStoreModule() url must be a postgres: or postgresql: URL.');
-        expect(() => vectorStoreModule({ url: 'not a url' })).toThrow(InvalidAgentDefinitionError);
+        const secret = `secret${randomUUID().replaceAll('-', '')}`;
+
+        for (const url of [`mysql://user:${secret}@host/db`, `not a url ${secret}`]) {
+            const error = (() => {
+                try {
+                    vectorStoreModule({ url });
+                } catch (e) {
+                    return e;
+                }
+
+                throw new Error('expected a throw');
+            })();
+
+            expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+            expect((error as Error).message).toBe('vectorStoreModule() url must be a postgres: or postgresql: URL.');
+            expect((error as Error).message).not.toContain(secret);
+            expect(inspect(error, { depth: 10 })).not.toContain(secret);
+        }
     });
 
     it('without DATABASE_URL or url the setup is an InvalidAgentDefinitionError', async () => {
@@ -239,6 +254,37 @@ describePostgres('vectorStoreModule() on PostgreSQL', () => {
         const [extension] = await check.query('SELECT extname FROM pg_extension WHERE extname = \'vector\'') as Array<{ extname: string }>;
 
         expect(extension?.extname).toBe('vector');
+    });
+
+    it.each([
+        ['true', 'passed'],
+        ['false', APP_ERROR_CODE.STORE_NOT_MIGRATED],
+    ])('a check with a declared collection on an empty database and CHAMVI_MIGRATE=%s: %s, applying nothing', async (migrate, outcome) => {
+        const url = await databaseUrl();
+        const { app } = build([
+            vectorStoreModule({ url }),
+            knowledgeModule({
+                collections: [knowledgeCollection('docs', {
+                    model: mockEmbeddingModel(),
+                    sources: [defineKnowledgeSource({
+                        async* documents() {
+                            yield { id: 'a', content: 'alpha' };
+                        },
+                    })],
+                })],
+                env: {},
+            }),
+        ], { memoryStore: true });
+
+        const result = await app.check({ env: await envFor({ CHAMVI_MIGRATE: migrate }) })
+            .then(() => 'passed', (e: { code?: string; message?: string }) => e.code ?? e.message);
+
+        expect(result).toBe(outcome);
+
+        const check = await admin(url);
+
+        expect(await vectorMigrations(check)).toBeUndefined();
+        expect(await check.query('SELECT extname FROM pg_extension WHERE extname = \'vector\'')).toEqual([]);
     });
 
     it('a check with CHAMVI_MIGRATE=false and pending migrations fails with the hint and applies nothing', async () => {

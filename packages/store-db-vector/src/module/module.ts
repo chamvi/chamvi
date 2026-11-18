@@ -9,8 +9,9 @@
 import { AppToken, DatabaseModule } from '@chamvi/app';
 import type { IContainer, IModule } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
+import { createMemoryKnowledgeRepository } from '@chamvi/knowledge';
 import { KNOWLEDGE_REPOSITORY_MODULE_NAME, KnowledgeToken } from '@chamvi/knowledge/module';
-import { POSTGRES_PROTOCOLS } from '@chamvi/store-db';
+import { POSTGRES_PROTOCOLS, pendingDatabaseMigrations } from '@chamvi/store-db';
 import { DatabaseKnowledgeRepository } from '../repositories/index.ts';
 import {
     KNOWLEDGE_VECTOR_DATABASE,
@@ -44,7 +45,8 @@ function readUrl(options: VectorStoreModuleOptions | undefined): string | undefi
  * extension installed on connect (its migration creates `vector`). It
  * connects, migrates and checks as every app database does, then
  * registers a `DatabaseKnowledgeRepository` under
- * `KnowledgeToken.REPOSITORY`. The module is named
+ * `KnowledgeToken.REPOSITORY` (in a check that passes with migrations
+ * pending, an empty in-memory one: the tables do not exist yet). The module is named
  * `chamvi:knowledge-repository`, which `knowledgeModule()` depends on
  * optionally: it then indexes into these tables.
  */
@@ -77,7 +79,14 @@ export class VectorStoreModule extends DatabaseModule {
 
         await super.setup(container);
 
-        container.register(KnowledgeToken.REPOSITORY, { useValue: new DatabaseKnowledgeRepository(this.dataSource!) });
+        // a check that passed with migrations pending (the start would apply them) has no tables to read:
+        // the knowledge's check then reads an empty repository, as the migrated database would start
+        const { check } = container.resolve(AppToken.CONTEXT);
+        const pending = check && (await pendingDatabaseMigrations(this.dataSource!)).length > 0;
+
+        const repository = pending ? createMemoryKnowledgeRepository() : new DatabaseKnowledgeRepository(this.dataSource!);
+
+        container.register(KnowledgeToken.REPOSITORY, { useValue: repository });
     }
 }
 
