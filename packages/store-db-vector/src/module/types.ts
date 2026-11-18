@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 export type VectorStoreModuleOptions = {
     /**
      * The PostgreSQL database of the knowledge tables (a `postgres:` or

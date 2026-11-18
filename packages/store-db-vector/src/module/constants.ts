@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 /**
  * Where `chamvi migration generate --database vector` writes, from this
  * package's sources (`src/migrations/`); only chamvi's own development
