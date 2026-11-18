@@ -26,6 +26,7 @@ import type { MemoryTransaction } from '../registry/types.ts';
 import {
     applyChanges,
     assertWhere,
+    matcherOf,
     matches,
     sortRows,
     toInstantConditions,
@@ -160,7 +161,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
         this.assertOpen();
 
         for (;;) {
-            const found = this.candidates(where).find((row) => matches(row, where));
+            const found = this.candidates(where).find(matcherOf(where));
 
             if (!found) {
                 return null;
@@ -188,8 +189,10 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
         assertWhere(this.entity, where);
         this.assertOpen();
 
+        const match = matcherOf(where);
+
         return this.registry.rows(this.entity, this.tx)
-            .filter((row) => matches(row, where))
+            .filter((row) => match(row))
             .map((row) => this.toEntity(row));
     }
 
@@ -367,8 +370,9 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
 
         this.assertOpen();
 
+        const match = matcherOf(where);
         const keys = this.registry.rows(this.entity, this.tx)
-            .filter((row) => matches(row, where))
+            .filter((row) => match(row))
             .map((row) => this.registry.keyOf(this.entity, row));
         const removed: EntityRecord[] = [];
 
@@ -378,7 +382,7 @@ export class MemoryEntityRepository<T extends EntityRecord> implements IEntityRe
 
             const stored = this.registry.read(this.entity, key, this.tx);
 
-            if (stored && matches(stored, where)) {
+            if (stored && match(stored)) {
                 removed.push(stored);
                 this.registry.write(this.entity, key, null, this.tx);
             }

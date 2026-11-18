@@ -16,23 +16,55 @@ import { isEqual } from 'smob';
 import { EntityQueryError } from '@chamvi/store';
 import type { EntityRecord, IEntityRepository } from '@chamvi/store';
 
+function isPlain(value: unknown): value is string | number | boolean | bigint {
+    const type = typeof value;
+
+    return type === 'string' || type === 'number' || type === 'boolean' || type === 'bigint';
+}
+
+function isMissing(value: unknown): boolean {
+    return value === null || value === undefined;
+}
+
+/** The test of one condition: a list of plain values is a set lookup, so a long id list costs one pass over the rows. */
+function conditionOf(value: unknown): (field: unknown) => boolean {
+    if (Array.isArray(value)) {
+        // a null in the array matches a missing value, as a null value does
+        const nullable = value.includes(null);
+        const items = value.filter((item) => item !== null);
+
+        const plain = items.every(isPlain);
+
+        if (plain) {
+            const set = new Set<unknown>(items);
+
+            return (field) => (nullable && isMissing(field)) || set.has(field);
+        }
+
+        return (field) => (nullable && isMissing(field)) || items.some((item) => isEqual(field, item));
+    }
+
+    if (isMissing(value)) {
+        return isMissing;
+    }
+
+    return (field) => isEqual(field, value);
+}
+
 /**
- * Whether the row matches every condition: an array matches any of its
- * values, `null` and `undefined` match a missing value.
+ * The test of a where, built once for many rows: the row matches every
+ * condition; an array matches any of its values, `null` and `undefined`
+ * match a missing value.
  */
+export function matcherOf(where: EntityRecord): (row: EntityRecord) => boolean {
+    const conditions = Object.entries(where).map(([field, value]) => [field, conditionOf(value)] as const);
+
+    return (row) => conditions.every(([field, test]) => test(row[field]));
+}
+
+/** Whether the row matches the where (`matcherOf` for a single row). */
 export function matches(row: EntityRecord, where: EntityRecord): boolean {
-    return Object.entries(where).every(([field, value]) => {
-        if (Array.isArray(value)) {
-            // a null in the array matches a missing value, as a null value does
-            return value.some((item) => (item === null ? row[field] === null || row[field] === undefined : isEqual(row[field], item)));
-        }
-
-        if (value === null || value === undefined) {
-            return row[field] === null || row[field] === undefined;
-        }
-
-        return isEqual(row[field], value);
-    });
+    return matcherOf(where)(row);
 }
 
 /**
