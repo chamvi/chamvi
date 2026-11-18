@@ -7,6 +7,7 @@
 
 import type { Agent, IClock, IEngine } from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/http';
+import type { IScheduledComponent } from 'hubwire';
 import type { ILogger } from '../../logger/types.ts';
 import type { AgentCheck } from '../../module/types.ts';
 
@@ -70,12 +71,14 @@ export interface IAgentsWatcher {
      * checks and failed skill preparations are issues; store failures throw.
      */
     boot(): Promise<void>;
-    /** Polls every `pollMs` until stopped; idempotent, a no-op once stopped. */
-    start(): void;
-    /** Idempotent: no further poll; resolves once the poll in flight (a reload included) settled. */
-    stop(): Promise<void>;
-    /** Resolves once the poll in flight, if any, settled. */
-    idle(): Promise<void>;
+    /**
+     * The polls (`agents-watcher`): every `pollMs` from `start()` on, the
+     * first one interval after it; `stop()` ends them, `settled()` resolves
+     * once the poll in flight (a reload included) settled. Started by the
+     * components module (start mode outside a check), never after a role
+     * other than `start`.
+     */
+    readonly component: IScheduledComponent;
     /**
      * The issue message of a job-role revision conflict of `name` (its stored
      * marker differs while it has unsettled runs), else undefined.

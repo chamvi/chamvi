@@ -5,5 +5,5 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-/** The purge timer's lifecycle hook. */
-export const PURGE_HOOK_NAME = 'chamvi:purge';
+/** The lock and idempotency purge's name among the app's components. */
+export const PURGE_COMPONENT_NAME = 'store-purge';

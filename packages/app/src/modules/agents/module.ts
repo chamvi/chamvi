@@ -18,6 +18,7 @@ import { readConfigFileAgents } from '../../models/file.ts';
 import { APP_ERROR_CODE, AppToken, ModuleName } from '../../module/constants.ts';
 import { isPackageMarker, mergePackageSpecifiers } from '../../package/helpers.ts';
 import {
+    AGENTS_WATCHER_COMPONENT_NAME,
     AGENTS_WATCHER_HOOK_NAME,
     AGENT_RELOADED_MESSAGE,
     AGENT_REMOVED_MESSAGE,
@@ -44,16 +45,17 @@ import { createAgentsWatcher } from './watcher.ts';
  * agents winning a name, then the earlier package) and the agents dir
  * (`CHAMVI_AGENTS_DIR`, else `./agents` when that is a directory; start and
  * job mode, nothing in migrate mode). Without a dir or a package an app
- * without agents passed in code starts empty (a warning). With one, `setup` registers `AGENT_ISSUES` and (start mode) the watcher's
- * lifecycle hook; `onReady` loads every folder into the engine before any
+ * without agents passed in code starts empty (a warning). With one, `setup` registers `AGENT_ISSUES` and (start mode outside a check)
+ * the package retries' lifecycle hook and, with a dir, the watcher's polls
+ * as the component `agents-watcher`; `onReady` loads every folder into the engine before any
  * start step runs (a folder changed while the app was down cancels its old
  * runs once, logged `agent reloaded`/`agent removed` with the ids of the
  * runs whose cancel went through (a run on another replica may still
  * complete); in start mode a marker without a folder, code or package agent
  * removes that agent, also without a dir, unless a package did not load,
  * whose stored package markers also keep folders of their name out), and the
- * watcher polls every `CHAMVI_AGENTS_POLL_MS` from `started` until
- * `stopping` or `teardown`, awaiting a reload in flight. A job never cancels:
+ * watcher polls every `CHAMVI_AGENTS_POLL_MS` once the components module
+ * started it until that stops it, awaiting a reload in flight. A job never cancels:
  * a revision conflict of the job's own agent fails the job
  * (InvalidRunStateError), another agent's is an issue. A folder agent whose
  * skill preparation fails is an issue (the others start, polling retries);
@@ -114,16 +116,27 @@ export class AgentsModule implements IModule {
 
         container.register(AppToken.AGENT_ISSUES, { useValue: () => [...this.packageAgents?.issues() ?? [], ...this.watcher?.issues() ?? []] });
 
-        if (context.mode === 'start' && !context.check) {
-            container.registerMany(AppToken.LIFECYCLE_HOOKS, {
-                useValue: {
-                    name: AGENTS_WATCHER_HOOK_NAME,
-                    started: () => {
-                        this.packageAgents?.start();
-                        this.watcher?.start();
-                    },
-                    stopping: () => this.stopAll(),
+        if (context.mode !== 'start' || context.check) {
+            return;
+        }
+
+        container.registerMany(AppToken.LIFECYCLE_HOOKS, {
+            useValue: {
+                name: AGENTS_WATCHER_HOOK_NAME,
+                started: () => {
+                    this.packageAgents?.start();
                 },
+                stopping: () => this.stopAll(),
+            },
+        });
+
+        if (this.root !== undefined) {
+            // resolved by the components module's onReady, after this module's onReady created the watcher
+            container.registerMany(AppToken.COMPONENTS, {
+                useFactory: () => ({
+                    name: AGENTS_WATCHER_COMPONENT_NAME,
+                    component: this.watcherOrFail().component,
+                }),
             });
         }
     }
@@ -308,7 +321,15 @@ export class AgentsModule implements IModule {
     /** Resolves once the watcher's poll and the package retry in flight, if any, settled. */
     async idle(): Promise<void> {
         await this.packageAgents?.idle();
-        await this.watcher?.idle();
+        await this.watcher?.component.settled();
+    }
+
+    protected watcherOrFail(): IAgentsWatcher {
+        if (!this.watcher) {
+            throw new InvalidAgentDefinitionError(`The module ${this.name} has not loaded the agents dir yet.`);
+        }
+
+        return this.watcher;
     }
 
     async teardown(): Promise<void> {
@@ -318,8 +339,9 @@ export class AgentsModule implements IModule {
         await this.stopAll();
     }
 
+    /** The package retries; the components module stops the watcher's polls. */
     protected async stopAll(): Promise<void> {
-        await Promise.all([this.packageAgents?.stop(), this.watcher?.stop()]);
+        await this.packageAgents?.stop();
     }
 }
 

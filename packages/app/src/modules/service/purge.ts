@@ -5,64 +5,52 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ClockTimer } from '@chamvi/core';
-import type { IPurgeTimer, PurgeTimerOptions } from './types.ts';
+import { defineIntervalComponent } from 'hubwire';
+import type { IScheduledComponent } from 'hubwire';
+import { PURGE_COMPONENT_NAME } from './constants.ts';
+import type { PurgeComponentOptions } from './types.ts';
 
 /**
- * Runs each service's `purgeExpired()` every `intervalMs` on the clock. The next call
- * is armed only after the previous one settled, so calls never overlap.
+ * Runs each service's `purgeExpired()` every `intervalMs` on the clock (first
+ * after one interval), as a hubwire interval component: the next pass waits
+ * from the moment the previous one settled, so passes never overlap. A failed
+ * purge is logged and the other services still purge; the pass then throws
+ * an AggregateError of the failures (already logged), so the component's
+ * status records the failure. Its timers never hold the process.
  */
-export function createPurgeTimer(options: PurgeTimerOptions): IPurgeTimer {
+export function createPurgeComponent(options: PurgeComponentOptions): IScheduledComponent {
     const {
         services,
         clock,
         intervalMs,
         logger,
     } = options;
-    let timer: ClockTimer | undefined;
-    let stopped = false;
-    let inFlight: Promise<void> | undefined;
 
-    const arm = () => {
-        if (stopped) {
-            return;
-        }
-
-        timer = clock.setTimeout(() => {
-            timer = undefined;
-            inFlight = Promise.all(services.map(async (service) => {
+    return defineIntervalComponent({
+        name: PURGE_COMPONENT_NAME,
+        clock,
+        intervalMs,
+        runOnStart: false,
+        unref: true,
+        handler: async () => {
+            const failures: unknown[] = [];
+            const results = await Promise.all(services.map(async (service) => {
                 try {
                     return await service.purgeExpired();
                 } catch (error) {
                     logger.error('Purging expired store records failed.', error);
+                    failures.push(error);
 
                     return undefined;
                 }
-            }))
-                .then((results) => {
-                    logger.debug('Purged expired store records.', { results });
-                })
-                .finally(() => {
-                    inFlight = undefined;
-                    arm();
-                });
-        }, intervalMs);
-        timer.unref?.();
-    };
+            }));
 
-    return {
-        start() {
-            if (stopped || timer) {
-                return;
+            logger.debug('Purged expired store records.', { results });
+
+            if (failures.length > 0) {
+                // logged above: the component's status records the failed pass, nothing logs it again
+                throw new AggregateError(failures, 'Purging expired store records failed.');
             }
-
-            arm();
         },
-        async stop() {
-            stopped = true;
-            timer?.clear();
-            timer = undefined;
-            await inFlight;
-        },
-    };
+    });
 }

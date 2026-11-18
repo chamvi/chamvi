@@ -42,6 +42,7 @@ import {
     AppToken,
     DEFAULT_PURGE_INTERVAL_MS,
     ModuleName,
+    componentsModule,
     configModule,
     runHooks,
     storeModule,
@@ -134,7 +135,8 @@ async function setup(options: {
         mode: options.mode,
         dev: true,
         env: { ...options.env },
-        modules: [configModule({ clock, logger }), options.store ?? storeModule()],
+        // the components module starts the purge in its start step and stops it on stopping and teardown
+        modules: [configModule({ clock, logger }), options.store ?? storeModule(), componentsModule()],
     });
 
     return {
@@ -457,7 +459,7 @@ describe('the services of the store step', () => {
         expect(calls).toHaveLength(0);
     });
 
-    it.each(['job', 'migrate'] as const)('no purge hook in %s mode', async (mode) => {
+    it.each(['job', 'migrate'] as const)('no purge component in %s mode', async (mode) => {
         const { module } = purgingStore();
         const { harness } = await setup({
             mode,
@@ -466,30 +468,67 @@ describe('the services of the store step', () => {
             env: mode === 'migrate' ? { DATABASE_URL: 'postgres://u:p@127.0.0.1:1/x' } : {},
         });
 
+        expect(harness.container.resolveAll(AppToken.COMPONENTS)).toEqual([]);
         expect(harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS)).toEqual([]);
         await harness.stop();
     });
 
-    it('no purge hook when CHAMVI_PURGE_INTERVAL_MS=0', async () => {
-        const { module } = purgingStore();
-        const { harness } = await setup({ store: module, env: { CHAMVI_PURGE_INTERVAL_MS: '0' } });
+    it('no purge component in a check', async () => {
+        const clock = new ControllableClock();
+        const { module, calls } = purgingStore();
+        const harness = await createHarness({
+            check: true,
+            dev: true,
+            modules: [configModule({ clock, logger: createRecordingLogger(clock) }), module, componentsModule()],
+        });
 
-        expect(harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS)).toEqual([]);
+        expect(harness.container.resolveAll(AppToken.COMPONENTS)).toEqual([]);
+        clock.advance(DEFAULT_PURGE_INTERVAL_MS * 3);
+        expect(calls).toHaveLength(0);
         await harness.stop();
     });
 
-    it('registers the purge hook of the built-in memory store too', async () => {
+    it('no purge component when CHAMVI_PURGE_INTERVAL_MS=0', async () => {
+        const { module, calls } = purgingStore();
+        const { harness, clock } = await setup({ store: module, env: { CHAMVI_PURGE_INTERVAL_MS: '0' } });
+
+        expect(harness.container.resolveAll(AppToken.COMPONENTS)).toEqual([]);
+        clock.advance(DEFAULT_PURGE_INTERVAL_MS * 3);
+        expect(calls).toHaveLength(0);
+        await harness.stop();
+    });
+
+    it('contributes the purge of the built-in memory store as the component store-purge', async () => {
         const { harness } = await setup();
 
-        expect(harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS).map((hook) => hook.name)).toEqual(['chamvi:purge']);
+        expect(harness.container.resolveAll(AppToken.COMPONENTS).map((entry) => entry.name)).toEqual(['store-purge']);
+        expect(harness.container.resolve(AppToken.COMPONENT_LIST).map((entry) => entry.name)).toEqual(['store-purge']);
         await harness.stop();
     });
 
-    it('registers the purge hook of a replacing store', async () => {
+    it('contributes the purge of a replacing store as the component store-purge', async () => {
         const { module } = purgingStore();
         const { harness } = await setup({ store: module });
 
-        expect(harness.container.resolveAll(AppToken.LIFECYCLE_HOOKS).map((hook) => hook.name)).toEqual(['chamvi:purge']);
+        expect(harness.container.resolveAll(AppToken.COMPONENTS).map((entry) => entry.name)).toEqual(['store-purge']);
+        await harness.stop();
+    });
+
+    it('records a pass whose purge failed as failed and a successful one as a success', async () => {
+        const { module, calls } = purgingStore();
+        const { harness, clock } = await setup({ store: module });
+        const [purge] = harness.container.resolveAll(AppToken.COMPONENTS);
+
+        clock.advance(DEFAULT_PURGE_INTERVAL_MS);
+        calls[0]!.reject(new Error('connection lost'));
+        await flush();
+        expect(purge!.component.status().lastErrorAt).toBe(clock.now());
+        expect(purge!.component.status().lastSuccessAt).toBeUndefined();
+
+        clock.advance(DEFAULT_PURGE_INTERVAL_MS);
+        calls[1]!.resolve(0);
+        await flush();
+        expect(purge!.component.status().lastSuccessAt).toBe(clock.now());
         await harness.stop();
     });
 });

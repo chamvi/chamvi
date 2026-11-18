@@ -19,6 +19,7 @@ import type { AppMode, IModule  } from '@chamvi/app';
 import {
     AgentsModule,
     AppToken,
+    componentsModule,
     configModule,
     engineModule,
     runHooks,
@@ -136,6 +137,8 @@ export function buildAgentsDirHarness(options: AgentsDirHarnessOptions) {
             engineModule(),
             module,
             ...options.modules ?? [],
+            // starts the watcher's polls in its start step (after the engine's), stops them on stopping and teardown
+            componentsModule(),
         ],
     });
 

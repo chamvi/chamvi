@@ -13,15 +13,9 @@ export type PurgingService = {
     purgeExpired(): Promise<number>;
 };
 
-export type PurgeTimerOptions = {
+export type PurgeComponentOptions = {
     services: PurgingService[];
     clock: IClock;
     intervalMs: number;
     logger: ILogger;
 };
-
-export interface IPurgeTimer {
-    start(): void;
-    /** Idempotent; keeps a call in flight from re-arming and resolves once it settled. */
-    stop(): Promise<void>;
-}

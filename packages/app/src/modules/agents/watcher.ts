@@ -5,13 +5,14 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ClockTimer } from '@chamvi/core';
 import { join } from 'node:path';
 import type { AgentIssue } from '@chamvi/http';
+import { defineIntervalComponent } from 'hubwire';
 import { formerAgentFolderHash, messageOf, relativize } from '../../loader/helpers.ts';
 import { hashAgentFolder, listAgentFolders, loadAgent } from '../../loader/module.ts';
 import type { LoadedAgent } from '../../loader/types.ts';
 import {
+    AGENTS_WATCHER_COMPONENT_NAME,
     BOOT_LOAD_ATTEMPTS,
     EMPTY_ROOT_MESSAGE,
     JOB_CONFLICT_HINT,
@@ -40,6 +41,10 @@ import type { AgentsWatcherOptions, IAgentsWatcher } from './types.ts';
  * Every poll compares the stored markers with the applied
  * hashes and records an agent whose marker another process moved as an issue.
  * The role decides what reaches the store (see `AgentsWatcherOptions.role`).
+ * The polls run as a hubwire interval component (`component`, first one poll
+ * interval after its start, never overlapping, timers unref'd); a poll in
+ * which an agent's reload or removal failed, or which failed as a whole, is
+ * logged and then throws, so the component's status records it.
  */
 export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatcher {
     const {
@@ -68,10 +73,8 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
     // agents whose skill preparation failed, with the error (a job of one of them fails with it)
     const preparationFailures = new Map<string, { error: unknown }>();
 
-    let timer: ClockTimer | undefined;
-    let started = false;
-    let stopped = false;
-    let inFlight: Promise<void> | undefined;
+    // the signal of the poll in flight: aborted once the component is stopped
+    let pollSignal: AbortSignal | undefined;
     let rootGone = false;
 
     const record = (agent: string, message: string) => {
@@ -181,7 +184,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
 
         // A failed preparation is an issue (boot included): the last valid agent stays, the others start, polling retries with backoff.
         if (outcome.kind === 'preparation') {
-            if (stopped || signal?.aborted) {
+            if (pollSignal?.aborted || signal?.aborted) {
                 throw outcome.error;
             }
 
@@ -241,7 +244,10 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
         }
     };
 
-    const poll = async (): Promise<void> => {
+    /** One poll; resolves with the errors of the agents whose reload or removal failed (each logged). */
+    const poll = async (): Promise<unknown[]> => {
+        const failures: unknown[] = [];
+
         if (!await isDirectory(root)) {
             // an unmounted volume must not remove every agent
             if (!rootGone) {
@@ -250,7 +256,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
 
             rootGone = true;
 
-            return;
+            return failures;
         }
 
         if (await isEmptyDirectory(root)) {
@@ -261,7 +267,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
 
             rootGone = true;
 
-            return;
+            return failures;
         }
 
         rootGone = false;
@@ -318,6 +324,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
                 // the store failed: try again on a later poll
                 attempted.delete(name);
                 logger.error('agent reload failed', error, { agent: name });
+                failures.push(error);
             }
         }
 
@@ -340,6 +347,7 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
                 } catch (error) {
                     // still missing on the next poll: removed then
                     logger.error('agent removal failed', error, { agent: name });
+                    failures.push(error);
 
                     continue;
                 }
@@ -356,28 +364,38 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
         }
 
         await checkMarkers();
+
+        return failures;
     };
 
-    const arm = () => {
-        if (stopped) {
-            return;
-        }
+    const component = defineIntervalComponent({
+        name: AGENTS_WATCHER_COMPONENT_NAME,
+        clock,
+        intervalMs: pollMs,
+        runOnStart: false,
+        unref: true,
+        handler: async ({ signal: passSignal }) => {
+            pollSignal = passSignal;
 
-        timer = clock.setTimeout(() => {
-            timer = undefined;
-            inFlight = poll()
-                .catch((error: unknown) => {
-                    logger.error('agents dir poll failed', error);
-                })
-                .finally(() => {
-                    inFlight = undefined;
-                    arm();
-                });
-        }, pollMs);
-        timer.unref?.();
-    };
+            let failures: unknown[];
+
+            try {
+                failures = await poll();
+            } catch (error) {
+                logger.error('agents dir poll failed', error);
+
+                throw error;
+            }
+
+            if (failures.length > 0) {
+                // each logged above: the component's status records the failed poll, nothing logs it again
+                throw new AggregateError(failures, 'The agents dir poll failed for some agents.');
+            }
+        },
+    });
 
     return {
+        component,
         async boot() {
             const names = await listAgentFolders(root);
 
@@ -433,23 +451,6 @@ export function createAgentsWatcher(options: AgentsWatcherOptions): IAgentsWatch
             const folders = new Set(names);
 
             await removeOrphanAgents(engine, (name) => folders.has(name) || reserved.has(name));
-        },
-        start() {
-            if (started || stopped) {
-                return;
-            }
-
-            started = true;
-            arm();
-        },
-        async stop() {
-            stopped = true;
-            timer?.clear();
-            timer = undefined;
-            await inFlight;
-        },
-        async idle() {
-            await inFlight;
         },
         conflict(name) {
             return conflicts.get(name);
