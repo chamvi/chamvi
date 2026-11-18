@@ -1288,6 +1288,8 @@ describe('managed collections', () => {
         for (const input of [
             { id: '', content: 'x' },
             { id: 'a\0b', content: 'x' },
+            { id: 'a\uD800b', content: 'x' },
+            { id: 'a\uDFFFb', content: 'x' },
             { id: 'x'.repeat(256), content: 'x' },
             { id: 'doc', content: '' },
             { id: 'doc', content: 'x'.repeat(MANAGED_CONTENT_MAX_CHARS + 1) },

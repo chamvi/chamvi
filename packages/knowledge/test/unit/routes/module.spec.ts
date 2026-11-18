@@ -451,9 +451,9 @@ describe('knowledgeRoutes', () => {
         const page = await first.json() as { data: Array<Record<string, unknown>>; meta: unknown };
 
         expect(page.meta).toEqual({
-            total: 4, 
-            limit: 2, 
-            offset: 1, 
+            total: 4,
+            limit: 2,
+            offset: 1,
         });
         expect(page.data.map((document) => document.id)).toEqual(['b', 'c']);
         expect(page.data[0]).toEqual({
@@ -470,9 +470,9 @@ describe('knowledgeRoutes', () => {
         };
 
         expect(pending.meta).toEqual({
-            total: 3, 
-            limit: 50, 
-            offset: 0, 
+            total: 3,
+            limit: 50,
+            offset: 0,
         });
         expect(pending.data.map((document) => document.id)).toEqual(['a', 'c', 'd']);
 
@@ -523,6 +523,8 @@ describe('knowledgeRoutes', () => {
         await send('POST', base, { body: { name: 'notes' } });
 
         expect((await send('GET', `${base}/notes/documents/%E0%A4%A`)).status).toBe(400);
+        // a lone surrogate (U+D800 as UTF-8) is no valid UTF-8: never an id
+        expect((await send('PUT', `${base}/notes/documents/a%ED%A0%80b`, { body: { content: 'x' } })).status).toBe(400);
 
         for (const [method, path] of [
             ['GET', KNOWLEDGE_ROUTE_PATH],
@@ -540,9 +542,9 @@ describe('knowledgeRoutes', () => {
 
     it('a PUT makes the document searchable once the background pass ran', async () => {
         const {
-            send, 
-            setup, 
-            knowledge, 
+            send,
+            setup,
+            knowledge,
         } = createFixture();
 
         knowledge.start();

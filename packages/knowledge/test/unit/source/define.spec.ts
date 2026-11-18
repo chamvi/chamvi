@@ -32,7 +32,7 @@ describe('defineKnowledgeSource', () => {
         const source = defineKnowledgeSource({
             async* documents() {
                 yield* [];
-            }, 
+            },
         });
 
         expect(source.kind).toBe('custom');
@@ -65,11 +65,11 @@ describe('defineKnowledgeSource', () => {
 
     it('keeps a given kind and trust', () => {
         const source = defineKnowledgeSource({
-            kind: 'crm', 
-            trusted: false, 
+            kind: 'crm',
+            trusted: false,
             async* documents() {
                 yield* [];
-            }, 
+            },
         });
 
         expect(source.kind).toBe('crm');
@@ -109,13 +109,13 @@ describe('defineKnowledgeSource', () => {
             kind: '',
             async* documents() {
                 yield* [];
-            }, 
+            },
         })).toThrow(InvalidAgentDefinitionError);
         expect(() => defineKnowledgeSource({
             trusted: 'yes',
             async* documents() {
                 yield* [];
-            }, 
+            },
         } as never)).toThrow(InvalidAgentDefinitionError);
     });
 
@@ -123,11 +123,11 @@ describe('defineKnowledgeSource', () => {
         const items: KnowledgeDocumentInput[] = [
             { id: 'a', content: 'alpha' },
             {
-                id: 'b', 
-                content: '', 
-                title: 'B', 
-                source: 'crm://b', 
-                metadata: { tag: 'x' }, 
+                id: 'b',
+                content: '',
+                title: 'B',
+                source: 'crm://b',
+                metadata: { tag: 'x' },
             },
         ];
         const source = defineKnowledgeSource({
@@ -149,11 +149,12 @@ describe('defineKnowledgeSource', () => {
                 yield { id: '', content: 'secret one' };
                 yield { id: 'x'.repeat(256), content: 'secret two' };
                 yield { id: 'nul\0id', content: 'secret three' };
+                yield { id: 'lone\uD800id', content: 'secret five' };
                 yield { id: 'number', content: 42 } as never;
                 yield {
-                    id: 'meta', 
-                    content: 'secret four', 
-                    metadata: ['a'], 
+                    id: 'meta',
+                    content: 'secret four',
+                    metadata: ['a'],
                 } as never;
                 yield 'not an object' as never;
                 yield { id: 'ok', content: 'fine' };
@@ -163,15 +164,16 @@ describe('defineKnowledgeSource', () => {
         const { documents, errors } = await collect(source);
 
         expect(documents.map((document) => document.id)).toEqual(['ok']);
-        expect(errors).toHaveLength(6);
+        expect(errors).toHaveLength(7);
 
         for (const error of errors) {
             expect(error).toBeInstanceOf(ValidationError);
             expect((error as Error).message).not.toMatch(/secret/);
         }
 
-        expect((errors[3] as Error).message).toContain('"number"');
-        expect((errors[4] as Error).message).toContain('"meta"');
+        expect((errors[3] as Error).message).toMatch(/well-formed/);
+        expect((errors[4] as Error).message).toContain('"number"');
+        expect((errors[5] as Error).message).toContain('"meta"');
     });
 
     it('hands the context to the source', async () => {
