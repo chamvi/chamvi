@@ -158,6 +158,35 @@ describe('managed collections', () => {
         expect(await setup.repository.findOneCollection('wiki')).toBeUndefined();
     });
 
+    it('createCollection never replaces a record created after its existence check', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        const at = new Date(setup.clock.now() - 1000);
+        const theirs: KnowledgeCollection = {
+            name: 'notes',
+            kind: 'managed',
+            trusted: false,
+            generation: 3,
+            model: 'mock/other',
+            chunker: CHUNKER_VERSION,
+            status: 'ready',
+            createdAt: at,
+            updatedAt: at,
+        };
+
+        // the check reads no record; another replica's create lands right after it (a lease that ran out)
+        vi.spyOn(service, 'findOneCollection').mockImplementationOnce(async () => {
+            await save(theirs);
+
+            return undefined;
+        });
+
+        await expect(knowledge.createCollection('notes')).rejects.toThrow(new InvalidRunStateError('Knowledge collection "notes" exists.'));
+        expect(await setup.repository.findOneCollection('notes')).toEqual(theirs);
+    });
+
     it('refuses an embeddingModel that does not resolve', () => {
         const setup = createIndexerSetup();
 
