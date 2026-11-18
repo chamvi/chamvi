@@ -269,13 +269,13 @@ describe('the indexing lock', () => {
         const save = service.saveCollection.bind(service);
 
         // hold replica A's first record write carrying an error (its failure)
-        service.saveCollection = async (collection) => {
+        service.saveCollection = async (collection, options) => {
             if (collection.error !== undefined && !gated) {
                 gated = collection;
                 await gate.promise;
             }
 
-            return save(collection);
+            return save(collection, options);
         };
 
         started.push(replicaA);
