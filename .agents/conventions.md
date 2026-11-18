@@ -135,6 +135,7 @@ Current references:
 - [agent-template.md](references/agent-template.md): chamvi/agent-template, the starter app; contract map from the public API, CLI, env and chart values to the template's files and tests.
 - [simple-git.md](references/simple-git.md): host-local process bounds and the evaluated library behavior that keeps `execFile`.
 - Skill domain imports (`Skill`, `SkillIdentity`, `SkillMetadata`, `ISkillSource`, `SkillCatalog`, `LoadedSkill`, `createSkillCatalog`) belong to `@chamvi/skills`. Core/app expose only the generic `SkillInput` preparation/contribution seam and never import skills, including in tests. Use `defineSkill`/`defineSkillSource` for custom raw inputs; built-in factories already carry their runtime, without app registration.
+- [hubwire.md](references/hubwire.md): hubwire's components, group and clock, mapped to their chamvi callers.
 - [vercel-skills.md](references/vercel-skills.md): the `skills` SDK (`resolveSource`/`installSkills`/`isDiagnostic`), the options and error mapping of `@chamvi/skills` preparation.
 - [authup.md](references/authup.md): authup's repository contracts and its `server-core` controllers, services and login middleware, mapped to `@chamvi/core` and `@chamvi/http`.
 - [eve.md](references/eve.md): Vercel's eve agent framework (and `@vercel/agent-runs`), the closest competitor; concept map for durability, approvals, channels, sandboxes, coding tools, tracing, evals and compaction.

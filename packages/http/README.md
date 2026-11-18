@@ -170,6 +170,7 @@ Paths are relative to `basePath` (default none).
 | `GET /agents/:name/state/kv/:key` | `chamvi_state_read` | `200 { key, value }` (`null` when unset) |
 | `PATCH /agents/:name/state/kv/:key` | `chamvi_state_write` | `200 { key, value }`; body `{ value }` |
 | `GET /agents/:name/state/collections/:collection` | `chamvi_state_read` | `200 { data }`, each document `{ id, ...fields }` (a non-object document as `{ id, doc }`); top-level equality filters (`filter[status]=open`; rapiq turns `42`, `007`, `true` and `null` into a number, boolean or null, so double-quote a value to match it as a string: `filter[issue]="42"`), `page[limit]`; `id` is the store id, not a document field, so `filter[id]` is 400; a `page[offset]` above 0 is 400 (the store pages by limit only) |
+| `GET /components` | `chamvi_component_read` | `200 { data: [{ name, kind, lastSuccessAt?, lastErrorAt?, lastRunAt?, runningSince? }] }`: the `components` option's entries (`kind: 'job'`), then every engine channel with a `status()` (`kind: 'channel'`); ISO 8601 times, each absent until it happened; a throwing `status()` lists the entry without times and reaches `onError` |
 | `GET /me` | authenticated | `200 { id, kind, name?, identity? }`: the caller itself (the name as an invoker records it); never its bindings or authup snapshot |
 | `POST /authorization/check` | authenticated | `200 { permissions }`: of the permission names in the body `{ names? }` (at most 64, each 1 to 255 characters; absent: every `chamvi_*` name), the ones the caller may attempt (`canSome`), deduplicated, in request order; an unknown name is answered absent. An upper bound for a client to gate controls with: a policy that needs a resource passes here, and the route behind the control still decides per resource |
 | `/mcp` | authenticated | The MCP endpoint (see [MCP tools](#mcp-tools)) |
@@ -209,6 +210,7 @@ A principal holds permission bindings (`bindings`: `{ permission: { name }, poli
 | `chamvi_state_read`, `chamvi_state_write` | `name` | Read and write the agent's state |
 | `chamvi_connection_read`, `chamvi_connection_write` | `name`, `type` | Read a connection (`/connections`, its configuration); write also sees its widgets (a pairing QR), streams, resets, edits, tests and deletes it. Write implies read |
 | `chamvi_connection_create` | `type` | Create accounts of the type |
+| `chamvi_component_read` | none | List the background components and the channels' status (`GET /components`) |
 
 A route on one resource checks with its attributes (`can`), before it answers 404, so a restricted principal cannot probe names; an agent the app does not hold counts as `private: true`. A collection gate (`GET /agents`, `GET /schedules`, `GET /runs` without a filter) checks without attributes (`canSome`: a policy whose data is missing passes), then each row is checked with its own attributes. A private agent's runs and state need `chamvi_agent_read` for it; `GET /runs` without `filter[agent]` lists every run only for an unrestricted `chamvi_agent_read`, otherwise the runs of the registered agents the principal may read. `request.authorize(name, attributes?)` of an extra route takes any name, an app's own included.
 
@@ -338,6 +340,7 @@ process.once('SIGTERM', () => {
 | `onError` | `(error) => void` | `console.error` | 5xx causes and background failures |
 | `channels` | `IChannel[]` | none | Channels served at `POST /channels/<name>` and below (see [Channels](#channels)); each needs an `in` and must be the object the engine holds under its name |
 | `controllers` | `object[]` | none | Instances of `@routup/decorators` controller classes (see [Controllers](#controllers)) |
+| `components` | `() => readonly HttpComponent[]` | none | Background jobs `GET /components` lists, read per request (`{ name, status() }`, `status()` answering epoch-ms times) |
 | `routes` | `HttpRoute[]` | none | Extra routes other packages contribute (e.g. `@chamvi/ui`'s dashboard), served under `basePath` without `auth` unless the handler calls `request.authorize(permission?)` (401/403 like the built-in routes); static paths, never under a built-in route's first segment or the metrics path (case-insensitive), `rateLimit: false` skips the limiter; `prefix: true` also serves every path below `path/` (the rest as `request.subpath`, raw and case kept; metrics label `<path>/*`; no other route of that method at or under it, never at or above the metrics path); a result may carry `headers` and a `Uint8Array` body (sent as is, `application/octet-stream` by default); the route context has `basePath` |
 
 `createShutdown(options)`:

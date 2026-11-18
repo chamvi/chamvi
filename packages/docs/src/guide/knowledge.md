@@ -48,7 +48,7 @@ A document id is stable: yielding it again with new content replaces the documen
 
 ## Indexing
 
-The module indexes once `chamvi start` is up, in the background: it never blocks the start or readiness. `run-job`, `start --check` and `migrate` never embed; a check only reads the store.
+The module indexes once `chamvi start` is up, in the background: it never blocks the start or readiness. Indexing begins with the app's [components](/guide/app#background-components), after the engine started and before the server listens; the managed poll is the component `knowledge-managed`, listed by `GET /components`. `run-job`, `start --check` and `migrate` never embed; a check only reads the store.
 
 A pass reads every source in full and compares it with the index (a snapshot, so deletions are found too). It runs at start, then again:
 
@@ -141,7 +141,7 @@ This records provenance; it does not filter injected instructions out of the pas
 
 ## Without the app
 
-`createKnowledge({ repository, locks, collections, models?, embeddingModel?, clock?, owner?, onError? })` builds the same thing over your own engine: `provideKnowledgeContext(engine, knowledge)` lets the tools reach it, `knowledge.start()` begins indexing, `knowledge.sync(name)` runs a pass now and `knowledge.stop()` aborts and awaits it. `embeddingModel` is the managed collections' model; `knowledgeRoutes(knowledge)` returns the REST routes for `createHttpApp({ routes })`. The [package README](https://github.com/chamvi/chamvi/tree/master/packages/knowledge#usage) has a complete example.
+`createKnowledge({ repository, locks, collections, models?, embeddingModel?, clock?, owner?, onError? })` builds the same thing over your own engine: `provideKnowledgeContext(engine, knowledge)` lets the tools reach it, `knowledge.start()` begins indexing, `knowledge.sync(name)` runs a pass now and `knowledge.stop()` aborts and awaits it. `knowledge.managedPoll` is the managed poll as a hubwire component, which `start()` and `stop()` run; with `runManagedPoll: false` they leave it alone, for a host that runs the component itself (as `knowledgeModule()` does). `embeddingModel` is the managed collections' model; `knowledgeRoutes(knowledge)` returns the REST routes for `createHttpApp({ routes })`. The [package README](https://github.com/chamvi/chamvi/tree/master/packages/knowledge#usage) has a complete example.
 
 ## Not built yet
 

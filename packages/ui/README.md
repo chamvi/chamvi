@@ -118,6 +118,7 @@ Each view asks the session which permissions the signed-in principal may attempt
 | Run | Header with budgets, the envelope (channel, subscription, address, payload) and the step timeline (llm, tool, wait), live over SSE with streamed text; cancel | `chamvi_run_read` or `chamvi_agent_run`; `chamvi_run_cancel` to cancel |
 | Approvals | Waiting runs with the request's title and body, the tool and the channel it went out through; Approve or Deny with a reason | `chamvi_run_read` to list, `chamvi_agent_approve` to answer |
 | Schedules | Cron subscriptions per agent with the next fire time | `chamvi_run_read` |
+| Components | Background components and channel status (`GET /components`), every 15 s; hidden without the permission | `chamvi_component_read` |
 
 The 24 h figures are counted from the newest 100 runs (the API has no time filter) and read `100+` beyond.
 
