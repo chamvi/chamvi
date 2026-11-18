@@ -444,6 +444,7 @@ describePostgres('schema', () => {
             settings: {},
             secrets: new Map(),
             revision: 0,
+            generation: expect.any(String),
         });
         expect(Array.from((await store.connectionService.findEntry('wa', 'creds'))!)).toEqual([2]);
     });
