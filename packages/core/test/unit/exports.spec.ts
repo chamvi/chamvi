@@ -229,6 +229,7 @@ describe('public api', () => {
         'dispatchTo',
         'dispatchTools',
         'findApprovalWaitBelow',
+        'pendingApprovalOf',
         'rebaseJsonSchemaRefs',
         'waitForDispatch',
         'createKeyring',
@@ -370,6 +371,8 @@ describe('public api', () => {
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('from').toEqualTypeOf<string[] | undefined>();
         expectTypeOf<ReturnType<typeof core.dispatchTo>>().toEqualTypeOf<Promise<core.DispatchResult>>();
         expectTypeOf<ReturnType<typeof core.findApprovalWaitBelow>>().toEqualTypeOf<Promise<store.Run | undefined>>();
+        expectTypeOf<ReturnType<typeof core.pendingApprovalOf>>().toEqualTypeOf<Omit<store.RemoteApproval, 'notifiedAt'> | undefined>();
+        expectTypeOf<core.IRunService['updateWith']>().parameter(1).toEqualTypeOf<(run: store.Run) => Partial<store.Run>>();
         expectTypeOf<core.DispatchToInput>().toEqualTypeOf<core.DispatchInput & { agent: string }>();
         expectTypeOf<core.Budget>().toHaveProperty('maxSubtreeTokens').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.DispatchOutcome>().toEqualTypeOf<{

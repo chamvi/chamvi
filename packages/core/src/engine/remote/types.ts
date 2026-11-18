@@ -6,6 +6,8 @@
  */
 
 import type { Run, Usage } from '@chamvi/store';
+import type { Agent } from '../../agent/types.ts';
+import type { IChannel } from '../../channel/types.ts';
 import type { IEffectService } from '../../effect/types.ts';
 import type { ILockService } from '../../lock/types.ts';
 import type { IPeerResolver } from '../../peer/types.ts';
@@ -37,10 +39,14 @@ export type RemoteStartRecord = {
 export type RemoteAnswerContext = Pick<DispatchEngineContext, 'runService' | 'resume'>;
 
 /** What the poll, wake, timeout and remote cancel of stand-ins need from the engine. */
-export type RemoteEngineContext = RemoteAnswerContext & Pick<DispatchEngineContext, 'clock' | 'onError' | 'emit'> & {
+export type RemoteEngineContext = RemoteAnswerContext & Pick<DispatchEngineContext, 'clock' | 'claimTtlMs' | 'onError' | 'emit'> & {
     lockService: ILockService;
     effectService: IEffectService;
     peers: IPeerResolver;
+    /** The registered agent `name` (a remote agent's `approvals` destination). */
+    getAgent(name: string): Agent | undefined;
+    /** The registered channel `name` (the `approvals` destination's channel). */
+    getChannel(name: string): IChannel | undefined;
     /**
      * Runs `work` detached from the caller: tracked like an approval delivery
      * (idle() and drain() wait for it), its signal aborted by drain(), a

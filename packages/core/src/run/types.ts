@@ -103,6 +103,13 @@ export interface IRunService {
     update(id: string, patch: Partial<Run>, expect?: RunUpdateOptions): Promise<Run>;
 
     /**
+     * update() with the patch derived from a copy of the locked row, after
+     * the checks (`derive` may throw to abort the write): a change to a
+     * nested field (`waiting`) keeps what a concurrent write stored next to it.
+     */
+    updateWith(id: string, derive: (run: Run) => Partial<Run>, expect?: RunUpdateOptions): Promise<Run>;
+
+    /**
      * Ordered by createdAt, ties broken by id, both ascending (`order`
      * `asc`, the default) or both descending; `total` ignores limit and
      * offset. Without `limit`, every matching run (from `offset`).

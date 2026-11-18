@@ -7,7 +7,12 @@
 
 import { isObject } from 'smob';
 import { RunStatus } from '@chamvi/store';
-import type { RemoteWaitPoint, Run } from '@chamvi/store';
+import type {
+    RemoteApproval,
+    RemoteWaitPoint,
+    Run,
+    RunStatusLiteral,
+} from '@chamvi/store';
 import type { IClock } from '../../clock/types.ts';
 import { TimeoutError, ValidationError } from '../../errors/index.ts';
 import { PEER_REQUEST_TIMEOUT_MS } from '../../peer/constants.ts';
@@ -29,6 +34,92 @@ export function remoteWaitKey(runId: string): string {
 /** A `waiting` run's remote wait point (undefined for any other run). */
 export function remoteWaitOf(run: Run | undefined): RemoteWaitPoint | undefined {
     return run?.status === RunStatus.WAITING && run.waiting?.kind === 'remote' ? run.waiting : undefined;
+}
+
+/**
+ * The key of the notification of a remote approval to a stand-in's fixed
+ * `approvals` destination: `<runId>:remote:<remote run id>:<approvalId>`, the
+ * remote run being the one that waits on the approval (the stand-in's own
+ * remote run or one below it), so the channel's `out` dedupes a resend.
+ */
+export function remoteNotifyKey(runId: string, approval: Pick<RemoteApproval, 'runId' | 'approvalId'>): string {
+    return `${runId}:remote:${approval.runId}:${approval.approvalId}`;
+}
+
+/** Whether `a` and `b` name the same remote approval (remote run and approval id). */
+export function isSameApproval(
+    a: Pick<RemoteApproval, 'runId' | 'approvalId'> | undefined,
+    b: Pick<RemoteApproval, 'runId' | 'approvalId'> | undefined,
+): boolean {
+    if (!a || !b) {
+        return a === b;
+    }
+
+    return a.runId === b.runId && a.approvalId === b.approvalId;
+}
+
+/**
+ * The approval a peer's view shows pending (undefined without one), copied
+ * field by field; a ValidationError for one that is not a remote approval
+ * (non-empty `runId`, `approvalId`, `title`; `url` an http(s) URL).
+ */
+export function readViewApproval(view: PeerRunView): Omit<RemoteApproval, 'notifiedAt'> | undefined {
+    const { approval } = view;
+
+    if (approval === undefined) {
+        return undefined;
+    }
+
+    const isText = (value: unknown): value is string => typeof value === 'string' && value.length > 0;
+
+    if (
+        !isObject(approval) ||
+        !isText(approval.runId) ||
+        !isText(approval.approvalId) ||
+        !isText(approval.title) ||
+        (approval.url !== undefined && (!isText(approval.url) || !/^https?:\/\//.test(approval.url) || !URL.canParse(approval.url)))
+    ) {
+        throw new ValidationError('The peer reported a malformed pending approval.');
+    }
+
+    return {
+        runId: approval.runId,
+        approvalId: approval.approvalId,
+        title: approval.title,
+        ...(approval.url !== undefined ? { url: approval.url } : {}),
+    };
+}
+
+/**
+ * The `remote` state of a wait point after a view of a remote run that has
+ * not settled: its status and pending approval. A stored approval of the
+ * same identity is kept as it is (its `notifiedAt`).
+ */
+export function nextRemoteState(
+    stored: RemoteWaitPoint['remote'],
+    status: RunStatusLiteral,
+    approval: Omit<RemoteApproval, 'notifiedAt'> | undefined,
+): NonNullable<RemoteWaitPoint['remote']> {
+    const kept = approval && isSameApproval(stored?.approval, approval) ? stored?.approval : approval;
+
+    return {
+        status,
+        ...(kept ? { approval: { ...kept } } : {}),
+    };
+}
+
+/**
+ * Settles `call` or rejects with `signal`'s reason once it aborts: a
+ * transport that ignores the signal does not hold the caller.
+ */
+export async function untilAborted<T>(signal: AbortSignal, call: () => Promise<T>): Promise<T> {
+    signal.throwIfAborted();
+
+    const aborted = new Promise<never>((_, reject) => {
+        signal.addEventListener('abort', () => reject(signal.reason), { once: true });
+    });
+
+    return Promise.race([Promise.try(call), aborted]);
 }
 
 /** The store lock of a stand-in's poll window. */

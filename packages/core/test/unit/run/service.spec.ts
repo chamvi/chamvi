@@ -254,6 +254,28 @@ describe('RunService', () => {
             expect((await service.update(uuid('r1'), { updatedAt: new Date(3_000) }, { keepUpdatedAt: true })).updatedAt).toEqual(new Date(3_000));
         });
 
+        it('updateWith derives the patch from the stored row after the checks, a throw writes nothing', async () => {
+            await service.create(makeRun(uuid('r1'), { status: RunStatus.WAITING, waiting: DISPATCH }));
+            await service.update(uuid('r1'), { usage: { inputTokens: 7, outputTokens: 0 } });
+
+            const seen: Run[] = [];
+            const updated = await service.updateWith(uuid('r1'), (run) => {
+                seen.push(run);
+
+                return { usage: { inputTokens: run.usage.inputTokens + 1, outputTokens: 0 } };
+            }, { expectStatus: [RunStatus.WAITING], expectWaitId: DISPATCH.id });
+
+            expect(updated.usage).toEqual({ inputTokens: 8, outputTokens: 0 });
+            expect(seen[0]?.waiting).toEqual(DISPATCH);
+
+            await expect(service.updateWith(uuid('r1'), () => {
+                throw new InvalidRunStateError('moved on');
+            })).rejects.toBeInstanceOf(InvalidRunStateError);
+            await expect(service.updateWith(uuid('r1'), () => ({ usage: { inputTokens: 0, outputTokens: 0 } }), { expectWaitId: 'other' }))
+                .rejects.toBeInstanceOf(InvalidRunStateError);
+            expect((await service.findOneOrFail(uuid('r1'))).usage).toEqual({ inputTokens: 8, outputTokens: 0 });
+        });
+
         it('clears a property set to undefined and keeps untouched ones, the claim too', async () => {
             const taint = { at: new Date('2026-10-30T12:34:56.789Z'), source: 'tool:web_fetch' };
 

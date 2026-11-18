@@ -2435,6 +2435,8 @@ export class Engine implements IEngine {
             lockService: this.lockService,
             effectService: this.effectService,
             peers,
+            getAgent: (name) => this.getAgent(name),
+            getChannel: (name) => this.getChannel(name),
             detach: (work, run) => this.detach(work, run),
         };
     }
