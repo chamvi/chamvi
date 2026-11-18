@@ -474,6 +474,51 @@ describe('the indexing lock', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('a failing pass without a token stores no failure over a record another owner created', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        const gate = Promise.withResolvers<void>();
+        const now = new Date(setup.clock.now());
+        const theirs = {
+            name: 'docs',
+            kind: 'declared' as const,
+            trusted: true,
+            generation: 0,
+            model: 'mock-provider/mock-model-id',
+            chunker: CHUNKER_VERSION,
+            status: 'pending' as const,
+            createdAt: now,
+            updatedAt: now,
+        };
+        const held = vi.spyOn(service, 'saveCollection')
+            // the creating save fails after another owner's create landed
+            .mockImplementationOnce(async () => {
+                await save(theirs);
+
+                throw new Error('store down');
+            })
+            // the failure record waits, as a store slower than the lease would
+            .mockImplementationOnce(async (...args) => {
+                await gate.promise;
+
+                return save(...args);
+            });
+
+        await expect.poll(() => held.mock.calls.length).toBe(2);
+        // the other owner takes the lock and advances the fence
+        await service.advanceFence('docs');
+        gate.resolve();
+
+        await expect.poll(() => held.mock.settledResults[1]?.type).toBe('rejected');
+        await settle();
+
+        expect(held.mock.settledResults[1]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost' } });
+        expect(await setup.repository.findOneCollection('docs')).toEqual(theirs);
+        expect(setup.errors.map(({ error }) => (error as Error).message)).toEqual(['store down']);
+    });
+
     it('runs one pass per interval across two replicas', async () => {
         const setup = createIndexerSetup();
         const model = mockEmbeddingModel();

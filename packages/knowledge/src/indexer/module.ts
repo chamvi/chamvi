@@ -391,8 +391,9 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
 
 /**
  * Stores a failure on the declared record (never on a managed one), only while
- * the lock is still this owner's (renewed, and the write fenced): a lost lock
- * leaves the record to its holder.
+ * the lock is still this owner's (renewed, and the write fenced; a pass
+ * without a token advances the fence first, and with no record records
+ * nothing): a lost lock leaves the record to its holder.
  * The failure count and the time of the next attempt go with it, so every
  * replica backs off together. Whether it was stored.
  */
@@ -405,6 +406,15 @@ async function recordErrorUnderLock(
 ): Promise<boolean> {
     if (!await lock.renew()) {
         return false;
+    }
+
+    if (lock.fence === undefined) {
+        // a pass that failed before it had a token: never a write without one
+        await advanceLockFence(repository, name, lock);
+
+        if (lock.fence === undefined) {
+            return false;
+        }
     }
 
     const record = await repository.findOneCollection(name);

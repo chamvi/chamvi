@@ -282,6 +282,11 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
     if (lock.fence === undefined) {
         // the record appeared after the loop advanced the fence (no row then)
         await advanceLockFence(repository, name, lock);
+
+        if (lock.fence === undefined) {
+            // gone again: nothing to write, and never a write without a token
+            return;
+        }
     }
 
     if (needsReembed(record, input.model) && (input.reembed || record.pending?.model === input.model)) {
