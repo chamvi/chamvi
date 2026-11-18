@@ -40,9 +40,9 @@ import { managedDocumentProblem, needsReembed } from '../managed/helpers.ts';
 import { syncManaged } from '../managed/module.ts';
 import type { ManagedLoop } from '../managed/types.ts';
 import { copy, lockKey } from '../service/helpers.ts';
-import type { IKnowledgeService, KnowledgeServiceContext } from '../service/types.ts';
+import type { IKnowledgeService } from '../service/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
-import type { KnowledgeCollection } from '../store/types.ts';
+import type { IKnowledgeCollectionRepository, KnowledgeCollection } from '../store/types.ts';
 import { normalizeOptions, resolveCollection, resolveEmbeddingModel } from './helpers.ts';
 import type {
     IKnowledge,
@@ -54,7 +54,7 @@ import type {
 const NO_DEFAULT_MODEL = 'Managed collections need an embedding model: set CHAMVI_KNOWLEDGE_MODEL or knowledgeModule({ embeddingModel }).';
 
 class Knowledge implements IKnowledge {
-    readonly repository: KnowledgeServiceContext['repository'];
+    readonly repository: IKnowledgeCollectionRepository;
 
     readonly service: IKnowledgeService;
 

@@ -78,6 +78,16 @@ const PORT_EXEMPTIONS: Array<{
         reason: 'the knowledge ports and their memory repositories, the knowledge service and its context type, ' +
             'and the pgvector repositories: the knowledge ports only, a chamvi store port is no exemption there',
     },
+    {
+        test: (path) => [
+            'packages/knowledge/src/knowledge/module.ts',
+            'packages/knowledge/src/knowledge/types.ts',
+            'packages/knowledge/src/module/types.ts',
+        ].includes(path),
+        names: ['IKnowledgeCollectionRepository'],
+        reason: 'the options of createKnowledge() and knowledgeModule() and the knowledge\'s repository field: they take the ' +
+            'collection repository a backend provides and hand it to the knowledge service, which alone reads and writes it',
+    },
 ];
 
 /** The repository ports and repository tokens a source text names. */
