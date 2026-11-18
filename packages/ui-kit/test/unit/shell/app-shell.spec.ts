@@ -23,12 +23,16 @@ import {
 } from 'vue';
 import type { App } from 'vue';
 import { Permission } from '@chamvi/access';
-import type { IApiClient, MeWire } from '../../../src/api/types.ts';
+import type { 
+    
+    ConnectionWire, 
+    IClient, 
+    MeWire, 
+} from '@chamvi/http-kit';
 import type { UiConfig } from '../../../src/config/types.ts';
-import type { ConnectionWire } from '../../../src/connections/types.ts';
 import { install } from '../../../src/module.ts';
 import AppShell from '../../../src/shell/AppShell.vue';
-import { fakeClient } from '../../utils/client.ts';
+import { routedClient } from '../../utils/client.ts';
 import { json } from '../../utils/fetch.ts';
 import { ALL, verdicts } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
@@ -75,23 +79,21 @@ afterEach(() => {
     vi.restoreAllMocks();
 });
 
-function clientOf(world: World): IApiClient {
-    return fakeClient({
-        send: async (url: string) => {
-            if (url === '/connections') {
-                return json({ data: world.connections ?? [] });
-            }
+function clientOf(world: World): IClient {
+    return routedClient(async (url: string) => {
+        if (url === '/connections') {
+            return json({ data: world.connections ?? [] });
+        }
 
-            if (url === '/ui-pages') {
-                return json({ data: world.pages ?? [MAIL_PAGE] });
-            }
+        if (url === '/ui-pages') {
+            return json({ data: world.pages ?? [MAIL_PAGE] });
+        }
 
-            if (url === '/connection-types') {
-                return json({ data: [] });
-            }
+        if (url === '/connection-types') {
+            return json({ data: [] });
+        }
 
-            throw new Error(`unexpected ${url}`);
-        },
+        throw new Error(`unexpected ${url}`);
     });
 }
 

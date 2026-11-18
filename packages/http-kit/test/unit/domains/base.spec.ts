@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { FetchTransport } from 'hapic';
 import type { RequestOptions } from 'hapic';
 import {
     afterEach,
@@ -23,8 +22,9 @@ import {
     buildRequestConfig,
 } from '@chamvi/http-kit';
 import type { APIRequestOptions } from '@chamvi/http-kit';
-import { createTestClient, silentFetch } from '../../utils/client.ts';
-import { json, sse } from '../../utils/fetch.ts';
+import { createTestClient } from '../../utils/client.ts';
+import { json, sse } from '../../utils/responses.ts';
+import { SilentTransport } from '../../utils/silent-transport.ts';
 
 class TestAPI extends BaseAPI {
     get<T>(url: string, options?: APIRequestOptions) {
@@ -108,8 +108,9 @@ describe('BaseAPI.request', () => {
     it('times out without an answer within the client timeoutMs', async () => {
         vi.useFakeTimers();
 
-        const { fetch, signals } = silentFetch();
-        const client = new Client({ baseURL: '/api', transport: new FetchTransport({ fetch }) });
+        const transport = new SilentTransport();
+        const { signals } = transport;
+        const client = new Client({ baseURL: '/api', transport });
         const outcome = apiOf(client).get('/me').catch((e: unknown) => e);
 
         await vi.advanceTimersByTimeAsync(REQUEST_TIMEOUT_MS - 1);
@@ -126,10 +127,10 @@ describe('BaseAPI.request', () => {
     it('takes the deadline from timeoutMs and the call option', async () => {
         vi.useFakeTimers();
 
-        const { fetch } = silentFetch();
+        const transport = new SilentTransport();
         const client = new Client({
             baseURL: '/api', 
-            transport: new FetchTransport({ fetch }), 
+            transport,
             timeoutMs: 50, 
         });
         const first = apiOf(client).get('/me').catch((e: unknown) => e);
@@ -162,8 +163,7 @@ describe('BaseAPI.request', () => {
     it('passes the caller\'s abort through and never aborts the caller\'s signal on a timeout', async () => {
         vi.useFakeTimers();
 
-        const { fetch } = silentFetch();
-        const client = new Client({ baseURL: '/api', transport: new FetchTransport({ fetch }) });
+        const client = new Client({ baseURL: '/api', transport: new SilentTransport() });
         const aborted = new AbortController();
         const first = apiOf(client).get('/connections', { signal: aborted.signal }).catch((e: unknown) => e);
 
@@ -184,8 +184,9 @@ describe('BaseAPI.request', () => {
     });
 
     it('does not start a request whose signal is already aborted', async () => {
-        const { fetch, signals } = silentFetch();
-        const client = new Client({ baseURL: '/api', transport: new FetchTransport({ fetch }) });
+        const transport = new SilentTransport();
+        const { signals } = transport;
+        const client = new Client({ baseURL: '/api', transport });
         const controller = new AbortController();
 
         controller.abort();

@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { buildQueryString, decodeRunListQuery } from '@chamvi/http-kit';
 import type { RunListFields } from '@chamvi/http-kit';
-import { json, sse } from '../../utils/fetch.ts';
+import { json, sse } from '../../utils/responses.ts';
 import { createKitClient, linesOf } from '../../utils/kit.ts';
 
 describe('RunAPI', () => {

@@ -17,7 +17,7 @@ import {
 } from 'vitest';
 import { defineComponent, h } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import type { IApiClient } from '../../../src/api/types.ts';
+import type { IClient } from '@chamvi/http-kit';
 import { LOGIN_ROUTE_NAME, TOKEN_STORAGE_KEY } from '../../../src/auth/constants.ts';
 import { CONFIG_ELEMENT_ID } from '../../../src/config/constants.ts';
 import { useAppContext } from '../../../src/context/module.ts';
@@ -113,7 +113,7 @@ describe('mountPage', () => {
     });
 
     describe('a 401 that stands', () => {
-        let client: IApiClient | undefined;
+        let client: IClient | undefined;
 
         const Caller = defineComponent(() => {
             ({ client } = useAppContext());
@@ -148,7 +148,7 @@ describe('mountPage', () => {
             await mountPage(Caller);
 
             fetch.mockImplementation(async () => json({ message: 'expired' }, 401));
-            await expect(client!.listAgents()).rejects.toThrow();
+            await expect(client!.agent.getMany()).rejects.toThrow();
 
             await vi.waitFor(() => expect(replace).toHaveBeenCalledWith('/console/login?redirect=%2Fconsole%2Fext%2Fmail%3Fa%3D1%23b'));
             expect(window.sessionStorage.getItem(TOKEN_STORAGE_KEY)).toBeNull();
@@ -161,7 +161,7 @@ describe('mountPage', () => {
 
             await router.push('/private?tab=runs');
             await mountPage(Caller, { router: () => router });
-            await expect(client!.listAgents()).rejects.toThrow();
+            await expect(client!.agent.getMany()).rejects.toThrow();
 
             await vi.waitFor(() => expect(router.currentRoute.value.name).toBe(LOGIN_ROUTE_NAME));
             expect(router.currentRoute.value.query).toEqual({ redirect: '/private?tab=runs' });
@@ -176,7 +176,7 @@ describe('mountPage', () => {
 
             await router.push('/login');
             await mountPage(Caller, { router: () => router });
-            await expect(client!.listAgents()).rejects.toThrow();
+            await expect(client!.agent.getMany()).rejects.toThrow();
             await new Promise((resolve) => {
                 setTimeout(resolve, 0); 
             });

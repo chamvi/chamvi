@@ -8,7 +8,7 @@
 
 import { computed } from 'vue';
 import { connectionBadge, connectionProblem } from '../connections/helpers.ts';
-import type { ConnectionTypeWire, ConnectionWire } from '../connections/types.ts';
+import type { ConnectionTypeWire, ConnectionWire } from '@chamvi/http-kit';
 
 const props = defineProps<{
     type: ConnectionTypeWire;

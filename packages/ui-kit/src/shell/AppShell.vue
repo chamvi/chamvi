@@ -9,7 +9,7 @@
 import { useColorMode } from '@vuecs/design';
 import { Permission } from '@chamvi/access';
 import { computed } from 'vue';
-import type { MeWire } from '../api/types.ts';
+import type { MeWire } from '@chamvi/http-kit';
 import { useAppContext } from '../context/module.ts';
 import BrandLogo from './BrandLogo.vue';
 import { useUiPages } from './composables.ts';

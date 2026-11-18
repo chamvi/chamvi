@@ -10,8 +10,8 @@
 import { addCollection } from '@iconify/vue';
 import { createApp } from 'vue';
 import type { Component } from 'vue';
-import { createApiClient } from '../api/module.ts';
-import type { IApiClient } from '../api/types.ts';
+import { createClient } from '@chamvi/http-kit';
+import type { IClient } from '@chamvi/http-kit';
 import { LOGIN_ROUTE_NAME } from '../auth/constants.ts';
 import { createSession } from '../auth/module.ts';
 import type { IAuthupAdapter } from '../auth/types.ts';
@@ -50,7 +50,7 @@ export async function mountPage(component: Component, options: MountPageOptions 
 
     installVuecs(app);
 
-    let client: IApiClient;
+    let client: IClient;
     const session = createSession(config, {
         storage: window.sessionStorage,
         client: () => client,
@@ -68,8 +68,8 @@ export async function mountPage(component: Component, options: MountPageOptions 
         window.location.replace(`${config.uiBase}/login?redirect=${encodeURIComponent(`${pathname}${search}${hash}`)}`);
     };
 
-    client = createApiClient({
-        apiBase: config.apiBase,
+    client = createClient({
+        baseURL: config.apiBase,
         token: () => session.token(),
         refresh: () => session.refresh(),
         onUnauthorized: () => {

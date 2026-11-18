@@ -14,7 +14,8 @@ import {
 } from 'vitest';
 import { createApp, defineComponent, h } from 'vue';
 import ConnectionPanel from '../../../src/connections/ConnectionPanel.vue';
-import type { ConnectionDetailWire, ConnectionWidgetWire, IConnectionsApi } from '../../../src/connections/types.ts';
+import type { ConnectionDetailWire, ConnectionWidgetWire, IConnectionAPI } from '@chamvi/http-kit';
+import { fakeClient } from '../../utils/client.ts';
 import { flush } from '../../utils/timers.ts';
 
 const WIDGETS = [{ kind: 'qr', value: 'pairing-material' }] as ConnectionWidgetWire[];
@@ -27,14 +28,16 @@ const DETAIL = {
     widgets: WIDGETS,
 } as ConnectionDetailWire;
 
-function fakeApi(detail: ConnectionDetailWire = DETAIL): IConnectionsApi {
-    return {
-        list: async () => [],
-        get: async () => detail,
-        reset: async () => DETAIL,
-        // the live view is not observed here: the stream never answers
-        stream: () => new Promise<Response>(() => {}),
-    };
+function fakeApi(detail: ConnectionDetailWire = DETAIL): IConnectionAPI {
+    return fakeClient({
+        connection: {
+            getMany: async () => [],
+            getOne: async () => detail,
+            reset: async () => DETAIL,
+            // the live view is not observed here: the stream never answers
+            stream: () => new Promise<ReadableStream<Uint8Array>>(() => {}),
+        },
+    }).connection;
 }
 
 async function mount(

@@ -14,16 +14,18 @@ import {
     shallowRef,
     watch,
 } from 'vue';
-import type { ApiError } from '../api/error.ts';
-import { asApiError } from '../api/helpers.ts';
+import { asApiError } from '@chamvi/http-kit';
+import type {
+    ApiError,
+    ConnectionSettingsWire,
+    ConnectionTestWire,
+    ConnectionTypeWire,
+    IClient,
+} from '@chamvi/http-kit';
 import type {
     ConnectionFormConfirmation,
     ConnectionFormField,
     ConnectionFormValues,
-    ConnectionSettingsWire,
-    ConnectionTestWire,
-    ConnectionTypeWire,
-    IConnectionConfigApi,
     UseConnectionFormOptions,
 } from './types.ts';
 import { ACCOUNT_KEY, buildConnectionContainer, parseNumberDraft } from './validators.ts';
@@ -80,7 +82,7 @@ function toField(field: ConnectionTypeWire['fields'][number], view: ConnectionSe
  * page keys the component by it). A secret leaves only through `save`, and
  * no response carries one back; the typed text is dropped once saved.
  */
-export function useConnectionForm(api: IConnectionConfigApi, options: UseConnectionFormOptions) {
+export function useConnectionForm(client: Pick<IClient, 'connection' | 'connectionType'>, options: UseConnectionFormOptions) {
     const { name } = options;
     const definition = shallowRef<ConnectionTypeWire>();
     const view = shallowRef<ConnectionSettingsWire>();
@@ -222,12 +224,12 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
 
     async function load(): Promise<void> {
         try {
-            const types = await api.types();
+            const types = await client.connectionType.getMany();
 
             definition.value = types.find((type) => type.type === options.type);
 
             if (definition.value && name !== undefined) {
-                view.value = await api.read(name);
+                view.value = await client.connection.getConfig(name);
             }
 
             seedValues();
@@ -270,7 +272,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
                 const set = typedSecrets();
 
                 if (name === undefined) {
-                    const created = await api.create(options.type, {
+                    const created = await client.connection.create(options.type, {
                         account: values[ACCOUNT_KEY] ?? '',
                         settings: buildSettings(),
                         ...(Object.keys(set).length > 0 && { secrets: set }),
@@ -285,7 +287,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
                     return;
                 }
 
-                view.value = await api.save(name, {
+                view.value = await client.connection.save(name, {
                     settings: buildSettings(),
                     ...(Object.keys(set).length > 0 && { secrets: { set } }),
                 });
@@ -307,7 +309,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
             testResult.value = undefined;
 
             try {
-                testResult.value = await api.test(name);
+                testResult.value = await client.connection.test(name);
             } catch (e) {
                 testResult.value = { ok: false, message: statusOf(asApiError(e)) };
             }
@@ -349,7 +351,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
         await exclusive(async () => {
             try {
                 if (open.kind === 'delete') {
-                    const { restartRequired } = await api.remove(name);
+                    const { restartRequired } = await client.connection.delete(name);
 
                     confirmation.value = undefined;
                     options.onDeleted({ name, restartRequired });
@@ -358,7 +360,7 @@ export function useConnectionForm(api: IConnectionConfigApi, options: UseConnect
                 }
 
                 // only the secret: edits still in the form stay unsaved and in the form
-                view.value = await api.save(name, { secrets: { clear: [open.key] } });
+                view.value = await client.connection.save(name, { secrets: { clear: [open.key] } });
                 // the result was of the values before
                 testResult.value = undefined;
                 dropSecret(open.key);

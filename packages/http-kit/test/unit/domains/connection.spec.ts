@@ -8,27 +8,23 @@
 import { describe, expect, it } from 'vitest';
 import { ApiError, RECONNECT_DELAYS_MS, createClient } from '@chamvi/http-kit';
 import type { ConnectionStreamEvent } from '@chamvi/http-kit';
-import { FetchTransport } from 'hapic';
 import { openConnectionStream } from '../../../src/domains/connection/helpers.ts';
-import {
-    createFakeFetch,
-    json,
-    sse,
-} from '../../utils/fetch.ts';
-import type { FakeAnswer } from '../../utils/fetch.ts';
+import { json, sse } from '../../utils/responses.ts';
+import { FakeTransport } from '../../utils/transport.ts';
+import type { FakeAnswer } from '../../utils/transport.ts';
 
 function setup(answers: FakeAnswer[]) {
-    const { fetch, requests } = createFakeFetch(answers);
+    const transport = new FakeTransport(answers);
     const client = createClient({
         baseURL: '/api',
-        transport: new FetchTransport({ fetch }),
+        transport,
         token: async () => 't',
     });
 
     return {
         api: client.connection, 
         client, 
-        requests, 
+        requests: transport.requests,
     };
 }
 

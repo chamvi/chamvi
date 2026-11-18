@@ -15,8 +15,8 @@ import {
 import { ApiError, BaseAPI, ClientAuthenticationHook } from '@chamvi/http-kit';
 import type { APIRequestOptions, Client, ClientAuthenticationHookOptions } from '@chamvi/http-kit';
 import { createTestClient } from '../../utils/client.ts';
-import { json } from '../../utils/fetch.ts';
-import type { FakeAnswer } from '../../utils/fetch.ts';
+import { json } from '../../utils/responses.ts';
+import type { FakeAnswer } from '../../utils/transport.ts';
 
 class TestAPI extends BaseAPI {
     get(url: string, options?: APIRequestOptions) {

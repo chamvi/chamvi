@@ -6,7 +6,7 @@
  */
 
 import type { Ref } from 'vue';
-import type { IApiClient, MeWire } from '../api/types.ts';
+import type { IClient, MeWire } from '@chamvi/http-kit';
 
 /** The authup code flow, loaded only when `auth.authup` is configured. */
 export interface IAuthupAdapter {
@@ -46,7 +46,7 @@ export interface ISession {
 
 export type SessionDeps = {
     storage: Storage;
-    client: (session: ISession) => IApiClient;
+    client: (session: ISession) => IClient;
     authup?: () => Promise<IAuthupAdapter>;
     /** Leaves the page for the authorize URL. Default `location.assign`. */
     navigate?: (url: string) => void;

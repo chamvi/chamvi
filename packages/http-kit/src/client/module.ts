@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { Client as BaseClient } from 'hapic';
+import { Client as BaseClient, FetchTransport } from 'hapic';
 import {
     AccountAPI,
     AgentAPI,
@@ -51,7 +51,8 @@ export class Client extends BaseClient implements IClient {
     constructor(options: ClientOptions = {}) {
         const { timeoutMs, ...rest } = options;
 
-        super(rest);
+        // the platform fetch per call: hapic's default binds the one present when it was imported
+        super({ transport: new FetchTransport({ fetch: (input, init) => fetch(input, init) }), ...rest });
 
         this.timeoutMs = timeoutMs ?? REQUEST_TIMEOUT_MS;
 

@@ -22,12 +22,12 @@ import {
     shallowRef,
 } from 'vue';
 import type { App } from 'vue';
-import { ApiError } from '../../../src/api/error.ts';
+import { ApiError } from '@chamvi/http-kit';
+import type { ConnectionSettingsWire, ConnectionTypeWire } from '@chamvi/http-kit';
 import ConnectionForm from '../../../src/connections/ConnectionForm.vue';
-import type { ConnectionSettingsWire, ConnectionTypeWire } from '../../../src/connections/types.ts';
 import { APP_CONTEXT } from '../../../src/context/constants.ts';
 import type { AppContext } from '../../../src/context/types.ts';
-import { ME, fakeClient } from '../../utils/client.ts';
+import { ME, routedClient } from '../../utils/client.ts';
 import { installFormKit } from '../../utils/forms.ts';
 import { ALL, verdicts } from '../../utils/permissions.ts';
 import { flush } from '../../utils/timers.ts';
@@ -150,7 +150,7 @@ async function mount(options: {
     document.body.append(root);
 
     const context = {
-        client: fakeClient({ send: send as never }),
+        client: routedClient(send),
         session: { principal: shallowRef(ME), ...verdicts(options.allowed ?? ALL) },
     } as unknown as AppContext;
     const app = createApp(defineComponent(() => () => h(ConnectionForm, {

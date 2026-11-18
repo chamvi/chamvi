@@ -5,25 +5,44 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { FetchTransport } from 'hapic';
-import { describe, expect, it } from 'vitest';
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
+    vi,
+} from 'vitest';
 import { Client, REQUEST_TIMEOUT_MS, createClient } from '@chamvi/http-kit';
-import { createFakeFetch, json } from '../../utils/fetch.ts';
+import { json } from '../../utils/responses.ts';
+import { FakeTransport } from '../../utils/transport.ts';
 
 describe('createClient', () => {
     it('makes bearer requests under baseURL with the default deadline', async () => {
-        const { fetch, requests } = createFakeFetch([json({ id: 'admin', kind: 'token' })]);
+        const transport = new FakeTransport([json({ id: 'admin', kind: 'token' })]);
         const client = createClient({
             baseURL: 'https://agents.example/api',
-            transport: new FetchTransport({ fetch }),
+            transport,
             token: async () => 't',
         });
 
         expect(client).toBeInstanceOf(Client);
         expect(client.timeoutMs).toBe(REQUEST_TIMEOUT_MS);
         await client.account.getMe();
-        expect(requests[0]!.url).toBe('https://agents.example/api/me');
-        expect(requests[0]!.headers.get('authorization')).toBe('Bearer t');
+        expect(transport.requests[0]!.url).toBe('https://agents.example/api/me');
+        expect(transport.requests[0]!.headers.get('authorization')).toBe('Bearer t');
+    });
+
+    afterEach(() => {
+        vi.unstubAllGlobals();
+    });
+
+    it('calls the global fetch present at request time', async () => {
+        const client = createClient({ baseURL: '/api', token: async () => undefined });
+        const fetch = vi.fn(async () => json({ id: 'admin', kind: 'token' }));
+
+        vi.stubGlobal('fetch', fetch);
+        await client.account.getMe();
+        expect(fetch).toHaveBeenCalledTimes(1);
     });
 
     it('keeps a given accept header and timeout', () => {

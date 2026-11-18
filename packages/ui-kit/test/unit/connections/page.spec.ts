@@ -22,12 +22,11 @@ import {
 } from 'vue';
 import type { App } from 'vue';
 import { Permission } from '@chamvi/access';
-import type { MeWire } from '../../../src/api/types.ts';
+import type { ConnectionTypeWire, MeWire } from '@chamvi/http-kit';
 import type { UiConfig } from '../../../src/config/types.ts';
 import ConnectionsPage from '../../../src/connections/ConnectionsPage.vue';
-import type { ConnectionTypeWire } from '../../../src/connections/types.ts';
 import { install } from '../../../src/module.ts';
-import { fakeClient } from '../../utils/client.ts';
+import { routedClient } from '../../utils/client.ts';
 import { installFormKit } from '../../utils/forms.ts';
 import { json } from '../../utils/fetch.ts';
 import { ALL, verdicts } from '../../utils/permissions.ts';
@@ -78,40 +77,38 @@ async function mountPage(allowed: readonly string[], world: { list?: unknown[]; 
         id: 'peter',
         kind: 'token',
     };
-    const client = fakeClient({
-        send: async (url: string, init: { method?: string } = {}) => {
-            const method = init.method ?? 'GET';
+    const client = routedClient(async (url: string, init: { method?: string } = {}) => {
+        const method = init.method ?? 'GET';
 
-            requests.push(`${method} ${url}`);
+        requests.push(`${method} ${url}`);
 
-            if (method === 'POST' && url === '/connection-types/mail/connections') {
-                return json(CREATED);
-            }
+        if (method === 'POST' && url === '/connection-types/mail/connections') {
+            return json(CREATED);
+        }
 
-            if (url === '/connections') {
-                return json({ data: world.list ?? [] });
-            }
+        if (url === '/connections') {
+            return json({ data: world.list ?? [] });
+        }
 
-            if (method === 'DELETE' && url.startsWith('/connections/')) {
-                return json({ restartRequired: true });
-            }
+        if (method === 'DELETE' && url.startsWith('/connections/')) {
+            return json({ restartRequired: true });
+        }
 
-            if (url === '/ui-pages') {
-                return json({ data: [] });
-            }
+        if (url === '/ui-pages') {
+            return json({ data: [] });
+        }
 
-            if (url === '/connection-types') {
-                return json({ data: [TYPE] });
-            }
+        if (url === '/connection-types') {
+            return json({ data: [TYPE] });
+        }
 
-            const config = /^\/connections\/([a-z-]+)\/config$/.exec(url);
+        const config = /^\/connections\/([a-z-]+)\/config$/.exec(url);
 
-            if (config) {
-                return json({ ...CREATED, name: config[1] });
-            }
+        if (config) {
+            return json({ ...CREATED, name: config[1] });
+        }
 
-            throw new Error(`unexpected ${method} ${url}`);
-        },
+        throw new Error(`unexpected ${method} ${url}`);
     });
     const app = createApp(defineComponent(() => () => h(ConnectionsPage, { slug: 'tool-mail', type: 'mail' })));
 

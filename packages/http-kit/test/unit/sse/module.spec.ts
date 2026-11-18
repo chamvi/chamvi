@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseEventStream } from '../../../src/sse/module.ts';
 import type { SseEvent } from '../../../src/sse/types.ts';
-import { sse } from '../../utils/fetch.ts';
+import { sse } from '../../utils/responses.ts';
 
 async function collect(chunks: string[]): Promise<SseEvent[]> {
     const events: SseEvent[] = await Array.fromAsync(parseEventStream(sse(chunks).body!));

@@ -15,7 +15,7 @@ import {
 } from 'vitest';
 import { createApp, h, nextTick } from 'vue';
 import type { App } from 'vue';
-import type { ConnectionTypeWire, ConnectionWire } from '../../../src/connections/types.ts';
+import type { ConnectionTypeWire, ConnectionWire } from '@chamvi/http-kit';
 import AccountsColumn from '../../../src/shell/AccountsColumn.vue';
 import { flush } from '../../utils/timers.ts';
 

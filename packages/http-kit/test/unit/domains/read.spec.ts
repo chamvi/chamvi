@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { json } from '../../utils/fetch.ts';
+import { json } from '../../utils/responses.ts';
 import { createKitClient, linesOf } from '../../utils/kit.ts';
 
 describe('the list and account domains', () => {

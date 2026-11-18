@@ -5,21 +5,20 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { FetchTransport } from 'hapic';
 import { createClient } from '../../src/client/helpers.ts';
-import { createFakeFetch } from './fetch.ts';
-import type { FakeAnswer } from './fetch.ts';
+import { FakeTransport } from './transport.ts';
+import type { FakeAnswer } from './transport.ts';
 
-/** `createClient()` on `/api` with token `t` over the fake fetch. */
+/** `createClient()` on `/api` with token `t` over a `FakeTransport`. */
 export function createKitClient(answers: FakeAnswer[]) {
-    const { fetch, requests } = createFakeFetch(answers);
+    const transport = new FakeTransport(answers);
     const client = createClient({
         baseURL: '/api',
-        transport: new FetchTransport({ fetch }),
+        transport,
         token: async () => 't',
     });
 
-    return { client, requests };
+    return { client, requests: transport.requests };
 }
 
 /** `METHOD url` of each request. */
