@@ -540,7 +540,8 @@ describe('knowledgeModule()', () => {
         const poll = module.knowledge.managedPoll;
         const startedAt = clock.now();
 
-        expect(poll.status().lastRunAt).toBe(startedAt);
+        // the first pass runs at once, in the background: the next is due one interval after it ended
+        await expect.poll(() => poll.status().lastRunAt).toBe(startedAt);
 
         clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
         await expect.poll(() => poll.status().lastRunAt).toBe(startedAt + KNOWLEDGE_MANAGED_POLL_MS);
@@ -555,6 +556,45 @@ describe('knowledgeModule()', () => {
 
         expect(poll.status().lastRunAt).toBe(startedAt + KNOWLEDGE_MANAGED_POLL_MS);
         expect(harness.reported).toEqual([]);
+    });
+
+    it('the start and the listen do not wait for the managed poll\'s first pass', async () => {
+        const repository = createMemoryKnowledgeRepository();
+        const findCollections = repository.findCollections.bind(repository);
+        const gate = Promise.withResolvers<void>();
+        let reads = 0;
+
+        // the first pass's read hangs (a slow or unreachable store) until the gate opens
+        repository.findCollections = async () => {
+            reads++;
+            await gate.promise;
+
+            return findCollections();
+        };
+
+        const module = knowledgeModule({
+            repository,
+            embeddingModel: mockEmbeddingModel(),
+            env: {},
+        });
+        const setup = harnessOf({ knowledge: module, http: true });
+        const outcome = await Promise.race([
+            setup.then(() => 'started' as const),
+            new Promise<'blocked'>((resolve) => {
+                setTimeout(() => resolve('blocked'), 1_000);
+            }),
+        ]);
+
+        gate.resolve();
+
+        expect(outcome).toBe('started');
+
+        const harness = await setup;
+
+        // the first pass began at once, and the server listens meanwhile
+        expect(reads).toBeGreaterThan(0);
+        expect(harness.container.has(AppToken.SERVER)).toBe(true);
+        await expect.poll(() => module.knowledge.managedPoll.status().lastSuccessAt).toBeTypeOf('number');
     });
 
     it.each([

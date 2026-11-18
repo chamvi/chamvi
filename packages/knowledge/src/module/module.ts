@@ -120,14 +120,15 @@ export class KnowledgeModule implements IModule {
         if (indexes) {
             const poll = knowledge.managedPoll;
 
-            // the indexing begins first, so the poll's first pass (at once) starts the managed loops
+            // the indexing begins first, so the poll's first pass (at once) starts the managed loops;
+            // not awaited: the app start and the listen never wait on the knowledge repository (start() never rejects)
             container.registerMany(AppToken.COMPONENTS, {
                 useValue: {
                     name: KNOWLEDGE_MANAGED_COMPONENT_NAME,
                     component: {
                         start: async () => {
                             knowledge.start();
-                            await poll.start();
+                            void poll.start();
                         },
                         stop: () => poll.stop(),
                         settled: async () => {
