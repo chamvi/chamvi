@@ -55,7 +55,7 @@ async function recordChild(host: DispatchHost, runId: string, childId: string): 
  * the sum (it errs only low) counts instead.
  */
 async function overSubtreeBudget(host: DispatchHost, chain: Run[]): Promise<{ run: Run, max: number } | undefined> {
-    const budgets = chain.map((run) => host.getAgent(run.agent)?.definition.budget.maxSubtreeTokens);
+    const budgets = chain.map((run) => host.getAgent(run.agent)?.definition.budget?.maxSubtreeTokens);
     let last = -1;
 
     budgets.forEach((max, i) => {

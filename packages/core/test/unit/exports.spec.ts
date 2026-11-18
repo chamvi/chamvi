@@ -178,6 +178,7 @@ describe('public api', () => {
     it.each([
         'defineModelAgent',
         'defineSimpleAgent',
+        'defineRemoteAgent',
         'Engine',
         'formatRevision',
         'ConnectionService',
@@ -269,6 +270,62 @@ describe('public api', () => {
 
     it('exports the tool context schema', () => {
         expect(core.toolContextSchema['~standard'].vendor).toBe('chamvi');
+    });
+
+    it('exports the remote agent and peer api', () => {
+        expect(core.REMOTE_TIMEOUT_DEFAULT_MS).toBe(86_400_000);
+        expectTypeOf<core.Agent>().toEqualTypeOf<core.ModelAgent | core.SimpleAgent | core.RemoteAgent>();
+        expectTypeOf(core.defineRemoteAgent).returns.toEqualTypeOf<core.RemoteAgent>();
+        expectTypeOf(core.defineRemoteAgent).parameter(0).toEqualTypeOf<core.RemoteAgentDefinition>();
+        expectTypeOf<core.EngineOptions['peers']>().toEqualTypeOf<core.IPeerResolver | undefined>();
+        expectTypeOf<core.IEngine['peers']>().toEqualTypeOf<core.IPeerResolver | undefined>();
+        expectTypeOf<core.PeerStartInput>().toEqualTypeOf<{
+            agent: string;
+            role: string;
+            payload: unknown;
+            attachments?: core.ArtifactInput[];
+            idempotencyKey: string;
+            peer: {
+                standIn: string;
+                parent: {
+                    runId: string;
+                    agent: string;
+                    depth: number
+                };
+                taint: boolean;
+                origin?: string;
+            };
+        }>();
+        expectTypeOf<core.PeerRunView>().toEqualTypeOf<{
+            id: string;
+            status: store.RunStatusLiteral;
+            waiting?: store.WaitPoint['kind'];
+            approval?: Omit<store.RemoteApproval, 'notifiedAt'>;
+            output?: unknown;
+            error?: { code: string; message: string };
+            tainted: boolean;
+            usage: store.Usage;
+        }>();
+        expectTypeOf<core.PeerSettings>().toEqualTypeOf<{
+            pollMs: number;
+            untrusted: boolean;
+            approvals?: { channel: string; address: string };
+            outgoing: boolean;
+        }>();
+        expectTypeOf<core.PeerRequestOptions>().toEqualTypeOf<{ signal: AbortSignal }>();
+        expectTypeOf<core.IPeerTransport['start']>()
+            .toEqualTypeOf<(input: core.PeerStartInput, opts: core.PeerRequestOptions) => Promise<{ runId: string }>>();
+        expectTypeOf<core.IPeerTransport['read']>()
+            .toEqualTypeOf<(runId: string, opts: core.PeerRequestOptions) => Promise<core.PeerRunView>>();
+        expectTypeOf<core.IPeerTransport['cancel']>()
+            .toEqualTypeOf<(runId: string, opts: core.PeerRequestOptions) => Promise<void>>();
+        expectTypeOf<core.IPeerTransport['wake']>()
+            .toEqualTypeOf<(standInRunId: string, opts: core.PeerRequestOptions) => Promise<void>>();
+        expectTypeOf<core.IPeerResolver['recognize']>().toEqualTypeOf<(invoker: store.Invoker | undefined) => string | undefined>();
+        expectTypeOf<core.IPeerResolver['settings']>().toEqualTypeOf<(name: string) => core.PeerSettings>();
+        expectTypeOf<core.IPeerResolver['transport']>().toEqualTypeOf<(name: string) => core.IPeerTransport>();
+        expectTypeOf<core.IPeerResolver['approvalUrl']>()
+            .toEqualTypeOf<((ref: { runId: string; approvalId: string }) => string | undefined) | undefined>();
     });
 
     it('exports the dispatch api', () => {

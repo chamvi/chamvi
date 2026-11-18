@@ -9,7 +9,12 @@ import { randomUUID } from 'node:crypto';
 import { hostname } from 'node:os';
 import { pid } from 'node:process';
 import { uuidv7 } from 'uuidv7';
-import type { Agent } from '../agent/types.ts';
+import type {
+    Agent,
+    ModelAgent,
+    RemoteAgent,
+    SimpleAgent,
+} from '../agent/types.ts';
 import { assertAgentKind, conversationKey } from '../agent/asserts.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
@@ -71,6 +76,7 @@ import { assertDispatchRoles, declaresDispatchRole } from '../dispatch/helpers.t
 import { MODEL_CONTEXT } from '../model/constants.ts';
 import { checkAgentModel, checkDefaultModel } from '../model/module.ts';
 import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
+import type { IPeerResolver } from '../peer/types.ts';
 import { EngineSkills } from './skills/module.ts';
 import type { IEngineSkills } from './skills/types.ts';
 import type { SkillContribution } from '../skill/types.ts';
@@ -157,6 +163,9 @@ export class Engine implements IEngine {
 
     /** The idempotency keys of dispatches over the idempotency repository. */
     readonly idempotencyService: IIdempotencyService;
+
+    /** The configured peers remote agents run at (EngineOptions.peers). */
+    readonly peers: IPeerResolver | undefined;
 
     protected readonly agents: Map<string, Agent>;
 
@@ -321,6 +330,7 @@ export class Engine implements IEngine {
 
         this.model = opts.model;
         this.models = opts.models;
+        this.peers = opts.peers;
         checkDefaultModel({ model: this.model, models: this.models });
         // set directly: the key is module-private, so no provide() can collide
         this.provided.set(MODEL_CONTEXT, {
@@ -1865,6 +1875,16 @@ export class Engine implements IEngine {
         // started on the agent its check saw
         this.checkedRuns.delete(run.id);
 
+        if (agent.kind === 'remote') {
+            // never a model run: a remote agent's runs are stand-ins
+            await this.finish(run.id, {
+                status: RunStatus.FAILED,
+                error: toRunError(new InvalidRunStateError(`Agent "${agent.name}" is a remote agent; this engine does not execute remote agents yet.`)),
+            });
+
+            return;
+        }
+
         if (agent.kind === 'simple') {
             // a simple agent takes no conversation, so it skips admission
             await executeSimpleRun(this.executeContext(run, agent, skills, signal));
@@ -1923,7 +1943,7 @@ export class Engine implements IEngine {
     /** What one execution of `run` gets from this engine (an LLM and a simple run alike). */
     protected executeContext(
         run: Run,
-        agent: Agent,
+        agent: ModelAgent | SimpleAgent,
         skills: SkillContribution,
         signal: AbortSignal,
         conversation?: ExecuteContext['conversation'],
@@ -2278,6 +2298,10 @@ export class Engine implements IEngine {
             checkAgentModel(agent, { model: this.model, models: this.models });
         }
 
+        if (agent.kind === 'remote') {
+            this.assertRemoteAgent(agent);
+        }
+
         assertConcurrencyMaxRuns(agent.definition.concurrencyMaxRuns, `Agent "${agent.name}" concurrencyMaxRuns`);
 
         for (const subscription of agent.definition.channels ?? []) {
@@ -2295,6 +2319,25 @@ export class Engine implements IEngine {
         }
 
         this.skills.checkAgent(agent, options);
+    }
+
+    /** A remote agent's peer is configured and its `approvals` channel registered with `out`. */
+    protected assertRemoteAgent(agent: RemoteAgent): void {
+        const { peer, approvals } = agent.definition;
+
+        if (!this.peers) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" names unknown peer "${peer}": the engine has no peers (EngineOptions.peers).`);
+        }
+
+        if (!this.peers.has(peer)) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" names unknown peer "${peer}".`);
+        }
+
+        if (approvals && typeof this.channels.get(approvals.channel)?.out !== 'function') {
+            throw new InvalidAgentDefinitionError(
+                `Agent "${agent.name}": approvals channel "${approvals.channel}" is not registered or sends nothing (no out).`,
+            );
+        }
     }
 
     protected registry(): RegistryContext {

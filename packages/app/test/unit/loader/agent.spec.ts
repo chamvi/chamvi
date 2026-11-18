@@ -74,7 +74,7 @@ describe('loadAgent', () => {
         expect(loaded.agent.name).toBe('triage');
         expect(loaded.agent.definition.instructions).toBe('Sort the inbox.\n');
         expect(loaded.agent.definition.model).toBe('test/model');
-        expect(loaded.agent.definition.budget.maxSteps).toBe(3);
+        expect(loaded.agent.definition.budget?.maxSteps).toBe(3);
         expect(Object.keys(loaded.agent.definition.tools as object)).toEqual(['say_hi']);
         expect(loaded.agent.definition.channels?.map((s) => s.id)).toEqual(['cron:0 9 * * *']);
     });
@@ -86,7 +86,23 @@ describe('loadAgent', () => {
 
         const loaded = await loadAgent(dir);
 
-        expect(loaded.agent.definition.budget.maxSteps).toBe(20);
+        expect(loaded.agent.definition.budget?.maxSteps).toBe(20);
+    });
+
+    it('rebuilds a structural remote agent through defineRemoteAgent', async () => {
+        const dir = join(root.path, 'developer');
+
+        await writeTree(dir, { 'agent.ts': 'export default { kind: \'remote\', name: \'developer\', definition: { peer: \'dev\' } };\n' });
+
+        const loaded = await loadAgent(dir);
+
+        expect(loaded.agent.kind).toBe('remote');
+        expect(loaded.agent.definition).toMatchObject({
+            peer: 'dev',
+            agent: 'developer',
+            role: 'default',
+            timeoutMs: 86_400_000,
+        });
     });
 
     it('a folder without agent.ts is an issue', async () => {

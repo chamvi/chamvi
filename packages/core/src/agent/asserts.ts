@@ -7,11 +7,15 @@
 
 import type { ToolSet } from 'ai';
 import { isObject } from 'smob';
+import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
 import { CONVERSATION_FIELD_MAX_LENGTH } from '../conversation/constants.ts';
+import { TRIGGER_KEY_MAX_LENGTH } from '../trigger/constants.ts';
+import { NAME_MAX_LENGTH, NAME_PATTERN } from './constants.ts';
 import type {
     Agent,
     AgentDefinition,
     ModelAgentDefinition,
+    RemoteAgentDefinition,
     SimpleAgentDefinition,
 } from './types.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
@@ -19,6 +23,79 @@ import { hasToolContext } from '../tool/helpers.ts';
 
 /** Fields a simple agent does not take. */
 const SIMPLE_AGENT_REFUSED = ['model', 'instructions', 'skills', 'output', 'conversation', 'toolsContext'] as const;
+
+/** Fields a remote agent does not take: what runs here is a stand-in, the peer executes the agent. */
+const REMOTE_AGENT_REFUSED = [
+    'run',
+    'model',
+    'instructions',
+    'skills',
+    'tools',
+    'trust',
+    'hooks',
+    'toolPolicy',
+    'state',
+    'budget',
+    'conversation',
+    'toolsContext',
+] as const;
+
+/** Whether `value` follows the agent-name rule (also peer and role names). */
+export function isName(value: unknown): value is string {
+    return typeof value === 'string' && value.length <= NAME_MAX_LENGTH && NAME_PATTERN.test(value);
+}
+
+/**
+ * A remote agent names its peer, the remote agent and role by the
+ * agent-name rule, declares none of the fields of the other kinds, and
+ * gives a valid `timeoutMs`, `output` and `approvals` destination
+ * (InvalidAgentDefinitionError).
+ */
+export function assertRemoteAgent(def: RemoteAgentDefinition): void {
+    const fields = def as Record<string, unknown>;
+
+    for (const field of REMOTE_AGENT_REFUSED) {
+        if (fields[field] !== undefined) {
+            throw new InvalidAgentDefinitionError(`Agent "${def.name}": "${field}" is not allowed on a remote agent.`);
+        }
+    }
+
+    for (const field of ['peer', 'agent', 'role'] as const) {
+        const value = fields[field];
+
+        if ((field === 'peer' || value !== undefined) && !isName(value)) {
+            throw new InvalidAgentDefinitionError(
+                `Agent "${def.name}": ${field} "${String(value)}" must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+            );
+        }
+    }
+
+    const { timeoutMs } = def;
+
+    if (timeoutMs !== undefined && (
+        typeof timeoutMs !== 'number' || !Number.isSafeInteger(timeoutMs) || timeoutMs < 1 || timeoutMs > APPROVAL_TIMEOUT_MAX_MS
+    )) {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": timeoutMs must be an integer from 1 to ${APPROVAL_TIMEOUT_MAX_MS}.`);
+    }
+
+    if (def.output !== undefined && (!isObject(def.output) || !isObject(def.output['~standard']) ||
+        typeof def.output['~standard'].validate !== 'function')) {
+        throw new InvalidAgentDefinitionError(`Agent "${def.name}": output must be a Standard Schema.`);
+    }
+
+    if (def.approvals === undefined) {
+        return;
+    }
+
+    const { channel, address } = (isObject(def.approvals) ? def.approvals : {}) as Record<string, unknown>;
+
+    if (!isName(channel) || typeof address !== 'string' || address.length === 0 ||
+        address.length > TRIGGER_KEY_MAX_LENGTH || address.includes('\0')) {
+        throw new InvalidAgentDefinitionError(
+            `Agent "${def.name}": approvals needs a channel name and a non-empty address of at most ${TRIGGER_KEY_MAX_LENGTH} characters without NUL.`,
+        );
+    }
+}
 
 /**
  * A simple agent's `run` is a function, it declares none of the model-only
@@ -50,9 +127,9 @@ export function assertModelAgent(def: ModelAgentDefinition): void {
 }
 
 /**
- * An agent's `kind` is `model` or `simple` and agrees with its definition:
- * a simple agent has a function `run`, a model agent none
- * (InvalidAgentDefinitionError).
+ * An agent's `kind` is `model`, `simple` or `remote` and agrees with its
+ * definition: a simple agent has a function `run`, a model agent none, a
+ * remote agent no `run` and a `peer` (InvalidAgentDefinitionError).
  */
 export function assertAgentKind(agent: Agent): void {
     const { kind } = agent as { kind: unknown };
@@ -74,18 +151,30 @@ export function assertAgentKind(agent: Agent): void {
         return;
     }
 
-    throw new InvalidAgentDefinitionError(`Agent "${agent.name}" has kind ${JSON.stringify(kind) ?? 'undefined'}; build it with defineModelAgent() or defineSimpleAgent().`);
+    if (kind === 'remote') {
+        const { peer } = agent.definition as { peer?: unknown };
+
+        if (run !== undefined || typeof peer !== 'string') {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" is a remote agent with "run" or without "peer"; build it with defineRemoteAgent().`);
+        }
+
+        return;
+    }
+
+    throw new InvalidAgentDefinitionError(
+        `Agent "${agent.name}" has kind ${JSON.stringify(kind) ?? 'undefined'}; build it with defineModelAgent(), defineSimpleAgent() or defineRemoteAgent().`,
+    );
 }
 
 /** `description`, when given, is a non-empty string. */
-export function assertDescription(def: AgentDefinition): void {
+export function assertDescription(def: Pick<AgentDefinition | RemoteAgentDefinition, 'name' | 'description'>): void {
     if (def.description !== undefined && (typeof def.description !== 'string' || def.description.trim().length === 0)) {
         throw new InvalidAgentDefinitionError(`Agent "${def.name}": "description" must be a non-empty string.`);
     }
 }
 
 /** `private`, when given, is a boolean. */
-export function assertPrivate(def: AgentDefinition): void {
+export function assertPrivate(def: Pick<AgentDefinition | RemoteAgentDefinition, 'name' | 'private'>): void {
     if (def.private !== undefined && typeof def.private !== 'boolean') {
         throw new InvalidAgentDefinitionError(`Agent "${def.name}": private must be a boolean.`);
     }

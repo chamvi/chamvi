@@ -14,7 +14,7 @@ import type {
     Usage,
 } from '@chamvi/store';
 import type { ToolSet } from 'ai';
-import type { Agent } from '../../agent/types.ts';
+import type { ModelAgent, SimpleAgent } from '../../agent/types.ts';
 import type { IClock } from '../../clock/index.ts';
 import type { ContextKey } from '../../context/types.ts';
 import type { IEffectService, ToolCallFrame  } from '../../effect/types.ts';
@@ -60,7 +60,8 @@ export type ExecuteContext = {
     engine: IEngine;
     conversation?: { capability: IConversations; snapshot: ConversationSnapshot };
     run: Run;
-    agent: Agent;
+    /** The executing agent: a remote agent's runs never execute here. */
+    agent: ModelAgent | SimpleAgent;
     skills?: SkillContribution;
     /** The model to run: the agent's, else the engine default; undefined fails the run. */
     model: ModelRef | undefined;

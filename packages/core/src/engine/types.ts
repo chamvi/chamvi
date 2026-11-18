@@ -20,6 +20,7 @@ import type {
     TriggerEnvelope,
 } from '@chamvi/store';
 import type { IModelResolver, ModelRef } from '../model/types.ts';
+import type { IPeerResolver } from '../peer/types.ts';
 import type { SkillInput } from '../skill/types.ts';
 import type { IAgentRevisionService } from '../agent-revision/types.ts';
 import type { IConnectionService } from '../connection/types.ts';
@@ -62,6 +63,8 @@ export interface IEngine extends IContextProvider {
      * them; the conversation capability (`conversations`) needs it.
      */
     readonly conversationService: IConversationService | undefined;
+    /** The configured peers remote agents run at, when the app has any. */
+    readonly peers: IPeerResolver | undefined;
     readonly clock: IClock;
     readonly isDraining: boolean;
 
@@ -185,6 +188,12 @@ export type EngineOptions = {
      * an `InvalidAgentDefinitionError`.
      */
     models?: IModelResolver;
+    /**
+     * The peers remote agents run at; registration (constructor, putAgent)
+     * refuses a remote agent whose peer it does not have, and any remote
+     * agent without it (InvalidAgentDefinitionError).
+     */
+    peers?: IPeerResolver;
     /**
      * The conversation capability agents with `conversation: true` need: the
      * authorizer and the limits. Persistence comes from `conversationService`.
