@@ -266,6 +266,38 @@ describe('managed collections', () => {
         expect(model.calls).toHaveLength(calls);
     });
 
+    it('a details PUT on a pending document that failed before its write requeues it', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const content = 'Refunds within thirty days.';
+        const update = service.updateDetails.bind(service);
+
+        // never started: the document stays pending until the test fails it
+        await knowledge.createCollection('notes');
+        await knowledge.putDocument('notes', { id: 'doc', content });
+
+        // the embedding fails between the PUT's read and its details write
+        vi.spyOn(service, 'updateDetails').mockImplementationOnce(async (...args) => {
+            const stored = await service.findOneDocumentOrFail('notes', 'doc');
+
+            expect(await service.updateDocument('notes', 'doc', stored, { status: 'failed', error: 'refused' })).toBe(true);
+
+            return update(...args);
+        });
+
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content,
+            metadata: { v: 2 },
+        })).toEqual({ status: 'pending', changed: true });
+
+        const document = await setup.repository.findOneDocumentOrFail('notes', 'doc');
+
+        expect(document).toMatchObject({ status: 'pending', metadata: { v: 2 } });
+        expect(document.error).toBeUndefined();
+    });
+
     it('a PUT with the same metadata in another key order answers changed false', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });

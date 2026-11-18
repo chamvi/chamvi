@@ -16,6 +16,7 @@ import type {
     KnowledgeDocumentFindOptions,
     KnowledgeDocumentPage,
     KnowledgeDocumentPatch,
+    KnowledgeDocumentStatus,
     KnowledgeDocumentVersion,
     KnowledgeMatch,
     KnowledgeSearchOptions,
@@ -110,13 +111,14 @@ export interface IKnowledgeService {
      * of its chunks of every generation (a pending or failed document's
      * chunks hold older content and keep their details), stamping
      * `updatedAt`, only while the stored document has that version's hash,
-     * title and source (atomic check and write); `false` for a missing
-     * document or another version. Unfenced: an API write.
+     * title and source, and its `status` when given (atomic check and
+     * write); `false` for a missing document or another version. Unfenced:
+     * an API write.
      */
     updateDetails(
         collection: string,
         id: string,
-        version: KnowledgeDocumentVersion,
+        version: KnowledgeDocumentVersion & { status?: KnowledgeDocumentStatus },
         details: KnowledgeDocumentDetails,
     ): Promise<boolean>;
     /**

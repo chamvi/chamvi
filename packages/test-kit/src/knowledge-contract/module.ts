@@ -539,6 +539,32 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.search('docs', 1, [1, 0], { topK: 10 })).toMatchObject([{ title: 'A', source: 'a.md' }]);
             });
 
+            it('updateDetails with a status checks it too', async () => {
+                const service = await create();
+                const origin = { title: 'A', source: 'a.md' };
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.saveDocument(documentOf('docs', 'a', { ...origin, status: 'failed', error: 'refused' }));
+
+                expect(await service.updateDetails('docs', 'a', {
+                    hash: 'sha256:a',
+                    ...origin,
+                    status: 'pending',
+                }, { ...origin, metadata: { n: 2 } })).toBe(false);
+                expect(await service.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', {
+                    ...origin,
+                    status: 'failed',
+                    error: 'refused',
+                }));
+
+                expect(await service.updateDetails('docs', 'a', {
+                    hash: 'sha256:a',
+                    ...origin,
+                    status: 'failed',
+                }, { ...origin, metadata: { n: 2 } })).toBe(true);
+                expect((await service.findOneDocumentOrFail('docs', 'a')).metadata).toEqual({ n: 2 });
+            });
+
             it('requeueGeneration sets the documents of one generation pending at another, of that collection only', async () => {
                 const service = await create();
 

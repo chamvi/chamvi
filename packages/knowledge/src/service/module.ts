@@ -26,6 +26,7 @@ import type {
     KnowledgeDocumentPage,
     KnowledgeDocumentPatch,
     KnowledgeDocumentRecord,
+    KnowledgeDocumentStatus,
     KnowledgeDocumentVersion,
     KnowledgeMatch,
     KnowledgeSearchOptions,
@@ -252,7 +253,7 @@ export class KnowledgeService implements IKnowledgeService {
     async updateDetails(
         collection: string,
         id: string,
-        version: KnowledgeDocumentVersion,
+        version: KnowledgeDocumentVersion & { status?: KnowledgeDocumentStatus },
         details: KnowledgeDocumentDetails,
     ): Promise<boolean> {
         return this.repository.transaction(async (repository) => {
@@ -265,6 +266,11 @@ export class KnowledgeService implements IKnowledgeService {
             const document = await repository.documents.findOneBy({ collectionId: record.id, id });
 
             if (!document || !isVersion(document, version)) {
+                return false;
+            }
+
+            // a status the caller decided on (a pending document failed meanwhile is requeued, not kept failed)
+            if (version.status !== undefined && document.status !== version.status) {
                 return false;
             }
 

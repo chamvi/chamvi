@@ -556,7 +556,8 @@ class Knowledge implements IKnowledge {
                 break;
             }
 
-            // the vectors hold: one versioned write of the details to the document and its chunks
+            // the vectors hold: one versioned write of the details to the document and its chunks,
+            // also checking the status read (a pending document failed meanwhile is requeued below)
             if (await this.service.updateDetails(collection, input.id, existing, details)) {
                 return { status: existing.status, changed: true };
             }
