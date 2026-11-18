@@ -27,7 +27,7 @@ These are the names chamvi checks, exported as `Permission` (`Permission.AGENT_R
 | `chamvi_tool_use` | `agent`, `name` (the tool) | Read by [`requireToolPermission()`](/guide/tools#restricting-tools-per-invoker): the agent offers the tool to the invoker's runs |
 | `chamvi_knowledge_read` | `name` (the collection) | Read the [knowledge](/guide/knowledge) collections and their documents (`GET /knowledge/...`) |
 | `chamvi_knowledge_write` | `name` (the collection) | Create, delete and sync collections and write the documents of managed ones |
-| `chamvi_component_read` | none | List the background components and the channels' status (`GET /components`) |
+| `chamvi_component_read` | `name`, `kind` (`job` or `channel`) | List the background components and the channels' status (`GET /components`); a restricted grant lists the components it covers |
 
 Any other name works too: a principal may do X when it holds a binding for X whose policies pass. An app checks its own names with `can(invoker, 'release_manage')` (see [Restricting tools per invoker](/guide/tools#restricting-tools-per-invoker)).
 

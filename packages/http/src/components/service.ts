@@ -8,7 +8,7 @@
 import { Permission } from '@chamvi/access';
 import type { ChannelStatus, IClock } from '@chamvi/core';
 import { isObject } from 'smob';
-import { assertGranted } from '../auth/helpers.ts';
+import { assertGranted, isGranted } from '../auth/helpers.ts';
 import type { Principal } from '../auth/types.ts';
 import type {
     ComponentListView,
@@ -21,7 +21,7 @@ const TIMES = ['lastSuccessAt', 'lastErrorAt', 'lastRunAt', 'runningSince'] as c
 
 /**
  * The background jobs and the channels with a `status()`, for a holder of
- * `chamvi_component_read`. A `status()` that throws lists its entry without
+ * `chamvi_component_read`, each row checked against `{ name, kind }`. A `status()` that throws lists its entry without
  * times and goes to `onError`; one that returns no object lists it without
  * times.
  */
@@ -38,21 +38,46 @@ export class ComponentService implements IComponentService {
     async list(principal: Principal): Promise<ComponentListView> {
         await assertGranted(principal, this.clock, Permission.COMPONENT_READ);
 
-        const data: ComponentView[] = [];
+        const entries: {
+            name: string; 
+            kind: ComponentView['kind']; 
+            read: () => ChannelStatus 
+        }[] = [];
 
         for (const component of this.ctx.components()) {
-            data.push(this.view(component.name, 'job', () => component.status()));
+            entries.push({
+                name: component.name, 
+                kind: 'job', 
+                read: () => component.status(), 
+            });
         }
 
         for (const channel of this.ctx.engine.listChannels()) {
             const { status } = channel;
 
             if (typeof status === 'function') {
-                data.push(this.view(channel.name, 'channel', () => status.call(channel)));
+                entries.push({
+                    name: channel.name, 
+                    kind: 'channel', 
+                    read: () => status.call(channel), 
+                });
             }
         }
 
-        return { data };
+        // the gate above passes a grant restricted to some components; each row needs its own,
+        // checked before its status() is read
+        const granted = await Promise.all(entries.map((entry) => isGranted(
+            principal,
+            Permission.COMPONENT_READ,
+            this.clock,
+            { name: entry.name, kind: entry.kind },
+        )));
+
+        return {
+            data: entries
+                .filter((_entry, index) => granted[index])
+                .map((entry) => this.view(entry.name, entry.kind, entry.read)),
+        };
     }
 
     protected view(name: string, kind: ComponentView['kind'], read: () => ChannelStatus): ComponentView {
