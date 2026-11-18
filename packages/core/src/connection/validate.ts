@@ -45,7 +45,8 @@ const isSettingValue = (value: unknown): boolean => {
     }
 
     if (Array.isArray(value)) {
-        return value.every(isStorableConnectionText);
+        // Array.from visits the holes `every` skips: a hole would be stored as null in Postgres
+        return Array.from(value).every(isStorableConnectionText);
     }
 
     return typeof value === 'boolean' || isStorableConnectionText(value);

@@ -594,6 +594,19 @@ describe('ConnectionForm', () => {
             expect(form.root.querySelector('[role="alertdialog"]')).toBeNull();
         });
 
+        it('adding an account shows a connection_changed refusal as a message, never the reload notice', async () => {
+            const form = await mount({ name: undefined, routes: { 'POST /connection-types/mail/connections': changed } });
+
+            form.type(form.input('account')!, 'work');
+            form.type(form.input('host')!, 'imap.example.com');
+            form.type(form.input('password')!, 'hunter2');
+            await form.submit();
+
+            expect(form.root.textContent).toContain('changed; load it again and retry.');
+            expect(form.root.textContent).not.toContain('This connection changed since you opened it.');
+            expect(form.button('Save')?.disabled).toBe(false);
+        });
+
         it('another 409 shows its message and no reload', async () => {
             const form = await mount({
                 routes: {

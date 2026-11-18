@@ -792,6 +792,8 @@ describe('ConnectionService', () => {
             { a: Infinity },
             { a: ['ok', 1] },
             { a: ['secret\0'] },
+            // eslint-disable-next-line no-sparse-arrays
+            { a: [, 'a'] },
             { 'k\0': 'v' },
             Object.assign(Object.create({ inherited: 1 }), { a: 'x' }),
         ];

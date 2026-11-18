@@ -204,7 +204,8 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
 
     /** Whether a save was refused as made from an older state; marks the form stale. */
     function markStale(error: ApiError): boolean {
-        if (error.status !== 409 || error.code !== CONNECTION_CHANGED) {
+        // an add has no view to reload: its refusal shows as a message, and a retry is a new add
+        if (adding || error.status !== 409 || error.code !== CONNECTION_CHANGED) {
             return false;
         }
 

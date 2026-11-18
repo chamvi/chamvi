@@ -211,6 +211,28 @@ describe('readStoredConnections()', () => {
         expect(error.message).toContain('misconfigured');
     });
 
+    it('pairs the id with the config it read, also when the row was deleted and created between the listing and the read', async () => {
+        const store = createTestStore();
+
+        await seed(store, 'mail-home', 'mail');
+
+        const harness = await harnessOf(store, { keyring });
+        const configs = harness.container.resolve(AppToken.CONNECTION_CONFIGS);
+        const read = configs.read.bind(configs);
+
+        configs.read = async (name) => {
+            configs.read = read;
+            await store.connectionService.delete(name);
+            await seed(store, name, 'mail');
+
+            return read(name);
+        };
+
+        const [row] = await readStoredConnections(harness.container, 'mail');
+
+        expect(row!.id).toBe((await store.connectionService.findOneOrFail('mail-home')).id);
+    });
+
     it('loads a row repaired between the failed read and the settings read', async () => {
         const store = createTestStore();
 
