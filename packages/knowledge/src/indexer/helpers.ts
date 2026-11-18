@@ -167,6 +167,11 @@ export function isLeaseLost(error: unknown): boolean {
     return isObject(error) && error.code === ErrorCode.LEASE_LOST;
 }
 
+/** A write refused for a row deleted meanwhile (RepositoryNotFoundError, by code across core copies). */
+export function isRepositoryNotFound(error: unknown): boolean {
+    return isObject(error) && error.code === ErrorCode.REPOSITORY_NOT_FOUND;
+}
+
 /** Whether the record serves the definition's model and chunker (nothing to re-embed). */
 export function servesDefinition(record: KnowledgeCollection, definition: ResolvedKnowledgeCollection): boolean {
     return record.generation > 0 &&

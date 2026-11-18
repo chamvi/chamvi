@@ -30,6 +30,7 @@ import {
     createIndexLock,
     highestGeneration,
     isLeaseLost,
+    isRepositoryNotFound,
     lockKey,
     messageOf,
     sameDetails,
@@ -681,7 +682,7 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
  * the record's `knowledge:<name>` lock (a held one means a replica that
  * declares it is syncing it: left alone), re-read once the lock is held and
  * its fence advanced; a mark the fence refuses (another owner took the lock
- * meanwhile) leaves the record alone too.
+ * meanwhile) or that finds the row deleted leaves the record alone too.
  */
 export async function markOrphans(
     repository: IKnowledgeService,
@@ -718,7 +719,8 @@ export async function markOrphans(
                 }, { fence });
             }
         } catch (error) {
-            if (!isLeaseLost(error)) {
+            // another owner took the lock, or the record was deleted meanwhile: left to them
+            if (!isLeaseLost(error) && !isRepositoryNotFound(error)) {
                 throw error;
             }
         } finally {

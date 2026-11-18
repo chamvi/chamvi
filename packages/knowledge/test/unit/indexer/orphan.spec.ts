@@ -155,6 +155,7 @@ describe('orphaned collections', () => {
         expect((await setup.repository.findOneCollection('old'))?.status).toBe('ready');
         expect(setup.errors).toEqual([]);
     });
+
     it('leaves a record alone when another owner advanced its fence during the mark', async () => {
         const setup = createIndexerSetup();
 
@@ -184,6 +185,33 @@ describe('orphaned collections', () => {
 
         expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost' } });
         expect((await setup.repository.findOneCollection('old'))?.status).toBe('ready');
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('leaves a record deleted during its mark and marks the others', async () => {
+        const setup = createIndexerSetup();
+
+        await seed(setup, 'a-old', 'declared');
+        await seed(setup, 'b-old', 'declared');
+
+        const knowledge = setup.adopt(createKnowledge(setup.options({})));
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        // deleted between the mark's advance and its save
+        const deleted = vi.spyOn(service, 'saveCollection').mockImplementationOnce(async (...args) => {
+            await service.deleteCollection(args[0].name);
+
+            return save(...args);
+        });
+
+        started.push(knowledge);
+        knowledge.start();
+
+        await waitForCollection(setup.repository, 'b-old', (found) => found.status === 'orphaned');
+        await knowledge.stop();
+
+        expect(deleted.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'repository_not_found' } });
+        expect(await setup.repository.findOneCollection('a-old')).toBeUndefined();
         expect(setup.errors).toEqual([]);
     });
 });
