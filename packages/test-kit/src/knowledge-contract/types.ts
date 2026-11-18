@@ -135,7 +135,8 @@ export type ContractKnowledgeService = {
         version: {
             hash: string;
             title?: string;
-            source?: string
+            source?: string;
+            status?: ContractKnowledgeDocumentStatus
         },
         details: {
             title?: string;

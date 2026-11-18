@@ -10,7 +10,7 @@ import { ErrorCode } from '@chamvi/core';
 import { isObject } from 'smob';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
-import type { IKnowledgeService, KnowledgeWriteOptions } from '../service/types.ts';
+import type { IKnowledgeService, KnowledgeFence, KnowledgeWriteOptions } from '../service/types.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { KNOWLEDGE_LOCK_TTL_MS } from './constants.ts';
@@ -142,12 +142,12 @@ export function writeOptionsOf(lock: KnowledgeIndexLock): KnowledgeWriteOptions 
     return lock.fence === undefined ? {} : { fence: lock.fence };
 }
 
-/** Advances the collection's fence and gives `lock` the new token (none for a missing collection). */
+/** Advances the collection's fence and gives `lock` the new token (none for a missing collection); answers it. */
 export async function advanceLockFence(
     repository: Pick<IKnowledgeService, 'advanceFence'>,
     name: string,
     lock: KnowledgeIndexLock,
-): Promise<void> {
+): Promise<KnowledgeFence | undefined> {
     const fence = await repository.advanceFence(name);
 
     if (fence === undefined) {
@@ -155,6 +155,8 @@ export async function advanceLockFence(
     } else {
         lock.fence = fence;
     }
+
+    return fence;
 }
 
 /** A write refused for a fence another owner advanced (LeaseLostError, by code across core copies). */
@@ -179,9 +181,23 @@ export function sameOrigin(stored: KnowledgeDocument, input: KnowledgeDocumentIn
     return stored.title === input.title && stored.source === input.source;
 }
 
-/** The JSON of `value` with every object's keys sorted (arrays keep their order, `toJSON` applies first). */
+/** Whether `value` is a plain object (`{}` or without a prototype), not a boxed primitive or a class instance. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (!isObject(value)) {
+        return false;
+    }
+
+    const prototype: unknown = Object.getPrototypeOf(value);
+
+    return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * The JSON of `value` with every plain object's keys sorted (arrays keep
+ * their order, `toJSON` applies first, a boxed primitive stays its value).
+ */
 function canonicalJson(value: unknown): string | undefined {
-    return JSON.stringify(value, (_key, item: unknown) => (isObject(item) ?
+    return JSON.stringify(value, (_key, item: unknown) => (isPlainObject(item) ?
         Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]])) :
         item));
 }

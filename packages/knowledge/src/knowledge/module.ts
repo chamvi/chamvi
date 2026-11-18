@@ -29,6 +29,7 @@ import {
 } from '../indexer/constants.ts';
 import {
     createWake,
+    isLeaseLost,
     messageOf,
     sameDetails,
     sameOrigin,
@@ -448,9 +449,11 @@ class Knowledge implements IKnowledge {
 
         let record: KnowledgeCollection;
 
+        const exists = () => new InvalidRunStateError(`Knowledge collection "${name}" exists.`);
+
         try {
             if (await this.service.findOneCollection(name)) {
-                throw new InvalidRunStateError(`Knowledge collection "${name}" exists.`);
+                throw exists();
             }
 
             const now = new Date(this.clock.now());
@@ -467,7 +470,10 @@ class Knowledge implements IKnowledge {
                 updatedAt: now,
             };
 
-            await this.service.saveCollection(record);
+            // insert only: a record another owner created after the check (a lease that ran out) is never replaced
+            await this.service.saveCollection(record, { create: true }).catch((error: unknown) => {
+                throw isLeaseLost(error) ? exists() : error;
+            });
         } finally {
             await this.locks.release(key, owner);
         }
@@ -550,7 +556,8 @@ class Knowledge implements IKnowledge {
                 break;
             }
 
-            // the vectors hold: one versioned write of the details to the document and its chunks
+            // the vectors hold: one versioned write of the details to the document and its chunks,
+            // also checking the status read (a pending document failed meanwhile is requeued below)
             if (await this.service.updateDetails(collection, input.id, existing, details)) {
                 return { status: existing.status, changed: true };
             }

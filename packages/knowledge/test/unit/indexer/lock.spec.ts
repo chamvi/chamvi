@@ -34,8 +34,11 @@ import {
 } from '../../utils/indexer.ts';
 
 const started: IKnowledge[] = [];
+// the write gates a test holds: opened before teardown, so a failed assertion cannot stall stop()
+const openGates: Array<() => void> = [];
 
 afterEach(async () => {
+    openGates.splice(0).forEach((open) => open());
     await Promise.all(started.splice(0).map((knowledge) => knowledge.stop()));
 });
 
@@ -67,6 +70,9 @@ function gatedSource(): {
     held: () => boolean 
 } {
     const gate = Promise.withResolvers<void>();
+
+    openGates.push(gate.resolve);
+
     let held = false;
 
     return {
@@ -260,6 +266,9 @@ describe('the indexing lock', () => {
     it('stores a failure while it holds the lock, so a replica that indexes afterwards keeps its record', async () => {
         const setup = createIndexerSetup();
         const gate = Promise.withResolvers<void>();
+
+        openGates.push(gate.resolve);
+
         let gated: KnowledgeCollection | undefined;
         const replicaA = createKnowledge(setup.options({
             owner: 'replica-a',
@@ -269,13 +278,13 @@ describe('the indexing lock', () => {
         const save = service.saveCollection.bind(service);
 
         // hold replica A's first record write carrying an error (its failure)
-        service.saveCollection = async (collection) => {
+        service.saveCollection = async (collection, options) => {
             if (collection.error !== undefined && !gated) {
                 gated = collection;
                 await gate.promise;
             }
 
-            return save(collection);
+            return save(collection, options);
         };
 
         started.push(replicaA);
@@ -376,6 +385,9 @@ describe('the indexing lock', () => {
         const { service } = first;
         const replace = service.replaceChunks.bind(service);
         const gate = Promise.withResolvers<void>();
+
+        openGates.push(gate.resolve);
+
         // the first write after the renew waits, as a store slower than the lease would
         const held = vi.spyOn(service, 'replaceChunks').mockImplementationOnce(async (...args) => {
             await gate.promise;
@@ -415,6 +427,9 @@ describe('the indexing lock', () => {
         const { service } = first;
         const save = service.saveCollection.bind(service);
         const gate = Promise.withResolvers<void>();
+
+        openGates.push(gate.resolve);
+
         // the creating save waits, as a store slower than the lease would
         const held = vi.spyOn(service, 'saveCollection').mockImplementationOnce(async (...args) => {
             await gate.promise;
@@ -437,6 +452,130 @@ describe('the indexing lock', () => {
         expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost', lock: 'knowledge:docs' } });
         expect(await setup.repository.findOneCollection('docs')).toEqual(ready);
         expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose created record is deleted before its fence advance writes nothing more', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+        const save = vi.spyOn(service, 'saveCollection');
+        const fences = vi.spyOn(service, 'advanceFence')
+            // the loop's advance: no row yet
+            .mockImplementationOnce(advance)
+            // the record the pass created is deleted before the pass's own advance
+            .mockImplementationOnce(async (name) => {
+                await service.deleteCollection(name);
+
+                return advance(name);
+            });
+
+        await expect.poll(() => fences.mock.calls.length).toBe(2);
+        await settle();
+
+        // no write without a token: nothing recreates the deleted record
+        expect(save).toHaveBeenCalledTimes(1);
+        expect(replace).not.toHaveBeenCalled();
+        expect(await setup.repository.findOneCollection('docs')).toBeUndefined();
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose created record is replaced before its fence advance never claims the replacement', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+        const now = new Date(setup.clock.now());
+        const theirs: KnowledgeCollection = {
+            name: 'docs',
+            kind: 'declared',
+            trusted: true,
+            generation: 0,
+            model: 'mock-provider/mock-model-id',
+            chunker: CHUNKER_VERSION,
+            status: 'pending',
+            createdAt: now,
+            updatedAt: now,
+        };
+        const fences = vi.spyOn(service, 'advanceFence')
+            .mockImplementationOnce(advance)
+            // deleted and created again by another owner before the pass's own advance
+            .mockImplementationOnce(async (name) => {
+                await service.deleteCollection(name);
+                await service.saveCollection(theirs);
+
+                return advance(name);
+            });
+
+        await expect.poll(() => fences.mock.calls.length).toBe(2);
+        await settle();
+
+        expect(replace).not.toHaveBeenCalled();
+        expect(await setup.repository.findOneCollection('docs')).toEqual(theirs);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose lease ran out during its create advances no fence', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        const fences = vi.spyOn(service, 'advanceFence');
+        const replace = vi.spyOn(service, 'replaceChunks');
+        // the creating save outlasts the lease, and another owner takes the lock
+        const held = vi.spyOn(service, 'saveCollection').mockImplementationOnce(async (...args) => {
+            const saved = await save(...args);
+
+            setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+            expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+
+            return saved;
+        });
+
+        await expect.poll(() => held.mock.settledResults[0]?.type).toBe('fulfilled');
+        await expect.poll(() => acquiresOf(setup, 'replica-a')).toEqual([true, false]);
+        await settle();
+
+        // only the loop's advance (no row then): the intruder's token stays the newest
+        expect(fences).toHaveBeenCalledTimes(1);
+        expect(replace).not.toHaveBeenCalled();
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a loop whose lease ran out before its advance advances no fence and runs no pass', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+
+        await waitForReady(setup.repository, 'docs');
+
+        const { service } = knowledge;
+        const read = service.findOneCollection.bind(service);
+        const fences = vi.spyOn(service, 'advanceFence');
+        const replace = vi.spyOn(service, 'replaceChunks');
+        let reads = 0;
+
+        vi.spyOn(service, 'findOneCollection').mockImplementation(async (name) => {
+            reads++;
+
+            // the backoff read after the acquire stalls past the lease, and another owner takes the lock
+            if (reads === 2) {
+                setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+                expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+            }
+
+            return read(name);
+        });
+
+        knowledge.sync('docs');
+
+        await expect.poll(() => acquiresOf(setup, 'replica-a')).toEqual([true, true, false]);
+        await settle();
+
+        expect(fences).not.toHaveBeenCalled();
+        expect(replace).not.toHaveBeenCalled();
         expect(setup.errors).toEqual([]);
     });
 
@@ -577,6 +716,9 @@ describe('the indexing lock', () => {
         const { service } = knowledge;
         const save = service.saveCollection.bind(service);
         const gate = Promise.withResolvers<void>();
+
+        openGates.push(gate.resolve);
+
         const now = new Date(setup.clock.now());
         const theirs = {
             name: 'docs',

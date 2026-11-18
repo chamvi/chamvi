@@ -14,7 +14,12 @@ import {
     vi,
 } from 'vitest';
 import type { IKnowledge } from '@chamvi/knowledge';
-import { KNOWLEDGE_MANAGED_POLL_MS, createKnowledge, knowledgeCollection } from '@chamvi/knowledge';
+import {
+    KNOWLEDGE_MANAGED_POLL_MS,
+    KNOWLEDGE_RETRY_MS,
+    createKnowledge,
+    knowledgeCollection,
+} from '@chamvi/knowledge';
 import type { IndexerSetup } from '../../utils/indexer.ts';
 import {
     createIndexerSetup,
@@ -83,6 +88,41 @@ describe('a declared collection whose record was deleted', () => {
         });
         expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({ status: 'ready', generation: 1 });
         expect(setup.errors).toEqual([]);
+    });
+
+    it('a failed rebuild is retried after its backoff without resyncMs', async () => {
+        const setup = createIndexerSetup();
+        const model = mockEmbeddingModel();
+        const embed = model.doEmbed.bind(model);
+        let down = false;
+
+        vi.spyOn(model, 'doEmbed').mockImplementation(async (options) => {
+            if (down) {
+                throw new Error('provider unavailable');
+            }
+
+            return embed(options);
+        });
+
+        await deletedByAnotherReplica(setup, model);
+
+        down = true;
+        setup.clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
+
+        const failed = await waitForCollection(setup.repository, 'docs', (found) => found.retryAt !== undefined);
+
+        expect(failed.syncedAt).toBeUndefined();
+        expect(setup.errors).toHaveLength(1);
+
+        down = false;
+        setup.clock.advance(KNOWLEDGE_RETRY_MS);
+
+        const rebuilt = await waitForReady(setup.repository, 'docs');
+
+        expect(rebuilt.error).toBeUndefined();
+        await vi.waitFor(async () => {
+            expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md']);
+        });
     });
 
     it('a wake on a missing record runs a full pass', async () => {

@@ -6,7 +6,7 @@
  */
 
 import type { IClock } from '@chamvi/core';
-import { LeaseLostError, RepositoryNotFoundError } from '@chamvi/core';
+import { LeaseLostError, RepositoryNotFoundError, ValidationError } from '@chamvi/core';
 import { EntityConflictError } from '@chamvi/store';
 import {
     and,
@@ -26,6 +26,7 @@ import type {
     KnowledgeDocumentPage,
     KnowledgeDocumentPatch,
     KnowledgeDocumentRecord,
+    KnowledgeDocumentStatus,
     KnowledgeDocumentVersion,
     KnowledgeMatch,
     KnowledgeSearchOptions,
@@ -252,7 +253,7 @@ export class KnowledgeService implements IKnowledgeService {
     async updateDetails(
         collection: string,
         id: string,
-        version: KnowledgeDocumentVersion,
+        version: KnowledgeDocumentVersion & { status?: KnowledgeDocumentStatus },
         details: KnowledgeDocumentDetails,
     ): Promise<boolean> {
         return this.repository.transaction(async (repository) => {
@@ -268,6 +269,11 @@ export class KnowledgeService implements IKnowledgeService {
                 return false;
             }
 
+            // a status the caller decided on (a pending document failed meanwhile is requeued, not kept failed)
+            if (version.status !== undefined && document.status !== version.status) {
+                return false;
+            }
+
             await repository.documents.upsertMany([{
                 ...withDetails(document, details),
                 updatedAt: new Date(this.clock.now()),
@@ -278,8 +284,13 @@ export class KnowledgeService implements IKnowledgeService {
                 return true;
             }
 
-            // every generation: the served one and a pending re-embed's never keep the old details
-            const chunks = await repository.chunks.findManyBy({ collectionId: record.id, document: id });
+            // the document's own generation only: another one may hold older text (a re-embed's
+            // served generation), which keeps the details it was written with until the switch
+            const chunks = await repository.chunks.findManyBy({
+                collectionId: record.id,
+                document: id,
+                generation: document.generation,
+            });
 
             if (chunks.length > 0) {
                 await repository.chunks.upsertMany(chunks.map((chunk) => withOrigin(chunk, details)));
@@ -296,6 +307,11 @@ export class KnowledgeService implements IKnowledgeService {
         limit: number,
         options: KnowledgeWriteOptions = {},
     ): Promise<number> {
+        if (generation === target) {
+            // the page would never leave the selection: a caller draining until 0 would never end
+            throw new ValidationError(`Knowledge collection "${collection}": a requeue needs another target than generation ${generation}.`);
+        }
+
         return this.repository.transaction(async (repository) => {
             const record = await this.lockCollection(repository, collection, options);
 

@@ -21,6 +21,8 @@ const AT = new Date(1_000);
 type FencedWrite = {
     method: string;
     write: (service: ContractKnowledgeService, fence?: ContractKnowledgeFence) => Promise<unknown>;
+    /** Checks the change the write made to the seed, given its result. */
+    applied: (service: ContractKnowledgeService, result: unknown) => Promise<void>;
 };
 
 function collectionOf(
@@ -494,7 +496,7 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.findDocuments('docs')).toEqual({ data: [], total: 0 });
             });
 
-            it('updateDetails rewrites the document and its chunks of every generation', async () => {
+            it('updateDetails rewrites the document and its chunks of its own generation', async () => {
                 const service = await create();
                 const origin = { title: 'A', source: 'a.md' };
 
@@ -535,8 +537,29 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                     ['a', 'B', undefined],
                     ['b', 'A', 'a.md'],
                 ]);
-                expect(details(await service.search('docs', 2, [1, 0], { topK: 10 }))).toEqual([['a', 'B', undefined]]);
+                // another generation's chunks keep the details they were written with
+                expect(details(await service.search('docs', 2, [1, 0], { topK: 10 }))).toEqual([['a', 'A', 'a.md']]);
                 expect(await service.findOneDocumentOrFail('docs', 'b')).toEqual(documentOf('docs', 'b', origin));
+            });
+
+            it('updateDetails during a re-embed leaves the served old text under its old details', async () => {
+                const service = await create();
+                const origin = { title: 'A', source: 'a.md' };
+
+                await service.saveCollection(collectionOf('docs'));
+                // generation 1 still serves the old text; the re-embed wrote the new text at generation 2 and made it ready there
+                await service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'old text', origin)]);
+                await service.replaceChunks('docs', 'a', 2, [chunkOf(0, [1, 0], 'new text', origin)]);
+                await service.saveDocument(documentOf('docs', 'a', { ...origin, generation: 2 }));
+
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', ...origin }, { title: 'B' })).toBe(true);
+
+                const served = (generation: number) => service.search('docs', generation, [1, 0], { topK: 10 })
+                    .then((matches) => matches.map((match) => [match.text, match.title, match.source]));
+
+                // new details never next to the old text
+                expect(await served(1)).toEqual([['old text', 'A', 'a.md']]);
+                expect(await served(2)).toEqual([['new text', 'B', undefined]]);
             });
 
             it('updateDetails on a document that is not ready leaves its chunks', async () => {
@@ -581,6 +604,36 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.search('docs', 1, [1, 0], { topK: 10 })).toMatchObject([{ title: 'A', source: 'a.md' }]);
             });
 
+            it('updateDetails with a status checks it too', async () => {
+                const service = await create();
+                const origin = { title: 'A', source: 'a.md' };
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.saveDocument(documentOf('docs', 'a', {
+                    ...origin,
+                    status: 'failed',
+                    error: 'refused',
+                }));
+
+                expect(await service.updateDetails('docs', 'a', {
+                    hash: 'sha256:a',
+                    ...origin,
+                    status: 'pending',
+                }, { ...origin, metadata: { n: 2 } })).toBe(false);
+                expect(await service.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', {
+                    ...origin,
+                    status: 'failed',
+                    error: 'refused',
+                }));
+
+                expect(await service.updateDetails('docs', 'a', {
+                    hash: 'sha256:a',
+                    ...origin,
+                    status: 'failed',
+                }, { ...origin, metadata: { n: 2 } })).toBe(true);
+                expect((await service.findOneDocumentOrFail('docs', 'a')).metadata).toEqual({ n: 2 });
+            });
+
             it('requeueGeneration sets the documents of one generation pending at another, of that collection only', async () => {
                 const service = await create();
 
@@ -617,6 +670,18 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
 
                 expect(await service.requeueGeneration('docs', 2, 1, 10)).toBe(0);
                 expect(await service.requeueGeneration('missing', 2, 1, 10)).toBe(0);
+            });
+
+            it('requeueGeneration refuses the same generation as source and target and changes nothing', async () => {
+                const service = await create();
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.saveDocument(documentOf('docs', 'a', { status: 'failed', error: 'refused' }));
+
+                // a page that never leaves the selection: a caller draining until 0 would never end
+                await expect(service.requeueGeneration('docs', 1, 1, 10)).rejects.toMatchObject({ code: 'validation_error' });
+                await expect(service.requeueGeneration('missing', 1, 1, 10)).rejects.toMatchObject({ code: 'validation_error' });
+                expect(await service.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', { status: 'failed', error: 'refused' }));
             });
 
             it('requeueGeneration requeues at most a page per call, in id order, until none is left', async () => {
@@ -901,15 +966,28 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
 
             const options = (fence?: ContractKnowledgeFence) => (fence === undefined ? undefined : { fence });
 
-            /** Every fenced write, each one that changes the seed when applied. */
+            /** The chunk counts of document `a` at generations 1 and 2. */
+            const chunkCounts = async (service: ContractKnowledgeService) => [
+                (await service.search('docs', 1, [1, 0], { topK: 10 })).length,
+                (await service.search('docs', 2, [1, 0], { topK: 10 })).length,
+            ];
+
+            /** Every fenced write, each one that changes the seed when applied, with the change it makes. */
             const writes: FencedWrite[] = [
                 {
                     method: 'saveCollection',
                     write: (service, fence) => service.saveCollection(collectionOf('docs', { status: 'stale' }), options(fence)),
+                    applied: async (service) => {
+                        expect(await service.findOneCollection('docs')).toEqual(collectionOf('docs', { status: 'stale' }));
+                    },
                 },
                 {
                     method: 'saveDocument',
                     write: (service, fence) => service.saveDocument(documentOf('docs', 'b'), options(fence)),
+                    applied: async (service) => {
+                        expect(await service.findDocumentIds('docs')).toEqual(['a', 'b']);
+                        expect(await service.findOneDocument('docs', 'b')).toEqual(documentOf('docs', 'b'));
+                    },
                 },
                 {
                     method: 'updateDocument',
@@ -920,26 +998,49 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                         { status: 'failed', error: 'refused' },
                         options(fence),
                     ),
+                    applied: async (service, result) => {
+                        expect(result).toBe(true);
+                        expect(await service.findOneDocument('docs', 'a')).toEqual(documentOf('docs', 'a', { status: 'failed', error: 'refused' }));
+                    },
                 },
                 {
                     method: 'requeueGeneration',
                     write: (service, fence) => service.requeueGeneration('docs', 1, 2, 10, options(fence)),
+                    applied: async (service, result) => {
+                        expect(result).toBe(1);
+                        expect(await service.findOneDocument('docs', 'a')).toEqual(documentOf('docs', 'a', { status: 'pending', generation: 2 }));
+                        expect(await chunkCounts(service)).toEqual([1, 1]);
+                    },
                 },
                 {
                     method: 'deleteDocument',
                     write: (service, fence) => service.deleteDocument('docs', 'a', options(fence)),
+                    applied: async (service, result) => {
+                        expect(result).toBe(true);
+                        expect(await service.findDocumentIds('docs')).toEqual([]);
+                        expect(await chunkCounts(service)).toEqual([0, 0]);
+                    },
                 },
                 {
                     method: 'replaceChunks',
                     write: (service, fence) => service.replaceChunks('docs', 'a', 1, [], options(fence)),
+                    applied: async (service) => {
+                        expect(await chunkCounts(service)).toEqual([0, 1]);
+                    },
                 },
                 {
                     method: 'deleteGeneration',
                     write: (service, fence) => service.deleteGeneration('docs', 1, options(fence)),
+                    applied: async (service) => {
+                        expect(await chunkCounts(service)).toEqual([0, 1]);
+                    },
                 },
                 {
                     method: 'deleteGenerationsExcept',
                     write: (service, fence) => service.deleteGenerationsExcept('docs', 2, options(fence)),
+                    applied: async (service) => {
+                        expect(await chunkCounts(service)).toEqual([0, 1]);
+                    },
                 },
             ];
 
@@ -975,16 +1076,14 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 await expectSeed(service);
             });
 
-            it.each(writes)('a write with the current fence is applied: $method', async ({ write }) => {
+            it.each(writes)('a write with the current fence is applied: $method', async ({ write, applied }) => {
                 const service = await seed();
 
                 await service.advanceFence('docs');
 
                 const current = await service.advanceFence('docs');
 
-                await write(service, current);
-
-                await expect(expectSeed(service)).rejects.toThrow();
+                await applied(service, await write(service, current));
             });
 
             it('a write with the fence of a deleted and re-created collection is refused', async () => {
@@ -1014,16 +1113,13 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 await expectSeed(service);
             });
 
-            it('a write without a fence is never refused', async () => {
-                for (const { method, write } of writes) {
-                    const service = await seed();
+            it.each(writes)('a write without a fence is never refused: $method', async ({ write, applied }) => {
+                const service = await seed();
 
-                    await service.advanceFence('docs');
-                    await service.advanceFence('docs');
+                await service.advanceFence('docs');
+                await service.advanceFence('docs');
 
-                    await write(service);
-                    await expect(expectSeed(service), method).rejects.toThrow();
-                }
+                await applied(service, await write(service));
             });
 
             it('saveCollection keeps the stored fence and id', async () => {

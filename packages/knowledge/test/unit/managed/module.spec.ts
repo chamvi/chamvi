@@ -158,6 +158,35 @@ describe('managed collections', () => {
         expect(await setup.repository.findOneCollection('wiki')).toBeUndefined();
     });
 
+    it('createCollection never replaces a record created after its existence check', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        const at = new Date(setup.clock.now() - 1000);
+        const theirs: KnowledgeCollection = {
+            name: 'notes',
+            kind: 'managed',
+            trusted: false,
+            generation: 3,
+            model: 'mock/other',
+            chunker: CHUNKER_VERSION,
+            status: 'ready',
+            createdAt: at,
+            updatedAt: at,
+        };
+
+        // the check reads no record; another replica's create lands right after it (a lease that ran out)
+        vi.spyOn(service, 'findOneCollection').mockImplementationOnce(async () => {
+            await save(theirs);
+
+            return undefined;
+        });
+
+        await expect(knowledge.createCollection('notes')).rejects.toThrow(new InvalidRunStateError('Knowledge collection "notes" exists.'));
+        expect(await setup.repository.findOneCollection('notes')).toEqual(theirs);
+    });
+
     it('refuses an embeddingModel that does not resolve', () => {
         const setup = createIndexerSetup();
 
@@ -235,6 +264,38 @@ describe('managed collections', () => {
         await settle();
 
         expect(model.calls).toHaveLength(calls);
+    });
+
+    it('a details PUT on a pending document that failed before its write requeues it', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const content = 'Refunds within thirty days.';
+        const update = service.updateDetails.bind(service);
+
+        // never started: the document stays pending until the test fails it
+        await knowledge.createCollection('notes');
+        await knowledge.putDocument('notes', { id: 'doc', content });
+
+        // the embedding fails between the PUT's read and its details write
+        vi.spyOn(service, 'updateDetails').mockImplementationOnce(async (...args) => {
+            const stored = await service.findOneDocumentOrFail('notes', 'doc');
+
+            expect(await service.updateDocument('notes', 'doc', stored, { status: 'failed', error: 'refused' })).toBe(true);
+
+            return update(...args);
+        });
+
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content,
+            metadata: { v: 2 },
+        })).toEqual({ status: 'pending', changed: true });
+
+        const document = await setup.repository.findOneDocumentOrFail('notes', 'doc');
+
+        expect(document).toMatchObject({ status: 'pending', metadata: { v: 2 } });
+        expect(document.error).toBeUndefined();
     });
 
     it('a PUT with the same metadata in another key order answers changed false', async () => {
@@ -796,15 +857,18 @@ describe('managed collections', () => {
         await knowledge.putDocument('notes', { id: 'doc', content });
         await expect.poll(() => held.mock.calls.length).toBe(1);
 
-        // the lease expires while the write waits: a second instance takes it and embeds the document
-        setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+        try {
+            // the lease expires while the write waits: a second instance takes it and embeds the document
+            setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
 
-        const other = create(setup, { embeddingModel: mockEmbeddingModel() });
+            const other = create(setup, { embeddingModel: mockEmbeddingModel() });
 
-        other.start();
-        await waitForDocument(setup, 'notes', 'doc', 'ready');
-
-        gate.resolve();
+            other.start();
+            await waitForDocument(setup, 'notes', 'doc', 'ready');
+        } finally {
+            // also on a failure: stop() waits for the held write
+            gate.resolve();
+        }
 
         await expect.poll(() => held.mock.settledResults[0]?.type).toBe('rejected');
         await settle();

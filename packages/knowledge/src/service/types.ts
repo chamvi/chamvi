@@ -16,6 +16,7 @@ import type {
     KnowledgeDocumentFindOptions,
     KnowledgeDocumentPage,
     KnowledgeDocumentPatch,
+    KnowledgeDocumentStatus,
     KnowledgeDocumentVersion,
     KnowledgeMatch,
     KnowledgeSearchOptions,
@@ -107,16 +108,18 @@ export interface IKnowledgeService {
     /**
      * Rewrites the document's title, source and metadata (a detail not
      * given is removed) and, for a `ready` document, the title and source
-     * of its chunks of every generation (a pending or failed document's
-     * chunks hold older content and keep their details), stamping
+     * of its chunks of its own `generation` (another generation's chunks,
+     * and a pending or failed document's, may hold older content and keep
+     * their details: new details never next to old text), stamping
      * `updatedAt`, only while the stored document has that version's hash,
-     * title and source (atomic check and write); `false` for a missing
-     * document or another version. Unfenced: an API write.
+     * title and source, and its `status` when given (atomic check and
+     * write); `false` for a missing document or another version. Unfenced:
+     * an API write.
      */
     updateDetails(
         collection: string,
         id: string,
-        version: KnowledgeDocumentVersion,
+        version: KnowledgeDocumentVersion & { status?: KnowledgeDocumentStatus },
         details: KnowledgeDocumentDetails,
     ): Promise<boolean>;
     /**
@@ -124,7 +127,8 @@ export interface IKnowledgeService {
      * `generation`, in id code-point order, to `pending` at `target`
      * (removing its error; content, version and details kept), in one
      * transaction; how many it changed (0: none is left at `generation`).
-     * Its chunks are not touched.
+     * Its chunks are not touched. A `target` equal to `generation` is a
+     * `ValidationError` (nothing would leave the selection).
      */
     requeueGeneration(
         collection: string,

@@ -160,8 +160,9 @@ export async function embedDocument(input: EmbedDocumentInput): Promise<Embedded
  * the previous one. A document with unchanged content, title and source costs
  * nothing (its chunks carry the title and source). Ends early, without an
  * error, once `lock.renew()` answers false. Every write carries the lock's
- * fence (a first pass creates the record create-only, then advances it), so
- * a write after another owner took the lock is a `LeaseLostError`.
+ * fence (a first pass creates the record create-only, then renews the lock
+ * and advances it, ending when the token is not the created row's), so a
+ * write after another owner took the lock is a `LeaseLostError`.
  */
 export async function syncCollection(input: SyncCollectionInput): Promise<void> {
     const {
@@ -240,11 +241,22 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
     }
 
     // without a token only a create: a record another owner created meanwhile is never replaced
-    await repository.saveCollection(record, lock.fence === undefined ? { create: true } : writeOptionsOf(lock));
+    const saved = await repository.saveCollection(record, lock.fence === undefined ? { create: true } : writeOptionsOf(lock));
 
     if (lock.fence === undefined) {
+        // the create may have outlasted the lease: never a token once another owner may hold it
+        if (!await lock.renew()) {
+            return;
+        }
+
         // the record exists from here on: the writes that follow carry its fence
-        await advanceLockFence(repository, name, lock);
+        const fence = await advanceLockFence(repository, name, lock);
+
+        // deleted (or deleted and created again) since the create: never a write without
+        // a token, nor one into another row of the name
+        if (fence?.id !== saved.id) {
+            return;
+        }
     }
 
     if (serves) {
@@ -459,9 +471,10 @@ async function retryDelayOf(repository: IKnowledgeService, name: string, clock: 
 
 /**
  * How long until a pass is due (0: now; undefined: only on a wake): at once
- * for a missing record (deleted elsewhere: rebuilt), else, with `idleMs`,
- * that long after the stored `syncedAt`, the end of the last successful pass
- * on any replica.
+ * for a missing record (deleted elsewhere: rebuilt) or one no pass completed
+ * yet (a failed rebuild is retried, after its stored backoff), else, with
+ * `idleMs`, that long after the stored `syncedAt`, the end of the last
+ * successful pass on any replica.
  */
 async function dueDelayOf(
     repository: IKnowledgeService,
@@ -471,16 +484,12 @@ async function dueDelayOf(
 ): Promise<number | undefined> {
     const record = await repository.findOneCollection(name);
 
-    if (!record) {
+    if (!record?.syncedAt) {
         return 0;
     }
 
     if (idleMs === undefined) {
         return undefined;
-    }
-
-    if (!record.syncedAt) {
-        return 0;
     }
 
     // a clock skewed between replicas never parks the loop longer than the interval
@@ -513,12 +522,12 @@ function idleWaitOf(dueIn: number | undefined, checkMs: number | undefined): num
  * meanwhile waits for it too. A configuration error
  * (InvalidAgentDefinitionError) is stored and reported once and ends the
  * loop. A failed lock acquire or store read is only reported and retried on
- * this loop's own backoff. Each pass first advances the collection's fence
- * (`lock.fence`); a write the fence refuses (`LeaseLostError`: another owner
+ * this loop's own backoff. Each pass first renews the lock and advances the
+ * collection's fence (`lock.fence`); a write the fence refuses (`LeaseLostError`: another owner
  * took the lock) ends the pass like a lost lock: nothing reported or stored,
  * no backoff. With `checkMs`, an idle loop also reads its record that often:
- * a missing one (deleted on another replica) runs a pass whatever `idleMs`
- * says; an existing one costs that read only. Never rejects; an abort ends it.
+ * a missing one (deleted on another replica) or one no pass completed yet
+ * runs a pass whatever `idleMs` says; a synced one costs that read only. Never rejects; an abort ends it.
  */
 export async function runCollection(input: CollectionLoopInput): Promise<void> {
     const {
@@ -605,7 +614,8 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                     dueIn = await dueDelayOf(repository, name, clock, idleMs);
                 }
 
-                if (!deferred && dueIn === 0) {
+                // the reads above may have outlasted the lease: never a token once another owner may hold it
+                if (!deferred && dueIn === 0 && await lock.renew()) {
                     // a wake from here on asks for one more pass
                     wake.clear();
                     // a pass that lost the lock before this advance writes nothing more
