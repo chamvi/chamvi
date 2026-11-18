@@ -381,7 +381,13 @@ describe.skipIf(!document)('live responses against the openapi document', () => 
             }
 
             await expectDocumented(app, ['GET', '/connections/{name}', '/connections/missing', 404, ADMIN_TOKEN]);
-            await expectDocumented(app, ['PUT', '/connections/{name}/config', `/connections/${name}/config`, 200, ADMIN_TOKEN, { settings: { ...settings, port: 143 } }]);
+            const read = await expectDocumented(app, ['GET', '/connections/{name}/config', `/connections/${name}/config`, 200, ADMIN_TOKEN]);
+
+            await expectDocumented(app, ['PUT', '/connections/{name}/config', `/connections/${name}/config`, 200, ADMIN_TOKEN, {
+                settings: { ...settings, port: 143 },
+                revision: read.revision,
+                generation: read.generation,
+            }]);
             await expectDocumented(app, ['POST', '/connections/{name}/reset', '/connections/alpha/reset', 202, ADMIN_TOKEN]);
             await expectDocumented(app, ['DELETE', '/connections/{name}', `/connections/${name}`, 200, ADMIN_TOKEN]);
         });

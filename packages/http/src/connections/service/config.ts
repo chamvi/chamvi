@@ -27,8 +27,10 @@ import {
     isAccountId,
     isDeletable,
     isEditable,
+    isGeneration,
     isLoaded,
     isRecord,
+    isRevision,
     isSecretsWrite,
     isUnchanged,
     lockedValues,
@@ -145,9 +147,17 @@ export class ConnectionConfigService implements IConnectionConfigService {
 
         container.mount('settings', { optional: true }, isRecord());
         container.mount('secrets', { optional: true }, isSecretsWrite());
+        container.mount('revision', isRevision());
+        container.mount('generation', { optional: true }, isGeneration());
 
         const body = await validateBody(container, data);
         const stored = await configs.describe(target.name);
+
+        // the form was made from another state: another save, a reset or a delete and create landed since
+        if ((stored?.revision ?? 0) !== body.revision || stored?.generation !== body.generation) {
+            throw new ConnectionChangedError(target.name);
+        }
+
         const update = toConfigUpdate(target.definition, {
             ...(body.settings && { settings: body.settings }),
             ...(body.secrets?.set && { set: body.secrets.set }),
@@ -175,7 +185,7 @@ export class ConnectionConfigService implements IConnectionConfigService {
             // The checks above read `stored`: a save that landed since then refuses this one (409),
             // so a rebinding check never passes on a snapshot another save replaced
             if (stored) {
-                await configs.update(target.name, update, { revision: stored.revision });
+                await configs.update(target.name, update, { revision: stored.revision, generation: stored.generation });
             } else if (!await configs.create(target.name, target.definition.type, update)) {
                 // another save created the row meanwhile: these checks never saw its values
                 throw new ConnectionChangedError(target.name);
@@ -293,6 +303,6 @@ export class ConnectionConfigService implements IConnectionConfigService {
             throw new ConflictError({ message: `The connection "${name}" already exists.` });
         }
 
-        await configs.update(name, update, { revision: stored.revision });
+        await configs.update(name, update, { revision: stored.revision, generation: stored.generation });
     }
 }

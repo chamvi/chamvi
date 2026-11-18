@@ -28,6 +28,32 @@ export function isRecord(): ValidatorDescriptor {
     });
 }
 
+/** A config revision a save read: a non-negative integer. */
+export function isRevision(): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (!Number.isSafeInteger(value) || (value as number) < 0) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'must be a non-negative integer');
+            }
+
+            return value;
+        },
+    });
+}
+
+/** A generation a save read: the row's id. */
+export function isGeneration(): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (typeof value !== 'string' || value.length === 0 || value.length > 64) {
+                throw createValidupError(undefined, IssueCode.VALUE_INVALID, 'must be a string of 1 to 64 characters');
+            }
+
+            return value;
+        },
+    });
+}
+
 /** The longest connection name: an account id is never longer than the name built from it. */
 const ACCOUNT_ID_MAX_LENGTH = 64;
 

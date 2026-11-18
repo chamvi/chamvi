@@ -16,19 +16,19 @@ export function accountOf(name: string, type: string): string | undefined {
 /**
  * A provider's list is the state of the last start: a stored account deleted
  * since has no row and is not declared, and neither is a row created under
- * its name after that start (another `createdAt`), which must not inherit the
+ * its name after that start (another generation), which must not inherit the
  * env and code values the start resolved for the account it loaded (#197).
  * Connections with no row by nature (env, module) are not deletable, so a
  * missing row says nothing.
  */
-export function isDeleted(ctx: ConnectionHttpServiceContext, declared: DeclaredConnection, row: Pick<Connection, 'createdAt'> | undefined): boolean {
+export function isDeleted(ctx: ConnectionHttpServiceContext, declared: DeclaredConnection, row: Pick<Connection, 'id'> | undefined): boolean {
     if (ctx.connectionConfigs === undefined || !declared.deletable) {
         return false;
     }
 
-    const { loadedCreatedAt } = declared;
+    const { loadedGeneration } = declared;
 
-    return !row || (loadedCreatedAt !== undefined && row.createdAt.getTime() !== loadedCreatedAt.getTime());
+    return !row || (loadedGeneration !== undefined && row.id !== loadedGeneration);
 }
 
 /** Whether the last start loaded `name`: the process holds it until a restart, whatever the store says now. */

@@ -188,7 +188,7 @@ describe('ConnectionConfigService', () => {
 
     it('refuses an update without write (403) and of a connection set in code (409)', async () => {
         const { service } = setup({ declared: (definition) => [declare(definition, 'mail-work', { editable: false })] });
-        const data = { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } };
+        const data = { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } }, revision: 0 };
 
         await expect(service.update('mail-work', data, reader)).rejects.toMatchObject({ status: 403 });
         await expect(service.update('mail-work', data, writer)).rejects.toMatchObject({ status: 409 });
@@ -201,7 +201,11 @@ describe('ConnectionConfigService', () => {
                 throw new InvalidAgentDefinitionError('CHAMVI_ENCRYPTION_KEYS is not set.');
             },
         });
-        const promise = service.update('mail-work', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } }, writer);
+        const promise = service.update('mail-work', {
+            settings: { host: 'h' },
+            secrets: { set: { password: PASSWORD } },
+            revision: 0,
+        }, writer);
 
         await expect(promise).rejects.toMatchObject({ status: 409 });
         await expect(promise).rejects.toThrow('CHAMVI_ENCRYPTION_KEYS');

@@ -90,9 +90,13 @@ async function serve(modules: IModule[], agents: Agent[] = []): Promise<{ call: 
 
 describe('the GitHub connection test', () => {
     const save = async (call: Call, appId: string, privateKey: string, extra: Record<string, unknown> = {}) => {
+        // as the form does: with the version of the view it read
+        const { revision, generation } = await (await call('GET', '/connections/github/config')).json();
         const response = await call('PUT', '/connections/github/config', {
             settings: { appId, ...extra },
             secrets: { set: { privateKey, webhookSecret: 'whsec-value' } },
+            revision,
+            generation,
         });
 
         expect(response.status).toBe(200);
@@ -213,6 +217,7 @@ describe('the GitHub connection test', () => {
         const response = await call('PUT', '/connections/acme/config', {
             settings: { appId: '1' },
             secrets: { set: { privateKey: fake.privateKey, webhookSecret: 'whsec-value' } },
+            revision: 0,
         });
 
         expect(response.status).toBe(200);
