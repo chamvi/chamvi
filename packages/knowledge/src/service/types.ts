@@ -108,8 +108,9 @@ export interface IKnowledgeService {
     /**
      * Rewrites the document's title, source and metadata (a detail not
      * given is removed) and, for a `ready` document, the title and source
-     * of its chunks of every generation (a pending or failed document's
-     * chunks hold older content and keep their details), stamping
+     * of its chunks of its own `generation` (another generation's chunks,
+     * and a pending or failed document's, may hold older content and keep
+     * their details: new details never next to old text), stamping
      * `updatedAt`, only while the stored document has that version's hash,
      * title and source, and its `status` when given (atomic check and
      * write); `false` for a missing document or another version. Unfenced:

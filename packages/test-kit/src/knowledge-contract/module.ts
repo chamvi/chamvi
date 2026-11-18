@@ -452,7 +452,7 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.findDocuments('docs')).toEqual({ data: [], total: 0 });
             });
 
-            it('updateDetails rewrites the document and its chunks of every generation', async () => {
+            it('updateDetails rewrites the document and its chunks of its own generation', async () => {
                 const service = await create();
                 const origin = { title: 'A', source: 'a.md' };
 
@@ -493,8 +493,29 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                     ['a', 'B', undefined],
                     ['b', 'A', 'a.md'],
                 ]);
-                expect(details(await service.search('docs', 2, [1, 0], { topK: 10 }))).toEqual([['a', 'B', undefined]]);
+                // another generation's chunks keep the details they were written with
+                expect(details(await service.search('docs', 2, [1, 0], { topK: 10 }))).toEqual([['a', 'A', 'a.md']]);
                 expect(await service.findOneDocumentOrFail('docs', 'b')).toEqual(documentOf('docs', 'b', origin));
+            });
+
+            it('updateDetails during a re-embed leaves the served old text under its old details', async () => {
+                const service = await create();
+                const origin = { title: 'A', source: 'a.md' };
+
+                await service.saveCollection(collectionOf('docs'));
+                // generation 1 still serves the old text; the re-embed wrote the new text at generation 2 and made it ready there
+                await service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'old text', origin)]);
+                await service.replaceChunks('docs', 'a', 2, [chunkOf(0, [1, 0], 'new text', origin)]);
+                await service.saveDocument(documentOf('docs', 'a', { ...origin, generation: 2 }));
+
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', ...origin }, { title: 'B' })).toBe(true);
+
+                const served = (generation: number) => service.search('docs', generation, [1, 0], { topK: 10 })
+                    .then((matches) => matches.map((match) => [match.text, match.title, match.source]));
+
+                // new details never next to the old text
+                expect(await served(1)).toEqual([['old text', 'A', 'a.md']]);
+                expect(await served(2)).toEqual([['new text', 'B', undefined]]);
             });
 
             it('updateDetails on a document that is not ready leaves its chunks', async () => {
