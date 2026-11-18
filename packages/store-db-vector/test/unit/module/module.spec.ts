@@ -241,6 +241,54 @@ describe('vectorStoreModule()', () => {
 });
 
 describePostgres('vectorStoreModule() on PostgreSQL', () => {
+    it('an authentication failure never contains the password', async () => {
+        const secret = `secret${randomUUID().replaceAll('-', '')}`;
+        const {
+            username,
+            host,
+            port,
+        } = postgres!;
+        const url = `postgres://${username}:${secret}@${host}:${port}/${await createTestDatabase()}`;
+        const { app, logged } = build([vectorStoreModule({ url })], { memoryStore: true });
+
+        const error = await rejectionOf(app.start({ env: await envFor() }));
+
+        expect(error).toBeInstanceOf(DatabaseUnavailableError);
+        expect(error.message).not.toContain(secret);
+        expect(inspect(error, { depth: 10 })).not.toContain(secret);
+        expect(logged.lines.join('\n')).not.toContain(secret);
+    });
+
+    it('a failing migration never contains the password', async () => {
+        const secret = `secret${randomUUID().replaceAll('-', '')}`;
+        const role = `chamvi_role_${randomUUID().replaceAll('-', '')}`;
+        const {
+            username,
+            password,
+            host,
+            port,
+        } = postgres!;
+        const database = await createTestDatabase();
+        const owner = await admin(`postgres://${username}:${password}@${host}:${port}/${database}`);
+
+        // a role that may connect, but neither create the extension nor a table in public
+        await owner.query(`CREATE ROLE "${role}" LOGIN PASSWORD '${secret}'`);
+
+        const { app, logged } = build([vectorStoreModule({ url: `postgres://${role}:${secret}@${host}:${port}/${database}` })], { memoryStore: true });
+
+        // the start migrates (CHAMVI_MIGRATE): the vector migration runs as the role and fails
+        const error = await rejectionOf(app.start({ env: await envFor({ CHAMVI_MIGRATE: 'true' }) }));
+
+        await owner.query(`DROP ROLE "${role}"`).catch(() => {});
+
+        expect(error).toBeInstanceOf(DatabaseUnavailableError);
+        expect(error.message).toContain('migrate');
+        expect(error.message).not.toContain(secret);
+        expect(inspect(error, { depth: 10 })).not.toContain(secret);
+        expect(logged.lines.join('\n')).not.toContain(secret);
+        expect(await vectorMigrations(owner)).toBeUndefined();
+    });
+
     it('chamvi migrate runs the vector migrations', async () => {
         const url = await databaseUrl();
         const { app } = build([vectorStoreModule()]);
