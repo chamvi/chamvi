@@ -32,7 +32,7 @@ await mountPage(App);
 
 `definePageConfig` carries the Vue plugin, Tailwind and the Lucide icons as a bundled collection, so a page stays within the dashboard's content security policy: nothing is fetched at runtime.
 
-`mountPage` reads the config block the server injects, installs authup when configured and vuecs, restores the session and provides the app context (`useAppContext()`). A page without a principal goes to the dashboard's login. The dashboard passes `mountPage(App, { router })` for its own routed navigation.
+`mountPage` reads the config block the server injects, installs authup when configured and vuecs, restores the session and provides the app context (`useAppContext()`). A page without a principal goes to the dashboard's login. The dashboard passes a router factory for its own routed navigation: `mountPage(App, { router: ({ config, session }) => createRouter(...) })`.
 
 ## Permissions
 

@@ -49,8 +49,8 @@ npm install @chamvi/store-db @chamvi/core typeorm pg
 ```
 
 - ESM only, Node.js 26.0.0 or newer.
-- `@chamvi/core`, `typeorm` (`^1.1.2`) and `pg` (`^8`) are peer dependencies.
-- Postgres only.
+- `typeorm` (`^1.1.2`) and `pg` (`^8`) are peer dependencies, `better-sqlite3` an optional one (an app's own database only). The services the repositories are handed to come from `@chamvi/core`.
+- The store's schema is Postgres only.
 
 ## Usage
 
@@ -161,6 +161,8 @@ Each repository takes one argument, an initialized Postgres data source that lis
 | Export | Kind | Purpose |
 |---|---|---|
 | `migrateStore` | function | Runs the migrations under the advisory lock `MIGRATION_LOCK_NAME`; resolves with the names of those it ran |
+| `pendingMigrations` | function | The names of the store's migrations not run yet, in order; read-only (never creates the migrations table) |
+| `assertStoreNotLegacy` | function | Throws `LegacySchemaError` when the database holds a chamvi schema from before the uuid baseline; `migrateStore` runs it under its lock |
 | `applyQuery` | function | Applies a rapiq query to a TypeORM select query builder, as every repository's `findMany` does: field paths renamed (`fields`), a non-uuid value on a uuid column dropped, a value on a date-time column written as the driver stores it (the instant an ISO string with any offset names; one naming no instant is refused with `EntityQueryError`), matching case-sensitive, relations joined, the page set; `@rapiq/adapter-typeorm` loads on the first call. Decode a client's query with `decodeQuery` of `@chamvi/http` first |
 | `validateEntitySchemas` | function | Checks list schemas (`defineSchema` of `@chamvi/http`) against their entities in an initialized data source: a field, filter, sort, default sort or key that is no column, or a relation that is no relation, is a `DatabaseOptionsError` naming the schema and the name. `databaseModule({ schemas })` runs it at start |
 | `dateToISOStringTransformer` | constant | A date column's `transformer`: a `Date` reads and writes as its ISO 8601 UTC string, a string passes through |
@@ -175,8 +177,9 @@ The adapter keeps every statement below the driver's bind-parameter limit (65 53
 
 ## Notes
 
-- **Tables are prefixed `chamvi_`:** `chamvi_runs`, `chamvi_steps`, `chamvi_checkpoints`, `chamvi_idempotency_keys`, `chamvi_locks`, `chamvi_effects`, `chamvi_kv`, `chamvi_docs`, `chamvi_artifacts`. They live in the data source's default schema.
-- **Identifiers have length limits** (the memory repositories have none): run and artifact ids 128 characters; `concurrencyKey`, `address`, claim owners, step names, document collections and document ids 255; idempotency, lock, effect and state keys 512; idempotency scopes 1024 (`<agent>:<source>:<kind>:<id>` with the invoker URI-encoded, leaving about 950 characters for the encoded `kind` and `id`). A longer value makes the write fail with the driver's `value too long` error, so validate user-supplied keys before they reach `dispatch` (a rejected run with an `idempotencyKey` keeps its key reserved until the key expires).
+- **Tables are prefixed `chamvi_`:** `chamvi_runs`, `chamvi_steps`, `chamvi_checkpoints`, `chamvi_idempotency_keys`, `chamvi_locks`, `chamvi_effects`, `chamvi_kv`, `chamvi_docs`, `chamvi_artifacts`, `chamvi_agent_revisions`, `chamvi_conversations`, `chamvi_conversation_items`, `chamvi_conversation_notes`, `chamvi_conversation_operations`, `chamvi_connections`, `chamvi_connection_entries`, `chamvi_connection_secrets`. They live in the data source's default schema.
+- **Ids are `uuid` columns:** runs, artifacts and every other row with a generated id (the engine makes uuid v7 ids).
+- **Identifiers have length limits** (the memory repositories have none): agent and connection names 64 characters; `concurrencyKey`, `address`, claim owners, step names, document collections and document ids 255; idempotency, lock, effect and state keys 512; idempotency scopes 1024 (`<agent>:<channel>:<kind>:<id>` with the invoker URI-encoded). A longer value makes the write fail with the driver's `value too long` error. `dispatch` refuses an `idempotencyKey`, `concurrencyKey` or `address` above 255 characters before any write.
 - **Artifact bytes are `bytea`** in `chamvi_artifacts` (indexed by `run_id`), read only by `read`; `findOne` and `find` never load them. Postgres caps a `bytea` value at 1 GB, and the whole value travels in one query, so keep artifacts small enough for memory.
 - **Only the latest checkpoint is kept** per run; an equal `stepIndex` replaces it.
 - **Opaque values are JSON.** A run's `output`, a step's `input`/`output`/`error`, checkpoint messages, effect results and state values are stored as `jsonb`, so a `Date` inside them comes back as a string, `undefined` or `Map` values are lost and a typed array such as `Uint8Array` comes back as an object keyed by index. A `BigInt` or a circular structure makes the write throw a `TypeError` (the memory repositories accept both). The run's own dates, `trigger.receivedAt`, `waiting.expiresAt` and `waiting.notifiedAt` come back as `Date`.
@@ -184,8 +187,9 @@ The adapter keeps every statement below the driver's bind-parameter limit (65 53
 - **`null` in an optional property reads back as absent:** a run `output` of `null` and a step `input`, `output` or `error` of `null` are stored as SQL `NULL`. `effectService.save(key, undefined)` and `upsertDocument(..., undefined)` store `null`, as on memory.
 - **`findDocuments` `where` matches by top-level equality, as on memory:** `jsonb` containment (`@>`) narrows the rows through the GIN index and `doc -> key = value` keeps exact matches, so a nested object or array matches an equal one only. A key whose value is `undefined` matches object documents that lack the key. Documents are returned ordered by document id in code-point order, as on memory.
 - **`ArtifactService.find` and run lists (`RunService.find`) sort `createdAt`, then `id`** through rapiq on both drivers, strings by code point.
-- **`StateService.find` orders keys by byte order** (`chamvi_kv.key` is `COLLATE "C"`, migration `KvKeyCollation1792540800000`), the code-point order memory sorts by too.
+- **`StateService.find` orders keys by byte order** (`chamvi_kv.key` is `COLLATE "C"`), the code-point order memory sorts by too.
 - **The schema may still change before 1.0.** New versions ship new migrations; run `migrateStore()` on every boot.
+- **The chain starts at the baseline `UuidBaseline1794096000000`.** A database that holds a chamvi schema from before it cannot be upgraded in place: `migrateStore()` refuses it with `LegacySchemaError` (`store_legacy_schema`) before running anything; start on a new, empty database.
 
 ## License
 

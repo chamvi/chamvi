@@ -22,7 +22,7 @@
 npm install --save-dev @chamvi/test-kit @chamvi/core ai vitest
 ```
 
-`@chamvi/core`, `ai` (v7) and `vitest` are peer dependencies. The workspace contract takes any `IWorkspace` of `@chamvi/sandbox` (typed structurally as `ContractWorkspace`, so the kit does not depend on `@chamvi/sandbox`).
+`@chamvi/core`, `ai` (v7) and `vitest` are peer dependencies; `typeorm`, `pg` and `better-sqlite3` are optional ones, needed by `createTestDataSource()` only. The workspace contract takes any `IWorkspace` of `@chamvi/sandbox` (typed structurally as `ContractWorkspace`, so the kit does not depend on `@chamvi/sandbox`).
 
 ## Usage
 
@@ -38,7 +38,7 @@ const model = textModel('done');
 
 ### Repository contracts
 
-The repositories behind services prove their ports with `describeRunRepositoryContract({ name, create })`, `describeStepRepositoryContract`, `describeCheckpointRepositoryContract`, `describeEffectRepositoryContract`, `describeArtifactRepositoryContract`, `describeStateRepositoryContract`, `describeLockRepositoryContract`, `describeIdempotencyRepositoryContract`, `describeAgentRevisionRepositoryContract`, `describeConnectionRepositoryContract` (its input returns the connection repository and the lock repository whose rows its fence reads) and `describeConversationRepositoryContract` (its input returns the conversation repository and the run and checkpoint repositories that reference it or that it references): rows stored as given, the queries the services build, `findByWaitKind` and `findContaining`, `upsert` by a natural key keeping the stored id, the bytes of an artifact apart from its metadata, `removeExpiredBy` and its boundary (the lock and idempotency inputs require `untilBlocked()`, resolving once a statement waits for a row lock: two microtask turns in process, a look at the database for a driver whose statements run elsewhere), row locks that serialize writers without blocking the rows referencing a run, child repositories bound to the root's transaction, the conversation item storage keys in the order items are stored, and the connection fence read waiting for a lock transaction in flight:
+The repositories behind services prove their ports with `describeRunRepositoryContract({ name, create })`, `describeStepRepositoryContract`, `describeCheckpointRepositoryContract`, `describeEffectRepositoryContract`, `describeArtifactRepositoryContract`, `describeStateRepositoryContract`, `describeLockRepositoryContract`, `describeIdempotencyRepositoryContract`, `describeAgentRevisionRepositoryContract`, `describeConnectionRepositoryContract` (its input returns the connection repository and the lock repository whose rows its fence reads) and `describeConversationRepositoryContract` (its input returns the conversation repository and the run and checkpoint repositories that reference it or that it references): rows stored as given, the queries the services build, `findByWaitKind` and `findContaining`, `upsert` by a natural key keeping the stored id, the bytes of an artifact apart from its metadata, `removeExpiredBy` and its boundary (the lock, idempotency, connection and conversation inputs require `untilBlocked()`, resolving once a statement waits for a row lock: two microtask turns in process, a look at the database for a driver whose statements run elsewhere), row locks that serialize writers without blocking the rows referencing a run, child repositories bound to the root's transaction, the conversation item storage keys in the order items are stored, and the connection fence read waiting for a lock transaction in flight:
 
 ```typescript
 import {
@@ -134,11 +134,18 @@ fake.failNext('POST', '/repos/octo/demo/issues/7/comments', 502); // one injecte
 | Export | Kind | Purpose |
 |---|---|---|
 | `ControllableClock` | class | `IClock` that advances only via `advance(ms)`; starts at `new Date(0)` unless given a date |
-| `describeConversationRepositoryContract` | function | Vitest suite every `IConversationRepository` must pass |
+| `createTestEngine` | function | An `Engine` on memory repositories (see [Test engine](#test-engine)) |
+| `mockModel`, `textModel`, `approvalModel`, `failingModel` | functions | Scripted AI SDK language models (see [Scripted models](#scripted-models)) |
+| `mockEmbeddingModel` | function | A deterministic AI SDK embedding model without network; its calls are recorded in `calls` |
+| `describeEntityRepositoryContract` | function | Vitest suite of an `IEntityRepository` driver, on a parent and a child fixture |
+| `describeRunRepositoryContract`, `describeStepRepositoryContract`, ..., `describeConversationRepositoryContract` | functions | Vitest suite every port's repository must pass (see [Repository contracts](#repository-contracts)) |
+| `describeKnowledgeRepositoryContract` | function | Vitest suite every `IKnowledgeRepository` of `@chamvi/knowledge` must pass |
 | `describeWorkspaceContract` | function | Vitest suite every sandbox provider's `IWorkspace` must pass |
 | `createTestDataSource` | function | A data source for an app's database specs: SQLite in memory (guarded) or a database of its own on a PostgreSQL server |
 | `createGitFixture` | function | A temporary git repository with one commit (branch `main`, tag `v1`) |
 | `createFakeGithub` | function | An in-process GitHub (App JWTs, installation tokens, repository routes) for `createGithubApp({ fetch })` |
+| `testUuid` | function | A deterministic UUID-shaped id for a short ASCII label, ordered as the labels are |
+| `fakeSkillRuntime` | function | A skill runtime provider that records its calls, for specs of the skill seam |
 
 Types: `TestDataSourceOptions`, `ContractWorkspace`, `WorkspaceContractFactory`, `GitFixture`, `FakeGithub`, `FakeGithubOptions`, `FakeRequest`, `FakeRouteInput`, `FakeRouteResult`, `FakeRouteHandler`, `JwtClaims`.
 

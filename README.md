@@ -63,8 +63,11 @@ Workflow DevKit, Mastra, Inngest and Trigger.dev also make agent runs durable. H
 
 | Package | Version | Description |
 |---|---|---|
-| [`@chamvi/core`](./packages/core) | [![npm](https://img.shields.io/npm/v/@chamvi/core)](https://www.npmjs.com/package/@chamvi/core) | Agents, the channel contract, the run engine, checkpoints, effect tools, durable approvals, dispatch between agents, hooks, agent state and the in-memory store |
-| [`@chamvi/store-db`](./packages/store-db) | [![npm](https://img.shields.io/npm/v/@chamvi/store-db)](https://www.npmjs.com/package/@chamvi/store-db) | PostgreSQL store (TypeORM): durable runs, leases, agent state and conversations across replicas, with migrations |
+| [`@chamvi/core`](./packages/core) | [![npm](https://img.shields.io/npm/v/@chamvi/core)](https://www.npmjs.com/package/@chamvi/core) | Agents, the channel contract, the run engine, checkpoints, effect tools, durable approvals, dispatch between agents, hooks, agent state and a service per stored aggregate |
+| [`@chamvi/store-db`](./packages/store-db) | [![npm](https://img.shields.io/npm/v/@chamvi/store-db)](https://www.npmjs.com/package/@chamvi/store-db) | PostgreSQL store (TypeORM): the repositories for durable runs, leases, agent state and conversations across replicas, with migrations |
+| [`@chamvi/store`](./packages/store) | [![npm](https://img.shields.io/npm/v/@chamvi/store)](https://www.npmjs.com/package/@chamvi/store) | The storage contract: stored record types, the repository port per aggregate and the storage errors |
+| [`@chamvi/store-memory`](./packages/store-memory) | [![npm](https://img.shields.io/npm/v/@chamvi/store-memory)](https://www.npmjs.com/package/@chamvi/store-memory) | In-memory repositories with row locks, transactions and foreign keys, for development and tests |
+| [`@chamvi/access`](./packages/access) | [![npm](https://img.shields.io/npm/v/@chamvi/access)](https://www.npmjs.com/package/@chamvi/access) | Permission checks over authup policy bindings, in Node.js and the browser |
 | [`@chamvi/app`](./packages/app) | [![npm](https://img.shields.io/npm/v/@chamvi/app)](https://www.npmjs.com/package/@chamvi/app) | `createApp()`: config, store, engine, channels and HTTP as modules booted from env and `chamvi.json`, plus agent folders and agent packages |
 | [`@chamvi/cli`](./packages/cli) | [![npm](https://img.shields.io/npm/v/@chamvi/cli)](https://www.npmjs.com/package/@chamvi/cli) | The `chamvi` bin: `dev`, `build`, `start` (`--check`), `run-job`, `migrate` |
 
@@ -101,13 +104,16 @@ Workflow DevKit, Mastra, Inngest and Trigger.dev also make agent runs durable. H
 
 | Package | Version | Description |
 |---|---|---|
-| [`@chamvi/ui`](./packages/ui) | [![npm](https://img.shields.io/npm/v/@chamvi/ui)](https://www.npmjs.com/package/@chamvi/ui) | The dashboard: agents, runs with live steps, an approvals inbox, agent state and schedules, served by `uiRoutes()` |
+| [`@chamvi/ui`](./packages/ui) | [![npm](https://img.shields.io/npm/v/@chamvi/ui)](https://www.npmjs.com/package/@chamvi/ui) | The dashboard: agents, runs with live steps, an approvals inbox, agent state, schedules and connections, served by `uiRoutes()` |
+| [`@chamvi/http-kit`](./packages/http-kit) | [![npm](https://img.shields.io/npm/v/@chamvi/http-kit)](https://www.npmjs.com/package/@chamvi/http-kit) | Typed HTTP client for the chamvi API, with bearer token refresh |
+| [`@chamvi/ui-kit`](./packages/ui-kit) | [![npm](https://img.shields.io/npm/v/@chamvi/ui-kit)](https://www.npmjs.com/package/@chamvi/ui-kit) | The shared Vue base of the dashboard and its pages: session, shell, connection components |
+| `@chamvi/*-ui` | | One dashboard page per integration to set up its connections: [`tool-mail-ui`](./packages/tool-mail-ui), [`tool-calendar-ui`](./packages/tool-calendar-ui), [`github-ui`](./packages/github-ui), [`chat-discord-ui`](./packages/chat-discord-ui), [`chat-whatsapp-ui`](./packages/chat-whatsapp-ui) (pairs by QR) |
 | [`@chamvi/test-kit`](./packages/test-kit) | [![npm](https://img.shields.io/npm/v/@chamvi/test-kit)](https://www.npmjs.com/package/@chamvi/test-kit) | `ControllableClock`, mock models, the store and workspace contract suites, a git fixture and a fake GitHub |
 
 ## Quick start
 
 ```bash
-npm install @chamvi/core ai @ai-sdk/anthropic zod --save
+npm install @chamvi/core @chamvi/store-memory ai @ai-sdk/anthropic zod --save
 ```
 
 ESM only, Node.js `>=26.0.0`. `ai@^7` is a peer dependency; use the provider package of your model.
@@ -116,12 +122,34 @@ ESM only, Node.js `>=26.0.0`. `ai@^7` is a peer dependency; use the provider pac
 import { anthropic } from '@ai-sdk/anthropic';
 import { z } from 'zod';
 import {
-    createMemoryStore,
+    AgentRevisionService,
+    ArtifactService,
+    CheckpointService,
+    EffectService,
     Engine,
+    IdempotencyService,
+    LockService,
+    RunService,
+    StateService,
+    StepService,
     consoleChannel,
-    defineModelAgent,
     defineEffectTool,
+    defineModelAgent,
+    systemClock,
 } from '@chamvi/core';
+import {
+    MemoryAgentRevisionRepository,
+    MemoryArtifactRepository,
+    MemoryCheckpointRepository,
+    MemoryEffectRepository,
+    MemoryIdempotencyRepository,
+    MemoryLockRepository,
+    MemoryRegistry,
+    MemoryRunRepository,
+    MemoryStateDocumentRepository,
+    MemoryStateRepository,
+    MemoryStepRepository,
+} from '@chamvi/store-memory';
 
 const triage = defineModelAgent({
     name: 'triage',
@@ -141,8 +169,22 @@ const triage = defineModelAgent({
     },
 });
 
+// one service per aggregate, here over in-memory repositories
+const registry = new MemoryRegistry();
+const clock = systemClock;
 const engine = new Engine({
-    store: createMemoryStore(),
+    runService: new RunService({ repository: new MemoryRunRepository({ registry }), clock }),
+    stepService: new StepService({ repository: new MemoryStepRepository({ registry }) }),
+    checkpointService: new CheckpointService({ repository: new MemoryCheckpointRepository({ registry }) }),
+    effectService: new EffectService({ repository: new MemoryEffectRepository({ registry }) }),
+    artifactService: new ArtifactService({ repository: new MemoryArtifactRepository({ registry }) }),
+    stateService: new StateService({
+        repository: new MemoryStateRepository({ registry }),
+        documentRepository: new MemoryStateDocumentRepository({ registry }),
+    }),
+    agentRevisionService: new AgentRevisionService({ repository: new MemoryAgentRevisionRepository({ registry }) }),
+    lockService: new LockService({ repository: new MemoryLockRepository({ registry }), clock }),
+    idempotencyService: new IdempotencyService({ repository: new MemoryIdempotencyRepository({ registry }), clock }),
     agents: [triage],
     // channels are what runs come from and talk to: cron, HTTP, GitHub, chat, ...
     channels: [consoleChannel()],
@@ -163,7 +205,7 @@ console.log(await engine.getRun(runId)); // status: 'completed', output: the mod
 await engine.drain();
 ```
 
-`createMemoryStore()` keeps everything in process memory; it is for development and tests. Use `@chamvi/store-db` for durable runs. Channels, effect tools, approvals, hooks, agent state, budgets and the full option reference are in the [`@chamvi/core` README](./packages/core#readme) and the [guide](https://chamvi.dev/guide/).
+The `Memory*Repository` classes keep everything in process memory; they are for development and tests. `@chamvi/store-db` has a `Database*Repository` for each of them, for durable runs across restarts and replicas, and `@chamvi/app` wires the services from env. Channels, effect tools, approvals, hooks, agent state, budgets and the full option reference are in the [`@chamvi/core` README](./packages/core#readme) and the [guide](https://chamvi.dev/guide/).
 
 ### Give the agent a workspace
 

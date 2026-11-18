@@ -8,7 +8,7 @@ A typed client for the chamvi REST API, for the browser and Node.js: a [hapic](h
 npm install @chamvi/http-kit
 ```
 
-ESM only. `@chamvi/http` and `@chamvi/store` are peer dependencies for their types.
+ESM only. `@chamvi/core`, `@chamvi/http` and `@chamvi/store` are peer dependencies for their types.
 
 ## Usage
 
