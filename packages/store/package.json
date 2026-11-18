@@ -54,7 +54,7 @@
         "@rapiq/core": "^2.4.1"
     },
     "devDependencies": {
-        "ai": "^7.0.165"
+        "ai": "^7.0.173"
     },
     "peerDependencies": {
         "ai": "^7"
