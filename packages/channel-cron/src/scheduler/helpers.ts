@@ -41,6 +41,8 @@ export function buildComponentOptions(
         timezone,
         lock: ctx.lock,
         lockTtlMs: ctx.lockTtlMs,
+        // no unref: an engine with only a cron channel keeps the process running
+        clock: ctx.engine.clock,
         // a start pass never takes the lock: it would fire on every replica on every start
         runOnStart: false,
         run: async ({ scheduledAt }) => {

@@ -47,6 +47,7 @@ function setup() {
 
     return {
         storage: engine,
+        clock,
         lock,
         onError,
         options,
@@ -55,7 +56,11 @@ function setup() {
 
 describe('buildComponentOptions', () => {
     it('maps a cron subscription to component options', () => {
-        const { lock, options } = setup();
+        const {
+            clock, 
+            lock, 
+            options, 
+        } = setup();
 
         expect(options).toMatchObject({
             name: 'cron:sweep:cron:0 9 * * *',
@@ -65,12 +70,13 @@ describe('buildComponentOptions', () => {
             lockTtlMs: 600_000,
         });
         expect(options.lock).toBe(lock);
+        expect(options.clock).toBe(clock);
     });
 
     it('run fires the subscription at the scheduled time', async () => {
         const { storage, options } = setup();
 
-        await options.run({ scheduledAt: T });
+        await options.run({ scheduledAt: T, signal: new AbortController().signal });
 
         const { data } = await storage.runService.find({ agent: 'sweep' });
 
@@ -83,7 +89,7 @@ describe('buildComponentOptions', () => {
         const { onError, options } = setup();
         const error = new Error('boom');
 
-        options.hooks?.onError?.(error);
+        options.hooks?.onError?.(error, { scheduledAt: T, name: options.name });
 
         expect(onError).toHaveBeenCalledWith(error, { agent: 'sweep', subscription: 'cron:0 9 * * *' });
     });
