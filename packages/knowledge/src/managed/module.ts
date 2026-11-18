@@ -14,7 +14,7 @@ import {
     writeOptionsOf,
 } from '../indexer/helpers.ts';
 import { embedDocument } from '../indexer/module.ts';
-import { withDetails } from '../service/helpers.ts';
+import { withOrigin } from '../service/helpers.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import { MANAGED_PAGE_SIZE } from './constants.ts';
 import { isProviderRejection, needsReembed } from './helpers.ts';
@@ -109,7 +109,7 @@ async function embedOne(
 
     // same content: the vectors hold, the chunks take the title and source stored now (a PUT may have changed them)
     for (;;) {
-        const chunks = embedded.chunks.map((chunk) => withDetails(chunk, current!));
+        const chunks = embedded.chunks.map((chunk) => withOrigin(chunk, current!));
 
         await repository.replaceChunks(name, document.id, generation, chunks, writeOptionsOf(lock));
 

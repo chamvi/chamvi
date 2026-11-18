@@ -105,8 +105,9 @@ export interface IKnowledgeService {
         options?: KnowledgeWriteOptions,
     ): Promise<boolean>;
     /**
-     * Rewrites the document's title and source (a detail not given is
-     * removed) and those of its chunks of every generation, stamping
+     * Rewrites the document's title, source and metadata (a detail not
+     * given is removed) and the title and source of its chunks of every
+     * generation, stamping
      * `updatedAt`, only while the stored document has that version's hash,
      * title and source (atomic check and write); `false` for a missing
      * document or another version. Unfenced: an API write.

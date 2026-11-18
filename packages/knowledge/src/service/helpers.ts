@@ -84,7 +84,7 @@ export function isVersion(document: KnowledgeDocumentVersion, version: Knowledge
 }
 
 /** A copy of the row with the given title and source; one not given is removed. */
-export function withDetails<T extends KnowledgeDocumentDetails>(row: T, details: KnowledgeDocumentDetails): T {
+export function withOrigin<T extends { title?: string; source?: string }>(row: T, details: KnowledgeDocumentDetails): T {
     const next: T = { ...row };
 
     delete next.title;
@@ -96,6 +96,19 @@ export function withDetails<T extends KnowledgeDocumentDetails>(row: T, details:
 
     if (details.source !== undefined) {
         next.source = details.source;
+    }
+
+    return next;
+}
+
+/** A copy of the document row with the given title, source and metadata; one not given is removed. */
+export function withDetails(row: KnowledgeDocumentRecord, details: KnowledgeDocumentDetails): KnowledgeDocumentRecord {
+    const next = withOrigin(row, details);
+
+    delete next.metadata;
+
+    if (details.metadata !== undefined) {
+        next.metadata = copy(details.metadata);
     }
 
     return next;

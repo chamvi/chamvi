@@ -43,7 +43,7 @@ import type { ManagedLoop } from '../managed/types.ts';
 import { copy } from '../service/helpers.ts';
 import type { IKnowledgeService, KnowledgeServiceContext } from '../service/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
-import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
+import type { KnowledgeCollection } from '../store/types.ts';
 import { normalizeOptions, resolveCollection, resolveEmbeddingModel } from './helpers.ts';
 import type {
     IKnowledge,
@@ -531,38 +531,31 @@ class Knowledge implements IKnowledge {
         await this.managedRecord(collection);
 
         const hash = contentHash(input.content);
-        let existing = await this.service.findOneDocument(collection, input.id);
-        const origin = {
+        const details = {
             ...(input.title === undefined ? {} : { title: input.title }),
             ...(input.source === undefined ? {} : { source: input.source }),
-        };
-        const details = {
-            ...origin,
             ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
         };
-        let updated = false;
-
-        // new title or source only, embedded already: the vectors hold, the document and its chunks take the details
-        if (existing?.status === 'ready' && existing.hash === hash && !sameOrigin(existing, input)) {
-            updated = await this.service.updateDetails(collection, input.id, existing, origin);
-            // updated, or replaced meanwhile: decide on what is stored now
-            existing = await this.service.findOneDocument(collection, input.id);
-        }
+        let existing = await this.service.findOneDocument(collection, input.id);
 
         // a failed document is embedded again, also for the same content (the provider may accept it now)
-        if (existing && existing.status !== 'failed' && existing.hash === hash && sameOrigin(existing, input)) {
+        while (existing && existing.status !== 'failed' && existing.hash === hash) {
             if (sameDetails(existing, input)) {
-                return { status: existing.status, changed: updated };
+                return { status: existing.status, changed: false };
             }
 
-            // new metadata only: the chunks carry title and source, nothing to embed
-            const kept: KnowledgeDocument = { ...existing, updatedAt: new Date(this.clock.now()) };
+            // a pending document with a new title or source is stored pending again (its embed may be in flight)
+            if (existing.status !== 'ready' && !sameOrigin(existing, input)) {
+                break;
+            }
 
-            delete kept.metadata;
+            // the vectors hold: one versioned write of the details to the document and its chunks
+            if (await this.service.updateDetails(collection, input.id, existing, details)) {
+                return { status: existing.status, changed: true };
+            }
 
-            await this.service.saveDocument({ ...kept, ...details });
-
-            return { status: existing.status, changed: true };
+            // another PUT or the pass wrote meanwhile: decide on what is stored now
+            existing = await this.service.findOneDocument(collection, input.id);
         }
 
         await this.service.saveDocument({

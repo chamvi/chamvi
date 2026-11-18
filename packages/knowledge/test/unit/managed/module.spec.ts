@@ -361,6 +361,127 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    describe('two details PUTs racing on a ready document', () => {
+        const content = 'Refunds within thirty days.';
+
+        /** A ready document titled "A" with metadata, the knowledge, and a check that the document and its chunks agree. */
+        const ready = async () => {
+            const setup = createIndexerSetup();
+            const model = mockEmbeddingModel();
+            const knowledge = create(setup, { embeddingModel: model });
+
+            await knowledge.createCollection('notes');
+            knowledge.start();
+            await knowledge.putDocument('notes', {
+                id: 'doc',
+                content,
+                title: 'A',
+                metadata: { v: 1 },
+            });
+            await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+            const stored = async () => {
+                const document = (await setup.repository.findOneDocument('notes', 'doc'))!;
+                const matches = await setup.repository.search('notes', 1, await vectorOf(content), { topK: 10 });
+
+                return { document, titles: matches.map((match) => match.title) };
+            };
+
+            return {
+                setup,
+                model,
+                knowledge,
+                stored,
+            };
+        };
+
+        it('a PUT landing between another PUT\'s details and its metadata write leaves the document and its chunks agreeing', async () => {
+            const {
+                setup,
+                model,
+                knowledge,
+                stored,
+            } = await ready();
+            const calls = model.calls.length;
+            const { repository } = setup;
+            const save = repository.saveDocument.bind(repository);
+            let raced = false;
+
+            // the other PUT runs at this PUT's first document write after its details write, if it makes one
+            repository.saveDocument = async (document, options) => {
+                if (!raced) {
+                    raced = true;
+                    await knowledge.putDocument('notes', {
+                        id: 'doc', 
+                        content, 
+                        title: 'C', 
+                    });
+                }
+
+                return save(document, options);
+            };
+            await knowledge.putDocument('notes', {
+                id: 'doc',
+                content,
+                title: 'B',
+                metadata: { v: 2 },
+            });
+
+            const { document, titles } = await stored();
+
+            expect(document.status).toBe('ready');
+            // whichever PUT wins, the chunks carry the document's title
+            expect(titles).toEqual([document.title]);
+            expect(model.calls).toHaveLength(calls);
+            expect(setup.errors).toEqual([]);
+        });
+
+        it('a PUT whose read was overtaken by another PUT writes its details over the current version', async () => {
+            const {
+                setup,
+                model,
+                knowledge,
+                stored,
+            } = await ready();
+            const calls = model.calls.length;
+            const { repository } = setup;
+            const update = repository.updateDetails.bind(repository);
+            let raced = false;
+
+            // the other PUT lands between this PUT's read and its details write
+            repository.updateDetails = async (...args) => {
+                if (!raced) {
+                    raced = true;
+                    await knowledge.putDocument('notes', {
+                        id: 'doc', 
+                        content, 
+                        title: 'C', 
+                    });
+                }
+
+                return update(...args);
+            };
+
+            expect(await knowledge.putDocument('notes', {
+                id: 'doc',
+                content,
+                title: 'B',
+                metadata: { v: 2 },
+            })).toEqual({ status: 'ready', changed: true });
+
+            const { document, titles } = await stored();
+
+            expect(document).toMatchObject({
+                status: 'ready',
+                title: 'B',
+                metadata: { v: 2 },
+            });
+            expect(titles).toEqual(['B']);
+            expect(model.calls).toHaveLength(calls);
+            expect(setup.errors).toEqual([]);
+        });
+    });
+
     it('a PUT with a new title during an embed never leaves old details ready under the new version', async () => {
         const setup = createIndexerSetup();
         const model = gatedModel();

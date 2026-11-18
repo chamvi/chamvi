@@ -97,10 +97,14 @@ export type KnowledgeDocumentVersion = {
     source?: string;
 };
 
-/** The title and source `updateDetails()` writes; one not given is removed. */
+/**
+ * The details `updateDetails()` writes: title and source (to the document
+ * and its chunks) and metadata (to the document); one not given is removed.
+ */
 export type KnowledgeDocumentDetails = {
     title?: string;
     source?: string;
+    metadata?: Record<string, unknown>;
 };
 
 /** The fields `updateDocument()` writes; an `error` not given is removed. */

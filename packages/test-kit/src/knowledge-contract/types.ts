@@ -137,7 +137,11 @@ export type ContractKnowledgeService = {
             title?: string;
             source?: string
         },
-        details: { title?: string; source?: string },
+        details: {
+            title?: string;
+            source?: string;
+            metadata?: Record<string, unknown>
+        },
     ): Promise<boolean>;
     deleteDocument(collection: string, id: string, options?: ContractKnowledgeWriteOptions): Promise<boolean>;
     replaceChunks(

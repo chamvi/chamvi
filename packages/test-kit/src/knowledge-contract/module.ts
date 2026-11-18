@@ -467,16 +467,20 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 await service.replaceChunks('docs', 'a', 2, [chunkOf(0, [1, 0], 'a0', origin)]);
                 await service.replaceChunks('docs', 'b', 1, [chunkOf(0, [1, 0], 'b0', origin)]);
 
-                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', ...origin }, { title: 'B' })).toBe(true);
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', ...origin }, { title: 'B', metadata: { n: 2 } })).toBe(true);
 
                 const updated = await service.findOneDocumentOrFail('docs', 'a');
 
                 // an absent source is removed, everything but the details and updatedAt is kept
                 expect(updated).toEqual({
-                    ...documentOf('docs', 'a', { title: 'B', metadata: { n: 1 } }),
+                    ...documentOf('docs', 'a', { title: 'B', metadata: { n: 2 } }),
                     updatedAt: expect.any(Date),
                 });
                 expect(updated.source).toBeUndefined();
+
+                // absent metadata is removed too
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', title: 'B' }, { title: 'B' })).toBe(true);
+                expect((await service.findOneDocumentOrFail('docs', 'a')).metadata).toBeUndefined();
 
                 const details = (matches: Array<{
                     document: string; 

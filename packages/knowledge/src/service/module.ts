@@ -37,6 +37,7 @@ import {
     toCollection,
     toDocument,
     withDetails,
+    withOrigin,
 } from './helpers.ts';
 import type {
     IKnowledgeService,
@@ -276,7 +277,7 @@ export class KnowledgeService implements IKnowledgeService {
             const chunks = await repository.chunks.findManyBy({ collectionId: record.id, document: id });
 
             if (chunks.length > 0) {
-                await repository.chunks.upsertMany(chunks.map((chunk) => withDetails(chunk, details)));
+                await repository.chunks.upsertMany(chunks.map((chunk) => withOrigin(chunk, details)));
             }
 
             return true;
