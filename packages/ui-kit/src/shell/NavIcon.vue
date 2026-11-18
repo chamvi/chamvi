@@ -94,6 +94,10 @@ defineProps<{ name: IconName }>();
             <path d="M5.8 7.1l4.4-2.2M5.8 8.9l4.4 2.2" />
         </template>
         <path
+            v-else-if="name === 'components'"
+            d="M1.5 8.5h3l1.5-4 3 7 1.5-3h4"
+        />
+        <path
             v-else-if="name === 'moon'"
             d="M13 9.5A5.5 5.5 0 0 1 6.5 3a5.5 5.5 0 1 0 6.5 6.5z"
         />

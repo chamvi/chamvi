@@ -31,6 +31,7 @@ describe('createUiRouter', () => {
             query: { tab: 'state' },
         }).href).toBe('/ui/agents/triage?tab=state');
         expect(router.resolve({ name: RouteName.SCHEDULES }).href).toBe('/ui/schedules');
+        expect(router.resolve({ name: RouteName.COMPONENTS }).href).toBe('/ui/components');
         expect(router.resolve({ name: RouteName.CONNECTIONS }).href).toBe('/ui/connections');
         expect(router.resolve({ name: RouteName.CONNECTION, params: { name: 'whatsapp' } }).href).toBe('/ui/connections/whatsapp');
         expect(router.resolve({ name: RouteName.LOGIN }).href).toBe('/ui/login');

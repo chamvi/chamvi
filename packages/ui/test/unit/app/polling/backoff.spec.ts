@@ -18,6 +18,8 @@ import type { Ref } from 'vue';
 import { ApiError } from '@chamvi/ui-kit';
 import type { IApiClient } from '@chamvi/ui-kit';
 import { useApprovals } from '../../../../app/approvals/composables.ts';
+import { useComponents } from '../../../../app/component-status/composables.ts';
+import { COMPONENTS_POLL_MS } from '../../../../app/component-status/constants.ts';
 import { INBOX_POLL_MS } from '../../../../app/approvals/constants.ts';
 import { useRunActivity, useRunCounts, useRunList } from '../../../../app/runs/composables.ts';
 import { RUN_COUNTS_POLL_MS, RUN_LIST_POLL_MS } from '../../../../app/runs/constants.ts';
@@ -29,7 +31,7 @@ const RETRY_AFTER_SECONDS = 120;
 
 type Case = {
     name: string;
-    method: 'listRuns' | 'listSchedules';
+    method: 'listRuns' | 'listSchedules' | 'listComponents';
     intervalMs: number;
     use: (client: IApiClient) => { error: Ref<ApiError | undefined> };
 };
@@ -64,6 +66,12 @@ const cases: Case[] = [
         method: 'listSchedules',
         intervalMs: SCHEDULES_POLL_MS,
         use: (client) => useSchedules(client),
+    },
+    {
+        name: 'useComponents',
+        method: 'listComponents',
+        intervalMs: COMPONENTS_POLL_MS,
+        use: (client) => useComponents(client),
     },
 ];
 

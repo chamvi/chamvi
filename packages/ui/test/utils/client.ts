@@ -21,6 +21,7 @@ export function fakeClient(overrides: Partial<IApiClient> = {}): IApiClient {
         checkAuthorization: async () => ({ permissions: ALL }),
         listAgents: missing('listAgents'),
         listSchedules: missing('listSchedules'),
+        listComponents: missing('listComponents'),
         listRuns: missing('listRuns'),
         getRun: missing('getRun'),
         cancelRun: missing('cancelRun'),

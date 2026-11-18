@@ -63,6 +63,11 @@ export function createUiRouter(config: UiConfig, guards: NavigationGuard[] = [],
                 component: () => import('../views/SchedulesView.vue'),
             },
             {
+                path: '/components',
+                name: RouteName.COMPONENTS,
+                component: () => import('../views/ComponentsView.vue'),
+            },
+            {
                 path: '/connections',
                 name: RouteName.CONNECTIONS,
                 component: () => import('../views/ConnectionsView.vue'),

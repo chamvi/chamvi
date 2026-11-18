@@ -21,6 +21,7 @@ import type {
     AgentWire,
     ApiClientOptions,
     ArtifactWire,
+    ComponentWire,
     DocEntry,
     IApiClient,
     KvEntry,
@@ -173,6 +174,7 @@ export function createApiClient(options: ApiClientOptions): IApiClient {
             };
         },
         listSchedules: async () => dataOf<ScheduleWire>(await request('/schedules')),
+        listComponents: async () => dataOf<ComponentWire>(await request('/components')),
         listRuns: (filter) => request<RunPage>(withQuery('/runs', runListQuery(filter))),
         getRun: (id) => request<RunDetail>(path('runs', id)),
         cancelRun: async (id) => {
