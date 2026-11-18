@@ -10,6 +10,9 @@ import * as pkg from '@chamvi/store-db-vector';
 
 describe('public api', () => {
     it.each([
+        'DatabaseKnowledgeChunkRepository',
+        'DatabaseKnowledgeDocumentRepository',
+        'DatabaseKnowledgeRepository',
         'KNOWLEDGE_VECTOR_DATABASE',
         'KNOWLEDGE_VECTOR_ENTITIES',
         'KNOWLEDGE_VECTOR_MIGRATIONS',

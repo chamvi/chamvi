@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { OPTIONAL_JSON_TRANSFORMER } from '@chamvi/store-db';
 import {
     Column,
     Entity,
@@ -64,6 +65,8 @@ export class KnowledgeDocumentEntity {
         name: 'metadata',
         type: 'jsonb',
         nullable: true,
+        // NUL and lone surrogates, which jsonb cannot hold, become U+FFFD
+        transformer: OPTIONAL_JSON_TRANSFORMER,
     })
     metadata!: Record<string, unknown> | null;
 

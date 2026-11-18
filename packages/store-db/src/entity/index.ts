@@ -10,4 +10,5 @@ export type {
     EntityLockMode,
     EntityRelatedLabel,
     EntityRepositoryAdapterOptions,
+    EntityTransaction,
 } from './types.ts';

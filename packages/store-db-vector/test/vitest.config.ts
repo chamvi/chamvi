@@ -26,6 +26,7 @@ export default defineConfig({
             { find: /^@chamvi\/store-memory$/, replacement: fileURLToPath(new URL('../../store-memory/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/store-db$/, replacement: fileURLToPath(new URL('../../store-db/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/knowledge$/, replacement: fileURLToPath(new URL('../../knowledge/src/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/test-kit$/, replacement: fileURLToPath(new URL('../../test-kit/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/store-db-vector$/, replacement: fileURLToPath(new URL('../src/index.ts', import.meta.url)) },
         ],
     },
