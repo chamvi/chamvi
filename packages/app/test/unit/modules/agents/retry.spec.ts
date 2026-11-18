@@ -13,10 +13,26 @@ import { createRecordingLogger } from '../../../utils/logger.ts';
 
 const POLL_MS = 1_000;
 
-/** A ControllableClock that tells how many timers are armed. */
+/** A ControllableClock that tells how many timers are armed and can run a callback on its next `now()`. */
 class CountingClock extends ControllableClock {
+    protected onNextNow: (() => void) | undefined;
+
     get pending(): number {
         return this.timers.length;
+    }
+
+    /** Runs `fn` once, on the next `now()` call, before it answers. */
+    beforeNextNow(fn: () => void): void {
+        this.onNextNow = fn;
+    }
+
+    override now(): number {
+        const fn = this.onNextNow;
+
+        this.onNextNow = undefined;
+        fn?.();
+
+        return super.now();
     }
 }
 
@@ -161,9 +177,9 @@ describe('the retry loop', () => {
             loop.delete(name);
         });
         const {
-            clock, 
-            loop, 
-            retried, 
+            clock,
+            loop,
+            retried,
         } = setup;
 
         loop.set('a', { delay: POLL_MS, at: clock.now() + POLL_MS });
@@ -171,13 +187,47 @@ describe('the retry loop', () => {
         clock.advance(POLL_MS);
         expect(retried.map((entry) => entry.name)).toEqual(['a']);
 
-        // added while the pass that settles the last pending retry is in flight
+        // added while the pass that settles the last pending retry is in flight: its decision sees it
         loop.set('b', { delay: POLL_MS, at: clock.now() + POLL_MS });
         release.resolve();
         await loop.component.settled?.();
         await flush();
         expect(clock.pending).toBe(1);
 
+        await setup.advance(POLL_MS);
+        expect(retried.map((entry) => entry.name)).toEqual(['a', 'b']);
+        expect(clock.pending).toBe(0);
+        await loop.component.stop();
+    });
+
+    it('starts again when a retry is added after the final pass decided to end, while it is still in flight', async () => {
+        const setup = build(async (name, loop) => {
+            loop.delete(name);
+
+            if (name === 'a') {
+                // the pass then decides { done: true }; hubwire reads the clock for lastSuccessAt before the pass settles:
+                // a retry added there is one the decision did not see, so only set()'s start() keeps the loop
+                clock.beforeNextNow(() => {
+                    loop.set('b', { delay: POLL_MS, at: clock.now() + POLL_MS });
+                });
+            }
+        });
+        const {
+            clock,
+            loop,
+            retried,
+        } = setup;
+
+        loop.set('a', { delay: POLL_MS, at: clock.now() + POLL_MS });
+        await loop.component.start();
+        await setup.advance(POLL_MS);
+        expect(retried.map((entry) => entry.name)).toEqual(['a']);
+        expect(loop.get('b')).toBeDefined();
+
+        // the loop began again for b instead of ending with a pending retry
+        await flush();
+        expect(clock.pending).toBe(1);
+        await setup.advance(POLL_MS);
         await setup.advance(POLL_MS);
         expect(retried.map((entry) => entry.name)).toEqual(['a', 'b']);
         expect(clock.pending).toBe(0);
