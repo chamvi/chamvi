@@ -5,13 +5,12 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 import { AppToken, DatabaseModule } from '@chamvi/app';
 import type { IContainer, IModule } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { createMemoryKnowledgeRepository } from '@chamvi/knowledge';
 import { KNOWLEDGE_REPOSITORY_MODULE_NAME, KnowledgeToken } from '@chamvi/knowledge/module';
-import { POSTGRES_PROTOCOLS, pendingDatabaseMigrations } from '@chamvi/store-db';
+import * as storeDb from '@chamvi/store-db';
 import { DatabaseKnowledgeRepository } from '../repositories/index.ts';
 import {
     KNOWLEDGE_VECTOR_DATABASE,
@@ -30,7 +29,7 @@ function readUrl(options: VectorStoreModuleOptions | undefined): string | undefi
         return undefined;
     }
 
-    if (typeof url !== 'string' || !URL.canParse(url) || !POSTGRES_PROTOCOLS.includes(new URL(url).protocol)) {
+    if (typeof url !== 'string' || !URL.canParse(url) || !storeDb.POSTGRES_PROTOCOLS.includes(new URL(url).protocol)) {
         throw new InvalidAgentDefinitionError('vectorStoreModule() url must be a postgres: or postgresql: URL.');
     }
 
@@ -83,7 +82,16 @@ export class VectorStoreModule extends DatabaseModule {
         // a check that passed with vector migrations pending (the start would apply them) reads no vector table:
         // the knowledge's check then reads an empty repository, so the stored-collection rules are not checked
         const { check } = container.resolve(AppToken.CONTEXT);
-        const pending = check && (await pendingDatabaseMigrations(this.dataSource!)).length > 0;
+        let pending: boolean;
+
+        try {
+            pending = check === true && (await storeDb.pendingDatabaseMigrations(this.dataSource!)).length > 0;
+        } catch (error) {
+            // orkos never tears down a module whose setup threw: close what the base opened
+            await this.closeQuietly(container.resolve(AppToken.LOGGER));
+
+            throw this.toConfigurationError(storeDb, error);
+        }
 
         const repository = pending ? createMemoryKnowledgeRepository() : new DatabaseKnowledgeRepository(this.dataSource!);
 
