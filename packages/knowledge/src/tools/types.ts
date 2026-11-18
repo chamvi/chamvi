@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { KnowledgeMatch } from '../repository/types.ts';
+import type { KnowledgeMatch } from '../store/types.ts';
 
 export type KnowledgeToolsOptions = {
     /** The collections the agent may search (at least one; the agent-name rule). */

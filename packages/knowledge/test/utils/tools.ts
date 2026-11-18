@@ -10,7 +10,7 @@ import { embedMany } from 'ai';
 import { createAgentState } from '@chamvi/core';
 import type { IRunArtifacts, ToolContext } from '@chamvi/core';
 import { createTestEngine } from '@chamvi/test-kit';
-import type { IKnowledge, KnowledgeCollection, MemoryKnowledgeRepository } from '@chamvi/knowledge';
+import type { IKnowledge, IKnowledgeService, KnowledgeCollection } from '@chamvi/knowledge';
 import { bindProvided } from '../../../core/src/context/helpers.ts';
 import { KNOWLEDGE_CONTEXT } from '../../src/context/constants.ts';
 
@@ -77,9 +77,9 @@ export type SeedInput = {
     documents: Record<string, Array<{ text: string; vector?: number[] }>>;
 };
 
-/** Writes a collection with its documents and chunks straight into the repository. */
+/** Writes a collection with its documents and chunks straight through the service. */
 export async function seedCollection(
-    repository: MemoryKnowledgeRepository,
+    repository: IKnowledgeService,
     name: string,
     embedding: EmbeddingModel,
     input: SeedInput,

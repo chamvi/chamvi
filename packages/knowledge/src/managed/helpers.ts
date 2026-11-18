@@ -8,7 +8,7 @@
 import { ValidationError } from '@chamvi/core';
 import { APICallError } from 'ai';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
-import type { KnowledgeCollection } from '../repository/types.ts';
+import type { KnowledgeCollection } from '../store/types.ts';
 import { documentProblem } from '../source/helpers.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { MANAGED_CONTENT_MAX_CHARS } from './constants.ts';

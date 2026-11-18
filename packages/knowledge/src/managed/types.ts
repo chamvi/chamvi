@@ -7,11 +7,11 @@
 
 import type { IClock } from '@chamvi/core';
 import type { KnowledgeEmbed, KnowledgeIndexLock, KnowledgeWake } from '../indexer/types.ts';
-import type { IKnowledgeRepository } from '../repository/types.ts';
+import type { IKnowledgeService } from '../service/types.ts';
 
 export type SyncManagedInput = {
     name: string;
-    repository: IKnowledgeRepository;
+    repository: IKnowledgeService;
     embed: KnowledgeEmbed;
     /** Whether `embed` can embed with that stored model identity. */
     hasModel: (model: string) => boolean;

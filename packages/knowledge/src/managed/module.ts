@@ -13,7 +13,7 @@ import {
     settled,
 } from '../indexer/helpers.ts';
 import { embedDocument } from '../indexer/module.ts';
-import type { KnowledgeCollection, KnowledgeDocument } from '../repository/types.ts';
+import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import { MANAGED_PAGE_SIZE } from './constants.ts';
 import { isProviderRejection, needsReembed } from './helpers.ts';
 import type { SyncManagedInput } from './types.ts';

@@ -11,13 +11,13 @@ import type { EmbeddingModel } from 'ai';
 import { MockEmbeddingModelV4 } from 'ai/test';
 import { vi } from 'vitest';
 import type {
-    IKnowledgeRepository,
+    IKnowledgeCollectionRepository,
+    IKnowledgeService,
     IKnowledgeSource,
     KnowledgeCollection,
     KnowledgeOptions,
-    MemoryKnowledgeRepository,
 } from '@chamvi/knowledge';
-import { createMemoryKnowledgeRepository, defineKnowledgeSource } from '@chamvi/knowledge';
+import { KnowledgeService, createMemoryKnowledgeRepository, defineKnowledgeSource } from '@chamvi/knowledge';
 
 /** A custom source over a mutable map of id -> content (title = id). */
 export function mapSource(documents: Map<string, string>): IKnowledgeSource {
@@ -86,7 +86,10 @@ export function recordingLocks(locks: Pick<ILockService, 'acquire' | 'renew' | '
 
 export type IndexerSetup = {
     clock: ControllableClock;
-    repository: MemoryKnowledgeRepository;
+    /** The memory repositories the knowledge is created over. */
+    store: IKnowledgeCollectionRepository;
+    /** The service the knowledge reads and writes through (one object: spies and overrides on it reach the knowledge). */
+    repository: KnowledgeService;
     locks: RecordedLocks;
     errors: Array<{ error: unknown; collection?: string }>;
     options(extra?: Partial<KnowledgeOptions>): KnowledgeOptions;
@@ -94,17 +97,20 @@ export type IndexerSetup = {
 
 export function createIndexerSetup(): IndexerSetup {
     const clock = new ControllableClock(new Date('2026-11-01T00:00:00Z'));
-    const repository = createMemoryKnowledgeRepository();
+    const store = createMemoryKnowledgeRepository();
+    const repository = new KnowledgeService({ repository: store, clock });
     const locks = recordingLocks(createTestEngine({ agents: [], clock }).lockService);
     const errors: IndexerSetup['errors'] = [];
 
     return {
         clock,
+        store,
         repository,
         locks,
         errors,
         options: (extra = {}) => ({
-            repository,
+            repository: store,
+            service: repository,
             locks,
             clock,
             onError: (error, context) => {
@@ -117,7 +123,7 @@ export function createIndexerSetup(): IndexerSetup {
 
 /** Waits until the stored collection fits `predicate`, returning it. */
 export async function waitForCollection(
-    repository: Pick<IKnowledgeRepository, 'findOneCollection'>,
+    repository: Pick<IKnowledgeService, 'findOneCollection'>,
     name: string,
     predicate: (collection: KnowledgeCollection) => boolean,
 ): Promise<KnowledgeCollection> {
@@ -136,7 +142,7 @@ export async function waitForCollection(
 
 /** Waits until the collection is ready at the given generation. */
 export function waitForReady(
-    repository: Pick<IKnowledgeRepository, 'findOneCollection'>,
+    repository: Pick<IKnowledgeService, 'findOneCollection'>,
     name: string,
     generation = 1,
 ): Promise<KnowledgeCollection> {

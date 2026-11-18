@@ -14,10 +14,12 @@ import { isObject } from 'smob';
 import { isEmbeddingModelObject, modelIdentity } from '../collection/helpers.ts';
 import { knowledgeCollection } from '../collection/module.ts';
 import type { EmbeddingModelRef, KnowledgeCollectionDefinition, ResolvedKnowledgeCollection } from '../collection/types.ts';
-import type { IKnowledgeRepository } from '../repository/types.ts';
+import { isKnowledgeRepository } from '../service/helpers.ts';
+import { KnowledgeService } from '../service/module.ts';
+import type { IKnowledgeService } from '../service/types.ts';
 import type { KnowledgeErrorContext, KnowledgeOptions } from './types.ts';
 
-const REPOSITORY_METHODS: readonly (keyof IKnowledgeRepository)[] = [
+const SERVICE_METHODS: readonly (keyof IKnowledgeService)[] = [
     'saveCollection',
     'findOneCollection',
     'findOneCollectionOrFail',
@@ -46,11 +48,6 @@ function hasMethods(value: unknown, methods: readonly string[]): boolean {
     return isObject(value) && methods.every((method) => typeof value[method] === 'function');
 }
 
-/** Whether `value` has every method of IKnowledgeRepository. */
-export function isKnowledgeRepository(value: unknown): value is IKnowledgeRepository {
-    return hasMethods(value, REPOSITORY_METHODS);
-}
-
 /** The options checked, with their defaults (InvalidAgentDefinitionError). */
 export function normalizeOptions(options: KnowledgeOptions): NormalizedOptions {
     if (!isObject(options)) {
@@ -59,6 +56,10 @@ export function normalizeOptions(options: KnowledgeOptions): NormalizedOptions {
 
     if (!isKnowledgeRepository(options.repository)) {
         throw new InvalidAgentDefinitionError('createKnowledge() repository must be a knowledge repository.');
+    }
+
+    if (options.service !== undefined && !hasMethods(options.service, SERVICE_METHODS)) {
+        throw new InvalidAgentDefinitionError('createKnowledge() service must be a knowledge service.');
     }
 
     if (!hasMethods(options.locks, ['acquire', 'release'])) {
@@ -106,6 +107,7 @@ export function normalizeOptions(options: KnowledgeOptions): NormalizedOptions {
 
     return {
         repository: options.repository,
+        service: options.service ?? new KnowledgeService({ repository: options.repository, clock }),
         locks: options.locks,
         collections: options.collections ?? [],
         models: options.models,

@@ -10,9 +10,13 @@ import * as knowledge from '@chamvi/knowledge';
 import * as knowledgeModuleEntry from '@chamvi/knowledge/module';
 
 describe('public api', () => {
-    it('exports the memory repository', () => {
-        expect(knowledge.MemoryKnowledgeRepository).toBeTypeOf('function');
-        expect(knowledge.createMemoryKnowledgeRepository()).toBeInstanceOf(knowledge.MemoryKnowledgeRepository);
+    it('exports the memory repositories and the service', () => {
+        const repository = knowledge.createMemoryKnowledgeRepository();
+
+        expect(repository).toBeInstanceOf(knowledge.MemoryKnowledgeCollectionRepository);
+        expect(repository.documents).toBeInstanceOf(knowledge.MemoryKnowledgeDocumentRepository);
+        expect(repository.chunks).toBeInstanceOf(knowledge.MemoryKnowledgeChunkRepository);
+        expect(knowledge.KnowledgeService).toBeTypeOf('function');
     });
 
     it('exports the chunker, sources, collections and createKnowledge', () => {
@@ -85,8 +89,11 @@ describe('public api', () => {
             'KNOWLEDGE_SEARCH_MAX_CHARS',
             'KNOWLEDGE_SEARCH_MAX_RESULTS',
             'KNOWLEDGE_WRITE_PERMISSION',
+            'KnowledgeService',
             'MANAGED_CONTENT_MAX_CHARS',
-            'MemoryKnowledgeRepository',
+            'MemoryKnowledgeChunkRepository',
+            'MemoryKnowledgeCollectionRepository',
+            'MemoryKnowledgeDocumentRepository',
             'chunkText',
             'contentHash',
             'createKnowledge',

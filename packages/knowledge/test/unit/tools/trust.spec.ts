@@ -21,7 +21,7 @@ import type {
     IKnowledge,
     IKnowledgeSource,
     KnowledgeSearchResult,
-    MemoryKnowledgeRepository,
+    KnowledgeService,
 } from '@chamvi/knowledge';
 import {
     createKnowledge,
@@ -55,7 +55,7 @@ const done = { parts: [{ type: 'text' as const, text: 'done' }] };
 
 type Setup = {
     engine: Engine;
-    repository: MemoryKnowledgeRepository;
+    repository: KnowledgeService;
     model: MockEmbeddingModel;
     writes: () => number;
 };

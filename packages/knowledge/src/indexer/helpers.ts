@@ -8,7 +8,7 @@
 import type { IClock, ILockService } from '@chamvi/core';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
-import type { KnowledgeCollection, KnowledgeDocument } from '../repository/types.ts';
+import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { KNOWLEDGE_LOCK_TTL_MS } from './constants.ts';
 import type { KnowledgeIndexLock, KnowledgeWake, KnowledgeWakeReason } from './types.ts';

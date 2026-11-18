@@ -65,7 +65,7 @@ describe('README example', () => {
         knowledge.start();
         await engine.start();
 
-        const ready = await waitForReady(knowledge.repository, 'handbook');
+        const ready = await waitForReady(knowledge.service, 'handbook');
 
         expect(ready.trusted).toBe(true);
 

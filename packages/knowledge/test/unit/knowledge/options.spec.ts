@@ -10,11 +10,13 @@ import {
     InvalidAgentDefinitionError,
     InvalidRunStateError,
     ValidationError,
+    systemClock,
 } from '@chamvi/core';
 import { createTestEngine, mockEmbeddingModel } from '@chamvi/test-kit';
 import { describe, expect, it } from 'vitest';
 import type { KnowledgeCollection, KnowledgeOptions } from '@chamvi/knowledge';
 import {
+    KnowledgeService,
     createKnowledge,
     createMemoryKnowledgeRepository,
     defineKnowledgeSource,
@@ -99,6 +101,19 @@ describe('createKnowledge', () => {
         expect(createKnowledge(base({ repository })).repository).toBe(repository);
     });
 
+    it('builds a service over the repository, or uses the given one', async () => {
+        const repository = createMemoryKnowledgeRepository();
+        const service = new KnowledgeService({ repository, clock: systemClock });
+        const built = createKnowledge(base({ repository }));
+
+        expect(built.service).toBeInstanceOf(KnowledgeService);
+        expect(createKnowledge(base({ repository, service })).service).toBe(service);
+
+        await service.saveCollection(record('docs', 'declared'));
+
+        expect(await built.service.findOneCollection('docs')).toEqual(record('docs', 'declared'));
+    });
+
     it('refuses a duplicate collection name', () => {
         const model = mockEmbeddingModel();
 
@@ -155,6 +170,9 @@ describe('createKnowledge', () => {
         const bad: Partial<Record<keyof KnowledgeOptions, unknown>>[] = [
             { repository: undefined },
             { repository: {} },
+            // the entity methods without the documents and chunks children
+            { repository: Object.assign(Object.create(createMemoryKnowledgeRepository()), { documents: undefined }) },
+            { service: {} },
             { locks: {} },
             { collections: 'docs' },
             { models: 'openai' },

@@ -12,12 +12,12 @@ import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import { managedNameError } from '../collection/helpers.ts';
 import { chunkText, contentHash } from '../chunk/module.ts';
 import type { KnowledgeErrorContext } from '../knowledge/types.ts';
+import type { IKnowledgeService } from '../service/types.ts';
 import type {
-    IKnowledgeRepository,
     KnowledgeChunkInput,
     KnowledgeCollection,
     KnowledgeDocument,
-} from '../repository/types.ts';
+} from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import {
     EMBED_BATCH_SIZE,
@@ -380,7 +380,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
  * replica backs off together. Whether it was stored.
  */
 async function recordErrorUnderLock(
-    repository: IKnowledgeRepository,
+    repository: IKnowledgeService,
     name: string,
     error: unknown,
     clock: IClock,
@@ -411,7 +411,7 @@ async function recordErrorUnderLock(
 }
 
 /** How long until the stored backoff of the collection ends (0 when none). */
-async function retryDelayOf(repository: IKnowledgeRepository, name: string, clock: IClock): Promise<number> {
+async function retryDelayOf(repository: IKnowledgeService, name: string, clock: IClock): Promise<number> {
     const record = await repository.findOneCollection(name);
     const retryAt = record?.kind === 'declared' ? record.retryAt : undefined;
 
@@ -428,7 +428,7 @@ async function retryDelayOf(repository: IKnowledgeRepository, name: string, cloc
  * stored `syncedAt`, the end of the last successful pass on any replica.
  */
 async function dueDelayOf(
-    repository: IKnowledgeRepository,
+    repository: IKnowledgeService,
     name: string,
     clock: IClock,
     idleMs: number | undefined,
@@ -617,7 +617,7 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
  * declares it is syncing it: left alone), re-read once the lock is held.
  */
 export async function markOrphans(
-    repository: IKnowledgeRepository,
+    repository: IKnowledgeService,
     declared: ReadonlySet<string>,
     locks: Pick<ILockService, 'acquire' | 'release'>,
     owner: string,

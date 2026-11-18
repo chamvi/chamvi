@@ -12,7 +12,7 @@ import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 import { injectKnowledgeContext } from '../context/module.ts';
 import type { IKnowledge } from '../knowledge/types.ts';
-import type { KnowledgeCollection, KnowledgeMatch } from '../repository/types.ts';
+import type { KnowledgeCollection, KnowledgeMatch } from '../store/types.ts';
 import {
     KNOWLEDGE_QUERY_MAX_LENGTH,
     KNOWLEDGE_SEARCH_MAX_CHARS,
@@ -37,7 +37,7 @@ import type { KnowledgeSearchInput, KnowledgeSearchResult, KnowledgeToolsOptions
  * does not declare it marked it during a rolling deploy).
  */
 async function readCollection(knowledge: IKnowledge, name: string): Promise<KnowledgeCollection> {
-    const record = await knowledge.repository.findOneCollection(name);
+    const record = await knowledge.service.findOneCollection(name);
 
     if (record && !knowledge.collection(name) && (record.status === 'orphaned' || record.kind === 'declared')) {
         throw new ValidationError(`Knowledge collection "${name}" is not available.`);
@@ -100,7 +100,7 @@ async function isUntrusted(input: unknown, ctx: ToolContext, options: KnowledgeT
     const names = searchedCollections(input, options);
 
     try {
-        const records = await Promise.all(names.map((name) => knowledge.repository.findOneCollection(name)));
+        const records = await Promise.all(names.map((name) => knowledge.service.findOneCollection(name)));
 
         return records.some((record, index) => isUntrustedRecord(knowledge, names[index]!, record));
     } catch {
@@ -185,7 +185,7 @@ export function knowledgeSearchTool(options: KnowledgeToolsOptionsNormalized): T
                 return vector;
             };
             const count = topK ?? options.topK;
-            const found = await Promise.all(records.map(async (record): Promise<KnowledgeMatch[]> => knowledge.repository.search(
+            const found = await Promise.all(records.map(async (record): Promise<KnowledgeMatch[]> => knowledge.service.search(
                 record.name,
                 record.generation,
                 await vectorOf(record.model),
@@ -207,7 +207,7 @@ export function knowledgeSearchTool(options: KnowledgeToolsOptionsNormalized): T
 
             // a sync may have switched the served generation (its chunks deleted) or downgraded
             // the collection (untrusted chunks written) meanwhile: never an answer from either
-            const after = await Promise.all(records.map((record) => knowledge.repository.findOneCollection(record.name)));
+            const after = await Promise.all(records.map((record) => knowledge.service.findOneCollection(record.name)));
 
             for (const [index, record] of records.entries()) {
                 const now = after[index];

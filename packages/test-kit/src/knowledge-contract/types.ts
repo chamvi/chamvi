@@ -6,10 +6,10 @@
  */
 
 /*
- * Structural copies of `@chamvi/knowledge`'s repository types: an import
+ * Structural copies of `@chamvi/knowledge`'s service types: an import
  * would make the kit depend on `@chamvi/knowledge`, which depends on the kit
  * for its tests, a cycle in the graph release-please builds. Every
- * `IKnowledgeRepository` is a `ContractKnowledgeRepository`.
+ * `KnowledgeService` is a `ContractKnowledgeService`.
  */
 
 export type ContractKnowledgeTarget = {
@@ -74,8 +74,14 @@ export type ContractKnowledgeMatch = {
     source?: string;
 };
 
-export type ContractKnowledgeRepository = {
-    saveCollection(collection: ContractKnowledgeCollection): Promise<void>;
+/** A stored collection: the collection with its row id (a uuid v7, given at creation) and its fence counter. */
+export type ContractKnowledgeCollectionRecord = ContractKnowledgeCollection & {
+    id: string;
+    fence: number;
+};
+
+export type ContractKnowledgeService = {
+    saveCollection(collection: ContractKnowledgeCollection): Promise<ContractKnowledgeCollectionRecord>;
     findOneCollection(name: string): Promise<ContractKnowledgeCollection | undefined>;
     findOneCollectionOrFail(name: string): Promise<ContractKnowledgeCollection>;
     findCollections(): Promise<ContractKnowledgeCollection[]>;
@@ -123,5 +129,11 @@ export type ContractKnowledgeRepository = {
     ): Promise<ContractKnowledgeMatch[]>;
 };
 
-/** A fresh, empty repository per call. */
-export type KnowledgeRepositoryContractFactory = () => ContractKnowledgeRepository | Promise<ContractKnowledgeRepository>;
+/** A service over fresh, empty repositories per call. */
+export type KnowledgeRepositoryContractFactory = () => ContractKnowledgeService | Promise<ContractKnowledgeService>;
+
+export type KnowledgeRepositoryContractOptions = {
+    /** Label of the suite, e.g. the backend. */
+    name: string;
+    create: KnowledgeRepositoryContractFactory;
+};

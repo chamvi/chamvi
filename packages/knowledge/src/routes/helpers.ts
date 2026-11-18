@@ -13,7 +13,7 @@ import type {
     KnowledgeDocument,
     KnowledgeDocumentFindOptions,
     KnowledgeDocumentStatus,
-} from '../repository/types.ts';
+} from '../store/types.ts';
 import { KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH } from '../source/constants.ts';
 import { isDocumentId } from '../source/helpers.ts';
 import { KNOWLEDGE_DOCUMENTS_DEFAULT_LIMIT, KNOWLEDGE_DOCUMENTS_MAX_LIMIT } from './constants.ts';

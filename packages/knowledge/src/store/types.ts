@@ -5,6 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { IEntityRepository } from '@chamvi/store';
+
 /** `declared`: defined in code and owned by it; `managed`: created and filled through the API. */
 export type KnowledgeCollectionKind = 'declared' | 'managed';
 
@@ -140,67 +142,83 @@ export type KnowledgeSearchOptions = {
 };
 
 /**
- * Storage of knowledge collections, their documents and chunk vectors.
- * Values are copied in and out; every method is atomic on its own.
- * Documents and chunks need their collection (`RepositoryNotFoundError`
- * otherwise); chunks may be written before their document's record.
+ * The row of a collection: the collection with its row `id` (a uuid v7
+ * given at creation and never changed, so a collection deleted and created
+ * again under its name is another row) and its `fence` counter (0 for a new
+ * row). `name` is unique.
  */
-export interface IKnowledgeRepository {
-    /** Inserts or replaces the collection of that name. */
-    saveCollection(collection: KnowledgeCollection): Promise<void>;
-    findOneCollection(name: string): Promise<KnowledgeCollection | undefined>;
-    /** As `findOneCollection`, rejecting a missing one with `RepositoryNotFoundError`. */
-    findOneCollectionOrFail(name: string): Promise<KnowledgeCollection>;
-    /** Every collection, in name code-point order. */
-    findCollections(): Promise<KnowledgeCollection[]>;
-    /** Deletes the collection with its documents and chunks; whether it existed. */
-    deleteCollection(name: string): Promise<boolean>;
-    /** Inserts or replaces the document of that collection and id. */
-    saveDocument(document: KnowledgeDocument): Promise<void>;
-    findOneDocument(collection: string, id: string): Promise<KnowledgeDocument | undefined>;
-    /** As `findOneDocument`, rejecting a missing one with `RepositoryNotFoundError`. */
-    findOneDocumentOrFail(collection: string, id: string): Promise<KnowledgeDocument>;
-    /** The collection's document ids, in code-point order. */
-    findDocumentIds(collection: string): Promise<string[]>;
+export type KnowledgeCollectionRecord = KnowledgeCollection & {
+    id: string;
+    fence: number;
+};
+
+/**
+ * The row of a document: the document with its row `key` (a uuid v7) and
+ * its collection's row id in place of the collection's name;
+ * `(collectionId, id)` is unique.
+ */
+export type KnowledgeDocumentRecord = Omit<KnowledgeDocument, 'collection'> & {
+    key: string;
+    collectionId: string;
+};
+
+/**
+ * The row of a chunk: a chunk of one document and generation with its row
+ * `key` (a uuid v7); `(collectionId, document, generation, index)` is
+ * unique. It references the collection only: chunks may be written before
+ * their document's record.
+ */
+export type KnowledgeChunkRecord = KnowledgeChunkInput & {
+    key: string;
+    collectionId: string;
+    /** The document id. */
+    document: string;
+    generation: number;
+};
+
+/** A match of `IKnowledgeChunkRepository.search`, before the collection's name is added. */
+export type KnowledgeChunkMatch = Omit<KnowledgeMatch, 'collection'>;
+
+/**
+ * The chunks of collections: the generic entity port on
+ * `KnowledgeChunkRecord` (key `key`), with one finder. A chunk of a missing
+ * collection is `EntityRelationError` naming the collection.
+ */
+export interface IKnowledgeChunkRepository extends IEntityRepository<KnowledgeChunkRecord> {
     /**
-     * The collection's documents (filtered by `status`), in id code-point
-     * order, paged by `offset` and `limit` (unbounded without); `total`
-     * counts the matches before paging.
-     */
-    findDocuments(collection: string, options?: KnowledgeDocumentFindOptions): Promise<KnowledgeDocumentPage>;
-    /**
-     * Applies the patch only while the stored document has that version's
-     * hash, title and source (atomic check and write); `false` for a missing
-     * document or another version.
-     */
-    updateDocument(
-        collection: string,
-        id: string,
-        version: KnowledgeDocumentVersion,
-        patch: KnowledgeDocumentPatch,
-    ): Promise<boolean>;
-    /** Deletes the document and its chunks of every generation; whether the document existed. */
-    deleteDocument(collection: string, id: string): Promise<boolean>;
-    /** Atomically replaces the document's chunks of one generation (`[]` removes them). */
-    replaceChunks(
-        collection: string,
-        document: string,
-        generation: number,
-        chunks: KnowledgeChunkInput[],
-    ): Promise<void>;
-    /** Deletes every chunk of that generation. */
-    deleteGeneration(collection: string, generation: number): Promise<void>;
-    /** Deletes every chunk of the collection outside that generation. */
-    deleteGenerationsExcept(collection: string, generation: number): Promise<void>;
-    /**
-     * The `topK` chunks of the generation closest to `vector` by cosine
-     * similarity, highest score first, ties by document id (code point),
-     * then chunk index; `[]` for an unknown collection.
+     * The `topK` chunks of the collection's generation closest to `vector`
+     * by cosine similarity, highest score first, ties by document id (code
+     * point), then chunk index; a score below `minScore` is dropped. Only
+     * chunks whose vector has the length of `vector` take part (two models
+     * never meet in one search).
      */
     search(
-        collection: string,
+        collectionId: string,
         generation: number,
         vector: number[],
         options: KnowledgeSearchOptions,
-    ): Promise<KnowledgeMatch[]>;
+    ): Promise<KnowledgeChunkMatch[]>;
+}
+
+/**
+ * The documents of collections: the generic entity port on
+ * `KnowledgeDocumentRecord` (key `key`, `(collectionId, id)` unique;
+ * `upsert` replaces by `(collectionId, id)` and keeps the stored key). A
+ * document of a missing collection is `EntityRelationError` naming the
+ * collection.
+ */
+export interface IKnowledgeDocumentRepository extends IEntityRepository<KnowledgeDocumentRecord> {}
+
+/**
+ * The knowledge port: the generic entity port on `KnowledgeCollectionRecord`
+ * (key `id`, `name` unique; a sort by `name` orders by code point), with
+ * the aggregate's documents and chunks as repositories of their own. Inside
+ * `transaction(fn)` the handed-in repository's `documents` and `chunks`
+ * are bound to the same transaction. Remove a collection's chunks and
+ * documents before the collection.
+ */
+export interface IKnowledgeCollectionRepository extends IEntityRepository<KnowledgeCollectionRecord> {
+    readonly documents: IKnowledgeDocumentRepository;
+
+    readonly chunks: IKnowledgeChunkRepository;
 }

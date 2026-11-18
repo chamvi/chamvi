@@ -8,7 +8,8 @@
 import type { IClock, ILockService } from '@chamvi/core';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
 import type { KnowledgeErrorContext } from '../knowledge/types.ts';
-import type { IKnowledgeRepository, KnowledgeChunkInput } from '../repository/types.ts';
+import type { IKnowledgeService } from '../service/types.ts';
+import type { KnowledgeChunkInput } from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 
 /** Embeds texts with the model of a stored identity, one vector per text. */
@@ -22,7 +23,7 @@ export type KnowledgeIndexLock = {
 
 export type SyncCollectionInput = {
     definition: ResolvedKnowledgeCollection;
-    repository: IKnowledgeRepository;
+    repository: IKnowledgeService;
     embed: KnowledgeEmbed;
     clock: IClock;
     signal: AbortSignal;
@@ -50,7 +51,7 @@ export type KnowledgePass = (lock: KnowledgeIndexLock, report: (error: unknown) 
 export type CollectionLoopInput = {
     /** The collection (the lock `knowledge:<name>`, the error context). */
     name: string;
-    repository: IKnowledgeRepository;
+    repository: IKnowledgeService;
     locks: Pick<ILockService, 'acquire' | 'release'>;
     owner: string;
     clock: IClock;

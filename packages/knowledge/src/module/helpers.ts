@@ -11,7 +11,8 @@ import { isObject } from 'smob';
 import { isEmbeddingModelObject } from '../collection/helpers.ts';
 import { knowledgeCollection } from '../collection/module.ts';
 import type { KnowledgeCollectionDefinition } from '../collection/types.ts';
-import { isKnowledgeRepository, resolveEmbeddingModel } from '../knowledge/helpers.ts';
+import { resolveEmbeddingModel } from '../knowledge/helpers.ts';
+import { isKnowledgeRepository } from '../service/helpers.ts';
 import { KNOWLEDGE_MODEL_VARIABLE } from './constants.ts';
 import type { KnowledgeModuleOptions } from './types.ts';
 

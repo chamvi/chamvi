@@ -9,8 +9,9 @@ import type { IClock, ILockService, IModelResolver } from '@chamvi/core';
 import type { EmbeddingModel } from 'ai';
 import type { IComponent } from 'hubwire';
 import type { EmbeddingModelRef, KnowledgeCollectionDefinition, ResolvedKnowledgeCollection } from '../collection/types.ts';
-import type { IKnowledgeRepository, KnowledgeCollection, KnowledgeDocumentStatus } from '../repository/types.ts';
+import type { IKnowledgeService, KnowledgeServiceContext } from '../service/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
+import type { KnowledgeCollection, KnowledgeDocumentStatus } from '../store/types.ts';
 
 /** What an error reported through `onError` concerns. */
 export type KnowledgeErrorContext = {
@@ -18,7 +19,14 @@ export type KnowledgeErrorContext = {
 };
 
 export type KnowledgeOptions = {
-    repository: IKnowledgeRepository;
+    /** The collection repository with its documents and chunks (`createMemoryKnowledgeRepository()` or a persistent one). */
+    repository: KnowledgeServiceContext['repository'];
+    /**
+     * The service over `repository` every read and write goes through;
+     * default a `KnowledgeService` over `repository` and `clock`. A caller
+     * that shares or observes the service passes its own.
+     */
+    service?: IKnowledgeService;
     /** The engine's lock service: one indexer per collection across replicas. */
     locks: Pick<ILockService, 'acquire' | 'release'>;
     collections?: readonly KnowledgeCollectionDefinition[];
@@ -52,7 +60,10 @@ export type KnowledgeDocumentPutResult = {
 
 /** The declared and managed collections, their repository and their indexing. */
 export interface IKnowledge {
-    readonly repository: IKnowledgeRepository;
+    /** The repository the knowledge was created over. */
+    readonly repository: KnowledgeServiceContext['repository'];
+    /** The service every read and write of the knowledge goes through. */
+    readonly service: IKnowledgeService;
     /**
      * The managed poll (a hubwire component on the clock): lists the
      * collections at once and every KNOWLEDGE_MANAGED_POLL_MS, starting and
