@@ -49,9 +49,9 @@ chamvi/
 │   ├── cli/                         # @chamvi/cli (bin chamvi -> dist/cli.mjs)
 │   │   ├── src/cli.ts               # the bin (shebang, then the header)
 │   │   └── test/fixtures/           # apps the commands and the spawned bin run: app (README), decorated, database, failing, hang, slow, keyless, broken
-│   ├── store/, store-memory/        # @chamvi/store (the ports), @chamvi/store-memory: a folder per aggregate
+│   ├── store/, store-memory/        # @chamvi/store (the ports), @chamvi/store-memory (`src/repositories/<aggregate>`): a folder per aggregate
 │   ├── store-db/               # @chamvi/store-db (same layout)
-│   │   ├── src/{entity,database,migration,query,schema,migrations,<aggregate>}/
+│   │   ├── src/{entity,database,migration,query,schema,migrations,repositories/<aggregate>}/
 │   │   └── test/global-setup.ts     # Starts postgres:18-alpine via testcontainers for the suite
 │   └── docs/                        # @chamvi/docs (private, not released): VitePress site (npm run docs:dev / docs:build)
 │       ├── src/.vitepress/          # config.mts, theme/ (Tailwind v4 tokens, Layout.vue), components/{home,layout}/

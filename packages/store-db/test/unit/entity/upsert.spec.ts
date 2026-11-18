@@ -14,7 +14,7 @@ import {
     it,
 } from 'vitest';
 import { testUuid } from '@chamvi/test-kit';
-import { DatabaseConnectionRepository } from '../../../src/connection/index.ts';
+import { DatabaseConnectionRepository } from '../../../src/repositories/connection/index.ts';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
 
 const CONNECTION = testUuid('connection');

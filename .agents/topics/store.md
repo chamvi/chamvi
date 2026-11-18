@@ -28,7 +28,7 @@ One folder per aggregate (`<aggregate>/service.ts`, its context type in `types.t
 | `ConnectionService` | The fence and the config reads, see [connections.md](connections.md) |
 | `ConversationService` | Every rule of conversations, see [conversations.md](conversations.md) |
 
-Rule cases whose outcome depends on the driver (large batches, ordering, byte sizes, bind limits, concurrency) run on PostgreSQL too, in store-db's `test/unit/<aggregate>/service.spec.ts`.
+Rule cases whose outcome depends on the driver (large batches, ordering, byte sizes, bind limits, concurrency) run on PostgreSQL too, in store-db's `test/unit/repositories/<aggregate>/service.spec.ts`.
 
 ## Memory repositories (`@chamvi/store-memory`)
 
@@ -64,7 +64,7 @@ SQLite (an app's database only): every use of a better-sqlite3 data source (tran
 |------|---------|
 | `entity/` | `EntityRepositoryAdapter` (`module.ts`), lock modes, marks, field rename, uuid and date handling, chunking, constraint mapping (`helpers/`) |
 | `entities/` | One TypeORM entity per table; `TableName` and the jsonb transformers (`constants.ts`), `toJsonParameter()` (`helpers.ts`) |
-| `run/`, `step/`, `checkpoint/`, `effect/`, `artifact/`, `state/`, `lock/`, `idempotency/`, `agent-revision/`, `connection/`, `conversation/` | The `Database*Repository` of each port (children in the same folder; `connection/fence.ts`) |
+| `repositories/<aggregate>/` (`run`, `step`, `checkpoint`, `effect`, `artifact`, `state`, `lock`, `idempotency`, `agent-revision`, `connection`, `conversation`) | The `Database*Repository` of each port (children in the same folder; `connection/fence.ts`) |
 | `schema/` | `migrateStore()`, `pendingMigrations()`, `assertStoreNotLegacy()`, `STORE_ENTITIES`, `STORE_MIGRATIONS`, `MIGRATION_LOCK_NAME` |
 | `migrations/` | The four generated migrations above |
 | `database/` | An app's database: `buildDatabaseOptions` (no I/O, UTC pinned), `connectDatabase`, `synchronizeDatabase`, `closeDatabase`, `migrateDatabase`, `pendingDatabaseMigrations`, `findUntypedColumns`, `queueDataSource` |
@@ -73,7 +73,7 @@ SQLite (an app's database only): every use of a better-sqlite3 data source (tran
 | `column/` | `dateToISOStringTransformer` |
 | `error/` | The errors above, `maskDatabaseUrl`, `errorCode` |
 
-`packages/store/src` and `packages/store-memory/src` hold one folder per aggregate (the port and its record types; the memory repository), plus `entity/` (the generic port, `MemoryEntityRepository`), `error/` (store) and `registry/` (store-memory).
+`packages/store/src` and `packages/store-memory/src/repositories` hold one folder per aggregate (the port and its record types; the memory repository), plus `entity/` (the generic port, `MemoryEntityRepository`), `error/` (store) and `registry/` (store-memory).
 
 ## Testing
 

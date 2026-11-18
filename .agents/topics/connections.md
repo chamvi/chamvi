@@ -26,9 +26,9 @@ A connection is one configured account of a provider, in three tiers: plain sett
 | `core/src/keyring/` | `createKeyring()`, `parseKeyring()`, `seal()`, `open()` (`module.ts`), `KEYRING_KEY_LENGTH` (public), `SEAL_*` and helpers (internal), `IKeyring`, `KeyringKey`, `WrappedKey` (`types.ts`) |
 | `core/src/connection/` | `createConnectionVault()` (`module.ts`), `createConnectionConfigStore()` (`config.ts`), `resolveConnection()`, `storedConnectionName()` (`resolve.ts`), the session class (`session.ts`, internal), `assertConnection*()` (`validate.ts`, public for store adapters), lock key, AAD and option helpers (`helpers.ts`, internal), `DEFAULT_CONNECTION_LEASE_TTL_MS` and the length limits (`constants.ts`), vault types and `ConnectionStatus`, `ConnectionWidget`, `ConnectionActions`, `IConnectionHandle` (`types.ts`) |
 | `core/src/connection/service.ts` | `ConnectionService`: every rule, the fence (`assertFence`), `findConfig` (a read without the row lock, version-checked, then the locked read) |
-| `store-memory/src/connection/` | `MemoryConnectionRepository` with its `entries` and `secrets` (the fence reads the `lock` rows of its registry) |
+| `store-memory/src/repositories/connection/` | `MemoryConnectionRepository` with its `entries` and `secrets` (the fence reads the `lock` rows of its registry) |
 | `core/src/errors/` | `decryption-failed.ts`, `connection-held.ts`, `connection-changed.ts`, `connection-not-configured.ts`, `lease-lost.ts` (run and lock forms) |
-| `store-db/src/connection/` | `DatabaseConnectionRepository`, entry and secret repositories, `findFence` (`fence.ts`); tables in [store.md](store.md) |
+| `store-db/src/repositories/connection/` | `DatabaseConnectionRepository`, entry and secret repositories, `findFence` (`fence.ts`); tables in [store.md](store.md) |
 | `test-kit/src/connection-contract/` | `describeConnectionRepositoryContract` |
 | `chat-whatsapp/src/auth/` | `createStoreWhatsAppAuth()`, `WHATSAPP_CONNECTION_TYPE` |
 | `chat-whatsapp/src/module/` | `whatsappModule()`, the handle (`helpers.ts`: statuses `-` to `_`, `stopped` as `disconnected`) |

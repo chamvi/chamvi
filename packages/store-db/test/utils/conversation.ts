@@ -10,8 +10,8 @@ import { ConversationService } from '@chamvi/core';
 import type { IClock } from '@chamvi/core';
 import { EntityConflictError } from '@chamvi/store';
 import type { Run } from '@chamvi/store';
-import { DatabaseConversationRepository } from '../../src/conversation/index.ts';
-import { DatabaseRunRepository } from '../../src/run/index.ts';
+import { DatabaseConversationRepository } from '../../src/repositories/conversation/index.ts';
+import { DatabaseRunRepository } from '../../src/repositories/run/index.ts';
 
 /** Store a run of this id if absent: a turn references its run, as the engine creates it first. */
 export async function seedRun(dataSource: DataSource, id: string, overrides: Partial<Run> = {}): Promise<void> {
