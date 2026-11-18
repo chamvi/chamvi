@@ -9,7 +9,7 @@ import type {
     Agent,
     ChannelSubscription,
     IEngine,
-    RunService,
+    IRunService,
 } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
 import { InvalidAgentDefinitionError, findApprovalWaitBelow } from '@chamvi/core';
@@ -71,7 +71,7 @@ function isApprovalWait(run: Run): boolean {
  * runs, the first unsettled descendant that waits on an approval
  * (`findApprovalWaitBelow()`). A dispatch wait alone keeps the job waiting.
  */
-export async function isJobSettled(store: Pick<RunService, 'find' | 'findOne'>, run: Run): Promise<Run | false> {
+export async function isJobSettled(store: Pick<IRunService, 'find' | 'findOne'>, run: Run): Promise<Run | false> {
     if (TERMINAL.includes(run.status) || isApprovalWait(run)) {
         return run;
     }
@@ -88,7 +88,7 @@ export async function isJobSettled(store: Pick<RunService, 'find' | 'findOne'>, 
  * for a human (an approval, its own or a descendant's): it starts only once a
  * human answers (or the approval times out), so a job must not wait for it.
  */
-export async function isQueuedBehindApproval(store: Pick<RunService, 'find' | 'findOne'>, run: Run): Promise<boolean> {
+export async function isQueuedBehindApproval(store: Pick<IRunService, 'find' | 'findOne'>, run: Run): Promise<boolean> {
     if (run.status !== 'queued' || run.concurrencyKey === undefined) {
         return false;
     }

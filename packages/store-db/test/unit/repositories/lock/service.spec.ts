@@ -13,7 +13,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { LockService } from '@chamvi/core';
+import { type ILockService, LockService } from '@chamvi/core';
 import type { Lock } from '@chamvi/store';
 import { ControllableClock } from '@chamvi/test-kit';
 import { DatabaseLockRepository } from '../../../../src/repositories/lock/index.ts';
@@ -104,7 +104,7 @@ describePostgres('lock service on postgres', () => {
     let log: ReturnType<typeof recordStatements>;
     let clock: ControllableClock;
     let repository: DatabaseLockRepository;
-    let locks: LockService;
+    let locks: ILockService;
 
     const probed = (probe: Probe) => new LockService({ repository: new ProbedLockRepository(dataSource, probe), clock });
 

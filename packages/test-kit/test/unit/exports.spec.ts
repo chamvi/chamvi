@@ -11,7 +11,7 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
-import type { ConnectionService } from '@chamvi/core';
+import type { IConnectionService } from '@chamvi/core';
 import type { IConversationRepository, ILockRepository } from '@chamvi/store';
 import * as kit from '@chamvi/test-kit';
 
@@ -61,6 +61,6 @@ describe('public api', () => {
         expectTypeOf<kit.ConnectionRepositoryContractStore['locks']>().toEqualTypeOf<ILockRepository>();
         expectTypeOf<kit.ConversationRepositoryContractInput['untilBlocked']>().toEqualTypeOf<() => Promise<void>>();
         expectTypeOf<kit.ConversationRepositoryContractStore['repository']>().toEqualTypeOf<IConversationRepository>();
-        expectTypeOf<ReturnType<typeof kit.createTestEngine>['connectionService']>().toEqualTypeOf<ConnectionService | undefined>();
+        expectTypeOf<ReturnType<typeof kit.createTestEngine>['connectionService']>().toEqualTypeOf<IConnectionService | undefined>();
     });
 });

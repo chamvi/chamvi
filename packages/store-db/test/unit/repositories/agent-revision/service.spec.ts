@@ -13,13 +13,13 @@ import {
     expect,
     it,
 } from 'vitest';
-import { AgentRevisionService } from '@chamvi/core';
+import { AgentRevisionService, type IAgentRevisionService } from '@chamvi/core';
 import { DatabaseAgentRevisionRepository } from '../../../../src/repositories/agent-revision/index.ts';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../../utils/database.ts';
 
 describePostgres('AgentRevisionService on PostgreSQL', () => {
     let dataSource: DataSource;
-    let revisions: AgentRevisionService;
+    let revisions: IAgentRevisionService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();

@@ -30,7 +30,7 @@ import type {
     ModelAgentDefinition,
 } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
-import { ArtifactService } from '../../../src/artifact/index.ts';
+import { ArtifactService, type IArtifactService } from '../../../src/artifact/index.ts';
 import { gateTool, recordApprovals } from '../../utils/approvals.ts';
 import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
@@ -217,7 +217,7 @@ describe('attachments at dispatch', () => {
     it('leaves no extra artifacts when two healers of one key race', async () => {
         /** A store whose artifact writes take a round trip, like a database. */
         class SlowArtifactService extends ArtifactService {
-            override async create(...args: Parameters<ArtifactService['create']>): Promise<boolean> {
+            override async create(...args: Parameters<IArtifactService['create']>): Promise<boolean> {
                 await new Promise<void>((resolve) => {
                     setImmediate(resolve);
                 });

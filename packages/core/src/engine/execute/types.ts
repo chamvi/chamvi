@@ -17,14 +17,13 @@ import type { ToolSet } from 'ai';
 import type { Agent } from '../../agent/types.ts';
 import type { IClock } from '../../clock/index.ts';
 import type { ContextKey } from '../../context/types.ts';
-import type { ToolCallFrame } from '../../effect/types.ts';
+import type { IEffectService, ToolCallFrame  } from '../../effect/types.ts';
 import type { IModelResolver, ModelRef } from '../../model/types.ts';
 import type { SkillContribution } from '../../skill/types.ts';
-import type { ArtifactService } from '../../artifact/service.ts';
-import type { CheckpointService } from '../../checkpoint/service.ts';
-import type { EffectService } from '../../effect/service.ts';
-import type { StateService } from '../../state/service.ts';
-import type { StepService } from '../../step/service.ts';
+import type { IArtifactService } from '../../artifact/types.ts';
+import type { ICheckpointService } from '../../checkpoint/types.ts';
+import type { IStateService } from '../../state/types.ts';
+import type { IStepService } from '../../step/types.ts';
 import type { ToolContext } from '../../tool/types.ts';
 import type { IEngine, RunDelta } from '../types.ts';
 
@@ -67,11 +66,11 @@ export type ExecuteContext = {
     model: ModelRef | undefined;
     /** Resolves a string model at execution start; without one a string goes to the AI SDK as is. */
     models?: IModelResolver;
-    stepService: StepService;
-    checkpointService: CheckpointService;
-    effectService: EffectService;
-    artifactService: ArtifactService;
-    stateService: StateService;
+    stepService: IStepService;
+    checkpointService: ICheckpointService;
+    effectService: IEffectService;
+    artifactService: IArtifactService;
+    stateService: IStateService;
     clock: IClock;
     /** Aborted by engine.cancel(). */
     signal: AbortSignal;

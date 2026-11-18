@@ -11,13 +11,13 @@ import type {
     ConversationIdentity,
     ConversationItem,
     ConversationNote,
+    ConversationNoteOperation,
     ConversationScope,
     ConversationSnapshot,
     IConversationRepository,
-    Invoker,
-    Run,
+    Invoker, 
+    Run, 
 } from '@chamvi/store';
-import type { ConversationService } from './service.ts';
 
 /** What a channel hands to the trusted intake: the identity fields it owns plus the user's text. */
 export type ConversationTarget = {
@@ -90,7 +90,7 @@ export type ConversationOptions = {
 
 /** Optional engine capability; no ordinary run calls it. */
 export interface IConversations {
-    readonly service: ConversationService;
+    readonly service: IConversationService;
     readonly limits: ResolvedConversationLimits;
 
     allow(operation: ConversationOperationLiteral, identity: ConversationIdentity, agent: string, invoker?: Invoker): Promise<void>;
@@ -140,3 +140,117 @@ export type ConversationInspection = {
     items: { data: ConversationItem[]; total: number };
     notes: { data: ConversationNote[]; total: number };
 };
+
+/**
+ * The operations of `ConversationService`. Anything that satisfies it can stand in
+ * for the service: the engine, the channels and the HTTP API take this type.
+ */
+export interface IConversationService {
+    /**
+     * The identity's current scope, created at generation 0 when missing.
+     * Insert-if-absent on the identity's key: a concurrent creation is read
+     * back, and a deleted generation (a tombstone) is never revived.
+     */
+    resolve(identity: ConversationIdentity): Promise<ConversationScope>;
+
+    /** The identity's current scope, or undefined; read only. */
+    findOne(identity: ConversationIdentity): Promise<ConversationScope | undefined>;
+
+    findOneOrFail(identity: ConversationIdentity): Promise<ConversationScope>;
+
+    /** Read-only owner lookup for terminal repair, never reserves a turn. */
+    activeRun(scope: ConversationScope): Promise<string | undefined>;
+
+    /**
+     * Admit only a nonterminal run; retries reuse its snapshot while it owns
+     * the turn. A stale scope is `stale`, another owner `busy`; a run whose
+     * turn already ended is refused, as is a run that does not exist
+     * (RunNotFoundError). Trims the transcript (retention, then
+     * maxStoredItems) and stores the run's input after the recall.
+     */
+    beginTurn(
+        scope: ConversationScope,
+        runId: string,
+        text: string,
+        limits: ResolvedConversationLimits,
+    ): Promise<BeginTurnResult>;
+
+    /** Terminal settlement only: clears the owner and snapshot. Never resume this run afterward. */
+    endTurn(scope: ConversationScope, runId: string, confirmedEmitIds: string[]): Promise<void>;
+
+    /** Journal an assistant emit of the active run before it is sent; a repeat of the same emit is a no-op. */
+    prepareEmit(scope: ConversationScope, item: ConversationItem): Promise<void>;
+
+    /** pending -> sent, by the active run only. */
+    confirmEmit(scope: ConversationScope, itemId: string): Promise<void>;
+
+    /** The run's emits still pending in the scope's generation, in the order they were prepared. */
+    pendingEmits(scope: ConversationScope, runId: string): Promise<ConversationItem[]>;
+
+    /** A page of the scope generation's items in transcript order, and their total. */
+    findItems(
+        scope: ConversationScope,
+        query: ConversationFindOptions,
+    ): Promise<{ data: ConversationItem[]; total: number }>;
+
+    findItemsOrFail(
+        scope: ConversationScope,
+        query: ConversationFindOptions,
+    ): Promise<{ data: ConversationItem[]; total: number }>;
+
+    /** A page of the current generation's live notes by key (code-point order), and their total. */
+    findNotes(
+        scope: ConversationScope,
+        query: ConversationFindOptions,
+    ): Promise<{ data: ConversationNote[]; total: number }>;
+
+    findNotesOrFail(
+        scope: ConversationScope,
+        query: ConversationFindOptions,
+    ): Promise<{ data: ConversationNote[]; total: number }>;
+
+    findOneNote(scope: ConversationScope, key: string): Promise<ConversationNote | undefined>;
+
+    findOneNoteOrFail(scope: ConversationScope, key: string): Promise<ConversationNote>;
+
+    /**
+     * Apply a note operation of the active run once: a replay of its id is
+     * answered from the recorded operation (another input is refused), a
+     * fresh set beyond CONVERSATION_NOTES_MAX live notes is refused.
+     */
+    applyNote(scope: ConversationScope, operation: ConversationNoteOperation): Promise<ConversationNoteResult>;
+
+    /**
+     * Advance the identity to a new generation (creating it when missing),
+     * ending no turn: a scope with an active turn is refused. With
+     * `keepNotes` its live notes move to the new generation; without, the
+     * notes and the note operations are removed. Old transcript items stay
+     * under their generation until retention removes them.
+     */
+    reset(identity: ConversationIdentity, options: { keepNotes: boolean }): Promise<ConversationScope>;
+
+    /**
+     * Erase the identity's transcript, notes and note operations; the
+     * identity stays as a tombstone at a new generation, so old-generation
+     * work never recreates it. An unknown identity is a no-op that creates
+     * nothing; a scope with an active turn is refused.
+     */
+    delete(identity: ConversationIdentity): Promise<void>;
+
+    /**
+     * Retention for every conversation, each in a transaction of its own:
+     * items past retention (never the active turn's), each generation cut
+     * to its newest maxStoredItems, expired notes. With `isSettled`, note
+     * operation records past retention of runs it reports settled: the
+     * candidates are read without a transaction, `isSettled` is called
+     * outside any transaction (once per run), then a transaction per
+     * conversation re-reads them under the conversation row's lock and
+     * removes those still past retention and not of the active run. A
+     * failing `isSettled` keeps that run's records and is rethrown at the
+     * end.
+     */
+    prune(
+        limits: ResolvedConversationLimits,
+        options?: { isSettled?: (runId: string) => Promise<boolean> },
+    ): Promise<void>;
+}

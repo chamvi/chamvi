@@ -15,7 +15,7 @@ import type {
     Agent,
     ChannelSubscription,
     IChannel,
-    RunService,
+    IRunService,
 } from '@chamvi/core';
 import type { ApprovalWaitPoint, Run } from '@chamvi/store';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
@@ -263,7 +263,7 @@ export function approvalWaitOf(run: Pick<Run, 'id' | 'waiting'> | undefined): Ap
 }
 
 /** The approval id the run's current wait point waits on. */
-export async function approvalIdOf(store: { runService: RunService }, runId: string): Promise<string> {
+export async function approvalIdOf(store: { runService: IRunService }, runId: string): Promise<string> {
     return approvalWaitOf(await store.runService.findOne(runId)).approvalId;
 }
 

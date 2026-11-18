@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
-import type { Agent, RunService } from '@chamvi/core';
+import type { Agent, IRunService } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
 import { http } from '@chamvi/http';
 import {
@@ -177,7 +177,7 @@ const RUNS: RunFixture[] = [
     },
 ];
 
-async function insertRuns(store: { runService: RunService }, runs: RunFixture[]): Promise<void> {
+async function insertRuns(store: { runService: IRunService }, runs: RunFixture[]): Promise<void> {
     for (const fixture of runs) {
         const parent = fixture.parent === undefined ? undefined : await store.runService.findOneOrFail(id(fixture.parent));
 

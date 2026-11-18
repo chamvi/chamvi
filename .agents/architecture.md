@@ -8,7 +8,7 @@ App, Agent, Channel, Run, Step, State, Tool, Workspace, Repository. Keep the con
 
 ## Engine
 
-Use `IEngine` (extends `IContextProvider`; the public operations, the services, readonly `clock`, `isDraining`) for engine references in contracts, fields and parameters; `Engine` implements it and is the constructor and subclass base.
+Use `IEngine` (extends `IContextProvider`; the public operations, the services, readonly `clock`, `isDraining`) for engine references in contracts, fields and parameters, and `I<Name>Service` (`types.ts`), never the class, for services; `Engine` implements it and is the constructor and subclass base.
 
 `new Engine({ runService, ..., agents })` validates at construction (`InvalidAgentDefinitionError`): agent and channel names unique (channel names follow the agent-name rule, `assertChannelName`), every subscription must name a registered channel (`assertRegistrable`: `Agent "<a>" subscribes to unknown channel "<c>".`), and every agent's model must resolve (see Models below). `start({ channels? })` recovers, starts every channel (see [Channels](topics/channels.md)) and begins polling; `dispatch`, `cancel`, `approve`, `tick`, `recover` and `drain` are the operations; `provide(key, value)` (`IContextProvider`) holds the values tools inject (see [topics/agents.md](topics/agents.md#context)). The engine is the one source of what an app is built from: the services and `clock` are public readonly fields, `getAgent(name)` and `listAgents()` (registration order, a new array) read the registered agents and `getChannel(name)`/`listChannels()` the channels, so channels and `@chamvi/http` take only the engine. `on(type, listener)` is typed per event and sees local events only.
 

@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { LockService } from '@chamvi/core';
+import type { ILockService } from '@chamvi/core';
 import { createRepositoryScheduleLock } from '@chamvi/channel-cron';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 
@@ -50,7 +50,7 @@ describe('createRepositoryScheduleLock', () => {
 
     it('passes the owner to the lock service', async () => {
         const calls: [string, string, number][] = [];
-        const locks: Pick<LockService, 'acquire'> = {
+        const locks: Pick<ILockService, 'acquire'> = {
             async acquire(key, owner, ttlMs) {
                 calls.push([key, owner, ttlMs]);
 

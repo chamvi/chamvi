@@ -13,7 +13,7 @@ import {
 } from 'vitest';
 import type { IdempotencyKey } from '@chamvi/store';
 import { MemoryIdempotencyRepository, MemoryRegistry } from '@chamvi/store-memory';
-import { IdempotencyService } from '../../../src/index.ts';
+import { type IIdempotencyService, IdempotencyService } from '../../../src/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 
 /**
@@ -75,7 +75,7 @@ class ProbedIdempotencyRepository extends MemoryIdempotencyRepository {
 describe('IdempotencyService', () => {
     let clock: ControllableClock;
     let repository: ProbedIdempotencyRepository;
-    let keys: IdempotencyService;
+    let keys: IIdempotencyService;
 
     beforeEach(() => {
         clock = new ControllableClock(new Date(10_000));

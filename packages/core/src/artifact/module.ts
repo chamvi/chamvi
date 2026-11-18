@@ -11,15 +11,15 @@ import type { IClock } from '../clock/index.ts';
 import { InvalidRunStateError } from '../errors/index.ts';
 import { ARTIFACT_URI_PREFIX } from './constants.ts';
 import { assertArtifactInput } from './helpers.ts';
-import type { ArtifactService } from './service.ts';
-import type {
-    ArtifactFilePart,
-    ArtifactInput,
-    IRunArtifacts,
+import type { 
+    ArtifactFilePart, 
+    ArtifactInput, 
+    IArtifactService, 
+    IRunArtifacts, 
 } from './types.ts';
 
 /** What the artifacts of a run (`createRunArtifacts()`) need of the artifact service. */
-type RunArtifactsService = Pick<ArtifactService, 'create' | 'save' | 'findOne' | 'findOneByKey' | 'read' | 'find'>;
+type RunArtifactsService = Pick<IArtifactService, 'create' | 'save' | 'findOne' | 'findOneByKey' | 'read' | 'find'>;
 
 /** The metadata of `input` as a new artifact of the run, under a fresh UUID v7. */
 function createArtifact(
@@ -45,7 +45,7 @@ function createArtifact(
  * caller never names metadata the store does not hold.
  */
 export async function storeArtifact(
-    artifacts: Pick<ArtifactService, 'create' | 'findOneByKey'>,
+    artifacts: Pick<IArtifactService, 'create' | 'findOneByKey'>,
     run: { id: string; agent: string },
     input: ArtifactInput,
     createdAt: Date,

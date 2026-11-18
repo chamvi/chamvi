@@ -46,10 +46,10 @@ describe('public api', () => {
     });
 
     it('serves runs and steps through services over the repository ports of @chamvi/store', () => {
-        expectTypeOf<core.EngineOptions['runService']>().toEqualTypeOf<core.RunService>();
-        expectTypeOf<core.EngineOptions['stepService']>().toEqualTypeOf<core.StepService>();
-        expectTypeOf<core.IEngine['runService']>().toEqualTypeOf<core.RunService>();
-        expectTypeOf<core.IEngine['stepService']>().toEqualTypeOf<core.StepService>();
+        expectTypeOf<core.EngineOptions['runService']>().toEqualTypeOf<core.IRunService>();
+        expectTypeOf<core.EngineOptions['stepService']>().toEqualTypeOf<core.IStepService>();
+        expectTypeOf<core.IEngine['runService']>().toEqualTypeOf<core.IRunService>();
+        expectTypeOf<core.IEngine['stepService']>().toEqualTypeOf<core.IStepService>();
         expectTypeOf<core.RunServiceContext['repository']>().toEqualTypeOf<IRunRepository>();
         expectTypeOf<core.StepServiceContext['repository']>().toEqualTypeOf<IStepRepository>();
 
@@ -60,14 +60,14 @@ describe('public api', () => {
     });
 
     it('serves checkpoints, effects, artifacts and state through services over the repository ports of @chamvi/store', () => {
-        expectTypeOf<core.EngineOptions['checkpointService']>().toEqualTypeOf<core.CheckpointService>();
-        expectTypeOf<core.EngineOptions['effectService']>().toEqualTypeOf<core.EffectService>();
-        expectTypeOf<core.EngineOptions['artifactService']>().toEqualTypeOf<core.ArtifactService>();
-        expectTypeOf<core.EngineOptions['stateService']>().toEqualTypeOf<core.StateService>();
-        expectTypeOf<core.IEngine['checkpointService']>().toEqualTypeOf<core.CheckpointService>();
-        expectTypeOf<core.IEngine['effectService']>().toEqualTypeOf<core.EffectService>();
-        expectTypeOf<core.IEngine['artifactService']>().toEqualTypeOf<core.ArtifactService>();
-        expectTypeOf<core.IEngine['stateService']>().toEqualTypeOf<core.StateService>();
+        expectTypeOf<core.EngineOptions['checkpointService']>().toEqualTypeOf<core.ICheckpointService>();
+        expectTypeOf<core.EngineOptions['effectService']>().toEqualTypeOf<core.IEffectService>();
+        expectTypeOf<core.EngineOptions['artifactService']>().toEqualTypeOf<core.IArtifactService>();
+        expectTypeOf<core.EngineOptions['stateService']>().toEqualTypeOf<core.IStateService>();
+        expectTypeOf<core.IEngine['checkpointService']>().toEqualTypeOf<core.ICheckpointService>();
+        expectTypeOf<core.IEngine['effectService']>().toEqualTypeOf<core.IEffectService>();
+        expectTypeOf<core.IEngine['artifactService']>().toEqualTypeOf<core.IArtifactService>();
+        expectTypeOf<core.IEngine['stateService']>().toEqualTypeOf<core.IStateService>();
         expectTypeOf<core.CheckpointServiceContext['repository']>().toEqualTypeOf<ICheckpointRepository>();
         expectTypeOf<core.EffectServiceContext['repository']>().toEqualTypeOf<IEffectRepository>();
         expectTypeOf<core.ArtifactServiceContext['repository']>().toEqualTypeOf<IArtifactRepository>();
@@ -92,10 +92,10 @@ describe('public api', () => {
     });
 
     it('serves locks and idempotency keys through services over the repository ports of @chamvi/store', () => {
-        expectTypeOf<core.EngineOptions['lockService']>().toEqualTypeOf<core.LockService>();
-        expectTypeOf<core.EngineOptions['idempotencyService']>().toEqualTypeOf<core.IdempotencyService>();
-        expectTypeOf<core.IEngine['lockService']>().toEqualTypeOf<core.LockService>();
-        expectTypeOf<core.IEngine['idempotencyService']>().toEqualTypeOf<core.IdempotencyService>();
+        expectTypeOf<core.EngineOptions['lockService']>().toEqualTypeOf<core.ILockService>();
+        expectTypeOf<core.EngineOptions['idempotencyService']>().toEqualTypeOf<core.IIdempotencyService>();
+        expectTypeOf<core.IEngine['lockService']>().toEqualTypeOf<core.ILockService>();
+        expectTypeOf<core.IEngine['idempotencyService']>().toEqualTypeOf<core.IIdempotencyService>();
         expectTypeOf<core.LockServiceContext['repository']>().toEqualTypeOf<ILockRepository>();
         expectTypeOf<core.IdempotencyServiceContext['repository']>().toEqualTypeOf<IIdempotencyRepository>();
         expectTypeOf<core.LockService['acquire']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
@@ -161,8 +161,8 @@ describe('public api', () => {
     });
 
     it('serves agent revision markers through a service over the repository port of @chamvi/store', () => {
-        expectTypeOf<core.EngineOptions['agentRevisionService']>().toEqualTypeOf<core.AgentRevisionService>();
-        expectTypeOf<core.IEngine['agentRevisionService']>().toEqualTypeOf<core.AgentRevisionService>();
+        expectTypeOf<core.EngineOptions['agentRevisionService']>().toEqualTypeOf<core.IAgentRevisionService>();
+        expectTypeOf<core.IEngine['agentRevisionService']>().toEqualTypeOf<core.IAgentRevisionService>();
         expectTypeOf<core.AgentRevisionServiceContext['repository']>().toEqualTypeOf<IAgentRevisionRepository>();
         expectTypeOf<core.AgentRevisionService['findOne']>().toEqualTypeOf<(agent: string) => Promise<AgentRevision | undefined>>();
         expectTypeOf<core.AgentRevisionService['save']>().toEqualTypeOf<(revision: AgentRevision) => Promise<AgentRevision>>();
@@ -348,9 +348,9 @@ describe('public api', () => {
         expect(core.CONVERSATION_NOTES_MAX).toBe(100);
         expect(core.ConversationService).toBeTypeOf('function');
         expectTypeOf<core.ConversationServiceContext>().toEqualTypeOf<{ repository: IConversationRepository; clock: core.IClock }>();
-        expectTypeOf<core.EngineOptions['conversationService']>().toEqualTypeOf<core.ConversationService | undefined>();
-        expectTypeOf<core.IEngine['conversationService']>().toEqualTypeOf<core.ConversationService | undefined>();
-        expectTypeOf<core.IConversations['service']>().toEqualTypeOf<core.ConversationService>();
+        expectTypeOf<core.EngineOptions['conversationService']>().toEqualTypeOf<core.IConversationService | undefined>();
+        expectTypeOf<core.IEngine['conversationService']>().toEqualTypeOf<core.IConversationService | undefined>();
+        expectTypeOf<core.IConversations['service']>().toEqualTypeOf<core.IConversationService>();
 
         // the port and the memory repository moved to @chamvi/store and @chamvi/store-memory
         for (const name of ['MemoryConversationRepository', 'MemoryConversationRepositoryOptions', 'MemoryRunReferenceOptions', 'IConversationRepository']) {
@@ -562,8 +562,8 @@ describe('public api', () => {
         expect(core.CONNECTION_ENTRY_KEY_MAX_LENGTH).toBe(255);
         expect(core.CONNECTION_TYPE_MAX_LENGTH).toBe(64);
         expect(core.CONNECTION_SECRET_FIELD_MAX_LENGTH).toBe(64);
-        expectTypeOf<core.EngineOptions['connectionService']>().toEqualTypeOf<core.ConnectionService | undefined>();
-        expectTypeOf<core.IEngine['connectionService']>().toEqualTypeOf<core.ConnectionService | undefined>();
+        expectTypeOf<core.EngineOptions['connectionService']>().toEqualTypeOf<core.IConnectionService | undefined>();
+        expectTypeOf<core.IEngine['connectionService']>().toEqualTypeOf<core.IConnectionService | undefined>();
         expectTypeOf<core.ConnectionServiceContext>().toEqualTypeOf<{ repository: IConnectionRepository; clock: core.IClock }>();
         expectTypeOf<core.ConnectionService['create']>().toEqualTypeOf<(connection: store.Connection) => Promise<boolean>>();
         expectTypeOf<core.ConnectionService['findOne']>().toEqualTypeOf<(name: string) => Promise<store.Connection | undefined>>();

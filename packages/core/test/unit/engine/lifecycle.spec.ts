@@ -37,7 +37,7 @@ import { mockModel } from '../../utils/mock-model.ts';
 import type { MockResponse } from '../../utils/mock-model.ts';
 import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 import type { TestEngineOptions, TestServiceSet } from '../../utils/engine.ts';
-import { RunService } from '../../../src/run/index.ts';
+import { type IRunService, RunService } from '../../../src/run/index.ts';
 
 const engines: IEngine[] = [];
 
@@ -167,7 +167,7 @@ class ManualTimers extends ControllableClock {
 class TakeoverService extends RunService {
     takeoverOn: Run['status'] | undefined;
 
-    override async update(...args: Parameters<RunService['update']>) {
+    override async update(...args: Parameters<IRunService['update']>) {
         const [id, patch] = args;
 
         if (this.takeoverOn !== undefined && patch.status === this.takeoverOn) {
@@ -698,7 +698,7 @@ describe('recovery', () => {
         class FlakyService extends RunService {
             renewFails = false;
 
-            override async renewClaim(...args: Parameters<RunService['renewClaim']>) {
+            override async renewClaim(...args: Parameters<IRunService['renewClaim']>) {
                 if (this.renewFails) {
                     return false;
                 }

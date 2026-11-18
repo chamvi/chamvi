@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock, IModelResolver, LockService } from '@chamvi/core';
+import type { IClock, ILockService, IModelResolver } from '@chamvi/core';
 import type { EmbeddingModel } from 'ai';
 import type { EmbeddingModelRef, KnowledgeCollectionDefinition, ResolvedKnowledgeCollection } from '../collection/types.ts';
 import type { IKnowledgeRepository, KnowledgeCollection, KnowledgeDocumentStatus } from '../repository/types.ts';
@@ -19,7 +19,7 @@ export type KnowledgeErrorContext = {
 export type KnowledgeOptions = {
     repository: IKnowledgeRepository;
     /** The engine's lock service: one indexer per collection across replicas. */
-    locks: Pick<LockService, 'acquire' | 'release'>;
+    locks: Pick<ILockService, 'acquire' | 'release'>;
     collections?: readonly KnowledgeCollectionDefinition[];
     /** Resolves string model refs (`embedding()`); the app's resolver in an app. */
     models?: IModelResolver;

@@ -26,14 +26,14 @@ import type {
     WaitPoint,
 } from '@chamvi/store';
 import { MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';
-import {
-    InvalidRunStateError,
-    RepositoryNotFoundError,
-    RunNotFoundError,
-    RunService,
-    ValidationError,
+import type { IRunService, RunUpdateOptions } from '../../../src/index.ts';
+import { 
+    InvalidRunStateError, 
+    RepositoryNotFoundError, 
+    RunNotFoundError, 
+    RunService, 
+    ValidationError, 
 } from '../../../src/index.ts';
-import type { RunUpdateOptions } from '../../../src/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 
 function uuid(label: string): string {
@@ -107,7 +107,7 @@ const LEGACY_APPROVAL = {
 describe('RunService', () => {
     let clock: ControllableClock;
     let repository: MemoryRunRepository;
-    let service: RunService;
+    let service: IRunService;
 
     beforeEach(() => {
         clock = new ControllableClock(new Date(10_000));

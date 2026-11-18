@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunService } from '@chamvi/core';
+import type { IRunService } from '@chamvi/core';
 import type { RunStatusLiteral } from '@chamvi/store';
 import type { OverlapPolicy } from '../subscription/types.ts';
 
@@ -17,7 +17,7 @@ const ACTIVE: RunStatusLiteral[] = ['queued', 'running', 'waiting', 'interrupted
  * `allow` never.
  */
 export async function isOverlapping(
-    store: Pick<RunService, 'find'>,
+    store: Pick<IRunService, 'find'>,
     agent: string,
     subscriptionId: string,
     policy: OverlapPolicy,

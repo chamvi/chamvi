@@ -17,7 +17,7 @@ import {
     RunService,
     systemClock,
 } from '@chamvi/core';
-import type { ConversationService } from '@chamvi/core';
+import type { IConversationService } from '@chamvi/core';
 import type { ConversationIdentity } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '@chamvi/store-db';
@@ -39,8 +39,8 @@ const IDENTITY: ConversationIdentity = {
 describePostgres('conversation transactions across connections', () => {
     let dataSource: DataSource;
     let peer: DataSource;
-    let first: ConversationService;
-    let second: ConversationService;
+    let first: IConversationService;
+    let second: IConversationService;
 
     beforeEach(async () => {
         dataSource = await createTestDataSource();

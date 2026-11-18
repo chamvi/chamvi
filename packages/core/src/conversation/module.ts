@@ -16,12 +16,12 @@ import type {
     ConversationInspection,
     ConversationOperationLiteral,
     ConversationOptions,
-    IConversations,
-    ResolvedConversationLimits,
+    IConversationService,
+    IConversations, 
+    ResolvedConversationLimits, 
 } from './types.ts';
-import type { ConversationService } from './service.ts';
-import type { EffectService } from '../effect/service.ts';
-import type { RunService } from '../run/service.ts';
+import type { IEffectService } from '../effect/types.ts';
+import type { IRunService } from '../run/types.ts';
 import { InvalidAgentDefinitionError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
 import { ConversationOperation, ConversationTurnKind } from './constants.ts';
 import { RunStatus } from '@chamvi/store';
@@ -34,7 +34,7 @@ function settled(run: Run | undefined): boolean {
 
 /** Optional engine capability; no ordinary run calls it. */
 export class Conversations implements IConversations {
-    readonly service: ConversationService;
+    readonly service: IConversationService;
 
     readonly limits: ResolvedConversationLimits;
 
@@ -42,11 +42,11 @@ export class Conversations implements IConversations {
 
     protected readonly pending = new Map<string, Set<Promise<void>>>();
 
-    protected readonly runs: Pick<RunService, 'findOne'>;
+    protected readonly runs: Pick<IRunService, 'findOne'>;
 
-    protected readonly effects: Pick<EffectService, 'findOne'>;
+    protected readonly effects: Pick<IEffectService, 'findOne'>;
 
-    constructor(options: ConversationOptions, service: ConversationService, runs: Pick<RunService, 'findOne'>, effects: Pick<EffectService, 'findOne'>) {
+    constructor(options: ConversationOptions, service: IConversationService, runs: Pick<IRunService, 'findOne'>, effects: Pick<IEffectService, 'findOne'>) {
         if (!isObject(options) || typeof options.authorize !== 'function' || !isObject(service)) {
             throw new InvalidAgentDefinitionError('Conversations need a conversation service and an authorizer.');
         }

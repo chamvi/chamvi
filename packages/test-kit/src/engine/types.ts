@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ConversationService, EngineOptions, IEngine } from '@chamvi/core';
+import type { EngineOptions, IConversationService, IEngine } from '@chamvi/core';
 
 export type TestEngineOptions = Omit<
     EngineOptions,
@@ -23,5 +23,5 @@ export type TestEngineOptions = Omit<
      * or a recorder); it gets the service on the engine's registry. Not
      * with `replicaOf`.
      */
-    conversationService?: (service: ConversationService) => ConversationService;
+    conversationService?: (service: IConversationService) => IConversationService;
 };

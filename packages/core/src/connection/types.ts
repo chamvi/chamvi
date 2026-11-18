@@ -5,12 +5,11 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IConnectionRepository } from '@chamvi/store';
+import type { Connection, IConnectionRepository  } from '@chamvi/store';
 import type { IClock } from '../clock/types.ts';
 import type { LeaseLostError } from '../errors/index.ts';
 import type { IKeyring } from '../keyring/types.ts';
-import type { LockService } from '../lock/service.ts';
-import type { ConnectionService } from './service.ts';
+import type { ILockService } from '../lock/types.ts';
 
 /**
  * One atomic batch of entry changes: `clear` removes every entry, then `set`
@@ -60,13 +59,13 @@ export type ConnectionServiceContext = {
 
 export type ConnectionVaultOptions = {
     /** The stored connections; the leases of `lockService` fence its writes. */
-    connectionService: Pick<ConnectionService, 'create' | 'findOne' | 'findOneOrFail' | 'replace' | 'findEntries' | 'writeEntries'>;
+    connectionService: Pick<IConnectionService, 'create' | 'findOne' | 'findOneOrFail' | 'replace' | 'findEntries' | 'writeEntries'>;
     /**
      * The connection leases (`connection:<name>`), in the lock storage the
      * connection repository's fence reads (the same database, or the same
      * memory registry).
      */
-    lockService: Pick<LockService, 'acquire' | 'renew' | 'release'>;
+    lockService: Pick<ILockService, 'acquire' | 'renew' | 'release'>;
     keyring: IKeyring;
     /** Drives the lease renewals (default systemClock). */
     clock?: IClock;
@@ -150,13 +149,13 @@ export interface IConnectionSession {
 
 export type ConnectionConfigStoreOptions = {
     /** The stored connections; the leases of `lockService` guard `delete`. */
-    connectionService: Pick<ConnectionService, 'create' | 'findOne' | 'findOneOrFail' | 'findConfig' | 'writeConfig' | 'delete'>;
+    connectionService: Pick<IConnectionService, 'create' | 'findOne' | 'findOneOrFail' | 'findConfig' | 'writeConfig' | 'delete'>;
     /**
      * The connection leases (`connection:<name>`), in the lock storage the
      * connection repository's fence reads (the same database, or the same
      * memory registry).
      */
-    lockService: Pick<LockService, 'acquire' | 'release'>;
+    lockService: Pick<ILockService, 'acquire' | 'release'>;
     /** Resolved only when a data key is needed: an app without keys can still describe and read secret-free connections. */
     keyring: () => IKeyring;
     /** Stamps created rows (default systemClock). */
@@ -354,3 +353,76 @@ export type ResolveConnectionInput = {
     /** Values from code or a JSON variable, which win over everything. */
     preset?: Record<string, { value: ConnectionValue; source: ConnectionFieldSource }>;
 };
+
+/**
+ * The operations of `ConnectionService`. Anything that satisfies it can stand in
+ * for the service: the engine, the channels and the HTTP API take this type.
+ */
+export interface IConnectionService {
+    /** Insert-if-absent: resolves false and keeps the stored connection when the name is taken. */
+    create(connection: Connection): Promise<boolean>;
+
+    findOne(name: string): Promise<Connection | undefined>;
+
+    /** As `findOne`; RepositoryNotFoundError when absent. */
+    findOneOrFail(name: string): Promise<Connection>;
+
+    /** Every connection, ordered by name in code-point order. */
+    find(): Promise<Connection[]>;
+
+    /**
+     * Removes the connection with its entries and config; a missing name is a
+     * no-op. With `fence`, the fence holds at write time or LeaseLostError and
+     * nothing is deleted.
+     */
+    delete(name: string, fence?: ConnectionFence): Promise<void>;
+
+    /**
+     * All or nothing: swaps the connection of `connection.name` for
+     * `connection` (inserts it if absent), dropping its entries and secrets
+     * (they are sealed under the replaced data key) and keeping its settings
+     * and config revision. The replacement is validated as by `create`
+     * (ValidationError) before anything else; the fence holds at write time or
+     * LeaseLostError and nothing changes.
+     */
+    replace(connection: Connection, fence: ConnectionFence): Promise<void>;
+
+    findEntry(name: string, key: string): Promise<Uint8Array | undefined>;
+
+    /** The stored ones of `keys`; missing keys are absent from the map. */
+    findEntries(name: string, keys: readonly string[]): Promise<Map<string, Uint8Array>>;
+
+    /**
+     * All or nothing: `clear`, then `set`, then `delete`, and `updatedAt`
+     * set to now. The fence holds at write time or LeaseLostError and nothing
+     * is written.
+     */
+    writeEntries(name: string, write: ConnectionEntryWrite, fence: ConnectionFence): Promise<void>;
+
+    /**
+     * A consistent read of the data key (`keyId`, `wrappedKey`), settings,
+     * sealed secrets and revision; undefined when the connection is absent.
+     * It takes no lock: the row, then its secrets, then the row again, kept
+     * when the row's id, key and revision are unchanged (every config write
+     * bumps the revision, a replace swaps the key, a delete and create the
+     * id); after CONFIG_READ_ATTEMPTS changed reads, one read
+     * under the connection row's lock.
+     */
+    findConfig(name: string): Promise<ConnectionConfig | undefined>;
+
+    /**
+     * Saves the config and returns the new revision (bumped by one, with
+     * `updatedAt`). RepositoryNotFoundError when absent; ConnectionChangedError
+     * when the stored wrappedKey differs from `expectedWrappedKey`, or the
+     * stored revision from a given `expectedRevision` (another save landed
+     * since it was read; nothing is written). Takes no fence: any replica may
+     * write while a session holds the lease, and entries and the data key
+     * stay untouched.
+     */
+    writeConfig(
+        name: string,
+        write: ConnectionConfigWrite,
+        expectedWrappedKey: Uint8Array,
+        expectedRevision?: number,
+    ): Promise<number>;
+}

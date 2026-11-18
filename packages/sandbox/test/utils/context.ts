@@ -6,8 +6,8 @@
  */
 
 import type { ToolSet } from 'ai';
+import type { IRunArtifacts, IStateService, ToolContext  } from '@chamvi/core';
 import { StateService, createAgentState } from '@chamvi/core';
-import type { IRunArtifacts, ToolContext } from '@chamvi/core';
 import { MemoryRegistry, MemoryStateDocumentRepository, MemoryStateRepository } from '@chamvi/store-memory';
 
 const NO_ARTIFACTS: IRunArtifacts = {
@@ -19,7 +19,7 @@ const NO_ARTIFACTS: IRunArtifacts = {
 };
 
 /** A state service on fresh memory repositories. */
-function stateService(): StateService {
+function stateService(): IStateService {
     const registry = new MemoryRegistry();
 
     return new StateService({

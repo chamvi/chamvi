@@ -13,7 +13,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { IdempotencyService } from '@chamvi/core';
+import { type IIdempotencyService, IdempotencyService } from '@chamvi/core';
 import type { IdempotencyKey } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseIdempotencyRepository } from '../../../../src/repositories/idempotency/index.ts';
@@ -104,7 +104,7 @@ describePostgres('idempotency service on postgres', () => {
     let log: ReturnType<typeof recordStatements>;
     let clock: ControllableClock;
     let repository: DatabaseIdempotencyRepository;
-    let keys: IdempotencyService;
+    let keys: IIdempotencyService;
 
     const probed = (probe: Probe) => new IdempotencyService({ repository: new ProbedIdempotencyRepository(dataSource, probe), clock });
 

@@ -16,7 +16,7 @@ import {
 import { defineModelAgent, defineTool } from '@chamvi/core';
 import type {
     Agent,
-    EffectService,
+    IEffectService,
     IEngine,
 } from '@chamvi/core';
 import type { ApprovalWaitPoint, Run } from '@chamvi/store';
@@ -96,7 +96,7 @@ async function trigger(fixture: IntakeFixture, text = 'hello'): Promise<Run> {
 }
 
 /** The engine's effect service fails its first save of an emit effect. */
-function failEmitSaveOnce(effects: Pick<EffectService, 'save'>): void {
+function failEmitSaveOnce(effects: Pick<IEffectService, 'save'>): void {
     const save = effects.save.bind(effects);
     let failed = false;
 
@@ -174,7 +174,7 @@ describe('chat channel out on an engine', () => {
 
     it('send_failure_records_no_effect: a failed post is a tool error and records nothing; the next emit sends', async () => {
         const seen: unknown[] = [];
-        let effects!: Pick<EffectService, 'findOne'>;
+        let effects!: Pick<IEffectService, 'findOne'>;
         const fixture = await started({
             agents: (channel) => [agentWith(channel, async (context) => {
                 const handle = context.channels.findOneOrFail('chat');

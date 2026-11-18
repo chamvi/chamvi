@@ -12,11 +12,11 @@ import {
     it,
 } from 'vitest';
 import { MemoryEffectRepository, MemoryRegistry } from '@chamvi/store-memory';
-import { EffectService, RepositoryNotFoundError } from '../../../src/index.ts';
+import { EffectService, type IEffectService, RepositoryNotFoundError } from '../../../src/index.ts';
 
 describe('EffectService', () => {
     let repository: MemoryEffectRepository;
-    let effects: EffectService;
+    let effects: IEffectService;
 
     beforeEach(() => {
         repository = new MemoryEffectRepository({ registry: new MemoryRegistry() });

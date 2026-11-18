@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock, LockService } from '@chamvi/core';
+import type { IClock, ILockService } from '@chamvi/core';
 import { ErrorCode, ValidationError } from '@chamvi/core';
 import { isObject } from 'smob';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
@@ -619,7 +619,7 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
 export async function markOrphans(
     repository: IKnowledgeRepository,
     declared: ReadonlySet<string>,
-    locks: Pick<LockService, 'acquire' | 'release'>,
+    locks: Pick<ILockService, 'acquire' | 'release'>,
     owner: string,
     clock: IClock,
 ): Promise<void> {

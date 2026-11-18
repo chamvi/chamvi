@@ -6,11 +6,11 @@
  */
 
 import type { Agent } from '../agent/types.ts';
-import type { ArtifactInput } from '../artifact/types.ts';
+import type { ArtifactInput, IArtifactService  } from '../artifact/types.ts';
 import type { ChannelContext, IChannel } from '../channel/types.ts';
 import type { IClock } from '../clock/index.ts';
 import type { IContextProvider } from '../context/types.ts';
-import type { ConversationInspection, ConversationOptions } from '../conversation/types.ts';
+import type { ConversationInspection, ConversationOptions, IConversationService  } from '../conversation/types.ts';
 import type {
     ConversationIdentity,
     ConversationScope,
@@ -21,49 +21,47 @@ import type {
 } from '@chamvi/store';
 import type { IModelResolver, ModelRef } from '../model/types.ts';
 import type { SkillInput } from '../skill/types.ts';
-import type { AgentRevisionService } from '../agent-revision/service.ts';
-import type { ConnectionService } from '../connection/service.ts';
-import type { ConversationService } from '../conversation/service.ts';
-import type { ArtifactService } from '../artifact/service.ts';
-import type { CheckpointService } from '../checkpoint/service.ts';
-import type { EffectService } from '../effect/service.ts';
-import type { IdempotencyService } from '../idempotency/service.ts';
-import type { LockService } from '../lock/service.ts';
-import type { RunService } from '../run/service.ts';
-import type { StateService } from '../state/service.ts';
-import type { StepService } from '../step/service.ts';
+import type { IAgentRevisionService } from '../agent-revision/types.ts';
+import type { IConnectionService } from '../connection/types.ts';
+import type { ICheckpointService } from '../checkpoint/types.ts';
+import type { IEffectService } from '../effect/types.ts';
+import type { IIdempotencyService } from '../idempotency/types.ts';
+import type { ILockService } from '../lock/types.ts';
+import type { IRunService } from '../run/types.ts';
+import type { IStateService } from '../state/types.ts';
+import type { IStepService } from '../step/types.ts';
 
 /** Public engine contract; use Engine only for construction or extension. */
 export interface IEngine extends IContextProvider {
     /** The rules of runs over the run repository. */
-    readonly runService: RunService;
+    readonly runService: IRunService;
     /** The steps of runs over the step repository. */
-    readonly stepService: StepService;
+    readonly stepService: IStepService;
     /** The latest checkpoint of each run over the checkpoint repository. */
-    readonly checkpointService: CheckpointService;
+    readonly checkpointService: ICheckpointService;
     /** Recorded effect results over the effect repository. */
-    readonly effectService: EffectService;
+    readonly effectService: IEffectService;
     /** The files of runs over the artifact repository. */
-    readonly artifactService: ArtifactService;
+    readonly artifactService: IArtifactService;
     /** Agent state over the key-value and document repositories. */
-    readonly stateService: StateService;
+    readonly stateService: IStateService;
     /** The revision markers of folder agents over the agent revision repository. */
-    readonly agentRevisionService: AgentRevisionService;
+    readonly agentRevisionService: IAgentRevisionService;
     /** Leases on keys over the lock repository (keyed runs, admission, the registry, approval deliveries). */
-    readonly lockService: LockService;
+    readonly lockService: ILockService;
     /** The idempotency keys of dispatches over the idempotency repository. */
-    readonly idempotencyService: IdempotencyService;
+    readonly idempotencyService: IIdempotencyService;
     /**
      * Connections over the connection repository, when the store keeps
      * them; the engine itself uses none, code that holds an engine
      * (`createHttpApp`) reads them through it.
      */
-    readonly connectionService: ConnectionService | undefined;
+    readonly connectionService: IConnectionService | undefined;
     /**
      * Conversations over the conversation repository, when the store keeps
      * them; the conversation capability (`conversations`) needs it.
      */
-    readonly conversationService: ConversationService | undefined;
+    readonly conversationService: IConversationService | undefined;
     readonly clock: IClock;
     readonly isDraining: boolean;
 
@@ -145,29 +143,29 @@ export type EngineEvent = RunEvent | AgentChange | AgentRunsCancelled;
 
 export type EngineOptions = {
     /** Runs: built on the same clock as the engine's (`clock`). */
-    runService: RunService;
-    stepService: StepService;
-    checkpointService: CheckpointService;
-    effectService: EffectService;
-    artifactService: ArtifactService;
-    stateService: StateService;
-    agentRevisionService: AgentRevisionService;
+    runService: IRunService;
+    stepService: IStepService;
+    checkpointService: ICheckpointService;
+    effectService: IEffectService;
+    artifactService: IArtifactService;
+    stateService: IStateService;
+    agentRevisionService: IAgentRevisionService;
     /** Leases: built on the same clock as the engine's (`clock`). */
-    lockService: LockService;
+    lockService: ILockService;
     /** Dispatch idempotency keys: built on the same clock as the engine's (`clock`). */
-    idempotencyService: IdempotencyService;
+    idempotencyService: IIdempotencyService;
     /**
      * Connections, when the store keeps them (optional); the engine uses
      * none, it exposes the service to code that holds the engine. Its
      * fence reads the lock rows `lockService` writes.
      */
-    connectionService?: ConnectionService;
+    connectionService?: IConnectionService;
     /**
      * Conversations, when the store keeps them (optional): required by the
      * conversation capability (`conversations`), built on the engine's
      * clock.
      */
-    conversationService?: ConversationService;
+    conversationService?: IConversationService;
     agents: Agent[];
     readonly skills?: readonly SkillInput[];
     /**

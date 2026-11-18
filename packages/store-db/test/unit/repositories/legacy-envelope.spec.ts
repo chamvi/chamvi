@@ -17,7 +17,7 @@ import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseRunRepository } from '@chamvi/store-db';
 import { RunEntity } from '../../../src/entities/index.ts';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../utils/database.ts';
-import { RunService } from '@chamvi/core';
+import { type IRunService, RunService } from '@chamvi/core';
 
 /** The entity values of a raw insert (TypeORM's deep partial rejects the unknown of jsonb properties). */
 function asValues(values: Partial<RunEntity>): QueryDeepPartialEntity<RunEntity> {
@@ -26,7 +26,7 @@ function asValues(values: Partial<RunEntity>): QueryDeepPartialEntity<RunEntity>
 
 describePostgres('DatabaseRunRepository legacy envelopes', () => {
     let dataSource: DataSource;
-    let store: RunService;
+    let store: IRunService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();

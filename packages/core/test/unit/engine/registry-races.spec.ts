@@ -10,7 +10,7 @@ import { defineModelAgent } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
-import { AgentRevisionService } from '../../../src/agent-revision/index.ts';
+import { AgentRevisionService, type IAgentRevisionService } from '../../../src/agent-revision/index.ts';
 import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 import type { TestEngineOptions, TestServiceSet  } from '../../utils/engine.ts';
 
@@ -27,13 +27,13 @@ class GatedService extends AgentRevisionService {
 
     entered?: () => void;
 
-    override async save(...args: Parameters<AgentRevisionService['save']>) {
+    override async save(...args: Parameters<IAgentRevisionService['save']>) {
         await this.pass();
 
         return super.save(...args);
     }
 
-    override async delete(...args: Parameters<AgentRevisionService['delete']>) {
+    override async delete(...args: Parameters<IAgentRevisionService['delete']>) {
         await this.pass();
 
         return super.delete(...args);

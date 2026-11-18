@@ -17,7 +17,8 @@ import type { Artifact } from '@chamvi/store';
 import { MemoryArtifactRepository, MemoryRegistry } from '@chamvi/store-memory';
 import {
     ArtifactNotFoundError,
-    ArtifactService,
+    ArtifactService, 
+    type IArtifactService,
     RepositoryNotFoundError,
     RunNotFoundError,
 } from '../../../src/index.ts';
@@ -47,7 +48,7 @@ function bytes(...values: number[]): Uint8Array {
 
 describe('ArtifactService', () => {
     let repository: MemoryArtifactRepository;
-    let artifacts: ArtifactService;
+    let artifacts: IArtifactService;
 
     const dataOf = async (id: string) => {
         const data = await artifacts.read(id);

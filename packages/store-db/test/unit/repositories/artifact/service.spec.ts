@@ -13,7 +13,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ArtifactService, RunNotFoundError } from '@chamvi/core';
+import { ArtifactService, type IArtifactService, RunNotFoundError } from '@chamvi/core';
 import { EntityConflictError, EntityRelationError } from '@chamvi/store';
 import type { Artifact, ArtifactRecord } from '@chamvi/store';
 import { testUuid } from '@chamvi/test-kit';
@@ -78,7 +78,7 @@ const artifact = (id: string, overrides: Partial<Artifact> = {}): Artifact => ({
 describePostgres('ArtifactService on PostgreSQL', () => {
     let dataSource: DataSource;
     let repository: DatabaseArtifactRepository;
-    let artifacts: ArtifactService;
+    let artifacts: IArtifactService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();

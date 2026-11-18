@@ -12,6 +12,7 @@ import type { IStateDocumentRepository, IStateRepository } from '@chamvi/store';
 import { RepositoryNotFoundError } from '../errors/index.ts';
 import { readDocumentWhere, topLevelConditions } from './helpers.ts';
 import type {
+    IStateService,
     StateDocumentFindOptions,
     StateDocumentValue,
     StateEntryValue,
@@ -25,7 +26,7 @@ import type {
  * removes the key, keys list in code-point order, documents match by
  * top-level equality and list by document id.
  */
-export class StateService {
+export class StateService implements IStateService {
     protected repository: IStateRepository;
 
     protected documentRepository: IStateDocumentRepository;
@@ -35,14 +36,12 @@ export class StateService {
         this.documentRepository = ctx.documentRepository;
     }
 
-    /** The value of the key; `undefined` when the agent holds none (a stored falsy value is present). */
     async findOne(agent: string, key: string): Promise<unknown> {
         const entry = await this.repository.findOneBy({ agent, key });
 
         return entry ? entry.value : undefined;
     }
 
-    /** As `findOne`; RepositoryNotFoundError when the key is absent. */
     async findOneOrFail(agent: string, key: string): Promise<unknown> {
         const value = await this.findOne(agent, key);
 
@@ -53,7 +52,6 @@ export class StateService {
         return value;
     }
 
-    /** Stores `value` under the key, replacing a stored one; `undefined` removes the key. Resolves the stored value. */
     async set(agent: string, key: string, value: unknown): Promise<unknown> {
         if (value === undefined) {
             await this.repository.transaction(async (repository) => {
@@ -77,10 +75,6 @@ export class StateService {
         return stored.value;
     }
 
-    /**
-     * One agent's entries ordered by key in code-point order; every entry
-     * (from `offset`) without `limit`.
-     */
     async find(agent: string, options: StateFindOptions = {}): Promise<StateEntryValue[]> {
         if (options.limit === 0) {
             return [];
@@ -98,11 +92,6 @@ export class StateService {
         return data.map((entry) => ({ key: entry.key, value: entry.value }));
     }
 
-    /**
-     * An agent's keys by a rapiq query over the entry fields (`key`,
-     * `value`), for an API listing: its filters joined with the agent's,
-     * its sorts, then `key` in code-point order, its pagination.
-     */
     async list(agent: string, query: IQuery): Promise<StateEntryValue[]> {
         if (query.pagination.limit === 0) {
             return [];
@@ -123,7 +112,6 @@ export class StateService {
         return data.map((entry) => ({ key: entry.key, value: entry.value }));
     }
 
-    /** As `find`; RepositoryNotFoundError when the selected page is empty. */
     async findOrFail(agent: string, options: StateFindOptions = {}): Promise<StateEntryValue[]> {
         const entries = await this.find(agent, options);
 
@@ -134,11 +122,6 @@ export class StateService {
         return entries;
     }
 
-    /**
-     * The documents of a collection, ordered by document id in code-point
-     * order; `where` matches by top-level equality (an `undefined` value
-     * matches an object document lacking the key).
-     */
     async findDocuments(agent: string, collection: string, options: StateDocumentFindOptions = {}): Promise<StateDocumentValue[]> {
         if (options.limit === 0) {
             return [];
@@ -154,12 +137,6 @@ export class StateService {
         return data.map((document) => ({ id: document.documentId, doc: document.doc }));
     }
 
-    /**
-     * A collection's documents by a rapiq query, for an API listing: its
-     * top-level `eq` filters as the top-level equality of `findDocuments`
-     * (a field path is a document key), its limit and offset, ordered by
-     * document id. Any other condition and any sort is a ValidationError.
-     */
     async listDocuments(agent: string, collection: string, query: IQuery): Promise<StateDocumentValue[]> {
         const where = readDocumentWhere(query);
         const { limit, offset } = query.pagination;
@@ -176,7 +153,6 @@ export class StateService {
         return data.map((document) => ({ id: document.documentId, doc: document.doc }));
     }
 
-    /** As `findDocuments`; RepositoryNotFoundError when the selected page is empty. */
     async findDocumentsOrFail(agent: string, collection: string, options: StateDocumentFindOptions = {}): Promise<StateDocumentValue[]> {
         const documents = await this.findDocuments(agent, collection, options);
 
@@ -187,7 +163,6 @@ export class StateService {
         return documents;
     }
 
-    /** Stores the document, replacing a stored one of that id; `undefined` is stored as `null`. */
     async upsertDocument(agent: string, collection: string, id: string, doc: unknown): Promise<StateDocumentValue> {
         const stored = await this.documentRepository.transaction((repository) => repository.upsert(repository.create({
             id: uuidv7(),
@@ -200,7 +175,6 @@ export class StateService {
         return { id: stored.documentId, doc: stored.doc };
     }
 
-    /** Removes the document; a missing one is a no-op. */
     async deleteDocument(agent: string, collection: string, id: string): Promise<void> {
         await this.documentRepository.transaction(async (repository) => {
             const document = await repository.findOneBy({

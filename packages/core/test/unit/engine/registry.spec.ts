@@ -29,10 +29,10 @@ import type {
 import type { Run } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/mock-model.ts';
-import { AgentRevisionService } from '../../../src/agent-revision/index.ts';
+import { AgentRevisionService, type IAgentRevisionService } from '../../../src/agent-revision/index.ts';
 import { createTestEngine, createTestServices } from '../../utils/engine.ts';
 import type { TestEngineOptions, TestServices } from '../../utils/engine.ts';
-import type { RunService } from '../../../src/run/index.ts';
+import type { IRunService } from '../../../src/run/index.ts';
 
 const model = mockModel([]);
 const triage = defineModelAgent({
@@ -49,13 +49,13 @@ const digest = defineModelAgent({
 class CountingAgentRevisionService extends AgentRevisionService {
     revisionWrites = 0;
 
-    override async save(...args: Parameters<AgentRevisionService['save']>) {
+    override async save(...args: Parameters<IAgentRevisionService['save']>) {
         this.revisionWrites++;
 
         return super.save(...args);
     }
 
-    override async delete(...args: Parameters<AgentRevisionService['delete']>) {
+    override async delete(...args: Parameters<IAgentRevisionService['delete']>) {
         this.revisionWrites++;
 
         return super.delete(...args);
@@ -64,7 +64,7 @@ class CountingAgentRevisionService extends AgentRevisionService {
 
 function createCountingStore(options: { clock: ControllableClock }) {
     const store = createTestServices({ ...options, agentRevisionService: (ctx) => new CountingAgentRevisionService(ctx) });
-    const runs: RunService & { failing?: string } = store.runService;
+    const runs: IRunService & { failing?: string } = store.runService;
     const update = runs.update.bind(runs);
 
     runs.update = async (...args) => {

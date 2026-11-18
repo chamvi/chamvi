@@ -15,8 +15,9 @@ import {
 } from 'vitest';
 import {
     CheckpointService,
+    type IRunService,
     InvalidRunStateError,
-    RunNotFoundError,
+    RunNotFoundError, 
     RunService,
     StepService,
 } from '@chamvi/core';
@@ -51,7 +52,7 @@ function makeRun(id: string, overrides: Partial<Run> = {}): Run {
 describePostgres('RunService on DatabaseRunRepository', () => {
     let dataSource: DataSource;
     let clock: ControllableClock;
-    let store: RunService;
+    let store: IRunService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();

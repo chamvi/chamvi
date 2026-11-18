@@ -14,13 +14,13 @@ import {
     it,
 } from 'vitest';
 import { defineQuery, eq } from '@rapiq/core';
-import { StateService } from '@chamvi/core';
+import { type IStateService, StateService } from '@chamvi/core';
 import { DatabaseStateDocumentRepository, DatabaseStateRepository } from '../../../../src/repositories/state/index.ts';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../../utils/database.ts';
 
 describePostgres('StateService on PostgreSQL', () => {
     let dataSource: DataSource;
-    let state: StateService;
+    let state: IStateService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();

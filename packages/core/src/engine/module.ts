@@ -33,7 +33,8 @@ import { conversationConcurrencyKey } from '../conversation/helpers.ts';
 import type {
     ConversationInspection,
     ConversationTarget,
-    IConversations,
+    IConversationService, 
+    IConversations, 
 } from '../conversation/types.ts';
 import type {
     ApprovalWaitPoint,
@@ -73,17 +74,16 @@ import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
 import { EngineSkills } from './skills/module.ts';
 import type { IEngineSkills } from './skills/types.ts';
 import type { SkillContribution } from '../skill/types.ts';
-import type { ArtifactService } from '../artifact/service.ts';
-import type { CheckpointService } from '../checkpoint/service.ts';
-import type { EffectService } from '../effect/service.ts';
-import type { AgentRevisionService } from '../agent-revision/service.ts';
-import type { ConnectionService } from '../connection/service.ts';
-import type { ConversationService } from '../conversation/service.ts';
-import type { IdempotencyService } from '../idempotency/service.ts';
-import type { LockService } from '../lock/service.ts';
-import type { RunService } from '../run/service.ts';
-import type { StateService } from '../state/service.ts';
-import type { StepService } from '../step/service.ts';
+import type { IArtifactService } from '../artifact/types.ts';
+import type { ICheckpointService } from '../checkpoint/types.ts';
+import type { IEffectService } from '../effect/types.ts';
+import type { IAgentRevisionService } from '../agent-revision/types.ts';
+import type { IConnectionService } from '../connection/types.ts';
+import type { IIdempotencyService } from '../idempotency/types.ts';
+import type { ILockService } from '../lock/types.ts';
+import type { IRunService } from '../run/types.ts';
+import type { IStateService } from '../state/types.ts';
+import type { IStepService } from '../step/types.ts';
 import { idempotencyScope, toInvoker } from '../trigger/helpers.ts';
 import { assertTriggerKey } from '../trigger/key.ts';
 import {
@@ -125,37 +125,37 @@ type ApprovalDecisionInput = Omit<ApprovalAnswer, 'approvalId'>;
 
 export class Engine implements IEngine {
     /** The rules of runs over the run repository. */
-    readonly runService: RunService;
+    readonly runService: IRunService;
 
     /** The steps of runs over the step repository. */
-    readonly stepService: StepService;
+    readonly stepService: IStepService;
 
     /** The latest checkpoint of each run over the checkpoint repository. */
-    readonly checkpointService: CheckpointService;
+    readonly checkpointService: ICheckpointService;
 
     /** Recorded effect results over the effect repository. */
-    readonly effectService: EffectService;
+    readonly effectService: IEffectService;
 
     /** The files of runs over the artifact repository. */
-    readonly artifactService: ArtifactService;
+    readonly artifactService: IArtifactService;
 
     /** Agent state over the key-value and document repositories. */
-    readonly stateService: StateService;
+    readonly stateService: IStateService;
 
     /** The revision markers of folder agents over the agent revision repository. */
-    readonly agentRevisionService: AgentRevisionService;
+    readonly agentRevisionService: IAgentRevisionService;
 
     /** Leases on keys over the lock repository. */
-    readonly lockService: LockService;
+    readonly lockService: ILockService;
 
     /** Connections over the connection repository, when the store keeps them (unused by the engine). */
-    readonly connectionService: ConnectionService | undefined;
+    readonly connectionService: IConnectionService | undefined;
 
     /** Conversations over the conversation repository, when the store keeps them (the conversation capability needs it). */
-    readonly conversationService: ConversationService | undefined;
+    readonly conversationService: IConversationService | undefined;
 
     /** The idempotency keys of dispatches over the idempotency repository. */
-    readonly idempotencyService: IdempotencyService;
+    readonly idempotencyService: IIdempotencyService;
 
     protected readonly agents: Map<string, Agent>;
 

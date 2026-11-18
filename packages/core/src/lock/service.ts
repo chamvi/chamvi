@@ -9,7 +9,7 @@ import { uuidv7 } from 'uuidv7';
 import { EntityConflictError } from '@chamvi/store';
 import type { ILockRepository, Lock } from '@chamvi/store';
 import type { IClock } from '../clock/index.ts';
-import type { LockServiceContext } from './types.ts';
+import type { ILockService, LockServiceContext } from './types.ts';
 
 /**
  * Leases on keys over an `ILockRepository`: one owner per key until its
@@ -23,7 +23,7 @@ import type { LockServiceContext } from './types.ts';
  * sees either the lease before or after a change, never a change in
  * flight. The clock is read after the locked read.
  */
-export class LockService {
+export class LockService implements ILockService {
     protected repository: ILockRepository;
 
     protected clock: IClock;
@@ -33,17 +33,6 @@ export class LockService {
         this.clock = ctx.clock;
     }
 
-    /**
-     * Takes the lease of `key` for `owner` until now + `ttlMs`; resolves
-     * false while another lease of the key is unexpired (also one of the
-     * same owner). An expired lease is taken over.
-     *
-     * A held key is refused on one plain read (no transaction, no insert
-     * that would raise a unique violation): a refusal may rest on an
-     * unlocked read, an insert or a takeover never does. A key the plain
-     * read found expired goes straight to the locked takeover; only a key
-     * it found free (or one gone by the locked read) tries the insert.
-     */
     async acquire(key: string, owner: string, ttlMs: number): Promise<boolean> {
         const current = await this.repository.findOneBy({ key });
 
@@ -88,12 +77,6 @@ export class LockService {
         }
     }
 
-    /**
-     * Extends the lease to now + `ttlMs`; resolves true only while `owner`
-     * holds it unexpired, false when the lease is absent, expired (also
-     * when nobody took it over), released or held by another owner. It
-     * never creates a lease.
-     */
     async renew(key: string, owner: string, ttlMs: number): Promise<boolean> {
         return this.repository.transaction(async (repository) => {
             const lock = await repository.findOneBy({ key });
@@ -116,7 +99,6 @@ export class LockService {
         });
     }
 
-    /** Ends the lease of `owner` (expired or not); a lease of another owner, or none, stays as it is. */
     async release(key: string, owner: string): Promise<void> {
         await this.repository.transaction(async (repository) => {
             const lock = await repository.findOneBy({ key });
@@ -127,14 +109,12 @@ export class LockService {
         });
     }
 
-    /** Whether `owner` holds the lease of `key` unexpired now. */
     async holds(key: string, owner: string): Promise<boolean> {
         const lock = await this.repository.findOneBy({ key });
 
         return !!lock && lock.owner === owner && lock.expiresAt.getTime() > this.clock.now().getTime();
     }
 
-    /** Deletes the leases expired at `now` (default: the clock's time); resolves how many. */
     async purgeExpired(now: Date = this.clock.now()): Promise<number> {
         return this.repository.transaction((repository) => repository.removeExpiredBy(now));
     }

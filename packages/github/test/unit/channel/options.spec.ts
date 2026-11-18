@@ -60,7 +60,7 @@ describe('githubChannel options', () => {
         // @ts-expect-error locks is required
         expect(() => githubChannel({ app: gh })).toThrow(InvalidAgentDefinitionError);
         // @ts-expect-error locks is required
-        expect(() => resolveOptions({ app: gh })).toThrow('locks must be a LockService');
+        expect(() => resolveOptions({ app: gh })).toThrow('locks must be an ILockService');
     });
 
     it('uses the supplied lock service for persistent comments', () => {

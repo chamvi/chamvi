@@ -9,7 +9,7 @@ import { uuidv7 } from 'uuidv7';
 import { EntityConflictError } from '@chamvi/store';
 import type { IIdempotencyRepository } from '@chamvi/store';
 import type { IClock } from '../clock/index.ts';
-import type { IdempotencyClaim, IdempotencyServiceContext } from './types.ts';
+import type { IIdempotencyService, IdempotencyClaim, IdempotencyServiceContext } from './types.ts';
 
 /**
  * Idempotency keys over an `IIdempotencyRepository`: the first caller per
@@ -17,7 +17,7 @@ import type { IdempotencyClaim, IdempotencyServiceContext } from './types.ts';
  * claimed at T with `ttlMs` expires at exactly `T + ttlMs`. The clock is
  * read after the locked read.
  */
-export class IdempotencyService {
+export class IdempotencyService implements IIdempotencyService {
     protected repository: IIdempotencyRepository;
 
     protected clock: IClock;
@@ -27,19 +27,6 @@ export class IdempotencyService {
         this.clock = ctx.clock;
     }
 
-    /**
-     * Claims `(scope, key)` for `runId` until now + `ttlMs`. Resolves
-     * `{ created: true, runId }` for the caller that claimed it (also one
-     * taking over an expired claim), else `{ created: false, runId }` with
-     * the run of the unexpired claim.
-     *
-     * A claimed key is refused on one plain read (no transaction, no
-     * insert that would raise a unique violation): a refusal may rest on
-     * an unlocked read, an insert or a takeover never does. A key the
-     * plain read found expired goes straight to the locked takeover; only
-     * a key it found free (or one gone by the locked read) tries the
-     * insert.
-     */
     async claim(scope: string, key: string, runId: string, ttlMs: number): Promise<IdempotencyClaim> {
         const current = await this.repository.findOneBy({ scope, key });
 
@@ -85,7 +72,6 @@ export class IdempotencyService {
         }
     }
 
-    /** Deletes the claims expired at `now` (default: the clock's time); resolves how many. */
     async purgeExpired(now: Date = this.clock.now()): Promise<number> {
         return this.repository.transaction((repository) => repository.removeExpiredBy(now));
     }

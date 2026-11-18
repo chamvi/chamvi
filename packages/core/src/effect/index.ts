@@ -12,6 +12,7 @@ export type {
     EffectResult,
     EffectServiceContext,
     EffectTool,
+    IEffectService,
     WrapToolsOptions,
 } from './types.ts';
 export * from './wrap.ts';

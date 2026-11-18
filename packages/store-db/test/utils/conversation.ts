@@ -6,8 +6,8 @@
  */
 
 import type { DataSource } from 'typeorm';
+import type { IClock, IConversationService  } from '@chamvi/core';
 import { ConversationService } from '@chamvi/core';
-import type { IClock } from '@chamvi/core';
 import { EntityConflictError } from '@chamvi/store';
 import type { Run } from '@chamvi/store';
 import { DatabaseConversationRepository } from '../../src/repositories/conversation/index.ts';
@@ -42,6 +42,6 @@ export async function seedRun(dataSource: DataSource, id: string, overrides: Par
 }
 
 /** The conversation service on the database repositories of the data source. */
-export function conversationServiceOf(dataSource: DataSource, clock: IClock): ConversationService {
+export function conversationServiceOf(dataSource: DataSource, clock: IClock): IConversationService {
     return new ConversationService({ repository: new DatabaseConversationRepository(dataSource), clock });
 }

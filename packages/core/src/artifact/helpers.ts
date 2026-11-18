@@ -9,10 +9,9 @@ import type { FilePart, ModelMessage } from 'ai';
 import { isObject } from 'smob';
 import type { Artifact, ArtifactRecord } from '@chamvi/store';
 import { ArtifactNotFoundError, ValidationError } from '../errors/index.ts';
-import type { ArtifactService } from './service.ts';
+import type { ArtifactInput, IArtifactService  } from './types.ts';
 import { ARTIFACT_KEY_MAX_LENGTH, ARTIFACT_URI_PREFIX } from './constants.ts';
 import { isArtifactMediaType } from './media-type.ts';
-import type { ArtifactInput } from './types.ts';
 
 /** Throws ValidationError unless `input` is an ArtifactInput (`what` names it in the message). */
 export function assertArtifactInput(input: unknown, what = 'artifact'): asserts input is ArtifactInput {
@@ -123,7 +122,7 @@ function hydrateToolResult<T>(part: T, bytes: Map<string, Uint8Array>): T {
  * without a marker it is returned as is. Throws ArtifactNotFoundError for a
  * marker whose artifact is gone.
  */
-export async function hydrateMessages(messages: ModelMessage[], artifacts: Pick<ArtifactService, 'read'>): Promise<ModelMessage[]> {
+export async function hydrateMessages(messages: ModelMessage[], artifacts: Pick<IArtifactService, 'read'>): Promise<ModelMessage[]> {
     const ids = new Set<string>();
 
     for (const message of messages) {

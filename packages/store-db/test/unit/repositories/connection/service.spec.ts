@@ -7,14 +7,14 @@
 
 import type { DataSource } from 'typeorm';
 import { afterEach, expect, it } from 'vitest';
-import {
-    ConnectionChangedError,
-    ConnectionService,
-    LeaseLostError,
-    LockService,
-    RepositoryNotFoundError,
+import type { IClock, ILockService } from '@chamvi/core';
+import { 
+    ConnectionChangedError, 
+    ConnectionService, 
+    LeaseLostError, 
+    LockService, 
+    RepositoryNotFoundError, 
 } from '@chamvi/core';
-import type { IClock } from '@chamvi/core';
 import type { Connection } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
 import { DatabaseConnectionRepository } from '../../../../src/repositories/connection/index.ts';
@@ -443,13 +443,13 @@ describePostgres('connection service in postgres', () => {
     }, 300_000);
 
     it.each([
-        ['released', async (ctx: { clock: ControllableClock; lockService: LockService }) => {
+        ['released', async (ctx: { clock: ControllableClock; lockService: ILockService }) => {
             await ctx.lockService.release('connection:wa', 'o1');
         }],
-        ['expired', async (ctx: { clock: ControllableClock; lockService: LockService }) => {
+        ['expired', async (ctx: { clock: ControllableClock; lockService: ILockService }) => {
             ctx.clock.advance(1_000);
         }],
-        ['taken over by another owner', async (ctx: { clock: ControllableClock; lockService: LockService }) => {
+        ['taken over by another owner', async (ctx: { clock: ControllableClock; lockService: ILockService }) => {
             ctx.clock.advance(1_000);
             expect(await ctx.lockService.acquire('connection:wa', 'o2', 60_000)).toBe(true);
         }],

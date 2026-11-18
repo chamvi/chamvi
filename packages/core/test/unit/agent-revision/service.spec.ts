@@ -13,7 +13,7 @@ import {
 } from 'vitest';
 import { MemoryAgentRevisionRepository, MemoryRegistry } from '@chamvi/store-memory';
 import type { AgentRevision } from '@chamvi/store';
-import { AgentRevisionService, RepositoryNotFoundError } from '../../../src/index.ts';
+import { AgentRevisionService, type IAgentRevisionService, RepositoryNotFoundError } from '../../../src/index.ts';
 
 function marker(agent: string, overrides: Partial<AgentRevision> = {}): AgentRevision {
     return {
@@ -26,7 +26,7 @@ function marker(agent: string, overrides: Partial<AgentRevision> = {}): AgentRev
 
 describe('AgentRevisionService', () => {
     let repository: MemoryAgentRevisionRepository;
-    let revisions: AgentRevisionService;
+    let revisions: IAgentRevisionService;
 
     beforeEach(() => {
         repository = new MemoryAgentRevisionRepository({ registry: new MemoryRegistry() });

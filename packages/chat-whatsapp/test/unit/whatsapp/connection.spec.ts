@@ -19,7 +19,7 @@ import {
     createConnectionVault,
     createKeyring,
 } from '@chamvi/core';
-import type { ConnectionService, IEngine, IKeyring } from '@chamvi/core';
+import type { IConnectionService, IEngine, IKeyring } from '@chamvi/core';
 import {
     WHATSAPP_AUTH_ERROR_CODE,
     WHATSAPP_CONNECTION_ERROR_CODE,
@@ -70,7 +70,7 @@ type Storage = Pick<IEngine, 'connectionService' | 'lockService'>;
 
 type StoreWorld = WhatsAppFixture & {
     statuses: WhatsAppConnectionStatus[];
-    connections: ConnectionService;
+    connections: IConnectionService;
     /** the lock service the connection fence reads */
     lockService: Storage['lockService'];
     /** another process's provider over the same store (its renewals on `clock`) */
@@ -126,7 +126,7 @@ function storeWorld(input: {
 }
 
 /** Makes the next entry write of the store fail once (a short store outage). */
-function failNextWrite(connections: ConnectionService): void {
+function failNextWrite(connections: IConnectionService): void {
     const original = connections.writeEntries.bind(connections);
 
     connections.writeEntries = async () => {
@@ -137,7 +137,7 @@ function failNextWrite(connections: ConnectionService): void {
 }
 
 /** Holds the next entry write of the store until the returned promise resolves. */
-function holdNextWrite(connections: ConnectionService): PromiseWithResolvers<void> {
+function holdNextWrite(connections: IConnectionService): PromiseWithResolvers<void> {
     const original = connections.writeEntries.bind(connections);
     const gate = deferred();
 

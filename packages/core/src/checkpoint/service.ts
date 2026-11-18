@@ -10,7 +10,7 @@ import { EntityConflictError, EntityRelationError } from '@chamvi/store';
 import type { Checkpoint, ICheckpointRepository } from '@chamvi/store';
 import { RepositoryNotFoundError, RunNotFoundError } from '../errors/index.ts';
 import { readCheckpoint } from './helpers.ts';
-import type { CheckpointServiceContext } from './types.ts';
+import type { CheckpointServiceContext, ICheckpointService } from './types.ts';
 
 /**
  * The latest checkpoint of each run over an `ICheckpointRepository`: a
@@ -18,18 +18,13 @@ import type { CheckpointServiceContext } from './types.ts';
  * answers are appended that way). Each save reads the run's row locked,
  * compares and writes in one transaction.
  */
-export class CheckpointService {
+export class CheckpointService implements ICheckpointService {
     protected repository: ICheckpointRepository;
 
     constructor(ctx: CheckpointServiceContext) {
         this.repository = ctx.repository;
     }
 
-    /**
-     * Keeps `checkpoint` unless the run holds one with a higher
-     * `stepIndex`; resolves the checkpoint the run holds afterwards. A run
-     * the store does not hold is RunNotFoundError and nothing is written.
-     */
     async save(checkpoint: Checkpoint): Promise<Checkpoint> {
         try {
             return await this.write(checkpoint);
@@ -49,7 +44,6 @@ export class CheckpointService {
         return record ? readCheckpoint(record) : undefined;
     }
 
-    /** As `findOne`; RepositoryNotFoundError when the run holds no checkpoint. */
     async findOneOrFail(runId: string): Promise<Checkpoint> {
         const checkpoint = await this.findOne(runId);
 

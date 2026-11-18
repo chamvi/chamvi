@@ -24,7 +24,7 @@ import {
 import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
 import { untilAborted } from '../run/helpers.ts';
 import type { RunContext } from '../run/types.ts';
-import type { EffectService } from '../effect/service.ts';
+import type { IEffectService } from '../effect/types.ts';
 import type {
     ChannelHandle,
     EmitMessage,
@@ -89,7 +89,7 @@ function assertEmitMessage(message: unknown): asserts message is EmitMessage {
 function createChannelHandle(
     run: RunContext,
     execution: RunContext,
-    effects: Pick<EffectService, 'findOne' | 'save'>,
+    effects: Pick<IEffectService, 'findOne' | 'save'>,
     inflight: Inflight,
     channel: IChannel<any, any>,
     address?: string,
@@ -309,7 +309,7 @@ function createChannelHandle(
  */
 export function createToolChannels(
     run: RunContext,
-    effects: Pick<EffectService, 'findOne' | 'save'>,
+    effects: Pick<IEffectService, 'findOne' | 'save'>,
     engine: Pick<IEngine, 'getChannel' | 'listChannels'>,
 ): ToolChannels {
     const inflight: Inflight = new Map();

@@ -7,7 +7,7 @@
 
 import { RunStatus } from '@chamvi/store';
 import type { Run, RunStatusLiteral } from '@chamvi/store';
-import type { RunService } from '../run/service.ts';
+import type { IRunService } from '../run/types.ts';
 import { DISPATCH_DEPTH_MAX } from './constants.ts';
 
 /** Statuses of a run that may still reach an approval wait. */
@@ -26,7 +26,7 @@ function isApprovalWait(run: Run): boolean {
  * Each run once, at most `DISPATCH_DEPTH_MAX` levels, a settled run's
  * subtree skipped. `run` itself is never the answer.
  */
-export async function findApprovalWaitBelow(runs: Pick<RunService, 'find'>, run: Run): Promise<Run | undefined> {
+export async function findApprovalWaitBelow(runs: Pick<IRunService, 'find'>, run: Run): Promise<Run | undefined> {
     const visited = new Set([run.id]);
     let level = [run];
 

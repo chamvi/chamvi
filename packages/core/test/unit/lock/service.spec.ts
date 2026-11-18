@@ -14,7 +14,7 @@ import {
 import { EntityDeadlockError } from '@chamvi/store';
 import type { Lock } from '@chamvi/store';
 import { MemoryLockRepository, MemoryRegistry } from '@chamvi/store-memory';
-import { LockService } from '../../../src/index.ts';
+import { type ILockService, LockService } from '../../../src/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 
 /**
@@ -76,7 +76,7 @@ class ProbedLockRepository extends MemoryLockRepository {
 describe('LockService', () => {
     let clock: ControllableClock;
     let repository: ProbedLockRepository;
-    let locks: LockService;
+    let locks: ILockService;
 
     beforeEach(() => {
         clock = new ControllableClock(new Date(10_000));

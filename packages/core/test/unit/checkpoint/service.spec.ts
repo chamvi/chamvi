@@ -14,7 +14,12 @@ import {
 import { EntityConflictError, RunStatus } from '@chamvi/store';
 import type { Checkpoint } from '@chamvi/store';
 import { MemoryCheckpointRepository, MemoryRegistry, MemoryRunRepository } from '@chamvi/store-memory';
-import { CheckpointService, RepositoryNotFoundError, RunNotFoundError } from '../../../src/index.ts';
+import { 
+    CheckpointService, 
+    type ICheckpointService, 
+    RepositoryNotFoundError, 
+    RunNotFoundError, 
+} from '../../../src/index.ts';
 
 function uuid(label: string): string {
     const hex = Buffer.concat([Buffer.from(label), Buffer.alloc(16 - label.length)]).toString('hex');
@@ -35,7 +40,7 @@ function checkpointOf(runId: string, stepIndex: number, patch: Partial<Checkpoin
 describe('CheckpointService', () => {
     let runs: MemoryRunRepository;
     let repository: MemoryCheckpointRepository;
-    let checkpoints: CheckpointService;
+    let checkpoints: ICheckpointService;
 
     beforeEach(async () => {
         const registry = new MemoryRegistry();

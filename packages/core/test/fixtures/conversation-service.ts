@@ -18,7 +18,7 @@ import {
     DEFAULT_CONVERSATION_LIMITS,
     RunNotFoundError,
 } from '@chamvi/core';
-import type { ConversationService, ResolvedConversationLimits } from '@chamvi/core';
+import type { IConversationService, ResolvedConversationLimits } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type {
     ConversationIdentity,
@@ -135,7 +135,7 @@ export function makeRemove(runId: string, key: string, toolCallId = `call-rm-${k
 
 /** What a driver hands the cases: the service on its storage and a way to store a run (the turns reference runs). */
 export type ConversationServiceFixture = {
-    service: ConversationService;
+    service: IConversationService;
     /** Store a run of this id, if absent. */
     seedRun(id: string): Promise<void>;
     /** The repository the service is on: a case holds a conversation row's lock through it. */
@@ -159,7 +159,7 @@ export function turnsOf(fixture: ConversationServiceFixture) {
     const { service, seedRun } = fixture;
     const wellFormed = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/;
 
-    return Object.assign(Object.create(service) as ConversationService, {
+    return Object.assign(Object.create(service) as IConversationService, {
         async beginTurn(scope: ConversationScope, runId: string, text: string, limits: ResolvedConversationLimits) {
             if (typeof runId === 'string' && wellFormed.test(runId)) {
                 await seedRun(runId);
@@ -172,7 +172,7 @@ export function turnsOf(fixture: ConversationServiceFixture) {
 
 /** One whole turn: begin, the given replies emitted and confirmed, end. */
 export async function completeTurn(
-    store: ConversationService,
+    store: IConversationService,
     clock: ControllableClock,
     scope: ConversationScope,
     runId: string,

@@ -53,3 +53,42 @@ export interface IRunArtifacts {
 export type ArtifactServiceContext = {
     repository: IArtifactRepository;
 };
+
+/**
+ * The operations of `ArtifactService`. Anything that satisfies it can stand in
+ * for the service: the engine, the channels and the HTTP API take this type.
+ */
+export interface IArtifactService {
+    /**
+     * Insert-if-absent: resolves false and keeps the stored artifact
+     * (metadata and bytes) when an artifact with that id, or with `key` in
+     * that run, exists.
+     */
+    create(artifact: Artifact, data: Uint8Array, key?: string): Promise<boolean>;
+
+    /**
+     * Upsert by `(runId, key)`: an absent key inserts the artifact as
+     * given; an existing one keeps its `id`, `agent` and `createdAt`,
+     * replaces `mediaType`, `filename` (removed when absent), `size` and the
+     * bytes. Resolves the stored metadata.
+     */
+    save(artifact: Artifact, data: Uint8Array, key: string): Promise<Artifact>;
+
+    /** Metadata only. */
+    findOne(id: string): Promise<Artifact | undefined>;
+
+    /** As `findOne`; ArtifactNotFoundError when absent. */
+    findOneOrFail(id: string): Promise<Artifact>;
+
+    /** Metadata of the run's artifact stored under `key`. */
+    findOneByKey(runId: string, key: string): Promise<Artifact | undefined>;
+
+    /** The bytes, as a plain Uint8Array (no Buffer or other subclass). */
+    read(id: string): Promise<Uint8Array | undefined>;
+
+    /** Metadata of a run's artifacts, ordered by createdAt ascending, ties broken by id ascending. */
+    find(runId: string): Promise<Artifact[]>;
+
+    /** As `find`; RepositoryNotFoundError when the run has no artifact. */
+    findOrFail(runId: string): Promise<Artifact[]>;
+}

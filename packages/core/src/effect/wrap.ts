@@ -17,8 +17,12 @@ import { SuspendSignal } from '../approval/request.ts';
 import { EFFECT, EFFECT_HOOKS } from './constants.ts';
 import { assertExecutionActive, currentToolCall, runToolCall } from './frame.ts';
 import { stableHash, validateToolInput } from './helpers.ts';
-import type { EffectService } from './service.ts';
-import type { EffectHooks, ToolCallFrame, WrapToolsOptions } from './types.ts';
+import type { 
+    EffectHooks, 
+    IEffectService, 
+    ToolCallFrame, 
+    WrapToolsOptions,  
+} from './types.ts';
 
 type Execute = (input: unknown, options: any) => unknown;
 
@@ -106,7 +110,7 @@ function toolCallIdOf(options: unknown): string {
 export function wrapToolsForRun(
     tools: ToolSet,
     ctx: ToolContext,
-    effects: Pick<EffectService, 'findOne' | 'save'>,
+    effects: Pick<IEffectService, 'findOne' | 'save'>,
     options: WrapToolsOptions = {},
 ): ToolSet {
     const {

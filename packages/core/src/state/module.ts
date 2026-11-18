@@ -6,11 +6,15 @@
  */
 
 import { validate } from './helpers.ts';
-import type { StateService } from './service.ts';
-import type { IAgentState, Infer, StateSchema } from './types.ts';
+import type { 
+    IAgentState, 
+    IStateService, 
+    Infer, 
+    StateSchema,  
+} from './types.ts';
 
 /** What an agent's state (`createAgentState()`) needs of the state service. */
-type AgentStateService = Pick<StateService, 'findOne' | 'set' | 'findDocuments' | 'upsertDocument' | 'deleteDocument'>;
+type AgentStateService = Pick<IStateService, 'findOne' | 'set' | 'findDocuments' | 'upsertDocument' | 'deleteDocument'>;
 
 /**
  * Service-backed IAgentState scoped to one agent. With a schema, collection

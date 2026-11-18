@@ -9,13 +9,13 @@ import { uuidv7 } from 'uuidv7';
 import type { IEffectRepository } from '@chamvi/store';
 import { RepositoryNotFoundError } from '../errors/index.ts';
 import { readEffect } from './helpers.ts';
-import type { EffectResult, EffectServiceContext } from './types.ts';
+import type { EffectResult, EffectServiceContext, IEffectService } from './types.ts';
 
 /**
  * Recorded effect results over an `IEffectRepository`: one result per
  * effect key, replaced by a later save of the same key.
  */
-export class EffectService {
+export class EffectService implements IEffectService {
     protected repository: IEffectRepository;
 
     constructor(ctx: EffectServiceContext) {
@@ -28,7 +28,6 @@ export class EffectService {
         return record ? readEffect(record) : undefined;
     }
 
-    /** As `findOne`; RepositoryNotFoundError when the key holds no result. */
     async findOneOrFail(key: string): Promise<EffectResult> {
         const effect = await this.findOne(key);
 
@@ -39,7 +38,6 @@ export class EffectService {
         return effect;
     }
 
-    /** Records `result` under `key`, replacing a stored one; `undefined` is stored as `null`. */
     async save(key: string, result: unknown): Promise<EffectResult> {
         const stored = await this.repository.transaction((repository) => repository.upsert(repository.create({
             id: uuidv7(),

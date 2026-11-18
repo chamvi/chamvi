@@ -32,6 +32,7 @@ import {
     withIdTieBreak,
 } from './helpers.ts';
 import type {
+    IRunService,
     RunFindOptions,
     RunServiceContext,
     RunUpdateOptions,
@@ -44,7 +45,7 @@ import type {
  * reads the row locked in one transaction and reads the clock after the
  * lock is held.
  */
-export class RunService {
+export class RunService implements IRunService {
     protected repository: IRunRepository;
 
     protected clock: IClock;
@@ -54,12 +55,6 @@ export class RunService {
         this.clock = ctx.clock;
     }
 
-    /**
-     * Insert-if-absent: false when a run with that id is stored (the stored
-     * run is left as it is). `parentRunId` comes from `trigger.parent.runId`,
-     * never from the caller; a parent the store does not hold is
-     * RunNotFoundError and nothing is written.
-     */
     async create(run: Run): Promise<boolean> {
         const parentRunId = run.trigger.parent?.runId;
         const value: Run = { ...run };
@@ -106,15 +101,6 @@ export class RunService {
         return run;
     }
 
-    /**
-     * Throws InvalidRunStateError when `expectStatus` does not hold the
-     * current status, when `expectOwner` is given and the claim is absent or
-     * held by another owner (expiry is not checked: a lease is lost once
-     * taken over), or when `expectWaitId` is given and the wait id (`id`,
-     * else `approvalId`) differs. `updatedAt` is stamped with now unless the
-     * patch sets one or `keepUpdatedAt`; `id` and `parentRunId` never
-     * change; a property set to `undefined` is cleared.
-     */
     async update(id: string, patch: Partial<Run>, expect: RunUpdateOptions = {}): Promise<Run> {
         return this.repository.transaction(async (repository) => {
             const run = await repository.findOneById(id);
@@ -160,11 +146,6 @@ export class RunService {
         });
     }
 
-    /**
-     * Ordered by createdAt, ties broken by id, both ascending (`order`
-     * `asc`, the default) or both descending; `total` ignores limit and
-     * offset. Without `limit`, every matching run (from `offset`).
-     */
     async find(options: RunFindOptions = {}): Promise<{ data: Run[]; total: number }> {
         const filters: ICondition[] = [];
         const agents = options.agent === undefined ?
@@ -220,7 +201,6 @@ export class RunService {
         return { data: data.map((run) => readRun(run)), total: meta.total };
     }
 
-    /** As `find`; RepositoryNotFoundError when the selected page is empty, even with a nonzero total. */
     async findOrFail(options: RunFindOptions = {}): Promise<{ data: Run[]; total: number }> {
         const result = await this.find(options);
 
@@ -231,15 +211,6 @@ export class RunService {
         return result;
     }
 
-    /**
-     * A rapiq query over the public run fields (filters, sorts, pagination),
-     * for an API listing. A top-level `waiting` filter (`eq` with `approval`
-     * or `dispatch`) selects the runs whose wait point is of that kind; a
-     * `waiting` condition of any other shape is a ValidationError. Ordered
-     * by the query's sorts, then by `id` in the direction of the last one
-     * (createdAt, then id, ascending without sorts); `meta.total` ignores
-     * the pagination.
-     */
     async list(query: IQuery): Promise<EntityFindManyResult<Run>> {
         const { conditions, waitKind } = splitWaitKind(query.filters);
         const listed = defineQuery({
@@ -256,7 +227,6 @@ export class RunService {
         return { data: data.map((run) => readRun(run)), meta };
     }
 
-    /** Succeeds only when the run is unleased or its lease expired (at exactly `expiresAt`). */
     async claim(id: string, owner: string, ttlMs: number): Promise<boolean> {
         return this.repository.transaction(async (repository) => {
             const run = await repository.findOneById(id);
@@ -279,7 +249,6 @@ export class RunService {
         });
     }
 
-    /** Extends the lease to now + ttlMs; only for the current, unexpired owner. */
     async renewClaim(id: string, owner: string, ttlMs: number): Promise<boolean> {
         return this.repository.transaction(async (repository) => {
             const run = await repository.findOneById(id);

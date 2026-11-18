@@ -6,13 +6,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { RunService } from '@chamvi/core';
+import type { IRunService } from '@chamvi/core';
 import { ControllableClock } from '@chamvi/test-kit';
 import type { IShutdown } from '@chamvi/http';
 import { call, createTestApp } from '../../utils/app.ts';
 
 /** A test app whose readiness probe (the run read) answers through `getRun`. */
-function appWith(getRun: RunService['findOne'], clock: ControllableClock) {
+function appWith(getRun: IRunService['findOne'], clock: ControllableClock) {
     const setup = createTestApp({ clock });
 
     setup.engine.runService.findOne = getRun;

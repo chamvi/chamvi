@@ -11,7 +11,7 @@ import type {
     Agent,
     ConversationAccess,
     Engine,
-    RunService,
+    IRunService,
 } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
 import { chatChannel, createChatIngressAdapter } from '@chamvi/chat';
@@ -44,7 +44,7 @@ export type IntakeFixtureInput = {
     agents: (channel: ChatChannel) => Agent[];
     patch?: Partial<ChatChannelOptions>;
     /** replaces the run service's create (a recording or failing wrapper around it) */
-    create?: (create: RunService['create']) => RunService['create'];
+    create?: (create: IRunService['create']) => IRunService['create'];
     /** the conversation policy; default allow */
     authorize?: (access: ConversationAccess) => boolean | Promise<boolean>;
     /** the adapters' names; default one adapter `fake` */

@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
 import { defineModelAgent } from '@chamvi/core';
-import type { RunService } from '@chamvi/core';
+import type { IRunService } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import {
     ADMIN_TOKEN,
@@ -36,7 +36,7 @@ async function setup() {
 }
 
 /** Inserts one child of `parentId` per agent, in that order; returns their ids. */
-async function insertChildren(store: { runService: RunService }, parentId: string, agents: string[]): Promise<string[]> {
+async function insertChildren(store: { runService: IRunService }, parentId: string, agents: string[]): Promise<string[]> {
     const parent = await store.runService.findOneOrFail(parentId);
     const ids: string[] = [];
 

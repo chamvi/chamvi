@@ -13,13 +13,13 @@ import {
     expect,
     it,
 } from 'vitest';
-import { EffectService } from '@chamvi/core';
+import { EffectService, type IEffectService } from '@chamvi/core';
 import { DatabaseEffectRepository } from '../../../../src/repositories/effect/index.ts';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../../utils/database.ts';
 
 describePostgres('EffectService on PostgreSQL', () => {
     let dataSource: DataSource;
-    let effects: EffectService;
+    let effects: IEffectService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();

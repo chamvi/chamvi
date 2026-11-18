@@ -8,10 +8,9 @@
 import type { IClock } from '../clock/types.ts';
 import { InvalidRunStateError, LeaseLostError } from '../errors/index.ts';
 import { open, seal } from '../keyring/module.ts';
-import type { LockService } from '../lock/service.ts';
+import type { ILockService } from '../lock/types.ts';
 import { entryAadOf } from './helpers.ts';
-import type { ConnectionService } from './service.ts';
-import type { ConnectionEntryWrite, IConnectionSession } from './types.ts';
+import type { ConnectionEntryWrite, IConnectionService, IConnectionSession  } from './types.ts';
 import { assertConnectionEntryWrite } from './validate.ts';
 
 type SessionOptions = {
@@ -21,8 +20,8 @@ type SessionOptions = {
     leaseTtlMs: number;
     /** The last confirmed lease expiry (ms since epoch on `clock`), a lower bound of the store's. */
     expiresAt: number;
-    connections: Pick<ConnectionService, 'findEntries' | 'writeEntries'>;
-    lockService: Pick<LockService, 'renew' | 'release'>;
+    connections: Pick<IConnectionService, 'findEntries' | 'writeEntries'>;
+    lockService: Pick<ILockService, 'renew' | 'release'>;
     clock: IClock;
 };
 

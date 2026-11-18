@@ -13,7 +13,6 @@ import type { SuspendRequest } from '../engine/execute/types.ts';
 import type { StateSchema } from '../state/types.ts';
 import type { AgentTrust, ToolContext } from '../tool/types.ts';
 import type { EFFECT, EFFECT_HOOKS } from './constants.ts';
-import type { EffectService } from './service.ts';
 
 export type EffectHooks = {
     effectKey?: (input: any, ctx: ToolContext, options: ToolExecutionOptions<any>) => string;
@@ -47,7 +46,7 @@ export type ToolCallFrame = {
     /** Set when the outbound gate asked and approved this call: `outboundApproved()` reads it. */
     outboundApproved?: boolean;
     /** Where approve() reads the recorded decisions. */
-    effects: Pick<EffectService, 'findOne' | 'save'>;
+    effects: Pick<IEffectService, 'findOne' | 'save'>;
     /** The run's artifacts, where approve() checks the artifact ids a request names. */
     artifacts?: IRunArtifacts;
     /** Set by the approve() or waitForDispatch() that suspended the call; the wrapper answers it with a placeholder. */
@@ -96,3 +95,17 @@ export type EffectServiceContext = {
 export type EffectResult = {
     result: unknown;
 };
+
+/**
+ * The operations of `EffectService`. Anything that satisfies it can stand in
+ * for the service: the engine, the channels and the HTTP API take this type.
+ */
+export interface IEffectService {
+    findOne(key: string): Promise<EffectResult | undefined>;
+
+    /** As `findOne`; RepositoryNotFoundError when the key holds no result. */
+    findOneOrFail(key: string): Promise<EffectResult>;
+
+    /** Records `result` under `key`, replacing a stored one; `undefined` is stored as `null`. */
+    save(key: string, result: unknown): Promise<EffectResult>;
+}

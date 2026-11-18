@@ -20,8 +20,9 @@ import {
     it,
 } from 'vitest';
 import {
+    type IRunService,
     InvalidRunStateError,
-    RunNotFoundError,
+    RunNotFoundError, 
     RunService,
     StepService,
 } from '@chamvi/core';
@@ -76,7 +77,7 @@ describePostgres('run service on postgres', () => {
     let dataSource: DataSource;
     let clock: ControllableClock;
     let repository: DatabaseRunRepository;
-    let service: RunService;
+    let service: IRunService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();

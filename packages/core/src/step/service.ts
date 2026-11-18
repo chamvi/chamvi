@@ -9,17 +9,16 @@ import { defineQuery, eq } from '@rapiq/core';
 import { EntityRelationError, STEP_STORED_ORDER } from '@chamvi/store';
 import type { IStepRepository, Step } from '@chamvi/store';
 import { RepositoryNotFoundError, RunNotFoundError } from '../errors/index.ts';
-import type { StepServiceContext } from './types.ts';
+import type { IStepService, StepServiceContext } from './types.ts';
 
 /** The steps of runs over an `IStepRepository`: appended, listed by index, then in the order they were stored. */
-export class StepService {
+export class StepService implements IStepService {
     protected repository: IStepRepository;
 
     constructor(ctx: StepServiceContext) {
         this.repository = ctx.repository;
     }
 
-    /** Appends the step; a run the store does not hold is RunNotFoundError and nothing is written. */
     async create(step: Step): Promise<void> {
         try {
             await this.repository.transaction(async (repository) => {
@@ -43,7 +42,6 @@ export class StepService {
         return data;
     }
 
-    /** As `find`; RepositoryNotFoundError when the run has no step. */
     async findOrFail(runId: string): Promise<Step[]> {
         const steps = await this.find(runId);
 

@@ -20,32 +20,32 @@ import {
     MemoryStateRepository,
     MemoryStepRepository,
 } from '@chamvi/store-memory';
+import type { AgentRevisionServiceContext, IAgentRevisionService  } from '../../src/agent-revision/index.ts';
 import { AgentRevisionService } from '../../src/agent-revision/index.ts';
-import type { AgentRevisionServiceContext } from '../../src/agent-revision/index.ts';
+import type { ArtifactServiceContext, IArtifactService  } from '../../src/artifact/index.ts';
 import { ArtifactService } from '../../src/artifact/index.ts';
-import type { ArtifactServiceContext } from '../../src/artifact/index.ts';
+import type { CheckpointServiceContext, ICheckpointService  } from '../../src/checkpoint/index.ts';
 import { CheckpointService } from '../../src/checkpoint/index.ts';
-import type { CheckpointServiceContext } from '../../src/checkpoint/index.ts';
 import { systemClock } from '../../src/clock/index.ts';
 import type { IClock } from '../../src/clock/index.ts';
+import type { ConnectionServiceContext, IConnectionService  } from '../../src/connection/index.ts';
 import { ConnectionService } from '../../src/connection/index.ts';
-import type { ConnectionServiceContext } from '../../src/connection/index.ts';
+import type { ConversationServiceContext, IConversationService  } from '../../src/conversation/index.ts';
 import { ConversationService } from '../../src/conversation/index.ts';
-import type { ConversationServiceContext } from '../../src/conversation/index.ts';
+import type { EffectServiceContext, IEffectService  } from '../../src/effect/index.ts';
 import { EffectService } from '../../src/effect/index.ts';
-import type { EffectServiceContext } from '../../src/effect/index.ts';
 import { Engine } from '../../src/engine/index.ts';
 import type { EngineOptions, IEngine } from '../../src/engine/index.ts';
+import type { IIdempotencyService, IdempotencyServiceContext  } from '../../src/idempotency/index.ts';
 import { IdempotencyService } from '../../src/idempotency/index.ts';
-import type { IdempotencyServiceContext } from '../../src/idempotency/index.ts';
+import type { ILockService, LockServiceContext  } from '../../src/lock/index.ts';
 import { LockService } from '../../src/lock/index.ts';
-import type { LockServiceContext } from '../../src/lock/index.ts';
+import type { IRunService, RunServiceContext  } from '../../src/run/index.ts';
 import { RunService } from '../../src/run/index.ts';
-import type { RunServiceContext } from '../../src/run/index.ts';
+import type { IStateService, StateServiceContext  } from '../../src/state/index.ts';
 import { StateService } from '../../src/state/index.ts';
-import type { StateServiceContext } from '../../src/state/index.ts';
+import type { IStepService, StepServiceContext  } from '../../src/step/index.ts';
 import { StepService } from '../../src/step/index.ts';
-import type { StepServiceContext } from '../../src/step/index.ts';
 
 /** The services an engine takes, each by its own name. */
 export type TestServices = Pick<
@@ -60,34 +60,34 @@ export type TestServices = Pick<
  * there), the optional ones too.
  */
 export type TestServiceSet = TestServices & {
-    connectionService: ConnectionService;
-    conversationService: ConversationService;
+    connectionService: IConnectionService;
+    conversationService: IConversationService;
 };
 
 export type TestServicesOptions = {
     clock?: IClock;
     /** Builds the run service, e.g. a subclass that injects a fault. */
-    runService?: (ctx: RunServiceContext) => RunService;
+    runService?: (ctx: RunServiceContext) => IRunService;
     /** Builds the step service, e.g. a subclass that injects a fault. */
-    stepService?: (ctx: StepServiceContext) => StepService;
+    stepService?: (ctx: StepServiceContext) => IStepService;
     /** Builds the checkpoint service, e.g. a subclass that injects a fault. */
-    checkpointService?: (ctx: CheckpointServiceContext) => CheckpointService;
+    checkpointService?: (ctx: CheckpointServiceContext) => ICheckpointService;
     /** Builds the effect service, e.g. a subclass that injects a fault. */
-    effectService?: (ctx: EffectServiceContext) => EffectService;
+    effectService?: (ctx: EffectServiceContext) => IEffectService;
     /** Builds the artifact service, e.g. a subclass that injects a fault. */
-    artifactService?: (ctx: ArtifactServiceContext) => ArtifactService;
+    artifactService?: (ctx: ArtifactServiceContext) => IArtifactService;
     /** Builds the state service, e.g. a subclass that injects a fault. */
-    stateService?: (ctx: StateServiceContext) => StateService;
+    stateService?: (ctx: StateServiceContext) => IStateService;
     /** Builds the agent revision service, e.g. a subclass that injects a fault. */
-    agentRevisionService?: (ctx: AgentRevisionServiceContext) => AgentRevisionService;
+    agentRevisionService?: (ctx: AgentRevisionServiceContext) => IAgentRevisionService;
     /** Builds the lock service, e.g. a subclass that injects a fault. */
-    lockService?: (ctx: LockServiceContext) => LockService;
+    lockService?: (ctx: LockServiceContext) => ILockService;
     /** Builds the idempotency service, e.g. a subclass that injects a fault. */
-    idempotencyService?: (ctx: IdempotencyServiceContext) => IdempotencyService;
+    idempotencyService?: (ctx: IdempotencyServiceContext) => IIdempotencyService;
     /** Builds the connection service, e.g. a subclass that injects a fault. */
-    connectionService?: (ctx: ConnectionServiceContext) => ConnectionService;
+    connectionService?: (ctx: ConnectionServiceContext) => IConnectionService;
     /** Builds the conversation service, e.g. a subclass that injects a fault. */
-    conversationService?: (ctx: ConversationServiceContext) => ConversationService;
+    conversationService?: (ctx: ConversationServiceContext) => IConversationService;
 };
 
 export function createTestServices(options: TestServicesOptions = {}): TestServiceSet {

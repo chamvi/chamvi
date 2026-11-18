@@ -15,8 +15,9 @@ import { RunStatus } from '@chamvi/store';
 import type { Step } from '@chamvi/store';
 import { MemoryRegistry, MemoryRunRepository, MemoryStepRepository } from '@chamvi/store-memory';
 import {
+    type IStepService,
     RepositoryNotFoundError,
-    RunNotFoundError,
+    RunNotFoundError, 
     StepService,
 } from '../../../src/index.ts';
 
@@ -34,7 +35,7 @@ function stepOf(index: number, patch: Partial<Step> = {}): Step {
 }
 
 describe('StepService', () => {
-    let service: StepService;
+    let service: IStepService;
 
     beforeEach(async () => {
         const registry = new MemoryRegistry();

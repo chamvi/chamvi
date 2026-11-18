@@ -14,8 +14,9 @@ import {
     it,
 } from 'vitest';
 import {
-    CheckpointService,
+    CheckpointService, 
     ConversationService,
+    type ICheckpointService,
     RunNotFoundError,
     systemClock,
 } from '@chamvi/core';
@@ -82,7 +83,7 @@ function checkpointOf(stepIndex: number, patch: Partial<Checkpoint> = {}): Check
 
 describePostgres('CheckpointService on PostgreSQL', () => {
     let dataSource: DataSource;
-    let checkpoints: CheckpointService;
+    let checkpoints: ICheckpointService;
 
     beforeAll(async () => {
         dataSource = await createTestDataSource();

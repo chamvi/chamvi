@@ -7,28 +7,28 @@
 
 import type {
     Agent,
-    AgentRevisionService,
-    ArtifactService,
-    CheckpointService,
-    ConnectionService,
     ConnectionValues,
-    ConversationService,
-    EffectService,
+    IAgentRevisionService,
+    IArtifactService,
     IChannel,
+    ICheckpointService,
     IClock,
     IConnectionConfigStore,
     IConnectionHandle,
+    IConnectionService,
     IConnectionTypeProvider,
+    IConversationService,
+    IEffectService,
     IEngine,
+    IIdempotencyService,
     IKeyring,
+    ILockService,
     IModelResolver,
-    IdempotencyService,
-    LockService,
+    IRunService,
+    IStateService,
+    IStepService,
     ModelRef,
-    RunService,
     SkillInput,
-    StateService,
-    StepService,
 } from '@chamvi/core';
 import type {
     IAgentRevisionRepository,
@@ -192,41 +192,41 @@ export type AppTokens = {
     /** The run repository the store module registers (memory, database or a replacing module's). */
     RUN_REPOSITORY: IRunRepository;
     /** The rules of runs over `RUN_REPOSITORY`, on the app clock; the engine module passes it to the engine. */
-    RUN_SERVICE: RunService;
+    RUN_SERVICE: IRunService;
     /** The step repository the store module registers (memory, database or a replacing module's). */
     STEP_REPOSITORY: IStepRepository;
     /** The steps of runs over `STEP_REPOSITORY`; the engine module passes it to the engine. */
-    STEP_SERVICE: StepService;
+    STEP_SERVICE: IStepService;
     /** The checkpoint repository the store module registers (memory, database or a replacing module's). */
     CHECKPOINT_REPOSITORY: ICheckpointRepository;
     /** The latest checkpoint of each run over `CHECKPOINT_REPOSITORY`; the engine module passes it to the engine. */
-    CHECKPOINT_SERVICE: CheckpointService;
+    CHECKPOINT_SERVICE: ICheckpointService;
     /** The effect repository the store module registers (memory, database or a replacing module's). */
     EFFECT_REPOSITORY: IEffectRepository;
     /** Recorded effect results over `EFFECT_REPOSITORY`; the engine module passes it to the engine. */
-    EFFECT_SERVICE: EffectService;
+    EFFECT_SERVICE: IEffectService;
     /** The artifact repository the store module registers (memory, database or a replacing module's). */
     ARTIFACT_REPOSITORY: IArtifactRepository;
     /** The files of runs over `ARTIFACT_REPOSITORY`; the engine module passes it to the engine. */
-    ARTIFACT_SERVICE: ArtifactService;
+    ARTIFACT_SERVICE: IArtifactService;
     /** The state key repository the store module registers (memory, database or a replacing module's). */
     STATE_REPOSITORY: IStateRepository;
     /** The state document repository the store module registers (memory, database or a replacing module's). */
     STATE_DOCUMENT_REPOSITORY: IStateDocumentRepository;
     /** Agent state over `STATE_REPOSITORY` and `STATE_DOCUMENT_REPOSITORY`; the engine module passes it to the engine. */
-    STATE_SERVICE: StateService;
+    STATE_SERVICE: IStateService;
     /** The lock repository the store module registers (memory, database or a replacing module's). */
     LOCK_REPOSITORY: ILockRepository;
     /** Leases over `LOCK_REPOSITORY`, on the app clock; the engine module passes it to the engine, connections and features lock through it. */
-    LOCK_SERVICE: LockService;
+    LOCK_SERVICE: ILockService;
     /** The idempotency key repository the store module registers (memory, database or a replacing module's). */
     IDEMPOTENCY_REPOSITORY: IIdempotencyRepository;
     /** Dispatch idempotency keys over `IDEMPOTENCY_REPOSITORY`, on the app clock; the engine module passes it to the engine. */
-    IDEMPOTENCY_SERVICE: IdempotencyService;
+    IDEMPOTENCY_SERVICE: IIdempotencyService;
     /** The agent revision repository the store module registers (memory, database or a replacing module's). */
     AGENT_REVISION_REPOSITORY: IAgentRevisionRepository;
     /** The revision markers of folder agents over `AGENT_REVISION_REPOSITORY`; the engine module passes it to the engine. */
-    AGENT_REVISION_SERVICE: AgentRevisionService;
+    AGENT_REVISION_SERVICE: IAgentRevisionService;
     /**
      * The connection repository the store module registers (memory,
      * database or a replacing module's); optional (`container.has()`).
@@ -237,7 +237,7 @@ export type AppTokens = {
      * the app clock, fenced by the leases of `LOCK_SERVICE`. Registered only
      * while the store keeps connections: a feature asks `container.has()`.
      */
-    CONNECTION_SERVICE: ConnectionService;
+    CONNECTION_SERVICE: IConnectionService;
     /**
      * The conversation repository the store module registers (memory,
      * database or a replacing module's); optional (`container.has()`).
@@ -249,7 +249,7 @@ export type AppTokens = {
      * the store keeps conversations: the engine module passes it to the
      * engine, the conversation capability needs it.
      */
-    CONVERSATION_SERVICE: ConversationService;
+    CONVERSATION_SERVICE: IConversationService;
     DATA_SOURCE: DataSource;
     ENGINE: IEngine;
     /** The engine module's model resolver (start and job mode, a check too): chat and, through `embedding()`, embedding models. */

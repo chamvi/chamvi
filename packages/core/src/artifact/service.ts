@@ -10,7 +10,7 @@ import { EntityConflictError, EntityRelationError } from '@chamvi/store';
 import type { Artifact, IArtifactRepository } from '@chamvi/store';
 import { ArtifactNotFoundError, RepositoryNotFoundError, RunNotFoundError } from '../errors/index.ts';
 import { readArtifact } from './helpers.ts';
-import type { ArtifactServiceContext } from './types.ts';
+import type { ArtifactServiceContext, IArtifactService } from './types.ts';
 
 /**
  * The files of runs over an `IArtifactRepository`: metadata and bytes,
@@ -19,18 +19,13 @@ import type { ArtifactServiceContext } from './types.ts';
  * that key and keeps the stored `id`, `agent` and `createdAt`. The key is
  * private: no read returns it.
  */
-export class ArtifactService {
+export class ArtifactService implements IArtifactService {
     protected repository: IArtifactRepository;
 
     constructor(ctx: ArtifactServiceContext) {
         this.repository = ctx.repository;
     }
 
-    /**
-     * Insert-if-absent: resolves false and keeps the stored artifact
-     * (metadata and bytes) when an artifact with that id, or with `key` in
-     * that run, exists.
-     */
     async create(artifact: Artifact, data: Uint8Array, key?: string): Promise<boolean> {
         try {
             await this.transaction(artifact.runId, (repository) => repository.save(repository.create({
@@ -50,12 +45,6 @@ export class ArtifactService {
         return true;
     }
 
-    /**
-     * Upsert by `(runId, key)`: an absent key inserts the artifact as
-     * given; an existing one keeps its `id`, `agent` and `createdAt`,
-     * replaces `mediaType`, `filename` (removed when absent), `size` and the
-     * bytes. Resolves the stored metadata.
-     */
     async save(artifact: Artifact, data: Uint8Array, key: string): Promise<Artifact> {
         try {
             return await this.write(artifact, data, key);
@@ -69,14 +58,12 @@ export class ArtifactService {
         }
     }
 
-    /** Metadata only. */
     async findOne(id: string): Promise<Artifact | undefined> {
         const record = await this.repository.findOneById(id);
 
         return record ? readArtifact(record) : undefined;
     }
 
-    /** As `findOne`; ArtifactNotFoundError when absent. */
     async findOneOrFail(id: string): Promise<Artifact> {
         const artifact = await this.findOne(id);
 
@@ -87,19 +74,16 @@ export class ArtifactService {
         return artifact;
     }
 
-    /** Metadata of the run's artifact stored under `key`. */
     async findOneByKey(runId: string, key: string): Promise<Artifact | undefined> {
         const record = await this.repository.findOneBy({ runId, key });
 
         return record ? readArtifact(record) : undefined;
     }
 
-    /** The bytes, as a plain Uint8Array (no Buffer or other subclass). */
     async read(id: string): Promise<Uint8Array | undefined> {
         return (await this.repository.readData(id)) ?? undefined;
     }
 
-    /** Metadata of a run's artifacts, ordered by createdAt ascending, ties broken by id ascending. */
     async find(runId: string): Promise<Artifact[]> {
         const { data } = await this.repository.findMany(defineQuery({
             filters: eq('runId', runId),
@@ -109,7 +93,6 @@ export class ArtifactService {
         return data.map((record) => readArtifact(record));
     }
 
-    /** As `find`; RepositoryNotFoundError when the run has no artifact. */
     async findOrFail(runId: string): Promise<Artifact[]> {
         const artifacts = await this.find(runId);
 

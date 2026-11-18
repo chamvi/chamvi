@@ -69,7 +69,7 @@ export function resolveOptions(options: GithubChannelOptions): ResolvedGithubCha
     }
 
     if (!isObject(options.locks) || typeof options.locks.acquire !== 'function' || typeof options.locks.release !== 'function') {
-        throw invalid('locks must be a LockService (engine.lockService).');
+        throw invalid('locks must be an ILockService (engine.lockService).');
     }
 
     const timeoutMs = options.timeoutMs ?? GITHUB_CHANNEL_TIMEOUT_MS;

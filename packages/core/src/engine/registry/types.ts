@@ -7,9 +7,9 @@
 
 import type { IClock } from '../../clock/index.ts';
 import type { Run } from '@chamvi/store';
-import type { AgentRevisionService } from '../../agent-revision/service.ts';
-import type { LockService } from '../../lock/service.ts';
-import type { RunService } from '../../run/service.ts';
+import type { IAgentRevisionService } from '../../agent-revision/types.ts';
+import type { ILockService } from '../../lock/types.ts';
+import type { IRunService } from '../../run/types.ts';
 
 /** What a registry cancel stores on the run (`Run.error`). */
 export type CancelReason = { code: string; message: string };
@@ -17,10 +17,10 @@ export type CancelReason = { code: string; message: string };
 /** What the registry operations need from the engine. */
 export type RegistryContext = {
     /** The revision markers, read and written under the `agents:<name>` lock. */
-    agentRevisionService: Pick<AgentRevisionService, 'findOne' | 'save' | 'delete'>;
+    agentRevisionService: Pick<IAgentRevisionService, 'findOne' | 'save' | 'delete'>;
     /** The `agents:<name>` lock. */
-    lockService: Pick<LockService, 'acquire' | 'release'>;
-    runService: RunService;
+    lockService: Pick<ILockService, 'acquire' | 'release'>;
+    runService: IRunService;
     clock: IClock;
     /** The lock is retried every claimTtlMs / 3. */
     claimTtlMs: number;

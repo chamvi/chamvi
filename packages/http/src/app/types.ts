@@ -7,11 +7,11 @@
 
 import type {
     Agent,
-    ConnectionService,
     IChannel,
     IClock,
     IConnectionConfigStore,
     IConnectionHandle,
+    IConnectionService,
     IConnectionTypeProvider,
     IEngine,
 } from '@chamvi/core';
@@ -274,7 +274,7 @@ export type HttpContext = {
     connectionTypes: () => readonly IConnectionTypeProvider[];
     connectionConfigs?: IConnectionConfigStore;
     /** The engine's connection service: the stored connection rows, when the app keeps them. */
-    connectionService?: Pick<ConnectionService, 'findOne' | 'find'>;
+    connectionService?: Pick<IConnectionService, 'findOne' | 'find'>;
     uiPages: () => readonly UiPage[];
     onError: (error: unknown) => void;
 };

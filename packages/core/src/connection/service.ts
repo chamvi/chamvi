@@ -17,12 +17,13 @@ import {
     readConfig,
     readConnection,
 } from './helpers.ts';
-import type {
-    ConnectionConfig,
-    ConnectionConfigWrite,
-    ConnectionEntryWrite,
-    ConnectionFence,
-    ConnectionServiceContext,
+import type { 
+    ConnectionConfig, 
+    ConnectionConfigWrite, 
+    ConnectionEntryWrite, 
+    ConnectionFence, 
+    ConnectionServiceContext, 
+    IConnectionService, 
 } from './types.ts';
 import {
     assertConnection,
@@ -53,7 +54,7 @@ const CONFIG_READ_ATTEMPTS = 3;
  * at that clock reading: a fence released, expired or taken over before
  * the write is refused with LeaseLostError and nothing is written.
  */
-export class ConnectionService {
+export class ConnectionService implements IConnectionService {
     protected repository: IConnectionRepository;
 
     protected clock: IClock;
@@ -63,7 +64,6 @@ export class ConnectionService {
         this.clock = ctx.clock;
     }
 
-    /** Insert-if-absent: resolves false and keeps the stored connection when the name is taken. */
     async create(connection: Connection): Promise<boolean> {
         assertConnection(connection);
 
@@ -88,7 +88,6 @@ export class ConnectionService {
         return record ? readConnection(record) : undefined;
     }
 
-    /** As `findOne`; RepositoryNotFoundError when absent. */
     async findOneOrFail(name: string): Promise<Connection> {
         const connection = await this.findOne(name);
 
@@ -99,18 +98,12 @@ export class ConnectionService {
         return connection;
     }
 
-    /** Every connection, ordered by name in code-point order. */
     async find(): Promise<Connection[]> {
         const { data } = await this.repository.findMany(defineQuery({ sorts: { name: 'ASC' } }));
 
         return data.map((record) => readConnection(record));
     }
 
-    /**
-     * Removes the connection with its entries and config; a missing name is a
-     * no-op. With `fence`, the fence holds at write time or LeaseLostError and
-     * nothing is deleted.
-     */
     async delete(name: string, fence?: ConnectionFence): Promise<void> {
         assertConnectionName(name);
 
@@ -130,14 +123,6 @@ export class ConnectionService {
         });
     }
 
-    /**
-     * All or nothing: swaps the connection of `connection.name` for
-     * `connection` (inserts it if absent), dropping its entries and secrets
-     * (they are sealed under the replaced data key) and keeping its settings
-     * and config revision. The replacement is validated as by `create`
-     * (ValidationError) before anything else; the fence holds at write time or
-     * LeaseLostError and nothing changes.
-     */
     async replace(connection: Connection, fence: ConnectionFence): Promise<void> {
         assertConnection(connection);
 
@@ -161,7 +146,6 @@ export class ConnectionService {
         return found.get(key);
     }
 
-    /** The stored ones of `keys`; missing keys are absent from the map. */
     async findEntries(name: string, keys: readonly string[]): Promise<Map<string, Uint8Array>> {
         for (const key of keys) {
             assertConnectionEntryKey(key);
@@ -188,11 +172,6 @@ export class ConnectionService {
         return found;
     }
 
-    /**
-     * All or nothing: `clear`, then `set`, then `delete`, and `updatedAt`
-     * set to now. The fence holds at write time or LeaseLostError and nothing
-     * is written.
-     */
     async writeEntries(name: string, write: ConnectionEntryWrite, fence: ConnectionFence): Promise<void> {
         assertConnectionName(name);
         assertConnectionEntryWrite(write);
@@ -227,15 +206,6 @@ export class ConnectionService {
         });
     }
 
-    /**
-     * A consistent read of the data key (`keyId`, `wrappedKey`), settings,
-     * sealed secrets and revision; undefined when the connection is absent.
-     * It takes no lock: the row, then its secrets, then the row again, kept
-     * when the row's id, key and revision are unchanged (every config write
-     * bumps the revision, a replace swaps the key, a delete and create the
-     * id); after CONFIG_READ_ATTEMPTS changed reads, one read
-     * under the connection row's lock.
-     */
     async findConfig(name: string): Promise<ConnectionConfig | undefined> {
         assertConnectionName(name);
 
@@ -261,15 +231,6 @@ export class ConnectionService {
         });
     }
 
-    /**
-     * Saves the config and returns the new revision (bumped by one, with
-     * `updatedAt`). RepositoryNotFoundError when absent; ConnectionChangedError
-     * when the stored wrappedKey differs from `expectedWrappedKey`, or the
-     * stored revision from a given `expectedRevision` (another save landed
-     * since it was read; nothing is written). Takes no fence: any replica may
-     * write while a session holds the lease, and entries and the data key
-     * stay untouched.
-     */
     async writeConfig(name: string, write: ConnectionConfigWrite, expectedWrappedKey: Uint8Array, expectedRevision?: number): Promise<number> {
         assertConnectionName(name);
         assertConnectionConfigWrite(write, expectedWrappedKey);

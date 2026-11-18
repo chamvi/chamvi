@@ -30,7 +30,7 @@ import type { Run } from '@chamvi/store';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createTestEngine, createTestServices, servicesOf } from '../../utils/engine.ts';
 import type { TestEngineOptions, TestServiceSet } from '../../utils/engine.ts';
-import { RunService } from '../../../src/run/index.ts';
+import { type IRunService, RunService } from '../../../src/run/index.ts';
 
 const model = {} as LanguageModel;
 const agent = defineModelAgent({
@@ -87,7 +87,7 @@ class GatedEngine extends Engine {
 
 /** Marking a run `running` lands a few ticks late, widening the check-then-start race window. */
 class SlowStartService extends RunService {
-    override async update(...args: Parameters<RunService['update']>) {
+    override async update(...args: Parameters<IRunService['update']>) {
         if (args[1].status === 'running') {
             for (let i = 0; i < 5; i++) {
                 await flush();
@@ -559,7 +559,7 @@ class GatedInsertService extends RunService {
         return entered.promise;
     }
 
-    override async create(...args: Parameters<RunService['create']>) {
+    override async create(...args: Parameters<IRunService['create']>) {
         if (this.gate) {
             this.entered?.();
             await this.gate;

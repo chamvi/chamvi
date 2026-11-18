@@ -61,12 +61,13 @@ import {
     selectRecent,
     userItemId,
 } from './persistence/module.ts';
-import type {
-    BeginTurnResult,
-    ConversationFindOptions,
-    ConversationNoteResult,
-    ConversationServiceContext,
-    ResolvedConversationLimits,
+import type { 
+    BeginTurnResult, 
+    ConversationFindOptions, 
+    ConversationNoteResult, 
+    ConversationServiceContext, 
+    IConversationService, 
+    ResolvedConversationLimits, 
 } from './types.ts';
 
 /**
@@ -103,7 +104,7 @@ function ownerError(): InvalidRunStateError {
  * the port's batched operations. Values are copied in and out, every date
  * and expiry comes from the clock, and no refusal carries stored content.
  */
-export class ConversationService {
+export class ConversationService implements IConversationService {
     protected repository: IConversationRepository;
 
     protected clock: IClock;
@@ -113,11 +114,6 @@ export class ConversationService {
         this.clock = ctx.clock;
     }
 
-    /**
-     * The identity's current scope, created at generation 0 when missing.
-     * Insert-if-absent on the identity's key: a concurrent creation is read
-     * back, and a deleted generation (a tombstone) is never revived.
-     */
     async resolve(identity: ConversationIdentity): Promise<ConversationScope> {
         const key = identityId(identity);
         const existing = await this.repository.findOneBy({ key });
@@ -157,7 +153,6 @@ export class ConversationService {
         return readScope(stored);
     }
 
-    /** The identity's current scope, or undefined; read only. */
     async findOne(identity: ConversationIdentity): Promise<ConversationScope | undefined> {
         const record = await this.repository.findOneBy({ key: identityId(identity) });
 
@@ -174,7 +169,6 @@ export class ConversationService {
         return result;
     }
 
-    /** Read-only owner lookup for terminal repair, never reserves a turn. */
     async activeRun(scope: ConversationScope): Promise<string | undefined> {
         assertConversationScope(scope);
 
@@ -183,13 +177,6 @@ export class ConversationService {
         return record?.generation === scope.generation ? record.activeRunId : undefined;
     }
 
-    /**
-     * Admit only a nonterminal run; retries reuse its snapshot while it owns
-     * the turn. A stale scope is `stale`, another owner `busy`; a run whose
-     * turn already ended is refused, as is a run that does not exist
-     * (RunNotFoundError). Trims the transcript (retention, then
-     * maxStoredItems) and stores the run's input after the recall.
-     */
     async beginTurn(
         scope: ConversationScope,
         runId: string,
@@ -259,7 +246,6 @@ export class ConversationService {
         }
     }
 
-    /** Terminal settlement only: clears the owner and snapshot. Never resume this run afterward. */
     async endTurn(scope: ConversationScope, runId: string, confirmedEmitIds: string[]): Promise<void> {
         assertConversationScope(scope);
         assertRunId(runId);
@@ -298,7 +284,6 @@ export class ConversationService {
         });
     }
 
-    /** Journal an assistant emit of the active run before it is sent; a repeat of the same emit is a no-op. */
     async prepareEmit(scope: ConversationScope, item: ConversationItem): Promise<void> {
         assertConversationScope(scope);
 
@@ -344,7 +329,6 @@ export class ConversationService {
         });
     }
 
-    /** pending -> sent, by the active run only. */
     async confirmEmit(scope: ConversationScope, itemId: string): Promise<void> {
         assertConversationScope(scope);
 
@@ -368,7 +352,6 @@ export class ConversationService {
         });
     }
 
-    /** The run's emits still pending in the scope's generation, in the order they were prepared. */
     async pendingEmits(scope: ConversationScope, runId: string): Promise<ConversationItem[]> {
         assertConversationScope(scope);
         assertRunId(runId);
@@ -386,7 +369,6 @@ export class ConversationService {
         return data.map((item) => readItem(item));
     }
 
-    /** A page of the scope generation's items in transcript order, and their total. */
     async findItems(scope: ConversationScope, query: ConversationFindOptions): Promise<{ data: ConversationItem[]; total: number }> {
         assertConversationScope(scope);
         assertPage(query);
@@ -410,7 +392,6 @@ export class ConversationService {
         return result;
     }
 
-    /** A page of the current generation's live notes by key (code-point order), and their total. */
     async findNotes(scope: ConversationScope, query: ConversationFindOptions): Promise<{ data: ConversationNote[]; total: number }> {
         assertConversationScope(scope);
         assertPage(query);
@@ -462,11 +443,6 @@ export class ConversationService {
         return result;
     }
 
-    /**
-     * Apply a note operation of the active run once: a replay of its id is
-     * answered from the recorded operation (another input is refused), a
-     * fresh set beyond CONVERSATION_NOTES_MAX live notes is refused.
-     */
     async applyNote(scope: ConversationScope, operation: ConversationNoteOperation): Promise<ConversationNoteResult> {
         assertConversationScope(scope);
 
@@ -564,13 +540,6 @@ export class ConversationService {
         });
     }
 
-    /**
-     * Advance the identity to a new generation (creating it when missing),
-     * ending no turn: a scope with an active turn is refused. With
-     * `keepNotes` its live notes move to the new generation; without, the
-     * notes and the note operations are removed. Old transcript items stay
-     * under their generation until retention removes them.
-     */
     async reset(identity: ConversationIdentity, options: { keepNotes: boolean }): Promise<ConversationScope> {
         if (!isObject(options) || typeof options.keepNotes !== 'boolean') {
             throw new ValidationError('The reset options need keepNotes as a boolean.');
@@ -615,12 +584,6 @@ export class ConversationService {
         });
     }
 
-    /**
-     * Erase the identity's transcript, notes and note operations; the
-     * identity stays as a tombstone at a new generation, so old-generation
-     * work never recreates it. An unknown identity is a no-op that creates
-     * nothing; a scope with an active turn is refused.
-     */
     async delete(identity: ConversationIdentity): Promise<void> {
         const key = identityId(identity);
 
@@ -646,18 +609,6 @@ export class ConversationService {
         });
     }
 
-    /**
-     * Retention for every conversation, each in a transaction of its own:
-     * items past retention (never the active turn's), each generation cut
-     * to its newest maxStoredItems, expired notes. With `isSettled`, note
-     * operation records past retention of runs it reports settled: the
-     * candidates are read without a transaction, `isSettled` is called
-     * outside any transaction (once per run), then a transaction per
-     * conversation re-reads them under the conversation row's lock and
-     * removes those still past retention and not of the active run. A
-     * failing `isSettled` keeps that run's records and is rethrown at the
-     * end.
-     */
     async prune(
         limits: ResolvedConversationLimits,
         options: { isSettled?: (runId: string) => Promise<boolean> } = {},

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IModelResolver, LockService } from '@chamvi/core';
+import type { ILockService, IModelResolver } from '@chamvi/core';
 import { ControllableClock, createTestEngine, mockEmbeddingModel } from '@chamvi/test-kit';
 import type { EmbeddingModel } from 'ai';
 import { MockEmbeddingModelV4 } from 'ai/test';
@@ -53,7 +53,7 @@ export function embeddingResolver(models: Record<string, EmbeddingModel>): IMode
     };
 }
 
-export type RecordedLocks = Pick<LockService, 'acquire' | 'renew' | 'release'> & {
+export type RecordedLocks = Pick<ILockService, 'acquire' | 'renew' | 'release'> & {
     /** Every acquire with its owner and result, in call order. */
     readonly acquired: Array<{
         key: string; 
@@ -63,7 +63,7 @@ export type RecordedLocks = Pick<LockService, 'acquire' | 'renew' | 'release'> &
 };
 
 /** Locks over a memory lock repository, recording every acquire. */
-export function recordingLocks(locks: Pick<LockService, 'acquire' | 'renew' | 'release'>): RecordedLocks {
+export function recordingLocks(locks: Pick<ILockService, 'acquire' | 'renew' | 'release'>): RecordedLocks {
     const acquired: RecordedLocks['acquired'] = [];
 
     return {
