@@ -5,4 +5,4 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export * from './1795037128304-knowledge-vector.ts';
+export * from './1795037476304-knowledge-vector.ts';

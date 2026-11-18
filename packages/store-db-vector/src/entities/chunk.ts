@@ -61,16 +61,16 @@ export class KnowledgeChunkEntity {
     embedding!: number[];
 
     @Column({
-        name: 'title', 
-        type: 'text', 
-        nullable: true, 
+        name: 'title',
+        type: 'text',
+        nullable: true,
     })
     title!: string | null;
 
     @Column({
-        name: 'source', 
-        type: 'text', 
-        nullable: true, 
+        name: 'source',
+        type: 'text',
+        nullable: true,
     })
     source!: string | null;
 

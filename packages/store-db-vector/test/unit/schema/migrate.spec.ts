@@ -116,9 +116,9 @@ describePostgres('knowledge vector schema', () => {
         }
 
         const collations: {
-            table_name: string, 
-            column_name: string, 
-            collation_name: string | null 
+            table_name: string,
+            column_name: string,
+            collation_name: string | null
         }[] = await ds.query(
             'SELECT table_name, column_name, collation_name FROM information_schema.columns WHERE table_name = ANY($1::text[])',
             [TABLES],
@@ -141,24 +141,24 @@ describePostgres('knowledge vector schema', () => {
         expect(embedding).toEqual([{ udt_name: 'vector', atttypmod: -1 }]);
 
         const fence: {
-            data_type: string, 
-            column_default: string | null, 
-            is_nullable: string 
+            data_type: string,
+            column_default: string | null,
+            is_nullable: string
         }[] = await ds.query(
             'SELECT data_type, column_default, is_nullable FROM information_schema.columns WHERE table_name = $1 AND column_name = \'fence\'',
             [VectorTableName.COLLECTIONS],
         );
 
         expect(fence).toEqual([{
-            data_type: 'integer', 
-            column_default: '0', 
-            is_nullable: 'NO', 
+            data_type: 'integer',
+            column_default: '0',
+            is_nullable: 'NO',
         }]);
 
         const foreignKeys: {
-            table: string, 
-            referenced: string, 
-            rule: string 
+            table: string,
+            referenced: string,
+            rule: string
         }[] = await ds.query(
             `SELECT c.conrelid::regclass::text AS table, c.confrelid::regclass::text AS referenced, c.confdeltype AS rule
              FROM pg_constraint c WHERE c.contype = 'f' AND c.conrelid::regclass::text = ANY($1::text[]) ORDER BY 1`,
@@ -168,14 +168,14 @@ describePostgres('knowledge vector schema', () => {
         // chunks reference the collection only: they may be written before their document's record
         expect(foreignKeys).toEqual([
             {
-                table: VectorTableName.CHUNKS, 
-                referenced: VectorTableName.COLLECTIONS, 
-                rule: 'c', 
+                table: VectorTableName.CHUNKS,
+                referenced: VectorTableName.COLLECTIONS,
+                rule: 'c',
             },
             {
-                table: VectorTableName.DOCUMENTS, 
-                referenced: VectorTableName.COLLECTIONS, 
-                rule: 'c', 
+                table: VectorTableName.DOCUMENTS,
+                referenced: VectorTableName.COLLECTIONS,
+                rule: 'c',
             },
         ]);
     });

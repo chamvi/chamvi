@@ -10,7 +10,7 @@ import {
     KnowledgeCollectionEntity,
     KnowledgeDocumentEntity,
 } from '../entities/index.ts';
-import { KnowledgeVector1795037128304 } from '../migrations/index.ts';
+import { KnowledgeVector1795037476304 } from '../migrations/index.ts';
 
 /** The database name of the knowledge vector store (`chamvi migration --database vector`). */
 export const KNOWLEDGE_VECTOR_DATABASE = 'vector';
@@ -25,5 +25,5 @@ export const KNOWLEDGE_VECTOR_ENTITIES = [
 ];
 
 export const KNOWLEDGE_VECTOR_MIGRATIONS = [
-    KnowledgeVector1795037128304,
+    KnowledgeVector1795037476304,
 ];

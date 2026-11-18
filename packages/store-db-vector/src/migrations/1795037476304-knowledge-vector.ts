@@ -7,8 +7,8 @@
 
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class KnowledgeVector1795037128304 implements MigrationInterface {
-    name = 'KnowledgeVector1795037128304';
+export class KnowledgeVector1795037476304 implements MigrationInterface {
+    name = 'KnowledgeVector1795037476304';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
         // the data source installs no extension on connect; down() keeps it, other schemas may use it
@@ -20,13 +20,13 @@ export class KnowledgeVector1795037128304 implements MigrationInterface {
                 "kind" character varying(16) NOT NULL,
                 "trusted" boolean NOT NULL,
                 "generation" integer NOT NULL,
-                "model" character varying(255) NOT NULL,
+                "model" text NOT NULL,
                 "dimensions" integer,
-                "chunker" character varying(255) NOT NULL,
+                "chunker" text NOT NULL,
                 "pending_generation" integer,
-                "pending_model" character varying(255),
+                "pending_model" text,
                 "pending_dimensions" integer,
-                "pending_chunker" character varying(255),
+                "pending_chunker" text,
                 "last_generation" integer,
                 "status" character varying(16) NOT NULL,
                 "error" text,
@@ -75,7 +75,7 @@ export class KnowledgeVector1795037128304 implements MigrationInterface {
                 "collection_id" uuid NOT NULL,
                 "id" character varying(255) COLLATE "C" NOT NULL,
                 "content" text NOT NULL,
-                "hash" character varying(255) NOT NULL,
+                "hash" text NOT NULL,
                 "title" text,
                 "source" text,
                 "metadata" jsonb,

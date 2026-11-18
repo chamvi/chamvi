@@ -41,30 +41,29 @@ export class KnowledgeDocumentEntity {
     content!: string;
 
     @Column({
-        name: 'hash', 
-        type: 'varchar', 
-        length: 255, 
+        name: 'hash',
+        type: 'text',
     })
     hash!: string;
 
     @Column({
-        name: 'title', 
-        type: 'text', 
-        nullable: true, 
+        name: 'title',
+        type: 'text',
+        nullable: true,
     })
     title!: string | null;
 
     @Column({
-        name: 'source', 
-        type: 'text', 
-        nullable: true, 
+        name: 'source',
+        type: 'text',
+        nullable: true,
     })
     source!: string | null;
 
     @Column({
-        name: 'metadata', 
-        type: 'jsonb', 
-        nullable: true, 
+        name: 'metadata',
+        type: 'jsonb',
+        nullable: true,
     })
     metadata!: Record<string, unknown> | null;
 
@@ -77,9 +76,9 @@ export class KnowledgeDocumentEntity {
     status!: string;
 
     @Column({
-        name: 'error', 
-        type: 'text', 
-        nullable: true, 
+        name: 'error',
+        type: 'text',
+        nullable: true,
     })
     error!: string | null;
 
