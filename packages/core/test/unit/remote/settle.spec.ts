@@ -276,7 +276,8 @@ describe('the stand-in run: settle', () => {
 
         expect(run.status).toBe(RunStatus.FAILED);
         expect(run.output).toBeUndefined();
-        expect(run.taint?.source).not.toBe('peer:dev');
+        // the run fails before any taint is written: nothing is attributed to the intake source
+        expect(run.taint).toBeUndefined();
     });
 
     it('fails a run whose recorded outcome is malformed', async () => {

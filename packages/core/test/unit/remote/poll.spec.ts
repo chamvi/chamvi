@@ -15,6 +15,8 @@ import { PEER_REQUEST_TIMEOUT_MS } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Invoker, Run } from '@chamvi/store';
+import { peerRequest } from '../../../src/engine/remote/helpers.ts';
+import { ControllableClock } from '../../utils/clock.ts';
 import { peerRunView, rejectWith } from '../../utils/peers.ts';
 import {
     readRun,
@@ -422,4 +424,56 @@ describe('the stand-in run: poll, wake, timeout and cancel', () => {
         expect(errors).toHaveLength(1);
         expect(errors[0]).toMatchObject({ code: 'Timeout' });
     });
+
+    it('contains a transport that throws synchronously, also through drain()', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+            errors,
+        } = setup();
+        const gone = new Error('peer "dev" is not configured');
+
+        peers.script('start', { runId: 'r1' });
+
+        const runId = await startStandIn(engine);
+
+        // a peer removed from the configuration while its stand-in waits
+        peers.resolver.transport = () => {
+            throw gone;
+        };
+
+        await engine.tick();
+        await engine.idle();
+
+        expect(errors).toEqual([gone]);
+
+        const drained = engine.drain({ timeoutMs: 1_000 });
+
+        await flush();
+        clock.advance(1_000);
+        await drained;
+        await flush();
+
+        expect(errors).toEqual([gone]);
+        expect((await readRun(store, runId)).status).toBe(RunStatus.WAITING);
+    });
 });
+
+describe('peerRequest', () => {
+    it('rejects with a synchronous throw and leaves nothing pending on a later abort', async () => {
+        const clock = new ControllableClock(0);
+        const controller = new AbortController();
+        const gone = new Error('gone');
+
+        await expect(peerRequest(clock, controller.signal, () => {
+            throw gone;
+        })).rejects.toBe(gone);
+
+        controller.abort(new Error('later'));
+        clock.advance(PEER_REQUEST_TIMEOUT_MS);
+        await flush();
+    });
+});
+

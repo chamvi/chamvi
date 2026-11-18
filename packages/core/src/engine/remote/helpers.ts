@@ -124,7 +124,8 @@ export async function peerRequest<T>(
             combined.addEventListener('abort', () => reject(combined.reason), { once: true });
         });
 
-        return await Promise.race([call(combined), aborted]);
+        // Promise.try: a synchronous throw (a transport() for an unconfigured peer) still subscribes `aborted`
+        return await Promise.race([Promise.try(() => call(combined)), aborted]);
     } finally {
         timer.clear();
     }
