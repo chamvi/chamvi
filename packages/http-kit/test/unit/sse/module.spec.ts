@@ -6,7 +6,7 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import { parseEventStream } from '../../../src/sse/helpers.ts';
+import { parseEventStream } from '../../../src/sse/module.ts';
 import type { SseEvent } from '../../../src/sse/types.ts';
 import { sse } from '../../utils/fetch.ts';
 
@@ -31,7 +31,12 @@ describe('parseEventStream', () => {
                 data: 'one\ntwo',
                 id: '7',
             },
-            { event: 'message', data: 'plain' },
+            // the last id persists across events (the SSE lastEventId)
+            {
+                event: 'message',
+                data: 'plain',
+                id: '7',
+            },
         ]);
     });
 

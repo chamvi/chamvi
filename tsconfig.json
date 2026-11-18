@@ -20,6 +20,7 @@
             "@chamvi/core": ["./packages/core/src/index.ts"],
             "@chamvi/github": ["./packages/github/src/index.ts"],
             "@chamvi/github/module": ["./packages/github/src/module/index.ts"],
+            "@chamvi/http-kit": ["./packages/http-kit/src/index.ts"],
             "@chamvi/http": ["./packages/http/src/index.ts"],
             "@chamvi/knowledge": ["./packages/knowledge/src/index.ts"],
             "@chamvi/knowledge/module": ["./packages/knowledge/src/module/index.ts"],

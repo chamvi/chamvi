@@ -1,0 +1,68 @@
+{
+    "name": "@chamvi/http-kit",
+    "version": "0.8.0",
+    "type": "module",
+    "description": "Typed HTTP client for the chamvi API, with a hook that adds and refreshes the bearer token.",
+    "author": {
+        "name": "Peter Placzek",
+        "email": "contact@tada5hi.net",
+        "url": "https://github.com/tada5hi"
+    },
+    "homepage": "https://chamvi.dev",
+    "repository": {
+        "type": "git",
+        "url": "https://github.com/chamvi/chamvi.git",
+        "directory": "packages/http-kit"
+    },
+    "main": "dist/index.mjs",
+    "types": "dist/index.d.mts",
+    "exports": {
+        "./package.json": "./package.json",
+        ".": {
+            "types": "./dist/index.d.mts",
+            "import": "./dist/index.mjs"
+        }
+    },
+    "files": [
+        "dist",
+        "NOTICE"
+    ],
+    "engines": {
+        "node": ">=26.0.0"
+    },
+    "scripts": {
+        "build:types": "tsc --noEmit -p tsconfig.build.json",
+        "build:js": "tsdown",
+        "build": "npm run build:types && npm run build:js",
+        "typecheck": "tsc --noEmit -p tsconfig.json",
+        "test": "vitest --config test/vitest.config.ts --run",
+        "test:coverage": "vitest --config test/vitest.config.ts --run --coverage"
+    },
+    "keywords": [
+        "chamvi",
+        "http-client",
+        "api-client",
+        "sdk",
+        "rest",
+        "agent"
+    ],
+    "publishConfig": {
+        "access": "public"
+    },
+    "license": "Apache-2.0",
+    "dependencies": {
+        "@ebec/core": "^1.3.2",
+        "@rapiq/codec-url": "^2.4.0",
+        "@rapiq/core": "^2.4.0",
+        "hapic": "^3.1.0",
+        "smob": "^1.6.2"
+    },
+    "devDependencies": {
+        "@chamvi/http": "^0.8.0",
+        "@chamvi/store": "^0.8.0"
+    },
+    "peerDependencies": {
+        "@chamvi/http": "^0.8.0",
+        "@chamvi/store": "^0.8.0"
+    }
+}
