@@ -7,11 +7,11 @@
 
 import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
 import { mockEmbeddingModel } from '@chamvi/test-kit';
-import { 
-    afterEach, 
-    describe, 
-    expect, 
-    it, 
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
 } from 'vitest';
 import type { IKnowledge } from '@chamvi/knowledge';
 import {
@@ -177,9 +177,9 @@ describe('syncing a declared collection', () => {
         await first.stop();
 
         expect(await search()).toMatchObject({
-            document: 'a.md', 
-            title: 'Refunds', 
-            source: 'policies/refunds.md', 
+            document: 'a.md',
+            title: 'Refunds',
+            source: 'policies/refunds.md',
         });
 
         // the record alone changing never reaches a search result: the chunk carries its own copy
@@ -198,9 +198,9 @@ describe('syncing a declared collection', () => {
         await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
 
         expect(await search()).toMatchObject({
-            document: 'a.md', 
-            title: 'Returns', 
-            source: 'policies/returns.md', 
+            document: 'a.md',
+            title: 'Returns',
+            source: 'policies/returns.md',
         });
         expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({
             title: 'Returns',
@@ -240,6 +240,44 @@ describe('syncing a declared collection', () => {
 
         expect(model.calls).toHaveLength(calls);
         expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({ metadata: { tag: 'two' }, status: 'ready' });
+    });
+
+    it('saves nothing for the same metadata in another key order', async () => {
+        const setup = createIndexerSetup();
+        let metadata: Record<string, unknown> = {
+            topic: 'x',
+            n: 1,
+            nested: { b: 2, a: 1 },
+        };
+        const source = defineKnowledgeSource({
+            async* documents() {
+                yield {
+                    id: 'a.md',
+                    content: 'Invoices are sent on the first day of each month.',
+                    metadata,
+                };
+            },
+        });
+        const collections = [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [source] })];
+
+        const first = start(createKnowledge(setup.options({ collections })));
+
+        await waitForReady(setup.repository, 'docs');
+        await first.stop();
+
+        const stored = await setup.repository.findOneDocument('docs', 'a.md');
+
+        metadata = {
+            nested: { a: 1, b: 2 },
+            n: 1,
+            topic: 'x',
+        };
+        setup.clock.advance(1000);
+        start(createKnowledge(setup.options({ collections })));
+
+        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
+
+        expect(await setup.repository.findOneDocument('docs', 'a.md')).toEqual(stored);
     });
 
     it('saves a document without text with no chunks', async () => {
@@ -399,10 +437,10 @@ describe('syncing a declared collection', () => {
 
         start(createKnowledge(setup.options({
             collections: [knowledgeCollection('docs', {
-                model, 
-                sources: [mapSource(documents())], 
-                trusted: false, 
-            })], 
+                model,
+                sources: [mapSource(documents())],
+                trusted: false,
+            })],
         })));
 
         expect((await waitForReady(setup.repository, 'docs')).trusted).toBe(false);
@@ -461,9 +499,9 @@ describe('syncing a declared collection', () => {
         changed.set('a.md', 'Changed text from outside.');
         start(createKnowledge(setup.options({
             collections: [knowledgeCollection('docs', {
-                model, 
-                sources: [mapSource(changed)], 
-                trusted: false, 
+                model,
+                sources: [mapSource(changed)],
+                trusted: false,
             })],
         })));
 
@@ -502,9 +540,9 @@ describe('syncing a declared collection', () => {
         const stored = await setup.repository.findOneCollection('docs');
 
         expect(stored).toMatchObject({
-            kind: 'managed', 
-            generation: 0, 
-            status: 'pending', 
+            kind: 'managed',
+            generation: 0,
+            status: 'pending',
         });
         expect(stored?.error).toBeUndefined();
     });

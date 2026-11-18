@@ -237,6 +237,48 @@ describe('managed collections', () => {
         expect(model.calls).toHaveLength(calls);
     });
 
+    it('a PUT with the same metadata in another key order answers changed false', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+
+        const input = {
+            id: 'refunds',
+            content: 'Refunds within thirty days.',
+            metadata: {
+                topic: 'x',
+                n: 1,
+                nested: { b: 2, a: [1, { d: 4, c: 3 }] },
+            },
+        };
+
+        await knowledge.putDocument('notes', input);
+
+        const stored = await waitForDocument(setup, 'notes', 'refunds', 'ready');
+
+        expect(await knowledge.putDocument('notes', {
+            ...input,
+            metadata: {
+                nested: { a: [1, { c: 3, d: 4 }], b: 2 },
+                n: 1,
+                topic: 'x',
+            },
+        })).toEqual({ status: 'ready', changed: false });
+        expect(await setup.repository.findOneDocument('notes', 'refunds')).toEqual(stored);
+
+        // a changed order in a nested array is still a change
+        expect(await knowledge.putDocument('notes', {
+            ...input,
+            metadata: {
+                nested: { a: [{ c: 3, d: 4 }, 1], b: 2 },
+                n: 1,
+                topic: 'x',
+            },
+        })).toEqual({ status: 'ready', changed: true });
+    });
+
     it('a PUT during the embedding of the previous content ends ready with the new content', async () => {
         const setup = createIndexerSetup();
         const model = gatedModel();
@@ -284,18 +326,18 @@ describe('managed collections', () => {
 
             if (put === undefined && chunks.length > 0) {
                 put = await knowledge.putDocument('notes', {
-                    id: 'a', 
-                    content: 'Alpha.', 
-                    title: 'New title', 
+                    id: 'a',
+                    content: 'Alpha.',
+                    title: 'New title',
                 });
             }
         };
 
         knowledge.start();
         await knowledge.putDocument('notes', {
-            id: 'a', 
-            content: 'Alpha.', 
-            title: 'Old title', 
+            id: 'a',
+            content: 'Alpha.',
+            title: 'Old title',
         });
 
         await vi.waitFor(() => {
@@ -458,9 +500,9 @@ describe('managed collections', () => {
                 if (!raced) {
                     raced = true;
                     await knowledge.putDocument('notes', {
-                        id: 'doc', 
-                        content, 
-                        title: 'C', 
+                        id: 'doc',
+                        content,
+                        title: 'C',
                     });
                 }
 
@@ -501,17 +543,17 @@ describe('managed collections', () => {
         const after = 'Invoices are sent on the first day of each month.';
 
         await knowledge.putDocument('notes', {
-            id: 'doc', 
-            content: before, 
-            title: 'A', 
+            id: 'doc',
+            content: before,
+            title: 'A',
         });
         await waitForDocument(setup, 'notes', 'doc', 'ready');
 
         // the new content waits for its embed; the old chunks keep serving under the old title
         await knowledge.putDocument('notes', {
-            id: 'doc', 
-            content: after, 
-            title: 'B', 
+            id: 'doc',
+            content: after,
+            title: 'B',
         });
         await expect.poll(() => model.started.length).toBe(2);
 
@@ -1193,19 +1235,19 @@ describe('managed collections', () => {
         };
 
         await setup.repository.saveCollection({
-            ...declared, 
-            name: 'old', 
-            status: 'orphaned', 
+            ...declared,
+            name: 'old',
+            status: 'orphaned',
         });
         await setup.repository.saveCollection({
-            ...declared, 
-            name: 'elsewhere', 
-            status: 'ready', 
+            ...declared,
+            name: 'elsewhere',
+            status: 'ready',
         });
         await setup.repository.saveCollection({
-            ...declared, 
-            name: 'docs', 
-            status: 'ready', 
+            ...declared,
+            name: 'docs',
+            status: 'ready',
         });
         await knowledge.createCollection('notes');
 

@@ -179,10 +179,20 @@ export function sameOrigin(stored: KnowledgeDocument, input: KnowledgeDocumentIn
     return stored.title === input.title && stored.source === input.source;
 }
 
-/** Whether a stored document needs no new record: same title, source and metadata. */
+/** The JSON of `value` with every object's keys sorted (arrays keep their order, `toJSON` applies first). */
+function canonicalJson(value: unknown): string | undefined {
+    return JSON.stringify(value, (_key, item: unknown) => (isObject(item) ?
+        Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]])) :
+        item));
+}
+
+/**
+ * Whether a stored document needs no new record: same title, source and
+ * metadata, key order aside (a jsonb column reads its keys back reordered).
+ */
 export function sameDetails(stored: KnowledgeDocument, input: KnowledgeDocumentInput): boolean {
     return sameOrigin(stored, input) &&
-        JSON.stringify(stored.metadata) === JSON.stringify(input.metadata);
+        canonicalJson(stored.metadata) === canonicalJson(input.metadata);
 }
 
 /** The record without a pending re-embed. */
