@@ -181,7 +181,7 @@ export async function loadCalendarAccounts(input: LoadInput): Promise<{ accounts
                 editable,
                 deletable,
                 resolved,
-                ...(row && { loadedRevision: row.revision, loadedCreatedAt: row.createdAt }),
+                ...(row && { loadedRevision: row.revision, loadedGeneration: row.id }),
             });
         }
     };

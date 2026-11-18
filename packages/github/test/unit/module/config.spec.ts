@@ -363,7 +363,7 @@ describe('githubModule configuration', () => {
             editable: true,
             deletable: false,
             loadedRevision: (await configs.read('github'))!.revision,
-            loadedCreatedAt: row!.createdAt,
+            loadedGeneration: row!.id,
         });
         expect(connection!.resolved.sources.appId).toEqual({ kind: 'store' });
     });

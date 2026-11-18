@@ -349,8 +349,8 @@ export type DeclaredConnection = {
     resolved: ResolvedConnection;
     /** The stored revision this process loaded; a newer one means "restart to apply". */
     loadedRevision?: number;
-    /** The row's `createdAt` this process loaded; another one means the account was deleted and created again. */
-    loadedCreatedAt?: Date;
+    /** The row's generation (its id) this process loaded; another one means the account was deleted and created again. */
+    loadedGeneration?: string;
     /**
      * This connection's test, when it differs from its type's (one provider
      * serves modules with their own endpoint or fetch); else the type's.

@@ -134,8 +134,8 @@ export type StoredConnection = {
     values: ConnectionValues;
     /** The config revision read; the connection's `loadedRevision`. */
     revision: number;
-    /** The row's creation time; the connection's `loadedCreatedAt`. */
-    createdAt: Date;
+    /** The row's id (its generation); the connection's `loadedGeneration`. */
+    id: string;
     /**
      * Set when the row's secrets cannot be read (an undecryptable row,
      * stored secrets without `CHAMVI_ENCRYPTION_KEYS`): `values` then holds

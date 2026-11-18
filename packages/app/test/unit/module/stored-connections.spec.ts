@@ -95,7 +95,7 @@ async function rejectionOf(promise: Promise<unknown>): Promise<Error> {
 }
 
 describe('readStoredConnections()', () => {
-    it('returns the rows of the type with their values, revision and creation time', async () => {
+    it('returns the rows of the type with their values, revision and id', async () => {
         const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');
@@ -108,7 +108,7 @@ describe('readStoredConnections()', () => {
             name: 'mail-home',
             values: { host: 'h', password: SECRET },
             revision: 1,
-            createdAt: row.createdAt,
+            id: row.id,
         }]);
     });
 
@@ -152,7 +152,7 @@ describe('readStoredConnections()', () => {
                 name: 'mail-old',
                 values: { host: 'h' },
                 revision: 1,
-                createdAt: old.createdAt,
+                id: old.id,
                 unreadable: {
                     secrets: ['password'],
                     reason: expect.stringContaining('decryption_failed'),

@@ -250,7 +250,7 @@ describe('discordModule', () => {
 
         expect(connection.resolved.sources.token).toEqual({ kind: 'store' });
         expect(connection.loadedRevision).toBe(1);
-        expect(connection.loadedCreatedAt).toEqual(row?.createdAt);
+        expect(connection.loadedGeneration).toBe(row?.id);
     });
 
     it('nothing set starts idle and never logs in', async () => {

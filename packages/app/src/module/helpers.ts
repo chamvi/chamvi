@@ -256,7 +256,7 @@ export async function readStoredConnections(
                     name: row.name,
                     values: config.values,
                     revision: config.revision,
-                    createdAt: row.createdAt,
+                    id: row.id,
                     ...(config.unreadable && { unreadable: config.unreadable }),
                 });
             }

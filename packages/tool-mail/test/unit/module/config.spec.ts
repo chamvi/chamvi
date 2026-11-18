@@ -368,6 +368,7 @@ describe('toolMailModule() configuration', () => {
         expect(home.editable).toBe(true);
         expect(home.deletable).toBe(true);
         expect(home.loadedRevision).toBe(revision);
+        expect(home.loadedGeneration).toBe((await store.connectionService.findOneOrFail(home.name)).id);
         expect(home.resolved.sources.password).toEqual({ kind: 'store' });
         expect(home.resolved.state).toBe('configured');
     });
