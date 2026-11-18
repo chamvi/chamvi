@@ -13,6 +13,8 @@ import { AgentService, AgentStateService } from '../agents/service/index.ts';
 import { AuthorizationController } from '../authorization/controller.ts';
 import { AuthorizationService } from '../authorization/service.ts';
 import { registerChannelRoutes } from '../channels/module.ts';
+import { ComponentController } from '../components/controller.ts';
+import { ComponentService } from '../components/service.ts';
 import { ConnectionController, ConnectionTypeController, UiPageController } from '../connections/controller/index.ts';
 import { ConnectionConfigService, ConnectionHttpService } from '../connections/service/index.ts';
 import { registerControllers } from '../controllers/module.ts';
@@ -66,6 +68,7 @@ export function createHttpApp(options: HttpAppOptions): App {
             new ConnectionController({ service: new ConnectionHttpService(ctx), config: connectionConfigService }),
             new ConnectionTypeController({ config: connectionConfigService }),
             new UiPageController({ config: connectionConfigService }),
+            new ComponentController({ service: new ComponentService(ctx) }),
         ],
     }));
     registerControllers(app, ctx);

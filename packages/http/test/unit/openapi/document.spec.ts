@@ -71,6 +71,7 @@ const ROUTES: [string, string, string][] = [
     ['/connections/{name}/reset', 'post', 'connection'],
     ['/connection-types', 'get', 'connection-type'],
     ['/ui-pages', 'get', 'ui-page'],
+    ['/components', 'get', 'component'],
     ['/connection-types/{type}/connections', 'post', 'connection-type'],
     ['/connections/{name}/config', 'get', 'connection'],
     ['/connections/{name}/config', 'put', 'connection'],

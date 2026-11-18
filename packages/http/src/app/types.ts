@@ -21,6 +21,7 @@ import type { Options as RateLimitPluginOptions } from '@routup/rate-limit';
 import type { AppOptionsInput } from 'routup';
 import type { AgentIssue } from '../agents/types.ts';
 import type { Authenticator, Principal } from '../auth/types.ts';
+import type { HttpComponent } from '../components/types.ts';
 import type { OpenApiOptions } from '../openapi/types.ts';
 import type { IShutdown } from '../shutdown/types.ts';
 import type { UiPage } from '../static/types.ts';
@@ -150,6 +151,11 @@ export type HttpAppOptions = {
     connectionConfigs?: IConnectionConfigStore;
     /** The separately built pages `GET /ui-pages` lists, read per request. Default: none. */
     uiPages?: () => readonly UiPage[];
+    /**
+     * The background jobs `GET /components` lists before the engine's
+     * channels with a `status()`, read per request. Default: none.
+     */
+    components?: () => readonly HttpComponent[];
 };
 
 // #endregion options
@@ -276,5 +282,7 @@ export type HttpContext = {
     /** The engine's connection service: the stored connection rows, when the app keeps them. */
     connectionService?: Pick<IConnectionService, 'findOne' | 'find'>;
     uiPages: () => readonly UiPage[];
+    /** The background jobs of `GET /components`, read per request. */
+    components: () => readonly HttpComponent[];
     onError: (error: unknown) => void;
 };

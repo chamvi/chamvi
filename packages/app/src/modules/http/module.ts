@@ -35,7 +35,8 @@ import type { HttpModuleOptions } from './types.ts';
  * `AUTHENTICATORS`, `HTTP_ROUTES`, `HTTP_CONTROLLERS` (after the
  * `controllers` option's), `OPENAPI_DOCUMENTS` (after the
  * `openapi.documents` option's; none with `openapi: false`), `CONNECTIONS`,
- * `CONNECTION_TYPES` and `UI_PAGES` contribution, mounting every
+ * `CONNECTION_TYPES` and `UI_PAGES` contribution and the `COMPONENT_LIST`
+ * (`GET /components`; none in a check), mounting every
  * contributed channel with an `in` at `/channels/<name>`, then registers the
  * `serve` start step: the app runs the start steps (the engine with its
  * channels, then this one: the `started` hooks, listening, `SERVER`) only
@@ -51,6 +52,8 @@ export class HttpModule implements IModule {
         ModuleName.ENGINE,
         // its onReady may contribute the dev token
         { name: ModuleName.STATIC_TOKENS, optional: true },
+        // its onReady registers COMPONENT_LIST (start mode outside a check)
+        { name: ModuleName.COMPONENTS, optional: true },
     ];
 
     protected options: HttpModuleOptions;
@@ -142,6 +145,10 @@ export class HttpModule implements IModule {
 
         const connectionTypes = container.resolveAll(AppToken.CONNECTION_TYPES);
         const uiPages = container.resolveAll(AppToken.UI_PAGES);
+        // registered by the components module in start mode outside a check only
+        const components = container.has(AppToken.COMPONENT_LIST) ?
+            container.resolve(AppToken.COMPONENT_LIST).map(({ name, component }) => ({ name, status: () => component.status() })) :
+            [];
 
         const app = createHttpApp({
             ...appOptions,
@@ -165,6 +172,7 @@ export class HttpModule implements IModule {
             // a store without connections (a custom one) stays env-only: the engine has no connection service
             ...(engine.connectionService && { connectionConfigs: container.resolve(AppToken.CONNECTION_CONFIGS) }),
             uiPages: () => uiPages,
+            components: () => components,
             ...(container.has(AppToken.AGENT_ISSUES) && { agentIssues: container.resolve(AppToken.AGENT_ISSUES) }),
             onError: (error) => logger.error('http error', error),
         });

@@ -54,6 +54,7 @@ export const RESERVED_ROUTE_SEGMENTS: readonly string[] = [
     'agents',
     'authorization',
     'channels',
+    'components',
     'connection-types',
     'connections',
     'docs',

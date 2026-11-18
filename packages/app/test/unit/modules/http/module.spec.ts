@@ -162,13 +162,14 @@ async function isFree(port: number): Promise<boolean> {
 }
 
 describe('httpModule', () => {
-    it('is named and depends on the engine and, optionally, static tokens', () => {
+    it('is named and depends on the engine and, optionally, static tokens and the components', () => {
         const module = httpModule();
 
         expect(module.name).toBe(ModuleName.HTTP);
         expect(module.dependencies).toEqual([
             ModuleName.ENGINE,
             { name: ModuleName.STATIC_TOKENS, optional: true },
+            { name: ModuleName.COMPONENTS, optional: true },
         ]);
     });
 

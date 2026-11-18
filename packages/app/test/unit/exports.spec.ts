@@ -267,7 +267,7 @@ describe('public api', () => {
 
     it('exports the permission names of @chamvi/access', () => {
         expect(app.Permission.AGENT_READ).toBe('chamvi_agent_read');
-        expect(app.PERMISSION_NAMES).toHaveLength(13);
+        expect(app.PERMISSION_NAMES).toHaveLength(14);
         expectTypeOf<app.PermissionBinding>().toEqualTypeOf<PermissionBinding>();
     });
 
