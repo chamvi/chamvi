@@ -46,12 +46,23 @@ describeWorkspaceContract('local', () => createLocalSandbox().create({ runId: 'r
 ## describeKnowledgeRepositoryContract
 
 ```ts
-function describeKnowledgeRepositoryContract(name: string, create: KnowledgeRepositoryContractFactory): void;
+function describeKnowledgeRepositoryContract(options: KnowledgeRepositoryContractOptions): void;
 
-type KnowledgeRepositoryContractFactory = () => ContractKnowledgeRepository | Promise<ContractKnowledgeRepository>; // every IKnowledgeRepository is one
+type KnowledgeRepositoryContractOptions = {
+    name: string;                              // the suite's label, e.g. the backend
+    create: KnowledgeRepositoryContractFactory;
+};
+type KnowledgeRepositoryContractFactory = () => ContractKnowledgeService | Promise<ContractKnowledgeService>; // a KnowledgeService over fresh repositories
 ```
 
-Registers the Vitest suite every [`@chamvi/knowledge`](/reference/knowledge) repository must pass: collections (upsert, copies in and out, `Date` fields revived, code-point order), documents and chunks per generation (refused without their collection), `deleteGeneration` and `deleteGenerationsExcept`, and the cosine search (ranking, `topK`, `minScore`, the generation, ties by document and index). The types are structural, so the kit does not depend on `@chamvi/knowledge`.
+Registers the Vitest suite every [`@chamvi/knowledge`](/reference/knowledge) backend must pass, driven through a `KnowledgeService` over the backend's repositories, so the service's rules and the storage are checked together: collections (upsert keeping the row id and fence, copies in and out, `Date` fields revived, code-point order), documents and chunks per generation (refused without their collection), `updateDetails`, `requeueGeneration`, `deleteGeneration` and `deleteGenerationsExcept`, the cosine search (ranking, `topK`, `minScore`, the generation, ties by document and index, vectors of another length skipped) and the fence (a write of a stale token or of a re-created collection is `LeaseLostError`, nothing written). The types are structural, so the kit does not depend on `@chamvi/knowledge`:
+
+```ts
+describeKnowledgeRepositoryContract({
+    name: 'memory',
+    create: () => new KnowledgeService({ repository: createMemoryKnowledgeRepository(), clock: new ControllableClock() }),
+});
+```
 
 ## mockEmbeddingModel
 

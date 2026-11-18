@@ -214,7 +214,9 @@ Each collection has a `trusted` flag: `folder()` and custom sources are trusted 
 
 ## Repository
 
-`IKnowledgeRepository` stores collections, documents and passage vectors. `createMemoryKnowledgeRepository()` keeps them in the process; persistent backends implement the same contract and run `describeKnowledgeRepositoryContract()` from `@chamvi/test-kit`.
+`createMemoryKnowledgeRepository()` returns the root port `IKnowledgeCollectionRepository`: the collections, with their documents and passage vectors as child repositories (`documents`, `chunks`), kept in the process. `createKnowledge({ repository })` builds a `KnowledgeService` over it (`knowledge.service`), which holds every rule: the orders, the version guards, the errors and the fence.
+
+Each pass advances its collection's fence once it holds the lock `knowledge:<name>`, and every write of the pass carries it: a pass whose lock lapsed and was taken by another owner writes nothing more (`LeaseLostError`, the pass ends quietly), and a collection deleted meanwhile is never written back. A persistent backend implements the three ports and runs `describeKnowledgeRepositoryContract({ name, create })` from `@chamvi/test-kit`, with `create` returning a `KnowledgeService` over fresh repositories.
 
 ## Not built yet
 
