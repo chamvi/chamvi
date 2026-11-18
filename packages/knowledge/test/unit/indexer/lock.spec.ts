@@ -34,8 +34,11 @@ import {
 } from '../../utils/indexer.ts';
 
 const started: IKnowledge[] = [];
+// the write gates a test holds: opened before teardown, so a failed assertion cannot stall stop()
+const openGates: Array<() => void> = [];
 
 afterEach(async () => {
+    openGates.splice(0).forEach((open) => open());
     await Promise.all(started.splice(0).map((knowledge) => knowledge.stop()));
 });
 
@@ -67,6 +70,9 @@ function gatedSource(): {
     held: () => boolean 
 } {
     const gate = Promise.withResolvers<void>();
+
+    openGates.push(gate.resolve);
+
     let held = false;
 
     return {
@@ -260,6 +266,9 @@ describe('the indexing lock', () => {
     it('stores a failure while it holds the lock, so a replica that indexes afterwards keeps its record', async () => {
         const setup = createIndexerSetup();
         const gate = Promise.withResolvers<void>();
+
+        openGates.push(gate.resolve);
+
         let gated: KnowledgeCollection | undefined;
         const replicaA = createKnowledge(setup.options({
             owner: 'replica-a',
@@ -376,6 +385,9 @@ describe('the indexing lock', () => {
         const { service } = first;
         const replace = service.replaceChunks.bind(service);
         const gate = Promise.withResolvers<void>();
+
+        openGates.push(gate.resolve);
+
         // the first write after the renew waits, as a store slower than the lease would
         const held = vi.spyOn(service, 'replaceChunks').mockImplementationOnce(async (...args) => {
             await gate.promise;
@@ -415,6 +427,9 @@ describe('the indexing lock', () => {
         const { service } = first;
         const save = service.saveCollection.bind(service);
         const gate = Promise.withResolvers<void>();
+
+        openGates.push(gate.resolve);
+
         // the creating save waits, as a store slower than the lease would
         const held = vi.spyOn(service, 'saveCollection').mockImplementationOnce(async (...args) => {
             await gate.promise;
@@ -701,6 +716,9 @@ describe('the indexing lock', () => {
         const { service } = knowledge;
         const save = service.saveCollection.bind(service);
         const gate = Promise.withResolvers<void>();
+
+        openGates.push(gate.resolve);
+
         const now = new Date(setup.clock.now());
         const theirs = {
             name: 'docs',
