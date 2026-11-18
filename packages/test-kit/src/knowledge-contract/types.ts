@@ -147,6 +147,7 @@ export type ContractKnowledgeService = {
         collection: string,
         generation: number,
         target: number,
+        limit: number,
         options?: ContractKnowledgeWriteOptions,
     ): Promise<number>;
     deleteDocument(collection: string, id: string, options?: ContractKnowledgeWriteOptions): Promise<boolean>;

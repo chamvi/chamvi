@@ -556,7 +556,7 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 await service.saveDocument(documentOf('other', 'a', { generation: 2 }));
                 await service.replaceChunks('docs', 'a', 2, [chunkOf(0, [1, 0])]);
 
-                expect(await service.requeueGeneration('docs', 2, 1)).toBe(3);
+                expect(await service.requeueGeneration('docs', 2, 1, 10)).toBe(3);
 
                 expect(await service.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', {
                     generation: 1,
@@ -574,8 +574,28 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 // chunks are not touched
                 expect(await service.search('docs', 2, [1, 0], { topK: 10 })).toHaveLength(1);
 
-                expect(await service.requeueGeneration('docs', 2, 1)).toBe(0);
-                expect(await service.requeueGeneration('missing', 2, 1)).toBe(0);
+                expect(await service.requeueGeneration('docs', 2, 1, 10)).toBe(0);
+                expect(await service.requeueGeneration('missing', 2, 1, 10)).toBe(0);
+            });
+
+            it('requeueGeneration requeues at most a page per call, in id order, until none is left', async () => {
+                const service = await create();
+
+                await service.saveCollection(collectionOf('docs'));
+
+                for (const id of ['e', 'c', 'a', 'd', 'b']) {
+                    await service.saveDocument(documentOf('docs', id, { generation: 2 }));
+                }
+
+                const atServed = async () => (await service.findDocuments('docs', { status: 'pending' })).data.map((document) => document.id);
+
+                expect(await service.requeueGeneration('docs', 2, 1, 2)).toBe(2);
+                expect(await atServed()).toEqual(['a', 'b']);
+                expect(await service.requeueGeneration('docs', 2, 1, 2)).toBe(2);
+                expect(await service.requeueGeneration('docs', 2, 1, 2)).toBe(1);
+                expect(await service.requeueGeneration('docs', 2, 1, 2)).toBe(0);
+                expect(await atServed()).toEqual(['a', 'b', 'c', 'd', 'e']);
+                expect((await service.findDocuments('docs')).data.every((document) => document.generation === 1)).toBe(true);
             });
 
             it('lists document ids in code point order, per collection', async () => {
@@ -840,7 +860,7 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 },
                 {
                     method: 'requeueGeneration',
-                    write: (service, fence) => service.requeueGeneration('docs', 1, 2, options(fence)),
+                    write: (service, fence) => service.requeueGeneration('docs', 1, 2, 10, options(fence)),
                 },
                 {
                     method: 'deleteDocument',

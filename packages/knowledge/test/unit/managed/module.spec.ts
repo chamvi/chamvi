@@ -915,71 +915,164 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
-    it('a re-embed abandoned by reverting the default model serves the new content at the served generation', async () => {
-        const setup = createIndexerSetup();
-        const next = gatedModel();
-        const models = { 'mock/a': mockEmbeddingModel(), 'mock/b': next };
-        const first = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
-
-        await first.createCollection('notes');
-        first.start();
-
-        const before = 'Kubernetes pods are scheduled onto nodes.';
+    describe('a re-embed the default model left', () => {
         const after = 'Invoices are sent on the first day of each month.';
 
-        await first.putDocument('notes', { id: 'a', content: 'Refunds within thirty days.' });
-        await first.putDocument('notes', { id: 'b', content: before });
-        await first.putDocument('notes', { id: 'c', content: 'Support answers within a day.' });
-        await waitForDocument(setup, 'notes', 'c', 'ready');
-        await first.stop();
+        /**
+         * Documents a, b and c ready at generation 1 (mock/a); a re-embed with
+         * mock/b made "a" and the new content of "b" (PUT during the re-embed)
+         * ready at generation 2, then stopped before "c" (the default changes).
+         */
+        async function leaveReembed(setup: IndexerSetup) {
+            const next = gatedModel();
+            const models: Record<string, EmbeddingModel> = { 'mock/a': mockEmbeddingModel(), 'mock/b': next };
+            const first = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
 
-        const second = create(setup, { embeddingModel: 'mock/b', models: embeddingResolver(models) });
+            await first.createCollection('notes');
+            first.start();
+            await first.putDocument('notes', { id: 'a', content: 'Refunds within thirty days.' });
+            await first.putDocument('notes', { id: 'b', content: 'Kubernetes pods are scheduled onto nodes.' });
+            await first.putDocument('notes', { id: 'c', content: 'Support answers within a day.' });
+            await waitForDocument(setup, 'notes', 'c', 'ready');
+            await first.stop();
 
-        second.start();
-        await vi.waitFor(() => second.sync('notes'));
-        await expect.poll(() => next.started.length).toBe(1);
+            const second = create(setup, { embeddingModel: 'mock/b', models: embeddingResolver(models) });
 
-        // PUT while the re-embed embeds "a": the re-embed reaches "b" later and makes the new content ready at its generation
-        await second.putDocument('notes', { id: 'b', content: after });
+            second.start();
+            await vi.waitFor(() => second.sync('notes'));
+            await expect.poll(() => next.started.length).toBe(1);
 
-        next.open(0);
-        next.open(1);
-        await waitForDocument(setup, 'notes', 'b', 'ready', contentHash(after));
-        await expect.poll(() => next.started.length).toBe(3);
+            // PUT while the re-embed embeds "a": the re-embed reaches "b" later and makes the new content ready at its generation
+            await second.putDocument('notes', { id: 'b', content: after });
 
-        expect(await setup.repository.findOneDocument('notes', 'b')).toMatchObject({ generation: 2 });
+            next.open(0);
+            next.open(1);
+            await waitForDocument(setup, 'notes', 'b', 'ready', contentHash(after));
+            await expect.poll(() => next.started.length).toBe(3);
 
-        // the default reverts before the re-embed finishes ("c" is never embedded with mock/b)
-        await second.stop();
+            expect(await setup.repository.findOneDocument('notes', 'b')).toMatchObject({ generation: 2 });
 
-        const third = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+            // "c" is never embedded with mock/b
+            await second.stop();
 
-        third.start();
-
-        await waitForCollection(setup.repository, 'notes', (collection) => collection.pending === undefined);
-        await waitForDocument(setup, 'notes', 'b', 'ready', contentHash(after));
-        await waitForDocument(setup, 'notes', 'a', 'ready');
-
-        const record = (await setup.repository.findOneCollection('notes'))!;
-
-        expect(record).toMatchObject({
-            model: 'mock/a',
-            generation: 1,
-            status: 'ready',
-        });
-        expect(third.view(record).status).toBe('ready');
-
-        for (const id of ['a', 'b', 'c']) {
-            expect(await setup.repository.findOneDocument('notes', id)).toMatchObject({ status: 'ready', generation: 1 });
+            return { models, next };
         }
 
-        expect(await setup.repository.search('notes', 2, await vectorOf(after), { topK: 10 })).toEqual([]);
+        /** The re-embed abandoned: every document ready at generation 1 (mock/a), "b" with its new content, nothing at generation 2. */
+        async function expectServed(setup: IndexerSetup, knowledge: IKnowledge) {
+            await waitForCollection(setup.repository, 'notes', (collection) => collection.pending === undefined);
+            await waitForDocument(setup, 'notes', 'b', 'ready', contentHash(after));
+            await waitForDocument(setup, 'notes', 'a', 'ready');
 
-        const matches = await setup.repository.search('notes', 1, await vectorOf(after), { topK: 10 });
+            const record = (await setup.repository.findOneCollection('notes'))!;
 
-        expect(matches.filter((match) => match.document === 'b').map((match) => match.text)).toEqual([after]);
-        expect(next.started).toHaveLength(3);
-        expect(setup.errors).toEqual([]);
+            expect(record).toMatchObject({
+                model: 'mock/a',
+                generation: 1,
+                status: 'ready',
+            });
+            expect(knowledge.view(record).status).toBe('ready');
+
+            for (const id of ['a', 'b', 'c']) {
+                expect(await setup.repository.findOneDocument('notes', id)).toMatchObject({ status: 'ready', generation: 1 });
+            }
+
+            expect(await setup.repository.search('notes', 2, await vectorOf(after), { topK: 10 })).toEqual([]);
+
+            const matches = await setup.repository.search('notes', 1, await vectorOf(after), { topK: 10 });
+
+            expect(matches.filter((match) => match.document === 'b').map((match) => match.text)).toEqual([after]);
+        }
+
+        it('a re-embed abandoned by reverting the default model serves the new content at the served generation', async () => {
+            const setup = createIndexerSetup();
+            const { models, next } = await leaveReembed(setup);
+            const third = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+
+            third.start();
+
+            await expectServed(setup, third);
+            expect(next.started).toHaveLength(3);
+            expect(setup.errors).toEqual([]);
+        });
+
+        it.each(['requeueGeneration', 'deleteGeneration', 'saveCollection'] as const)(
+            'an abandon whose %s fails is repeated by the next pass',
+            async (method) => {
+                const setup = createIndexerSetup();
+                const { models } = await leaveReembed(setup);
+                const third = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+                const failure = new Error('store down');
+
+                // the first call of each is the abandon's (the managed pass writes the record nowhere else)
+                vi.spyOn(setup.repository, method).mockRejectedValueOnce(failure);
+                third.start();
+
+                await vi.waitFor(() => {
+                    expect(setup.errors).toEqual([{ error: failure, collection: 'notes' }]);
+                });
+                expect((await setup.repository.findOneCollection('notes'))!.pending).toMatchObject({ generation: 2, model: 'mock/b' });
+
+                // the loop backs off before its next pass
+                setup.clock.advance(5_000);
+
+                await expectServed(setup, third);
+                expect(setup.errors).toHaveLength(1);
+            },
+        );
+
+        it('a sync() for a third default model abandons the pending re-embed before it starts the next generation', async () => {
+            const setup = createIndexerSetup();
+            const { models, next } = await leaveReembed(setup);
+            const latest = mockEmbeddingModel({ dimensions: 32 });
+            const third = create(setup, {
+                embeddingModel: 'mock/c',
+                models: embeddingResolver({ ...models, 'mock/c': latest }),
+            });
+            const writes: string[] = [];
+            const { repository } = setup;
+            const deleteGeneration = repository.deleteGeneration.bind(repository);
+            const saveCollection = repository.saveCollection.bind(repository);
+
+            vi.spyOn(repository, 'deleteGeneration').mockImplementation(async (collection, generation, options) => {
+                writes.push(`delete ${generation}`);
+
+                return deleteGeneration(collection, generation, options);
+            });
+            vi.spyOn(repository, 'saveCollection').mockImplementation(async (collection, options) => {
+                writes.push(`save ${collection.pending?.generation ?? '-'}`);
+
+                return saveCollection(collection, options);
+            });
+
+            third.start();
+            await vi.waitFor(() => third.sync('notes'));
+
+            const switched = await waitForCollection(repository, 'notes', (collection) => collection.generation === 3);
+
+            expect(switched).toMatchObject({
+                model: 'mock/c',
+                dimensions: 32,
+                status: 'ready',
+                lastGeneration: 3,
+            });
+            expect(switched.pending).toBeUndefined();
+            // the abandoned generation is gone before the next one is named
+            expect(writes.indexOf('delete 2')).toBeGreaterThan(-1);
+            expect(writes.indexOf('delete 2')).toBeLessThan(writes.indexOf('save 3'));
+
+            for (const id of ['a', 'b', 'c']) {
+                expect(await repository.findOneDocument('notes', id)).toMatchObject({ status: 'ready', generation: 3 });
+            }
+
+            const [vector] = (await latest.doEmbed({ values: [after] })).embeddings;
+            const matches = await repository.search('notes', 3, vector!, { topK: 10 });
+
+            expect(matches.filter((match) => match.document === 'b').map((match) => match.text)).toEqual([after]);
+            expect(await repository.search('notes', 2, await vectorOf(after), { topK: 10 })).toEqual([]);
+            expect(next.started).toHaveLength(3);
+            expect(setup.errors).toEqual([]);
+        });
     });
 
     it('a stale collection embeds pending documents at its served model until a sync()', async () => {

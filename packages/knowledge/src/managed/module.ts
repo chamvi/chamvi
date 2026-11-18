@@ -138,22 +138,31 @@ async function embedOne(
 /**
  * Abandons the re-embed the record names as pending (its model or chunker
  * is not the default any more): every document at that generation is set
- * `pending` at the served generation (embedded there by the pass), the
- * generation's chunks are deleted, then `pending` is cleared on the record
- * read again. In this order a pass ending in between leaves `pending` set,
- * so the next one repeats the step. The record, or undefined when the
- * collection is gone.
+ * `pending` at the served generation (a page per write; embedded there by
+ * the pass), the generation's chunks are deleted, then `pending` is cleared
+ * on the record read again. In this order a pass ending in between leaves
+ * `pending` set, so the next one repeats the step. The record, or undefined
+ * when the pass ends (the lock or the collection is gone).
  */
 async function abandon(input: SyncManagedInput, stored: KnowledgeCollection): Promise<KnowledgeCollection | undefined> {
     const {
         name,
         repository,
         clock,
+        signal,
         lock,
     } = input;
     const { generation } = stored.pending!;
 
-    await repository.requeueGeneration(name, generation, stored.generation, writeOptionsOf(lock));
+    // a page per transaction: the collection row stays locked for one page only
+    while (await repository.requeueGeneration(name, generation, stored.generation, MANAGED_PAGE_SIZE, writeOptionsOf(lock)) > 0) {
+        signal.throwIfAborted();
+
+        if (!await lock.renew()) {
+            return undefined;
+        }
+    }
+
     await repository.deleteGeneration(name, generation, writeOptionsOf(lock));
 
     const current = await isSameCollection(input, stored);

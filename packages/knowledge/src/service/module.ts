@@ -293,6 +293,7 @@ export class KnowledgeService implements IKnowledgeService {
         collection: string,
         generation: number,
         target: number,
+        limit: number,
         options: KnowledgeWriteOptions = {},
     ): Promise<number> {
         return this.repository.transaction(async (repository) => {
@@ -303,7 +304,11 @@ export class KnowledgeService implements IKnowledgeService {
             }
 
             // the locked collection row serializes every document write: the listed rows stay as read
-            const documents = await repository.documents.findManyBy({ collectionId: record.id, generation });
+            const { data: documents } = await repository.documents.findMany(defineQuery({
+                filters: and(eq('collectionId', record.id), eq('generation', generation)),
+                sorts: { id: 'ASC' },
+                pagination: { limit: Math.max(1, limit) },
+            }));
 
             if (documents.length === 0) {
                 return 0;
