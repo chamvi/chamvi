@@ -22,6 +22,7 @@ import {
     shallowRef,
 } from 'vue';
 import type { App } from 'vue';
+import { isObject } from 'smob';
 import { ApiError } from '@chamvi/http-kit';
 import type { ConnectionSettingsWire, ConnectionTypeWire } from '@chamvi/http-kit';
 import ConnectionForm from '../../../src/connections/ConnectionForm.vue';
@@ -607,6 +608,52 @@ describe('ConnectionForm', () => {
             expect(form.button('Save')?.disabled).toBe(false);
         });
 
+        it('a clear whose answer holds another save keeps the unsaved edits and asks for a reload', async () => {
+            const put = vi.fn((body: unknown) => {
+                // the clear committed revision 4; another tab saved revision 5 before the answer was read
+                if (isObject(body) && isObject(body.secrets)) {
+                    return withField(view({ settings: { host: 'imap.theirs', port: 993 }, revision: 5 }), 'password', { source: { kind: 'unset' }, set: false });
+                }
+
+                return view();
+            });
+            const form = await mount({ current: view({ deletable: true }), routes: { 'PUT /connections/mail-work/config': put } });
+
+            form.type(form.input('host')!, 'imap.mine');
+            form.button('Clear')!.click();
+            await flush();
+            form.button('Clear secret')!.click();
+            await flush();
+
+            expect(form.input('host')?.value).toBe('imap.mine');
+            expect(form.root.textContent).toContain('This connection changed since you opened it.');
+            expect(form.button('Save')?.disabled).toBe(true);
+            await form.submit();
+            expect(put).toHaveBeenCalledTimes(1);
+        });
+
+        it('a clear answered with exactly its own write lets the next save send the new revision', async () => {
+            const put = vi.fn((body: unknown) => (isObject(body) && isObject(body.secrets) ?
+                withField(view({ revision: 4, deletable: true }), 'password', { source: { kind: 'unset' }, set: false }) :
+                view({ revision: 5 })));
+            const form = await mount({ current: view({ deletable: true }), routes: { 'PUT /connections/mail-work/config': put } });
+
+            form.type(form.input('host')!, 'imap.mine');
+            form.button('Clear')!.click();
+            await flush();
+            form.button('Clear secret')!.click();
+            await flush();
+
+            expect(form.root.textContent).not.toContain('This connection changed since you opened it.');
+            form.type(form.input('password')!, 'new-secret');
+            await form.submit();
+            expect(put.mock.calls[1]![0 as never]).toMatchObject({
+                settings: { host: 'imap.mine' }, 
+                revision: 4, 
+                generation: 'gen-1', 
+            });
+        });
+
         it('another 409 shows its message and no reload', async () => {
             const form = await mount({
                 routes: {
@@ -707,7 +754,11 @@ describe('ConnectionForm', () => {
 
         vi.stubGlobal('confirm', confirm);
 
-        const put = vi.fn(() => withField(view({ restartRequired: true, deletable: true }), 'password', { source: { kind: 'unset' }, set: false }));
+        const put = vi.fn(() => withField(view({
+            restartRequired: true, 
+            deletable: true, 
+            revision: 4, 
+        }), 'password', { source: { kind: 'unset' }, set: false }));
         const form = await mount({
             current: view({ deletable: true }),
             routes: { 'PUT /connections/mail-work/config': put },
@@ -731,6 +782,7 @@ describe('ConnectionForm', () => {
         expect(form.input('password')?.value).toBe('');
         expect(form.input('host')?.value).toBe('imap.unsaved');
         expect(form.root.textContent).toContain('Saved. Restart the app to apply.');
+        expect(form.root.textContent).not.toContain('This connection changed since you opened it.');
         expect(confirm).not.toHaveBeenCalled();
     });
 
@@ -907,7 +959,7 @@ describe('ConnectionForm', () => {
             current: view({ deletable: true }),
             routes: {
                 'POST /connections/mail-work/test': () => ({ ok: true }),
-                'PUT /connections/mail-work/config': () => withField(view({ deletable: true }), 'password', { source: { kind: 'unset' }, set: false }),
+                'PUT /connections/mail-work/config': () => withField(view({ deletable: true, revision: 4 }), 'password', { source: { kind: 'unset' }, set: false }),
             },
         });
 

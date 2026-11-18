@@ -399,7 +399,15 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
                 }
 
                 // only the secret: edits still in the form stay unsaved and in the form
-                view.value = await client.connection.save(name, { secrets: { clear: [open.key] }, ...versionOf() });
+                const sent = versionOf();
+                const answer = await client.connection.save(name, { secrets: { clear: [open.key] }, ...sent });
+
+                // the answer is read after the commit: unless it is exactly this write (one revision on, the same
+                // row), another save landed too, and the kept edits must not take on a version they never saw
+                const ownWrite = answer.generation === view.value?.generation && answer.revision === sent.revision + 1;
+
+                view.value = answer;
+                stale.value = !ownWrite;
                 // the result was of the values before
                 testResult.value = undefined;
                 dropSecret(open.key);
