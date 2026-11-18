@@ -565,7 +565,11 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 const origin = { title: 'A', source: 'a.md' };
 
                 await service.saveCollection(collectionOf('docs'));
-                await service.saveDocument(documentOf('docs', 'a', { ...origin, status: 'failed', error: 'refused' }));
+                await service.saveDocument(documentOf('docs', 'a', {
+                    ...origin,
+                    status: 'failed',
+                    error: 'refused',
+                }));
 
                 expect(await service.updateDetails('docs', 'a', {
                     hash: 'sha256:a',
@@ -622,6 +626,18 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
 
                 expect(await service.requeueGeneration('docs', 2, 1, 10)).toBe(0);
                 expect(await service.requeueGeneration('missing', 2, 1, 10)).toBe(0);
+            });
+
+            it('requeueGeneration refuses the same generation as source and target and changes nothing', async () => {
+                const service = await create();
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.saveDocument(documentOf('docs', 'a', { status: 'failed', error: 'refused' }));
+
+                // a page that never leaves the selection: a caller draining until 0 would never end
+                await expect(service.requeueGeneration('docs', 1, 1, 10)).rejects.toMatchObject({ code: 'validation_error' });
+                await expect(service.requeueGeneration('missing', 1, 1, 10)).rejects.toMatchObject({ code: 'validation_error' });
+                expect(await service.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', { status: 'failed', error: 'refused' }));
             });
 
             it('requeueGeneration requeues at most a page per call, in id order, until none is left', async () => {

@@ -127,7 +127,8 @@ export interface IKnowledgeService {
      * `generation`, in id code-point order, to `pending` at `target`
      * (removing its error; content, version and details kept), in one
      * transaction; how many it changed (0: none is left at `generation`).
-     * Its chunks are not touched.
+     * Its chunks are not touched. A `target` equal to `generation` is a
+     * `ValidationError` (nothing would leave the selection).
      */
     requeueGeneration(
         collection: string,
