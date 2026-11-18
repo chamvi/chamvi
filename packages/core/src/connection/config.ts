@@ -190,7 +190,11 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             // spread defines own properties: an assignment of `__proto__` would set the prototype instead
             const values = { ...config.settings, ...secrets } as ConnectionValues;
 
-            return { values, revision: config.revision, generation: config.generation };
+            return {
+                values, 
+                revision: config.revision, 
+                generation: config.generation, 
+            };
         },
 
         async update(name: string, update: ConnectionConfigUpdate, options: ConnectionConfigUpdateOptions = {}): Promise<number> {

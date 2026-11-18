@@ -222,6 +222,7 @@ export function useConnectionForm(client: Pick<IClient, 'connection' | 'connecti
 
             return;
         }
+
         const known = new Set([...(adding ? [ACCOUNT_KEY] : []), ...fields.value.map((field) => field.key)]);
         const issues = flattenIssueItems(error.issues ?? [])
             .filter((issue) => known.has(String(issue.path?.at(-1) ?? '')))

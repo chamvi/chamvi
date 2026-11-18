@@ -643,7 +643,11 @@ describe('ConnectionService', () => {
     });
 
     it('replace bumps the config revision and keeps the id and createdAt', async () => {
-        const { clock, connections, hold } = setup();
+        const {
+            clock, 
+            connections, 
+            hold, 
+        } = setup();
         const key = makeConnection('wa').wrappedKey;
 
         await connections.create(makeConnection('wa'));
@@ -784,11 +788,11 @@ describe('ConnectionService', () => {
             { a: () => 1 },
             { a: { b: 1 } },
             { a: null },
-            { a: Number.NaN },
-            { a: Number.POSITIVE_INFINITY },
+            { a: NaN },
+            { a: Infinity },
             { a: ['ok', 1] },
             { a: ['secret\0'] },
-            { ['k\0']: 'v' },
+            { 'k\0': 'v' },
             Object.assign(Object.create({ inherited: 1 }), { a: 'x' }),
         ];
 

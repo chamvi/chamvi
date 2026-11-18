@@ -466,7 +466,11 @@ describe('ConnectionForm', () => {
         form.type(form.input('port')!, ' -1.5 ');
         await form.submit();
 
-        expect(bodies).toEqual([{ settings: expect.objectContaining({ port: -1.5 }), revision: 3, generation: 'gen-1' }]);
+        expect(bodies).toEqual([{
+            settings: expect.objectContaining({ port: -1.5 }), 
+            revision: 3, 
+            generation: 'gen-1', 
+        }]);
     });
 
     it('needs an account id and a required secret while adding', async () => {
@@ -533,7 +537,10 @@ describe('ConnectionForm', () => {
         });
 
         it('sends revision 0 and no generation for a connection without a row', async () => {
-            const { generation: _, ...empty } = view({ revision: 0 });
+            const empty = view({ revision: 0 });
+
+            delete empty.generation;
+
             const put = vi.fn(() => view());
             const form = await mount({ current: empty, routes: { 'PUT /connections/mail-work/config': put } });
 
@@ -703,7 +710,11 @@ describe('ConnectionForm', () => {
         form.button('Clear secret')!.click();
         await flush();
 
-        expect(put.mock.calls[0]![0 as never]).toEqual({ secrets: { clear: ['password'] }, revision: 3, generation: 'gen-1' });
+        expect(put.mock.calls[0]![0 as never]).toEqual({
+            secrets: { clear: ['password'] }, 
+            revision: 3, 
+            generation: 'gen-1', 
+        });
         expect(form.input('password')?.value).toBe('');
         expect(form.input('host')?.value).toBe('imap.unsaved');
         expect(form.root.textContent).toContain('Saved. Restart the app to apply.');
@@ -808,7 +819,11 @@ describe('ConnectionForm', () => {
 
             await form.submit();
 
-            expect(bodies).toEqual([{ settings: expect.objectContaining({ host: 'imap.example.com' }), revision: 3, generation: 'gen-1' }]);
+            expect(bodies).toEqual([{
+                settings: expect.objectContaining({ host: 'imap.example.com' }), 
+                revision: 3, 
+                generation: 'gen-1', 
+            }]);
 
             // the input opens empty again, the dropped text is gone
             form.type(form.input('host')!, 'other.example.com');
@@ -1017,7 +1032,11 @@ describe('ConnectionForm', () => {
 
         await form.submit();
 
-        expect(put.mock.calls[0]![0 as never]).toEqual({ settings: { host: 'a\nb' }, revision: 3, generation: 'gen-1' });
+        expect(put.mock.calls[0]![0 as never]).toEqual({
+            settings: { host: 'a\nb' }, 
+            revision: 3, 
+            generation: 'gen-1', 
+        });
     });
 
     it('shows the issues of a clear that failed', async () => {

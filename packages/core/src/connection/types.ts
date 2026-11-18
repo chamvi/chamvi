@@ -220,7 +220,11 @@ export interface IConnectionConfigStore {
     /** Never resolves the keyring. */
     describe(name: string): Promise<ConnectionConfigView | undefined>;
     /** The settings and decrypted secrets; resolves the keyring only when secrets exist. */
-    read(name: string): Promise<{ values: ConnectionValues; revision: number; generation: string } | undefined>;
+    read(name: string): Promise<{
+        values: ConnectionValues; 
+        revision: number; 
+        generation: string 
+    } | undefined>;
     /**
      * Saves `update` and returns the new revision; resolves the keyring only
      * to set a secret. RepositoryNotFoundError when absent,

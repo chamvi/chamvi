@@ -381,6 +381,7 @@ describe.skipIf(!document)('live responses against the openapi document', () => 
             }
 
             await expectDocumented(app, ['GET', '/connections/{name}', '/connections/missing', 404, ADMIN_TOKEN]);
+
             const read = await expectDocumented(app, ['GET', '/connections/{name}/config', `/connections/${name}/config`, 200, ADMIN_TOKEN]);
 
             await expectDocumented(app, ['PUT', '/connections/{name}/config', `/connections/${name}/config`, 200, ADMIN_TOKEN, {

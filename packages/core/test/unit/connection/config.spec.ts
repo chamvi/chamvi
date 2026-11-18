@@ -309,7 +309,11 @@ describe('createConnectionConfigStore', () => {
                 generation: expect.any(String),
             });
             await expect(config.describe('missing')).resolves.toBeUndefined();
-            await expect(config.read('secretless')).resolves.toEqual({ values: { host: 'a' }, revision: 1, generation: expect.any(String) });
+            await expect(config.read('secretless')).resolves.toEqual({
+                values: { host: 'a' }, 
+                revision: 1, 
+                generation: expect.any(String), 
+            });
             await expect(config.read('missing')).resolves.toBeUndefined();
 
             expect(calls.keyring).toBe(0);

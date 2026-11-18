@@ -652,7 +652,11 @@ describe('connection configuration', () => {
         });
 
         it('the view carries the revision and generation a save sends back', async () => {
-            const { app, real, connections } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+            const {
+                app, 
+                real, 
+                connections, 
+            } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
             const empty = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
 
             expect(empty.revision).toBe(0);
@@ -755,7 +759,12 @@ describe('connection configuration', () => {
         });
 
         it('a save after a vault replace with the revision read before it is 409', async () => {
-            const { app, real, connections, lockService } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
+            const {
+                app, 
+                real, 
+                connections, 
+                lockService, 
+            } = world({ declared: (definition) => [declare(definition, 'mail-work')] });
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
 
@@ -789,9 +798,13 @@ describe('connection configuration', () => {
         });
 
         it('a replaced row stays the declared connection, and asks for a restart', async () => {
-            const { app, real, connections, lockService, declared } = world({
-                declared: (definition) => [declare(definition, 'mail-work', {}, { account: 'work', deletable: true })],
-            });
+            const {
+                app, 
+                real, 
+                connections, 
+                lockService, 
+                declared, 
+            } = world({ declared: (definition) => [declare(definition, 'mail-work', {}, { account: 'work', deletable: true })] });
 
             await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
 

@@ -62,8 +62,8 @@ export function assertConnectionSettings(settings: unknown): asserts settings is
         throw new ValidationError('Connection settings must be a plain object.');
     }
 
-    for (const key of Object.keys(settings)) {
-        if (!isStorableConnectionText(key) || !isSettingValue(settings[key])) {
+    for (const [key, value] of Object.entries(settings)) {
+        if (!isStorableConnectionText(key) || !isSettingValue(value)) {
             throw new ValidationError(
                 'A connection setting must have a well-formed key without NUL and a value of well-formed text without NUL, ' +
                 'a finite number, a boolean or a list of such text.',

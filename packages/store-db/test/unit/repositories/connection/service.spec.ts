@@ -299,7 +299,11 @@ describePostgres('connection service in postgres', () => {
         await connections.writeConfig('wa', { settings: { a: 1 } }, { wrappedKey: stored.wrappedKey });
 
         const before = (await connections.findConfig('wa'))!;
-        const replacement = { ...stored, wrappedKey: new Uint8Array([9]), createdAt: new Date(2_000) };
+        const replacement = {
+            ...stored, 
+            wrappedKey: new Uint8Array([9]), 
+            createdAt: new Date(2_000), 
+        };
 
         await lockService.acquire(fence.lock, fence.owner, 60_000);
         await connections.replace(replacement, fence);
@@ -331,11 +335,11 @@ describePostgres('connection service in postgres', () => {
             { a: () => 1 },
             { a: { b: 1 } },
             { a: null },
-            { a: Number.NaN },
-            { a: Number.POSITIVE_INFINITY },
+            { a: NaN },
+            { a: Infinity },
             { a: ['ok', 1] },
             { a: ['secret\0'] },
-            { ['k\0']: 'v' },
+            { 'k\0': 'v' },
             Object.assign(Object.create({ inherited: 1 }), { a: 'x' }),
         ];
 
