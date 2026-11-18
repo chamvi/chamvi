@@ -367,6 +367,46 @@ describe('the indexing lock', () => {
         expect(await setup.repository.findOneCollection('docs')).toEqual(ready);
     });
 
+    it('a pass whose fence another owner advanced writes nothing more and reports nothing', async () => {
+        const setup = createIndexerSetup();
+        const stale = 'A stale refund policy from an older deploy.';
+        const first = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel(), mapSource(new Map([['a.md', stale]]))));
+        const { service } = first;
+        const replace = service.replaceChunks.bind(service);
+        const gate = Promise.withResolvers<void>();
+        // the first write after the renew waits, as a store slower than the lease would
+        const held = vi.spyOn(service, 'replaceChunks').mockImplementationOnce(async (...args) => {
+            await gate.promise;
+
+            return replace(...args);
+        });
+
+        await expect.poll(() => held.mock.calls.length).toBe(1);
+
+        // the lease expires while the write waits: a second instance takes it and syncs its own sources
+        setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+        start(setup, 'replica-b', mockEmbeddingModel());
+
+        await waitForReady(setup.repository, 'docs');
+        expect(acquiresOf(setup, 'replica-b')).toEqual([true]);
+
+        gate.resolve();
+
+        await expect.poll(() => held.mock.settledResults[0]?.type).toBe('rejected');
+        await settle();
+
+        expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost', lock: 'knowledge:docs' } });
+        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({ content: docs.get('a.md') });
+
+        const [vector] = (await mockEmbeddingModel().doEmbed({ values: [stale] })).embeddings;
+        const matches = await setup.repository.search('docs', 1, vector!, { topK: 10 });
+
+        expect(matches.map((match) => match.text)).not.toContain(stale);
+        expect(await setup.repository.findOneCollection('docs')).toMatchObject({ status: 'ready', generation: 1 });
+        expect(setup.errors).toEqual([]);
+    });
+
     it('runs one pass per interval across two replicas', async () => {
         const setup = createIndexerSetup();
         const model = mockEmbeddingModel();

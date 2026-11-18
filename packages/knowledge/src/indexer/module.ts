@@ -26,8 +26,10 @@ import {
     KNOWLEDGE_RETRY_MS,
 } from './constants.ts';
 import {
+    advanceLockFence,
     createIndexLock,
     highestGeneration,
+    isLeaseLost,
     lockKey,
     messageOf,
     sameDetails,
@@ -36,6 +38,7 @@ import {
     settled,
     wait,
     withoutPending,
+    writeOptionsOf,
 } from './helpers.ts';
 import type {
     CollectionLoopInput,
@@ -155,7 +158,9 @@ export async function embedDocument(input: EmbedDocumentInput): Promise<Embedded
  * a re-embed then fails, retried on the backoff) and, for a re-embed, switches the served generation and deletes
  * the previous one. A document with unchanged content, title and source costs
  * nothing (its chunks carry the title and source). Ends early, without an
- * error, once `lock.renew()` answers false.
+ * error, once `lock.renew()` answers false. Every write carries the lock's
+ * fence (a first pass creates the record, then advances it), so a write
+ * after another owner took the lock is a `LeaseLostError`.
  */
 export async function syncCollection(input: SyncCollectionInput): Promise<void> {
     const {
@@ -222,13 +227,18 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         record = { ...record, status: record.generation > 0 ? 'stale' : 'pending' };
     }
 
-    await repository.saveCollection(record);
+    await repository.saveCollection(record, writeOptionsOf(lock));
+
+    if (!stored) {
+        // the record exists from here on: the writes that follow carry its fence
+        await advanceLockFence(repository, name, lock);
+    }
 
     if (serves) {
         // also what a crash between an earlier switch and its cleanup left behind
-        await repository.deleteGenerationsExcept(name, target);
+        await repository.deleteGenerationsExcept(name, target, writeOptionsOf(lock));
     } else if (abandoned !== undefined) {
-        await repository.deleteGeneration(name, abandoned);
+        await repository.deleteGeneration(name, abandoned, writeOptionsOf(lock));
     }
 
     let dimensions = target === record.generation ? record.dimensions : record.pending?.dimensions;
@@ -273,7 +283,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                 sameOrigin(existing, document)
             ) {
                 if (!sameDetails(existing, document)) {
-                    await repository.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())));
+                    await repository.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())), writeOptionsOf(lock));
                 }
 
                 continue;
@@ -292,7 +302,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                     }
 
                     record = { ...record, pending: { ...record.pending, dimensions: length } };
-                    await repository.saveCollection(record);
+                    await repository.saveCollection(record, writeOptionsOf(lock));
                 },
             });
 
@@ -305,8 +315,8 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                 return;
             }
 
-            await repository.replaceChunks(name, document.id, target, embedded.chunks);
-            await repository.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())));
+            await repository.replaceChunks(name, document.id, target, embedded.chunks, writeOptionsOf(lock));
+            await repository.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())), writeOptionsOf(lock));
         }
     }
 
@@ -330,7 +340,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
     } else {
         for (const id of await repository.findDocumentIds(name)) {
             if (!seen.has(id)) {
-                await repository.deleteDocument(name, id);
+                await repository.deleteDocument(name, id, writeOptionsOf(lock));
             }
         }
     }
@@ -345,7 +355,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
             status: 'ready',
             syncedAt: finishedAt,
             updatedAt: finishedAt,
-        });
+        }, writeOptionsOf(lock));
 
         return;
     }
@@ -366,16 +376,17 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         status: 'ready',
         syncedAt: finishedAt,
         updatedAt: finishedAt,
-    });
+    }, writeOptionsOf(lock));
 
     if (previous > 0) {
-        await repository.deleteGeneration(name, previous);
+        await repository.deleteGeneration(name, previous, writeOptionsOf(lock));
     }
 }
 
 /**
  * Stores a failure on the declared record (never on a managed one), only while
- * the lock is still this owner's: a lost lock leaves the record to its holder.
+ * the lock is still this owner's (renewed, and the write fenced): a lost lock
+ * leaves the record to its holder.
  * The failure count and the time of the next attempt go with it, so every
  * replica backs off together. Whether it was stored.
  */
@@ -405,7 +416,7 @@ async function recordErrorUnderLock(
         failures,
         retryAt: new Date(now.getTime() + backoffOf(failures)),
         updatedAt: now,
-    });
+    }, writeOptionsOf(lock));
 
     return true;
 }
@@ -464,7 +475,10 @@ async function dueDelayOf(
  * meanwhile waits for it too. A configuration error
  * (InvalidAgentDefinitionError) is stored and reported once and ends the
  * loop. A failed lock acquire or store read is only reported and retried on
- * this loop's own backoff. Never rejects; an abort ends it.
+ * this loop's own backoff. Each pass first advances the collection's fence
+ * (`lock.fence`); a write the fence refuses (`LeaseLostError`: another owner
+ * took the lock) ends the pass like a lost lock: nothing reported or stored,
+ * no backoff. Never rejects; an abort ends it.
  */
 export async function runCollection(input: CollectionLoopInput): Promise<void> {
     const {
@@ -536,6 +550,8 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
         if (acquired) {
             const lock = createIndexLock(locks, key, owner, clock);
             let failure: { error: unknown; stored: boolean } | undefined;
+            // a write refused for a fence another owner advanced: the lock is lost
+            let fenced = false;
             let deferred = false;
             let dueIn = 0;
 
@@ -551,17 +567,25 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                 if (!deferred && dueIn === 0) {
                     // a wake from here on asks for one more pass
                     wake.clear();
+                    // a pass that lost the lock before this advance writes nothing more
+                    await advanceLockFence(repository, name, lock);
                     await input.pass(lock, report);
                 }
             } catch (error) {
-                failure = { error, stored: false };
+                if (isLeaseLost(error)) {
+                    fenced = true;
+                } else {
+                    failure = { error, stored: false };
 
-                if (!signal.aborted) {
-                    failure.stored = await recordErrorUnderLock(repository, name, error, clock, lock).catch((recordError: unknown) => {
-                        report(recordError);
+                    if (!signal.aborted) {
+                        failure.stored = await recordErrorUnderLock(repository, name, error, clock, lock).catch((recordError: unknown) => {
+                            if (!isLeaseLost(recordError)) {
+                                report(recordError);
+                            }
 
-                        return false;
-                    });
+                            return false;
+                        });
+                    }
                 }
             } finally {
                 await locks.release(key, owner).catch(report);
@@ -589,7 +613,7 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                 continue;
             }
 
-            if (!lock.lost) {
+            if (!lock.lost && !fenced) {
                 delay = KNOWLEDGE_RETRY_MS;
 
                 const woken = await wake.wait(clock, dueIn > 0 ? dueIn : idleMs, signal);

@@ -27,9 +27,28 @@ export type KnowledgeServiceContext = {
 };
 
 /**
+ * A pass's fence token: the collection row's id and its fence counter
+ * (`advanceFence()`). A collection deleted and created again is another row,
+ * so the token of the old one never matches the new one.
+ */
+export type KnowledgeFence = {
+    id: string;
+    fence: number;
+};
+
+/**
+ * With `fence`, a write applies only while the collection's row has that
+ * id and fence (`LeaseLostError` on the lock `knowledge:<name>` otherwise,
+ * nothing written); a missing collection is `RepositoryNotFoundError`.
+ */
+export type KnowledgeWriteOptions = {
+    fence?: KnowledgeFence;
+};
+
+/**
  * Knowledge collections, their documents and chunk vectors, with every
  * rule of their storage. Values are copied in and out; every method is
- * atomic on its own. Documents and chunks need their collection
+ * atomic on its own. The writes a pass makes take `KnowledgeWriteOptions`. Documents and chunks need their collection
  * (`RepositoryNotFoundError` otherwise); chunks may be written before
  * their document's record.
  */
@@ -38,7 +57,14 @@ export interface IKnowledgeService {
      * Inserts the collection of that name, or replaces every field of the
      * stored one, keeping its row id and fence; resolves the stored row.
      */
-    saveCollection(collection: KnowledgeCollection): Promise<KnowledgeCollectionRecord>;
+    saveCollection(collection: KnowledgeCollection, options?: KnowledgeWriteOptions): Promise<KnowledgeCollectionRecord>;
+    /**
+     * Counts the collection's fence up by one and answers the new token
+     * (`undefined` for a missing collection); itself never fenced. A pass
+     * calls it once it holds the lock `knowledge:<name>`, so the writes of a
+     * pass that lost the lock are refused.
+     */
+    advanceFence(name: string): Promise<KnowledgeFence | undefined>;
     findOneCollection(name: string): Promise<KnowledgeCollection | undefined>;
     /** As `findOneCollection`, rejecting a missing one with `RepositoryNotFoundError`. */
     findOneCollectionOrFail(name: string): Promise<KnowledgeCollection>;
@@ -47,7 +73,7 @@ export interface IKnowledgeService {
     /** Deletes the collection with its documents and chunks; whether it existed. */
     deleteCollection(name: string): Promise<boolean>;
     /** Inserts or replaces the document of that collection and id. */
-    saveDocument(document: KnowledgeDocument): Promise<void>;
+    saveDocument(document: KnowledgeDocument, options?: KnowledgeWriteOptions): Promise<void>;
     findOneDocument(collection: string, id: string): Promise<KnowledgeDocument | undefined>;
     /** As `findOneDocument`, rejecting a missing one with `RepositoryNotFoundError`. */
     findOneDocumentOrFail(collection: string, id: string): Promise<KnowledgeDocument>;
@@ -69,20 +95,22 @@ export interface IKnowledgeService {
         id: string,
         version: KnowledgeDocumentVersion,
         patch: KnowledgeDocumentPatch,
+        options?: KnowledgeWriteOptions,
     ): Promise<boolean>;
     /** Deletes the document and its chunks of every generation; whether the document existed. */
-    deleteDocument(collection: string, id: string): Promise<boolean>;
+    deleteDocument(collection: string, id: string, options?: KnowledgeWriteOptions): Promise<boolean>;
     /** Atomically replaces the document's chunks of one generation (`[]` removes them). */
     replaceChunks(
         collection: string,
         document: string,
         generation: number,
         chunks: KnowledgeChunkInput[],
+        options?: KnowledgeWriteOptions,
     ): Promise<void>;
     /** Deletes every chunk of that generation. */
-    deleteGeneration(collection: string, generation: number): Promise<void>;
+    deleteGeneration(collection: string, generation: number, options?: KnowledgeWriteOptions): Promise<void>;
     /** Deletes every chunk of the collection outside that generation. */
-    deleteGenerationsExcept(collection: string, generation: number): Promise<void>;
+    deleteGenerationsExcept(collection: string, generation: number, options?: KnowledgeWriteOptions): Promise<void>;
     /**
      * The `topK` chunks of the generation closest to `vector` by cosine
      * similarity, highest score first, ties by document id (code point),

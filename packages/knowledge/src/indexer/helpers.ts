@@ -6,8 +6,11 @@
  */
 
 import type { IClock, ILockService } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/core';
+import { isObject } from 'smob';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
+import type { IKnowledgeService, KnowledgeWriteOptions } from '../service/types.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { KNOWLEDGE_LOCK_TTL_MS } from './constants.ts';
@@ -137,6 +140,31 @@ export function createIndexLock(
             return false;
         },
     };
+}
+
+/** The write options of a pass under `lock`: its fence, once it has one. */
+export function writeOptionsOf(lock: KnowledgeIndexLock): KnowledgeWriteOptions {
+    return lock.fence === undefined ? {} : { fence: lock.fence };
+}
+
+/** Advances the collection's fence and gives `lock` the new token (none for a missing collection). */
+export async function advanceLockFence(
+    repository: Pick<IKnowledgeService, 'advanceFence'>,
+    name: string,
+    lock: KnowledgeIndexLock,
+): Promise<void> {
+    const fence = await repository.advanceFence(name);
+
+    if (fence === undefined) {
+        delete lock.fence;
+    } else {
+        lock.fence = fence;
+    }
+}
+
+/** A write refused for a fence another owner advanced (LeaseLostError, by code across core copies). */
+export function isLeaseLost(error: unknown): boolean {
+    return isObject(error) && error.code === ErrorCode.LEASE_LOST;
 }
 
 /** Whether the record serves the definition's model and chunker (nothing to re-embed). */

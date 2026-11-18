@@ -11,6 +11,7 @@ import {
     messageOf,
     sameOrigin,
     settled,
+    writeOptionsOf,
 } from '../indexer/helpers.ts';
 import { embedDocument } from '../indexer/module.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
@@ -93,24 +94,24 @@ async function embedOne(
     }
 
     if (!embedded) {
-        await repository.replaceChunks(name, document.id, generation, []);
+        await repository.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
         await repository.updateDocument(name, document.id, document, {
             status: 'failed',
             error: messageOf(rejection),
             generation,
-        });
+        }, writeOptionsOf(lock));
 
         return { stop: false, dimensions };
     }
 
-    await repository.replaceChunks(name, document.id, generation, embedded.chunks);
+    await repository.replaceChunks(name, document.id, generation, embedded.chunks, writeOptionsOf(lock));
 
     if (
-        !await repository.updateDocument(name, document.id, document, { status: 'ready', generation }) &&
+        !await repository.updateDocument(name, document.id, document, { status: 'ready', generation }, writeOptionsOf(lock)) &&
         !await repository.findOneDocument(name, document.id)
     ) {
         // deleted after the re-read: the chunks just written would be searchable orphans
-        await repository.replaceChunks(name, document.id, generation, []);
+        await repository.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
     }
 
     return { stop: false, dimensions: embedded.dimensions };
@@ -163,10 +164,10 @@ async function reembed(
             lastGeneration: target,
             updatedAt: new Date(clock.now()),
         };
-        await repository.saveCollection(record);
+        await repository.saveCollection(record, writeOptionsOf(lock));
 
         if (abandoned !== undefined) {
-            await repository.deleteGeneration(name, abandoned);
+            await repository.deleteGeneration(name, abandoned, writeOptionsOf(lock));
         }
     }
 
@@ -210,7 +211,7 @@ async function reembed(
                 pending: { ...current.pending, dimensions: outcome.dimensions },
                 updatedAt: new Date(clock.now()),
             };
-            await repository.saveCollection(record);
+            await repository.saveCollection(record, writeOptionsOf(lock));
         }
 
         ({ dimensions } = outcome);
@@ -244,10 +245,10 @@ async function reembed(
         updatedAt: new Date(clock.now()),
     };
 
-    await repository.saveCollection(next);
+    await repository.saveCollection(next, writeOptionsOf(lock));
 
     if (previous > 0) {
-        await repository.deleteGeneration(name, previous);
+        await repository.deleteGeneration(name, previous, writeOptionsOf(lock));
     }
 
     return next;
@@ -261,7 +262,8 @@ async function reembed(
  * document, in id order, is embedded at the served generation and model
  * (see `embedOne`); a stale record whose served model is not available here
  * keeps them pending until a re-embed. The record itself is written only by
- * a re-embed.
+ * a re-embed. Every write carries the lock's fence (a `LeaseLostError` once
+ * another owner took the lock).
  */
 export async function syncManaged(input: SyncManagedInput): Promise<void> {
     const {

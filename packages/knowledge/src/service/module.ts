@@ -6,7 +6,7 @@
  */
 
 import type { IClock } from '@chamvi/core';
-import { RepositoryNotFoundError } from '@chamvi/core';
+import { LeaseLostError, RepositoryNotFoundError } from '@chamvi/core';
 import { EntityConflictError } from '@chamvi/store';
 import { 
     and, 
@@ -15,6 +15,7 @@ import {
     ne, 
 } from '@rapiq/core';
 import { uuidv7 } from 'uuidv7';
+import { lockKey } from '../indexer/helpers.ts';
 import type {
     IKnowledgeCollectionRepository,
     KnowledgeChunkInput,
@@ -30,7 +31,12 @@ import type {
     KnowledgeSearchOptions,
 } from '../store/types.ts';
 import { documentFieldsOf, toCollection, toDocument } from './helpers.ts';
-import type { IKnowledgeService, KnowledgeServiceContext } from './types.ts';
+import type {
+    IKnowledgeService,
+    KnowledgeFence,
+    KnowledgeServiceContext,
+    KnowledgeWriteOptions,
+} from './types.ts';
 
 /**
  * Knowledge storage over an `IKnowledgeCollectionRepository`, holding every
@@ -40,7 +46,8 @@ import type { IKnowledgeService, KnowledgeServiceContext } from './types.ts';
  * name (locked), then the documents and chunks through the handed-in
  * repository's children. Reads resolve the collection's row id first.
  * `saveCollection` keeps the stored row's `id` and `fence`; a new row gets
- * a uuid v7 id and fence 0.
+ * a uuid v7 id and fence 0. Only `advanceFence` changes a fence; a write
+ * given `{ fence }` compares it with the locked row before it writes.
  */
 export class KnowledgeService implements IKnowledgeService {
     protected repository: IKnowledgeCollectionRepository;
@@ -52,17 +59,31 @@ export class KnowledgeService implements IKnowledgeService {
         this.clock = ctx.clock;
     }
 
-    async saveCollection(collection: KnowledgeCollection): Promise<KnowledgeCollectionRecord> {
+    async saveCollection(collection: KnowledgeCollection, options: KnowledgeWriteOptions = {}): Promise<KnowledgeCollectionRecord> {
         try {
-            return await this.saveCollectionOnce(collection);
+            return await this.saveCollectionOnce(collection, options);
         } catch (error) {
             if (!(error instanceof EntityConflictError)) {
                 throw error;
             }
 
             // another insert of the name landed between the locked read and the insert: in place, in a new transaction
-            return this.saveCollectionOnce(collection);
+            return this.saveCollectionOnce(collection, options);
         }
+    }
+
+    async advanceFence(name: string): Promise<KnowledgeFence | undefined> {
+        return this.repository.transaction(async (repository) => {
+            const record = await repository.findOneBy({ name });
+
+            if (!record) {
+                return undefined;
+            }
+
+            const saved = await repository.save(repository.merge(record, { fence: record.fence + 1 }));
+
+            return { id: saved.id, fence: saved.fence };
+        });
     }
 
     async findOneCollection(name: string): Promise<KnowledgeCollection | undefined> {
@@ -103,9 +124,9 @@ export class KnowledgeService implements IKnowledgeService {
         });
     }
 
-    async saveDocument(document: KnowledgeDocument): Promise<void> {
+    async saveDocument(document: KnowledgeDocument, options: KnowledgeWriteOptions = {}): Promise<void> {
         await this.repository.transaction(async (repository) => {
-            const record = await this.lockCollectionOrFail(repository, document.collection);
+            const record = await this.lockCollectionOrFail(repository, document.collection, options);
             const { documents } = repository;
 
             await documents.upsertMany([documents.create({
@@ -187,9 +208,10 @@ export class KnowledgeService implements IKnowledgeService {
         id: string,
         version: KnowledgeDocumentVersion,
         patch: KnowledgeDocumentPatch,
+        options: KnowledgeWriteOptions = {},
     ): Promise<boolean> {
         return this.repository.transaction(async (repository) => {
-            const record = await repository.findOneBy({ name: collection });
+            const record = await this.lockCollection(repository, collection, options);
 
             if (!record) {
                 return false;
@@ -224,9 +246,9 @@ export class KnowledgeService implements IKnowledgeService {
         });
     }
 
-    async deleteDocument(collection: string, id: string): Promise<boolean> {
+    async deleteDocument(collection: string, id: string, options: KnowledgeWriteOptions = {}): Promise<boolean> {
         return this.repository.transaction(async (repository) => {
-            const record = await repository.findOneBy({ name: collection });
+            const record = await this.lockCollection(repository, collection, options);
 
             if (!record) {
                 return false;
@@ -243,9 +265,10 @@ export class KnowledgeService implements IKnowledgeService {
         document: string,
         generation: number,
         chunks: KnowledgeChunkInput[],
+        options: KnowledgeWriteOptions = {},
     ): Promise<void> {
         await this.repository.transaction(async (repository) => {
-            const record = await this.lockCollectionOrFail(repository, collection);
+            const record = await this.lockCollectionOrFail(repository, collection, options);
             const { chunks: rows } = repository;
 
             await rows.removeManyBy({
@@ -269,9 +292,9 @@ export class KnowledgeService implements IKnowledgeService {
         });
     }
 
-    async deleteGeneration(collection: string, generation: number): Promise<void> {
+    async deleteGeneration(collection: string, generation: number, options: KnowledgeWriteOptions = {}): Promise<void> {
         await this.repository.transaction(async (repository) => {
-            const record = await repository.findOneBy({ name: collection });
+            const record = await this.lockCollection(repository, collection, options);
 
             if (record) {
                 await repository.chunks.removeManyBy({ collectionId: record.id, generation });
@@ -279,9 +302,9 @@ export class KnowledgeService implements IKnowledgeService {
         });
     }
 
-    async deleteGenerationsExcept(collection: string, generation: number): Promise<void> {
+    async deleteGenerationsExcept(collection: string, generation: number, options: KnowledgeWriteOptions = {}): Promise<void> {
         await this.repository.transaction(async (repository) => {
-            const record = await repository.findOneBy({ name: collection });
+            const record = await this.lockCollection(repository, collection, options);
 
             if (!record) {
                 return;
@@ -317,9 +340,12 @@ export class KnowledgeService implements IKnowledgeService {
     }
 
     /** One attempt of `saveCollection`: the locked read by name, then an insert or a whole-row replace. */
-    protected async saveCollectionOnce(collection: KnowledgeCollection): Promise<KnowledgeCollectionRecord> {
+    protected async saveCollectionOnce(
+        collection: KnowledgeCollection,
+        options: KnowledgeWriteOptions,
+    ): Promise<KnowledgeCollectionRecord> {
         return this.repository.transaction(async (repository) => {
-            const stored = await repository.findOneBy({ name: collection.name });
+            const stored = await this.lockCollection(repository, collection.name, options);
             // a record read earlier may carry a row id and a fence: neither is the caller's to write
             const fields = toCollection(collection as KnowledgeCollectionRecord);
 
@@ -339,12 +365,41 @@ export class KnowledgeService implements IKnowledgeService {
         });
     }
 
-    /** The collection's row, locked for the transaction; a missing one is `RepositoryNotFoundError`. */
+    /**
+     * The collection's row, locked for the transaction. With a fence, a
+     * missing row is `RepositoryNotFoundError` and a row of another id or
+     * fence `LeaseLostError` (the pass lost its lock; nothing is written).
+     */
+    protected async lockCollection(
+        repository: IKnowledgeCollectionRepository,
+        name: string,
+        options: KnowledgeWriteOptions,
+    ): Promise<KnowledgeCollectionRecord | undefined> {
+        const record = await repository.findOneBy({ name }) ?? undefined;
+        const { fence } = options;
+
+        if (fence === undefined) {
+            return record;
+        }
+
+        if (!record) {
+            throw new RepositoryNotFoundError('knowledge collections');
+        }
+
+        if (record.id !== fence.id || record.fence !== fence.fence) {
+            throw new LeaseLostError({ lock: lockKey(name) });
+        }
+
+        return record;
+    }
+
+    /** As `lockCollection`, a missing row being `RepositoryNotFoundError` also without a fence. */
     protected async lockCollectionOrFail(
         repository: IKnowledgeCollectionRepository,
         name: string,
+        options: KnowledgeWriteOptions,
     ): Promise<KnowledgeCollectionRecord> {
-        const record = await repository.findOneBy({ name });
+        const record = await this.lockCollection(repository, name, options);
 
         if (!record) {
             throw new RepositoryNotFoundError('knowledge collections');

@@ -8,7 +8,7 @@
 import type { IClock, ILockService } from '@chamvi/core';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
 import type { KnowledgeErrorContext } from '../knowledge/types.ts';
-import type { IKnowledgeService } from '../service/types.ts';
+import type { IKnowledgeService, KnowledgeFence } from '../service/types.ts';
 import type { KnowledgeChunkInput } from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 
@@ -19,6 +19,12 @@ export type KnowledgeEmbed = (model: string, texts: string[], signal: AbortSigna
 export type KnowledgeIndexLock = {
     /** Whether the lock is still this owner's (re-acquired once half the TTL passed). */
     renew(): Promise<boolean>;
+    /**
+     * The collection's fence token, advanced once the lock was taken (and once
+     * a first pass created the record); every write of the pass carries it,
+     * so a pass whose lock another owner took is refused (`LeaseLostError`).
+     */
+    fence?: KnowledgeFence;
 };
 
 export type SyncCollectionInput = {

@@ -25,6 +25,7 @@ import {
 import type { IKnowledge, KnowledgeCollection, KnowledgeOptions } from '@chamvi/knowledge';
 import {
     CHUNKER_VERSION,
+    KNOWLEDGE_LOCK_TTL_MS,
     KNOWLEDGE_MANAGED_POLL_MS,
     MANAGED_CONTENT_MAX_CHARS,
     contentHash,
@@ -371,6 +372,57 @@ describe('managed collections', () => {
 
         expect(await knowledge.deleteCollection('notes')).toBe(true);
         await expect(knowledge.createCollection('notes')).resolves.toMatchObject({ name: 'notes', kind: 'managed' });
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose fence another owner advanced writes nothing more and reports nothing', async () => {
+        const setup = createIndexerSetup();
+        const content = 'Refunds within thirty days.';
+        // the same model identity as the mock, other vectors: its chunks score apart from the mock's
+        const turned = new MockEmbeddingModelV4({
+            maxEmbeddingsPerCall: null,
+            supportsParallelCalls: true,
+            doEmbed: async ({ values }) => ({
+                embeddings: values.map(() => Array.from({ length: 64 }, (_, i) => (i === 0 ? 1 : 0))),
+                warnings: [],
+            }),
+        });
+        const knowledge = create(setup, { embeddingModel: turned });
+        const { service } = knowledge;
+        const replace = service.replaceChunks.bind(service);
+        const gate = Promise.withResolvers<void>();
+        // the first write after the renew waits, as a store slower than the lease would
+        const held = vi.spyOn(service, 'replaceChunks').mockImplementationOnce(async (...args) => {
+            await gate.promise;
+
+            return replace(...args);
+        });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+        await knowledge.putDocument('notes', { id: 'doc', content });
+        await expect.poll(() => held.mock.calls.length).toBe(1);
+
+        // the lease expires while the write waits: a second instance takes it and embeds the document
+        setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+
+        const other = create(setup, { embeddingModel: mockEmbeddingModel() });
+
+        other.start();
+        await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        gate.resolve();
+
+        await expect.poll(() => held.mock.settledResults[0]?.type).toBe('rejected');
+        await settle();
+
+        expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost', lock: 'knowledge:notes' } });
+
+        const matches = await setup.repository.search('notes', 1, await vectorOf(content), { topK: 10 });
+
+        expect(matches).toHaveLength(1);
+        expect(matches[0]!.score).toBeCloseTo(1);
+        expect(await setup.repository.findOneDocument('notes', 'doc')).toMatchObject({ status: 'ready', generation: 1 });
         expect(setup.errors).toEqual([]);
     });
 

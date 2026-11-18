@@ -80,13 +80,27 @@ export type ContractKnowledgeCollectionRecord = ContractKnowledgeCollection & {
     fence: number;
 };
 
+/** A pass's fence token: the collection row's id and its fence counter. */
+export type ContractKnowledgeFence = {
+    id: string;
+    fence: number;
+};
+
+export type ContractKnowledgeWriteOptions = {
+    fence?: ContractKnowledgeFence;
+};
+
 export type ContractKnowledgeService = {
-    saveCollection(collection: ContractKnowledgeCollection): Promise<ContractKnowledgeCollectionRecord>;
+    saveCollection(
+        collection: ContractKnowledgeCollection,
+        options?: ContractKnowledgeWriteOptions,
+    ): Promise<ContractKnowledgeCollectionRecord>;
+    advanceFence(name: string): Promise<ContractKnowledgeFence | undefined>;
     findOneCollection(name: string): Promise<ContractKnowledgeCollection | undefined>;
     findOneCollectionOrFail(name: string): Promise<ContractKnowledgeCollection>;
     findCollections(): Promise<ContractKnowledgeCollection[]>;
     deleteCollection(name: string): Promise<boolean>;
-    saveDocument(document: ContractKnowledgeDocument): Promise<void>;
+    saveDocument(document: ContractKnowledgeDocument, options?: ContractKnowledgeWriteOptions): Promise<void>;
     findOneDocument(collection: string, id: string): Promise<ContractKnowledgeDocument | undefined>;
     findOneDocumentOrFail(collection: string, id: string): Promise<ContractKnowledgeDocument>;
     findDocumentIds(collection: string): Promise<string[]>;
@@ -111,16 +125,18 @@ export type ContractKnowledgeService = {
             error?: string; 
             generation?: number 
         },
+        options?: ContractKnowledgeWriteOptions,
     ): Promise<boolean>;
-    deleteDocument(collection: string, id: string): Promise<boolean>;
+    deleteDocument(collection: string, id: string, options?: ContractKnowledgeWriteOptions): Promise<boolean>;
     replaceChunks(
         collection: string,
         document: string,
         generation: number,
         chunks: ContractKnowledgeChunk[],
+        options?: ContractKnowledgeWriteOptions,
     ): Promise<void>;
-    deleteGeneration(collection: string, generation: number): Promise<void>;
-    deleteGenerationsExcept(collection: string, generation: number): Promise<void>;
+    deleteGeneration(collection: string, generation: number, options?: ContractKnowledgeWriteOptions): Promise<void>;
+    deleteGenerationsExcept(collection: string, generation: number, options?: ContractKnowledgeWriteOptions): Promise<void>;
     search(
         collection: string,
         generation: number,
