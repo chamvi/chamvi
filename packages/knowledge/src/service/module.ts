@@ -273,6 +273,11 @@ export class KnowledgeService implements IKnowledgeService {
                 updatedAt: new Date(this.clock.now()),
             }]);
 
+            // a pending document's served chunks hold its old content: they keep the details they were written with
+            if (document.status !== 'ready') {
+                return true;
+            }
+
             // every generation: the served one and a pending re-embed's never keep the old details
             const chunks = await repository.chunks.findManyBy({ collectionId: record.id, document: id });
 

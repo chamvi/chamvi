@@ -498,6 +498,29 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.findOneDocumentOrFail('docs', 'b')).toEqual(documentOf('docs', 'b', origin));
             });
 
+            it('updateDetails on a document that is not ready leaves its chunks', async () => {
+                const service = await create();
+                const origin = { title: 'A', source: 'a.md' };
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'old', origin)]);
+                await service.replaceChunks('docs', 'b', 1, [chunkOf(0, [1, 0], 'old', origin)]);
+                await service.saveDocument(documentOf('docs', 'a', { status: 'pending', title: 'B' }));
+                await service.saveDocument(documentOf('docs', 'b', { status: 'failed', title: 'B' }));
+
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', title: 'B' }, { title: 'B', metadata: { n: 2 } })).toBe(true);
+                expect(await service.updateDetails('docs', 'b', { hash: 'sha256:b', title: 'B' }, { title: 'C' })).toBe(true);
+
+                expect(await service.findOneDocumentOrFail('docs', 'a')).toMatchObject({
+                    status: 'pending', 
+                    title: 'B', 
+                    metadata: { n: 2 }, 
+                });
+                expect(await service.findOneDocumentOrFail('docs', 'b')).toMatchObject({ status: 'failed', title: 'C' });
+                expect((await service.search('docs', 1, [1, 0], { topK: 10 })).map((match) => [match.document, match.title]))
+                    .toEqual([['a', 'A'], ['b', 'A']]);
+            });
+
             it('updateDetails with a stale version changes nothing', async () => {
                 const service = await create();
                 const origin = { title: 'A', source: 'a.md' };

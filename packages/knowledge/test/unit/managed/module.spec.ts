@@ -404,34 +404,39 @@ describe('managed collections', () => {
             } = await ready();
             const calls = model.calls.length;
             const { repository } = setup;
-            const save = repository.saveDocument.bind(repository);
+            const update = repository.updateDetails.bind(repository);
             let raced = false;
 
-            // the other PUT runs at this PUT's first document write after its details write, if it makes one
-            repository.saveDocument = async (document, options) => {
+            // the other PUT runs right after this PUT's details write
+            repository.updateDetails = async (...args) => {
+                const result = await update(...args);
+
                 if (!raced) {
                     raced = true;
                     await knowledge.putDocument('notes', {
-                        id: 'doc', 
-                        content, 
-                        title: 'C', 
+                        id: 'doc',
+                        content,
+                        title: 'C',
                     });
                 }
 
-                return save(document, options);
+                return result;
             };
-            await knowledge.putDocument('notes', {
+
+            expect(await knowledge.putDocument('notes', {
                 id: 'doc',
                 content,
                 title: 'B',
                 metadata: { v: 2 },
-            });
+            })).toEqual({ status: 'ready', changed: true });
 
             const { document, titles } = await stored();
 
-            expect(document.status).toBe('ready');
-            // whichever PUT wins, the chunks carry the document's title
-            expect(titles).toEqual([document.title]);
+            expect(raced).toBe(true);
+            // the later PUT wins, with its (absent) metadata, and the chunks carry its title
+            expect(document).toMatchObject({ status: 'ready', title: 'C' });
+            expect(document.metadata).toBeUndefined();
+            expect(titles).toEqual(['C']);
             expect(model.calls).toHaveLength(calls);
             expect(setup.errors).toEqual([]);
         });
@@ -469,6 +474,8 @@ describe('managed collections', () => {
                 metadata: { v: 2 },
             })).toEqual({ status: 'ready', changed: true });
 
+            expect(raced).toBe(true);
+
             const { document, titles } = await stored();
 
             expect(document).toMatchObject({
@@ -480,6 +487,61 @@ describe('managed collections', () => {
             expect(model.calls).toHaveLength(calls);
             expect(setup.errors).toEqual([]);
         });
+    });
+
+    it('a metadata PUT on a pending document keeps the served chunks\' details until the new content is embedded', async () => {
+        const setup = createIndexerSetup();
+        const model = gatedModel({ opened: 1 });
+        const knowledge = create(setup, { embeddingModel: model });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+
+        const before = 'Kubernetes pods are scheduled onto nodes.';
+        const after = 'Invoices are sent on the first day of each month.';
+
+        await knowledge.putDocument('notes', {
+            id: 'doc', 
+            content: before, 
+            title: 'A', 
+        });
+        await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        // the new content waits for its embed; the old chunks keep serving under the old title
+        await knowledge.putDocument('notes', {
+            id: 'doc', 
+            content: after, 
+            title: 'B', 
+        });
+        await expect.poll(() => model.started.length).toBe(2);
+
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content: after,
+            title: 'B',
+            metadata: { v: 2 },
+        })).toEqual({ status: 'pending', changed: true });
+        expect(await setup.repository.findOneDocument('notes', 'doc')).toMatchObject({
+            status: 'pending',
+            title: 'B',
+            metadata: { v: 2 },
+        });
+
+        const served = await setup.repository.search('notes', 1, await vectorOf(before), { topK: 10 });
+
+        // never the old text next to the new title
+        expect(served.map((match) => [match.text, match.title])).toEqual([[before, 'A']]);
+
+        model.open(1);
+
+        const ready = await waitForDocument(setup, 'notes', 'doc', 'ready', contentHash(after));
+
+        expect(ready).toMatchObject({ title: 'B', metadata: { v: 2 } });
+
+        const matches = await setup.repository.search('notes', 1, await vectorOf(after), { topK: 10 });
+
+        expect(matches.map((match) => [match.text, match.title])).toEqual([[after, 'B']]);
+        expect(setup.errors).toEqual([]);
     });
 
     it('a PUT with a new title during an embed never leaves old details ready under the new version', async () => {
