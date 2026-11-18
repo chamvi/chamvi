@@ -66,7 +66,7 @@ SQLite (an app's database only): every use of a better-sqlite3 data source (tran
 | `entities/` | One TypeORM entity per table; `TableName` and the jsonb transformers (`constants.ts`), `toJsonParameter()` (`helpers.ts`) |
 | `repositories/<aggregate>/` (`run`, `step`, `checkpoint`, `effect`, `artifact`, `state`, `lock`, `idempotency`, `agent-revision`, `connection`, `conversation`) | The `Database*Repository` of each port (children in the same folder; `connection/fence.ts`) |
 | `schema/` | `migrateStore()`, `pendingMigrations()`, `assertStoreNotLegacy()`, `STORE_ENTITIES`, `STORE_MIGRATIONS`, `MIGRATION_LOCK_NAME` |
-| `migrations/` | The four generated migrations above |
+| `migrations/` | The baseline and the 0.9 bundle above (generated, the backfill hand-edited) |
 | `database/` | An app's database: `buildDatabaseOptions` (no I/O, UTC pinned), `connectDatabase`, `synchronizeDatabase`, `closeDatabase`, `migrateDatabase`, `pendingDatabaseMigrations`, `findUntypedColumns`, `queueDataSource` |
 | `migration/` | `runMigrationOperation`, `isSameDatabase`, the scratch guard, `storeMigrationsDirectory`, `MIGRATION_OPERATIONS`, `STORE_DATABASE`, `DATABASE_LOCK_PREFIX` |
 | `query/` | `applyQuery`, `validateEntitySchemas` |
