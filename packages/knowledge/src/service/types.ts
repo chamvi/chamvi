@@ -119,6 +119,12 @@ export interface IKnowledgeService {
         version: KnowledgeDocumentVersion,
         details: KnowledgeDocumentDetails,
     ): Promise<boolean>;
+    /**
+     * Sets every document of the collection at `generation` to `pending` at
+     * `target` (removing its error; content, version and details kept), in
+     * one transaction; how many it changed. Its chunks are not touched.
+     */
+    requeueGeneration(collection: string, generation: number, target: number, options?: KnowledgeWriteOptions): Promise<number>;
     /** Deletes the document and its chunks of every generation; whether the document existed. */
     deleteDocument(collection: string, id: string, options?: KnowledgeWriteOptions): Promise<boolean>;
     /** Atomically replaces the document's chunks of one generation (`[]` removes them). */

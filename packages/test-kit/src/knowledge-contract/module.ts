@@ -540,6 +540,44 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.search('docs', 1, [1, 0], { topK: 10 })).toMatchObject([{ title: 'A', source: 'a.md' }]);
             });
 
+            it('requeueGeneration sets the documents of one generation pending at another, of that collection only', async () => {
+                const service = await create();
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.saveCollection(collectionOf('other'));
+                await service.saveDocument(documentOf('docs', 'a', { generation: 2, title: 'A' }));
+                await service.saveDocument(documentOf('docs', 'b', {
+                    generation: 2,
+                    status: 'failed',
+                    error: 'refused',
+                }));
+                await service.saveDocument(documentOf('docs', 'c', { generation: 2, status: 'pending' }));
+                await service.saveDocument(documentOf('docs', 'd'));
+                await service.saveDocument(documentOf('other', 'a', { generation: 2 }));
+                await service.replaceChunks('docs', 'a', 2, [chunkOf(0, [1, 0])]);
+
+                expect(await service.requeueGeneration('docs', 2, 1)).toBe(3);
+
+                expect(await service.findOneDocumentOrFail('docs', 'a')).toEqual(documentOf('docs', 'a', {
+                    generation: 1,
+                    status: 'pending',
+                    title: 'A',
+                }));
+
+                const failed = await service.findOneDocumentOrFail('docs', 'b');
+
+                expect(failed).toEqual(documentOf('docs', 'b', { generation: 1, status: 'pending' }));
+                expect(failed.error).toBeUndefined();
+                expect(await service.findOneDocumentOrFail('docs', 'c')).toEqual(documentOf('docs', 'c', { generation: 1, status: 'pending' }));
+                expect(await service.findOneDocumentOrFail('docs', 'd')).toEqual(documentOf('docs', 'd'));
+                expect(await service.findOneDocumentOrFail('other', 'a')).toEqual(documentOf('other', 'a', { generation: 2 }));
+                // chunks are not touched
+                expect(await service.search('docs', 2, [1, 0], { topK: 10 })).toHaveLength(1);
+
+                expect(await service.requeueGeneration('docs', 2, 1)).toBe(0);
+                expect(await service.requeueGeneration('missing', 2, 1)).toBe(0);
+            });
+
             it('lists document ids in code point order, per collection', async () => {
                 const service = await create();
 
@@ -799,6 +837,10 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                         { status: 'failed', error: 'refused' },
                         options(fence),
                     ),
+                },
+                {
+                    method: 'requeueGeneration',
+                    write: (service, fence) => service.requeueGeneration('docs', 1, 2, options(fence)),
                 },
                 {
                     method: 'deleteDocument',

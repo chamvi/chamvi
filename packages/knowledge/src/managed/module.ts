@@ -17,7 +17,7 @@ import { embedDocument } from '../indexer/module.ts';
 import { withOrigin } from '../service/helpers.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import { MANAGED_PAGE_SIZE } from './constants.ts';
-import { isProviderRejection, needsReembed } from './helpers.ts';
+import { isAbandoned, isProviderRejection, needsReembed } from './helpers.ts';
 import type { SyncManagedInput } from './types.ts';
 
 /** What embedding one document left: `stop` ends the pass (the lock or the collection is gone). */
@@ -136,6 +136,42 @@ async function embedOne(
 }
 
 /**
+ * Abandons the re-embed the record names as pending (its model or chunker
+ * is not the default any more): every document at that generation is set
+ * `pending` at the served generation (embedded there by the pass), the
+ * generation's chunks are deleted, then `pending` is cleared on the record
+ * read again. In this order a pass ending in between leaves `pending` set,
+ * so the next one repeats the step. The record, or undefined when the
+ * collection is gone.
+ */
+async function abandon(input: SyncManagedInput, stored: KnowledgeCollection): Promise<KnowledgeCollection | undefined> {
+    const {
+        name,
+        repository,
+        clock,
+        lock,
+    } = input;
+    const { generation } = stored.pending!;
+
+    await repository.requeueGeneration(name, generation, stored.generation, writeOptionsOf(lock));
+    await repository.deleteGeneration(name, generation, writeOptionsOf(lock));
+
+    const current = await isSameCollection(input, stored);
+
+    if (current?.pending?.generation !== generation) {
+        return undefined;
+    }
+
+    const record: KnowledgeCollection = { ...current, updatedAt: new Date(clock.now()) };
+
+    delete record.pending;
+
+    await repository.saveCollection(record, writeOptionsOf(lock));
+
+    return record;
+}
+
+/**
  * Re-embeds every document of a stale managed collection into the next
  * generation with `model` (or continues the re-embed the record names as
  * pending), then switches the served generation and deletes the previous
@@ -161,8 +197,6 @@ async function reembed(
     if (record.pending?.model === model && record.pending.chunker === CHUNKER_VERSION) {
         target = record.pending.generation;
     } else {
-        const abandoned = record.pending?.generation;
-
         // never a number given out before: documents of an abandoned generation still name it
         target = highestGeneration(record) + 1;
 
@@ -183,10 +217,6 @@ async function reembed(
             updatedAt: new Date(clock.now()),
         };
         await repository.saveCollection(record, writeOptionsOf(lock));
-
-        if (abandoned !== undefined) {
-            await repository.deleteGeneration(name, abandoned, writeOptionsOf(lock));
-        }
     }
 
     let dimensions = record.pending?.dimensions;
@@ -274,14 +304,16 @@ async function reembed(
 
 /**
  * One pass over a managed collection. Re-reads the record (missing or no
- * longer managed: nothing to do). A stale record (another default model or
- * chunker) is re-embedded first when `reembed` asks for it or the record
- * names that re-embed as pending (see `reembed`). Then every `pending`
- * document, in id order, is embedded at the served generation and model
- * (see `embedOne`); a stale record whose served model is not available here
- * keeps them pending until a re-embed. The record itself is written only by
- * a re-embed. Every write carries the lock's fence (a `LeaseLostError` once
- * another owner took the lock).
+ * longer managed: nothing to do). A pending re-embed for another model or
+ * chunker than the default is abandoned first (see `abandon`). A stale
+ * record (another default model or chunker) is re-embedded first when
+ * `reembed` asks for it or the record names that re-embed as pending (see
+ * `reembed`). Then every `pending` document, in id order, is embedded at the
+ * served generation and model (see `embedOne`); a stale record whose served
+ * model is not available here keeps them pending until a re-embed. The
+ * record itself is written only by a re-embed or an abandon. Every write
+ * carries the lock's fence (a `LeaseLostError` once another owner took the
+ * lock).
  */
 export async function syncManaged(input: SyncManagedInput): Promise<void> {
     const {
@@ -302,6 +334,14 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
 
         if (lock.fence === undefined) {
             // gone again: nothing to write, and never a write without a token
+            return;
+        }
+    }
+
+    if (isAbandoned(record, input.model)) {
+        record = await abandon(input, record);
+
+        if (!record) {
             return;
         }
     }

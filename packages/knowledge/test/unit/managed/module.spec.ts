@@ -915,6 +915,73 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('a re-embed abandoned by reverting the default model serves the new content at the served generation', async () => {
+        const setup = createIndexerSetup();
+        const next = gatedModel();
+        const models = { 'mock/a': mockEmbeddingModel(), 'mock/b': next };
+        const first = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+
+        await first.createCollection('notes');
+        first.start();
+
+        const before = 'Kubernetes pods are scheduled onto nodes.';
+        const after = 'Invoices are sent on the first day of each month.';
+
+        await first.putDocument('notes', { id: 'a', content: 'Refunds within thirty days.' });
+        await first.putDocument('notes', { id: 'b', content: before });
+        await first.putDocument('notes', { id: 'c', content: 'Support answers within a day.' });
+        await waitForDocument(setup, 'notes', 'c', 'ready');
+        await first.stop();
+
+        const second = create(setup, { embeddingModel: 'mock/b', models: embeddingResolver(models) });
+
+        second.start();
+        await vi.waitFor(() => second.sync('notes'));
+        await expect.poll(() => next.started.length).toBe(1);
+
+        // PUT while the re-embed embeds "a": the re-embed reaches "b" later and makes the new content ready at its generation
+        await second.putDocument('notes', { id: 'b', content: after });
+
+        next.open(0);
+        next.open(1);
+        await waitForDocument(setup, 'notes', 'b', 'ready', contentHash(after));
+        await expect.poll(() => next.started.length).toBe(3);
+
+        expect(await setup.repository.findOneDocument('notes', 'b')).toMatchObject({ generation: 2 });
+
+        // the default reverts before the re-embed finishes ("c" is never embedded with mock/b)
+        await second.stop();
+
+        const third = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+
+        third.start();
+
+        await waitForCollection(setup.repository, 'notes', (collection) => collection.pending === undefined);
+        await waitForDocument(setup, 'notes', 'b', 'ready', contentHash(after));
+        await waitForDocument(setup, 'notes', 'a', 'ready');
+
+        const record = (await setup.repository.findOneCollection('notes'))!;
+
+        expect(record).toMatchObject({
+            model: 'mock/a',
+            generation: 1,
+            status: 'ready',
+        });
+        expect(third.view(record).status).toBe('ready');
+
+        for (const id of ['a', 'b', 'c']) {
+            expect(await setup.repository.findOneDocument('notes', id)).toMatchObject({ status: 'ready', generation: 1 });
+        }
+
+        expect(await setup.repository.search('notes', 2, await vectorOf(after), { topK: 10 })).toEqual([]);
+
+        const matches = await setup.repository.search('notes', 1, await vectorOf(after), { topK: 10 });
+
+        expect(matches.filter((match) => match.document === 'b').map((match) => match.text)).toEqual([after]);
+        expect(next.started).toHaveLength(3);
+        expect(setup.errors).toEqual([]);
+    });
+
     it('a stale collection embeds pending documents at its served model until a sync()', async () => {
         const setup = createIndexerSetup();
         const models = { 'mock/a': mockEmbeddingModel(), 'mock/b': mockEmbeddingModel() };

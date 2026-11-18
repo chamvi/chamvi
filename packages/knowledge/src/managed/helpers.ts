@@ -36,6 +36,13 @@ export function needsReembed(record: KnowledgeCollection, model: string | undefi
         (record.model !== model || record.chunker !== CHUNKER_VERSION);
 }
 
+/** Whether the record's pending re-embed targets another model or chunker than `model` and this chunker. */
+export function isAbandoned(record: KnowledgeCollection, model: string | undefined): boolean {
+    return model !== undefined &&
+        record.pending !== undefined &&
+        (record.pending.model !== model || record.pending.chunker !== CHUNKER_VERSION);
+}
+
 /** The ValidationError of a document a request sent, or undefined when it is valid. */
 export function managedDocumentProblem(value: unknown): ValidationError | undefined {
     const problem = documentProblem(value, 'request');

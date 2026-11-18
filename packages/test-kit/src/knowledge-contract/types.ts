@@ -143,6 +143,12 @@ export type ContractKnowledgeService = {
             metadata?: Record<string, unknown>
         },
     ): Promise<boolean>;
+    requeueGeneration(
+        collection: string,
+        generation: number,
+        target: number,
+        options?: ContractKnowledgeWriteOptions,
+    ): Promise<number>;
     deleteDocument(collection: string, id: string, options?: ContractKnowledgeWriteOptions): Promise<boolean>;
     replaceChunks(
         collection: string,

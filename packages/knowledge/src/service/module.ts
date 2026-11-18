@@ -289,6 +289,42 @@ export class KnowledgeService implements IKnowledgeService {
         });
     }
 
+    async requeueGeneration(
+        collection: string,
+        generation: number,
+        target: number,
+        options: KnowledgeWriteOptions = {},
+    ): Promise<number> {
+        return this.repository.transaction(async (repository) => {
+            const record = await this.lockCollection(repository, collection, options);
+
+            if (!record) {
+                return 0;
+            }
+
+            // the locked collection row serializes every document write: the listed rows stay as read
+            const documents = await repository.documents.findManyBy({ collectionId: record.id, generation });
+
+            if (documents.length === 0) {
+                return 0;
+            }
+
+            await repository.documents.upsertMany(documents.map((document) => {
+                const updated: KnowledgeDocumentRecord = {
+                    ...document,
+                    status: 'pending',
+                    generation: target,
+                };
+
+                delete updated.error;
+
+                return updated;
+            }));
+
+            return documents.length;
+        });
+    }
+
     async deleteDocument(collection: string, id: string, options: KnowledgeWriteOptions = {}): Promise<boolean> {
         return this.repository.transaction(async (repository) => {
             const record = await this.lockCollection(repository, collection, options);
