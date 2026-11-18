@@ -19,6 +19,7 @@ import type { IContainer } from 'eldin';
 import type { IModule, ModuleDependency } from 'orkos';
 import { serve } from 'routup';
 import { AppToken, ModuleName } from '../../module/constants.ts';
+import { remainingDrainMs } from '../../module/drain.ts';
 import { runHooks, throwIfStopped } from '../../module/helpers.ts';
 import { registerStartStep } from '../../module/start.ts';
 import type { Server } from '../../module/types.ts';
@@ -116,7 +117,8 @@ export class HttpModule implements IModule {
             server: { close: (force) => (server ? server.close(force) : Promise.resolve()) },
             // a check never served: nothing to take out of rotation
             readinessDelayMs: context.check ? 0 : config.http.readinessDelayMs,
-            drainTimeoutMs: config.http.drainTimeoutMs,
+            // what the components' stop left of the one CHAMVI_DRAIN_TIMEOUT_MS budget
+            drainTimeoutMs: () => remainingDrainMs(container),
             closeTimeoutMs: config.http.closeTimeoutMs,
             onError: (error) => context.report(error, { phase: 'shutdown' }),
         });

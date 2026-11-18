@@ -103,10 +103,10 @@ So a contribution never depends on module order. A module that resolves `ENGINE`
 `app.stop()` is memoized and also stops a start still setting up (which then never listens):
 
 1. `/readyz` answers 503, then `CHAMVI_READINESS_DELAY_MS` (0)
-2. the `stopping` hooks: the components stop first, up to `CHAMVI_DRAIN_TIMEOUT_MS` (a component that does not stop in time is logged and `stop()` rejects)
+2. the `stopping` hooks: the components stop, up to `CHAMVI_DRAIN_TIMEOUT_MS` (a component that does not stop in time is logged and `stop()` rejects)
 3. the app's closers (SSE streams, MCP waits)
 4. `server.close()`
-5. `engine.drain()`: every channel's `stop()` first, then up to `CHAMVI_DRAIN_TIMEOUT_MS` (30 s) for the runs
+5. `engine.drain()`: every channel's `stop()` first, then the runs get what remains of the same `CHAMVI_DRAIN_TIMEOUT_MS` (30 s) budget, which began with the components' stop: the two together never take longer than one timeout
 6. up to `CHAMVI_CLOSE_TIMEOUT_MS` (5 s) for the close, then `server.close(true)`
 7. the workspace manager closes (with `sandboxModule`, up to 30 s)
 8. the database modules' data sources (after the `drained` hooks) and the store's data source are closed

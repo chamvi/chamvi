@@ -11,6 +11,7 @@ import { defineComponentGroup } from 'hubwire';
 import type { IComponentGroup } from 'hubwire';
 import type { IModule, ModuleDependency } from 'orkos';
 import { AppToken, ModuleName } from '../../module/constants.ts';
+import { remainingDrainMs } from '../../module/drain.ts';
 import { registerStartStep } from '../../module/start.ts';
 import type { AppContext } from '../../module/types.ts';
 import { assertComponents } from './helpers.ts';
@@ -27,7 +28,8 @@ function runsComponents(context: AppContext): boolean {
  * engine with its channels; a component whose `start()` fails fails the app
  * start (the group stops those it started). The `stopping` hook (before the
  * drain) and `teardown` stop the group once, bounded by
- * `CHAMVI_DRAIN_TIMEOUT_MS` on the app clock: a component whose `stop()` or
+ * `CHAMVI_DRAIN_TIMEOUT_MS` on the app clock, a budget the engine drain after
+ * it shares (the drain gets what remains): a component whose `stop()` or
  * `settled()` never resolves is reported, never awaited past it.
  */
 export class ComponentsModule implements IModule {
@@ -84,7 +86,7 @@ export class ComponentsModule implements IModule {
         await this.stop(container);
     }
 
-    /** Stops the group once; resolves at the drain timeout at the latest. */
+    /** Stops the group once; resolves at the shared drain deadline at the latest. */
     protected stop(container: IContainer): Promise<void> {
         const { group } = this;
 
@@ -98,7 +100,8 @@ export class ComponentsModule implements IModule {
     }
 
     protected async stopWithin(container: IContainer, group: IComponentGroup): Promise<void> {
-        const timeoutMs = container.resolve(AppToken.CONFIG).http.drainTimeoutMs;
+        // the drain after it gets only what remains of this budget
+        const timeoutMs = remainingDrainMs(container);
         const { promise, resolve } = Promise.withResolvers<boolean>();
         const timer = container.resolve(AppToken.CLOCK).setTimeout(() => resolve(false), timeoutMs);
 

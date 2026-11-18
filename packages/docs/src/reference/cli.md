@@ -112,7 +112,7 @@ The CLI sets `process.exitCode` and lets Node exit; `process.exit()` only ends a
 
 `migrate` and `migration` install no handlers: Node's default ends them.
 
-On Kubernetes keep `preStop + CHAMVI_FORCE_EXIT_MS < terminationGracePeriodSeconds`. With a 5 s `preStop` sleep and a grace period of 120 s, the worst case is 5 + 0 (readiness delay) + 30 (drain) + 5 (close) + 30 (workspaces) = 70 s, the forced exit comes at 5 + 90 = 95 s and SIGKILL at 120 s.
+On Kubernetes keep `preStop + CHAMVI_FORCE_EXIT_MS < terminationGracePeriodSeconds`. With a 5 s `preStop` sleep and a grace period of 120 s, the worst case is 5 + 0 (readiness delay) + 30 (the background components' stop and the drain, which share one `CHAMVI_DRAIN_TIMEOUT_MS`: the drain gets what the stop left) + 5 (close) + 30 (workspaces) = 70 s, the forced exit comes at 5 + 90 = 95 s and SIGKILL at 120 s.
 
 ## dev and process groups
 

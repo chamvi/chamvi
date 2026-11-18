@@ -5,9 +5,15 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { ErrorCode, InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
+import {
+    ErrorCode,
+    InvalidAgentDefinitionError,
+    defineModelAgent,
+    defineTool,
+} from '@chamvi/core';
 import { http } from '@chamvi/http';
-import { ControllableClock, textModel } from '@chamvi/test-kit';
+import { ControllableClock, mockModel, textModel } from '@chamvi/test-kit';
+import { jsonSchema } from 'ai';
 import type { IComponent } from 'hubwire';
 import type { IModule } from 'orkos';
 import {
@@ -331,6 +337,8 @@ describe('componentsModule', () => {
                     CHAMVI_TOKENS: TOKENS,
                     CHAMVI_READINESS_DELAY_MS: '0',
                     CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
+                    // the server close adds nothing: only the components and the drain count
+                    CHAMVI_CLOSE_TIMEOUT_MS: '0',
                 },
             });
 
@@ -396,6 +404,90 @@ describe('componentsModule', () => {
             const error = await stopped;
 
             expect(error.code).toBe(APP_ERROR_CODE.STOP_FAILED);
+        });
+
+        it('shares one drain budget with the engine drain: an in-flight run gets only what the components left', async () => {
+            const events: string[] = [];
+            const clock = new ControllableClock(new Date('2026-11-18T00:00:00Z'));
+            const port = await freePort();
+            const running = deferred();
+            // a tool that runs until the drain aborts it
+            const wait = defineTool({
+                inputSchema: jsonSchema<Record<string, never>>({ type: 'object', properties: {} }),
+                execute: (_input, { abortSignal }) => new Promise<string>((_resolve, reject) => {
+                    running.resolve();
+                    abortSignal?.addEventListener('abort', () => reject(abortSignal.reason));
+                }),
+            });
+            const app = createApp({
+                agents: [defineModelAgent({
+                    name: 'triage',
+                    model: mockModel([{
+                        parts: [{
+                            type: 'tool-call',
+                            toolName: 'wait',
+                            input: {},
+                        }],
+                    }]),
+                    instructions: 'x',
+                    tools: { wait },
+                    channels: [http.on()],
+                })],
+                modules: [
+                    configModule({ clock, logger: createRecordingLogger(clock) }),
+                    contributing('jobs', [fake('stuck', events, { stop: () => new Promise<void>(() => {}) })]),
+                ],
+            });
+
+            apps.push(app);
+            await app.start({
+                env: {
+                    HOST: '127.0.0.1',
+                    PORT: String(port),
+                    CHAMVI_TOKENS: TOKENS,
+                    CHAMVI_READINESS_DELAY_MS: '0',
+                    CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
+                    // the server close adds nothing: only the components and the drain count
+                    CHAMVI_CLOSE_TIMEOUT_MS: '0',
+                },
+            });
+
+            const response = await fetch(`http://127.0.0.1:${port}/agents/triage/runs`, {
+                method: 'POST',
+                headers: { authorization: `Bearer ${TOKEN}`, 'content-type': 'application/json', connection: 'close' },
+                body: JSON.stringify({ input: 'go' }),
+            });
+
+            expect(response.status).toBe(202);
+            await running.promise;
+
+            const stopped = rejectionOf(app.stop());
+
+            /** Fires what is due now (a timer of 0 ms) and lets the shutdown go on, several rounds. */
+            const settledNow = async () => {
+                let done = false;
+
+                stopped.then(() => {
+                    done = true;
+                }, () => {});
+
+                for (let i = 0; i < 50 && !done; i++) {
+                    clock.advance(0);
+                    await flush();
+                }
+
+                return done;
+            };
+
+            // the components' stop holds the shutdown for the whole budget
+            expect(await settledNow()).toBe(false);
+            clock.advance(DRAIN_TIMEOUT_MS - 1);
+            expect(await settledNow()).toBe(false);
+
+            // the budget ends: the drain has none left, so it interrupts the run at once instead of waiting a second timeout
+            clock.advance(1);
+            expect(await settledNow()).toBe(true);
+            expect((await stopped).code).toBe(APP_ERROR_CODE.STOP_FAILED);
         });
     });
 });

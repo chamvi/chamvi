@@ -62,7 +62,11 @@ export function createShutdown(options: ShutdownOptions): IShutdown {
             }) :
             undefined;
 
-        await guard(() => options.engine.drain({ timeoutMs: options.drainTimeoutMs ?? DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS }));
+        await guard(() => {
+            const { drainTimeoutMs = DEFAULT_SHUTDOWN_DRAIN_TIMEOUT_MS } = options;
+
+            return options.engine.drain({ timeoutMs: typeof drainTimeoutMs === 'function' ? drainTimeoutMs() : drainTimeoutMs });
+        });
 
         if (!server || !closing) {
             return;

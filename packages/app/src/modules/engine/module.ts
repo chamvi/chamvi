@@ -12,6 +12,7 @@ import type { IModule } from 'orkos';
 import { createModelResolver } from '../../models/resolver.ts';
 import { readModelSettings } from '../../models/settings.ts';
 import { AppToken, ModuleName } from '../../module/constants.ts';
+import { remainingDrainMs } from '../../module/drain.ts';
 import { runHooks } from '../../module/helpers.ts';
 import { registerStartStep } from '../../module/start.ts';
 import type { EngineModuleOptions } from './types.ts';
@@ -142,7 +143,7 @@ export class EngineModule implements IModule {
 
         try {
             // a no-op once createShutdown or runJob drained it
-            await engine.drain({ timeoutMs: container.resolve(AppToken.CONFIG).http.drainTimeoutMs });
+            await engine.drain({ timeoutMs: remainingDrainMs(container) });
         } finally {
             // also after a failed drain: a hook closes what nothing else would (a database, a sandbox)
             await runHooks(container, 'drained');
