@@ -231,6 +231,8 @@ class Knowledge implements IKnowledge {
                     onError: this.onError,
                     wake,
                     ...(definition.resyncMs === undefined ? {} : { idleMs: definition.resyncMs }),
+                    // a record deleted on another replica (#120) is rebuilt without a resync or a restart
+                    checkMs: KNOWLEDGE_MANAGED_POLL_MS,
                     pass: (lock, report) => syncCollection({
                         definition,
                         repository: this.service,

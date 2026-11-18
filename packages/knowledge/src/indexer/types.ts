@@ -67,6 +67,8 @@ export type CollectionLoopInput = {
     wake: KnowledgeWake;
     /** The time from the end of a pass (on any replica) to the next one; absent: a wake only. */
     idleMs?: number;
+    /** How often an idle loop reads its record: a missing one (deleted elsewhere) runs a pass; absent: never. */
+    checkMs?: number;
 };
 
 export type EmbedDocumentInput = {
