@@ -664,6 +664,22 @@ describe('connection configuration', () => {
             expect((await json(response)).message).toContain('CHAMVI_ENCRYPTION_KEYS');
         });
 
+        it('a save over secrets sealed under a key the keyring dropped answers 409 decryption_failed', async () => {
+            let keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
+            const { app, real } = world({
+                declared: (definition) => [declare(definition, 'mail-work')],
+                keyring: () => keyring,
+            });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+            keyring = createKeyring([{ id: 'k2', key: randomBytes(32) }]);
+
+            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+
+            expect(response.status).toBe(409);
+            expect((await json(response)).code).toBe('decryption_failed');
+        });
+
         it('answers no save on a store without connections', async () => {
             const { app } = world({ noConfigs: true, declared: (definition) => [declare(definition, 'mail-work')] });
 
