@@ -304,8 +304,12 @@ export type ConnectionFieldSource = { kind: 'env'; variable: string } |
     { kind: 'code' } |
     { kind: 'unset' };
 
-/** `incomplete`: some field is set but a required one is not, only reachable without an env field. */
-export type ConnectionState = 'configured' | 'not_configured' | 'incomplete';
+/**
+ * `incomplete`: some field is set but a required one is not, only reachable
+ * without an env field. `failed`: a stored value it needs cannot be read (an
+ * undecryptable row, stored secrets without a keyring); `reason` says why.
+ */
+export type ConnectionState = 'configured' | 'not_configured' | 'incomplete' | 'failed';
 
 export type ResolvedConnection = {
     name: string;

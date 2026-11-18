@@ -159,19 +159,7 @@ export class AgentsModule implements IModule {
             }
         }
 
-        if (root === undefined && this.packages.length === 0) {
-            if (context.mode === 'start' && !context.check) {
-                // the last package left the list: its stored package agents are removed; folder markers stay without an agents dir
-                const engine = container.resolve(AppToken.ENGINE);
-                const codeNames = new Set(context.agents.map((agent) => agent.name));
-
-                this.logCancelled(engine, container.resolve(AppToken.LOGGER));
-                await removeOrphanAgents(engine, (name, marker) => codeNames.has(name) || !isPackageMarker(marker));
-            }
-
-            return;
-        }
-
+        // before anything cancels: a start that fails on its agents dir changes nothing in the store
         if (root !== undefined && !await isDirectory(root)) {
             throw new InvalidAgentDefinitionError(NO_DIRECTORY_MESSAGE);
         }
@@ -179,9 +167,28 @@ export class AgentsModule implements IModule {
         const engine = container.resolve(AppToken.ENGINE);
         const logger = container.resolve(AppToken.LOGGER);
 
-        if (!context.check) {
+        if (!context.check && (context.mode === 'start' || root !== undefined || this.packages.length > 0)) {
             // before the boot: a folder or package changed while the app was down is logged too
             this.logCancelled(engine, logger);
+        }
+
+        if (context.mode === 'start' && !context.check) {
+            // an agent passed in code never has a revision: a marker of its name is left from an earlier
+            // folder or package agent, and runs bound to it would wait for a revision no replica holds
+            for (const agent of context.agents) {
+                await engine.releaseRevision(agent.name);
+            }
+        }
+
+        if (root === undefined && this.packages.length === 0) {
+            if (context.mode === 'start' && !context.check) {
+                // the last package left the list: its stored package agents are removed; folder markers stay without an agents dir
+                const codeNames = new Set(context.agents.map((agent) => agent.name));
+
+                await removeOrphanAgents(engine, (name, marker) => codeNames.has(name) || !isPackageMarker(marker));
+            }
+
+            return;
         }
 
         let role: AgentsWatcherRole = 'start';

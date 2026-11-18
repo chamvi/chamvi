@@ -15,6 +15,7 @@ import {
     READER_TOKEN,
     call,
     createTestApp,
+    restricted,
     tokenFor,
 } from '../../utils/app.ts';
 import { createTestController } from '../../utils/controllers.ts';
@@ -50,6 +51,25 @@ describe('GET /components', () => {
         expect(reader.response.status).toBe(403);
         expect(reader.body.message).toContain(Permission.COMPONENT_READ);
         expect((await list(app, tokenFor(Permission.AGENT_READ))).response.status).toBe(403);
+    });
+
+    it('lists only the components a restricted grant covers', async () => {
+        const { app } = createTestApp({
+            engineChannels: [reporting('ticker', () => ({}))],
+            components: () => [
+                component('store-purge', () => ({})),
+                component('cron', () => ({})),
+            ],
+        });
+        const byName = await list(app, tokenFor(restricted(Permission.COMPONENT_READ, { name: 'cron' })));
+
+        expect(byName.response.status).toBe(200);
+        expect(byName.body).toEqual({ data: [{ name: 'cron', kind: 'job' }] });
+
+        const byKind = await list(app, tokenFor(restricted(Permission.COMPONENT_READ, { kind: 'channel' })));
+
+        expect(byKind.response.status).toBe(200);
+        expect(byKind.body).toEqual({ data: [{ name: 'ticker', kind: 'channel' }] });
     });
 
     it('lists the jobs in the given order, then the channels with a status(), with ISO times', async () => {

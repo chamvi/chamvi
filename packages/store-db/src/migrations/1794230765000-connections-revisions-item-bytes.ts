@@ -7,10 +7,11 @@
 
 import type { MigrationInterface, QueryRunner } from 'typeorm';
 
-export class ConnectionConfig1794230765000 implements MigrationInterface {
-    name = 'ConnectionConfig1794230765000';
+export class ConnectionsRevisionsItemBytes1794230765000 implements MigrationInterface {
+    name = 'ConnectionsRevisionsItemBytes1794230765000';
 
     public async up(queryRunner: QueryRunner): Promise<void> {
+        // connection settings and sealed secrets
         await queryRunner.query(`
             CREATE TABLE "chamvi_connection_secrets" (
                 "id" uuid NOT NULL,
@@ -35,9 +36,43 @@ export class ConnectionConfig1794230765000 implements MigrationInterface {
             ALTER TABLE "chamvi_connection_secrets"
             ADD CONSTRAINT "FK_f6e23b1935645922ecaad02791c" FOREIGN KEY ("connection_id") REFERENCES "chamvi_connections"("id") ON DELETE CASCADE ON UPDATE NO ACTION
         `);
+
+        // the agent revision a permission-checked run is bound to
+        await queryRunner.query(`
+            ALTER TABLE "chamvi_runs"
+            ADD "agent_revision" character varying(128)
+        `);
+
+        // Backfill (edited): the generated `ADD "bytes" integer NOT NULL` fails on a table
+        // with rows, so the column is added nullable, filled, then made NOT NULL.
+        await queryRunner.query(`
+            ALTER TABLE "chamvi_conversation_items"
+            ADD "bytes" integer
+        `);
+
+        // The service stores Buffer.byteLength(text, 'utf8'). On a UTF8 database
+        // octet_length(text) is that number (and reads the TOAST header only, never the
+        // text); any other server encoding stores other bytes, so it converts to UTF-8 first.
+        const [setting]: { server_encoding: string }[] = await queryRunner.query('SHOW server_encoding');
+        const length = setting?.server_encoding === 'UTF8' ? 'octet_length("text")' : 'octet_length(convert_to("text", \'UTF8\'))';
+
+        await queryRunner.query(`
+            UPDATE "chamvi_conversation_items"
+            SET "bytes" = ${length}
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "chamvi_conversation_items"
+            ALTER COLUMN "bytes" SET NOT NULL
+        `);
     }
 
     public async down(queryRunner: QueryRunner): Promise<void> {
+        await queryRunner.query(`
+            ALTER TABLE "chamvi_conversation_items" DROP COLUMN "bytes"
+        `);
+        await queryRunner.query(`
+            ALTER TABLE "chamvi_runs" DROP COLUMN "agent_revision"
+        `);
         await queryRunner.query(`
             ALTER TABLE "chamvi_connection_secrets" DROP CONSTRAINT "FK_f6e23b1935645922ecaad02791c"
         `);

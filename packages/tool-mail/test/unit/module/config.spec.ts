@@ -620,16 +620,72 @@ describe('toolMailModule() configuration', () => {
         })).rejects.toThrow(/CHAMVI_MAIL_WORK_PASSWORD/);
     });
 
-    it('an unreadable stored account fails the start naming the connection', async () => {
+    it('an unreadable stored account is listed failed and not used; the app starts and the env account works', async () => {
+        const server = await fake();
         const store = storeOf();
 
-        await seed(store, 'home', 1);
+        await seed(store, 'home', server.port);
 
-        await expect(harnessOf({
+        // the row was sealed under a key this keyring does not hold
+        const harness = await harnessOf({
             store,
             keyring: createKeyring([{ id: 'k1', key: randomBytes(32) }]),
-            options: { env: {} },
-        })).rejects.toThrow(/mail-home/);
+            agents: [accountsAgent()],
+            options: { env: envOf(envAccount(server.port)) },
+        });
+
+        expect(connectionOf(harness, 'mail-home').resolved).toMatchObject({
+            state: 'failed',
+            reason: expect.stringContaining('decryption_failed'),
+        });
+        expect(connectionOf(harness, 'mail-home').deletable).toBe(true);
+
+        const { run, step } = await runAccounts(harness);
+
+        expect(run?.status).toBe('completed');
+        expect((step?.output as MailAccountView[]).map((account) => account.account)).toEqual(['work']);
+        expect(logLines.some((line) => line.includes('mail-home') && line.includes('decryption_failed'))).toBe(true);
+        expect(logLines.join('\n')).not.toContain(STORED_PASSWORD);
+    });
+
+    it('a declared account whose password only an unreadable row holds is listed failed and not used', async () => {
+        const store = storeOf();
+
+        await configsOf(store).create('mail-work', MAIL_CONNECTION_TYPE, { secrets: { set: { password: STORED_PASSWORD } } });
+
+        const harness = await harnessOf({
+            store,
+            keyring: createKeyring([{ id: 'k1', key: randomBytes(32) }]),
+            agents: [accountsAgent()],
+            options: { env: { [MAIL_ACCOUNTS_VARIABLE]: JSON.stringify([envAccount(1)]) } },
+        });
+
+        expect(connectionOf(harness, 'mail-work').resolved.state).toBe('failed');
+
+        const { run, step } = await runAccounts(harness);
+
+        expect(run?.status).toBe('completed');
+        expect(step?.error).toMatchObject({ code: 'connection_not_configured' });
+    });
+
+    it('a declared account whose env password shadows an unreadable row stays in use', async () => {
+        const server = await fake();
+        const store = storeOf();
+
+        await configsOf(store).create('mail-work', MAIL_CONNECTION_TYPE, { secrets: { set: { password: STORED_PASSWORD } } });
+
+        const harness = await harnessOf({
+            store,
+            keyring: createKeyring([{ id: 'k1', key: randomBytes(32) }]),
+            agents: [accountsAgent()],
+            options: { env: envOf(envAccount(server.port)) },
+        });
+
+        expect(connectionOf(harness, 'mail-work').resolved.state).toBe('configured');
+
+        const { step } = await runAccounts(harness);
+
+        expect((step?.output as MailAccountView[]).map((account) => account.account)).toEqual(['work']);
     });
 
     it('an invalid stored value on a declared account is dropped and the account listed incomplete', async () => {

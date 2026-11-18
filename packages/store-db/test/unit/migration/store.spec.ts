@@ -96,7 +96,7 @@ describePostgres('runMigrationOperation --database store', () => {
 
         expect(await runMigrationOperation(status)).toBe(0);
         expect(status.lines.at(-1)).toBe('The database "store" is up to date.');
-        expect(status.lines).toContain('[x] ConversationItemBytes1794873600000');
+        expect(status.lines).toContain('[x] ConnectionsRevisionsItemBytes1794230765000');
 
         // the aggregate tasks changed no schema beyond the one deliberate migration
         const drift = recordedInput({

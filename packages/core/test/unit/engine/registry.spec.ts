@@ -987,6 +987,132 @@ describe('run revision stamp', () => {
     });
 });
 
+describe('releaseRevision', () => {
+    /** A folder replica stamps a checked run at h1; a later replica holds the same name as a code agent. */
+    async function moved() {
+        const clock = new ControllableClock(new Date(1_000_000));
+        const store = createCountingStore({ clock });
+        const folder = make({
+            store,
+            clock,
+            agents: [],
+        });
+
+        await folder.engine.putAgent(triage, { revision: 'h1' });
+
+        const stamped = await folder.engine.dispatch({ ...env(), checked: triage });
+        const plain = await folder.engine.dispatch(env());
+
+        clock.advance(1_000);
+
+        const code = make({ store, clock });
+
+        return {
+            store,
+            code,
+            stamped: stamped.runId,
+            plain: plain.runId,
+        };
+    }
+
+    it('treats a stored marker of an agent held without a revision as a revision change', async () => {
+        const {
+            store,
+            code,
+            stamped,
+            plain,
+        } = await moved();
+        const events: AgentRunsCancelled[] = [];
+
+        code.engine.on('agents.cancelled', (e) => {
+            events.push(e);
+        });
+
+        const cancelled = await code.engine.releaseRevision('triage');
+
+        expect(cancelled?.toSorted()).toEqual([stamped, plain].toSorted());
+        expect(await code.engine.getRun(stamped)).toMatchObject({ status: 'cancelled', error: { code: 'agent_replaced' } });
+        expect(await code.engine.getRun(plain)).toMatchObject({ status: 'cancelled', error: { code: 'agent_replaced' } });
+        expect(await store.agentRevisionService.findOne('triage')).toBeUndefined();
+        expect(events).toEqual([{
+            type: 'agents.cancelled',
+            name: 'triage',
+            reason: 'agent_replaced',
+            runIds: cancelled,
+        }]);
+        expect(code.engine.getAgent('triage')).toBe(triage);
+        expect(code.changes).toEqual([]);
+    });
+
+    it('lets the code agent run new dispatches once the marker is gone', async () => {
+        const { code } = await moved();
+
+        await code.engine.releaseRevision('triage');
+
+        const { runId } = await code.engine.dispatch({ ...env(), checked: triage });
+
+        expect(await code.engine.getRun(runId)).not.toHaveProperty('agentRevision');
+        expect(await code.engine.releaseRevision('triage')).toBeUndefined();
+        expect(await statusOf(code.engine, runId)).toBe('queued');
+    });
+
+    it('a start cancels a run stamped at the cutoff or committed after the release, once no marker is stored', async () => {
+        const clock = new ControllableClock(new Date(1_000_000));
+        const store = createCountingStore({ clock });
+        const folder = make({
+            store,
+            clock,
+            agents: [],
+        });
+
+        await folder.engine.putAgent(triage, { revision: 'h1' });
+
+        // same millisecond as the release: the timestamp sweeps skip it
+        const atCutoff = await folder.engine.dispatch({ ...env(), checked: triage });
+        const code = make({ store, clock });
+
+        await code.engine.releaseRevision('triage');
+        expect(await statusOf(code.engine, atCutoff.runId)).toBe('queued');
+
+        // the old replica commits a checked dispatch after the marker is gone
+        const late = await folder.engine.dispatch({ ...env(), checked: triage });
+
+        await code.engine.start({ channels: false });
+        await code.engine.idle();
+
+        expect(await code.engine.getRun(atCutoff.runId)).toMatchObject({ status: 'cancelled', error: { code: 'agent_replaced' } });
+        expect(await code.engine.getRun(late.runId)).toMatchObject({ status: 'cancelled', error: { code: 'agent_replaced' } });
+    });
+
+    it('a start keeps a stamped run queued while its marker is stored', async () => {
+        const {
+            store, 
+            code, 
+            stamped, 
+        } = await moved();
+
+        await code.engine.start({ channels: false });
+        await code.engine.idle();
+
+        expect(await statusOf(code.engine, stamped)).toBe('queued');
+        expect((await store.agentRevisionService.findOne('triage'))?.hash).toBe('h1');
+    });
+
+    it('leaves the store alone without a marker, for an agent held at a revision, or one not held', async () => {
+        const { engine, store } = make();
+        const { runId } = await engine.dispatch(env());
+
+        expect(await engine.releaseRevision('triage')).toBeUndefined();
+        expect(await statusOf(engine, runId)).toBe('queued');
+
+        await engine.putAgent(digest, { revision: 'h1' });
+        expect(await engine.releaseRevision('digest')).toBeUndefined();
+        expect((await store.agentRevisionService.findOne('digest'))?.hash).toBe('h1');
+
+        expect(await engine.releaseRevision('unknown')).toBeUndefined();
+    });
+});
+
 describe('formatRevision', () => {
     it('cuts a content hash to its prefix and names any other marker in full', () => {
         expect(formatRevision('a'.repeat(64))).toBe('a'.repeat(12));

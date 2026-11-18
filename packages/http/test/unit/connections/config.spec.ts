@@ -664,6 +664,22 @@ describe('connection configuration', () => {
             expect((await json(response)).message).toContain('CHAMVI_ENCRYPTION_KEYS');
         });
 
+        it('a save over secrets sealed under a key the keyring dropped answers 409 decryption_failed', async () => {
+            let keyring = createKeyring([{ id: 'k1', key: randomBytes(32) }]);
+            const { app, real } = world({
+                declared: (definition) => [declare(definition, 'mail-work')],
+                keyring: () => keyring,
+            });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+            keyring = createKeyring([{ id: 'k2', key: randomBytes(32) }]);
+
+            const response = await call(app, 'PUT', '/connections/mail-work/config', { token: ADMIN_TOKEN, body: saveBody() });
+
+            expect(response.status).toBe(409);
+            expect((await json(response)).code).toBe('decryption_failed');
+        });
+
         it('answers no save on a store without connections', async () => {
             const { app } = world({ noConfigs: true, declared: (definition) => [declare(definition, 'mail-work')] });
 
@@ -906,6 +922,42 @@ describe('connection configuration', () => {
             const after = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
 
             expect(after.state).toBe('configured');
+            expect(after.reason).toBeUndefined();
+        });
+
+        it('reports a connection whose stored secrets the last start could not read as failed, until a save waits for a restart', async () => {
+            const reason = 'The stored secrets cannot be read (decryption_failed): Decryption failed: wrong key, wrong context or tampered data.';
+            const declared = (definition: ConnectionTypeDefinition) => {
+                const entry = declare(definition, 'mail-work', {}, { loadedRevision: 1 });
+
+                entry.resolved = {
+                    ...entry.resolved,
+                    state: 'failed',
+                    reason,
+                };
+
+                return [entry];
+            };
+            const { app, real } = world({ declared });
+
+            await real.create('mail-work', 'mail', { settings: { host: 'h' }, secrets: { set: { password: PASSWORD } } });
+
+            const view = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+            const list = await json(await call(app, 'GET', '/connections', { token: ADMIN_TOKEN }));
+
+            expect(view).toMatchObject({
+                state: 'failed', 
+                reason, 
+                restartRequired: false, 
+            });
+            expect(view.missing).toBeUndefined();
+            expect(list.data[0]).toMatchObject({ state: 'failed', reason });
+
+            await real.update('mail-work', { secrets: { set: { password: PASSWORD } } });
+
+            const after = await json(await call(app, 'GET', '/connections/mail-work/config', { token: ADMIN_TOKEN }));
+
+            expect(after).toMatchObject({ state: 'configured', restartRequired: true });
             expect(after.reason).toBeUndefined();
         });
 

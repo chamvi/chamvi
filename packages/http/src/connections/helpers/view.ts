@@ -69,9 +69,13 @@ export async function buildSettingsView(ctx: ConnectionHttpServiceContext, targe
     const refused = !restartRequired && declared?.resolved.state === 'incomplete';
     // so does a module that declared itself idle (a policy in code without its credentials)
     const idle = !restartRequired && declared?.resolved.state === 'not_configured';
+    // and a stored row the last start could not read (its secrets did not open)
+    const failed = !restartRequired && declared?.resolved.state === 'failed';
     let state: ConnectionSettingsView['state'] = 'not_configured';
 
-    if (hasValue && !idle) {
+    if (failed) {
+        state = 'failed';
+    } else if (hasValue && !idle) {
         state = missing.length === 0 && !refused ? 'configured' : 'incomplete';
     }
 
@@ -79,7 +83,7 @@ export async function buildSettingsView(ctx: ConnectionHttpServiceContext, targe
         type: definition.type,
         state,
         ...(state === 'incomplete' && missing.length > 0 && { missing }),
-        ...(refused && declared?.resolved.reason !== undefined && { reason: declared.resolved.reason }),
+        ...((refused || failed) && declared?.resolved.reason !== undefined && { reason: declared.resolved.reason }),
         settings: Object.fromEntries(settings),
         fields,
         restartRequired,

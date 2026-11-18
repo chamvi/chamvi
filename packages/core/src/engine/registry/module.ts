@@ -183,6 +183,45 @@ export async function dropRevision(ctx: RegistryContext, agent: string, options:
 }
 
 /**
+ * Clears the stored revision marker of an agent now registered without a
+ * revision (moved from a folder or package into code), under the registry
+ * lock, as a revision change: its unsettled runs created before the change
+ * are cancelled (`agent_replaced`, swept before and after the delete like
+ * syncRevision) and the marker deleted, so no run waits for a revision no
+ * replica holds; a run stamped after it is cancelled by the start guard
+ * (no marker left). `eligible` is checked under the lock. Resolves the
+ * cancelled run ids, or undefined without a marker or when not eligible.
+ */
+export async function releaseRevision(ctx: RegistryContext, agent: string, eligible: () => boolean): Promise<string[] | undefined> {
+    return withAgentLock(ctx, agent, async () => {
+        // re-checked under the lock: a putAgent at a revision may have published meanwhile
+        if (!eligible()) {
+            return undefined;
+        }
+
+        const marker = await ctx.agentRevisionService.findOne(agent);
+
+        if (!marker) {
+            return undefined;
+        }
+
+        const reason = agentCancelReason(agent, 'replaced');
+        const cancelled = await cancelAgentRuns(ctx, agent, reason, new Date(ctx.clock.now()));
+        const changedAt = new Date(ctx.clock.now());
+
+        await ctx.agentRevisionService.delete(agent);
+
+        for (const id of await cancelAgentRuns(ctx, agent, reason, changedAt)) {
+            if (!cancelled.includes(id)) {
+                cancelled.push(id);
+            }
+        }
+
+        return cancelled;
+    });
+}
+
+/**
  * Moves a marker at `former` (the same content, hashed by an earlier
  * algorithm) to `revision`, keeping its `changedAt`; true when it did.
  */

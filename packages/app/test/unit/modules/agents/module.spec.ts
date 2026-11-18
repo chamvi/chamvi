@@ -439,7 +439,7 @@ describe('agentsModule', () => {
         expect(logger.entries.filter((entry) => entry.msg === 'the agents dir is empty; no agent is removed')).toHaveLength(1);
     });
 
-    it('a marker of an agent passed in code is left alone at boot', async () => {
+    it('a marker of an agent passed in code is cleared at boot, the agent kept', async () => {
         const clock = new ControllableClock(START);
         const store = createTestStore({ clock });
 
@@ -457,7 +457,8 @@ describe('agentsModule', () => {
 
         await harness.setup();
 
-        expect(await store.agentRevisionService.findOne('triage')).toBeDefined();
+        expect(await store.agentRevisionService.findOne('triage')).toBeUndefined();
+        expect(harness.container.resolve(AppToken.ENGINE).getAgent('triage')).toBeDefined();
     });
 
     it('the watcher applies a change only once it is stable for one poll', async () => {

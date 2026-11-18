@@ -22,6 +22,11 @@ describe('connectionBadge', () => {
             live: false, 
         }).label).toBe('not configured');
         expect(connectionBadge({ status: 'connected', state: 'incomplete' }).label).toBe('incomplete');
+        expect(connectionBadge({
+            status: 'disconnected',
+            state: 'failed',
+            live: false,
+        })).toEqual({ label: 'failed', tone: 'failed' });
     });
 
     it('does not read a configured connection without a handle as disconnected', () => {
@@ -43,6 +48,8 @@ describe('connectionProblem', () => {
         expect(connectionProblem({ state: 'not_configured' })).toBe('Not configured yet.');
         expect(connectionProblem({ state: 'incomplete', missing: ['Password', 'Host'] })).toBe('Incomplete: Password, Host missing.');
         expect(connectionProblem({ state: 'incomplete', reason: 'CHAMVI_PUBLIC_URL is required.' })).toBe('Incomplete: CHAMVI_PUBLIC_URL is required.');
+        expect(connectionProblem({ state: 'failed', reason: 'The stored secrets cannot be read (decryption_failed).' })).toBe('Failed: The stored secrets cannot be read (decryption_failed).');
+        expect(connectionProblem({ state: 'failed' })).toBe('Failed.');
         expect(connectionProblem({ state: 'configured' })).toBeUndefined();
         expect(connectionProblem({})).toBeUndefined();
     });

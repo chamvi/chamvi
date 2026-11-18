@@ -136,6 +136,21 @@ export type StoredConnection = {
     revision: number;
     /** The row's creation time; the connection's `loadedCreatedAt`. */
     createdAt: Date;
+    /**
+     * Set when the row's secrets cannot be read (an undecryptable row,
+     * stored secrets without `CHAMVI_ENCRYPTION_KEYS`): `values` then holds
+     * the settings only. `resolveStoredConnection()` turns it into a `failed`
+     * connection unless env or code set every one of `secrets`.
+     */
+    unreadable?: StoredConnectionFailure;
+};
+
+/** Why a stored row's secrets cannot be read; never a value. */
+export type StoredConnectionFailure = {
+    /** The fields of the stored secrets, sorted. */
+    secrets: string[];
+    /** The cause with its code, naming at most a variable or key id. */
+    reason: string;
 };
 
 export interface ILifecycleHook {

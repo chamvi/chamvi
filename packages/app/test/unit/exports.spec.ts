@@ -34,6 +34,7 @@ describe('public api', () => {
         'approvalUrlOf',
         'createLogger',
         'readStoredConnections',
+        'resolveStoredConnection',
         'readUiAuth',
         'runHooks',
         'throwIfStopped',

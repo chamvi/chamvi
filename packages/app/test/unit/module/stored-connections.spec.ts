@@ -13,16 +13,21 @@ import {
     it,
 } from 'vitest';
 import {
+    DecryptionFailedError,
+    InvalidAgentDefinitionError,
     createConnectionConfigStore,
     createKeyring,
 } from '@chamvi/core';
-import type { IKeyring } from '@chamvi/core';
+import type { ConnectionTypeDefinition, IKeyring } from '@chamvi/core';
 import {
+    AppToken,
     configModule,
     createLogger,
     engineModule,
     readStoredConnections,
+    resolveStoredConnection,
 } from '@chamvi/app';
+import type { StoredConnection } from '@chamvi/app';
 import { createModuleHarness } from '@chamvi/app/testing';
 import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
 import { createTestStore, storeModuleOf } from '../../utils/store.ts';
@@ -115,11 +120,11 @@ describe('readStoredConnections()', () => {
 
         const harness = await harnessOf(store, { keyring });
 
-        await expect(readStoredConnections(harness.container, 'mail')).rejects.toThrow('mail-old');
         expect(await readStoredConnections(harness.container, 'mail', { name: 'mail-home' })).toEqual([expect.objectContaining({
             name: 'mail-home',
             values: { host: 'h', password: SECRET },
         })]);
+        expect(logLines.some((line) => line.includes('mail-old'))).toBe(false);
         expect(await readStoredConnections(harness.container, 'mail', { name: 'mail-none' })).toEqual([]);
     });
 
@@ -131,28 +136,106 @@ describe('readStoredConnections()', () => {
         expect(await readStoredConnections(harness.container, 'mail')).toEqual([]);
     });
 
-    it('names the connection when a row cannot be decrypted, never a value', async () => {
+    it('returns an undecryptable row with its settings only, marked unreadable, and keeps reading the others', async () => {
         const store = createTestStore();
 
-        await seed(store, 'mail-home', 'mail', createKeyring([{ id: 'k1', key: randomBytes(32) }]));
+        await seed(store, 'mail-old', 'mail', createKeyring([{ id: 'k1', key: randomBytes(32) }]));
+        await seed(store, 'mail-home', 'mail');
 
+        const old = await store.connectionService.findOneOrFail('mail-old');
         const harness = await harnessOf(store, { keyring });
-        const error = await rejectionOf(readStoredConnections(harness.container, 'mail'));
+        const rows = await readStoredConnections(harness.container, 'mail');
 
-        expect(error.message).toContain('mail-home');
-        expect(error.message).not.toContain(SECRET);
+        expect(rows).toHaveLength(2);
+        expect(rows).toEqual(expect.arrayContaining([
+            {
+                name: 'mail-old',
+                values: { host: 'h' },
+                revision: 1,
+                createdAt: old.createdAt,
+                unreadable: {
+                    secrets: ['password'],
+                    reason: expect.stringContaining('decryption_failed'),
+                },
+            },
+            expect.objectContaining({ name: 'mail-home', values: { host: 'h', password: SECRET } }),
+        ]));
+        expect(JSON.stringify(rows.find((row) => row.name === 'mail-old'))).not.toContain(SECRET);
+        expect(logLines.some((line) => line.includes('mail-old') && line.includes('decryption_failed'))).toBe(true);
+        expect(logLines.join('\n')).not.toContain(SECRET);
     });
 
-    it('names the connection and the variable when stored secrets meet no keyring', async () => {
+    it('marks a row with stored secrets unreadable without CHAMVI_ENCRYPTION_KEYS, naming the variable', async () => {
         const store = createTestStore();
 
         await seed(store, 'mail-home', 'mail');
 
         const harness = await harnessOf(store);
+        const [row] = await readStoredConnections(harness.container, 'mail');
+
+        expect(row).toMatchObject({
+            name: 'mail-home',
+            values: { host: 'h' },
+            unreadable: { secrets: ['password'], reason: expect.stringContaining('CHAMVI_ENCRYPTION_KEYS') },
+        });
+    });
+
+    it('a malformed CHAMVI_ENCRYPTION_KEYS still fails, naming the connection and the variable', async () => {
+        const store = createTestStore();
+
+        await seed(store, 'mail-home', 'mail');
+
+        const harness = await harnessOf(store, { env: { CHAMVI_ENCRYPTION_KEYS: 'not-a-keyring' } });
         const error = await rejectionOf(readStoredConnections(harness.container, 'mail'));
 
         expect(error.message).toContain('mail-home');
         expect(error.message).toContain('CHAMVI_ENCRYPTION_KEYS');
+        expect(error.message).not.toContain('not-a-keyring');
+    });
+
+    it('another configuration error of the read still fails without CHAMVI_ENCRYPTION_KEYS', async () => {
+        const store = createTestStore();
+
+        await seed(store, 'mail-home', 'mail');
+
+        const harness = await harnessOf(store);
+        const configs = harness.container.resolve(AppToken.CONNECTION_CONFIGS);
+
+        configs.read = async () => {
+            throw new InvalidAgentDefinitionError('The config backend is misconfigured.');
+        };
+
+        const error = await rejectionOf(readStoredConnections(harness.container, 'mail'));
+
+        expect(error.message).toContain('mail-home');
+        expect(error.message).toContain('misconfigured');
+    });
+
+    it('loads a row repaired between the failed read and the settings read', async () => {
+        const store = createTestStore();
+
+        await seed(store, 'mail-home', 'mail');
+
+        const harness = await harnessOf(store, { keyring });
+        const configs = harness.container.resolve(AppToken.CONNECTION_CONFIGS);
+        const read = configs.read.bind(configs);
+        let reads = 0;
+
+        configs.read = async (name) => {
+            reads++;
+
+            if (reads === 1) {
+                throw new DecryptionFailedError();
+            }
+
+            return read(name);
+        };
+
+        const [row] = await readStoredConnections(harness.container, 'mail');
+
+        expect(reads).toBe(2);
+        expect(row).toMatchObject({ name: 'mail-home', values: { host: 'h', password: SECRET } });
+        expect(row).not.toHaveProperty('unreadable');
     });
 
     it('names the connection for a driver failure, without the driver text', async () => {
@@ -209,5 +292,78 @@ describe('readStoredConnections()', () => {
         const harness = await harnessOf(store);
 
         await expect(readStoredConnections(harness.container, 'mail')).rejects.toThrow('does not exist');
+    });
+});
+
+describe('resolveStoredConnection()', () => {
+    const definition: ConnectionTypeDefinition = {
+        type: 'mail',
+        label: 'Mail',
+        multiple: true,
+        fields: [
+            {
+                key: 'host',
+                label: 'Host',
+                kind: 'string',
+                required: true,
+                env: () => 'MAIL_HOST',
+            },
+            {
+                key: 'password',
+                label: 'Password',
+                kind: 'secret',
+                required: true,
+                env: () => 'MAIL_PASSWORD',
+            },
+        ],
+    };
+    const row = (unreadable?: StoredConnection['unreadable']): StoredConnection => ({
+        name: 'mail-home',
+        values: unreadable ? { host: 'h' } : { host: 'h', password: SECRET },
+        revision: 1,
+        createdAt: new Date(0),
+        ...(unreadable && { unreadable }),
+    });
+    const unreadable = { secrets: ['password'], reason: 'The stored secrets cannot be read (decryption_failed).' };
+    const resolve = (env: Record<string, string>, input: StoredConnection | undefined) => resolveStoredConnection({
+        definition,
+        name: 'mail-home',
+        readVariable: (variable) => env[variable],
+    }, input);
+
+    it('resolves a readable row as resolveConnection() does', () => {
+        expect(resolve({}, row())).toMatchObject({
+            state: 'configured',
+            values: { host: 'h', password: SECRET },
+            sources: { host: { kind: 'store' }, password: { kind: 'store' } },
+        });
+        expect(resolve({}, undefined)).toMatchObject({ state: 'not_configured' });
+    });
+
+    it('a secret only the unreadable row holds leaves the connection failed, with the reason and without the secret', () => {
+        const resolved = resolve({}, row(unreadable));
+
+        expect(resolved).toMatchObject({
+            state: 'failed',
+            reason: unreadable.reason,
+            values: { host: 'h' },
+            missing: [],
+        });
+        expect(Object.hasOwn(resolved.values, 'password')).toBe(false);
+    });
+
+    it('a gap only the unreadable row fills is no deployment error while another field comes from env', () => {
+        expect(resolve({ MAIL_HOST: 'env-host' }, row(unreadable))).toMatchObject({
+            state: 'failed',
+            values: { host: 'env-host' },
+        });
+    });
+
+    it('env setting every unreadable secret leaves the connection configured', () => {
+        expect(resolve({ MAIL_PASSWORD: 'env-password' }, row(unreadable))).toMatchObject({
+            state: 'configured',
+            values: { host: 'h', password: 'env-password' },
+            sources: { password: { kind: 'env', variable: 'MAIL_PASSWORD' } },
+        });
     });
 });

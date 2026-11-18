@@ -17,6 +17,7 @@ export {
 export {
     readStoredConnections,
     readUiAuth,
+    resolveStoredConnection,
     runHooks,
     throwIfStopped,
 } from './helpers.ts';

@@ -60,6 +60,8 @@ const CORE_STATUS: Record<string, number> = {
     [ErrorCode.ARTIFACT_NOT_FOUND]: 404,
     [ErrorCode.CONNECTION_CHANGED]: 409,
     [ErrorCode.CONNECTION_HELD]: 409,
+    // a stored seal no key of the keyring opens (one dropped); the message names at most a key id
+    [ErrorCode.DECRYPTION_FAILED]: 409,
     [ErrorCode.REPOSITORY_NOT_FOUND]: 404,
     [ErrorCode.INVALID_RUN_STATE]: 409,
 };

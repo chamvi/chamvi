@@ -26,9 +26,7 @@ import {
     StepEntity,
 } from '../entities/index.ts';
 import {
-    ConnectionConfig1794230765000,
-    ConversationItemBytes1794873600000,
-    RunAgentRevision1794484800000,
+    ConnectionsRevisionsItemBytes1794230765000,
     UuidBaseline1794096000000,
 } from '../migrations/index.ts';
 
@@ -54,9 +52,7 @@ export const STORE_ENTITIES = [
 
 export const STORE_MIGRATIONS = [
     UuidBaseline1794096000000,
-    ConnectionConfig1794230765000,
-    RunAgentRevision1794484800000,
-    ConversationItemBytes1794873600000,
+    ConnectionsRevisionsItemBytes1794230765000,
 ];
 
 export const MIGRATION_LOCK_NAME = 'chamvi:migrations';
