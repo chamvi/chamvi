@@ -47,7 +47,7 @@ afterEach(async () => {
 });
 
 function create(setup: IndexerSetup, extra: Partial<KnowledgeOptions> = {}): IKnowledge {
-    const knowledge = createKnowledge(setup.options(extra));
+    const knowledge = setup.adopt(createKnowledge(setup.options(extra)));
 
     started.push(knowledge);
 

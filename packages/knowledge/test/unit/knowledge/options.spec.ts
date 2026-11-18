@@ -101,15 +101,13 @@ describe('createKnowledge', () => {
         expect(createKnowledge(base({ repository })).repository).toBe(repository);
     });
 
-    it('builds a service over the repository, or uses the given one', async () => {
+    it('builds its service over the repository', async () => {
         const repository = createMemoryKnowledgeRepository();
-        const service = new KnowledgeService({ repository, clock: systemClock });
         const built = createKnowledge(base({ repository }));
 
         expect(built.service).toBeInstanceOf(KnowledgeService);
-        expect(createKnowledge(base({ repository, service })).service).toBe(service);
 
-        await service.saveCollection(record('docs', 'declared'));
+        await new KnowledgeService({ repository, clock: systemClock }).saveCollection(record('docs', 'declared'));
 
         expect(await built.service.findOneCollection('docs')).toEqual(record('docs', 'declared'));
     });
@@ -172,7 +170,6 @@ describe('createKnowledge', () => {
             { repository: {} },
             // the entity methods without the documents and chunks children
             { repository: Object.assign(Object.create(createMemoryKnowledgeRepository()), { documents: undefined }) },
-            { service: {} },
             { locks: {} },
             { collections: 'docs' },
             { models: 'openai' },

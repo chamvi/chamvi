@@ -11,6 +11,7 @@ import type { EmbeddingModel } from 'ai';
 import { MockEmbeddingModelV4 } from 'ai/test';
 import { vi } from 'vitest';
 import type {
+    IKnowledge,
     IKnowledgeCollectionRepository,
     IKnowledgeService,
     IKnowledgeSource,
@@ -88,11 +89,17 @@ export type IndexerSetup = {
     clock: ControllableClock;
     /** The memory repositories the knowledge is created over. */
     store: IKnowledgeCollectionRepository;
-    /** The service the knowledge reads and writes through (one object: spies and overrides on it reach the knowledge). */
-    repository: KnowledgeService;
+    /**
+     * The service reads and writes go through: one over `store`, until
+     * `adopt(knowledge)` makes it that knowledge's own (then spies and
+     * overrides on it reach the knowledge's calls).
+     */
+    repository: IKnowledgeService;
     locks: RecordedLocks;
     errors: Array<{ error: unknown; collection?: string }>;
     options(extra?: Partial<KnowledgeOptions>): KnowledgeOptions;
+    /** Makes `repository` the knowledge's service; returns the knowledge. */
+    adopt<K extends IKnowledge>(knowledge: K): K;
 };
 
 export function createIndexerSetup(): IndexerSetup {
@@ -102,7 +109,7 @@ export function createIndexerSetup(): IndexerSetup {
     const locks = recordingLocks(createTestEngine({ agents: [], clock }).lockService);
     const errors: IndexerSetup['errors'] = [];
 
-    return {
+    const setup: IndexerSetup = {
         clock,
         store,
         repository,
@@ -110,7 +117,6 @@ export function createIndexerSetup(): IndexerSetup {
         errors,
         options: (extra = {}) => ({
             repository: store,
-            service: repository,
             locks,
             clock,
             onError: (error, context) => {
@@ -118,7 +124,14 @@ export function createIndexerSetup(): IndexerSetup {
             },
             ...extra,
         }),
+        adopt: (knowledge) => {
+            setup.repository = knowledge.service;
+
+            return knowledge;
+        },
     };
+
+    return setup;
 }
 
 /** Waits until the stored collection fits `predicate`, returning it. */

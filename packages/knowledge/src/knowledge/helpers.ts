@@ -19,26 +19,9 @@ import { KnowledgeService } from '../service/module.ts';
 import type { IKnowledgeService } from '../service/types.ts';
 import type { KnowledgeErrorContext, KnowledgeOptions } from './types.ts';
 
-const SERVICE_METHODS: readonly (keyof IKnowledgeService)[] = [
-    'saveCollection',
-    'findOneCollection',
-    'findOneCollectionOrFail',
-    'findCollections',
-    'deleteCollection',
-    'saveDocument',
-    'findOneDocument',
-    'findOneDocumentOrFail',
-    'findDocumentIds',
-    'findDocuments',
-    'updateDocument',
-    'deleteDocument',
-    'replaceChunks',
-    'deleteGeneration',
-    'deleteGenerationsExcept',
-    'search',
-];
-
-type NormalizedOptions = Required<Omit<KnowledgeOptions, 'models' | 'embeddingModel'>> & Pick<KnowledgeOptions, 'models' | 'embeddingModel'>;
+type NormalizedOptions = Required<Omit<KnowledgeOptions, 'models' | 'embeddingModel'>> & Pick<KnowledgeOptions, 'models' | 'embeddingModel'> & {
+    service: IKnowledgeService;
+};
 
 function messageOf(error: unknown): string {
     return Error.isError(error) ? error.message : String(error);
@@ -56,10 +39,6 @@ export function normalizeOptions(options: KnowledgeOptions): NormalizedOptions {
 
     if (!isKnowledgeRepository(options.repository)) {
         throw new InvalidAgentDefinitionError('createKnowledge() repository must be a knowledge repository.');
-    }
-
-    if (options.service !== undefined && !hasMethods(options.service, SERVICE_METHODS)) {
-        throw new InvalidAgentDefinitionError('createKnowledge() service must be a knowledge service.');
     }
 
     if (!hasMethods(options.locks, ['acquire', 'release'])) {
@@ -107,7 +86,7 @@ export function normalizeOptions(options: KnowledgeOptions): NormalizedOptions {
 
     return {
         repository: options.repository,
-        service: options.service ?? new KnowledgeService({ repository: options.repository, clock }),
+        service: new KnowledgeService({ repository: options.repository, clock }),
         locks: options.locks,
         collections: options.collections ?? [],
         models: options.models,

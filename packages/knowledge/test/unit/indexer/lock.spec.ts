@@ -257,12 +257,17 @@ describe('the indexing lock', () => {
 
     it('stores a failure while it holds the lock, so a replica that indexes afterwards keeps its record', async () => {
         const setup = createIndexerSetup();
-        const save = setup.repository.saveCollection.bind(setup.repository);
         const gate = Promise.withResolvers<void>();
         let gated: KnowledgeCollection | undefined;
+        const replicaA = createKnowledge(setup.options({
+            owner: 'replica-a',
+            collections: [knowledgeCollection('docs', { model: failingModel(), sources: [mapSource(docs)] })],
+        }));
+        const { service } = replicaA;
+        const save = service.saveCollection.bind(service);
 
-        // hold the first record write carrying an error (replica A's failure)
-        setup.repository.saveCollection = async (collection) => {
+        // hold replica A's first record write carrying an error (its failure)
+        service.saveCollection = async (collection) => {
             if (collection.error !== undefined && !gated) {
                 gated = collection;
                 await gate.promise;
@@ -271,7 +276,8 @@ describe('the indexing lock', () => {
             return save(collection);
         };
 
-        const replicaA = start(setup, 'replica-a', failingModel());
+        started.push(replicaA);
+        replicaA.start();
 
         await expect.poll(() => gated !== undefined).toBe(true);
 

@@ -36,8 +36,7 @@ type PollSetup = IndexerSetup & {
 
 function createPollSetup(): PollSetup {
     const setup = createIndexerSetup();
-    const { repository } = setup;
-    const find = repository.findCollections.bind(repository);
+    const adopt = setup.adopt.bind(setup);
     let held: Promise<void> | undefined;
     const poll = Object.assign(setup, {
         reads: 0,
@@ -50,22 +49,32 @@ function createPollSetup(): PollSetup {
         },
     });
 
-    repository.findCollections = async () => {
-        poll.reads++;
+    // the reads are counted and held on the knowledge's own service
+    poll.adopt = (knowledge) => {
+        adopt(knowledge);
 
-        const gate = held;
+        const { repository } = poll;
+        const find = repository.findCollections.bind(repository);
 
-        held = undefined;
-        await gate;
+        repository.findCollections = async () => {
+            poll.reads++;
 
-        return find();
+            const gate = held;
+
+            held = undefined;
+            await gate;
+
+            return find();
+        };
+
+        return knowledge;
     };
 
     return poll;
 }
 
 function create(setup: IndexerSetup, extra: Partial<KnowledgeOptions> = {}): IKnowledge {
-    const knowledge = createKnowledge(setup.options({ embeddingModel: mockEmbeddingModel(), ...extra }));
+    const knowledge = setup.adopt(createKnowledge(setup.options({ embeddingModel: mockEmbeddingModel(), ...extra })));
 
     created.push(knowledge);
 

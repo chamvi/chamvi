@@ -19,9 +19,9 @@ import { createTestEngine, mockEmbeddingModel, mockModel } from '@chamvi/test-ki
 import type { MockEmbeddingModel } from '@chamvi/test-kit';
 import type {
     IKnowledge,
+    IKnowledgeService,
     IKnowledgeSource,
     KnowledgeSearchResult,
-    KnowledgeService,
 } from '@chamvi/knowledge';
 import {
     createKnowledge,
@@ -55,7 +55,7 @@ const done = { parts: [{ type: 'text' as const, text: 'done' }] };
 
 type Setup = {
     engine: Engine;
-    repository: KnowledgeService;
+    repository: IKnowledgeService;
     model: MockEmbeddingModel;
     writes: () => number;
 };
@@ -64,7 +64,7 @@ type Setup = {
 async function setup(source: IKnowledgeSource, options: { index?: boolean } = {}): Promise<Setup> {
     const indexer = createIndexerSetup();
     const model = mockEmbeddingModel();
-    const knowledge = createKnowledge(indexer.options({ collections: [knowledgeCollection('wiki', { model, sources: [source] })] }));
+    const knowledge = indexer.adopt(createKnowledge(indexer.options({ collections: [knowledgeCollection('wiki', { model, sources: [source] })] })));
 
     knowledges.push(knowledge);
 

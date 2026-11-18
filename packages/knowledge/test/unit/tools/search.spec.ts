@@ -74,10 +74,10 @@ async function setup(options: { index?: boolean } = {}): Promise<Fixture> {
         })],
     });
 
-    knowledge = createKnowledge(indexer.options({
+    knowledge = indexer.adopt(createKnowledge(indexer.options({
         collections: [handbook],
         models: embeddingResolver({ [MODEL]: model }),
-    }));
+    })));
 
     if (options.index !== false) {
         knowledge.start();

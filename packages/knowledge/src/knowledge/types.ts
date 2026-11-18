@@ -21,12 +21,6 @@ export type KnowledgeErrorContext = {
 export type KnowledgeOptions = {
     /** The collection repository with its documents and chunks (`createMemoryKnowledgeRepository()` or a persistent one). */
     repository: KnowledgeServiceContext['repository'];
-    /**
-     * The service over `repository` every read and write goes through;
-     * default a `KnowledgeService` over `repository` and `clock`. A caller
-     * that shares or observes the service passes its own.
-     */
-    service?: IKnowledgeService;
     /** The engine's lock service: one indexer per collection across replicas. */
     locks: Pick<ILockService, 'acquire' | 'release'>;
     collections?: readonly KnowledgeCollectionDefinition[];
@@ -62,7 +56,7 @@ export type KnowledgeDocumentPutResult = {
 export interface IKnowledge {
     /** The repository the knowledge was created over. */
     readonly repository: KnowledgeServiceContext['repository'];
-    /** The service every read and write of the knowledge goes through. */
+    /** The service over `repository` (and the clock) every read and write of the knowledge goes through. */
     readonly service: IKnowledgeService;
     /**
      * The managed poll (a hubwire component on the clock): lists the
