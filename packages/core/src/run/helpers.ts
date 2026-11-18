@@ -80,8 +80,11 @@ export function waitIdOf(waiting: WaitPoint | undefined): string | undefined {
         return undefined;
     }
 
-    if (typeof waiting.id === 'string') {
-        return waiting.id;
+    // a legacy approval wait point was stored without `id`
+    const { id } = waiting as { id?: unknown };
+
+    if (typeof id === 'string') {
+        return id;
     }
 
     return waiting.kind === 'approval' ? waiting.approvalId : undefined;

@@ -430,7 +430,7 @@ export class Engine implements IEngine {
             ...(parent ? {
                 parent: {
                     ...parent,
-                    ...(parent.source ? { source: { ...parent.source } } : {}),
+                    ...(parent.kind === 'dispatch' && parent.source ? { source: { ...parent.source } } : {}),
                 },
             } : {}),
             id: envelope.id ?? randomUUID(),
@@ -1678,7 +1678,7 @@ export class Engine implements IEngine {
             return;
         }
 
-        if (waiting.notifiedAt) {
+        if (waiting.kind !== 'approval' || waiting.notifiedAt) {
             return;
         }
 

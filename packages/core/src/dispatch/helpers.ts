@@ -277,6 +277,10 @@ function cloneInvoker(invoker: Invoker): Invoker {
 }
 
 function cloneParent(parent: TriggerParent): TriggerParent {
+    if (parent.kind === 'peer') {
+        return { ...parent };
+    }
+
     return {
         kind: parent.kind,
         runId: parent.runId,

@@ -56,7 +56,8 @@ export class RunService implements IRunService {
     }
 
     async create(run: Run): Promise<boolean> {
-        const parentRunId = run.trigger.parent?.runId;
+        // a peer parent names a run of another app: no local lineage
+        const parentRunId = run.trigger.parent?.kind === 'dispatch' ? run.trigger.parent.runId : undefined;
         const value: Run = { ...run };
 
         delete value.parentRunId;

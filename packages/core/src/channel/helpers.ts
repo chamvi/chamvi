@@ -104,7 +104,7 @@ function createChannelHandle(
     // The run's own source address and the channel's configured defaultAddress are exempt from the
     // outbound gate: the exemption fixes the destination, not the content.
     // A dispatched run's `trigger.parent.source` (set only by dispatch() from code) counts as its own source.
-    const handed = run.trigger.parent?.source;
+    const handed = run.trigger.parent?.kind === 'dispatch' ? run.trigger.parent.source : undefined;
     const isFixedDestination = (target: string) => (name === run.trigger.channel && target === run.trigger.address) ||
         (handed !== undefined && name === handed.channel && target === handed.address) ||
         target === channel.defaultAddress;

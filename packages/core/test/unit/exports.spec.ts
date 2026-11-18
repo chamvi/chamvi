@@ -304,7 +304,7 @@ describe('public api', () => {
             source?: store.TriggerSource;
         }>();
         expectTypeOf<store.TriggerSource>().toEqualTypeOf<{ channel: string; address: string }>();
-        expectTypeOf<store.TriggerParent['source']>().toEqualTypeOf<store.TriggerSource | undefined>();
+        expectTypeOf<store.DispatchParent['source']>().toEqualTypeOf<store.TriggerSource | undefined>();
         expectTypeOf<core.AgentSubscriber['on']>().returns.toEqualTypeOf<core.ChannelSubscription<unknown>>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('maxDepth').toEqualTypeOf<number | undefined>();
         expectTypeOf<core.AgentSubscriptionOptions>().toHaveProperty('from').toEqualTypeOf<string[] | undefined>();
@@ -533,11 +533,11 @@ describe('public api', () => {
         expectTypeOf<Parameters<core.ChannelHandle['approve']>[0]>().toEqualTypeOf<core.ApprovalRequestInput & { address?: string; slot?: string }>();
         expectTypeOf<core.ChannelMessage['slot']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<store.ApprovalWaitPoint['slot']>().toEqualTypeOf<string | undefined>();
-        expectTypeOf<store.WaitPoint>().toEqualTypeOf<store.ApprovalWaitPoint | store.DispatchWaitPoint>();
+        expectTypeOf<store.WaitPoint>().toEqualTypeOf<store.ApprovalWaitPoint | store.DispatchWaitPoint | store.RemoteWaitPoint>();
         expectTypeOf<store.DispatchWaitPoint['runIds']>().toEqualTypeOf<string[]>();
         expectTypeOf<store.Run['parentRunId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<store.Run['subtreeUsage']>().toEqualTypeOf<store.Usage | undefined>();
-        expectTypeOf<store.TriggerParent['kind']>().toEqualTypeOf<'dispatch'>();
+        expectTypeOf<store.TriggerParent['kind']>().toEqualTypeOf<'dispatch' | 'peer'>();
         expectTypeOf<core.RunFindOptions['parentRunId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<core.RunUpdateOptions['expectWaitId']>().toEqualTypeOf<string | undefined>();
         expectTypeOf<core.ConsoleChannelOptions>().toHaveProperty('name').toEqualTypeOf<string | undefined>();

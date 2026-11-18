@@ -38,6 +38,7 @@ import {
     runDuration,
     shortId,
     subtreeTotal,
+    waitToolName,
 } from '../runs/helpers.ts';
 
 const { client, session } = useAppContext();
@@ -322,7 +323,7 @@ async function onCancel(): Promise<void> {
             <div class="callout-head">
                 <span class="callout-icon"><NavIcon name="play" /></span>
                 <div class="callout-title">
-                    <h2>{{ run.waiting?.toolName }}<StatusChip status="waiting" /></h2>
+                    <h2>{{ waitToolName(run) }}<StatusChip status="waiting" /></h2>
                     <p>{{ dispatchLine }}.</p>
                 </div>
             </div>

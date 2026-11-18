@@ -109,6 +109,27 @@ describePostgres('run service on postgres', () => {
         expect(await service.findOne(testUuid('c1'))).toBeUndefined();
     });
 
+    it('a run with a peer parent stores no parentRunId: no foreign-key failure for a foreign id', async () => {
+        const run = makeRun(testUuid('r1'));
+
+        run.trigger = {
+            ...run.trigger,
+            channel: 'agent',
+            parent: {
+                kind: 'peer',
+                peer: 'dev',
+                runId: testUuid('foreign'),
+                standIn: testUuid('stand-in'),
+                agent: 'assistant',
+                role: 'default',
+                depth: 1,
+            },
+        };
+
+        expect(await service.create(run)).toBe(true);
+        expect(await service.findOneOrFail(testUuid('r1'))).not.toHaveProperty('parentRunId');
+    });
+
     it('two updates that each expect status queued: one wins', async () => {
         const ids = Array.from({ length: 20 }, (_, i) => testUuid(`r${i}`));
 

@@ -32,7 +32,7 @@ import StartRunModal from '../components/start-run/StartRunModal.vue';
 import { panelId, tabId } from '../components/tab-list/helpers.ts';
 import TabList from '../components/tab-list/TabList.vue';
 import { RouteName } from '../router/constants.ts';
-import { formatTokens, shortId } from '../runs/helpers.ts';
+import { formatTokens, shortId, waitToolName } from '../runs/helpers.ts';
 import { queryFromFilter } from '../runs/query.ts';
 import { formatFireTime } from '../schedules/helpers.ts';
 import { useAgentState } from '../state/composables.ts';
@@ -396,7 +396,7 @@ function scheduleOf(chip: Chip) {
                                         class="aprow"
                                         :to="{ name: RouteName.APPROVALS, query: approvalLinkQuery(run) }"
                                     >
-                                        <b>{{ run.waiting?.toolName }}</b>
+                                        <b>{{ waitToolName(run) }}</b>
                                         <span class="aprow-timer"><ExpiryCountdown :until="run.waiting!.expiresAt" /></span>
                                         <span class="sub">run {{ shortId(run.id) }}{{ run.concurrencyKey ? ` · ${run.concurrencyKey}` : '' }}</span>
                                     </RouterLink>

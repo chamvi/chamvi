@@ -62,8 +62,39 @@ export type DispatchWaitPoint = {
     expiresAt: Date;
 };
 
+/** An approval pending in a remote run or below it, as the last poll showed it. */
+export type RemoteApproval = {
+    /** The remote run that waits on the approval. */
+    runId: string;
+    approvalId: string;
+    title: string;
+    /** The owning app's own approval link. */
+    url?: string;
+    /** Set once the notification to the configured destination went out. */
+    notifiedAt?: Date;
+};
+
+/** The run of another chamvi app a stand-in run waits on to settle. */
+export type RemoteWaitPoint = {
+    kind: 'remote';
+    id: 'remote';
+    /** The configured peer that owns the remote run. */
+    peer: string;
+    /** The remote agent's name on the peer. */
+    agent: string;
+    remoteRunId: string;
+    expiresAt: Date;
+    /** Set by a wake from the peer: the next tick polls at once. */
+    wakeRequested?: boolean;
+    /** The remote run as the last poll showed it. */
+    remote?: {
+        status: RunStatusLiteral;
+        approval?: RemoteApproval;
+    };
+};
+
 /** What a `waiting` run waits on, by `kind`. */
-export type WaitPoint = ApprovalWaitPoint | DispatchWaitPoint;
+export type WaitPoint = ApprovalWaitPoint | DispatchWaitPoint | RemoteWaitPoint;
 
 export type Run = {
     id: string;
@@ -86,8 +117,9 @@ export type Run = {
     /** The sum of every descendant's usage, recomputed from the children (never incremented). */
     subtreeUsage?: Usage;
     /**
-     * The run that dispatched this one (`trigger.parent.runId`); set by the
-     * repository at insert, never from the caller.
+     * The run that dispatched this one (`trigger.parent.runId` of a
+     * `dispatch` parent; a peer parent names another app's run and sets
+     * none); set by the run service at create, never from the caller.
      */
     parentRunId?: string;
     waiting?: WaitPoint;

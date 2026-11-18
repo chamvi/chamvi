@@ -76,7 +76,7 @@ describe('web_fetch trust', () => {
         const { run, web } = await twoFetches({ tools: { web_fetch: { guardWhenTainted: true } } });
 
         expect(run?.status).toBe('waiting');
-        expect(run?.waiting?.toolName).toBe('web_fetch');
+        expect(run?.waiting).toMatchObject({ toolName: 'web_fetch' });
         expect(web.calls).toHaveLength(1);
     });
 });

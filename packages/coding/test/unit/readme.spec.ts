@@ -108,7 +108,7 @@ describe('README example', () => {
         const waiting = await engine.getRun(runId);
 
         expect(waiting?.status).toBe('waiting');
-        expect(waiting?.waiting?.toolName).toBe('bash');
+        expect(waiting?.waiting).toMatchObject({ toolName: 'bash' });
         expect(approvalOf(waiting).body).toBe('rm -rf /workspace');
 
         await engine.approve(runId, {

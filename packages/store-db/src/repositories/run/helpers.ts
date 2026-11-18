@@ -76,6 +76,16 @@ function reviveWaiting(waiting: Record<string, unknown>): WaitPoint {
         output.notifiedAt = new Date(waiting.notifiedAt);
     }
 
+    // a remote wait point's surfaced approval
+    const remote = waiting.remote as { approval?: Record<string, unknown> } | undefined;
+
+    if (remote?.approval && typeof remote.approval.notifiedAt === 'string') {
+        output.remote = {
+            ...remote,
+            approval: { ...remote.approval, notifiedAt: new Date(remote.approval.notifiedAt) },
+        };
+    }
+
     return output as WaitPoint;
 }
 
