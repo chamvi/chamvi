@@ -857,15 +857,18 @@ describe('managed collections', () => {
         await knowledge.putDocument('notes', { id: 'doc', content });
         await expect.poll(() => held.mock.calls.length).toBe(1);
 
-        // the lease expires while the write waits: a second instance takes it and embeds the document
-        setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+        try {
+            // the lease expires while the write waits: a second instance takes it and embeds the document
+            setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
 
-        const other = create(setup, { embeddingModel: mockEmbeddingModel() });
+            const other = create(setup, { embeddingModel: mockEmbeddingModel() });
 
-        other.start();
-        await waitForDocument(setup, 'notes', 'doc', 'ready');
-
-        gate.resolve();
+            other.start();
+            await waitForDocument(setup, 'notes', 'doc', 'ready');
+        } finally {
+            // also on a failure: stop() waits for the held write
+            gate.resolve();
+        }
 
         await expect.poll(() => held.mock.settledResults[0]?.type).toBe('rejected');
         await settle();
