@@ -503,6 +503,67 @@ describe('the indexing lock', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('a pass whose lease ran out during its create advances no fence', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        const fences = vi.spyOn(service, 'advanceFence');
+        const replace = vi.spyOn(service, 'replaceChunks');
+        // the creating save outlasts the lease, and another owner takes the lock
+        const held = vi.spyOn(service, 'saveCollection').mockImplementationOnce(async (...args) => {
+            const saved = await save(...args);
+
+            setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+            expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+
+            return saved;
+        });
+
+        await expect.poll(() => held.mock.settledResults[0]?.type).toBe('fulfilled');
+        await expect.poll(() => acquiresOf(setup, 'replica-a')).toEqual([true, false]);
+        await settle();
+
+        // only the loop's advance (no row then): the intruder's token stays the newest
+        expect(fences).toHaveBeenCalledTimes(1);
+        expect(replace).not.toHaveBeenCalled();
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a loop whose lease ran out before its advance advances no fence and runs no pass', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
+
+        await waitForReady(setup.repository, 'docs');
+
+        const { service } = knowledge;
+        const read = service.findOneCollection.bind(service);
+        const fences = vi.spyOn(service, 'advanceFence');
+        const replace = vi.spyOn(service, 'replaceChunks');
+        let reads = 0;
+
+        vi.spyOn(service, 'findOneCollection').mockImplementation(async (name) => {
+            reads++;
+
+            // the backoff read after the acquire stalls past the lease, and another owner takes the lock
+            if (reads === 2) {
+                setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+                expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+            }
+
+            return read(name);
+        });
+
+        knowledge.sync('docs');
+
+        await expect.poll(() => acquiresOf(setup, 'replica-a')).toEqual([true, true, false]);
+        await settle();
+
+        expect(fences).not.toHaveBeenCalled();
+        expect(replace).not.toHaveBeenCalled();
+        expect(setup.errors).toEqual([]);
+    });
+
     it('a pass whose record appeared after the fence was advanced writes with a fence', async () => {
         const setup = createIndexerSetup();
         const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));

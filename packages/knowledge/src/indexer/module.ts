@@ -160,9 +160,9 @@ export async function embedDocument(input: EmbedDocumentInput): Promise<Embedded
  * the previous one. A document with unchanged content, title and source costs
  * nothing (its chunks carry the title and source). Ends early, without an
  * error, once `lock.renew()` answers false. Every write carries the lock's
- * fence (a first pass creates the record create-only, then advances it,
- * ending when the token is not the created row's), so a write after another
- * owner took the lock is a `LeaseLostError`.
+ * fence (a first pass creates the record create-only, then renews the lock
+ * and advances it, ending when the token is not the created row's), so a
+ * write after another owner took the lock is a `LeaseLostError`.
  */
 export async function syncCollection(input: SyncCollectionInput): Promise<void> {
     const {
@@ -244,6 +244,11 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
     const saved = await repository.saveCollection(record, lock.fence === undefined ? { create: true } : writeOptionsOf(lock));
 
     if (lock.fence === undefined) {
+        // the create may have outlasted the lease: never a token once another owner may hold it
+        if (!await lock.renew()) {
+            return;
+        }
+
         // the record exists from here on: the writes that follow carry its fence
         const fence = await advanceLockFence(repository, name, lock);
 
@@ -520,8 +525,8 @@ function idleWaitOf(dueIn: number | undefined, checkMs: number | undefined): num
  * meanwhile waits for it too. A configuration error
  * (InvalidAgentDefinitionError) is stored and reported once and ends the
  * loop. A failed lock acquire or store read is only reported and retried on
- * this loop's own backoff. Each pass first advances the collection's fence
- * (`lock.fence`); a write the fence refuses (`LeaseLostError`: another owner
+ * this loop's own backoff. Each pass first renews the lock and advances the
+ * collection's fence (`lock.fence`); a write the fence refuses (`LeaseLostError`: another owner
  * took the lock) ends the pass like a lost lock: nothing reported or stored,
  * no backoff. With `checkMs`, an idle loop also reads its record that often:
  * a missing one (deleted on another replica) runs a pass whatever `idleMs`
@@ -612,7 +617,8 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                     dueIn = await dueDelayOf(repository, name, clock, idleMs);
                 }
 
-                if (!deferred && dueIn === 0) {
+                // the reads above may have outlasted the lease: never a token once another owner may hold it
+                if (!deferred && dueIn === 0 && await lock.renew()) {
                     // a wake from here on asks for one more pass
                     wake.clear();
                     // a pass that lost the lock before this advance writes nothing more
