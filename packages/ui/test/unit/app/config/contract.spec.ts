@@ -6,10 +6,7 @@
  */
 
 import { CONFIG_ELEMENT_ID } from '@chamvi/ui';
-import {
-    CONFIG_ELEMENT_ID as KIT_CONFIG_ELEMENT_ID,
-    readConfig,
-} from '@chamvi/ui-kit';
+import { CONFIG_ELEMENT_ID as KIT_CONFIG_ELEMENT_ID, readConfig } from '@chamvi/ui-kit';
 import type { UiConfig as KitUiConfig } from '@chamvi/ui-kit';
 import { describe, expect, it } from 'vitest';
 import type { UiConfig } from '../../../../src/config/types.ts';

@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope, ref } from 'vue';
-import type { ArtifactWire } from '@chamvi/ui-kit';
+import type { ArtifactWire } from '@chamvi/http-kit';
 import { useArtifactTiles } from '../../../../app/artifacts/composables.ts';
 import type { ObjectUrls } from '../../../../app/artifacts/types.ts';
 import { apiError, fakeClient } from '../../../utils/client.ts';
@@ -62,25 +62,27 @@ function setup(options: { ids?: string[]; reads?: Record<string, () => Promise<B
     const lists: string[] = [];
     const saved: Array<[string, string]> = [];
     const client = fakeClient({
-        listArtifacts: async (runId) => {
-            lists.push(runId);
+        artifact: {
+            getMany: async (runId) => {
+                lists.push(runId);
 
-            return METADATA;
-        },
-        readArtifact: async (runId, id) => {
-            reads.push(`${runId}/${id}`);
+                return METADATA;
+            },
+            read: async (runId, id) => {
+                reads.push(`${runId}/${id}`);
 
-            const read = options.reads?.[id];
+                const read = options.reads?.[id];
 
-            if (read) {
-                return read();
-            }
+                if (read) {
+                    return read();
+                }
 
-            if (id === 'd') {
-                throw apiError(404, 'artifact_not_found');
-            }
+                if (id === 'd') {
+                    throw apiError(404, 'artifact_not_found');
+                }
 
-            return new Blob([id]);
+                return new Blob([id]);
+            },
         },
     });
     const {
@@ -178,8 +180,10 @@ describe('useArtifactTiles', () => {
         const scope = effectScope();
         const tiles = scope.run(() => useArtifactTiles({
             client: fakeClient({
-                listArtifacts: async () => {
-                    throw apiError(403, 'forbidden');
+                artifact: {
+                    getMany: async () => {
+                        throw apiError(403, 'forbidden');
+                    },
                 },
             }),
             runId: () => 'r1',
@@ -205,16 +209,18 @@ describe('useArtifactTiles', () => {
         const scope = effectScope();
         const tiles = scope.run(() => useArtifactTiles({
             client: fakeClient({
-                listArtifacts: async () => {
-                    lists++;
+                artifact: {
+                    getMany: async () => {
+                        lists++;
 
-                    if (fail) {
-                        throw apiError(503, 'unavailable');
-                    }
+                        if (fail) {
+                            throw apiError(503, 'unavailable');
+                        }
 
-                    return METADATA;
+                        return METADATA;
+                    },
+                    read: async (_runId, id) => new Blob([id]),
                 },
-                readArtifact: async (_runId, id) => new Blob([id]),
             }),
             runId: () => 'r1',
             key: () => 'k',
@@ -245,13 +251,15 @@ describe('useArtifactTiles', () => {
         const scope = effectScope();
         const tiles = scope.run(() => useArtifactTiles({
             client: fakeClient({
-                listArtifacts: async () => METADATA,
-                readArtifact: async (_runId, id) => {
-                    if (fail) {
-                        throw apiError(429, 'too_many_requests');
-                    }
+                artifact: {
+                    getMany: async () => METADATA,
+                    read: async (_runId, id) => {
+                        if (fail) {
+                            throw apiError(429, 'too_many_requests');
+                        }
 
-                    return new Blob([id]);
+                        return new Blob([id]);
+                    },
                 },
             }),
             runId: () => 'r1',
@@ -280,13 +288,15 @@ describe('useArtifactTiles', () => {
         const scope = effectScope();
         const tiles = scope.run(() => useArtifactTiles({
             client: fakeClient({
-                listArtifacts: async () => ids.map((id) => meta(id, 'image/png')),
-                readArtifact: (_runId, _id, signal) => {
-                    running++;
-                    peak = Math.max(peak, running);
-                    signals.push(signal!);
+                artifact: {
+                    getMany: async () => ids.map((id) => meta(id, 'image/png')),
+                    read: (_runId, _id, options) => {
+                        running++;
+                        peak = Math.max(peak, running);
+                        signals.push(options!.signal!);
 
-                    return new Promise<Blob>(() => {});
+                        return new Promise<Blob>(() => {});
+                    },
                 },
             }),
             runId: () => 'r1',
@@ -357,15 +367,17 @@ describe('useArtifactTiles', () => {
         const scope = effectScope();
         const tiles = scope.run(() => useArtifactTiles({
             client: fakeClient({
-                listArtifacts: async (runId) => {
-                    lists.push(runId);
+                artifact: {
+                    getMany: async (runId) => {
+                        lists.push(runId);
 
-                    return METADATA;
-                },
-                readArtifact: async (runId, id) => {
-                    reads.push(`${runId}/${id}`);
+                        return METADATA;
+                    },
+                    read: async (runId, id) => {
+                        reads.push(`${runId}/${id}`);
 
-                    return new Blob([id]);
+                        return new Blob([id]);
+                    },
                 },
             }),
             runId: () => run.value.id,

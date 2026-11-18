@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ScheduleWire } from '@chamvi/ui-kit';
+import type { ScheduleWire } from '@chamvi/http-kit';
 
 export type ScheduleGroup = { agent: string; schedules: ScheduleWire[] };
 

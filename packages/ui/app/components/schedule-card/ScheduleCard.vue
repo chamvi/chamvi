@@ -8,7 +8,7 @@
 
 import { computed } from 'vue';
 import { RouterLink } from 'vue-router';
-import type { RunWire, ScheduleWire } from '@chamvi/ui-kit';
+import type { RunWire, ScheduleWire } from '@chamvi/http-kit';
 import { RouteName } from '../../router/constants.ts';
 import { describeCron, formatFireTime } from '../../schedules/helpers.ts';
 import ExpiryCountdown from '../expiry-countdown/ExpiryCountdown.vue';

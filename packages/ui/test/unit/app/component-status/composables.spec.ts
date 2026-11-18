@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope } from 'vue';
-import type { ComponentWire } from '@chamvi/ui-kit';
+import type { ComponentWire } from '@chamvi/http-kit';
 import { useComponents } from '../../../../app/component-status/composables.ts';
 import { COMPONENTS_POLL_MS } from '../../../../app/component-status/constants.ts';
 import { apiError, fakeClient } from '../../../utils/client.ts';
@@ -29,7 +29,7 @@ const COMPONENTS: ComponentWire[] = [
 
 describe('useComponents', () => {
     it('lists the components and marks the list loaded', async () => {
-        const client = fakeClient({ listComponents: async () => COMPONENTS });
+        const client = fakeClient({ component: { getMany: async () => COMPONENTS } });
         const scope = effectScope();
         const state = scope.run(() => useComponents(client, createFakeTimers().timers))!;
 
@@ -43,8 +43,10 @@ describe('useComponents', () => {
 
     it('a 403 sets error without throwing', async () => {
         const client = fakeClient({
-            listComponents: async () => {
-                throw apiError(403, 'forbidden');
+            component: {
+                getMany: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();
@@ -59,10 +61,12 @@ describe('useComponents', () => {
     it('refreshes every COMPONENTS_POLL_MS and stops with its scope', async () => {
         let calls = 0;
         const client = fakeClient({
-            listComponents: async () => {
-                calls++;
+            component: {
+                getMany: async () => {
+                    calls++;
 
-                return calls === 1 ? COMPONENTS : [COMPONENTS[0]!];
+                    return calls === 1 ? COMPONENTS : [COMPONENTS[0]!];
+                },
             },
         });
         const fake = createFakeTimers();
@@ -85,14 +89,16 @@ describe('useComponents', () => {
     it('clears an earlier error once a pass succeeds', async () => {
         let calls = 0;
         const client = fakeClient({
-            listComponents: async () => {
-                calls++;
+            component: {
+                getMany: async () => {
+                    calls++;
 
-                if (calls === 1) {
-                    throw apiError(503, 'database_unavailable');
-                }
+                    if (calls === 1) {
+                        throw apiError(503, 'database_unavailable');
+                    }
 
-                return COMPONENTS;
+                    return COMPONENTS;
+                },
             },
         });
         const fake = createFakeTimers();

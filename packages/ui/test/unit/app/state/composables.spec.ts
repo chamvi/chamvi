@@ -7,11 +7,13 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope, nextTick, ref } from 'vue';
-import type { AgentWire, PageQuery } from '@chamvi/ui-kit';
+import type { AgentWire } from '@chamvi/http-kit';
 import { KV_PAGE_SIZE } from '../../../../app/state/constants.ts';
 import { useAgentState } from '../../../../app/state/composables.ts';
 import { apiError, fakeClient } from '../../../utils/client.ts';
 import { flush } from '../../../utils/timers.ts';
+
+type PageQuery = { limit?: number; offset?: number };
 
 const agent = (name: string, state: string[]): AgentWire => ({
     name,
@@ -26,16 +28,18 @@ function stateClient() {
     const kvCalls: Array<[string, PageQuery | undefined]> = [];
     const docCalls: Array<[string, string]> = [];
     const client = fakeClient({
-        listAgents: async () => ({ data: [agent('triage', ['duplicates', 'triaged']), agent('digest', [])], issues: [] }),
-        listKv: async (name, page) => {
-            kvCalls.push([name, page]);
+        agent: { getMany: async () => ({ data: [agent('triage', ['duplicates', 'triaged']), agent('digest', [])], issues: [] }) },
+        state: {
+            getKv: async (name, page) => {
+                kvCalls.push([name, (page as { pagination?: PageQuery } | undefined)?.pagination]);
 
-            return [{ key: `${name}-k`, value: { n: 1 } }];
-        },
-        listDocs: async (name, collection) => {
-            docCalls.push([name, collection]);
+                return [{ key: `${name}-k`, value: { n: 1 } }];
+            },
+            getDocs: async (name, collection) => {
+                docCalls.push([name, collection]);
 
-            return [{ id: 'd1', issue: 1 }];
+                return [{ id: 'd1', issue: 1 }];
+            },
         },
     });
 
@@ -97,13 +101,17 @@ describe('useAgentState', () => {
     it('pages kv with an offset', async () => {
         const pages: PageQuery[] = [];
         const client = fakeClient({
-            listAgents: async () => ({ data: [agent('triage', [])], issues: [] }),
-            listKv: async (_name, page) => {
-                pages.push(page!);
+            agent: { getMany: async () => ({ data: [agent('triage', [])], issues: [] }) },
+            state: {
+                getKv: async (_name, page) => {
+                    const { pagination } = (page as { pagination: PageQuery });
 
-                const count = page!.offset === 0 ? KV_PAGE_SIZE : 1;
+                    pages.push(pagination);
 
-                return Array.from({ length: count }, (_, i) => ({ key: `k${page!.offset! + i}`, value: i }));
+                    const count = pagination.offset === 0 ? KV_PAGE_SIZE : 1;
+
+                    return Array.from({ length: count }, (_, i) => ({ key: `k${pagination.offset! + i}`, value: i }));
+                },
             },
         });
         const scope = effectScope();
@@ -120,12 +128,14 @@ describe('useAgentState', () => {
 
     it('a 403 sets error without throwing', async () => {
         const client = fakeClient({
-            listAgents: async () => ({ data: [agent('triage', ['c'])], issues: [] }),
-            listKv: async () => {
-                throw apiError(403, 'forbidden');
-            },
-            listDocs: async () => {
-                throw apiError(403, 'forbidden');
+            agent: { getMany: async () => ({ data: [agent('triage', ['c'])], issues: [] }) },
+            state: {
+                getKv: async () => {
+                    throw apiError(403, 'forbidden');
+                },
+                getDocs: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();

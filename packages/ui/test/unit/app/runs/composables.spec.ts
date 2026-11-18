@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { effectScope, nextTick, ref } from 'vue';
-import type { RunListFilter } from '@chamvi/ui-kit';
+import type { RunListFilter } from '../../../../app/runs/types.ts';
 import {
     useRunActivity,
     useRunChildren,
@@ -17,7 +17,7 @@ import {
 } from '../../../../app/runs/composables.ts';
 import type { RunStreamEvent, RunStreamOptions } from '../../../../app/sse/types.ts';
 import { apiError, fakeClient } from '../../../utils/client.ts';
-import { wireRun, wireStep } from '../../../utils/runs.ts';
+import { runsBy, wireRun, wireStep } from '../../../utils/runs.ts';
 import { flush } from '../../../utils/timers.ts';
 
 function fakeStreams() {
@@ -43,7 +43,7 @@ function fakeStreams() {
 
 describe('useRunDetail', () => {
     it('loads, then streams after the last step', async () => {
-        const client = fakeClient({ getRun: async () => ({ ...wireRun(), steps: [wireStep(0), wireStep(1, 'tool')] }) });
+        const client = fakeClient({ run: { getOne: async () => ({ ...wireRun(), steps: [wireStep(0), wireStep(1, 'tool')] }) } });
         const streams = fakeStreams();
         const scope = effectScope();
         const detail = scope.run(() => useRunDetail(client, ref('r1'), { openStream: streams.open }))!;
@@ -62,7 +62,7 @@ describe('useRunDetail', () => {
     });
 
     it('does not stream a settled run', async () => {
-        const client = fakeClient({ getRun: async () => ({ ...wireRun({ status: 'completed' }), steps: [] }) });
+        const client = fakeClient({ run: { getOne: async () => ({ ...wireRun({ status: 'completed' }), steps: [] }) } });
         const streams = fakeStreams();
         const scope = effectScope();
         const detail = scope.run(() => useRunDetail(client, ref('r1'), { openStream: streams.open }))!;
@@ -74,7 +74,7 @@ describe('useRunDetail', () => {
     });
 
     it('closes the stream on scope dispose', async () => {
-        const client = fakeClient({ getRun: async () => ({ ...wireRun(), steps: [] }) });
+        const client = fakeClient({ run: { getOne: async () => ({ ...wireRun(), steps: [] }) } });
         const streams = fakeStreams();
         const scope = effectScope();
 
@@ -85,7 +85,7 @@ describe('useRunDetail', () => {
     });
 
     it('reloads and reopens on another run id', async () => {
-        const client = fakeClient({ getRun: async (id) => ({ ...wireRun({ id }), steps: [] }) });
+        const client = fakeClient({ run: { getOne: async (id) => ({ ...wireRun({ id }), steps: [] }) } });
         const streams = fakeStreams();
         const id = ref('r1');
         const scope = effectScope();
@@ -103,8 +103,10 @@ describe('useRunDetail', () => {
 
     it('keeps a load error', async () => {
         const client = fakeClient({
-            getRun: async () => {
-                throw apiError(404, 'run_not_found');
+            run: {
+                getOne: async () => {
+                    throw apiError(404, 'run_not_found');
+                },
             },
         });
         const scope = effectScope();
@@ -118,9 +120,11 @@ describe('useRunDetail', () => {
     it('cancel asks the API', async () => {
         const cancelled: string[] = [];
         const client = fakeClient({
-            getRun: async () => ({ ...wireRun(), steps: [] }),
-            cancelRun: async (id) => {
-                cancelled.push(id);
+            run: {
+                getOne: async () => ({ ...wireRun(), steps: [] }),
+                cancel: async (id) => {
+                    cancelled.push(id);
+                },
             },
         });
         const scope = effectScope();
@@ -137,17 +141,19 @@ describe('useRunList', () => {
     it('re-queries when the filter changes', async () => {
         const seen: RunListFilter[] = [];
         const client = fakeClient({
-            listRuns: async (filter) => {
-                seen.push(filter);
+            run: {
+                getMany: runsBy(async (filter) => {
+                    seen.push(filter);
 
-                return {
-                    data: [wireRun()],
-                    meta: {
-                        total: 1,
-                        limit: 25,
-                        offset: 0,
-                    },
-                };
+                    return {
+                        data: [wireRun()],
+                        meta: {
+                            total: 1,
+                            limit: 25,
+                            offset: 0,
+                        },
+                    };
+                }),
             },
         });
         const filter = ref<RunListFilter>({ limit: 25, offset: 0 });
@@ -175,8 +181,10 @@ describe('useRunList', () => {
 
     it('keeps an error without throwing', async () => {
         const client = fakeClient({
-            listRuns: async () => {
-                throw apiError(403, 'forbidden');
+            run: {
+                getMany: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();
@@ -192,23 +200,25 @@ describe('useRunCounts', () => {
     it('reads every total in one pass on one poller', async () => {
         const seen: RunListFilter[] = [];
         const client = fakeClient({
-            listRuns: async (filter) => {
-                seen.push(filter);
+            run: {
+                getMany: runsBy(async (filter) => {
+                    seen.push(filter);
 
-                const total = {
-                    running: 2,
-                    waiting: 1,
-                    failed: 0,
-                }[filter.status![0] as string]!;
+                    const total = {
+                        running: 2,
+                        waiting: 1,
+                        failed: 0,
+                    }[filter.status![0] as string]!;
 
-                return {
-                    data: [],
-                    meta: {
-                        total,
-                        limit: 1,
-                        offset: 0,
-                    },
-                };
+                    return {
+                        data: [],
+                        meta: {
+                            total,
+                            limit: 1,
+                            offset: 0,
+                        },
+                    };
+                }),
             },
         });
         const scope = effectScope();
@@ -230,8 +240,10 @@ describe('useRunCounts', () => {
 
     it('keeps the last totals and the error when a pass fails', async () => {
         const client = fakeClient({
-            listRuns: async () => {
-                throw apiError(429, 'too_many_requests');
+            run: {
+                getMany: async () => {
+                    throw apiError(429, 'too_many_requests');
+                },
             },
         });
         const scope = effectScope();
@@ -249,21 +261,23 @@ describe('useRunActivity', () => {
         const seen: RunListFilter[] = [];
         const now = new Date().toISOString();
         const client = fakeClient({
-            listRuns: async (filter) => {
-                seen.push(filter);
+            run: {
+                getMany: runsBy(async (filter) => {
+                    seen.push(filter);
 
-                return {
-                    data: [wireRun({
-                        id: 'a',
-                        status: 'failed',
-                        createdAt: now,
-                    }), wireRun({ id: 'b', createdAt: '2020-01-01T00:00:00.000Z' })],
-                    meta: {
-                        total: 2,
-                        limit: 100,
-                        offset: 0,
-                    },
-                };
+                    return {
+                        data: [wireRun({
+                            id: 'a',
+                            status: 'failed',
+                            createdAt: now,
+                        }), wireRun({ id: 'b', createdAt: '2020-01-01T00:00:00.000Z' })],
+                        meta: {
+                            total: 2,
+                            limit: 100,
+                            offset: 0,
+                        },
+                    };
+                }),
             },
         });
         const scope = effectScope();
@@ -283,17 +297,19 @@ describe('useRunActivity', () => {
 describe('useRunChildren', () => {
     function childrenClient(seen: RunListFilter[]) {
         return fakeClient({
-            listRuns: async (filter) => {
-                seen.push(filter);
+            run: {
+                getMany: runsBy(async (filter) => {
+                    seen.push(filter);
 
-                return {
-                    data: [wireRun({ id: `c${seen.length}` })],
-                    meta: {
-                        total: 1,
-                        limit: 100,
-                        offset: 0,
-                    },
-                };
+                    return {
+                        data: [wireRun({ id: `c${seen.length}` })],
+                        meta: {
+                            total: 1,
+                            limit: 100,
+                            offset: 0,
+                        },
+                    };
+                }),
             },
         });
     }
@@ -339,8 +355,10 @@ describe('useRunChildren', () => {
 
     it('useRunChildren reports forbidden on 403', async () => {
         const client = fakeClient({
-            listRuns: async () => {
-                throw apiError(403, 'forbidden');
+            run: {
+                getMany: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();

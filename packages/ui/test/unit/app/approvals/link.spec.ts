@@ -9,7 +9,8 @@ import { Permission } from '@chamvi/access';
 import { describe, expect, it } from 'vitest';
 import { effectScope, ref, shallowRef } from 'vue';
 import { createMemoryHistory } from 'vue-router';
-import type { IAuthupAdapter, RunWire  } from '@chamvi/ui-kit';
+import type { IAuthupAdapter } from '@chamvi/ui-kit';
+import type { RunWire } from '@chamvi/http-kit';
 import { useLinkedApproval } from '../../../../app/approvals/composables.ts';
 import {
     approvableAgents,
@@ -247,11 +248,13 @@ describe('useLinkedApproval', () => {
     it('loads the linked run without its steps and reloads on demand', async () => {
         let calls = 0;
         const client = fakeClient({
-            getRun: async (id) => {
-                calls++;
-                expect(id).toBe('r1');
+            run: {
+                getOne: async (id) => {
+                    calls++;
+                    expect(id).toBe('r1');
 
-                return { ...waitingRun(), steps: [] };
+                    return { ...waitingRun(), steps: [] };
+                },
             },
         });
         const scope = effectScope();
@@ -267,7 +270,7 @@ describe('useLinkedApproval', () => {
 
     it('pins the approval a link without one found first', async () => {
         let current = waitingRun();
-        const client = fakeClient({ getRun: async () => ({ ...current, steps: [] }) });
+        const client = fakeClient({ run: { getOne: async () => ({ ...current, steps: [] }) } });
         const scope = effectScope();
         const linked = scope.run(() => useLinkedApproval(client, ref<ApprovalLink | undefined>({ runId: 'r1' })))!;
 
@@ -282,10 +285,12 @@ describe('useLinkedApproval', () => {
     it('reloads whenever the trigger changes', async () => {
         let calls = 0;
         const client = fakeClient({
-            getRun: async () => {
-                calls++;
+            run: {
+                getOne: async () => {
+                    calls++;
 
-                return { ...waitingRun(), steps: [] };
+                    return { ...waitingRun(), steps: [] };
+                },
             },
         });
         const tick = shallowRef(0);
@@ -301,8 +306,10 @@ describe('useLinkedApproval', () => {
 
     it('keeps the error of a run it cannot read and loads nothing without a link', async () => {
         const client = fakeClient({
-            getRun: async () => {
-                throw apiError(403, 'forbidden');
+            run: {
+                getOne: async () => {
+                    throw apiError(403, 'forbidden');
+                },
             },
         });
         const scope = effectScope();
@@ -326,7 +333,7 @@ describe('the approval link across sign-in', () => {
             authup ? { ...DEV_CONFIG, auth: { ...DEV_CONFIG.auth, authup: { url: 'https://authup.example', clientId: 'ui' } } } : DEV_CONFIG,
             {
                 storage,
-                client: () => fakeClient({ me: meFor('good') }),
+                client: () => fakeClient({ account: { getMe: meFor('good') } }),
                 ...(authup ? { authup: async () => authup, navigate: () => {} } : {}),
             },
         );

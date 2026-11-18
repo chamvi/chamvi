@@ -19,13 +19,9 @@ import {
     oldestWaiting,
 } from '../agents/helpers.ts';
 import type { ChannelChip as Chip } from '../agents/types.ts';
-import type { StartRunResult } from '@chamvi/ui-kit';
+import type { StartRunResult } from '@chamvi/http-kit';
 import { approvalLinkQuery } from '../approvals/helpers.ts';
-import {
-    NavIcon,
-    StatusChip,
-    useAppContext,
-} from '@chamvi/ui-kit';
+import { NavIcon, StatusChip, useAppContext } from '@chamvi/ui-kit';
 import AgentRuns from '../components/agent-runs/AgentRuns.vue';
 import AgentStatePanel from '../components/agent-state/AgentStatePanel.vue';
 import ChannelChip from '../components/channel-chip/ChannelChip.vue';

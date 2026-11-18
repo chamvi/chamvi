@@ -11,17 +11,20 @@ import { Permission } from '@chamvi/access';
 import { describe, expect, it } from 'vitest';
 import { createApp } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
-import { APP_CONTEXT, ApiError } from '@chamvi/ui-kit';
+import { APP_CONTEXT } from '@chamvi/ui-kit';
+import { ApiError } from '@chamvi/http-kit';
 import type { AppContext } from '@chamvi/ui-kit';
 import ConnectionView from '../../../../app/views/ConnectionView.vue';
 import { RouteName } from '../../../../app/router/constants.ts';
 import { ALL, sessionOf } from '../../../utils/permissions.ts';
+import type { ConnectionDetailWire } from '@chamvi/http-kit';
+import { fakeClient } from '../../../utils/client.ts';
 
 const flush = () => new Promise((resolve) => {
     setTimeout(resolve, 10);
 });
 
-const DETAIL = {
+const DETAIL: ConnectionDetailWire = {
     name: 'wa',
     type: 'whatsapp',
     status: 'pairing',
@@ -31,18 +34,21 @@ const DETAIL = {
 
 
 async function mountView(names: readonly string[], options: { refuseReset?: boolean } = {}) {
-    const send = async (url: string, init: { method?: string } = {}) => {
-        if (url.endsWith('/events')) {
-            return new Promise<Response>(() => {});
-        }
+    const client = fakeClient({
+        connection: {
+            getMany: async () => [DETAIL],
+            getOne: async () => DETAIL,
+            reset: async () => {
+                if (options.refuseReset) {
+                    // as `@chamvi/http` answers a missing permission
+                    throw new ApiError(403, 'FORBIDDEN', `Missing permission "${Permission.CONNECTION_WRITE}".`);
+                }
 
-        if (url.endsWith('/reset') && init.method === 'POST' && options.refuseReset) {
-            // the client turns a non-2xx answer into an ApiError, as `@chamvi/http` answers a missing permission
-            throw new ApiError(403, 'FORBIDDEN', `Missing permission "${Permission.CONNECTION_WRITE}".`);
-        }
-
-        return new Response(JSON.stringify(url === '/connections' ? { data: [DETAIL] } : DETAIL));
-    };
+                return DETAIL;
+            },
+            stream: () => new Promise<ReadableStream<Uint8Array>>(() => {}),
+        },
+    });
     const router = createRouter({
         history: createMemoryHistory(),
         routes: [
@@ -66,7 +72,7 @@ async function mountView(names: readonly string[], options: { refuseReset?: bool
 
     app.use(router);
     app.provide(APP_CONTEXT, {
-        client: { send },
+        client,
         session: sessionOf(names),
     } as unknown as AppContext);
     app.mount(root);

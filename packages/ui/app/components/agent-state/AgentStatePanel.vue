@@ -7,7 +7,7 @@
  */
 
 import { computed, ref, watch } from 'vue';
-import type { DocEntry, KvEntry } from '@chamvi/ui-kit';
+import type { DocEntry, KvEntry } from '@chamvi/http-kit';
 import type { useAgentState } from '../../state/composables.ts';
 import { DOC_PAGE_SIZE } from '../../state/constants.ts';
 import { docColumns, inlineJson } from '../../state/helpers.ts';

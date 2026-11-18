@@ -14,8 +14,8 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ApiError } from '@chamvi/ui-kit';
-import type { ComponentWire } from '@chamvi/ui-kit';
+import { ApiError } from '@chamvi/http-kit';
+import type { ComponentWire } from '@chamvi/http-kit';
 import { RouteName } from '../../../../app/router/constants.ts';
 import ComponentsView from '../../../../app/views/ComponentsView.vue';
 import { fakeClient } from '../../../utils/client.ts';
@@ -38,7 +38,7 @@ async function open(listComponents: () => Promise<ComponentWire[]>) {
         path: '/components',
         pattern: '/components',
         name: RouteName.COMPONENTS,
-        client: fakeClient({ listComponents }),
+        client: fakeClient({ component: { getMany: listComponents } }),
         names: ALL,
     });
 

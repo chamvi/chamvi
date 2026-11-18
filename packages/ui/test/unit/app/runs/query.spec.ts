@@ -5,25 +5,36 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { buildQueryString } from '@chamvi/http-kit';
+import type { RunListFields } from '@chamvi/http-kit';
 import { describe, expect, it } from 'vitest';
-import { filterFromQuery, queryFromFilter } from '../../../../app/runs/query.ts';
+import { filterFromQuery, queryFromFilter, toRunQuery } from '../../../../app/runs/query.ts';
+
+/** A route query as vue-router parses it from the rapiq query string. */
+const routeQuery = (text: string) => Object.fromEntries(new URLSearchParams(text.replace(/^\?/, '')));
 
 describe('run list query', () => {
-    it('reads agent, known statuses and the page', () => {
-        expect(filterFromQuery({
-            agent: 'deploy',
-            status: 'waiting,nope,failed',
-            page: '3',
-        })).toEqual({
+    it('reads agent, known statuses and the page through rapiq', () => {
+        const text = buildQueryString<RunListFields>({
+            filters: { agent: 'deploy', status: ['waiting', 'nope' as never, 'failed'] },
+            pagination: { offset: 50 },
+        });
+
+        expect(filterFromQuery(routeQuery(text))).toEqual({
             agent: 'deploy',
             status: ['waiting', 'failed'],
             limit: 25,
             offset: 50,
         });
-        expect(filterFromQuery({ page: 'x' })).toEqual({ limit: 25, offset: 0 });
     });
 
-    it('round-trips through the query', () => {
+    it('drops what the run list does not take and clamps the offset to a page', () => {
+        expect(filterFromQuery({ 'filter[secret]': 'x', 'page[offset]': '-5' })).toEqual({ limit: 25, offset: 0 });
+        expect(filterFromQuery({ 'page[offset]': '30' })).toEqual({ limit: 25, offset: 25 });
+        expect(filterFromQuery({ page: '3', agent: 'old' })).toEqual({ limit: 25, offset: 0 });
+    });
+
+    it('round-trips through the route query', () => {
         const filter = {
             agent: 'a',
             status: ['queued' as const],
@@ -31,12 +42,27 @@ describe('run list query', () => {
             offset: 25,
         };
 
-        expect(queryFromFilter(filter)).toEqual({
-            agent: 'a',
-            status: 'queued',
-            page: '2',
-        });
         expect(filterFromQuery(queryFromFilter(filter) as Record<string, string>)).toEqual(filter);
         expect(queryFromFilter({ limit: 25, offset: 0 })).toEqual({});
+    });
+
+    it('builds the API query of a filter', () => {
+        expect(toRunQuery({
+            agent: 'a',
+            parent: 'p',
+            status: ['failed'],
+            waiting: 'approval',
+            limit: 10,
+            offset: 20,
+        })).toEqual({
+            filters: {
+                agent: 'a',
+                parent: 'p',
+                status: ['failed'],
+                waiting: 'approval',
+            },
+            pagination: { limit: 10, offset: 20 },
+        });
+        expect(toRunQuery({})).toEqual({ filters: {}, pagination: {} });
     });
 });

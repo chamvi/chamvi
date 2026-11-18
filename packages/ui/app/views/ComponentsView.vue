@@ -8,7 +8,7 @@
 
 import { Permission } from '@chamvi/access';
 import { useAppContext } from '@chamvi/ui-kit';
-import type { ComponentWire } from '@chamvi/ui-kit';
+import type { ComponentWire } from '@chamvi/http-kit';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';
 import { useComponents } from '../component-status/composables.ts';

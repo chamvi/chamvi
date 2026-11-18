@@ -20,6 +20,7 @@ export default defineConfig({
             { find: /^@chamvi\/test-kit$/, replacement: fileURLToPath(new URL('../../test-kit/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/ui$/, replacement: fileURLToPath(new URL('../src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/ui\/module$/, replacement: fileURLToPath(new URL('../src/module/index.ts', import.meta.url)) },
+            { find: /^@chamvi\/http-kit$/, replacement: fileURLToPath(new URL('../../http-kit/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/ui-kit$/, replacement: fileURLToPath(new URL('../../ui-kit/src/index.ts', import.meta.url)) },
             { find: /^@chamvi\/ui-kit\/vite$/, replacement: fileURLToPath(new URL('../../ui-kit/src/vite/index.ts', import.meta.url)) },
             // a page's Vite build gets this from definePageConfig's icon plugin

@@ -6,16 +6,13 @@
  */
 
 import { describe, expect, it } from 'vitest';
-import type { ApiError } from '@chamvi/ui-kit';
-import { RECONNECT_DELAYS_MS, createApiClient  } from '@chamvi/ui-kit';
+import type { ApiError } from '@chamvi/http-kit';
+import { RECONNECT_DELAYS_MS, createClient  } from '@chamvi/http-kit';
 import { openRunStream } from '../../../../app/sse/module.ts';
 import type { RunStreamEvent } from '../../../../app/sse/types.ts';
-import {
-    createFakeFetch,
-    json,
-    sse,
-} from '../../../utils/fetch.ts';
-import type { FakeAnswer } from '../../../utils/fetch.ts';
+import { json, sse } from '../../../utils/fetch.ts';
+import { FakeTransport } from '../../../utils/transport.ts';
+import type { FakeAnswer } from '../../../utils/transport.ts';
 
 const run = (status: string) => `event: run.updated\ndata: ${JSON.stringify({ id: 'r1', status })}\n\n`;
 const step = (index: number) => `event: step.appended\nid: ${index}\ndata: ${JSON.stringify({
@@ -25,11 +22,11 @@ const step = (index: number) => `event: step.appended\nid: ${index}\ndata: ${JSO
 })}\n\n`;
 
 function setup(answers: FakeAnswer[]) {
-    const { fetch, requests } = createFakeFetch(answers);
-    const client = createApiClient({
-        apiBase: '',
+    const transport = new FakeTransport(answers);
+    const client = createClient({
+        baseURL: '',
+        transport,
         token: async () => 't',
-        fetch,
     });
     const events: RunStreamEvent[] = [];
     const errors: ApiError[] = [];
@@ -59,7 +56,7 @@ function setup(answers: FakeAnswer[]) {
 
     return {
         stream,
-        requests,
+        requests: transport.requests,
         events,
         errors,
         delays,
@@ -101,11 +98,11 @@ describe('openRunStream', () => {
     });
 
     it('starts after the given step', async () => {
-        const { fetch, requests } = createFakeFetch([sse([run('completed')])]);
-        const client = createApiClient({
-            apiBase: '',
+        const transport = new FakeTransport([sse([run('completed')])]);
+        const client = createClient({
+            baseURL: '',
+            transport,
             token: async () => 't',
-            fetch,
         });
 
         await new Promise<void>((resolve) => {
@@ -117,7 +114,7 @@ describe('openRunStream', () => {
                 onSettled: resolve,
             });
         });
-        expect(requests[0]!.headers.get('last-event-id')).toBe('4');
+        expect(transport.requests[0]!.headers.get('last-event-id')).toBe('4');
     });
 
     it('reconnects after a drop with the last step id', async () => {
@@ -220,17 +217,17 @@ describe('openRunStream', () => {
 
     it('close aborts the open request', async () => {
         let seen: AbortSignal | null | undefined;
-        const { fetch } = createFakeFetch([(request) => {
+        const transport = new FakeTransport([(request) => {
             seen = request.signal;
 
             return new Promise<Response>((_resolve, reject) => {
                 request.signal?.addEventListener('abort', () => reject(new DOMException('aborted', 'AbortError')));
             });
         }]);
-        const client = createApiClient({
-            apiBase: '',
+        const client = createClient({
+            baseURL: '',
+            transport,
             token: async () => 't',
-            fetch,
         });
         const errors: unknown[] = [];
         const stream = openRunStream({

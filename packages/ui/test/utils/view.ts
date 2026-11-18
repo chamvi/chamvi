@@ -10,7 +10,8 @@ import { createApp } from 'vue';
 import type { Component } from 'vue';
 import { createMemoryHistory, createRouter } from 'vue-router';
 import { APP_CONTEXT, DEV_CONFIG, installVuecs } from '@chamvi/ui-kit';
-import type { AppContext, IApiClient } from '@chamvi/ui-kit';
+import type { AppContext } from '@chamvi/ui-kit';
+import type { IClient } from '@chamvi/http-kit';
 import { RouteName } from '../../app/router/constants.ts';
 import { sessionOf } from './permissions.ts';
 
@@ -30,7 +31,7 @@ export async function mountView(view: Component, input: {
     path: string;
     pattern: string;
     name: string;
-    client: IApiClient;
+    client: IClient;
     names: readonly string[];
 }) {
     const routes = [

@@ -7,7 +7,7 @@
 
 import { allPermissions } from '@chamvi/access';
 import { shallowRef } from 'vue';
-import type { MeWire } from '@chamvi/ui-kit';
+import type { MeWire } from '@chamvi/http-kit';
 
 /** Every chamvi permission name, as `POST /authorization/check` answers a `'*'` token. */
 export const ALL: string[] = allPermissions().map((binding) => binding.permission.name);

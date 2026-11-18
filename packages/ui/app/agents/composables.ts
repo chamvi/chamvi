@@ -16,12 +16,13 @@ import type {
     AgentIssueWire,
     AgentWire,
     ApiError,
-    IApiClient,
+    IClient,
     RunWire,
     ScheduleWire,
     StartRunResult,
-} from '@chamvi/ui-kit';
-import { asApiError, createPoller, retryDelayOf  } from '@chamvi/ui-kit';
+} from '@chamvi/http-kit';
+import { createPoller } from '@chamvi/ui-kit';
+import { asApiError, retryDelayOf } from '@chamvi/http-kit';
 import {
     ACTIVE_LIMIT,
     ACTIVITY_LIMIT,
@@ -31,14 +32,15 @@ import {
 } from './constants.ts';
 import { buildRollups, summarizeActivity } from './helpers.ts';
 import type { Activity, AgentRollup } from './types.ts';
+import { toRunQuery } from '../runs/query.ts';
 
 /** The registered agents (`GET /agents`, needs `chamvi_run_read`), loaded once per call site. */
-export function useAgents(client: IApiClient) {
+export function useAgents(client: IClient) {
     const agents = shallowRef<AgentWire[]>([]);
     const error = shallowRef<ApiError>();
     const loaded = (async () => {
         try {
-            agents.value = (await client.listAgents()).data;
+            agents.value = (await client.agent.getMany()).data;
         } catch (e) {
             error.value = asApiError(e);
         }
@@ -54,13 +56,13 @@ export function useAgents(client: IApiClient) {
 /** Marks a run listing the server refused with 403, so the agent's page can still render. */
 const FORBIDDEN = Symbol('forbidden');
 
-async function totalOf(client: IApiClient, agent: string, status: 'running' | 'waiting'): Promise<number> {
-    return (await client.listRuns({
+async function totalOf(client: IClient, agent: string, status: 'running' | 'waiting'): Promise<number> {
+    return (await client.run.getMany(toRunQuery({
         agent,
         status: [status],
         limit: 1,
         offset: 0,
-    })).meta.total;
+    }))).meta.total;
 }
 
 /**
@@ -69,7 +71,7 @@ async function totalOf(client: IApiClient, agent: string, status: 'running' | 'w
  * pass whatever the agent count (`buildRollups`). Polls every `AGENTS_POLL_MS`,
  * and waits out a 429's or 503's `Retry-After`.
  */
-export function useAgentRollups(client: IApiClient) {
+export function useAgentRollups(client: IClient) {
     const agents = shallowRef<AgentWire[]>([]);
     const issues = shallowRef<AgentIssueWire[]>([]);
     const schedules = shallowRef<ScheduleWire[]>([]);
@@ -80,14 +82,14 @@ export function useAgentRollups(client: IApiClient) {
     const poller = createPoller(async () => {
         try {
             const [list, crons, recent, active] = await Promise.all([
-                client.listAgents(),
-                client.listSchedules(),
-                client.listRuns({ limit: ACTIVITY_LIMIT, offset: 0 }),
-                client.listRuns({
+                client.agent.getMany(),
+                client.schedule.getMany(),
+                client.run.getMany(toRunQuery({ limit: ACTIVITY_LIMIT, offset: 0 })),
+                client.run.getMany(toRunQuery({
                     status: ['running', 'waiting'],
                     limit: ACTIVE_LIMIT,
                     offset: 0,
-                }),
+                })),
             ]);
 
             agents.value = list.data;
@@ -126,7 +128,7 @@ export function useAgentRollups(client: IApiClient) {
  * waiting on an approval. A private agent whose runs the principal may not
  * read (403) keeps its summary and schedules and sets `forbidden`. `start()` dispatches through the agent's `http.on()` subscription and refreshes.
  */
-export function useAgentDetail(client: IApiClient, name: Ref<string>) {
+export function useAgentDetail(client: IClient, name: Ref<string>) {
     const agent = shallowRef<AgentWire>();
     const schedules = shallowRef<ScheduleWire[]>([]);
     const runs = shallowRef<RunWire[]>([]);
@@ -147,24 +149,24 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
 
         try {
             const [list, crons, listed] = await Promise.all([
-                client.listAgents(),
-                client.listSchedules(),
+                client.agent.getMany(),
+                client.schedule.getMany(),
                 // a private agent's runs answer 403 without chamvi_agent_read for it
                 Promise.all([
-                    client.listRuns({
+                    client.run.getMany(toRunQuery({
                         agent: agentName,
                         limit: ACTIVITY_LIMIT,
                         offset: 0,
-                    }),
+                    })),
                     totalOf(client, agentName, 'running'),
                     // a dispatch wait waits on no person: the server leaves it out
-                    client.listRuns({
+                    client.run.getMany(toRunQuery({
                         agent: agentName,
                         status: ['waiting'],
                         waiting: 'approval',
                         limit: AGENT_WAITING_LIMIT,
                         offset: 0,
-                    }),
+                    })),
                 ]).catch((e: unknown) => {
                     const apiError = asApiError(e);
 
@@ -262,7 +264,7 @@ export function useAgentDetail(client: IApiClient, name: Ref<string>) {
         notFound: computed(() => loaded.value && !error.value && !agent.value),
         refresh: () => poller.refresh(),
         async start(payload: unknown, idempotencyKey?: string): Promise<StartRunResult> {
-            const result = await client.startRun(name.value, idempotencyKey === undefined ? { payload } : { payload, idempotencyKey });
+            const result = await client.agent.startRun(name.value, idempotencyKey === undefined ? { payload } : { payload, idempotencyKey });
 
             await poller.refresh();
 

@@ -11,7 +11,7 @@ import type {
     RunPage,
     RunWire,
     ScheduleWire,
-} from '@chamvi/ui-kit';
+} from '@chamvi/http-kit';
 import { shortId } from '../runs/helpers.ts';
 import { ACTIVITY_WINDOW_MS } from './constants.ts';
 import type {

@@ -15,14 +15,15 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ApiError } from '@chamvi/ui-kit';
-import type { AgentWire, IApiClient, RunWire } from '@chamvi/ui-kit';
+import { ApiError } from '@chamvi/http-kit';
+import type { AgentWire, IClient, RunWire } from '@chamvi/http-kit';
 import { RouteName } from '../../../../app/router/constants.ts';
 import AgentView from '../../../../app/views/AgentView.vue';
 import AgentsView from '../../../../app/views/AgentsView.vue';
 import ApprovalsView from '../../../../app/views/ApprovalsView.vue';
 import RunView from '../../../../app/views/RunView.vue';
 import { fakeClient } from '../../../utils/client.ts';
+import type { FakeClientOverrides } from '../../../utils/client.ts';
 import { wireRun } from '../../../utils/runs.ts';
 import { mountView, settle } from '../../../utils/view.ts';
 
@@ -82,18 +83,19 @@ afterEach(async () => {
     expect(rejections).toEqual([]);
 });
 
-function agentClient(agent: AgentWire, overrides: Partial<IApiClient> = {}): IApiClient {
+function agentClient(agent: AgentWire, overrides: FakeClientOverrides = {}): IClient {
     return fakeClient({
-        listAgents: async () => ({ data: [agent], issues: [] }),
-        listSchedules: async () => [],
-        listRuns: async () => EMPTY_PAGE,
-        listKv: async () => [],
-        listDocs: async () => [],
-        ...overrides,
-    });
+        agent: { getMany: async () => ({ data: [agent], issues: [] }) },
+        schedule: { getMany: async () => [] },
+        run: { getMany: async () => EMPTY_PAGE },
+        state: {
+            getKv: async () => [],
+            getDocs: async () => [],
+        },
+    }, overrides);
 }
 
-async function openAgent(names: readonly string[], client: IApiClient = agentClient(AGENT)) {
+async function openAgent(names: readonly string[], client: IClient = agentClient(AGENT)) {
     const view = await mountView(AgentView, {
         path: `/agents/${AGENT.name}`,
         pattern: '/agents/:name',
@@ -132,8 +134,10 @@ describe('the agent page: start run', () => {
 
     it('names chamvi_agent_run inline when the API refuses the start (403)', async () => {
         const { root } = await openAgent([Permission.AGENT_RUN], agentClient(AGENT, {
-            startRun: async () => {
-                throw refused(Permission.AGENT_RUN);
+            agent: {
+                startRun: async () => {
+                    throw refused(Permission.AGENT_RUN);
+                },
             },
         }));
 
@@ -180,18 +184,19 @@ describe('the agents overview: private agents', () => {
 });
 
 describe('the run page: cancel', () => {
-    async function openRun(names: readonly string[], overrides: Partial<IApiClient> = {}) {
+    async function openRun(names: readonly string[], overrides: FakeClientOverrides = {}) {
         const view = await mountView(RunView, {
             path: '/runs/r1',
             pattern: '/runs/:id',
             name: RouteName.RUN,
             client: fakeClient({
-                getRun: async () => ({ ...wireRun({ id: 'r1', status: 'running' }), steps: [] }),
-                streamRun: () => new Promise<Response>(() => {}),
-                listAgents: async () => ({ data: [AGENT], issues: [] }),
-                listRuns: async () => EMPTY_PAGE,
-                ...overrides,
-            }),
+                run: {
+                    getOne: async () => ({ ...wireRun({ id: 'r1', status: 'running' }), steps: [] }),
+                    stream: () => new Promise<ReadableStream<Uint8Array>>(() => {}),
+                    getMany: async () => EMPTY_PAGE,
+                },
+                agent: { getMany: async () => ({ data: [AGENT], issues: [] }) },
+            }, overrides),
             names,
         });
 
@@ -219,8 +224,10 @@ describe('the run page: cancel', () => {
             confirm, 
             testId, 
         } = await openRun([Permission.RUN_CANCEL], {
-            cancelRun: async () => {
-                throw refused(Permission.RUN_CANCEL);
+            run: {
+                cancel: async () => {
+                    throw refused(Permission.RUN_CANCEL);
+                },
             },
         });
 
@@ -240,10 +247,12 @@ describe('the run page: cancel', () => {
             confirm,
             testId,
         } = await openRun([Permission.RUN_CANCEL], {
-            getRun: async (id: string) => ({ ...wireRun({ id, status: 'running' }), steps: [] }),
-            cancelRun: () => new Promise((_resolve, reject) => {
-                refuse = () => reject(refused(Permission.RUN_CANCEL));
-            }),
+            run: {
+                getOne: async (id: string) => ({ ...wireRun({ id, status: 'running' }), steps: [] }),
+                cancel: () => new Promise((_resolve, reject) => {
+                    refuse = () => reject(refused(Permission.RUN_CANCEL));
+                }),
+            },
         });
 
         button(root, 'Cancel run')?.click();
@@ -261,16 +270,15 @@ describe('the run page: cancel', () => {
 });
 
 describe('the approvals inbox: approve and deny', () => {
-    async function openInbox(names: readonly string[], overrides: Partial<IApiClient> = {}) {
+    async function openInbox(names: readonly string[], overrides: FakeClientOverrides = {}) {
         const view = await mountView(ApprovalsView, {
             path: '/approvals',
             pattern: '/approvals',
             name: RouteName.APPROVALS,
             client: fakeClient({
-                listRuns: async () => ({ ...EMPTY_PAGE, data: [WAITING] }),
-                listArtifacts: async () => [],
-                ...overrides,
-            }),
+                run: { getMany: async () => ({ ...EMPTY_PAGE, data: [WAITING] }) },
+                artifact: { getMany: async () => [] },
+            }, overrides),
             names,
         });
 
@@ -297,8 +305,10 @@ describe('the approvals inbox: approve and deny', () => {
 
     it.each(['approve', 'deny'])('names chamvi_agent_approve inline when the API refuses to %s (403)', async (action) => {
         const { testId } = await openInbox([Permission.RUN_READ, Permission.AGENT_APPROVE], {
-            approve: async () => {
-                throw refused(Permission.AGENT_APPROVE);
+            run: {
+                approve: async () => {
+                    throw refused(Permission.AGENT_APPROVE);
+                },
             },
         });
 

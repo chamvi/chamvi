@@ -5,7 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { RunWire, StepWire } from '@chamvi/ui-kit';
+import type {
+    RunListQuery,
+    RunPage,
+    RunWire,
+    StepWire,
+} from '@chamvi/http-kit';
+import type { RunListFilter } from '../../app/runs/types.ts';
 
 export function wireRun(overrides: Partial<RunWire> = {}): RunWire {
     return {
@@ -36,4 +42,16 @@ export function wireStep(index: number, kind: StepWire['kind'] = 'llm', override
         finishedAt: '2026-10-21T10:00:01.000Z',
         ...overrides,
     };
+}
+
+/** The view filter a run-list query was built from (`toRunQuery`), for fakes that answer by filter. */
+export function filterOf(query: RunListQuery = {}): RunListFilter {
+    const input = query as { filters?: Record<string, unknown>; pagination?: Record<string, number> };
+
+    return { ...input.filters, ...input.pagination } as RunListFilter;
+}
+
+/** A fake `run.getMany` answering by the view filter. */
+export function runsBy(answer: (filter: RunListFilter) => Promise<RunPage> | RunPage): (query?: RunListQuery) => Promise<RunPage> {
+    return async (query) => answer(filterOf(query));
 }

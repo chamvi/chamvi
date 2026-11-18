@@ -16,12 +16,12 @@ import {
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
 import {
-    ApiError,
     BrandLogo,
     isPagePath,
     safeReturnPath,
     useAppContext,
 } from '@chamvi/ui-kit';
+import { ApiError } from '@chamvi/http-kit';
 import { UI_VERSION } from '../config/constants.ts';
 import { isFilled } from '../forms/validators.ts';
 

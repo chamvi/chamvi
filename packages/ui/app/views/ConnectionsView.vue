@@ -12,7 +12,6 @@ import {
     NavIcon,
     StatusBadge,
     connectionProblem,
-    createConnectionsApi,
     useAppContext,
     useConnections,
 } from '@chamvi/ui-kit';
@@ -24,7 +23,7 @@ const {
     connections,
     error,
     loaded,
-} = useConnections(createConnectionsApi(client));
+} = useConnections(client.connection);
 </script>
 
 <template>

@@ -15,8 +15,8 @@ import {
 } from 'vitest';
 import { effectScope, ref } from 'vue';
 import type { Ref } from 'vue';
-import { ApiError } from '@chamvi/ui-kit';
-import type { IApiClient } from '@chamvi/ui-kit';
+import { ApiError } from '@chamvi/http-kit';
+import type { IClient } from '@chamvi/http-kit';
 import { useApprovals } from '../../../../app/approvals/composables.ts';
 import { useComponents } from '../../../../app/component-status/composables.ts';
 import { COMPONENTS_POLL_MS } from '../../../../app/component-status/constants.ts';
@@ -31,45 +31,45 @@ const RETRY_AFTER_SECONDS = 120;
 
 type Case = {
     name: string;
-    method: 'listRuns' | 'listSchedules' | 'listComponents';
+    domain: 'run' | 'schedule' | 'component';
     intervalMs: number;
-    use: (client: IApiClient) => { error: Ref<ApiError | undefined> };
+    use: (client: IClient) => { error: Ref<ApiError | undefined> };
 };
 
 const cases: Case[] = [
     {
         name: 'useApprovals',
-        method: 'listRuns',
+        domain: 'run',
         intervalMs: INBOX_POLL_MS,
         use: (client) => useApprovals(client),
     },
     {
         name: 'useRunList',
-        method: 'listRuns',
+        domain: 'run',
         intervalMs: RUN_LIST_POLL_MS,
         use: (client) => useRunList(client, ref({ limit: 25, offset: 0 })),
     },
     {
         name: 'useRunCounts',
-        method: 'listRuns',
+        domain: 'run',
         intervalMs: RUN_COUNTS_POLL_MS,
         use: (client) => useRunCounts(client, ['running']),
     },
     {
         name: 'useRunActivity',
-        method: 'listRuns',
+        domain: 'run',
         intervalMs: RUN_COUNTS_POLL_MS,
         use: (client) => useRunActivity(client),
     },
     {
         name: 'useSchedules',
-        method: 'listSchedules',
+        domain: 'schedule',
         intervalMs: SCHEDULES_POLL_MS,
         use: (client) => useSchedules(client),
     },
     {
         name: 'useComponents',
-        method: 'listComponents',
+        domain: 'component',
         intervalMs: COMPONENTS_POLL_MS,
         use: (client) => useComponents(client),
     },
@@ -84,16 +84,18 @@ describe('pollers wait out a rate limit', () => {
     });
 
     it.each(cases)('$name waits out a 429 before the next pass', async ({
-        method,
+        domain,
         intervalMs,
         use,
     }) => {
         let calls = 0;
         const client = fakeClient({
-            [method]: async () => {
-                calls++;
+            [domain]: {
+                getMany: async () => {
+                    calls++;
 
-                throw new ApiError(429, 'too_many_requests', 'slow down', RETRY_AFTER_SECONDS);
+                    throw new ApiError(429, 'too_many_requests', 'slow down', RETRY_AFTER_SECONDS);
+                },
             },
         });
         const scope = effectScope();
