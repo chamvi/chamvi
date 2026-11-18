@@ -51,6 +51,7 @@ import {
     APP_ERROR_CODE,
     AppToken,
     DEFAULT_PURGE_INTERVAL_MS,
+    componentsModule,
     configModule,
     runHooks,
     storeModule,
@@ -76,7 +77,8 @@ function build(options: {
         mode: options.mode ?? 'start',
         ...(options.check && { check: true }),
         env: { ...options.env },
-        modules: [configModule({ clock, logger }), storeModule(options.store)],
+        // the components module runs the store's purge
+        modules: [configModule({ clock, logger }), storeModule(options.store), componentsModule()],
     });
 
     return {

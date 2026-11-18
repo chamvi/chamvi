@@ -60,6 +60,21 @@ export type ChannelSendOptions = {
 };
 
 /**
+ * What a channel's optional `status()` answers, in epoch milliseconds; each
+ * time is absent until it happened (`runningSince` while a pass is in flight).
+ */
+export type ChannelStatus = {
+    /** The last pass that completed without error ended. */
+    lastSuccessAt?: number;
+    /** The last pass that failed ended. */
+    lastErrorAt?: number;
+    /** The last pass ended, however it ended. */
+    lastRunAt?: number;
+    /** The pass in flight started. */
+    runningSince?: number;
+};
+
+/**
  * Anything a run can come from or talk to. The presence of `start`, `in`
  * and `out` is the only capability; `name` follows the agent-name rules
  * and is unique per engine.
@@ -82,6 +97,8 @@ export interface IChannel<TInput = ChannelRequest, TOutput = Response> {
     in?(input: TInput, ctx: ChannelContext): Promise<TOutput>;
     /** Sends a message to an address the channel defines; idempotent on `message.key`. */
     out?(message: ChannelMessage, address: string, opts: ChannelSendOptions): Promise<void>;
+    /** The status of its background work (`GET /components`); synchronous and cheap. */
+    status?(): ChannelStatus;
 }
 
 /**

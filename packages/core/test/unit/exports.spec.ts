@@ -510,6 +510,13 @@ describe('public api', () => {
         expectTypeOf<core.ChannelMessage['kind']>().toEqualTypeOf<'message' | 'approval'>();
         expectTypeOf<core.ChannelSubscription>().toHaveProperty('channel').toEqualTypeOf<string>();
         expectTypeOf<core.IChannel>().toHaveProperty('name').toEqualTypeOf<string>();
+        expectTypeOf<core.ChannelStatus>().toEqualTypeOf<{
+            lastSuccessAt?: number;
+            lastErrorAt?: number;
+            lastRunAt?: number;
+            runningSince?: number;
+        }>();
+        expectTypeOf<NonNullable<core.IChannel['status']>>().returns.toEqualTypeOf<core.ChannelStatus>();
         expectTypeOf<store.TriggerEnvelope>().toHaveProperty('channel').toEqualTypeOf<string>();
         expectTypeOf<store.Run>().toHaveProperty('address').toEqualTypeOf<string | undefined>();
         expectTypeOf<core.EngineStartOptions>().toEqualTypeOf<{ channels?: boolean; signal?: AbortSignal }>();

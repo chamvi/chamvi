@@ -10,6 +10,7 @@ import type { IContainer, IModule } from '@chamvi/app';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { provideKnowledgeContext } from '../context/module.ts';
 import { createKnowledge } from '../knowledge/module.ts';
+import { KNOWLEDGE_MANAGED_COMPONENT_NAME } from '../managed/constants.ts';
 import type { IKnowledge } from '../knowledge/types.ts';
 import { createMemoryKnowledgeRepository } from '../repository/memory.ts';
 import { knowledgeRoutes } from '../routes/module.ts';
@@ -30,10 +31,12 @@ import type { KnowledgeModuleOptions } from './types.ts';
  * start mode outside a check, unless `routes: false`, it contributes
  * `knowledgeRoutes()` to `AppToken.HTTP_ROUTES`. `onReady` refuses a declared name the store holds as a
  * managed collection (read-only, so a check runs it too). The lifecycle hook
- * provides the knowledge on the engine (`injectKnowledgeContext(ctx)`) and, in
- * start mode only, starts the indexing once the app started (`started`) and
- * stops it first in the shutdown (`stopping`); a job or a check never
- * indexes. `teardown` stops it too. Migrate mode does nothing.
+ * provides the knowledge on the engine (`injectKnowledgeContext(ctx)`). In
+ * start mode only it contributes the component `knowledge-managed` to
+ * `AppToken.COMPONENTS`: its start begins the indexing, then runs the managed
+ * poll (`IKnowledge.managedPoll`, which the knowledge then never runs itself);
+ * the `stopping` hook stops the indexing; a job or a check never indexes.
+ * `teardown` stops it too. Migrate mode does nothing.
  */
 export class KnowledgeModule implements IModule {
     readonly name: string = KNOWLEDGE_MODULE_NAME;
@@ -95,6 +98,8 @@ export class KnowledgeModule implements IModule {
             clock: container.resolve(AppToken.CLOCK),
             ...(owner !== undefined && { owner }),
             onError: (error, { collection }) => logger.error('knowledge error', error, collection === undefined ? {} : { collection }),
+            // the app's components run the poll (knowledge-managed)
+            runManagedPoll: false,
         });
 
         if (!repository && !config.dev) {
@@ -112,14 +117,34 @@ export class KnowledgeModule implements IModule {
             }
         }
 
+        if (indexes) {
+            const poll = knowledge.managedPoll;
+
+            // the indexing begins first, so the poll's first pass (at once) starts the managed loops;
+            // not awaited: the app start and the listen never wait on the knowledge repository (start() never rejects)
+            container.registerMany(AppToken.COMPONENTS, {
+                useValue: {
+                    name: KNOWLEDGE_MANAGED_COMPONENT_NAME,
+                    component: {
+                        start: async () => {
+                            knowledge.start();
+                            void poll.start();
+                        },
+                        stop: () => poll.stop(),
+                        settled: async () => {
+                            await poll.settled?.();
+                        },
+                        status: () => poll.status(),
+                    },
+                },
+            });
+        }
+
         container.registerMany(AppToken.LIFECYCLE_HOOKS, {
             useValue: {
                 name: this.name,
                 engineCreated: (engine) => provideKnowledgeContext(engine, knowledge),
-                ...(indexes && {
-                    started: () => knowledge.start(),
-                    stopping: () => knowledge.stop(),
-                }),
+                ...(indexes && { stopping: () => knowledge.stop() }),
             },
         });
     }

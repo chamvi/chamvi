@@ -10,6 +10,7 @@ import type {
     AgentIssue,
     AgentSummary,
     AuthorizationCheckView,
+    ComponentView,
     MeView,
     RunView,
     ScheduleSummary,
@@ -61,6 +62,9 @@ export type AgentList = {
 };
 
 export type ScheduleWire = ScheduleSummary;
+
+/** One entry of `GET /components`: a background job or a channel with its last pass times (ISO strings). */
+export type ComponentWire = ComponentView;
 
 export type KvEntry = { key: string; value: unknown };
 
@@ -118,6 +122,8 @@ export interface IApiClient {
     checkAuthorization(names?: readonly string[], token?: string): Promise<AuthorizationCheckView>;
     listAgents(): Promise<AgentList>;
     listSchedules(): Promise<ScheduleWire[]>;
+    /** `GET /components`: the app's jobs, then its channels with a status (403 without `chamvi_component_read`). */
+    listComponents(): Promise<ComponentWire[]>;
     listRuns(filter: RunListFilter): Promise<RunPage>;
     getRun(id: string): Promise<RunDetail>;
     cancelRun(id: string): Promise<void>;

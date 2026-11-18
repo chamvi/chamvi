@@ -5,4 +5,4 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export { KNOWLEDGE_MANAGED_POLL_MS, MANAGED_CONTENT_MAX_CHARS } from './constants.ts';
+export { KNOWLEDGE_MANAGED_COMPONENT_NAME, KNOWLEDGE_MANAGED_POLL_MS, MANAGED_CONTENT_MAX_CHARS } from './constants.ts';

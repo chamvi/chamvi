@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { ChannelContext, IEngine } from '@chamvi/core';
+import type { ChannelContext, ChannelStatus, IEngine } from '@chamvi/core';
 import type { CronChannelErrorContext } from '../channel/types.ts';
 
 export type SchedulerOptions = {
@@ -31,4 +31,6 @@ export interface IScheduler {
      * waits for ticks in flight (also of replaced and removed agents). Idempotent.
      */
     stop(): Promise<void>;
+    /** The components of the current agents' subscriptions, aggregated (aggregateStatus()). */
+    status(): ChannelStatus;
 }

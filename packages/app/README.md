@@ -179,11 +179,12 @@ Modules are orkos `IModule`s on an eldin container. The built-in ones are always
 | Module | Name | Entry | Does |
 |---|---|---|---|
 | `configModule()` | `chamvi:config` | `@chamvi/app` | reads the config, registers `CONFIG`, `CLOCK`, `LOGGER` |
-| `storeModule({ url?, dataSource? })` | `chamvi:store` | `@chamvi/app` | The database repositories over `DATABASE_URL` (migrated) or a given data source, else memory repositories on one registry (the connection fence reads the lock rows there). Registers `STORE_KIND` and each repository token (`RUN_REPOSITORY`, `STEP_REPOSITORY`, ..., `CONNECTION_REPOSITORY`, `CONVERSATION_REPOSITORY`). In the same setup step the app builds each service from the registered repositories and registers it under its token (`RUN_SERVICE`, ...; `CONNECTION_SERVICE` and `CONVERSATION_SERVICE` only while their repository is registered) and schedules the purge of the lock and idempotency services. A module of the same name that registers the repository tokens replaces it (a third-party store) |
+| `storeModule({ url?, dataSource? })` | `chamvi:store` | `@chamvi/app` | The database repositories over `DATABASE_URL` (migrated) or a given data source, else memory repositories on one registry (the connection fence reads the lock rows there). Registers `STORE_KIND` and each repository token (`RUN_REPOSITORY`, `STEP_REPOSITORY`, ..., `CONNECTION_REPOSITORY`, `CONVERSATION_REPOSITORY`). In the same setup step the app builds each service from the registered repositories and registers it under its token (`RUN_SERVICE`, ...; `CONNECTION_SERVICE` and `CONVERSATION_SERVICE` only while their repository is registered) and contributes the purge of the lock and idempotency services (the component `store-purge`). A module of the same name that registers the repository tokens replaces it (a third-party store) |
 | `databaseModule({ entities, migrations, migrationsDirectory, migrationsTableName, name?, env?, waitTimeoutMs?, schemas? })` | `chamvi:db:<name>` (default `chamvi:db:default`) | `@chamvi/app` | A database for the app's own tables, never chamvi's store: PostgreSQL on `DATABASE_URL` (the same database, its own tables and migrations table, migrated under the lock `chamvi:db:<name>` at start with `CHAMVI_MIGRATE` and in `chamvi migrate`; a check writes nothing), else SQLite in memory through `better-sqlite3` (synchronized, lost on a restart, refused with `NODE_ENV=production`; work waiting `waitTimeoutMs`, default 30 s, behind one holder of its one connection is refused with `DatabaseBusyError`). The name `store` is reserved for `chamvi migration --database store`. Registers the data source under `dataSourceToken(name)` (`DatabaseToken.DATA_SOURCE` for `default`) and its descriptor under `DatabaseToken.DESCRIPTORS`; closed after the engine drained. `readDatabaseDescriptors(app)` lists an app's databases without connecting. `schemas` (list schemas, `defineSchema({ entity, ... })`) are checked against the entities after connecting and before migrating or serving: a name the entity lacks fails the start (also a check) with `InvalidAgentDefinitionError` naming the database, the schema and the name |
 | `staticTokensModule({ tokens? })` | `chamvi:static-tokens` | `@chamvi/app` | the static-token authenticator from `CHAMVI_TOKENS` |
 | `engineModule({ owner?, claimTtlMs? })` | `chamvi:engine` | `@chamvi/app` | checks the model strings, builds the `Engine` with every contributed channel (`CHANNELS`) and starts it (which starts the channels) |
 | `schedulerModule({ owner?, lockTtlMs? })` | `chamvi:scheduler` | `@chamvi/app` | the `cron` channel (`cronChannel()` of `@chamvi/channel-cron`; in start mode it fires only with `CHAMVI_SCHEDULER`) |
+| `componentsModule()` | `chamvi:components` | `@chamvi/app` | runs every `AppToken.COMPONENTS` contribution (`{ name, component }`, a hubwire component) as one group in start mode outside a check: started after `engine.start()` and before the `started` hooks, stopped first in the shutdown within `CHAMVI_DRAIN_TIMEOUT_MS`; `GET /components` lists them |
 | `httpModule()` | `chamvi:http` | `@chamvi/app` | the `http`, `mcp` and `webhook` channels (webhooks authenticate with the app's authenticators), `createHttpApp()` mounting every contributed channel with an `in` at `/channels/<name>`, the graceful shutdown, listens last |
 | `consoleChannelModule({ name?, write? })` | `chamvi:console` (`chamvi:console:<name>` with a name) | `@chamvi/app` | `consoleChannel()` (name `console`, out only) |
 | `githubModule()` | `chamvi:github:<name>` | `@chamvi/github/module` | the GitHub App and its channel (`<name>`, default `github` or `channel.name` when set: signed deliveries at `/channels/<name>`, comments out); `injectGithubContext(ctx)` and `ctx.channels.findOne('github')` for tools |
@@ -201,13 +202,13 @@ Modules are orkos `IModule`s on an eldin container. The built-in ones are always
 2. store (and the migrations)
 3. every `onReady` (user modules included): the engine (with every contributed channel) and the HTTP app are built, nothing runs yet (a configuration error starts nothing)
 4. `engine.start()`: recovery, then every channel's `start()` (the cron schedule among them)
-5. the purge timer
+5. the components (the store purge, the agents dir watcher, contributed ones), then the `started` hooks
 6. `serve()` on `HOST`:`PORT`
 
 `stop()` (also during a start still setting up, which then never listens):
 
 1. `/readyz` answers 503, then `CHAMVI_READINESS_DELAY_MS`
-2. the purge timer stops
+2. the components stop (within `CHAMVI_DRAIN_TIMEOUT_MS`)
 3. the app's closers (SSE streams, MCP waits)
 4. `server.close()`
 5. `engine.drain()`: every channel's `stop()` first, then up to `CHAMVI_DRAIN_TIMEOUT_MS` for the runs

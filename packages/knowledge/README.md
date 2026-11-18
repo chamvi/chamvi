@@ -167,7 +167,7 @@ export default createApp({
 });
 ```
 
-The module checks its options when called, builds the knowledge in `setup` (a model that does not resolve fails the boot), provides it to the engine's tools and indexes once the app started, in `chamvi start` only: `run-job`, `start --check` and `migrate` never embed. Collections are declared at app level only; agents name the ones they may search. Without `repository` the vectors live in memory (warned outside dev): every restart re-embeds.
+The module checks its options when called, builds the knowledge in `setup` (a model that does not resolve fails the boot), provides it to the engine's tools and indexes once the app started (the managed poll runs as the app component `knowledge-managed`), in `chamvi start` only: `run-job`, `start --check` and `migrate` never embed. Collections are declared at app level only; agents name the ones they may search. Without `repository` the vectors live in memory (warned outside dev): every restart re-embeds.
 
 ## Sources
 

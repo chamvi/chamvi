@@ -133,6 +133,7 @@ new Engine({ channels: [cronChannel(), eu] /* ... */ });
 - **Never on start.** Starting or restarting a replica fires nothing; the first dispatch is at the next scheduled tick.
 - **No catch-up.** A tick that falls into a restart, or whose timer fires `lockTtlMs` or more late (a suspended process), is not fired later.
 - **Failures are reported, not thrown.** A failing lock store, overlap check or dispatch reaches `onError(error, { agent, subscription })`; the next tick runs normally.
+- **Status.** `status()` answers the latest `lastSuccessAt`, `lastErrorAt` and `lastRunAt` and the earliest `runningSince` (epoch ms) over the current subscriptions' components; `{}` before `start()` and after `stop()`. `@chamvi/http` lists it under `GET /components`.
 
 ## Overlap policies
 

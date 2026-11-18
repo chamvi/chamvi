@@ -34,8 +34,9 @@ const Permission: {
     TOOL_USE: 'chamvi_tool_use';
     KNOWLEDGE_READ: 'chamvi_knowledge_read';
     KNOWLEDGE_WRITE: 'chamvi_knowledge_write';
+    COMPONENT_READ: 'chamvi_component_read';
 };
-const PERMISSION_NAMES: readonly string[];                     // the thirteen, in this order
+const PERMISSION_NAMES: readonly string[];                     // the fourteen, in this order
 
 function isPermissionBinding(value: unknown): value is PermissionBinding;            // upstream's isPermissionPolicyBinding
 function isPermissionAuthorization(value: unknown): value is PermissionAuthorization; // shallow shape check

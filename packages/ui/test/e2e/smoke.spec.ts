@@ -162,7 +162,7 @@ test('fonts are self-hosted, dark mode applies and phones get no sideways scroll
     await page.goto('');
     await signIn(page);
 
-    for (const path of ['agents', 'agents/deploy', 'runs', 'approvals', 'schedules']) {
+    for (const path of ['agents', 'agents/deploy', 'runs', 'approvals', 'schedules', 'components']) {
         await page.goto(path);
         await page.evaluate(() => document.fonts.ready);
         expect(await page.evaluate(() => document.documentElement.scrollWidth), path).toBeLessThanOrEqual(390);
@@ -174,6 +174,23 @@ test('fonts are self-hosted, dark mode applies and phones get no sideways scroll
     expect(await page.evaluate(() => getComputedStyle(document.body).backgroundColor)).toBe('rgb(7, 17, 25)');
     expect(fonts.length).toBeGreaterThan(0);
     expect(fonts.every((url) => url.startsWith(E2E_ORIGIN))).toBe(true);
+    expect(errors).toEqual([]);
+});
+
+test('the components page lists the cron channel and its status', async ({ page }) => {
+    const errors = watchErrors(page);
+
+    await page.goto('');
+    await signIn(page);
+    await page.locator('a[data-nav="components"]').click();
+    await expect(page.getByRole('heading', { name: 'Components' })).toBeVisible();
+    await expect(page.locator('a[data-nav="components"]')).toHaveAttribute('aria-current', 'page');
+
+    const cron = page.locator('tr[data-component="cron"]');
+
+    await expect(cron).toBeVisible();
+    await expect(cron.locator('.kind')).toHaveText('channel');
+    await expect(cron.getByTestId('component-status')).toHaveText(/^(idle|running|healthy|failing)$/);
     expect(errors).toEqual([]);
 });
 

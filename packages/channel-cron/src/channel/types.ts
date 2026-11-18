@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IChannel } from '@chamvi/core';
+import type { ChannelStatus, IChannel } from '@chamvi/core';
 import type { CronSubscriber } from '../subscription/types.ts';
 
 export type CronChannelErrorContext = {
@@ -32,5 +32,5 @@ export type CronChannelOptions = {
     onError?: (error: unknown, ctx: CronChannelErrorContext) => void;
 };
 
-/** The cron channel: background inbound only (no `in`, no `out`), with `on()` bound to its name. */
-export type CronChannel = IChannel & CronSubscriber;
+/** The cron channel: background inbound only (no `in`, no `out`), with `on()` bound to its name and a `status()`. */
+export type CronChannel = IChannel & CronSubscriber & { status(): ChannelStatus };

@@ -386,4 +386,30 @@ describe.skipIf(!document)('live responses against the openapi document', () => 
             await expectDocumented(app, ['DELETE', '/connections/{name}', `/connections/${name}`, 200, ADMIN_TOKEN]);
         });
     });
+
+    describe('the components', () => {
+        const at = Date.parse('2026-03-01T08:00:00.000Z');
+        const { app } = createTestApp({
+            engineChannels: [{ name: 'ticker', status: () => ({ runningSince: at }) }],
+            components: () => [
+                {
+                    name: 'store-purge',
+                    status: () => ({
+                        lastSuccessAt: at,
+                        lastErrorAt: at,
+                        lastRunAt: at,
+                    }),
+                },
+                { name: 'agents-watcher', status: () => ({}) },
+            ],
+        });
+
+        it.each<Probe>([
+            ['GET', '/components', '/components', 200, ADMIN_TOKEN],
+            ['GET', '/components', '/components', 403, READER_TOKEN],
+            ['GET', '/components', '/components', 401],
+        ])('%s %s (%s) answers %i as documented', async (...probe) => {
+            await expectDocumented(app, probe);
+        });
+    });
 });

@@ -12,7 +12,7 @@ import type { UiConfig } from '../config/types.ts';
 
 /** The line glyphs of the approved mockup. */
 export type IconName = 'agents' | 'runs' | 'approvals' | 'state' | 'schedules' | 'sun' | 'moon' | 'logout' |
-    'go' | 'back' | 'play' | 'lock' | 'hand' | 'check' | 'cross' | 'search' | 'connections';
+    'go' | 'back' | 'play' | 'lock' | 'hand' | 'check' | 'cross' | 'search' | 'connections' | 'components';
 
 export type MountPageOptions = {
     /**

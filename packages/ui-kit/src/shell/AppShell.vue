@@ -7,6 +7,7 @@
  */
 
 import { useColorMode } from '@vuecs/design';
+import { Permission } from '@chamvi/access';
 import { computed } from 'vue';
 import type { MeWire } from '../api/types.ts';
 import { useAppContext } from '../context/module.ts';
@@ -62,14 +63,29 @@ const items: ReadonlyArray<{
         icon: 'schedules', 
     },
     {
+        key: 'components',
+        label: 'Components',
+        icon: 'components',
+    },
+    {
         key: 'connections', 
         label: 'Connections', 
         icon: 'connections', 
     },
 ];
 
-// the page shows only when the app exposes a connection this principal may read
-const visible = computed(() => items.filter((item) => item.key !== 'connections' || connections.value.length > 0));
+// connections show only when the app exposes one this principal may read, components only to a principal allowed to list them
+const visible = computed(() => items.filter((item) => {
+    if (item.key === 'connections') {
+        return connections.value.length > 0;
+    }
+
+    if (item.key === 'components') {
+        return session.allowed(Permission.COMPONENT_READ);
+    }
+
+    return true;
+}));
 
 function follow(event: globalThis.MouseEvent, key: string): void {
     // a new tab or window stays the browser's

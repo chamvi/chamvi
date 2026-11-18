@@ -51,6 +51,7 @@ import type {
     IShutdown,
     UiPage,
 } from '@chamvi/http';
+import type { IComponent } from 'hubwire';
 import type { DataSource } from 'typeorm';
 import type { AppOptions } from '../app/types.ts';
 import type { AppConfig } from '../config/types.ts';
@@ -148,6 +149,18 @@ export interface ILifecycleHook {
     /** After the engine drained (start, job and a check; also when the drain failed), before the store closes. */
     drained?(): void | Promise<void>;
 }
+
+/**
+ * A background job a module contributes to `AppToken.COMPONENTS` (a hubwire
+ * component): the components module starts it in start mode (never in a
+ * check, a job or a migration) and stops it in the `stopping` phase (its
+ * hook runs in setup order among the others), before the engine drains.
+ */
+export type AppComponent = {
+    /** Unique among the app's components; lower-kebab, at most 64 characters (the agent name rule). */
+    name: string;
+    component: IComponent;
+};
 
 export type LifecyclePhase = 'engineCreated' | 'started' | 'stopping' | 'drained';
 
@@ -274,6 +287,16 @@ export type AppTokens = {
     /** A collection: the channels modules contribute (`registerMany` in `setup`). */
     CHANNELS: IChannel<any, any>;
     LIFECYCLE_HOOKS: ILifecycleHook;
+    /**
+     * A collection: the background jobs modules contribute (`registerMany` in
+     * `setup`); the components module runs them in start mode.
+     */
+    COMPONENTS: AppComponent;
+    /**
+     * The components the components module runs, in start order (start mode
+     * outside a check, from its `onReady` on); each answers its `status()`.
+     */
+    COMPONENT_LIST: readonly AppComponent[];
     /** The agents dir's and agent packages' load issues (`chamvi:agents`, when a dir or a package is configured), at the time of the call. */
     AGENT_ISSUES: () => readonly AgentIssue[];
     /** A collection: every module's check of a folder agent before it is registered. */

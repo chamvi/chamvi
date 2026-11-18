@@ -434,6 +434,12 @@ table.t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 
 .u-completed { --c: var(--ch-ok); }
 .u-accent { --c: var(--ch-accent); }
 .when { font-size: 12.5px; color: var(--ch-muted); white-space: nowrap; }
+.when[title] { cursor: help; text-decoration: underline dotted color-mix(in srgb, var(--ch-muted) 40%, transparent); text-underline-offset: 3px; }
+.when-fail { color: var(--ch-ink); }
+.when-fail::before { content: ""; display: inline-block; width: 6px; height: 6px; margin-right: 7px; background: var(--ch-fail); transform: translateY(-1px) rotate(45deg); }
+.comp-name { font: 500 13px var(--ch-font-mono); color: var(--ch-ink); }
+.comp-name + .kind { margin-left: 6px; }
+.t tr.kind-break td { border-top: 1px solid var(--ch-line-strong); }
 .pager { display: flex; flex-wrap: wrap; gap: 8px; justify-content: space-between; align-items: center; padding: 10px 14px; font-size: 12.5px; color: var(--ch-muted); border-top: 1px solid var(--ch-line); background: var(--ch-sunken); }
 .pager .vc-pagination { display: flex; flex-wrap: wrap; gap: 4px; list-style: none; margin: 0; padding: 0; }
 .pager .vc-pagination-link { display: inline-grid; place-items: center; min-width: 28px; height: 28px; padding: 0 6px; border: 1px solid transparent; background: transparent; border-radius: var(--ch-radius-sm); cursor: pointer; font: 400 12px var(--ch-font-mono); color: var(--ch-muted); }
@@ -515,6 +521,7 @@ table.t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: 
 .step-sum .meta { margin-left: auto; font: 400 11.5px var(--ch-font-mono); color: var(--ch-muted); white-space: nowrap; }
 .kind { font: 500 10px/18px var(--ch-font-mono); text-transform: uppercase; letter-spacing: .1em; padding: 0 6px; border-radius: var(--ch-radius-sm); color: var(--ch-muted); background: var(--ch-sunken); box-shadow: inset 0 0 0 1px var(--ch-line); }
 .kind-llm { color: var(--ch-accent-text); background: var(--ch-accent-tint); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ch-accent) 25%, transparent); }
+.kind-channel { color: var(--ch-accent-text); background: var(--ch-accent-tint); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ch-accent) 25%, transparent); }
 .kind-wait { color: var(--ch-wait); background: var(--ch-wait-tint); box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--ch-wait) 30%, transparent); }
 .kind-trigger { box-shadow: none; outline: 1px dashed var(--ch-line-strong); outline-offset: -1px; background: transparent; }
 .step-body { padding: 14px; display: grid; gap: 8px; background: var(--ch-sunken); min-width: 0; }

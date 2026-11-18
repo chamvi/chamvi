@@ -150,6 +150,20 @@ describe('channels on the engine', () => {
         expect(ok.getAgent('digest')).toBe(subscribed);
     });
 
+    it('status() is optional: a channel with and one without it register, start and stop alike', async () => {
+        const log: string[] = [];
+        const reporting = recording('a', log, { status: () => ({ lastSuccessAt: 1_000, runningSince: 2_000 }) });
+        const plain = recording('b', log);
+        const engine = make({ channels: [reporting, plain] });
+
+        await engine.start();
+        await engine.drain();
+
+        expect(log).toEqual(['start:a', 'start:b', 'stop:a', 'stop:b']);
+        expect(engine.getChannel('a')?.status?.()).toEqual({ lastSuccessAt: 1_000, runningSince: 2_000 });
+        expect(engine.getChannel('b')?.status).toBeUndefined();
+    });
+
     it('start() starts every channel after recover, start({ channels: false }) starts none', async () => {
         const log: string[] = [];
         const engine = make({ channels: [recording('a', log), recording('b', log)] });

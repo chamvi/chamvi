@@ -7,6 +7,7 @@
 
 import type { Agent, IClock, IEngine } from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/http';
+import type { IScheduledComponent } from 'hubwire';
 import type { ILogger } from '../../logger/types.ts';
 import type { AgentCheck } from '../../module/types.ts';
 
@@ -70,12 +71,14 @@ export interface IAgentsWatcher {
      * checks and failed skill preparations are issues; store failures throw.
      */
     boot(): Promise<void>;
-    /** Polls every `pollMs` until stopped; idempotent, a no-op once stopped. */
-    start(): void;
-    /** Idempotent: no further poll; resolves once the poll in flight (a reload included) settled. */
-    stop(): Promise<void>;
-    /** Resolves once the poll in flight, if any, settled. */
-    idle(): Promise<void>;
+    /**
+     * The polls (`agents-watcher`): every `pollMs` from `start()` on, the
+     * first one interval after it; `stop()` ends them, `settled()` resolves
+     * once the poll in flight (a reload included) settled. Started by the
+     * components module (start mode outside a check), never after a role
+     * other than `start`.
+     */
+    readonly component: IScheduledComponent;
     /**
      * The issue message of a job-role revision conflict of `name` (its stored
      * marker differs while it has unsettled runs), else undefined.
@@ -136,11 +139,14 @@ export interface IPackageAgents {
      * even when it failed.
      */
     boot(): Promise<void>;
-    /** Retries failed skill preparations every `pollMs` (capped backoff) until stopped. */
-    start(): void;
-    /** Idempotent: no further retry; resolves once the retry in flight settled. */
-    stop(): Promise<void>;
-    idle(): Promise<void>;
+    /**
+     * The retries of failed skill preparations (`agents-packages`, capped
+     * backoff on poll ticks): from `start()` on while a retry is pending, no
+     * timer armed while none is; `stop()` ends them, `settled()` resolves once
+     * the retry in flight settled. Started by the components module (start
+     * mode outside a check).
+     */
+    readonly component: IScheduledComponent;
     /** The names the package agents claimed, each with the issue message of a folder of that name. */
     reserved(): ReadonlyMap<string, string>;
     /** The specifiers that failed before their agents were known (resolve, import, export shape). */
@@ -150,4 +156,31 @@ export interface IPackageAgents {
     /** The issue of a package agent `name` that is not registered, with the error behind it, else undefined. */
     failure(name: string): { message: string; error?: unknown } | undefined;
     issues(): AgentIssue[];
+}
+
+/** A pending retry: due at `at` (epoch ms), after a wait of `delay` (the next wait doubles it). */
+export type RetryEntry = {
+    delay: number;
+    at: number;
+};
+
+export type RetryLoopOptions = {
+    /** The component's name. */
+    name: string;
+    clock: IClock;
+    pollMs: number;
+    logger: ILogger;
+    /** Retries the entry `name`; it deletes or re-sets the entry itself. A rejection is logged and fails the pass. */
+    retry(name: string): Promise<void>;
+};
+
+export interface IRetryLoop {
+    /** Runs the due retries on poll ticks while any is pending (see `createRetryLoop`). */
+    readonly component: IScheduledComponent;
+    get(name: string): RetryEntry | undefined;
+    /** Adds or replaces a retry; starts the loop again when the component is started. */
+    set(name: string, entry: RetryEntry): void;
+    delete(name: string): boolean;
+    /** Whether the component was stopped (and not started again since). */
+    stopped(): boolean;
 }

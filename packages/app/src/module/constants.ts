@@ -14,9 +14,9 @@ function token<K extends keyof AppTokens>(key: K): TypedToken<AppTokens[K]> {
 
 /**
  * The container keys modules share. `HTTP_ROUTES`, `HTTP_CONTROLLERS`,
- * `OPENAPI_DOCUMENTS`, `AUTHENTICATORS`, `CHANNELS`, `CONNECTIONS`,
- * `CONNECTION_TYPES`, `UI_PAGES`, `LIFECYCLE_HOOKS`, `AGENT_CHECKS` and
- * `GIT_CREDENTIALS` are collections (`registerMany` in `setup`, `resolveAll`
+ * `OPENAPI_DOCUMENTS`, `AUTHENTICATORS`, `CHANNELS`, `COMPONENTS`,
+ * `CONNECTIONS`, `CONNECTION_TYPES`, `UI_PAGES`, `LIFECYCLE_HOOKS`,
+ * `AGENT_CHECKS` and `GIT_CREDENTIALS` are collections (`registerMany` in `setup`, `resolveAll`
  * in `onReady`); every other token holds one value.
  */
 export const AppToken = {
@@ -58,6 +58,8 @@ export const AppToken = {
     OPENAPI_DOCUMENTS: token('OPENAPI_DOCUMENTS'),
     AUTHENTICATORS: token('AUTHENTICATORS'),
     CHANNELS: token('CHANNELS'),
+    COMPONENTS: token('COMPONENTS'),
+    COMPONENT_LIST: token('COMPONENT_LIST'),
     LIFECYCLE_HOOKS: token('LIFECYCLE_HOOKS'),
     AGENT_ISSUES: token('AGENT_ISSUES'),
     AGENT_CHECKS: token('AGENT_CHECKS'),
@@ -72,7 +74,7 @@ export const AppToken = {
 
 /**
  * The built-in modules' names; list a module of the same name to replace one.
- * `CONSOLE` names the optional `consoleChannelModule()`, `UI` the dashboard's
+ * `COMPONENTS` runs the contributed components. `CONSOLE` names the optional `consoleChannelModule()`, `UI` the dashboard's
  * `uiModule()` of `@chamvi/ui/module`.
  */
 export const ModuleName = {
@@ -82,6 +84,7 @@ export const ModuleName = {
     ENGINE: 'chamvi:engine',
     AGENTS: 'chamvi:agents',
     SCHEDULER: 'chamvi:scheduler',
+    COMPONENTS: 'chamvi:components',
     HTTP: 'chamvi:http',
     CONSOLE: 'chamvi:console',
     UI: 'chamvi:ui',

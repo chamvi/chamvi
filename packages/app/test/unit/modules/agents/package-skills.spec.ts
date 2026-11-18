@@ -13,6 +13,7 @@ import {
     expect,
     it,
 } from 'vitest';
+import { AppToken } from '@chamvi/app';
 import { POLL_MS, buildAgentsDirHarness } from '../../../utils/agents-dir.ts';
 import { createTempDir, writeTree } from '../../../utils/folder.ts';
 import type { Harness } from '../../../utils/harness.ts';
@@ -37,7 +38,11 @@ afterEach(async () => {
 });
 
 /** The `skilled` package's agent prepares skills through `prepare`; `plain` loads natively. */
-function build(prepare: () => Promise<void>, options: { mode?: 'start' | 'job'; job?: { agent: string } } = {}) {
+function build(prepare: () => Promise<void>, options: {
+    mode?: 'start' | 'job'; 
+    job?: { agent: string }; 
+    check?: boolean 
+} = {}) {
     // prepares only the agents holding this input (a shared fake runtime would fail every preparation)
     const input = {
         prepare,
@@ -172,5 +177,51 @@ describe('package agent skill preparation', () => {
             code: 'package_agent_failed',
             message: 'skilled (skilled): down',
         });
+    });
+
+    it('retries as the component agents-packages, which runs no pass once every package loaded', async () => {
+        let attempts = 0;
+        let ready = false;
+        const setup = build(async () => {
+            attempts++;
+
+            if (!ready) {
+                throw new Error('skill source unavailable');
+            }
+        });
+
+        await setup.harness.setup();
+
+        const entry = setup.harness.container.resolveAll(AppToken.COMPONENTS).find((component) => component.name === 'agents-packages');
+
+        expect(entry).toBeDefined();
+
+        const retries = entry!.component;
+
+        ready = true;
+        await setup.poll();
+        await setup.poll();
+        expect(attempts).toBe(2);
+        expect(retries.status().lastSuccessAt).toBe(setup.clock.now());
+
+        const last = retries.status().lastRunAt;
+
+        for (let i = 0; i < 10; i++) {
+            await setup.poll();
+        }
+
+        expect(retries.status().lastRunAt).toBe(last);
+        expect(attempts).toBe(2);
+    });
+
+    it.each([
+        ['job', { mode: 'job' as const, job: { agent: 'plain' } }],
+        ['check', { check: true }],
+    ])('is no component in a %s', async (_, options) => {
+        const setup = build(async () => {}, options);
+
+        await setup.harness.setup();
+
+        expect(setup.harness.container.resolveAll(AppToken.COMPONENTS).map((component) => component.name)).not.toContain('agents-packages');
     });
 });

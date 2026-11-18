@@ -32,6 +32,7 @@ import {
     AppToken,
     ModuleName,
     agentsModule,
+    componentsModule,
     configModule,
     createApp,
     engineModule,
@@ -132,6 +133,8 @@ function build(options: {
             storeModuleOf(store),
             engineModule(),
             module,
+            // starts the watcher's polls in its start step (after the engine's), stops them on stopping and teardown
+            componentsModule(),
         ],
     });
 

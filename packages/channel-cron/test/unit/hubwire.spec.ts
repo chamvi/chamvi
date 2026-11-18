@@ -17,11 +17,14 @@ import {
     vi,
 } from 'vitest';
 import { cron } from '@chamvi/channel-cron';
+import { ControllableClock } from '@chamvi/test-kit';
+import { advance } from '../utils/clock.ts';
 
-// pins the upstream contract @chamvi/channel-cron relies on (hubwire 0.2.2)
+// pins the upstream contract @chamvi/channel-cron relies on (hubwire 0.2.3)
 describe('hubwire scheduled component', () => {
     let components: IScheduledComponent[] = [];
     let lock: MemoryScheduleLock;
+    let clock: ControllableClock;
 
     const run = vi.fn<(ctx: ScheduledComponentRunContext) => Promise<void>>(async () => {});
 
@@ -33,19 +36,19 @@ describe('hubwire scheduled component', () => {
     };
 
     beforeEach(() => {
-        vi.useFakeTimers({ now: new Date('2026-03-01T07:59:30Z') });
-        lock = new MemoryScheduleLock();
+        clock = new ControllableClock(new Date('2026-03-01T07:59:30Z'));
+        lock = new MemoryScheduleLock({ clock });
         run.mockClear();
     });
 
     afterEach(async () => {
         await Promise.all(components.map((c) => c.stop()));
         components = [];
-        vi.useRealTimers();
     });
 
     it('two components sharing a lock run once per tick', async () => {
         const options = {
+            clock,
             name: 'job',
             schedule: '* * * * *',
             lock,
@@ -56,7 +59,7 @@ describe('hubwire scheduled component', () => {
         await start(defineScheduledComponent(options));
         await start(defineScheduledComponent(options));
 
-        await vi.advanceTimersByTimeAsync(60_000);
+        await advance(clock, 60_000);
 
         expect(run).toHaveBeenCalledTimes(1);
         expect(lock.acquired.map((a) => a.key)).toEqual(['job:2026-03-01T08:00:00.000Z']);
@@ -64,13 +67,14 @@ describe('hubwire scheduled component', () => {
 
     it('passes the scheduled fire time', async () => {
         await start(defineScheduledComponent({
+            clock,
             name: 'job',
             schedule: '* * * * *',
             lock,
             run,
         }));
 
-        await vi.advanceTimersByTimeAsync(60_000);
+        await advance(clock, 60_000);
 
         expect(run).toHaveBeenCalledTimes(1);
         expect(run.mock.calls[0]?.[0].scheduledAt.toISOString()).toBe('2026-03-01T08:00:00.000Z');
@@ -78,6 +82,7 @@ describe('hubwire scheduled component', () => {
 
     it('does not run on start with a lock', async () => {
         await start(defineScheduledComponent({
+            clock,
             name: 'job',
             schedule: '0 0 1 1 *',
             lock,
@@ -92,6 +97,7 @@ describe('hubwire scheduled component', () => {
         const utc = vi.fn<(ctx: ScheduledComponentRunContext) => Promise<void>>(async () => {});
 
         await start(defineScheduledComponent({
+            clock,
             name: 'berlin',
             schedule: '0 9 * * *',
             timezone: 'Europe/Berlin',
@@ -99,6 +105,7 @@ describe('hubwire scheduled component', () => {
             run: berlin,
         }));
         await start(defineScheduledComponent({
+            clock,
             name: 'utc',
             schedule: '0 9 * * *',
             timezone: 'UTC',
@@ -106,7 +113,7 @@ describe('hubwire scheduled component', () => {
             run: utc,
         }));
 
-        await vi.advanceTimersByTimeAsync(60_000);
+        await advance(clock, 60_000);
 
         expect(berlin).toHaveBeenCalledTimes(1);
         expect(berlin.mock.calls[0]?.[0].scheduledAt.toISOString()).toBe('2026-03-01T08:00:00.000Z');
@@ -121,6 +128,7 @@ describe('hubwire scheduled component', () => {
         const onError = vi.fn();
 
         await start(defineScheduledComponent({
+            clock,
             name: 'job',
             schedule: '* * * * *',
             lock,
@@ -128,9 +136,9 @@ describe('hubwire scheduled component', () => {
             hooks: { onError },
         }));
 
-        await vi.advanceTimersByTimeAsync(60_000);
+        await advance(clock, 60_000);
 
-        expect(onError).toHaveBeenCalledWith(error);
+        expect(onError).toHaveBeenCalledWith(error, { scheduledAt: new Date('2026-03-01T08:00:00.000Z'), name: 'job' });
         expect(run).not.toHaveBeenCalled();
     });
 
@@ -140,6 +148,7 @@ describe('hubwire scheduled component', () => {
         const onSkip = vi.fn();
 
         await start(defineScheduledComponent({
+            clock,
             name: 'job',
             schedule: '* * * * *',
             lock,
@@ -147,11 +156,12 @@ describe('hubwire scheduled component', () => {
             hooks: { onSkip },
         }));
 
-        await vi.advanceTimersByTimeAsync(60_000);
+        await advance(clock, 60_000);
 
         expect(run).not.toHaveBeenCalled();
         expect(onSkip).toHaveBeenCalledTimes(1);
         expect((onSkip.mock.calls[0]?.[0] as Date).toISOString()).toBe('2026-03-01T08:00:00.000Z');
+        expect(onSkip.mock.calls[0]?.[1]).toMatchObject({ name: 'job', reason: 'locked' });
     });
 
     it('rejects an invalid timezone at definition', () => {
@@ -172,6 +182,7 @@ describe('hubwire scheduled component', () => {
 
     it('rejects a non-positive lockTtlMs', () => {
         expect(() => defineScheduledComponent({
+            clock,
             name: 'job',
             schedule: '* * * * *',
             lock,
@@ -181,8 +192,10 @@ describe('hubwire scheduled component', () => {
     });
 
     it('fires once at a doubled local time', async () => {
-        vi.setSystemTime(new Date('2026-10-24T23:59:30Z'));
+        clock = new ControllableClock(new Date('2026-10-24T23:59:30Z'));
+        lock = new MemoryScheduleLock({ clock });
         await start(defineScheduledComponent({
+            clock,
             name: 'job',
             schedule: '0 2 * * *',
             timezone: 'Europe/Berlin',
@@ -190,14 +203,16 @@ describe('hubwire scheduled component', () => {
             run,
         }));
 
-        await vi.advanceTimersByTimeAsync(2 * 3_600_000);
+        await advance(clock, 2 * 3_600_000);
 
         expect(run.mock.calls.map(([ctx]) => ctx.scheduledAt.toISOString())).toEqual(['2026-10-25T00:00:00.000Z']);
     });
 
     it('fires a skipped local time an hour later', async () => {
-        vi.setSystemTime(new Date('2026-03-28T23:59:30Z'));
+        clock = new ControllableClock(new Date('2026-03-28T23:59:30Z'));
+        lock = new MemoryScheduleLock({ clock });
         await start(defineScheduledComponent({
+            clock,
             name: 'job',
             schedule: '30 2 * * *',
             timezone: 'Europe/Berlin',
@@ -205,7 +220,7 @@ describe('hubwire scheduled component', () => {
             run,
         }));
 
-        await vi.advanceTimersByTimeAsync(2 * 3_600_000);
+        await advance(clock, 2 * 3_600_000);
 
         expect(run.mock.calls.map(([ctx]) => ctx.scheduledAt.toISOString())).toEqual(['2026-03-29T01:30:00.000Z']);
     });

@@ -59,6 +59,8 @@ describe('public api', () => {
         'engineModule',
         'agentsModule',
         'schedulerModule',
+        'componentsModule',
+        'ComponentsModule',
         'httpModule',
         // a database for an app's own tables
         'databaseModule',
@@ -167,6 +169,8 @@ describe('public api', () => {
             'CHECKPOINT_REPOSITORY',
             'CHECKPOINT_SERVICE',
             'CLOCK',
+            'COMPONENTS',
+            'COMPONENT_LIST',
             'CONFIG',
             'CONNECTIONS',
             'CONNECTION_CONFIGS',
@@ -215,6 +219,7 @@ describe('public api', () => {
             ENGINE: 'chamvi:engine',
             AGENTS: 'chamvi:agents',
             SCHEDULER: 'chamvi:scheduler',
+            COMPONENTS: 'chamvi:components',
             HTTP: 'chamvi:http',
             CONSOLE: 'chamvi:console',
             UI: 'chamvi:ui',
@@ -262,7 +267,7 @@ describe('public api', () => {
 
     it('exports the permission names of @chamvi/access', () => {
         expect(app.Permission.AGENT_READ).toBe('chamvi_agent_read');
-        expect(app.PERMISSION_NAMES).toHaveLength(13);
+        expect(app.PERMISSION_NAMES).toHaveLength(14);
         expectTypeOf<app.PermissionBinding>().toEqualTypeOf<PermissionBinding>();
     });
 

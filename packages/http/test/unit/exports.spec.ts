@@ -12,6 +12,7 @@ import {
     it,
 } from 'vitest';
 import type { PermissionAuthorization, PermissionBinding, PermissionIdentity } from '@chamvi/access';
+import type { ChannelStatus } from '@chamvi/core';
 import * as http from '@chamvi/http';
 import type { swaggerUI } from '@routup/swagger-ui';
 
@@ -150,5 +151,20 @@ describe('public api', () => {
             reason?: string;
             selected?: string[];
         }>();
+    });
+
+    it('exports the HttpComponent, ComponentView and ComponentListView types', () => {
+        expectTypeOf<http.HttpComponent['name']>().toEqualTypeOf<string>();
+        expectTypeOf<ReturnType<http.HttpComponent['status']>>().toEqualTypeOf<ChannelStatus>();
+        expectTypeOf<http.HttpAppOptions['components']>().toEqualTypeOf<(() => readonly http.HttpComponent[]) | undefined>();
+        expectTypeOf<http.ComponentView>().toEqualTypeOf<{
+            name: string;
+            kind: 'job' | 'channel';
+            lastSuccessAt?: string;
+            lastErrorAt?: string;
+            lastRunAt?: string;
+            runningSince?: string;
+        }>();
+        expectTypeOf<http.ComponentListView>().toEqualTypeOf<{ data: http.ComponentView[] }>();
     });
 });

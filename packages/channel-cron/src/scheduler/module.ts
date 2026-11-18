@@ -13,7 +13,12 @@ import { CRON_CHANNEL_NAME } from '../channel/constants.ts';
 import { createRepositoryScheduleLock } from '../lock/index.ts';
 import { readCronOptions } from '../tick/index.ts';
 import { SCHEDULE_LOCK_TTL_MS } from './constants.ts';
-import { buildAgentComponents, cronSubscriptionsOf, toDefinitionError } from './helpers.ts';
+import {
+    aggregateStatus,
+    buildAgentComponents,
+    cronSubscriptionsOf,
+    toDefinitionError,
+} from './helpers.ts';
 import type { IScheduler, SchedulerOptions } from './types.ts';
 
 /**
@@ -146,6 +151,9 @@ export function createScheduler(opts: SchedulerOptions): IScheduler {
 
             await Promise.all(components.map((c) => c.stop()));
             await Promise.all([...components.map((c) => c.settled()), ...pending]);
+        },
+        status() {
+            return aggregateStatus(all().map((c) => c.status()));
         },
     };
 }

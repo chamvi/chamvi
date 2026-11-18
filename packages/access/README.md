@@ -84,6 +84,7 @@ Any name is checkable (an app may check its own, such as `release_manage`). Thes
 | `chamvi_tool_use` | `agent`, `name` (the tool) |
 | `chamvi_knowledge_read` | `name` (the collection) |
 | `chamvi_knowledge_write` | `name` (the collection) |
+| `chamvi_component_read` | none |
 
 `allPermissions()` returns one unrestricted binding per name, `permissionNames(holder)` the distinct names of the holder's bindings and of its snapshot's grants (for display; a grant may still be restricted) and `isPermissionBinding(value)` tells a binding from anything else (upstream's `isPermissionPolicyBinding`) and `isPermissionAuthorization(value)` checks the shape of an `authorization` (shallow: the evaluator validates the trees).
 

@@ -5,15 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Agent, ClockTimer } from '@chamvi/core';
+import type { Agent } from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/http';
 import { messageOf, relativize } from '../../loader/helpers.ts';
 import { isDevMarkerOf } from '../../package/helpers.ts';
 import { loadAgentPackage } from '../../package/module.ts';
 import type { LoadedPackage } from '../../package/types.ts';
-import { JOB_CONFLICT_HINT } from './constants.ts';
+import { AGENT_PACKAGES_COMPONENT_NAME, JOB_CONFLICT_HINT } from './constants.ts';
 import { nextRetryDelay } from './helpers.ts';
 import { registerAgent } from './register.ts';
+import { createRetryLoop } from './retry.ts';
 import type { IPackageAgents, PackageAgentsOptions } from './types.ts';
 
 type Claim = {
@@ -31,7 +32,7 @@ type Claim = {
  * of the same version (`<name>@<version>+<hash>`), in dev the version
  * marker, is moved without a cancel. Static failures are recorded once;
  * failed skill preparations retry with the folder watcher's capped backoff
- * from `start()` until `stop()`.
+ * on poll ticks, as the component `agents-packages` (`createRetryLoop`).
  */
 export function createPackageAgents(options: PackageAgentsOptions): IPackageAgents {
     const {
@@ -55,12 +56,14 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
     const claims = new Map<string, Claim>();
     const unresolved: string[] = [];
     const conflicts = new Map<string, string>();
-    const retries = new Map<string, { delay: number; at: number }>();
-
-    let timer: ClockTimer | undefined;
-    let started = false;
-    let stopped = false;
-    let inFlight: Promise<void> | undefined;
+    const retries = createRetryLoop({
+        name: AGENT_PACKAGES_COMPONENT_NAME,
+        clock,
+        pollMs,
+        logger,
+        // called by a pass only, once boot() defined every claim
+        retry: (name) => attempt(name, claims.get(name)!),
+    });
 
     const record = (key: string, agent: string, message: string, error?: unknown) => {
         issues.set(key, {
@@ -122,7 +125,7 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
             return;
         }
 
-        if (stopped || signal?.aborted) {
+        if (retries.stopped() || signal?.aborted) {
             throw outcome.error;
         }
 
@@ -130,46 +133,6 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
 
         retries.set(name, { delay, at: clock.now() + delay });
         record(name, name, `${name} (${spec}): ${relativize(messageOf(outcome.error), cwd)}`, outcome.error);
-    };
-
-    const retryDue = async (): Promise<void> => {
-        const now = clock.now();
-
-        for (const [name, retry] of [...retries]) {
-            if (stopped) {
-                return;
-            }
-
-            if (now < retry.at) {
-                continue;
-            }
-
-            try {
-                await attempt(name, claims.get(name)!);
-            } catch (error) {
-                // the store failed: retried on the next poll
-                logger.error('agent reload failed', error, { agent: name });
-            }
-        }
-    };
-
-    const arm = () => {
-        if (stopped || retries.size === 0) {
-            return;
-        }
-
-        timer = clock.setTimeout(() => {
-            timer = undefined;
-            inFlight = retryDue()
-                .catch((error: unknown) => {
-                    logger.error('agent packages retry failed', error);
-                })
-                .finally(() => {
-                    inFlight = undefined;
-                    arm();
-                });
-        }, pollMs);
-        timer.unref?.();
     };
 
     return {
@@ -222,23 +185,7 @@ export function createPackageAgents(options: PackageAgentsOptions): IPackageAgen
                 }
             }
         },
-        start() {
-            if (started || stopped) {
-                return;
-            }
-
-            started = true;
-            arm();
-        },
-        async stop() {
-            stopped = true;
-            timer?.clear();
-            timer = undefined;
-            await inFlight;
-        },
-        async idle() {
-            await inFlight;
-        },
+        component: retries.component,
         reserved() {
             return new Map([...claims].map(([name, claim]) => [
                 name,

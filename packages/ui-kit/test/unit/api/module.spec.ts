@@ -114,6 +114,32 @@ describe('createApiClient', () => {
         expect(requests[0]!.url).toBe('/api/runs/r1/artifacts');
     });
 
+    it('listComponents reads the jobs and channels of GET /components', async () => {
+        const components = [
+            {
+                name: 'store-purge',
+                kind: 'job',
+                lastSuccessAt: '2026-11-18T10:00:00.000Z',
+                lastRunAt: '2026-11-18T10:00:00.000Z',
+            },
+            {
+                name: 'cron',
+                kind: 'channel',
+                runningSince: '2026-11-18T09:00:00.000Z',
+            },
+        ];
+        const { fetch, requests } = createFakeFetch([json({ data: components })]);
+        const client = createApiClient({
+            apiBase: '/api',
+            token: async () => 'tok',
+            fetch,
+        });
+
+        expect(await client.listComponents()).toEqual(components);
+        expect(requests[0]!.url).toBe('/api/components');
+        expect(requests[0]!.headers.get('authorization')).toBe('Bearer tok');
+    });
+
     it('sends no authorization without a token', async () => {
         const { fetch, requests } = createFakeFetch([json({ data: [] })]);
         const client = createApiClient({

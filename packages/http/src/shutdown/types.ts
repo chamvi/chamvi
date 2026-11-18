@@ -26,8 +26,11 @@ export type ShutdownOptions = {
     server?: { close(closeActiveConnections?: boolean): Promise<void> };
     /** Time for load balancers to see the failing readiness. Default 0. */
     readinessDelayMs?: number;
-    /** Default 30 s. */
-    drainTimeoutMs?: number;
+    /**
+     * Default 30 s. A function is called when the drain begins, so the drain
+     * can get what remains of a budget earlier shutdown work shared.
+     */
+    drainTimeoutMs?: number | (() => number);
     /** Wait for open connections after the drain, then close them. Default 5 s. */
     closeTimeoutMs?: number;
     /** Default `console.error`. */

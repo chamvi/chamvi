@@ -20,6 +20,7 @@ export const Permission = {
     TOOL_USE: 'chamvi_tool_use',
     KNOWLEDGE_READ: 'chamvi_knowledge_read',
     KNOWLEDGE_WRITE: 'chamvi_knowledge_write',
+    COMPONENT_READ: 'chamvi_component_read',
 } as const;
 
 /** The values of `Permission`, in declaration order. */

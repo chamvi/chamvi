@@ -249,6 +249,10 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         throw new InvalidAgentDefinitionError('uiPages must be a function returning the pages.');
     }
 
+    if (options.components !== undefined && typeof options.components !== 'function') {
+        throw new InvalidAgentDefinitionError('components must be a function returning the components.');
+    }
+
     const routes = validateRoutes(options);
 
     validateControllers(options, routes);
@@ -281,6 +285,7 @@ export function buildContext(options: HttpAppOptions): HttpContext {
         ...(options.connectionConfigs && { connectionConfigs: options.connectionConfigs }),
         ...(options.engine.connectionService && { connectionService: options.engine.connectionService }),
         uiPages: options.uiPages ?? (() => []),
+        components: options.components ?? (() => []),
         // eslint-disable-next-line no-console
         onError: options.onError ?? ((error) => console.error('[chamvi]', error)),
     };

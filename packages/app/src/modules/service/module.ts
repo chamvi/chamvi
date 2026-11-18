@@ -22,9 +22,8 @@ import {
 import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { AppToken, ModuleName } from '../../module/constants.ts';
-import { PURGE_HOOK_NAME } from './constants.ts';
-import { createPurgeTimer } from './purge.ts';
-import type { IPurgeTimer } from './types.ts';
+import { PURGE_COMPONENT_NAME } from './constants.ts';
+import { createPurgeComponent } from './purge.ts';
 
 /** The repository tokens every store module registers (connections and conversations are optional). */
 const REQUIRED_REPOSITORIES = [
@@ -44,10 +43,12 @@ const REQUIRED_REPOSITORIES = [
  * Builds each service from the repository the store module registered
  * under its token, on the app clock, and registers it under its own token.
  * The connection and conversation services only when their repository is
- * registered. In start mode (not a check) it also registers the purge
- * timer of the lock and idempotency services, returned for the teardown.
+ * registered. In start mode (not a check) with a positive purge interval it
+ * also contributes the purge of the lock and idempotency services to
+ * `AppToken.COMPONENTS` (`store-purge`), which the components module starts
+ * and stops.
  */
-function registerServices(container: IContainer): IPurgeTimer | undefined {
+function registerServices(container: IContainer): void {
     const missing = REQUIRED_REPOSITORIES.filter((name) => !container.has(AppToken[name]));
 
     if (missing.length > 0) {
@@ -98,25 +99,20 @@ function registerServices(container: IContainer): IPurgeTimer | undefined {
     }
 
     if (context.mode !== 'start' || context.check || config.store.purgeIntervalMs <= 0) {
-        return undefined;
+        return;
     }
 
-    const purge = createPurgeTimer({
-        services: [lockService, idempotencyService],
-        clock,
-        intervalMs: config.store.purgeIntervalMs,
-        logger,
-    });
-
-    container.registerMany(AppToken.LIFECYCLE_HOOKS, {
+    container.registerMany(AppToken.COMPONENTS, {
         useValue: {
-            name: PURGE_HOOK_NAME,
-            started: () => purge.start(),
-            stopping: () => purge.stop(),
+            name: PURGE_COMPONENT_NAME,
+            component: createPurgeComponent({
+                services: [lockService, idempotencyService],
+                clock,
+                intervalMs: config.store.purgeIntervalMs,
+                logger,
+            }),
         },
     });
-
-    return purge;
 }
 
 /**
@@ -137,7 +133,6 @@ export function withServices(module: IModule): IModule {
         onReady,
         onError,
     } = module;
-    let purge: IPurgeTimer | undefined;
     // an error of building the services is the wrapper's, not the module's: its onError never sees it
     let failed: unknown;
 
@@ -149,7 +144,7 @@ export function withServices(module: IModule): IModule {
             await setup.call(module, container);
 
             try {
-                purge = registerServices(container);
+                registerServices(container);
             } catch (error) {
                 failed = error;
 
@@ -171,11 +166,8 @@ export function withServices(module: IModule): IModule {
                 }
             },
         }),
+        // the components module (torn down first: it depends on the store) stops the purge
         async teardown(container: IContainer) {
-            const running = purge;
-
-            purge = undefined;
-            await running?.stop();
             await teardown?.call(module, container);
         },
     };

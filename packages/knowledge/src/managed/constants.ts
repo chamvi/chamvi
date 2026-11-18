@@ -15,5 +15,8 @@ export const MANAGED_CONTENT_MAX_CHARS = 1_048_576;
  */
 export const KNOWLEDGE_MANAGED_POLL_MS = 60_000;
 
+/** The name of `IKnowledge.managedPoll`; `knowledgeModule()` contributes it under this name. */
+export const KNOWLEDGE_MANAGED_COMPONENT_NAME = 'knowledge-managed';
+
 /** Pending documents read per page of a managed pass. */
 export const MANAGED_PAGE_SIZE = 64;

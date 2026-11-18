@@ -14,6 +14,7 @@ interface IChannel<TInput = ChannelRequest, TOutput = Response> {
     stop?(): Promise<void>;
     in?(input: TInput, ctx: ChannelContext): Promise<TOutput>;  // HTTP: { request, subpath }, the raw Request and the raw subpath
     out?(message: ChannelMessage, address: string, opts: ChannelSendOptions): Promise<void>; // idempotent on message.key
+    status?(): ChannelStatus;                    // epoch ms times for GET /components; the engine never calls it
 }
 // Engine.channelContext(channel) binds dispatch and dispatchConversation to the exact registered channel.
 // ChannelMessage { kind: 'message' | 'approval', key, runId, agent, title?, body, approvalId?, expiresAt?, options?, multiple? }

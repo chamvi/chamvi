@@ -36,6 +36,7 @@ import {
 } from '@chamvi/channel-cron';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
 import { createScheduler } from '../../../src/scheduler/module.ts';
+import { advance } from '../../utils/clock.ts';
 import { mockModel } from '../../utils/model.ts';
 import type { MockResponse } from '../../utils/model.ts';
 
@@ -62,7 +63,6 @@ const engines: Engine[] = [];
 
 afterEach(async () => {
     await Promise.all(engines.splice(0).map((engine) => engine.stop()));
-    vi.useRealTimers();
 });
 
 type SetupOptions = {
@@ -71,11 +71,11 @@ type SetupOptions = {
     authorize?: (access: ConversationAccess) => boolean;
     conversation?: boolean;
     channels?: 'all' | 'cron';
-    clock?: ControllableClock | false;
+    clock?: ControllableClock;
 };
 
 function setup(opts: SetupOptions = {}) {
-    const clock = opts.clock === false ? undefined : (opts.clock ?? new ControllableClock(T));
+    const clock = opts.clock ?? new ControllableClock(T);
     const out = vi.fn<NonNullable<IChannel['out']>>(async () => {});
     const chat: IChannel = {
         name: 'chat',
@@ -120,7 +120,7 @@ function setup(opts: SetupOptions = {}) {
         onError: (e) => {
             errors.push(e);
         },
-        ...(clock ? { clock } : {}),
+        clock,
     });
 
     engines.push(engine);
@@ -288,9 +288,8 @@ describe('fireCronSubscription with a conversation', () => {
     });
 
     it('reports a refused dispatch to the scheduler onError', async () => {
-        vi.useFakeTimers({ now: new Date('2026-03-01T06:59:30Z') });
-
-        const s = setup({ authorize: () => false, clock: false });
+        const clock = new ControllableClock(new Date('2026-03-01T06:59:30Z'));
+        const s = setup({ authorize: () => false, clock });
         const onError = vi.fn();
         const scheduler = createScheduler({
             engine: s.engine,
@@ -301,7 +300,7 @@ describe('fireCronSubscription with a conversation', () => {
         await scheduler.start();
 
         try {
-            await vi.advanceTimersByTimeAsync(60_000);
+            await advance(clock, 60_000);
             expect(onError).toHaveBeenCalledWith(expect.any(ValidationError), { agent: 'briefer', subscription: 'briefing' });
             expect((await s.storage.runService.find({ agent: 'briefer' })).data).toHaveLength(0);
         } finally {

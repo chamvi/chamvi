@@ -92,6 +92,18 @@ describe('createShutdown', () => {
         expect(callback).toHaveBeenCalledTimes(1);
     });
 
+    it('reads a drainTimeoutMs function when the drain begins, after the callbacks', async () => {
+        let remaining = 30_000;
+        const ctx = setup({ drainTimeoutMs: () => remaining });
+
+        ctx.shutdown.onShutdown(() => {
+            remaining = 12_000;
+        });
+        await ctx.shutdown.shutdown();
+
+        expect(ctx.drain).toHaveBeenCalledWith({ timeoutMs: 12_000 });
+    });
+
     it('is idempotent', async () => {
         const ctx = setup();
         const first = ctx.shutdown.shutdown();

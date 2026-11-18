@@ -16,6 +16,7 @@ export const RouteName = {
     RUN: 'run',
     APPROVALS: 'approvals',
     SCHEDULES: 'schedules',
+    COMPONENTS: 'components',
     CONNECTIONS: 'connections',
     CONNECTION: 'connection',
 } as const;

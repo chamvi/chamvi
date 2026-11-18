@@ -43,15 +43,16 @@ An agent's `model` is optional: without one it uses the app's default (`CHAMVI_M
 
 ## Modules
 
-Modules are [orkos](https://github.com/tada5hi/orkos) `IModule`s on an [eldin](https://github.com/tada5hi/eldin) container, unwrapped. Seven built-in modules are always there; listing a module with a built-in's name (`ModuleName`) replaces it, which is also how you configure one (`storeModule({ dataSource })`, `httpModule({ cors })`). Two modules of one name, a built-in's included, throw `InvalidAgentDefinitionError` from `createApp`.
+Modules are [orkos](https://github.com/tada5hi/orkos) `IModule`s on an [eldin](https://github.com/tada5hi/eldin) container, unwrapped. Eight built-in modules are always there; listing a module with a built-in's name (`ModuleName`) replaces it, which is also how you configure one (`storeModule({ dataSource })`, `httpModule({ cors })`). Two modules of one name, a built-in's included, throw `InvalidAgentDefinitionError` from `createApp`.
 
 | Module | Does |
 |---|---|
 | `configModule()` | Reads every variable once ([environment](/reference/app#environment)) and registers the config, the clock and the JSON line logger |
-| `storeModule()` | The database repositories over `DATABASE_URL`, migrated unless `CHAMVI_MIGRATE=false`; without `DATABASE_URL` memory repositories (warned outside dev). The app builds every service from the registered repositories, plus hourly `purgeExpired()` of the lock and idempotency services (also on memory). A module of the same name that registers the repository tokens replaces it |
+| `storeModule()` | The database repositories over `DATABASE_URL`, migrated unless `CHAMVI_MIGRATE=false`; without `DATABASE_URL` memory repositories (warned outside dev). The app builds every service from the registered repositories, plus the `store-purge` component: hourly `purgeExpired()` of the lock and idempotency services (also on memory). A module of the same name that registers the repository tokens replaces it |
 | `staticTokensModule()` | The `staticTokens()` authenticator from `CHAMVI_TOKENS` |
 | `engineModule()` | Reads the [model settings](/guide/models) (env, `chamvi.json`, code) into the default model and the provider resolver, builds the `Engine` (which checks every agent's model) with every contributed channel (`AppToken.CHANNELS`) and starts it, which starts the channels |
-| `agentsModule()` | Loads the [agent packages](/guide/agent-packages) (createApp's specifiers, `chamvi.json`, `CHAMVI_AGENTS`) and the [agent folders](/guide/agent-folders) of `CHAMVI_AGENTS_DIR` (else `./agents` when it exists) before the engine starts and watches the folders; an app with no agent at all starts with a warning |
+| `agentsModule()` | Loads the [agent packages](/guide/agent-packages) (createApp's specifiers, `chamvi.json`, `CHAMVI_AGENTS`) and the [agent folders](/guide/agent-folders) of `CHAMVI_AGENTS_DIR` (else `./agents` when it exists) before the engine starts and watches the folders (the `agents-watcher` component; a package whose skill preparation failed retries in `agents-packages`); an app with no agent at all starts with a warning |
+| `componentsModule()` | Runs every [component](#background-components) (`AppToken.COMPONENTS`) in start mode, after the engine and before the server listens, and stops them in the `stopping` phase, before the drain |
 | `schedulerModule()` | The `cron` channel (`cronChannel()` from `@chamvi/channel-cron`); `CHAMVI_SCHEDULER=false` leaves firing to Kubernetes CronJobs and `chamvi run-job` (`cron.on()` subscriptions still validate) |
 | `httpModule()` | The `http`, `mcp` and `webhook` channels, `createHttpApp()` with every contributed route and authenticator, mounting every contributed channel with an `in` at `/channels/<name>`, the graceful shutdown, `serve()` on `HOST`:`PORT` |
 
@@ -83,10 +84,10 @@ With `CHAMVI_PUBLIC_URL` set, the GitHub and OpenClaw modules link approvals to 
 
 orkos sets every module up in dependency order, then calls every `onReady`. chamvi splits the work along that line:
 
-- In **`setup`**, a module registers what it contributes on the container's collection tokens: `AppToken.HTTP_ROUTES`, `HTTP_CONTROLLERS` and `OPENAPI_DOCUMENTS` ([Controllers](/guide/controllers)), `CHANNELS`, `AUTHENTICATORS` (with an `order`, lowest first), `LIFECYCLE_HOOKS` and `AGENT_CHECKS` (an `(agent) => void` that throws `InvalidAgentDefinitionError` for a folder agent the module could not serve, run before the agent is registered).
+- In **`setup`**, a module registers what it contributes on the container's collection tokens: `AppToken.HTTP_ROUTES`, `HTTP_CONTROLLERS` and `OPENAPI_DOCUMENTS` ([Controllers](/guide/controllers)), `CHANNELS`, `COMPONENTS` ([background components](#background-components)), `AUTHENTICATORS` (with an `order`, lowest first), `LIFECYCLE_HOOKS` and `AGENT_CHECKS` (an `(agent) => void` that throws `InvalidAgentDefinitionError` for a folder agent the module could not serve, run before the agent is registered).
 - In **`onReady`**, the consumers build: the engine module collects the channels, the http module the routes, the controllers (their factories run here), the authenticators and the channels it mounts.
 
-So a contribution never depends on module order. A module that resolves `ENGINE` or `SERVER` in its own `onReady` lists that module in `dependencies`. Nothing starts in `onReady`: the engine and the http module register start steps, which the app runs (the engine with its channels, then the `started` hooks and listening) only once every module's `onReady` ran, user modules included. So a configuration error any of them finds starts nothing: no queued run of the shared store executes on a replica that then exits 2.
+So a contribution never depends on module order. A module that resolves `ENGINE` or `SERVER` in its own `onReady` lists that module in `dependencies`. Nothing starts in `onReady`: the engine and the http module register start steps, which the app runs (the engine with its channels, then the components, then the `started` hooks and listening) only once every module's `onReady` ran, user modules included. So a configuration error any of them finds starts nothing: no queued run of the shared store executes on a replica that then exits 2.
 
 ## Start and stop
 
@@ -96,16 +97,16 @@ So a contribution never depends on module order. A module that resolves `ENGINE`
 2. store (and the migrations, advisory-locked, so every replica may run them)
 3. every `onReady`: the engine is built with every contributed channel, the [agent folders](/guide/agent-folders) are loaded into it, the HTTP app is built, nothing runs yet
 4. `engine.start()`: recovery, then every channel's `start()` (the cron schedule among them)
-5. the purge timer and the agents dir watcher
+5. the [components](#background-components) (the store purge, the agents dir watcher, the knowledge poll, your own), then the `started` hooks
 6. `serve()` on `HOST`:`PORT`, listening last
 
 `app.stop()` is memoized and also stops a start still setting up (which then never listens):
 
 1. `/readyz` answers 503, then `CHAMVI_READINESS_DELAY_MS` (0)
-2. the `stopping` hooks: the purge timer and the agents dir watcher stop
+2. the `stopping` hooks, in setup order: the components stop among them, up to `CHAMVI_DRAIN_TIMEOUT_MS` (a component that does not stop in time is logged and `stop()` rejects)
 3. the app's closers (SSE streams, MCP waits)
 4. `server.close()`
-5. `engine.drain()`: every channel's `stop()` first, then up to `CHAMVI_DRAIN_TIMEOUT_MS` (30 s) for the runs
+5. `engine.drain()`: every channel's `stop()` first, then the runs get what remains of the same `CHAMVI_DRAIN_TIMEOUT_MS` (30 s) budget, which began with the components' stop: the two together never take longer than one timeout
 6. up to `CHAMVI_CLOSE_TIMEOUT_MS` (5 s) for the close, then `server.close(true)`
 7. the workspace manager closes (with `sandboxModule`, up to 30 s)
 8. the database modules' data sources (after the `drained` hooks) and the store's data source are closed
@@ -113,6 +114,14 @@ So a contribution never depends on module order. A module that resolves `ENGINE`
 orkos swallows teardown errors; chamvi does not: every teardown error is logged, and `stop()` then rejects with `app_stop_failed` (the CLI exits 1). An app runs one lifecycle: a second `start()`, `runJob()` or `migrate()` rejects with `app_in_use`.
 
 `runJob({ agent, subscription? })` builds config, store and engine (with the folder agents, loaded once), starts no channel and no HTTP, fires the cron subscription once through [`runJob()`](/guide/scheduler) and tears down. `migrate()` only migrates the store and every [database module](/guide/database); it fails without `DATABASE_URL`.
+
+## Background components
+
+A job that runs beside the engine, such as a poll or a periodic cleanup, is a [hubwire](https://github.com/tada5hi/hubwire) component contributed to `AppToken.COMPONENTS` as `{ name, component }`. The components module runs them as one group, in start mode outside a check only: they start in contribution order (the order the modules set up, which follows their dependencies, not the order of the module list) after `engine.start()` and before the server listens (a failing `start()` fails the app start and stops the ones already started), and stop in the `stopping` phase, before the drain (a module set up before the components module runs its `stopping` hook first). Names follow the agent-name rule and are unique; a bad or duplicate name throws `InvalidAgentDefinitionError`. A `useFactory` contribution is built in the components module's `onReady`, so before the `onReady` of any module set up after it: resolve only what `setup` registered. Add `hubwire` to your app's dependencies:
+
+<<< @/snippets/app-component.ts#component
+
+Each component's last success, last error, last pass and a pass in flight are listed by [`GET /components`](/guide/http#routes) and on the dashboard's Components page, together with the channels that report a status (the `cron` channel).
 
 ## Writing a module
 
@@ -124,7 +133,7 @@ The module contract comes from the main entry of `@chamvi/app`: `AppToken`, `Mod
 - **Failures:** orkos never tears down a module whose `setup` threw, so such a `setup` closes what it opened before rethrowing. A module whose `onReady` threw is torn down, so `teardown` tolerates state that `onReady` never built.
 - **Stopping:** `AppToken.CONTEXT` holds the lifecycle's `signal`, aborted once `stop()` is called; `throwIfStopped(context)` before a long step keeps a stopped start from going on. `context.report(error)` logs an error and, during `stop()`, makes it reject.
 - **Modes:** `AppToken.CONTEXT` holds the `mode`: `start` builds everything, `job` (`runJob`) config, store and engine, `migrate` only config, store and the database modules. A module that resolves `ENGINE` in `onReady` returns early in `migrate` mode, as the sample does, or `chamvi migrate` fails.
-- **Testing:** `createModuleHarness({ modules, env?, agents?, clock? })` from `@chamvi/app/testing` runs the real module lifecycle (setup, `onReady`, the start steps) of the modules you list, built-ins included, without `start()` and a port: `harness.container` resolves what a module contributed, `harness.reported` holds every `context.report()` call, `harness.stop()` tears down. The feature packages test their own modules with it.
+- **Testing:** `createModuleHarness({ modules, env?, agents?, clock? })` from `@chamvi/app/testing` runs the real module lifecycle (setup, `onReady`, the start steps) of the modules you list, built-ins included, without `start()` and a port: `harness.container` resolves what a module contributed, `harness.reported` holds every `context.report()` call, `harness.stop()` tears down. Components run only when the harness lists `componentsModule()` (a module whose work is a component, such as knowledge indexing, does nothing without it). The feature packages test their own modules with it.
 - **Dependencies:** `dependencies` name modules the app registers (`{ name, optional: true }` for one it may lack). A missing one, a cycle or a version mismatch throws `InvalidAgentDefinitionError` from `start`, `runJob` and `migrate` before any module set up (the CLI exits 2).
 
 ## Testing an app

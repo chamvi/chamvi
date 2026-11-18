@@ -208,8 +208,23 @@ describe('AppShell', () => {
         });
         const labels = [...root.querySelectorAll('a.nav-item')].map((link) => link.textContent?.trim());
 
-        expect(labels).toEqual(['Agents', 'Runs', 'Approvals', 'Schedules', 'Connections', 'Mail']);
+        expect(labels).toEqual(['Agents', 'Runs', 'Approvals', 'Schedules', 'Components', 'Connections', 'Mail']);
         expect(root.querySelector('a[data-nav="agents"]')?.getAttribute('href')).toBe('/ui/agents');
+        expect(root.querySelector('a[data-nav="components"]')?.getAttribute('href')).toBe('/ui/components');
+    });
+
+    it('hides the components item from a session not allowed chamvi_component_read', async () => {
+        const root = await mountShell({ allowed: ALL.filter((name) => name !== Permission.COMPONENT_READ) });
+        const labels = [...root.querySelectorAll('a.nav-item')].map((link) => link.textContent?.trim());
+
+        expect(root.querySelector('a[data-nav="components"]')).toBeNull();
+        expect(labels).toContain('Schedules');
+    });
+
+    it('shows the components item once the permission check allows chamvi_component_read', async () => {
+        const root = await mountShell({ allowed: [Permission.COMPONENT_READ] });
+
+        expect(root.querySelector('a[data-nav="components"]')?.textContent?.trim()).toBe('Components');
     });
 
     it('routes a fixed item through navigate when the host has a router', async () => {
