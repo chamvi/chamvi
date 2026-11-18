@@ -5,7 +5,10 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { Usage } from '@chamvi/store';
+import type { Run, Usage } from '@chamvi/store';
+import type { IEffectService } from '../../effect/types.ts';
+import type { ILockService } from '../../lock/types.ts';
+import type { IPeerResolver } from '../../peer/types.ts';
 import type { DispatchEngineContext } from '../dispatch/types.ts';
 
 /**
@@ -26,7 +29,22 @@ export type RemoteOutcome = {
 /** What `remote-start:<runId>` records (internal): the remote run the start created. */
 export type RemoteStartRecord = {
     runId: string;
+    /** The peer the remote run lives at (a cancel still reaches it after the agent is gone). */
+    peer?: string;
 };
 
 /** What answerRemoteWait() needs from the engine. */
-export type RemoteEngineContext = Pick<DispatchEngineContext, 'runService' | 'resume'>;
+export type RemoteAnswerContext = Pick<DispatchEngineContext, 'runService' | 'resume'>;
+
+/** What the poll, wake, timeout and remote cancel of stand-ins need from the engine. */
+export type RemoteEngineContext = RemoteAnswerContext & Pick<DispatchEngineContext, 'clock' | 'onError' | 'emit'> & {
+    lockService: ILockService;
+    effectService: IEffectService;
+    peers: IPeerResolver;
+    /**
+     * Runs `work` detached from the caller: tracked like an approval delivery
+     * (idle() and drain() wait for it), its signal aborted by drain(), a
+     * rejection reported to onError.
+     */
+    detach(work: (signal: AbortSignal) => Promise<void>, run?: Run): void;
+};

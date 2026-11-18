@@ -7,3 +7,6 @@
 
 /** The default deadline of a remote agent's whole remote run (24 h, as waitForDispatch()). */
 export const REMOTE_TIMEOUT_DEFAULT_MS = 86_400_000;
+
+/** The deadline of one request to a peer (start, read, cancel), on the engine's clock. */
+export const PEER_REQUEST_TIMEOUT_MS = 30_000;

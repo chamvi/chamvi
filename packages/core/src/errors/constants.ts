@@ -24,6 +24,7 @@ export const ErrorCode = {
     LEASE_LOST: 'lease_lost',
     REPOSITORY_NOT_FOUND: 'repository_not_found',
     RUN_NOT_FOUND: 'run_not_found',
+    REMOTE_FAILED: 'remote_failed',
     SANDBOX: 'sandbox_error',
     TIMEOUT: 'Timeout',
     TOOL_DENIED: 'tool_denied',

@@ -15,6 +15,7 @@ import { z } from 'zod';
 import type { IEngine } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Run } from '@chamvi/store';
+import { readOutcome } from '../../../src/engine/remote/helpers.ts';
 import type { RemoteOutcome } from '../../../src/engine/remote/types.ts';
 import {
     readRun,
@@ -24,10 +25,8 @@ import {
 
 const engines: IEngine[] = [];
 
-afterEach(() => {
-    for (const e of engines) {
-        e.stop();
-    }
+afterEach(async () => {
+    await Promise.all(engines.map((e) => e.stop()));
 
     engines.length = 0;
 });
@@ -242,5 +241,74 @@ describe('the stand-in run: settle', () => {
         await engine.idle();
 
         expect((await readRun(store, alfredId)).subtreeUsage).toEqual({ inputTokens: 4, outputTokens: 2 });
+    });
+
+    it('fails with remote_failed when the peer reports a failure without an error', async () => {
+        const {
+            engine,
+            store,
+        } = setup();
+        const runId = await startStandIn(engine);
+
+        await engine.answerRemote(runId, outcome({ status: 'failed' }));
+        await engine.idle();
+
+        const run = await readRun(store, runId);
+
+        expect(run.status).toBe(RunStatus.FAILED);
+        expect(run.error?.code).toBe('remote_failed');
+    });
+
+    it('fails instead of tainting with the intake source when the start record is missing', async () => {
+        const {
+            engine,
+            store,
+        } = setup();
+        const runId = await startStandIn(engine);
+        const findOne = store.effectService.findOne.bind(store.effectService);
+
+        store.effectService.findOne = (key) => (key.startsWith('remote-start:') ? Promise.resolve(undefined) : findOne(key));
+
+        await engine.answerRemote(runId, outcome({ tainted: true, output: 'secret' }));
+        await engine.idle();
+
+        const run = await readRun(store, runId);
+
+        expect(run.status).toBe(RunStatus.FAILED);
+        expect(run.output).toBeUndefined();
+        expect(run.taint?.source).not.toBe('peer:dev');
+    });
+
+    it('fails a run whose recorded outcome is malformed', async () => {
+        const {
+            engine,
+            store,
+        } = setup();
+        const runId = await startStandIn(engine);
+
+        await engine.answerRemote(runId, { ...outcome({}), status: 'bogus' } as unknown as RemoteOutcome);
+        await engine.idle();
+
+        const run = await readRun(store, runId);
+
+        expect(run.status).toBe(RunStatus.FAILED);
+        expect(run.output).toBeUndefined();
+    });
+});
+
+describe('readOutcome', () => {
+    it('reads the four outcome statuses with a boolean taint', () => {
+        for (const status of ['completed', 'failed', 'cancelled', 'timeout'] as const) {
+            expect(readOutcome(outcome({ status }))).toEqual(outcome({ status }));
+        }
+
+        expect(readOutcome(undefined)).toBeUndefined();
+    });
+
+    it('throws on a malformed record', () => {
+        expect(() => readOutcome({ ...outcome({}), status: 'running' })).toThrow();
+        expect(() => readOutcome({ ...outcome({}), tainted: 'yes' })).toThrow();
+        expect(() => readOutcome({ status: 'completed', tainted: false })).toThrow();
+        expect(() => readOutcome('completed')).toThrow();
     });
 });

@@ -97,6 +97,12 @@ export interface IEngine extends IContextProvider {
     idle(): Promise<void>;
     cancel(runId: string): Promise<void>;
     approve(runId: string, answer: ApprovalAnswer): Promise<void>;
+    /**
+     * A peer's content-free wake of stand-in `runId`: true when it waits on
+     * the peer `invoker` authenticates as (the next tick polls it at once),
+     * false with nothing written otherwise.
+     */
+    wake(runId: string, invoker: Invoker | undefined): Promise<boolean>;
     tick(): Promise<void>;
     checkAgent(agent: Agent): void;
 }

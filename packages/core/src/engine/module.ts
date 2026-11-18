@@ -46,6 +46,7 @@ import type {
     ConversationBinding,
     ConversationIdentity,
     ConversationScope,
+    Invoker,
     Run,
     Step,
     TriggerEnvelope,
@@ -101,6 +102,8 @@ import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
 import { executeSimpleRun } from './execute/simple.ts';
 import { executeRun } from './execute/module.ts';
 import { executeRemoteRun } from './execute/remote.ts';
+import { cancelRemote, pollRemoteWaits, wakeRemote } from './remote/module.ts';
+import type { RemoteEngineContext } from './remote/types.ts';
 import type { ExecuteContext, RemoteExecuteContext, SuspendRequest } from './execute/types.ts';
 import {
     answerDispatchWait,
@@ -246,7 +249,8 @@ export class Engine implements IEngine {
     /**
      * Approval deliveries started by a pause, detached from the execution so
      * a slow channel holds neither the slot nor the executions entry (a resume
-     * meanwhile starts the next execution); idle() and drain() wait for them.
+     * meanwhile starts the next execution), and the peer requests of remote
+     * waits (polls, remote cancels); idle() and drain() wait for them.
      */
     protected readonly deliveries = new Set<Promise<void>>();
 
@@ -1408,7 +1412,38 @@ export class Engine implements IEngine {
         this.checkedRuns.delete(runId);
         this.emit({ type: 'run.updated', run: updated });
         await this.reconcileConversation(updated);
+        this.cancelRemoteOf(updated);
         await onRunSettled(this.dispatchContext(), updated);
+    }
+
+    /**
+     * A stand-in that settled `cancelled` here passes the cancel on to its
+     * remote run (detached, best effort: a failure reaches onError only).
+     */
+    protected cancelRemoteOf(run: Run): void {
+        if (!this.peers || run.status !== RunStatus.CANCELLED) {
+            return;
+        }
+
+        const ctx = this.remoteContext(this.peers);
+        const agent = this.agents.get(run.agent);
+        const peer = agent?.kind === 'remote' ? agent.definition.peer : undefined;
+
+        ctx.detach(() => cancelRemote(ctx, run, peer), run);
+    }
+
+    /**
+     * Marks the remote wait of stand-in `runId` `wakeRequested`, so the next
+     * tick on any replica polls its remote run at once (a peer's
+     * content-free wake). True only for a stand-in waiting on the peer
+     * `invoker` authenticates as; false, with nothing written, otherwise.
+     */
+    async wake(runId: string, invoker: Invoker | undefined): Promise<boolean> {
+        if (!this.peers) {
+            return false;
+        }
+
+        return wakeRemote(this.remoteContext(this.peers), runId, invoker);
     }
 
     /**
@@ -1460,8 +1495,10 @@ export class Engine implements IEngine {
      * re-sends the approval message of every other approval not delivered
      * yet (a failed send, or a crash between the pause and the send).
      * Answers every dispatch wait whose runs all settled (a lost push) and
-     * expires the ones past their expiresAt. Cancels the unsettled runs of a
-     * cancelled parent a lost cascade left. Also runs on every poll.
+     * expires the ones past their expiresAt. Starts the polls of remote waits
+     * detached (one read per window across replicas, at once after a wake)
+     * and times out the ones past their expiresAt. Cancels the unsettled runs
+     * of a cancelled parent a lost cascade left. Also runs on every poll.
      */
     async tick(): Promise<void> {
         const now = this.clock.now();
@@ -1508,6 +1545,11 @@ export class Engine implements IEngine {
 
         // a dispatch wait is never delivered or denied: answered once its runs settled, or expired
         if (await healDispatchWaits(this.dispatchContext(), data, now)) {
+            resumed = true;
+        }
+
+        // a remote wait is polled detached (never awaited here), or timed out
+        if (this.peers && await pollRemoteWaits(this.remoteContext(this.peers), data, now)) {
             resumed = true;
         }
 
@@ -2229,6 +2271,7 @@ export class Engine implements IEngine {
         if (updated) {
             this.emit({ type: 'run.updated', run: updated });
             await this.reconcileConversation(updated);
+            this.cancelRemoteOf(updated);
             await onRunSettled(this.dispatchContext(), updated);
         }
 
@@ -2384,6 +2427,40 @@ export class Engine implements IEngine {
             onError: (error, run) => this.onError(error, run),
             emit: (run) => this.emit({ type: 'run.updated', run }),
         };
+    }
+
+    protected remoteContext(peers: IPeerResolver): RemoteEngineContext {
+        return {
+            ...this.dispatchContext(),
+            lockService: this.lockService,
+            effectService: this.effectService,
+            peers,
+            detach: (work, run) => this.detach(work, run),
+        };
+    }
+
+    /**
+     * Runs `work` detached, tracked in `deliveries` (idle() and drain() wait
+     * for it); drain() aborts its signal. A rejection goes to onError, except
+     * an abort by drain.
+     */
+    protected detach(work: (signal: AbortSignal) => Promise<void>, run?: Run): void {
+        const controller = new AbortController();
+
+        this.deliveryControllers.add(controller);
+
+        const task: Promise<void> = Promise.try(() => work(controller.signal))
+            .catch((error: unknown) => {
+                if (!this.draining || !controller.signal.aborted) {
+                    this.onError(error, run);
+                }
+            })
+            .finally(() => {
+                this.deliveryControllers.delete(controller);
+                this.deliveries.delete(task);
+            });
+
+        this.deliveries.add(task);
     }
 
     protected emit(event: EngineEvent): void {

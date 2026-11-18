@@ -26,10 +26,8 @@ const DAY = 86_400_000;
 
 const engines: IEngine[] = [];
 
-afterEach(() => {
-    for (const e of engines) {
-        e.stop();
-    }
+afterEach(async () => {
+    await Promise.all(engines.map((e) => e.stop()));
 
     engines.length = 0;
 });
@@ -257,7 +255,7 @@ describe('the stand-in run: start', () => {
             claim: { owner: 'gone', expiresAt: new Date(clock.now() - 1) },
         });
 
-        engine.stop();
+        await engine.stop();
 
         const other = replica();
 
@@ -272,5 +270,100 @@ describe('the stand-in run: start', () => {
 
         expect(run.status).toBe(RunStatus.WAITING);
         expect(run.waiting).toMatchObject({ kind: 'remote', remoteRunId: 'r1' });
+    });
+
+    it('retries under the same key when recording the start fails', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+            errors,
+        } = setup();
+        const broken = new Error('store down');
+        const save = store.effectService.save.bind(store.effectService);
+        let failures = 1;
+
+        store.effectService.save = (key, value) => {
+            if (key.startsWith('remote-start:') && failures-- > 0) {
+                return Promise.reject(broken);
+            }
+
+            return save(key, value);
+        };
+        peers.script('start', { runId: 'r1' }, { runId: 'r1' });
+
+        const runId = await startStandIn(engine);
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.RUNNING);
+        expect(errors).toEqual([broken]);
+
+        clock.advance(120_000);
+        await engine.recover();
+        await engine.idle();
+
+        expect(peers.calls.start.map((call) => call.input.idempotencyKey)).toEqual([runId, runId]);
+        expect((await readRun(store, runId)).waiting).toMatchObject({ kind: 'remote', remoteRunId: 'r1' });
+    });
+
+    it('re-pauses without a second start when the pause write fails', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+            errors,
+        } = setup();
+        const broken = new Error('store down');
+        const update = store.runService.update.bind(store.runService);
+        let failures = 1;
+
+        store.runService.update = (id, patch, expect) => {
+            if (patch.status === RunStatus.WAITING && failures-- > 0) {
+                return Promise.reject(broken);
+            }
+
+            return update(id, patch, expect);
+        };
+        peers.script('start', { runId: 'r1' });
+
+        const runId = await startStandIn(engine);
+
+        expect((await readRun(store, runId)).status).toBe(RunStatus.RUNNING);
+        expect(errors).toEqual([broken]);
+
+        clock.advance(120_000);
+        await engine.recover();
+        await engine.idle();
+
+        expect(peers.calls.start).toHaveLength(1);
+        expect((await readRun(store, runId)).waiting).toMatchObject({ kind: 'remote', remoteRunId: 'r1' });
+    });
+
+    it('fails with Timeout instead of retrying a start past the remote deadline', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+            errors,
+        } = setup({ developer: { timeoutMs: 100_000 }, engine: { claimTtlMs: 150_000 } });
+        const down = new Error('down');
+
+        peers.script('start', rejectWith(down));
+
+        const runId = await startStandIn(engine);
+
+        expect(errors).toEqual([down]);
+
+        clock.advance(150_000);
+        await engine.recover();
+        await engine.idle();
+
+        const run = await readRun(store, runId);
+
+        expect(run.status).toBe(RunStatus.FAILED);
+        expect(run.error?.code).toBe('Timeout');
+        expect(peers.calls.start).toHaveLength(1);
     });
 });
