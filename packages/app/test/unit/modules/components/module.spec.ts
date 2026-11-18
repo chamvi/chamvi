@@ -313,58 +313,6 @@ describe('componentsModule', () => {
             expect(await settledSoon(harness.stop())).toBe(true);
         });
 
-        it('serves the list of the components module at GET /components, the jobs before the channels with a status', async () => {
-            const clock = new ControllableClock(new Date('2026-11-18T00:00:00Z'));
-            const port = await freePort();
-            const app = createApp({
-                agents: [defineModelAgent({
-                    name: 'triage',
-                    model: textModel(),
-                    instructions: 'x',
-                    channels: [http.on()],
-                })],
-                modules: [
-                    configModule({ clock, logger: createRecordingLogger(clock) }),
-                    contributing('jobs', [fake('alpha', []), fake('beta', [])]),
-                ],
-            });
-
-            apps.push(app);
-            await app.start({
-                env: {
-                    HOST: '127.0.0.1',
-                    PORT: String(port),
-                    CHAMVI_TOKENS: TOKENS,
-                    CHAMVI_READINESS_DELAY_MS: '0',
-                    CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
-                    // the server close adds nothing: only the components and the drain count
-                    CHAMVI_CLOSE_TIMEOUT_MS: '0',
-                },
-            });
-
-            const response = await fetch(`http://127.0.0.1:${port}/components`, { headers: { authorization: `Bearer ${TOKEN}` } });
-
-            expect(response.status).toBe(200);
-            expect(await response.json()).toEqual({
-                data: [
-                    {
-                        name: 'alpha',
-                        kind: 'job',
-                        lastRunAt: '1970-01-01T00:00:00.001Z',
-                    },
-                    {
-                        name: 'beta',
-                        kind: 'job',
-                        lastRunAt: '1970-01-01T00:00:00.001Z',
-                    },
-                    // the store module's purge, before its first pass
-                    { name: 'store-purge', kind: 'job' },
-                    // the scheduler module's cron channel, before its first tick
-                    { name: 'cron', kind: 'channel' },
-                ],
-            });
-        });
-
         it('ends the app shutdown within the drain timeout', async () => {
             const events: string[] = [];
             const clock = new ControllableClock(new Date('2026-11-18T00:00:00Z'));
@@ -488,6 +436,58 @@ describe('componentsModule', () => {
             clock.advance(1);
             expect(await settledNow()).toBe(true);
             expect((await stopped).code).toBe(APP_ERROR_CODE.STOP_FAILED);
+        });
+    });
+
+    it('serves the list of the components module at GET /components, the jobs before the channels with a status', async () => {
+        const clock = new ControllableClock(new Date('2026-11-18T00:00:00Z'));
+        const port = await freePort();
+        const app = createApp({
+            agents: [defineModelAgent({
+                name: 'triage',
+                model: textModel(),
+                instructions: 'x',
+                channels: [http.on()],
+            })],
+            modules: [
+                configModule({ clock, logger: createRecordingLogger(clock) }),
+                contributing('jobs', [fake('alpha', []), fake('beta', [])]),
+            ],
+        });
+
+        apps.push(app);
+        await app.start({
+            env: {
+                HOST: '127.0.0.1',
+                PORT: String(port),
+                CHAMVI_TOKENS: TOKENS,
+                CHAMVI_READINESS_DELAY_MS: '0',
+                CHAMVI_DRAIN_TIMEOUT_MS: String(DRAIN_TIMEOUT_MS),
+                // the server close adds nothing: only the components and the drain count
+                CHAMVI_CLOSE_TIMEOUT_MS: '0',
+            },
+        });
+
+        const response = await fetch(`http://127.0.0.1:${port}/components`, { headers: { authorization: `Bearer ${TOKEN}` } });
+
+        expect(response.status).toBe(200);
+        expect(await response.json()).toEqual({
+            data: [
+                {
+                    name: 'alpha',
+                    kind: 'job',
+                    lastRunAt: '1970-01-01T00:00:00.001Z',
+                },
+                {
+                    name: 'beta',
+                    kind: 'job',
+                    lastRunAt: '1970-01-01T00:00:00.001Z',
+                },
+                // the store module's purge, before its first pass
+                { name: 'store-purge', kind: 'job' },
+                // the scheduler module's cron channel, before its first tick
+                { name: 'cron', kind: 'channel' },
+            ],
         });
     });
 });
