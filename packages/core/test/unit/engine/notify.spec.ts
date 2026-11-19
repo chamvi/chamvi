@@ -110,6 +110,46 @@ describe('deliverOnce store waits', () => {
         expect(t.release).toHaveBeenCalledTimes(1);
     });
 
+    it('handles a record that rejects on a signal aborted as it starts', async () => {
+        const t = setup(async () => 1);
+        const drain = new AbortController();
+        const reason = new Error('drained');
+        const refused = new Error('record refused');
+        const unhandled: unknown[] = [];
+        const onUnhandled = (error: unknown) => {
+            unhandled.push(error);
+        };
+
+        process.on('unhandledRejection', onUnhandled);
+
+        try {
+            (t.delivery as { signal: AbortSignal }).signal = drain.signal;
+
+            let records = 0;
+
+            // A drain lands as record starts: record sees the aborted signal and rejects.
+            // A plain function, not vi.fn: the spy would observe (and so handle) the rejection.
+            (t.delivery as { record: NotifyDelivery['record'] }).record = (signal) => {
+                records++;
+                drain.abort(reason);
+
+                return signal.aborted ? Promise.reject(refused) : Promise.resolve();
+            };
+
+            await deliverOnce(t.ctx, t.delivery);
+            await new Promise((resolve) => {
+                setImmediate(resolve);
+            });
+
+            expect(records).toBe(1);
+            expect(t.delivery.fail).toHaveBeenCalledWith(reason, expect.any(AbortSignal));
+            expect(t.release).toHaveBeenCalledTimes(1);
+            expect(unhandled).toEqual([]);
+        } finally {
+            process.off('unhandledRejection', onUnhandled);
+        }
+    });
+
     it('releases a lock granted after the deadline, without holding deliverOnce', async () => {
         const gate = Promise.withResolvers<number | undefined>();
         const t = setup(() => gate.promise);

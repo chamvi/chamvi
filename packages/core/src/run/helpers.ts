@@ -90,9 +90,14 @@ export function waitIdOf(waiting: WaitPoint | undefined): string | undefined {
     return waiting.kind === 'approval' ? waiting.approvalId : undefined;
 }
 
-/** Rejects with the abort reason as soon as `signal` aborts, even if `work` ignores the signal. */
+/**
+ * Rejects with the abort reason as soon as `signal` aborts, even if `work` ignores the signal.
+ * `work` always gets a handler, so its later rejection is never unhandled.
+ */
 export function untilAborted<T>(work: Promise<T>, signal: AbortSignal): Promise<T> {
     if (signal.aborted) {
+        work.catch(() => {});
+
         return Promise.reject(signal.reason);
     }
 
