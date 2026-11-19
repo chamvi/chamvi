@@ -15,7 +15,6 @@ import {
 import { isObject } from 'smob';
 import type { GithubProposalsOptions, IGithubApp } from '../app/types.ts';
 import {
-    MAX_HISTORY_COMMITS,
     REPO_PROPERTY,
     assertHead,
     branchMarker,
@@ -36,6 +35,7 @@ import {
     validateProposal,
     withOctokit,
 } from './helpers/index.ts';
+import { MAX_HISTORY_COMMITS } from './constants.ts';
 import { createPullRequest, toCreated } from './pull-operation.ts';
 import type { GithubCreatedPullRequest, GithubProposeChangeInput } from './types.ts';
 

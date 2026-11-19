@@ -8,6 +8,7 @@
 import { ValidationError } from '@chamvi/core';
 import { isObject } from 'smob';
 import type { GithubOctokit, GithubProposalsOptions } from '../../app/types.ts';
+import { MAX_HISTORY_COMMITS } from '../constants.ts';
 import type { RepoTarget } from '../types.ts';
 import { allowedPath, hasEffectFooter, hasProposalFooter } from './proposal-policy.ts';
 
@@ -91,7 +92,6 @@ export async function readFile(octokit: GithubOctokit, target: RepoTarget, path:
 }
 
 const MAX_PULL_PAGES = 10;
-export const MAX_HISTORY_COMMITS = 250;
 const MAX_GENERATIONS = 250;
 
 /** The PRs of one head branch (`head=<owner>:<branch>`), never a scan of the repository's PRs. */

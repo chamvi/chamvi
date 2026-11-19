@@ -80,3 +80,6 @@ export const SHA_PATTERN = '^[\\w-]{1,64}$';
 
 /** GitHub's limit on a commit title, also for a merge. */
 export const COMMIT_TITLE_MAX_CHARS = 256;
+
+/** Commits of a proposal branch's history `github_propose_change` inspects at most (GitHub caps a pull request's commit list at 250). */
+export const MAX_HISTORY_COMMITS = 250;
