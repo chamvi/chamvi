@@ -14,7 +14,7 @@ import {
 } from 'vitest';
 import type { KnowledgeDocument, KnowledgeDocumentInput } from '@chamvi/knowledge';
 import { KNOWLEDGE_LOCK_TTL_MS } from '@chamvi/knowledge';
-import { createIndexLock, sameDetails } from '../../../src/indexer/helpers.ts';
+import { createIndexLock, sameDetails } from '../../../src/indexer/helpers/index.ts';
 
 function stored(metadata: Record<string, unknown>): KnowledgeDocument {
     return {

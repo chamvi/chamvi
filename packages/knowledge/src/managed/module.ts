@@ -12,9 +12,9 @@ import {
     messageOf,
     settled,
     writeOptionsOf,
-} from '../indexer/helpers.ts';
-import { embedDocument } from '../indexer/module.ts';
-import { withOrigin } from '../service/helpers.ts';
+} from '../indexer/helpers/index.ts';
+import { embedDocument } from '../indexer/embed.ts';
+import { withOrigin } from '../service/helpers/index.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import { MANAGED_PAGE_SIZE } from './constants.ts';
 import { isAbandoned, isProviderRejection, needsReembed } from './helpers.ts';

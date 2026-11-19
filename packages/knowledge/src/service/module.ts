@@ -38,7 +38,7 @@ import {
     toCollection,
     toDocument,
     withDetails,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type {
     IKnowledgeService,
     KnowledgeFence,
