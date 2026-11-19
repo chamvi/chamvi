@@ -50,8 +50,11 @@ export type FakeImapOptions = {
     loginFails?: boolean;
     /** Commands matching it get no reply. */
     hold?: RegExp;
-    /** The uids a search of `folder` returns (default: every uid of the folder, or the thread for X-GM-THRID). */
-    search?: (folder: string, command: string) => number[] | undefined;
+    /**
+     * The uids a search of `folder` returns (default: every uid of the folder, or the thread for X-GM-THRID);
+     * a string is sent as the raw rest of the `* SEARCH` line.
+     */
+    search?: (folder: string, command: string) => number[] | string | undefined;
 };
 
 export type FakeImap = {
@@ -509,7 +512,7 @@ export async function createFakeImap(options: FakeImapOptions): Promise<FakeImap
                         }
 
                         uids ??= messages.map((message) => message.uid);
-                        write(`* SEARCH${uids.map((uid) => ` ${uid}`).join('')}\r\n`);
+                        write(`* SEARCH${typeof uids === 'string' ? ` ${uids}` : uids.map((uid) => ` ${uid}`).join('')}\r\n`);
                         ok();
 
                         break;

@@ -6,7 +6,7 @@
  */
 
 // Characterization of the external boundary (Task 1 gate), against the real npm
-// packages @chat-adapter/discord 4.44.0 and chat 4.44.0. Tests prefixed "native:"
+// packages @chat-adapter/discord 4.45.0 and chat 4.45.0. Tests prefixed "native:"
 // record upstream behaviour as it is, limitations included
 // (.agents/references/chat-sdk.md, Discord section).
 
@@ -114,12 +114,12 @@ afterEach(() => {
     vi.unstubAllGlobals();
 });
 
-describe('@chat-adapter/discord 4.44.0 packaging', () => {
-    it('native: the installed adapter is exactly 4.44.0', () => {
+describe('@chat-adapter/discord 4.45.0 packaging', () => {
+    it('native: the installed adapter is exactly 4.45.0', () => {
         const path = findPackageJSON('@chat-adapter/discord', import.meta.url);
 
         expect(path).toBeTypeOf('string');
-        expect(JSON.parse(readFileSync(path!, 'utf8')).version).toBe('4.44.0');
+        expect(JSON.parse(readFileSync(path!, 'utf8')).version).toBe('4.45.0');
     });
 
     it('native: the adapter resolves the same chat copy as the workspace', () => {
@@ -128,7 +128,7 @@ describe('@chat-adapter/discord 4.44.0 packaging', () => {
         const fromWorkspace = findPackageJSON('chat', import.meta.url);
 
         expect(fromAdapter).toBe(fromWorkspace);
-        expect(JSON.parse(readFileSync(fromWorkspace!, 'utf8')).version).toBe('4.44.0');
+        expect(JSON.parse(readFileSync(fromWorkspace!, 'utf8')).version).toBe('4.45.0');
 
         const adapter = createDiscordAdapter(explicitConfig(createRecordingLogger()));
 
@@ -136,7 +136,7 @@ describe('@chat-adapter/discord 4.44.0 packaging', () => {
     });
 });
 
-describe('@chat-adapter/discord 4.44.0 explicit options', () => {
+describe('@chat-adapter/discord 4.45.0 explicit options', () => {
     it('native: the constructor reads env vars for options left undefined', () => {
         stubSentinels();
 
@@ -270,7 +270,7 @@ describe('@chat-adapter/discord 4.44.0 explicit options', () => {
     });
 });
 
-describe('@chat-adapter/discord 4.44.0 parseMessage', () => {
+describe('@chat-adapter/discord 4.45.0 parseMessage', () => {
     let adapter: DiscordAdapter;
 
     function build() {
@@ -337,7 +337,7 @@ describe('@chat-adapter/discord 4.44.0 parseMessage', () => {
     });
 });
 
-describe('@chat-adapter/discord 4.44.0 thread ids', () => {
+describe('@chat-adapter/discord 4.45.0 thread ids', () => {
     it('native: encodeThreadId with a parent and a thread gives 4 parts and decodeThreadId round-trips', () => {
         const adapter = createDiscordAdapter(explicitConfig(createRecordingLogger()));
         const parts = {

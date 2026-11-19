@@ -1,6 +1,6 @@
 # Vercel Skills SDK reference
 
-Source baseline: the npm package [`skills`](https://github.com/vercel-labs/skills) 1.8.1 (`vercel-labs/skills`, API reference `docs/api.md`, public types `dist/index.d.mts`). `@chamvi/skills` depends on `skills@^1.8.1`; nothing else in chamvi does. Import from `skills` only (its single entry point), never the CLI.
+Source baseline: the npm package [`skills`](https://github.com/vercel-labs/skills) 1.9.0 (`vercel-labs/skills`, API reference `docs/api.md`, public types `dist/index.d.mts`). `@chamvi/skills` depends on `skills@^1.9.0`; nothing else in chamvi does. Import from `skills` only (its single entry point), never the CLI.
 
 | Upstream function | Chamvi owner and use |
 |---|---|

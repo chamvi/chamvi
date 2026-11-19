@@ -120,6 +120,14 @@ describe('request failures', () => {
         expect(error.message).not.toContain('secret-server-text');
     });
 
+    it('fails a search whose answer cannot be read in full instead of returning part of it', async () => {
+        const { call } = await setup(false, { fake: { search: () => '1 2.5' } });
+        const error = await rejection(call('mail_search', { account: 'work', folder: 'INBOX' }));
+
+        expect(error.code).toBe(MAIL_REQUEST_ERROR_CODE);
+        expect(error.message).toBe('mail_search: work: request failed');
+    });
+
     it('reports a server it cannot reach', async () => {
         const imap = await createFakeImap(fakeOptions(false));
         const { port } = imap;
