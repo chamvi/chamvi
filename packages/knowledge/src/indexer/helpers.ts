@@ -11,6 +11,7 @@ import { isObject } from 'smob';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
 import type { IKnowledgeService, KnowledgeFence, KnowledgeWriteOptions } from '../service/types.ts';
+import { compareCodePoints } from '../store/helpers.ts';
 import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { KNOWLEDGE_LOCK_TTL_MS } from './constants.ts';
@@ -181,9 +182,19 @@ export function servesDefinition(record: KnowledgeCollection, definition: Resolv
         record.chunker === CHUNKER_VERSION;
 }
 
+/**
+ * Text as a store may keep it: NUL (refused by a PostgreSQL text column) and
+ * lone surrogates (not encodable as UTF-8) become U+FFFD. Comparing both
+ * sides through it lets a sanitized copy equal the input it came from.
+ */
+function storedText<T>(value: T): T {
+    return (typeof value === 'string' ? value.replaceAll('\0', '\uFFFD').toWellFormed() : value) as T;
+}
+
 /** Whether a stored document's chunks still carry the input's title and source. */
 export function sameOrigin(stored: KnowledgeDocument, input: KnowledgeDocumentInput): boolean {
-    return stored.title === input.title && stored.source === input.source;
+    return storedText(stored.title) === storedText(input.title) &&
+        storedText(stored.source) === storedText(input.source);
 }
 
 /** Whether `value` is a plain object (`{}` or without a prototype), not a boxed primitive or a class instance. */
@@ -199,12 +210,15 @@ function isPlainObject(value: unknown): value is Record<string, unknown> {
 
 /**
  * The JSON of `value` with every plain object's keys sorted (arrays keep
- * their order, `toJSON` applies first, a boxed primitive stays its value).
+ * their order, `toJSON` applies first, a boxed primitive stays its value),
+ * every string and key as a store keeps it (`storedText`).
  */
 function canonicalJson(value: unknown): string | undefined {
     return JSON.stringify(value, (_key, item: unknown) => (isPlainObject(item) ?
-        Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]])) :
-        item));
+        Object.fromEntries(Object.entries(item)
+            .map(([key, entry]): [string, unknown] => [storedText(key), entry])
+            .sort(([a], [b]) => compareCodePoints(a, b))) :
+        storedText(item)));
 }
 
 /**
