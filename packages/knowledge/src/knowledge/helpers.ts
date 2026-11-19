@@ -41,8 +41,8 @@ export function normalizeOptions(options: KnowledgeOptions): NormalizedOptions {
         throw new InvalidAgentDefinitionError('createKnowledge() repository must be a knowledge repository.');
     }
 
-    if (!hasMethods(options.locks, ['acquire', 'release'])) {
-        throw new InvalidAgentDefinitionError('createKnowledge() locks must have acquire() and release().');
+    if (!hasMethods(options.locks, ['acquire', 'renew', 'release'])) {
+        throw new InvalidAgentDefinitionError('createKnowledge() locks must have acquire(), renew() and release().');
     }
 
     if (options.collections !== undefined && !Array.isArray(options.collections)) {

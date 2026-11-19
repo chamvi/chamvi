@@ -149,9 +149,10 @@ describePostgres('knowledge vector schema', () => {
             [VectorTableName.COLLECTIONS],
         );
 
+        // bigint: the fence holds lock tokens, above 2^31
         expect(fence).toEqual([{
-            data_type: 'integer',
-            column_default: '0',
+            data_type: 'bigint',
+            column_default: '\'0\'::bigint',
             is_nullable: 'NO',
         }]);
 

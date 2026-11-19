@@ -11,7 +11,7 @@ export * from './checkpoint.ts';
 export * from './connection.ts';
 export * from './connection-entry.ts';
 export * from './connection-secret.ts';
-export { OPTIONAL_JSON_TRANSFORMER, TableName } from './constants.ts';
+export { BIGINT_NUMBER_TRANSFORMER, OPTIONAL_JSON_TRANSFORMER, TableName } from './constants.ts';
 export * from './doc.ts';
 export * from './effect.ts';
 export * from './idempotency-key.ts';

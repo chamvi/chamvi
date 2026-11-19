@@ -35,7 +35,7 @@ export class KnowledgeVector1795037476304 implements MigrationInterface {
                 "synced_at" TIMESTAMP WITH TIME ZONE,
                 "created_at" TIMESTAMP WITH TIME ZONE NOT NULL,
                 "updated_at" TIMESTAMP WITH TIME ZONE NOT NULL,
-                "fence" integer NOT NULL DEFAULT '0',
+                "fence" bigint NOT NULL DEFAULT '0',
                 CONSTRAINT "PK_20bef941edbdbe17cf8d438d8b0" PRIMARY KEY ("id")
             )
         `);

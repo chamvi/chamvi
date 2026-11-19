@@ -861,7 +861,7 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
-    it('a pass whose fence another owner advanced writes nothing more and reports nothing', async () => {
+    it('a pass whose fence another owner claimed writes nothing more and reports nothing', async () => {
         const setup = createIndexerSetup();
         const content = 'Refunds within thirty days.';
         // the same model identity as the mock, other vectors: its chunks score apart from the mock's
@@ -915,11 +915,11 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
-    it('a pass whose record appeared after the fence was advanced writes with a fence', async () => {
+    it('a pass whose record appeared after the fence was claimed writes with a fence', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
         const { service } = knowledge;
-        const advance = service.advanceFence.bind(service);
+        const claim = service.claimFence.bind(service);
         const save = service.saveCollection.bind(service);
         const replace = vi.spyOn(service, 'replaceChunks');
 
@@ -927,11 +927,11 @@ describe('managed collections', () => {
 
         const record = (await service.findOneCollection('notes'))!;
 
-        // deleted and created again between the loop's advance (no row then) and the pass's own read
-        vi.spyOn(service, 'advanceFence').mockImplementationOnce(async (name) => {
+        // deleted and created again between the loop's claim (no row then) and the pass's own read
+        vi.spyOn(service, 'claimFence').mockImplementationOnce(async (name, token) => {
             await service.deleteCollection(name);
 
-            const fence = await advance(name);
+            const fence = await claim(name, token);
 
             await save(record);
             await service.saveDocument({
@@ -956,11 +956,11 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
-    it('a pass whose record appeared after the fence was advanced renews the lock before its own advance', async () => {
+    it('a pass whose record appeared after the fence was claimed renews the lock before its own claim', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel(), owner: 'replica-a' });
         const { service } = knowledge;
-        const advance = service.advanceFence.bind(service);
+        const claim = service.claimFence.bind(service);
         const save = service.saveCollection.bind(service);
         const replace = vi.spyOn(service, 'replaceChunks');
 
@@ -977,11 +977,11 @@ describe('managed collections', () => {
             updatedAt: new Date(setup.clock.now()),
         };
 
-        // created again after the loop's advance (no row then), then the lease runs out and another owner takes the lock
-        const fences = vi.spyOn(service, 'advanceFence').mockImplementationOnce(async (name) => {
+        // created again after the loop's claim (no row then), then the lease runs out and another owner takes the lock
+        const fences = vi.spyOn(service, 'claimFence').mockImplementationOnce(async (name, token) => {
             await service.deleteCollection(name);
 
-            const fence = await advance(name);
+            const fence = await claim(name, token);
 
             await save(record);
             await service.saveDocument(document);
@@ -993,33 +993,33 @@ describe('managed collections', () => {
 
         knowledge.start();
 
-        await expect.poll(() => setup.locks.acquired.filter((entry) => entry.owner === 'replica-a').map((entry) => entry.result)).toEqual([true, false]);
+        await expect.poll(() => setup.locks.renewed.filter((entry) => entry.owner === 'replica-a').map((entry) => entry.result)).toEqual([false]);
         await settle();
 
-        // the pass ended without a fence of its own: the intruder's token stays the newest
+        // the pass ended without a fence of its own
         expect(fences).toHaveBeenCalledTimes(1);
         expect(replace).not.toHaveBeenCalled();
         expect(await service.findOneDocument('notes', 'doc')).toEqual(document);
         expect(setup.errors).toEqual([]);
     });
 
-    it('a pass whose record appeared after the fence was advanced decides on the record read after its own advance', async () => {
+    it('a pass whose record appeared after the fence was claimed decides on the record read after its own claim', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
         const { service } = knowledge;
-        const advance = service.advanceFence.bind(service);
+        const claim = service.claimFence.bind(service);
         const save = service.saveCollection.bind(service);
 
         await knowledge.createCollection('notes');
 
         const record = (await service.findOneCollection('notes'))!;
 
-        vi.spyOn(service, 'advanceFence')
-            // deleted and created again between the loop's advance (no row then) and the pass's own read
-            .mockImplementationOnce(async (name) => {
+        vi.spyOn(service, 'claimFence')
+            // deleted and created again between the loop's claim (no row then) and the pass's own read
+            .mockImplementationOnce(async (name, token) => {
                 await service.deleteCollection(name);
 
-                const fence = await advance(name);
+                const fence = await claim(name, token);
 
                 await save(record);
                 await service.saveDocument({
@@ -1034,8 +1034,8 @@ describe('managed collections', () => {
 
                 return fence;
             })
-            // the previous owner started a re-embed toward another model between the pass's read and its advance
-            .mockImplementationOnce(async (name) => {
+            // the previous owner started a re-embed toward another model between the pass's read and its claim
+            .mockImplementationOnce(async (name, token) => {
                 await save({
                     ...record,
                     pending: {
@@ -1046,7 +1046,7 @@ describe('managed collections', () => {
                     lastGeneration: 2,
                 });
 
-                return advance(name);
+                return claim(name, token);
             });
 
         knowledge.start();

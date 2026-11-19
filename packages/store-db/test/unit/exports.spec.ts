@@ -55,11 +55,12 @@ describe('public api', () => {
         expect(pkg[name as keyof typeof pkg]).toBeTypeOf('function');
     });
 
-    it('exports the date and optional jsonb column transformers, and no list schema of its own (decodeQuery and defineSchema are @chamvi/http\'s)', () => {
+    it('exports the date, optional jsonb and bigint number column transformers, and no list schema of its own (decodeQuery and defineSchema are @chamvi/http\'s)', () => {
         expect(pkg.dateToISOStringTransformer.to).toBeTypeOf('function');
         expect(pkg.dateToISOStringTransformer.from).toBeTypeOf('function');
         expect(pkg.OPTIONAL_JSON_TRANSFORMER.to).toBeTypeOf('function');
         expect(pkg.OPTIONAL_JSON_TRANSFORMER.from).toBeTypeOf('function');
+        expect(pkg.BIGINT_NUMBER_TRANSFORMER.from('4503599627370496')).toBe(2 ** 52);
         expect(pkg).not.toHaveProperty('decodeQuery');
         expect(pkg).not.toHaveProperty('defineSchema');
         expect(pkg).not.toHaveProperty('prepareQuery');

@@ -29,9 +29,9 @@ export type KnowledgeServiceContext = {
 };
 
 /**
- * A pass's fence token: the collection row's id and its fence counter
- * (`advanceFence()`). A collection deleted and created again is another row,
- * so the token of the old one never matches the new one.
+ * A pass's fence token: the collection row's id and its fence, the lock
+ * token the pass claimed (`claimFence()`). A collection deleted and created
+ * again is another row, so the token of the old one never matches the new one.
  */
 export type KnowledgeFence = {
     id: string;
@@ -67,12 +67,14 @@ export interface IKnowledgeService {
      */
     saveCollection(collection: KnowledgeCollection, options?: KnowledgeWriteOptions): Promise<KnowledgeCollectionRecord>;
     /**
-     * Counts the collection's fence up by one and answers the new token
-     * (`undefined` for a missing collection); itself never fenced. A pass
-     * calls it once it holds the lock `knowledge:<name>`, so the writes of a
-     * pass that lost the lock are refused.
+     * Sets the collection's fence to `token` (the token the lock
+     * `knowledge:<name>` was acquired with) and answers it (`undefined` for
+     * a missing collection); itself never fenced. A token below the stored
+     * fence is a `LeaseLostError` with nothing written (a newer holder
+     * claimed it), an equal one is answered as is. A pass calls it once it
+     * holds the lock, so the writes of a pass that lost the lock are refused.
      */
-    advanceFence(name: string): Promise<KnowledgeFence | undefined>;
+    claimFence(name: string, token: number): Promise<KnowledgeFence | undefined>;
     findOneCollection(name: string): Promise<KnowledgeCollection | undefined>;
     /** As `findOneCollection`, rejecting a missing one with `RepositoryNotFoundError`. */
     findOneCollectionOrFail(name: string): Promise<KnowledgeCollection>;

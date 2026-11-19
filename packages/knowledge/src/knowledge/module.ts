@@ -60,7 +60,7 @@ class Knowledge implements IKnowledge {
 
     readonly service: IKnowledgeService;
 
-    protected readonly locks: Pick<ILockService, 'acquire' | 'release'>;
+    protected readonly locks: Pick<ILockService, 'acquire' | 'renew' | 'release'>;
 
     protected readonly models: IModelResolver | undefined;
 

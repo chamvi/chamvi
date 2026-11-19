@@ -7,7 +7,7 @@
 
 export * from './column/index.ts';
 export * from './database/index.ts';
-export { OPTIONAL_JSON_TRANSFORMER } from './entities/index.ts';
+export { BIGINT_NUMBER_TRANSFORMER, OPTIONAL_JSON_TRANSFORMER } from './entities/index.ts';
 export * from './entity/index.ts';
 export * from './error/index.ts';
 export * from './migration/index.ts';

@@ -7,7 +7,7 @@
 
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import {
-    advanceLockFence,
+    claimLockFence,
     highestGeneration,
     messageOf,
     settled,
@@ -341,17 +341,16 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
     }
 
     if (lock.fence === undefined) {
-        // the record appeared after the loop advanced the fence (no row then):
-        // take a token while the lock holds, then decide on what is stored from here on
+        // the record appeared after the loop claimed the fence (no row then):
+        // claim it while the lock holds, then decide on what is stored from here on
         if (!await lock.renew()) {
             return;
         }
 
-        await advanceLockFence(service, name, lock);
+        await claimLockFence(service, name, lock);
 
-        // gone again (nothing to write, and never a write without a token), or a stall
-        // inside the advance outlasted the lease (never a write with that token)
-        if (lock.fence === undefined || !await lock.renew()) {
+        // gone again: nothing to write, and never a write without a fence
+        if (lock.fence === undefined) {
             return;
         }
 

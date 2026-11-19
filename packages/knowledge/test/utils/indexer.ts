@@ -61,14 +61,22 @@ export type RecordedLocks = Pick<ILockService, 'acquire' | 'renew' | 'release'> 
         owner: string; 
         result: boolean 
     }>;
+    /** Every renew with its owner and its answer, in call order. */
+    readonly renewed: Array<{
+        key: string;
+        owner: string;
+        result: boolean;
+    }>;
 };
 
-/** Locks over a memory lock repository, recording every acquire. */
+/** Locks over a memory lock repository, recording every acquire and renew. */
 export function recordingLocks(locks: Pick<ILockService, 'acquire' | 'renew' | 'release'>): RecordedLocks {
     const acquired: RecordedLocks['acquired'] = [];
+    const renewed: RecordedLocks['renewed'] = [];
 
     return {
         acquired,
+        renewed,
         async acquire(key, owner, ttlMs) {
             const result = await locks.acquire(key, owner, ttlMs);
 
@@ -80,7 +88,17 @@ export function recordingLocks(locks: Pick<ILockService, 'acquire' | 'renew' | '
 
             return result;
         },
-        renew: (key, owner, ttlMs) => locks.renew(key, owner, ttlMs),
+        async renew(key, owner, ttlMs) {
+            const result = await locks.renew(key, owner, ttlMs);
+
+            renewed.push({
+                key,
+                owner,
+                result,
+            });
+
+            return result;
+        },
         release: (key, owner) => locks.release(key, owner),
     };
 }

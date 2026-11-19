@@ -156,7 +156,7 @@ describe('orphaned collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
-    it('leaves a record alone when another owner advanced its fence during the mark', async () => {
+    it('leaves a record alone when another owner claimed its fence during the mark', async () => {
         const setup = createIndexerSetup();
 
         await seed(setup, 'old', 'declared');
@@ -177,8 +177,8 @@ describe('orphaned collections', () => {
 
         try {
             await expect.poll(() => held.mock.calls.length).toBe(1);
-            // another owner took the lock and advanced the fence
-            await service.advanceFence('old');
+            // another owner took the lock (a newer token) and claimed the fence
+            await service.claimFence('old', Number.MAX_SAFE_INTEGER);
         } finally {
             // also on a failure: stop() waits for the held mark
             gate.resolve();

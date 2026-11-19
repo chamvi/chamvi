@@ -337,7 +337,7 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
     it('a delete while a pass writes never resurrects a row', async () => {
         await service.saveCollection(collectionOf('docs'));
 
-        const fence = await service.advanceFence('docs');
+        const fence = await service.claimFence('docs', Date.now() * 1000);
         const gate = createGate();
         const writing = gatedService(gate).replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0])], { fence: fence! });
 
@@ -358,7 +358,7 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
     it('a pass that writes after a delete took the row is refused and writes nothing', async () => {
         await service.saveCollection(collectionOf('docs'));
 
-        const fence = await service.advanceFence('docs');
+        const fence = await service.claimFence('docs', Date.now() * 1000);
         const gate = createGate();
         const deleting = gatedService(gate).deleteCollection('docs');
 
@@ -385,8 +385,9 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
         await service.saveCollection(collectionOf('docs'));
         await service.saveDocument(documentOf('docs', 'a'));
 
-        const stale = await service.advanceFence('docs');
-        const fresh = await service.advanceFence('docs');
+        const token = Date.now() * 1000;
+        const stale = await service.claimFence('docs', token);
+        const fresh = await service.claimFence('docs', token + 1);
         const gate = createGate();
         const writing = gatedService(gate).replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'fresh')], { fence: fresh! });
 

@@ -17,12 +17,14 @@ export type KnowledgeEmbed = (model: string, texts: string[], signal: AbortSigna
 
 /** The held store lock of one sync. */
 export type KnowledgeIndexLock = {
-    /** Whether the lock is still this owner's (re-acquired once half the TTL passed). */
+    /** Whether the lock is still this owner's (renewed once half the TTL passed). */
     renew(): Promise<boolean>;
+    /** The fencing token the lock was acquired with (kept by every renew). */
+    readonly token: number;
     /**
-     * The collection's fence token, advanced once the lock was taken (and once
-     * a first pass created the record); every write of the pass carries it,
-     * so a pass whose lock another owner took is refused (`LeaseLostError`).
+     * The collection's fence, claimed with `token` once the lock was taken (and
+     * once a first pass created the record); every write of the pass carries
+     * it, so a pass whose lock another owner took is refused (`LeaseLostError`).
      */
     fence?: KnowledgeFence;
 };
@@ -58,7 +60,7 @@ export type CollectionLoopInput = {
     /** The collection (the lock `knowledge:<name>`, the error context). */
     name: string;
     service: IKnowledgeService;
-    locks: Pick<ILockService, 'acquire' | 'release'>;
+    locks: Pick<ILockService, 'acquire' | 'renew' | 'release'>;
     owner: string;
     clock: IClock;
     signal: AbortSignal;

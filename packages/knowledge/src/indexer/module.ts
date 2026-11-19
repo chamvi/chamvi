@@ -28,7 +28,7 @@ import {
     KNOWLEDGE_RETRY_MS,
 } from './constants.ts';
 import {
-    advanceLockFence,
+    claimLockFence,
     createIndexLock,
     highestGeneration,
     isLeaseLost,
@@ -161,9 +161,9 @@ export async function embedDocument(input: EmbedDocumentInput): Promise<Embedded
  * the previous one. A document with unchanged content, title and source costs
  * nothing (its chunks carry the title and source). Ends early, without an
  * error, once `lock.renew()` answers false. Every write carries the lock's
- * fence (a first pass creates the record create-only, then renews the lock
- * and advances it, ending when the token is not the created row's), so a
- * write after another owner took the lock is a `LeaseLostError`.
+ * fence (a first pass creates the record create-only, then claims it with
+ * the lock's token, ending when the claimed row is not the created one), so
+ * a write after another owner took the lock is a `LeaseLostError`.
  */
 export async function syncCollection(input: SyncCollectionInput): Promise<void> {
     const {
@@ -178,18 +178,13 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
     let stored = await service.findOneCollection(name);
 
     if (stored && lock.fence === undefined) {
-        // the record appeared after the loop advanced the fence (no row then):
-        // take a token while the lock holds, then decide on what is stored from here on
+        // the record appeared after the loop claimed the fence (no row then):
+        // claim it while the lock holds, then decide on what is stored from here on
         if (!await lock.renew()) {
             return;
         }
 
-        await advanceLockFence(service, name, lock);
-
-        // a stall inside the advance may have outlasted the lease: never a write with that token then
-        if (!await lock.renew()) {
-            return;
-        }
+        await claimLockFence(service, name, lock);
 
         stored = await service.findOneCollection(name);
     }
@@ -257,12 +252,11 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         }
 
         // the record exists from here on: the writes that follow carry its fence
-        const fence = await advanceLockFence(service, name, lock);
+        const fence = await claimLockFence(service, name, lock);
 
-        // a stall inside the advance may have outlasted the lease (never a write with that
-        // token then); deleted (or deleted and created again) since the create: never a
-        // write without a token, nor one into another row of the name
-        if (!await lock.renew() || fence?.id !== saved.id) {
+        // deleted (or deleted and created again) since the create: never a write
+        // without a fence, nor one into another row of the name
+        if (fence?.id !== saved.id) {
             return;
         }
     }
@@ -421,8 +415,8 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
 /**
  * Stores a failure on the declared record (never on a managed one), only while
  * the lock is still this owner's (renewed, and the write fenced; a pass
- * without a token advances the fence first, and with no record records
- * nothing): a lost lock leaves the record to its holder.
+ * without a fence claims it first, and with no record records nothing): a
+ * lost lock leaves the record to its holder.
  * The failure count and the time of the next attempt go with it, so every
  * replica backs off together. Whether it was stored.
  */
@@ -438,11 +432,10 @@ async function recordErrorUnderLock(
     }
 
     if (lock.fence === undefined) {
-        // a pass that failed before it had a token: never a write without one
-        await advanceLockFence(service, name, lock);
+        // a pass that failed before it had a fence: never a write without one
+        await claimLockFence(service, name, lock);
 
-        // a stall inside the advance may have outlasted the lease: never a write with that token then
-        if (lock.fence === undefined || !await lock.renew()) {
+        if (lock.fence === undefined) {
             return false;
         }
     }
@@ -533,8 +526,9 @@ function idleWaitOf(dueIn: number | undefined, checkMs: number | undefined): num
  * meanwhile waits for it too. A configuration error
  * (InvalidAgentDefinitionError) is stored and reported once and ends the
  * loop. A failed lock acquire or store read is only reported and retried on
- * this loop's own backoff. Each pass first renews the lock, advances the
- * collection's fence (`lock.fence`) and renews again (no pass when it fails); a write the fence refuses (`LeaseLostError`: another owner
+ * this loop's own backoff. Each pass first renews the lock (no pass when it
+ * fails) and claims the collection's fence (`lock.fence`) with the lock's
+ * token; a claim or write the fence refuses (`LeaseLostError`: another owner
  * took the lock) ends the pass like a lost lock: nothing reported or stored,
  * no backoff. With `checkMs`, an idle loop also reads its record that often:
  * a missing one (deleted on another replica) or one no pass completed yet
@@ -567,7 +561,7 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
 
     while (!signal.aborted) {
         const honourRetry = !first;
-        let acquired: boolean;
+        let token: number | undefined;
 
         first = false;
 
@@ -596,7 +590,7 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                 }
             }
 
-            acquired = await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS) !== undefined;
+            token = await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS);
         } catch (error) {
             if (signal.aborted) {
                 return;
@@ -608,10 +602,10 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
             continue;
         }
 
-        if (acquired) {
-            const lock = createIndexLock(locks, key, owner, clock);
+        if (token !== undefined) {
+            const lock = createIndexLock(locks, key, owner, clock, token);
             let failure: { error: unknown; stored: boolean } | undefined;
-            // a write refused for a fence another owner advanced: the lock is lost
+            // a claim or write refused for a fence another owner claimed: the lock is lost
             let fenced = false;
             let deferred = false;
             let dueIn: number | undefined = 0;
@@ -625,17 +619,13 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                     dueIn = await dueDelayOf(service, name, clock, idleMs);
                 }
 
-                // the reads above may have outlasted the lease: never a token once another owner may hold it
+                // the reads above may have outlasted the lease: no pass once another owner may hold it
                 if (!deferred && dueIn === 0 && await lock.renew()) {
                     // a wake from here on asks for one more pass
                     wake.clear();
-                    // a pass that lost the lock before this advance writes nothing more
-                    await advanceLockFence(service, name, lock);
-
-                    // a stall inside the advance may have outlasted the lease: never a pass with that token then
-                    if (await lock.renew()) {
-                        await input.pass(lock, report);
-                    }
+                    // a newer holder's claim refuses this one (LeaseLostError): no pass then
+                    await claimLockFence(service, name, lock);
+                    await input.pass(lock, report);
                 }
             } catch (error) {
                 if (isLeaseLost(error)) {
@@ -706,8 +696,9 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
  * documents and chunks, searchable by no agent. Each mark is written under
  * the record's `knowledge:<name>` lock (a held one means a replica that
  * declares it is syncing it: left alone), re-read once the lock is held and
- * its fence advanced; a mark the fence refuses (another owner took the lock
- * meanwhile) or that finds the row deleted leaves the record alone too.
+ * its fence claimed with the lock's token; a claim or mark the fence refuses
+ * (another owner took the lock meanwhile) or that finds the row deleted
+ * leaves the record alone too.
  */
 export async function markOrphans(
     service: IKnowledgeService,
@@ -728,20 +719,14 @@ export async function markOrphans(
 
         const key = lockKey(candidate.name);
 
-        if (await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS) === undefined) {
+        const token = await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS);
+
+        if (token === undefined) {
             continue;
         }
 
-        const lock = createIndexLock(locks, key, owner, clock);
-
         try {
-            const fence = await service.advanceFence(candidate.name);
-
-            // a stall inside the advance may have outlasted the lease: never a mark with that token then
-            if (!await lock.renew()) {
-                continue;
-            }
-
+            const fence = await service.claimFence(candidate.name, token);
             const record = await service.findOneCollection(candidate.name);
 
             if (fence && isOrphan(record)) {

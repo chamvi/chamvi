@@ -72,7 +72,7 @@ function createKnowledge(options: KnowledgeOptions): IKnowledge;
 
 type KnowledgeOptions = {
     repository: IKnowledgeCollectionRepository; // createMemoryKnowledgeRepository() or a persistent backend
-    locks: Pick<LockService, 'acquire' | 'release'>; // engine.lockService: one indexer per collection across replicas
+    locks: Pick<LockService, 'acquire' | 'renew' | 'release'>; // engine.lockService: one indexer per collection across replicas
     collections?: readonly KnowledgeCollectionDefinition[];
     models?: IModelResolver;          // resolves string models (embedding())
     embeddingModel?: string | EmbeddingModel; // managed collections' model; without it none can be created
@@ -176,7 +176,7 @@ class KnowledgeService implements IKnowledgeService {
 
 interface IKnowledgeService {
     saveCollection(collection: KnowledgeCollection, options?: KnowledgeWriteOptions): Promise<KnowledgeCollectionRecord>;
-    advanceFence(name: string): Promise<KnowledgeFence | undefined>;
+    claimFence(name: string, token: number): Promise<KnowledgeFence | undefined>;
     findOneCollection(name: string): Promise<KnowledgeCollection | undefined>;
     findOneCollectionOrFail(name: string): Promise<KnowledgeCollection>;
     findCollections(): Promise<KnowledgeCollection[]>;
@@ -202,9 +202,9 @@ type KnowledgeWriteOptions = { fence?: KnowledgeFence; create?: boolean };
 
 `createMemoryKnowledgeRepository()` keeps collections, documents and chunks in the process, on one registry that enforces the collection reference like a foreign key. The repositories store and read only; `KnowledgeService` holds every rule: code-point orders, the version guards, the errors (`RepositoryNotFoundError` for a missing collection or document) and the timestamps from its clock.
 
-A `KnowledgeCollection` record holds the served `generation`, its `model`, `dimensions` and `chunker`, an optional `pending` re-embed, `lastGeneration` (never reused), `status` (`pending`, `ready`, `stale`, `orphaned`), `trusted`, and after a failure `error`, `failures` and `retryAt` (a `Date`). A `KnowledgeCollection` also holds `syncedAt`, the end of the last successful pass, which `resyncMs` counts from. Its row adds an `id` (a uuid v7 given at creation: a collection deleted and created again is another row) and the `fence` counter. A `KnowledgeDocument` has a `status` (`pending`, `ready`, `failed` with an `error`); `updateDocument()` writes its patch only while the stored document still has the version's `hash`, `title` and `source` (`KnowledgeDocumentVersion`; an absent value matches only an absent one). `updateDetails()` rewrites a document's title, source and metadata under the same guard and, for a `ready` document, the title and source of its chunks in the same transaction, without re-embedding. `requeueGeneration()` sets at most `limit` documents of one generation back to `pending` at another and answers how many. Each chunk keeps its own `title` and `source`, which search results show.
+A `KnowledgeCollection` record holds the served `generation`, its `model`, `dimensions` and `chunker`, an optional `pending` re-embed, `lastGeneration` (never reused), `status` (`pending`, `ready`, `stale`, `orphaned`), `trusted`, and after a failure `error`, `failures` and `retryAt` (a `Date`). A `KnowledgeCollection` also holds `syncedAt`, the end of the last successful pass, which `resyncMs` counts from. Its row adds an `id` (a uuid v7 given at creation: a collection deleted and created again is another row) and the `fence`, the lock token the last pass claimed. A `KnowledgeDocument` has a `status` (`pending`, `ready`, `failed` with an `error`); `updateDocument()` writes its patch only while the stored document still has the version's `hash`, `title` and `source` (`KnowledgeDocumentVersion`; an absent value matches only an absent one). `updateDetails()` rewrites a document's title, source and metadata under the same guard and, for a `ready` document, the title and source of its chunks in the same transaction, without re-embedding. `requeueGeneration()` sets at most `limit` documents of one generation back to `pending` at another and answers how many. Each chunk keeps its own `title` and `source`, which search results show.
 
-**The fence.** A pass calls `advanceFence(name)` once it holds the lock `knowledge:<name>` and passes the token as `{ fence }` with each write (a declared collection's first pass saves the record with `{ create: true }`, then advances). A fenced write locks the collection row first: a missing collection is `RepositoryNotFoundError`, another fence or row id is `LeaseLostError` and nothing is written, so a pass whose lock lapsed writes nothing once another owner advanced the fence, and a collection deleted during a pass is never written back. Writes without a fence (the managed API) are never refused.
+**The fence.** A pass calls `claimFence(name, token)` once it holds the lock `knowledge:<name>`, with the fencing token the lock service's `acquire()` returned, and passes the answer as `{ fence }` with each write (a declared collection's first pass saves the record with `{ create: true }`, then claims). A token below the stored fence is `LeaseLostError` and changes nothing, so a holder whose lease lapsed never takes the fence back from a newer one. A fenced write locks the collection row first: a missing collection is `RepositoryNotFoundError`, another fence or row id is `LeaseLostError` and nothing is written, so a pass whose lock lapsed writes nothing once another owner claimed the fence, and a collection deleted during a pass is never written back. Tokens are large integers (above 2^31): a custom repository stores the fence as a 64-bit integer. Writes without a fence (the managed API) are never refused.
 
 Every backend runs `describeKnowledgeRepositoryContract()` from [`@chamvi/test-kit`](/reference/test-kit) with a `KnowledgeService` over its repositories.
 

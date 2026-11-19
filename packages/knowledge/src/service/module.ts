@@ -54,8 +54,9 @@ import type {
  * name (locked), then the documents and chunks through the handed-in
  * repository's children. Reads resolve the collection's row id first.
  * `saveCollection` keeps the stored row's `id` and `fence`; a new row gets
- * a uuid v7 id and fence 0. Only `advanceFence` changes a fence; a write
- * given `{ fence }` compares it with the locked row before it writes.
+ * a uuid v7 id and fence 0. Only `claimFence` changes a fence (to the
+ * lock's token, never down); a write given `{ fence }` compares it with the
+ * locked row before it writes.
  */
 export class KnowledgeService implements IKnowledgeService {
     protected repository: IKnowledgeCollectionRepository;
@@ -80,7 +81,7 @@ export class KnowledgeService implements IKnowledgeService {
         }
     }
 
-    async advanceFence(name: string): Promise<KnowledgeFence | undefined> {
+    async claimFence(name: string, token: number): Promise<KnowledgeFence | undefined> {
         return this.repository.transaction(async (repository) => {
             const record = await repository.findOneBy({ name });
 
@@ -88,7 +89,16 @@ export class KnowledgeService implements IKnowledgeService {
                 return undefined;
             }
 
-            const saved = await repository.save(repository.merge(record, { fence: record.fence + 1 }));
+            // max seen: a holder with an older lock token never takes the fence back
+            if (token < record.fence) {
+                throw new LeaseLostError({ lock: lockKey(name) });
+            }
+
+            if (token === record.fence) {
+                return { id: record.id, fence: token };
+            }
+
+            const saved = await repository.save(repository.merge(record, { fence: token }));
 
             return { id: saved.id, fence: saved.fence };
         });

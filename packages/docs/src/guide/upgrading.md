@@ -28,6 +28,7 @@ Agents can run in another chamvi app ([Remote agents](/guide/remote-agents)): `d
 | `describeKnowledgeRepositoryContract()` (`@chamvi/test-kit`) | `(name, create)`, `create` returning a repository | `({ name, create })`, `create` returning a `KnowledgeService` over fresh repositories |
 | `ILockService.acquire()`, `LockService.acquire()` (`@chamvi/core`) | Resolved `true` when granted, `false` when refused | Resolves the lease's fencing token (a `number`) when granted, `undefined` when refused: test `!== undefined` where you tested the boolean. The token is higher than every token the lock store issued before, for any key; `renew` keeps it. `createRepositoryScheduleLock()` (`@chamvi/channel-cron`) still resolves a boolean for hubwire |
 | `Lock`, `ILockRepository` (`@chamvi/store`) | `Lock` was `id`, `key`, `owner`, `expiresAt` | `Lock.token: number` and `ILockRepository.nextToken()`: a custom lock repository stores `token` as given and issues `max(last + 1, Date.now() * 1000)`, strictly increasing across all keys and concurrent callers, and passes `describeLockRepositoryContract()` |
+| `createKnowledge({ locks })` (`@chamvi/knowledge`) | `Pick<ILockService, 'acquire' \| 'release'>` | Also `renew`: a pass renews its lease in place and keeps the lock's fencing token, which it claims as the collection's fence. Pass `engine.lockService` |
 
 ## Upgrading to 0.9
 

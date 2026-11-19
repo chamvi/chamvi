@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { BIGINT_NUMBER_TRANSFORMER } from '@chamvi/store-db';
 import {
     Column,
     Entity,
@@ -136,11 +137,12 @@ export class KnowledgeCollectionEntity {
     @Column({ name: 'updated_at', type: 'timestamp with time zone' })
     updatedAt!: Date;
 
-    /** Advanced by every pass that takes the collection's lock; a write naming an older one is refused. */
+    /** The lock token the last pass claimed (lock tokens exceed 2^31); a write naming another one is refused. */
     @Column({
         name: 'fence',
-        type: 'integer',
+        type: 'bigint',
         default: 0,
+        transformer: BIGINT_NUMBER_TRANSFORMER,
     })
     fence!: number;
 }
