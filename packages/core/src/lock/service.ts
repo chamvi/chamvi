@@ -25,8 +25,9 @@ import type { ILockService, LockServiceContext } from './types.ts';
  *
  * Every insert and takeover stores a new fencing token from
  * `ILockRepository.nextToken()`, issued in the same transaction before
- * its insert or locked read; a renewal keeps it. Tokens skipped by a
- * refused takeover or a failed insert leave gaps, never repeats.
+ * its insert or locked read (a takeover whose token is not above the
+ * stored lease's takes another after the read); a renewal keeps it. Tokens
+ * skipped by a refused takeover or a failed insert leave gaps, never repeats.
  */
 export class LockService implements ILockService {
     protected repository: ILockRepository;
@@ -49,7 +50,7 @@ export class LockService implements ILockService {
             const taken = await this.takeOver(key, owner, ttlMs);
 
             if (taken !== undefined) {
-                return taken.token;
+                return taken ?? undefined;
             }
         }
 
@@ -78,7 +79,7 @@ export class LockService implements ILockService {
             const taken = await this.takeOver(key, owner, ttlMs);
 
             if (taken !== undefined) {
-                return taken.token;
+                return taken ?? undefined;
             }
 
             // released or purged between the insert and the read: insert again
@@ -129,15 +130,15 @@ export class LockService implements ILockService {
 
     /**
      * In one transaction: the lease of `key` read locked, then taken over
-     * by `owner` with a new token if it expired. Resolves `{ token }` when
-     * taken, `{}` when it is unexpired, undefined when no lease is stored.
+     * by `owner` with a new token if it expired. Resolves the token when
+     * taken, null when the lease is unexpired, undefined when none is stored.
      */
-    protected async takeOver(key: string, owner: string, ttlMs: number): Promise<{ token?: number } | undefined> {
+    protected async takeOver(key: string, owner: string, ttlMs: number): Promise<number | null | undefined> {
         return this.repository.transaction(async (repository) => {
             // before the locked read, as on the insert path: a storage that locks its counter
             // takes it first in every transaction, so a takeover and an insert never wait on
             // each other in opposite orders; a token taken for a held lease is skipped
-            const token = await repository.nextToken();
+            let token = await repository.nextToken();
             const lock: Lock | null = await repository.findOneBy({ key });
 
             if (!lock) {
@@ -147,7 +148,13 @@ export class LockService implements ILockService {
             const now = this.clock.now();
 
             if (lock.expiresAt.getTime() > now) {
-                return {};
+                return null;
+            }
+
+            if (token <= lock.token) {
+                // a counter that is not commit-ordered issued it before the stored lease committed:
+                // one issued after the locked read is above it, so a later holder's token is higher
+                token = await repository.nextToken();
             }
 
             repository.merge(lock, {
@@ -157,7 +164,7 @@ export class LockService implements ILockService {
             });
             await repository.save(lock);
 
-            return { token };
+            return token;
         });
     }
 }

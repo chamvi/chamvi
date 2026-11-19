@@ -128,6 +128,28 @@ describe('LockService', () => {
         });
     });
 
+    it('a takeover whose issued token is not above the stored one takes another, so a later holder always gets a higher token', async () => {
+        const first = await locks.acquire('k', 'a', 1_000);
+        const nextToken = repository.nextToken.bind(repository);
+        let issued = 0;
+
+        // a custom store whose counter is not commit-ordered: the first token after the
+        // expiry is below the stored lease's, issued before the locked read saw it
+        repository.nextToken = async () => {
+            issued += 1;
+
+            return issued === 1 ? first! - 5 : nextToken();
+        };
+
+        clock.advance(1_000);
+
+        const token = await locks.acquire('k', 'b', 1_000);
+
+        expect(issued).toBe(2);
+        expect(token).toBeGreaterThan(first!);
+        expect((await repository.findOneBy({ key: 'k' }))?.token).toBe(token);
+    });
+
     it('release by the owner frees the key; a release by another owner or of an unknown key does nothing', async () => {
         await locks.acquire('k', 'a', 1_000);
 
