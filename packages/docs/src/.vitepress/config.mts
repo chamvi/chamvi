@@ -203,6 +203,7 @@ export default defineConfig({
                         { text: '@chamvi/knowledge', link: '/reference/knowledge' },
                         { text: '@chamvi/sandbox', link: '/reference/sandbox' },
                         { text: '@chamvi/skills', link: '/reference/skills' },
+                        { text: '@chamvi/store-db-vector', link: '/guide/knowledge#storage' },
                         { text: '@chamvi/test-kit', link: '/reference/test-kit' },
                         { text: '@chamvi/tool-calendar', link: '/reference/tool-calendar' },
                         { text: '@chamvi/tool-files', link: '/reference/tool-files' },

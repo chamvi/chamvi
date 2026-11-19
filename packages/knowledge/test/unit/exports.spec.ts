@@ -61,6 +61,9 @@ describe('public api', () => {
         expect(knowledge.KNOWLEDGE_WRITE_PERMISSION).toBe('chamvi_knowledge_write');
         expect(knowledge.KNOWLEDGE_DOCUMENTS_DEFAULT_LIMIT).toBe(50);
         expect(knowledge.KNOWLEDGE_DOCUMENTS_MAX_LIMIT).toBe(100);
+        expect(knowledge.KNOWLEDGE_COLLECTION_ENTITY).toBe('knowledge_collection');
+        expect(knowledge.KNOWLEDGE_DOCUMENT_ENTITY).toBe('knowledge_document');
+        expect(knowledge.KNOWLEDGE_CHUNK_ENTITY).toBe('knowledge_chunk');
     });
 
     it('keeps the internals internal', () => {
@@ -71,8 +74,11 @@ describe('public api', () => {
             'EMBED_BATCH_SIZE',
             'FOLDER_EXTENSIONS',
             'FOLDER_FILE_MAX_BYTES',
+            'KNOWLEDGE_CHUNK_ENTITY',
+            'KNOWLEDGE_COLLECTION_ENTITY',
             'KNOWLEDGE_DOCUMENTS_DEFAULT_LIMIT',
             'KNOWLEDGE_DOCUMENTS_MAX_LIMIT',
+            'KNOWLEDGE_DOCUMENT_ENTITY',
             'KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH',
             'KNOWLEDGE_EMBED_TIMEOUT_MS',
             'KNOWLEDGE_LOCK_TTL_MS',
@@ -109,10 +115,19 @@ describe('public api', () => {
     });
 
     it('exports knowledgeModule from /module', () => {
-        expect(Object.keys(knowledgeModuleEntry).sort()).toEqual(['KNOWLEDGE_MODEL_VARIABLE', 'KNOWLEDGE_MODULE_NAME', 'KnowledgeModule', 'knowledgeModule']);
+        expect(Object.keys(knowledgeModuleEntry).sort()).toEqual([
+            'KNOWLEDGE_MODEL_VARIABLE',
+            'KNOWLEDGE_MODULE_NAME',
+            'KNOWLEDGE_REPOSITORY_MODULE_NAME',
+            'KnowledgeModule',
+            'KnowledgeToken',
+            'knowledgeModule',
+        ]);
         expect(knowledgeModuleEntry.knowledgeModule).toBeTypeOf('function');
         expect(knowledgeModuleEntry.KnowledgeModule).toBeTypeOf('function');
         expect(knowledgeModuleEntry.KNOWLEDGE_MODULE_NAME).toBe('chamvi:knowledge');
         expect(knowledgeModuleEntry.KNOWLEDGE_MODEL_VARIABLE).toBe('CHAMVI_KNOWLEDGE_MODEL');
+        expect(knowledgeModuleEntry.KNOWLEDGE_REPOSITORY_MODULE_NAME).toBe('chamvi:knowledge-repository');
+        expect(knowledgeModuleEntry.KnowledgeToken.REPOSITORY.name).toBe('chamvi.knowledge-repository');
     });
 });

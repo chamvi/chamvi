@@ -27,7 +27,7 @@ npm install @chamvi/knowledge
 
 Collections are declared at app level only; agent definitions, folder agents included, never declare one. Names follow the agent-name rule. A string model such as `'openai/text-embedding-3-small'` resolves through the app's [model providers](/guide/models) and their keys, like chat models; an AI SDK `EmbeddingModel` object is used as is. A name declared twice, a model that does not resolve or an invalid source (a `folder()` path that is no directory) fails the boot, and `chamvi start --check` reports it.
 
-Without `repository` the vectors live in memory, which the module warns about outside dev: every restart re-embeds, and replicas index separately. A persistent repository (pgvector) is planned.
+Without a [storage backend](#storage) the vectors live in memory, which the module warns about outside dev: every restart re-embeds, and replicas index separately.
 
 ## Sources
 
@@ -121,7 +121,7 @@ curl -X DELETE "$API/collections/tickets/documents/T-1042" -H "$AUTH"
 - **Always untrusted**: anyone holding `chamvi_knowledge_write` decides what a managed collection says, so a search over one always [taints the run](#untrusted-content); no option makes it trusted.
 - **Deleting**: `DELETE /knowledge/collections/<name>` removes a managed collection, or an orphaned declared one, with everything in it; a collection the code declares answers 409.
 
-A collection created on another replica is picked up here within a minute. With the default in-memory repository, managed collections live only in the process that created them and are gone after a restart; they need a persistent repository to be useful in production. The routes and their answers are in the [reference](/reference/knowledge#rest-api).
+A collection created on another replica is picked up here within a minute. In memory, managed collections live only in the process that created them and are gone after a restart; they need the [pgvector store](#storage) to be useful in production. The routes and their answers are in the [reference](/reference/knowledge#rest-api).
 
 ## The search tool
 
@@ -139,11 +139,41 @@ Every collection has a `trusted` flag. `folder()` and custom sources are trusted
 
 This records provenance; it does not filter injected instructions out of the passages, which still reach the model.
 
+## Storage
+
+Without a backend, collections, documents and vectors live in memory: every restart re-embeds, replicas index separately, managed collections are gone after a restart, and the module warns about it outside dev. `vectorStoreModule()` of `@chamvi/store-db-vector` keeps them in PostgreSQL with [pgvector](https://github.com/pgvector/pgvector), so they survive restarts and every replica shares them:
+
+```bash
+npm install @chamvi/store-db-vector
+```
+
+```ts
+import { createApp } from '@chamvi/app';
+import { knowledgeModule } from '@chamvi/knowledge/module';
+import { vectorStoreModule } from '@chamvi/store-db-vector';
+
+export default createApp({
+    agents: [support],
+    modules: [
+        vectorStoreModule(),
+        knowledgeModule({ collections: [handbook] }),
+    ],
+});
+```
+
+- **The database**: PostgreSQL with pgvector 0.8 or later (for example the `pgvector/pgvector:pg18` image), the one of `DATABASE_URL` that chamvi's store uses; `vectorStoreModule({ url })` names another. Without either the start fails: there is no SQLite fallback. The knowledge gets tables of its own (`chamvi_vector_collections`, `chamvi_vector_documents`, `chamvi_vector_chunks`) and never touches the store's.
+- **The extension**: the first migration runs `CREATE EXTENSION IF NOT EXISTS vector`, which needs a role allowed to create it. Where the app's role is not, an operator installs `vector` beforehand and the migration leaves it alone.
+- **Migrations**: the tables have their own chain (recorded in `chamvi_vector_migrations`, under the lock `chamvi:db:vector`) and run like the store's: `chamvi migrate`, or at start unless `CHAMVI_MIGRATE=false`; with it off, pending migrations fail the start and `chamvi start --check`. `chamvi migration run|status|drift --database vector` works on this chain alone; beside another [database module](/guide/database) the `--database` flag is required. `chamvi migration` reads `DATABASE_URL` only and ignores `vectorStoreModule({ url })`.
+- **Exact search**: every search compares the query with every passage of the collection (no approximate index), which stays fast up to tens of thousands of passages per collection.
+- **Replicas**: the indexing lock lives in chamvi's store, so replicas need it on `DATABASE_URL` too. With a memory store beside a shared pgvector database, run a single replica: each process holds its own locks, and the replicas would refuse each other's writes.
+
+`knowledgeModule({ repository })` wins over the backend, for a repository of your own. The [package README](https://github.com/chamvi/chamvi/tree/master/packages/store-db-vector#readme) lists the tables and exports.
+
 ## Without the app
 
 `createKnowledge({ repository, locks, collections, models?, embeddingModel?, clock?, owner?, onError? })` builds the same thing over your own engine: `provideKnowledgeContext(engine, knowledge)` lets the tools reach it, `knowledge.start()` begins indexing, `knowledge.sync(name)` runs a pass now and `knowledge.stop()` aborts and awaits it. `knowledge.managedPoll` is the managed poll as a hubwire component, which `start()` and `stop()` run; with `runManagedPoll: false` they leave it alone, for a host that runs the component itself (as `knowledgeModule()` does). `embeddingModel` is the managed collections' model; `knowledgeRoutes(knowledge)` returns the REST routes for `createHttpApp({ routes })`. The [package README](https://github.com/chamvi/chamvi/tree/master/packages/knowledge#usage) has a complete example.
 
 ## Not built yet
 
-- **`@chamvi/store-db-vector`**: a pgvector repository with its own migrations.
 - **More sources**: `git()` and `urls()` (untrusted by default), PDF documents, and per-agent `knowledge/` folders.
+- **An approximate index** in the pgvector store, for collections beyond tens of thousands of passages.

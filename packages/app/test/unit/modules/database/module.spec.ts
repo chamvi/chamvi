@@ -111,6 +111,11 @@ function build(modules: IModule[]) {
     return { app, logger };
 }
 
+/** A database module a subclass renamed, as a backend package's module is. */
+class RenamedDatabaseModule extends DatabaseModule {
+    override readonly name: string = 'renamed';
+}
+
 describe('databaseModule', () => {
     it('is named after its database and depends on the config and store modules', () => {
         expect(databaseModule(notesDatabase())).toMatchObject({ name: 'chamvi:db:default', dependencies: ['chamvi:config', 'chamvi:store'] });
@@ -118,10 +123,6 @@ describe('databaseModule', () => {
     });
 
     it('a subclass overriding name keeps the descriptor\'s name, its lock and its data source token', async () => {
-        class RenamedDatabaseModule extends DatabaseModule {
-            override readonly name = 'renamed';
-        }
-
         const renamed = new RenamedDatabaseModule(tagsDatabase());
         let container: IContainer | undefined;
         const keep: IModule = {
@@ -229,6 +230,19 @@ describe('databaseModule', () => {
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
         expect(error.message).toContain('notes_migrations');
+    });
+
+    it('two modules with one database name refuse the start, also when one is renamed', async () => {
+        const { app } = build([
+            new RenamedDatabaseModule(tagsDatabase()),
+            databaseModule(tagsDatabase({ migrationsTableName: 'other_tags_migrations' })),
+        ]);
+        const { env } = await envFor();
+
+        const error = await rejectionOf(app.start({ env }));
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(error.message).toBe('Two database modules are named "tags": each database needs its own name.');
     });
 
     it('closes the data source after the engine drained', async () => {

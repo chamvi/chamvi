@@ -14,7 +14,13 @@ import { KNOWLEDGE_MANAGED_COMPONENT_NAME } from '../managed/constants.ts';
 import type { IKnowledge } from '../knowledge/types.ts';
 import { createMemoryKnowledgeRepository } from '../store/memory/collection.ts';
 import { knowledgeRoutes } from '../routes/module.ts';
-import { KNOWLEDGE_MODEL_VARIABLE, KNOWLEDGE_MODULE_NAME, MEMORY_KNOWLEDGE_WARNING } from './constants.ts';
+import {
+    KNOWLEDGE_MODEL_VARIABLE,
+    KNOWLEDGE_MODULE_NAME,
+    KNOWLEDGE_REPOSITORY_MODULE_NAME,
+    KnowledgeToken,
+    MEMORY_KNOWLEDGE_WARNING,
+} from './constants.ts';
 import { assertEnvModel, checkModuleOptions } from './helpers.ts';
 import type { KnowledgeModuleOptions } from './types.ts';
 
@@ -23,8 +29,9 @@ import type { KnowledgeModuleOptions } from './types.ts';
  * options are checked and `CHAMVI_KNOWLEDGE_MODEL` is read (from
  * `options.env ?? process.env`, winning over `embeddingModel`) when the
  * factory is called. In start and job mode and a check, `setup` builds
- * `createKnowledge()` over the repository (default in memory, warned outside
- * dev), the app's lock service, the managed collections' model, the app's model
+ * `createKnowledge()` over the repository (the `repository` option, else the
+ * one a backend module registered under `KnowledgeToken.REPOSITORY`, else in
+ * memory, warned outside dev), the app's lock service, the managed collections' model, the app's model
  * resolver (`AppToken.MODELS`, for string models) and clock, its indexing
  * errors going to the app logger (`knowledge error`); a configuration error
  * fails the setup (an unresolvable variable names it, never its value). In
@@ -41,7 +48,13 @@ import type { KnowledgeModuleOptions } from './types.ts';
 export class KnowledgeModule implements IModule {
     readonly name: string = KNOWLEDGE_MODULE_NAME;
 
-    readonly dependencies = [ModuleName.CONFIG, ModuleName.STORE, ModuleName.ENGINE];
+    readonly dependencies = [
+        ModuleName.CONFIG,
+        ModuleName.STORE,
+        ModuleName.ENGINE,
+        // a backend (vectorStoreModule()) registers its repository first
+        { name: KNOWLEDGE_REPOSITORY_MODULE_NAME, optional: true },
+    ];
 
     protected options: KnowledgeModuleOptions;
 
@@ -88,9 +101,11 @@ export class KnowledgeModule implements IModule {
         }
 
         const embeddingModel = envModel ?? this.options.embeddingModel;
+        // the option, then a backend module's, then memory
+        const stored = repository ?? (container.has(KnowledgeToken.REPOSITORY) ? container.resolve(KnowledgeToken.REPOSITORY) : undefined);
 
         const knowledge = createKnowledge({
-            repository: repository ?? createMemoryKnowledgeRepository(),
+            repository: stored ?? createMemoryKnowledgeRepository(),
             locks: container.resolve(AppToken.LOCK_SERVICE),
             ...(collections !== undefined && { collections }),
             ...(embeddingModel !== undefined && { embeddingModel }),
@@ -102,7 +117,7 @@ export class KnowledgeModule implements IModule {
             runManagedPoll: false,
         });
 
-        if (!repository && !config.dev) {
+        if (!stored && !config.dev) {
             logger.warn(MEMORY_KNOWLEDGE_WARNING);
         }
 

@@ -47,7 +47,7 @@ import {
     knowledgeTools,
 } from '@chamvi/knowledge';
 import type { KnowledgeCollection, KnowledgeSearchResult } from '@chamvi/knowledge';
-import { knowledgeModule } from '@chamvi/knowledge/module';
+import { KNOWLEDGE_REPOSITORY_MODULE_NAME, KnowledgeToken, knowledgeModule } from '@chamvi/knowledge/module';
 import {
     gatedModel,
     mapSource,
@@ -196,8 +196,20 @@ function record(name: string, kind: KnowledgeCollection['kind']): KnowledgeColle
     };
 }
 
+/** A knowledge repository backend as a storage package registers one: under the repository module name and token. */
+function repositoryModuleOf(repository: ReturnType<typeof createMemoryKnowledgeRepository>): IModule {
+    return {
+        name: KNOWLEDGE_REPOSITORY_MODULE_NAME,
+        async setup(container) {
+            container.register(KnowledgeToken.REPOSITORY, { useValue: repository });
+        },
+    };
+}
+
 type HarnessInput = Omit<ModuleHarnessOptions, 'modules'> & {
     knowledge: IModule;
+    /** A knowledge repository backend, set up before the knowledge module. */
+    repositoryModule?: IModule;
     logger?: RecordingLogger;
     /** Adds the static tokens and the http module (the real `started`/`stopping` path). */
     http?: boolean;
@@ -206,6 +218,7 @@ type HarnessInput = Omit<ModuleHarnessOptions, 'modules'> & {
 async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
     const {
         knowledge,
+        repositoryModule,
         logger,
         http,
         env,
@@ -233,6 +246,7 @@ async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
                 rateLimit: false,
                 openapi: false,
             })] : []),
+            ...(repositoryModule ? [repositoryModule] : []),
             knowledge,
         ],
     });
@@ -244,11 +258,16 @@ async function harnessOf(input: HarnessInput): Promise<ModuleHarness> {
 }
 
 describe('knowledgeModule()', () => {
-    it('is named chamvi:knowledge and needs the config, store and engine modules', () => {
+    it('is named chamvi:knowledge and needs the config, store and engine modules, and a repository module when there is one', () => {
         const module = knowledgeModule();
 
         expect(module.name).toBe('chamvi:knowledge');
-        expect(module.dependencies).toEqual([ModuleName.CONFIG, ModuleName.STORE, ModuleName.ENGINE]);
+        expect(module.dependencies).toEqual([
+            ModuleName.CONFIG,
+            ModuleName.STORE,
+            ModuleName.ENGINE,
+            { name: 'chamvi:knowledge-repository', optional: true },
+        ]);
     });
 
     it('has no knowledge before setup', () => {
@@ -691,6 +710,54 @@ describe('knowledgeModule()', () => {
         });
 
         expect(logger.entries.filter((entry) => entry.level === 'warn' && entry.msg === MEMORY_WARNING)).toHaveLength(count);
+    });
+
+    it('knowledgeModule uses the registered repository and warns about memory only without one', async () => {
+        const registered = createMemoryKnowledgeRepository();
+        const withBackend = createRecordingLogger();
+        const withModule = knowledgeModule({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(new Map())] })] });
+
+        await harnessOf({
+            dev: false,
+            logger: withBackend,
+            knowledge: withModule,
+            repositoryModule: repositoryModuleOf(registered),
+        });
+
+        expect(withModule.knowledge.repository).toBe(registered);
+        expect(withBackend.entries.filter((entry) => entry.level === 'warn' && entry.msg === MEMORY_WARNING)).toHaveLength(0);
+
+        const without = createRecordingLogger();
+        const withoutModule = knowledgeModule({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(new Map())] })] });
+
+        await harnessOf({
+            dev: false,
+            logger: without,
+            knowledge: withoutModule,
+        });
+
+        expect(withoutModule.knowledge.repository).not.toBe(registered);
+        expect(without.entries.filter((entry) => entry.level === 'warn' && entry.msg === MEMORY_WARNING)).toHaveLength(1);
+    });
+
+    it('an explicit repository option wins', async () => {
+        const registered = createMemoryKnowledgeRepository();
+        const explicit = createMemoryKnowledgeRepository();
+        const logger = createRecordingLogger();
+        const module = knowledgeModule({
+            repository: explicit,
+            collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(new Map())] })],
+        });
+
+        await harnessOf({
+            dev: false,
+            logger,
+            knowledge: module,
+            repositoryModule: repositoryModuleOf(registered),
+        });
+
+        expect(module.knowledge.repository).toBe(explicit);
+        expect(logger.entries.filter((entry) => entry.level === 'warn' && entry.msg === MEMORY_WARNING)).toHaveLength(0);
     });
 
     it('logs indexing failures with the collection', async () => {

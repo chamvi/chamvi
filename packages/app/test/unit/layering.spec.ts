@@ -82,11 +82,16 @@ const PORT_EXEMPTIONS: Array<{
         test: (path) => [
             'packages/knowledge/src/knowledge/module.ts',
             'packages/knowledge/src/knowledge/types.ts',
-            'packages/knowledge/src/module/types.ts',
         ].includes(path),
         names: ['IKnowledgeCollectionRepository'],
-        reason: 'the options of createKnowledge() and knowledgeModule() and the knowledge\'s repository field: they take the ' +
-            'collection repository a backend provides and hand it to the knowledge service, which alone reads and writes it',
+        reason: 'the options of createKnowledge() and the knowledge\'s repository field: they take the collection ' +
+            'repository a backend provides and hand it to the knowledge service, which alone reads and writes it',
+    },
+    {
+        test: (path) => path.startsWith('packages/knowledge/src/module/'),
+        names: ['IKnowledgeCollectionRepository', 'chamvi.knowledge-repository'],
+        reason: 'the knowledge module\'s options and its repository token, which a backend module (vectorStoreModule()) registers and the ' +
+            'module hands to the knowledge: the token and its port only',
     },
 ];
 
