@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { randomUUID } from 'node:crypto';
 import type { IClock, ILockService } from '@chamvi/core';
 import { ErrorCode, ValidationError } from '@chamvi/core';
 import { isObject } from 'smob';
@@ -712,8 +713,11 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
  * declares it is syncing it: left alone), re-read once the lock is held and
  * its fence claimed with the lock's token; a claim or mark the fence refuses
  * (another owner took the lock meanwhile) or that finds the row deleted
- * leaves the record alone too. `records` is a list the caller already read
- * (the managed poll's), else `findCollections()` is read.
+ * leaves the record alone too. Each call holds the locks under an owner of
+ * its own (`<owner>:orphans:<uuid>`): a mark stalled past the lock TTL then
+ * never releases the lease a later mark of the same instance holds.
+ * `records` is a list the caller already read (the managed poll's), else
+ * `findCollections()` is read.
  */
 export async function markOrphans(
     service: IKnowledgeService,
@@ -727,6 +731,7 @@ export async function markOrphans(
         record.kind === 'declared' &&
         record.status !== 'orphaned' &&
         !declared.has(record.name);
+    const holder = `${owner}:orphans:${randomUUID()}`;
 
     for (const candidate of records ?? await service.findCollections()) {
         if (!isOrphan(candidate)) {
@@ -735,7 +740,7 @@ export async function markOrphans(
 
         const key = lockKey(candidate.name);
 
-        const token = await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS);
+        const token = await locks.acquire(key, holder, KNOWLEDGE_LOCK_TTL_MS);
 
         if (token === undefined) {
             continue;
@@ -758,7 +763,7 @@ export async function markOrphans(
                 throw error;
             }
         } finally {
-            await locks.release(key, owner);
+            await locks.release(key, holder);
         }
     }
 }

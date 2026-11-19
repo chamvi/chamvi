@@ -16,11 +16,13 @@ import {
 import type { IKnowledge, KnowledgeCollectionKind, KnowledgeOptions } from '@chamvi/knowledge';
 import {
     CHUNKER_VERSION,
+    KNOWLEDGE_LOCK_TTL_MS,
     KNOWLEDGE_MANAGED_POLL_MS,
     contentHash,
     createKnowledge,
     knowledgeCollection,
 } from '@chamvi/knowledge';
+import { markOrphans } from '../../../src/indexer/module.ts';
 import type { IndexerSetup } from '../../utils/indexer.ts';
 import {
     createIndexerSetup,
@@ -328,5 +330,46 @@ describe('orphaned collections across replicas', () => {
         } finally {
             await a.managedPoll.stop();
         }
+    });
+
+    it('a mark stalled past the lock TTL never releases the lease a later mark of the same owner holds', async () => {
+        const setup = createIndexerSetup();
+
+        await seed(setup, 'old', 'declared');
+
+        const { service } = setup;
+        const claim = service.claimFence.bind(service);
+        const gates = [Promise.withResolvers<void>(), Promise.withResolvers<void>()];
+        let claims = 0;
+
+        // each mark's fence claim waits on its own gate, as a slow store would
+        service.claimFence = async (name, token) => {
+            const gate = gates[claims++]!;
+
+            await gate.promise;
+
+            return claim(name, token);
+        };
+
+        // the instance's start() mark and its poll mark share the knowledge's owner
+        const stale = markOrphans(service, new Set(), setup.locks, 'owner', setup.clock);
+
+        await expect.poll(() => claims).toBe(1);
+        setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+
+        const fresh = markOrphans(service, new Set(), setup.locks, 'owner', setup.clock);
+
+        await expect.poll(() => claims).toBe(2);
+
+        // the stale mark ends (its fence is refused or its mark lost) and releases
+        gates[0]!.resolve();
+        await stale.catch(() => {});
+
+        // the later mark still holds the lock: nobody else can take it
+        expect(await setup.locks.acquire('knowledge:old', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBeUndefined();
+
+        gates[1]!.resolve();
+        await fresh;
+        expect((await setup.service.findOneCollection('old'))?.status).toBe('orphaned');
     });
 });
