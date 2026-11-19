@@ -124,7 +124,8 @@ export function onPeerEvent(ctx: ReceiverContext, run: Run): void {
         return;
     }
 
-    if (!pendingApprovalOf(run)) {
+    // a run neither dispatched nor started by a peer has no peer up its lineage: no read
+    if (!pendingApprovalOf(run) || (run.parentRunId === undefined && !peerParentOf(run))) {
         return;
     }
 

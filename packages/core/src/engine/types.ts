@@ -73,8 +73,8 @@ export interface IEngine extends IContextProvider {
      * Starts a run a peer asked for: the peer is the one `peers.recognize()`
      * names for `envelope.invoker`, the target its `agent.on()` role
      * `fields.role`, checked like a local cross-agent dispatch (`from` entry
-     * `<peer>/<parent.agent>`); a refusal is a ValidationError with nothing
-     * written.
+     * `<peer>/<parent.agent>`); a refusal writes nothing (an unknown or
+     * ungranted agent: AgentNotFoundError, else ValidationError).
      */
     dispatchPeer(envelope: DispatchEnvelope, fields: PeerStartInput['peer'] & { role: string }): Promise<DispatchResult>;
     inspectConversation(identity: ConversationIdentity, query?: { limit?: number; offset?: number }): Promise<ConversationInspection | undefined>;

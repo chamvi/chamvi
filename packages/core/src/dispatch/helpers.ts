@@ -230,6 +230,22 @@ export function claimKey(role: string, key: string): string {
     return `sha256:${createHash('sha256').update(prefixed).digest('hex')}`;
 }
 
+/**
+ * The idempotency key a peer's start claims: `peer:<key>`, or
+ * `peer-sha256:<hex>` of it above 255 characters. Disjoint from claimKey()
+ * by construction (no `dispatch:` or `sha256:` prefix), so a peer cannot
+ * squat a local dispatch's key under the same invoker and channel.
+ */
+export function peerClaimKey(key: string): string {
+    const prefixed = `peer:${key}`;
+
+    if (prefixed.length <= TRIGGER_KEY_MAX_LENGTH) {
+        return prefixed;
+    }
+
+    return `peer-sha256:${createHash('sha256').update(prefixed).digest('hex')}`;
+}
+
 /** A given key: a non-empty string without NUL (the idempotency key may be long, it is hashed). */
 export function assertDispatchKey(name: string, value: unknown, bounded: boolean): asserts value is string | undefined {
     if (value === undefined) {

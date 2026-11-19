@@ -14,6 +14,7 @@ import {
 import { z } from 'zod';
 import { Permission } from '@chamvi/access';
 import {
+    AgentNotFoundError,
     Engine,
     ValidationError,
     agent,
@@ -33,6 +34,7 @@ import type {
 } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Invoker, Run } from '@chamvi/store';
+import { stableHash } from '../../../src/effect/helpers.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createTestServices, servicesOf } from '../../utils/engine.ts';
 import type { TestServiceSet } from '../../utils/engine.ts';
@@ -41,6 +43,13 @@ import type { FakePeers } from '../../utils/peers.ts';
 
 const START = new Date(Date.UTC(2026, 10, 3, 6));
 const LINK = 'https://ops.example/ui/approvals';
+
+/** Exposes the engine's peer event hook, to replay a pause on the same approval. */
+class ReceiverEngine extends Engine {
+    firePeerEvent(run: Run): void {
+        this.peerEvent(run);
+    }
+}
 
 const engines: Engine[] = [];
 
@@ -75,7 +84,7 @@ function chatChannel(): { channel: IChannel; sent: Sent[] } {
 }
 
 type Setup = {
-    engine: Engine;
+    engine: ReceiverEngine;
     store: TestServiceSet;
     clock: ControllableClock;
     peers: FakePeers;
@@ -88,7 +97,9 @@ type Setup = {
  * maxPerRun 2) returns its payload; `gated` (role `default`, from
  * `dev/maintainer`) pauses on an approval; `lead` (from `dev/maintainer`,
  * maxDepth 3) dispatches `gated` and waits; `relay` dispatches the remote
- * agent `deployer` at peer `ops` and waits. The fake peer `dev` is
+ * agent `deployer` at peer `ops` and waits; `top` dispatches `lead` and
+ * waits (a grandchild approval); `spawner` dispatches `sink` with its
+ * payload and returns the result. The fake peer `dev` is
  * recognized from the token `dev-token`.
  */
 function setup(options: { dev?: Partial<PeerSettings> } = {}): Setup {
@@ -122,8 +133,23 @@ function setup(options: { dev?: Partial<PeerSettings> } = {}): Setup {
     });
     const lead = defineSimpleAgent({
         name: 'lead',
-        channels: [agent.on({ from: ['dev/maintainer'], maxDepth: 3 })],
+        channels: [agent.on({ from: ['dev/maintainer', 'top'], maxDepth: 3 })],
         run: async (payload, ctx) => waitForDispatch(ctx, await dispatchTo(ctx, { agent: 'gated', payload })),
+    });
+    const top = defineSimpleAgent({
+        name: 'top',
+        channels: [agent.on({ from: ['dev/maintainer'], maxDepth: 3 })],
+        run: async (payload, ctx) => waitForDispatch(ctx, await dispatchTo(ctx, { agent: 'lead', payload })),
+    });
+    const spawner = defineSimpleAgent({
+        name: 'spawner',
+        channels: [agent.on({ from: ['dev/maintainer'], maxDepth: 3 })],
+        run: async (payload, ctx) => dispatchTo(ctx, { agent: 'sink', payload }),
+    });
+    const sink = defineSimpleAgent({
+        name: 'sink',
+        channels: [agent.on({ from: ['dev/maintainer', 'spawner'], maxDepth: 3 })],
+        run: async (payload) => payload,
     });
     const relay = defineSimpleAgent({
         name: 'relay',
@@ -135,11 +161,11 @@ function setup(options: { dev?: Partial<PeerSettings> } = {}): Setup {
         peer: 'ops',
         channels: [agent.on({ from: ['relay'], maxDepth: 3 })],
     });
-    const engine = new Engine({
+    const engine = new ReceiverEngine({
         ...servicesOf(store),
         clock,
         claimTtlMs: 3_600_000,
-        agents: [notify, gated, lead, relay, deployer],
+        agents: [notify, gated, lead, top, relay, deployer, spawner, sink],
         channels: [agentChannel(), chat.channel],
         peers: peers.resolver,
         onError: (error) => {
@@ -270,7 +296,7 @@ describe('the receiver: dispatchPeer()', () => {
             }), 
         })],
         ['a schema failure', () => ({ envelope: envelope({ payload: { text: 1 } }), fields: fields() })],
-        ['an invoker without chamvi_agent_run', () => ({ envelope: envelope({ invoker: peerInvoker('dev-token', []) }), fields: fields() })],
+        ['no idempotency key', () => ({ envelope: envelope({ idempotencyKey: undefined }), fields: fields() })],
         ['malformed fields', () => ({ envelope: envelope(), fields: fields({ standIn: '' }) })],
     ])('refuses %s with a ValidationError and writes nothing', async (_label, input) => {
         const { engine, store } = setup();
@@ -287,6 +313,93 @@ describe('the receiver: dispatchPeer()', () => {
         const ok = await engine.dispatchPeer(envelope(), fields());
 
         expect(ok.deduplicated).toBe(false);
+    });
+
+    it('answers an ungranted agent like an unknown one, before any role, from or depth check', async () => {
+        const { engine, store } = setup();
+        const ungranted = envelope({ invoker: peerInvoker('dev-token', []) });
+
+        const unknown = await engine.dispatchPeer(envelope({ agent: 'missing' }), fields()).catch((error: unknown) => error);
+        const denied = await engine.dispatchPeer(envelope({ ...ungranted, agent: 'missing' }), fields()).catch((error: unknown) => error);
+
+        expect(unknown).toBeInstanceOf(AgentNotFoundError);
+        expect(denied).toBeInstanceOf(AgentNotFoundError);
+
+        for (const f of [fields(), fields({ role: 'missing' }), fields({
+            parent: {
+                runId: 'caller-1', 
+                agent: 'other', 
+                depth: 7, 
+            }, 
+        })]) {
+            const error = await engine.dispatchPeer(ungranted, f).catch((e: unknown) => e);
+
+            expect(error).toBeInstanceOf(AgentNotFoundError);
+            expect((error as Error).message).toBe('unknown agent: notify');
+        }
+
+        expect(await allRuns(store)).toHaveLength(0);
+    });
+
+    it('keeps peer keys apart from local dispatch claim keys: a dispatch-shaped key squats nothing', async () => {
+        const { engine, store } = setup();
+        const payload = { x: 1 };
+        // the peer-started run R, not started yet: the peer knows its id and payload
+        const { runId: parentId } = await engine.dispatchPeer(envelope({ agent: 'spawner', payload }), fields({ role: 'default' }));
+        const localKey = `dispatch:default:${parentId}:${stableHash({
+            agent: 'sink',
+            role: 'default',
+            payload,
+            concurrencyKey: undefined,
+            address: undefined,
+        })}`;
+        const squat = await engine.dispatchPeer(
+            envelope({
+                agent: 'sink', 
+                payload, 
+                idempotencyKey: localKey, 
+            }),
+            fields({ role: 'default', standIn: 'evil' }),
+        );
+
+        await engine.start();
+        await engine.idle();
+
+        const parent = await readRun(store, parentId);
+        const child = (parent.output as { runId: string; deduplicated: boolean });
+
+        expect(parent.status).toBe(RunStatus.COMPLETED);
+        expect(child.deduplicated).toBe(false);
+        expect(child.runId).not.toBe(squat.runId);
+        expect((await readRun(store, child.runId)).trigger.parent).toMatchObject({ kind: 'dispatch', runId: parentId });
+
+        // the same peer key still dedupes into the same run
+        expect(await engine.dispatchPeer(
+            envelope({
+                agent: 'sink', 
+                payload, 
+                idempotencyKey: localKey, 
+            }),
+            fields({ role: 'default', standIn: 'evil' }),
+        )).toEqual({ runId: squat.runId, deduplicated: true });
+    });
+
+    it('refuses a start while another replica holds the count lock, and counts it on the resend', async () => {
+        const { engine, store } = setup();
+        const lockKey = 'peer-count:peer-count:dev:caller-1:notify:notify';
+
+        expect(await store.lockService.acquire(lockKey, 'other-replica', 60_000)).toBe(true);
+
+        await expect(engine.dispatchPeer(envelope(), fields())).rejects.not.toBeInstanceOf(ValidationError);
+        expect(await allRuns(store)).toHaveLength(0);
+        expect(await store.effectService.findOne('peer-count:dev:caller-1:notify:notify')).toBeUndefined();
+
+        await store.lockService.release(lockKey, 'other-replica');
+
+        expect(await engine.dispatchPeer(envelope(), fields())).toMatchObject({ deduplicated: false });
+        expect(await store.effectService.findOne('peer-count:dev:caller-1:notify:notify')).toMatchObject({ result: { count: 1 } });
+        // released after the start
+        expect(await store.lockService.acquire(lockKey, 'other-replica', 60_000)).toBe(true);
     });
 
     it('counts maxPerRun per peer, caller run, agent and role, and refuses beyond it', async () => {
@@ -489,6 +602,55 @@ describe('the receiver: ping and notification', () => {
         expect(chat[0]!.message.body).toContain(`https://me.example/ui/approvals?run=${runId}&approval=${approvalId}`);
         expect(chat[0]!.message).not.toHaveProperty('approvalId');
         expect(await store.effectService.findOne(`peer-notify:${runId}:${approvalId}`)).toBeDefined();
+        expect(errors).toEqual([]);
+    });
+
+    it('notifies an approval in a grandchild of the peer-started run', async () => {
+        const {
+            engine,
+            store,
+            chat,
+            peers,
+        } = setup({ dev: { approvals: { channel: 'chat', address: 'dev-room' } } });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatchPeer(envelope({ agent: 'top', payload: {} }), fields({ role: 'default' }));
+
+        await engine.idle();
+
+        const [child] = (await store.runService.find({ parentRunId: runId })).data;
+        const [grandchild] = (await store.runService.find({ parentRunId: child!.id })).data;
+
+        expect(grandchild?.agent).toBe('gated');
+        expect(grandchild?.waiting?.kind).toBe('approval');
+        expect(chat).toHaveLength(1);
+        expect(chat[0]!.message).toMatchObject({
+            runId: grandchild!.id, 
+            agent: 'gated', 
+            title: 'Go?', 
+        });
+        expect(peers.calls.wake.map((c) => c.runId)).toEqual(['stand-in-1']);
+    });
+
+    it('sends the notification once when the run pauses on the same approval again', async () => {
+        const {
+            engine,
+            store,
+            chat,
+            errors,
+        } = setup({ dev: { approvals: { channel: 'chat', address: 'dev-room' } } });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatchPeer(envelope({ agent: 'gated', payload: {} }), fields({ role: 'default' }));
+
+        await engine.idle();
+
+        engine.firePeerEvent(await readRun(store, runId));
+        await engine.idle();
+
+        expect(chat).toHaveLength(1);
         expect(errors).toEqual([]);
     });
 

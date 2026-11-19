@@ -397,9 +397,10 @@ export class Engine implements IEngine {
      * names, the target is the agent's `agent.on()` role `fields.role`,
      * checked like a local cross-agent dispatch (`from` lists
      * `<peer>/<parent.agent>`, the peer's `chamvi_agent_run`, `maxDepth`,
-     * the schema, `maxPerRun` per peer and calling run); any refusal is a
-     * ValidationError with nothing written. The run gets a `peer` parent
-     * (no parentRunId) and, for a tainted caller, taint `peer:<peer>`.
+     * the schema, `maxPerRun` per peer and calling run, a required
+     * idempotency key); a refusal writes nothing (an unknown or ungranted
+     * agent: AgentNotFoundError, else ValidationError). The run gets a `peer`
+     * parent (no parentRunId) and, for a tainted caller, taint `peer:<peer>`.
      */
     async dispatchPeer(envelope: DispatchEnvelope, fields: PeerStartInput['peer'] & { role: string }): Promise<DispatchResult> {
         return dispatchPeer(this.peerDispatchHost, envelope, fields);
@@ -663,6 +664,8 @@ export class Engine implements IEngine {
             clock: this.clock,
             effects: this.effectService,
             peers: this.peers,
+            locks: this.lockService,
+            lockTtlMs: this.claimTtlMs,
             createRun: (envelope, parent, taintSource) => this.createRun(envelope, parent, undefined, taintSource),
             serial: createSerial(),
         };

@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { randomUUID } from 'node:crypto';
 import { Permission, can } from '@chamvi/access';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { isObject } from 'smob';
@@ -13,13 +14,14 @@ import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
 import type { DispatchResult } from '../channel/types.ts';
 import { stableHash } from '../effect/helpers.ts';
 import type { DispatchEnvelope } from '../engine/types.ts';
-import { AgentNotFoundError, ValidationError } from '../errors/index.ts';
+import { AgentNotFoundError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
 import {
     assertDispatchKey,
     findDispatchRole,
     fromOf,
     maxDepthOf,
     maxPerRunOf,
+    peerClaimKey,
     readCount,
     validatePayload,
 } from './helpers.ts';
@@ -67,16 +69,21 @@ function readFields(fields: unknown): PeerDispatchFields {
 /**
  * Starts a run a peer asked for: the peer name comes only from the
  * invoker (`peers.recognize()`), never from the input. Checked like a local
- * cross-agent dispatch before anything is written (an unrecognized invoker,
- * a role that is missing or does not list `<peer>/<parent.agent>` in
- * `from`, the invoker's `chamvi_agent_run`, `parent.depth + 1` above
- * `maxDepth`, the role schema: ValidationError, no idempotency claim);
- * then `maxPerRun` is counted under
- * `peer-count:<peer>:<parent.runId>:<agent>:<role>` (before the run is
- * created; a resend of a counted call spends no slot) and the run is created
- * on channel `agent` with the peer's invoker, a `PeerParent` lineage and,
- * for a tainted caller, taint `peer:<peer>` from the start. The engine's
- * idempotency claim (scoped to the invoker) dedupes a resend into the same run.
+ * cross-agent dispatch before anything is written: an unrecognized invoker
+ * or malformed fields (ValidationError); an unknown agent or one the
+ * peer's `chamvi_agent_run` does not grant, both AgentNotFoundError, before
+ * any role check, so a peer cannot probe the roles of an agent it may not
+ * run; then a role that is missing or does not list `<peer>/<parent.agent>`
+ * in `from`, `parent.depth + 1` above `maxDepth`, the role schema and a
+ * missing idempotency key (ValidationError). Nothing refused claims a key.
+ * `maxPerRun` is counted under `peer-count:<peer>:<parent.runId>:<agent>:<role>`
+ * under the store lock `peer-count:<count key>` (held by another replica:
+ * InvalidRunStateError, retryable, nothing written), before the run is
+ * created; a resend of a counted call spends no slot. The run is created on
+ * channel `agent` with the peer's invoker, a `PeerParent` lineage, for a
+ * tainted caller taint `peer:<peer>` from the start, and the claim key
+ * `peerClaimKey(key)`, so the same peer key dedupes into the same run while
+ * no peer key equals a local dispatch's claim key.
  */
 export async function dispatchPeer(
     host: PeerDispatchHost,
@@ -94,7 +101,13 @@ export async function dispatchPeer(
     const target = envelope.agent;
     const agent = host.getAgent(target);
 
-    if (!agent) {
+    // the peer's own grants (decision 11); an ungranted agent reads as an unknown one
+    const allowed = agent !== undefined && await can(envelope.invoker, Permission.AGENT_RUN, {
+        attributes: { name: target, private: agent.definition.private === true },
+        now: new Date(host.clock.now()),
+    });
+
+    if (!agent || !allowed) {
         throw new AgentNotFoundError(target);
     }
 
@@ -111,16 +124,6 @@ export async function dispatchPeer(
         throw new ValidationError(`Agent "${target}" role "${role}" accepts no dispatches from "${caller}".`);
     }
 
-    // the peer's own grants (decision 11), as http and MCP check a start
-    const allowed = await can(envelope.invoker, Permission.AGENT_RUN, {
-        attributes: { name: target, private: agent.definition.private === true },
-        now: new Date(host.clock.now()),
-    });
-
-    if (!allowed) {
-        throw new ValidationError(`The peer may not run agent "${target}" (${Permission.AGENT_RUN}).`);
-    }
-
     const depth = parent.depth + 1;
     const maxDepth = maxDepthOf(target, subscription);
 
@@ -130,14 +133,20 @@ export async function dispatchPeer(
 
     const maxPerRun = maxPerRunOf(target, subscription);
     const payload = await validatePayload(target, role, subscription.options.schema as StandardSchemaV1 | undefined, envelope.payload);
+    const given = envelope.idempotencyKey;
     const concurrencyKey = envelope.concurrencyKey ?? subscription.concurrencyKey?.(payload);
-    const idempotencyKey = envelope.idempotencyKey ?? subscription.idempotencyKey?.(payload);
     const address = envelope.address ?? subscription.address?.(payload);
 
+    // the caller's lost-answer resend relies on the dedupe, and so does the count's resend skip
+    if (given === undefined) {
+        throw new ValidationError('A peer start needs an idempotency key.');
+    }
+
+    assertDispatchKey('idempotency key', given, true);
     assertDispatchKey('concurrency key', concurrencyKey, true);
-    assertDispatchKey('idempotency key', idempotencyKey, true);
     assertDispatchKey('address', address, true);
 
+    const idempotencyKey = peerClaimKey(given);
     const lineage: PeerParent = {
         kind: 'peer',
         peer,
@@ -157,38 +166,49 @@ export async function dispatchPeer(
         address,
     });
     const countKey = `peer-count:${peer}:${parent.runId}:${target}:${role}`;
+    const lockKey = `peer-count:${countKey}`;
     const create = () => host.createRun({
         agent: target,
         trigger: role,
         channel: AGENT_CHANNEL_NAME,
         payload,
         invoker: envelope.invoker,
+        idempotencyKey,
         ...(envelope.attachments !== undefined ? { attachments: envelope.attachments } : {}),
-        ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
         ...(concurrencyKey !== undefined ? { concurrencyKey } : {}),
         ...(address !== undefined ? { address } : {}),
         // the agent the invoker check saw: a replacement since is refused (AgentReplacedError)
         checked: agent,
     }, lineage, fields.taint ? `peer:${peer}` : undefined);
 
-    // the count is a read-check-write: one at a time per count key in this process
+    // the count is a read-check-write: one at a time per count key in this process, and under a store lock across replicas
     return host.serial(countKey, async () => {
-        const { count, calls } = readCount((await host.effects.findOne(countKey))?.result);
+        const owner = randomUUID();
 
-        // a resend of a counted call (its answer lost) redoes the deduplicating start
-        if (calls.includes(callHash)) {
-            return create();
+        if (!await host.locks.acquire(lockKey, owner, host.lockTtlMs)) {
+            throw new InvalidRunStateError(`Another start of run ${parent.runId} of peer "${peer}" is being counted; resend it.`);
         }
 
-        if (count >= maxPerRun) {
-            throw new ValidationError(
-                `Run ${parent.runId} of peer "${peer}" reached its ${maxPerRun} dispatches of agent "${target}" role "${role}" (agent.on({ maxPerRun })).`,
-            );
+        try {
+            const { count, calls } = readCount((await host.effects.findOne(countKey))?.result);
+
+            // a resend of a counted call (its answer lost) redoes the deduplicating start
+            if (calls.includes(callHash)) {
+                return await create();
+            }
+
+            if (count >= maxPerRun) {
+                throw new ValidationError(
+                    `Run ${parent.runId} of peer "${peer}" reached its ${maxPerRun} dispatches of agent "${target}" role "${role}" (agent.on({ maxPerRun })).`,
+                );
+            }
+
+            // counted before the run is created: a crash in between spends the call's slot, a resend reuses it
+            await host.effects.save(countKey, { count: count + 1, calls: [...calls, callHash] });
+
+            return await create();
+        } finally {
+            await host.locks.release(lockKey, owner);
         }
-
-        // counted before the run is created: a crash in between spends the call's slot, a resend reuses it
-        await host.effects.save(countKey, { count: count + 1, calls: [...calls, callHash] });
-
-        return create();
     });
 }
