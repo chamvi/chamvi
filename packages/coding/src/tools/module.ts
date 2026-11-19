@@ -11,7 +11,7 @@ import { isObject } from 'smob';
 import { editFileTool, multiEditTool } from './edit.ts';
 import { readFileTool, writeFileTool } from './files.ts';
 import { gitDiffTool } from './git.ts';
-import { createKeyedQueue } from './helpers.ts';
+import { createKeyedQueue } from './helpers/index.ts';
 import { bashKillTool, bashOutputTool } from './jobs.ts';
 import { globTool, grepTool, listFilesTool } from './search.ts';
 import { bashTool } from './shell.ts';

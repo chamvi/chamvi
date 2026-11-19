@@ -27,7 +27,7 @@ import {
     optionalBoolean,
     optionalObjectSchema,
     optionalString,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type {
     GitFetchResult,
     GitPullResult,

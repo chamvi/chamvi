@@ -31,7 +31,7 @@ import {
     requireString,
     signalOf,
     workspaceOf,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import { startJob } from './jobs.ts';
 import { excerptOf, parseReport } from './output.ts';
 import type { BashJobResult, BashResult, CodingWorkspaces } from './types.ts';

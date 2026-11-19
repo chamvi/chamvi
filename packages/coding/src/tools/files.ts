@@ -45,9 +45,9 @@ import {
     requireText,
     signalOf,
     workspaceOf,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import { restoreRedacted } from './edit.ts';
-import type { createKeyedQueue } from './helpers.ts';
+import type { createKeyedQueue } from './helpers/index.ts';
 import type {
     CodingWorkspaces,
     ReadFileBinaryResult,

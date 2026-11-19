@@ -20,8 +20,8 @@ import {
     requireString,
     requireText,
     workspaceOf,
-} from './helpers.ts';
-import type { createKeyedQueue } from './helpers.ts';
+} from './helpers/index.ts';
+import type { createKeyedQueue } from './helpers/index.ts';
 import type { CodingWorkspaces, EditFileResult, MultiEditResult } from './types.ts';
 
 /** Serializes the writes of one file: keyed by `fileKey()`. */

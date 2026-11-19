@@ -29,7 +29,7 @@ import {
     requireString,
     signalOf,
     workspaceOf,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import { completeLength } from './output.ts';
 import type {
     BashJobResult,

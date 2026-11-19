@@ -145,3 +145,8 @@ export const DISCOVERY_SCRIPT = [
     '*) exit 5;;',
     'esac',
 ].join('\n');
+
+export const INSTRUCTION_LINK_MESSAGE = 'A symbolic link; links are never followed.';
+export const INSTRUCTION_SPECIAL_MESSAGE = 'Not a regular file.';
+export const INSTRUCTION_DENIED_MESSAGE = 'The directory cannot be searched.';
+export const INSTRUCTION_UNREADABLE_MESSAGE = 'The file cannot be read.';

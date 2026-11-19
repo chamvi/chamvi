@@ -5,8 +5,8 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { IClock } from '@chamvi/core';
-import type { SandboxLimits, WorkspaceInfo } from '@chamvi/sandbox';
+import type { IClock, SandboxError } from '@chamvi/core';
+import type { ExecOptions, SandboxLimits, WorkspaceInfo } from '@chamvi/sandbox';
 
 export type LocalSandboxOptions = {
     /** Directory holding one folder per workspace. Default `join(os.tmpdir(), 'chamvi-workspaces')`. */
@@ -56,4 +56,22 @@ export type ParsedRecord = {
     deployment: string;
     env?: Record<string, string>;
     info: WorkspaceInfo;
+};
+
+/** An exec in flight of a `LocalWorkspace` (internal): the dispose fails it. */
+export type LiveExec = { fail(error: SandboxError): void };
+
+/** What `spawnLocalExec` runs (internal): the command and the workspace state it reports to. */
+export type LocalExecInput = {
+    argv: readonly string[];
+    /** The real directory the command starts in. */
+    cwd: string;
+    timeoutMs: number;
+    options: ExecOptions;
+    env: Record<string, string>;
+    clock: IClock;
+    /** The workspace's execs in flight: the exec is in it until it settles. */
+    live: Set<LiveExec>;
+    /** Remembers the group of a command that exited while a job of it runs on. */
+    linger: (pid: number) => void;
 };
