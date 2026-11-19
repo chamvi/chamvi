@@ -95,7 +95,14 @@ export async function createTestDataSource(opts: TestDataSourceOptions = {}): Pr
     await dataSource.initialize();
 
     if (opts.migrate !== false) {
-        await dataSource.runMigrations({ transaction: 'each' });
+        try {
+            await dataSource.runMigrations({ transaction: 'each' });
+        } catch (error) {
+            // the caller never gets the data source to close
+            await dataSource.destroy();
+
+            throw error;
+        }
     }
 
     return dataSource;
