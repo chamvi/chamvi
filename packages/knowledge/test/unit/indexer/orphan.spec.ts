@@ -13,9 +13,10 @@ import {
     it, 
     vi,
 } from 'vitest';
-import type { IKnowledge, KnowledgeCollectionKind } from '@chamvi/knowledge';
+import type { IKnowledge, KnowledgeCollectionKind, KnowledgeOptions } from '@chamvi/knowledge';
 import {
     CHUNKER_VERSION,
+    KNOWLEDGE_MANAGED_POLL_MS,
     contentHash,
     createKnowledge,
     knowledgeCollection,
@@ -217,5 +218,115 @@ describe('orphaned collections', () => {
         expect(deleted.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'repository_not_found' } });
         expect(await setup.service.findOneCollection('a-old')).toBeUndefined();
         expect(setup.errors).toEqual([]);
+    });
+});
+
+describe('orphaned collections across replicas', () => {
+    const HOUR = 3_600_000;
+
+    function declaring(setup: IndexerSetup, extra: Partial<KnowledgeOptions> = {}): IKnowledge {
+        const knowledge = createKnowledge(setup.options({
+            collections: [knowledgeCollection('docs', {
+                model: mockEmbeddingModel(),
+                sources: [mapSource(new Map([['a.md', 'text']]))],
+                resyncMs: HOUR,
+            })],
+            ...extra,
+        }));
+
+        started.push(knowledge);
+
+        return knowledge;
+    }
+
+    function undeclaring(setup: IndexerSetup, extra: Partial<KnowledgeOptions> = {}): IKnowledge {
+        const knowledge = createKnowledge(setup.options(extra));
+
+        started.push(knowledge);
+
+        return knowledge;
+    }
+
+    it('heals a declared record another replica marked orphaned within one record check, before resyncMs', async () => {
+        const setup = createIndexerSetup();
+        const b = declaring(setup);
+
+        b.start();
+
+        const synced = await waitForReady(setup.service, 'docs');
+        const a = undeclaring(setup);
+
+        a.start();
+        await waitForCollection(setup.service, 'docs', (found) => found.status === 'orphaned');
+        // the replica that marked it is gone: nothing marks it again
+        await a.stop();
+
+        setup.clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
+
+        const healed = await waitForCollection(setup.service, 'docs', (found) => found.status === 'ready');
+
+        expect(healed.syncedAt!.getTime()).toBe(synced.syncedAt!.getTime() + KNOWLEDGE_MANAGED_POLL_MS);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('marks orphans on every managed poll: once the declaring replica is gone, the record settles orphaned', async () => {
+        const setup = createIndexerSetup();
+        // started before any record exists: its start() marks nothing
+        const a = undeclaring(setup);
+
+        a.start();
+
+        const b = declaring(setup);
+
+        b.start();
+        await waitForReady(setup.service, 'docs');
+        await b.stop();
+
+        setup.clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
+
+        await waitForCollection(setup.service, 'docs', (found) => found.status === 'orphaned');
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('the poll leaves a record alone while another owner holds its lock, and marks it once free', async () => {
+        const setup = createIndexerSetup();
+        const a = undeclaring(setup);
+
+        a.start();
+        await seed(setup, 'old', 'declared');
+        expect(await setup.locks.acquire('knowledge:old', 'syncing-replica', HOUR)).toBeTypeOf('number');
+
+        setup.clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
+        await vi.waitFor(() => {
+            expect(a.managedPoll.status().lastSuccessAt).toBe(setup.clock.now());
+        });
+
+        expect((await setup.service.findOneCollection('old'))?.status).toBe('ready');
+        expect(setup.errors).toEqual([]);
+
+        await setup.locks.release('knowledge:old', 'syncing-replica');
+        setup.clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
+
+        await waitForCollection(setup.service, 'old', (found) => found.status === 'orphaned');
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('marks orphans on the poll its owner runs (runManagedPoll: false), without an embedding model', async () => {
+        const setup = createIndexerSetup();
+        const a = undeclaring(setup, { runManagedPoll: false });
+
+        a.start();
+        // as the app's knowledge-managed component does
+        await a.managedPoll.start();
+
+        try {
+            await seed(setup, 'old', 'declared');
+            setup.clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
+
+            await waitForCollection(setup.service, 'old', (found) => found.status === 'orphaned');
+            expect(setup.errors).toEqual([]);
+        } finally {
+            await a.managedPoll.stop();
+        }
     });
 });

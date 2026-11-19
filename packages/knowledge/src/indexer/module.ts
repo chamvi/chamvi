@@ -475,8 +475,9 @@ async function retryDelayOf(service: IKnowledgeService, name: string, clock: ICl
 
 /**
  * How long until a pass is due (0: now; undefined: only on a wake): at once
- * for a missing record (deleted elsewhere: rebuilt) or one no pass completed
- * yet (a failed rebuild is retried, after its stored backoff), else, with
+ * for a missing record (deleted elsewhere: rebuilt), an orphaned one (marked
+ * by a replica that does not declare it: declared again) or one no pass
+ * completed yet (a failed rebuild is retried, after its stored backoff), else, with
  * `idleMs`, that long after the stored `syncedAt`, the end of the last
  * successful pass on any replica.
  */
@@ -488,7 +489,7 @@ async function dueDelayOf(
 ): Promise<number | undefined> {
     const record = await service.findOneCollection(name);
 
-    if (!record?.syncedAt) {
+    if (!record?.syncedAt || record.status === 'orphaned') {
         return 0;
     }
 
@@ -531,7 +532,8 @@ function idleWaitOf(dueIn: number | undefined, checkMs: number | undefined): num
  * token; a claim or write the fence refuses (`LeaseLostError`: another owner
  * took the lock) ends the pass like a lost lock: nothing reported or stored,
  * no backoff. With `checkMs`, an idle loop also reads its record that often:
- * a missing one (deleted on another replica) or one no pass completed yet
+ * a missing one (deleted on another replica), an orphaned one (marked by a
+ * replica that does not declare it) or one no pass completed yet
  * runs a pass whatever `idleMs` says; a synced one costs that read only. Never rejects; an abort ends it.
  */
 export async function runCollection(input: CollectionLoopInput): Promise<void> {
@@ -698,7 +700,8 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
  * declares it is syncing it: left alone), re-read once the lock is held and
  * its fence claimed with the lock's token; a claim or mark the fence refuses
  * (another owner took the lock meanwhile) or that finds the row deleted
- * leaves the record alone too.
+ * leaves the record alone too. `records` is a list the caller already read
+ * (the managed poll's), else `findCollections()` is read.
  */
 export async function markOrphans(
     service: IKnowledgeService,
@@ -706,13 +709,14 @@ export async function markOrphans(
     locks: Pick<ILockService, 'acquire' | 'release'>,
     owner: string,
     clock: IClock,
+    records?: readonly KnowledgeCollection[],
 ): Promise<void> {
     const isOrphan = (record: KnowledgeCollection | undefined): record is KnowledgeCollection => record !== undefined &&
         record.kind === 'declared' &&
         record.status !== 'orphaned' &&
         !declared.has(record.name);
 
-    for (const candidate of await service.findCollections()) {
+    for (const candidate of records ?? await service.findCollections()) {
         if (!isOrphan(candidate)) {
             continue;
         }

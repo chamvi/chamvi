@@ -271,7 +271,10 @@ class Knowledge implements IKnowledge {
      * One pass of `managedPoll` (at once, then every
      * KNOWLEDGE_MANAGED_POLL_MS): starts a loop per managed record without
      * one (created here before the start, or by another instance) and stops
-     * the loops whose record is gone or no longer managed. A failed read is
+     * the loops whose record is gone or no longer managed, then marks the
+     * declared records this instance does not declare `orphaned` from the
+     * same read (`markOrphans()`), so a removed collection settles orphaned
+     * once the replicas declaring it are gone. A failed read or mark is
      * reported and tried at the next poll; a pass stopped meanwhile (the
      * component's or the indexing's stop) reports nothing.
      */
@@ -325,6 +328,9 @@ class Knowledge implements IKnowledge {
                 this.stopManaged(name);
             }
         }
+
+        // start() marks once; every poll again, so a rolling deploy that removed a collection converges
+        await markOrphans(this.service, new Set(this.collections.keys()), this.locks, this.owner, this.clock, records);
     }
 
     /** Starts the loop of a managed collection, unless one runs or indexing is off. */
