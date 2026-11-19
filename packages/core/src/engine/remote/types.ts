@@ -38,7 +38,7 @@ export type RemoteStartRecord = {
 /** What answerRemoteWait() needs from the engine. */
 export type RemoteAnswerContext = Pick<DispatchEngineContext, 'runService' | 'resume'>;
 
-/** What the poll, wake, timeout and remote cancel of stand-ins need from the engine. */
+/** What EngineRemote (the poll, wake, timeout, approvals and remote cancel of stand-ins) needs from the engine. */
 export type RemoteEngineContext = RemoteAnswerContext & Pick<DispatchEngineContext, 'clock' | 'claimTtlMs' | 'onError' | 'emit'> & {
     lockService: ILockService;
     effectService: IEffectService;
@@ -53,12 +53,12 @@ export type RemoteEngineContext = RemoteAnswerContext & Pick<DispatchEngineConte
      * rejection reported to onError.
      */
     detach(work: (signal: AbortSignal) => Promise<void>, run?: Run): void;
-    /** A run settled or an approval became pending in it: the receiver's ping and notification (onPeerEvent()). */
+    /** A run settled or an approval became pending in it: the receiver's ping and notification (EnginePeerReceiver). */
     peerEvent(run: Run): void;
 };
 
-/** What the receiver's ping and approval notification need from the engine. */
-export type ReceiverContext = Pick<
+/** What EnginePeerReceiver (the receiver's ping and approval notification) needs from the engine. */
+export type PeerReceiverContext = Pick<
     RemoteEngineContext,
     'runService' | 'clock' | 'claimTtlMs' | 'onError' | 'lockService' | 'effectService' | 'peers' | 'getChannel' | 'detach'
 >;

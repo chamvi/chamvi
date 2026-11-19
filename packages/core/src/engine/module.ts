@@ -75,7 +75,7 @@ import { deliverOnce } from './notify/module.ts';
 import { DISPATCH_CONTEXT } from '../dispatch/constants.ts';
 import type { DispatchHost, PeerDispatchHost } from '../dispatch/types.ts';
 import { assertDispatchRoles, createSerial, declaresDispatchRole } from '../dispatch/helpers.ts';
-import { dispatchPeer } from '../dispatch/peer.ts';
+import { dispatchPeer } from '../dispatch/peer/module.ts';
 import { MODEL_CONTEXT } from '../model/constants.ts';
 import { checkAgentModel, checkDefaultModel } from '../model/module.ts';
 import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
@@ -103,9 +103,11 @@ import {
 import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
 import { executeSimpleRun } from './execute/simple.ts';
 import { executeRun } from './execute/module.ts';
-import { executeRemoteRun } from './execute/remote.ts';
-import { cancelRemote, pollRemoteWaits, wakeRemote } from './remote/module.ts';
-import { onPeerEvent } from './remote/receiver.ts';
+import { executeRemoteRun } from './execute/remote/module.ts';
+import { EngineRemote } from './remote/caller/module.ts';
+import type { IEngineRemote } from './remote/caller/types.ts';
+import { EnginePeerReceiver } from './remote/receiver/module.ts';
+import type { IEnginePeerReceiver } from './remote/receiver/types.ts';
 import type { RemoteEngineContext } from './remote/types.ts';
 import type { ExecuteContext, RemoteExecuteContext, SuspendRequest } from './execute/types.ts';
 import {
@@ -262,6 +264,12 @@ export class Engine implements IEngine {
 
     protected readonly peerDispatchHost: PeerDispatchHost;
 
+    /** The caller side of remote agents (polls, wakes, timeouts, remote approvals and cancels); only with peers. */
+    protected readonly remote?: IEngineRemote;
+
+    /** The receiver side: signals to the peer that started a run here; only with peers. */
+    protected readonly peerReceiver?: IEnginePeerReceiver;
+
     protected started = false;
 
     protected draining = false;
@@ -353,6 +361,22 @@ export class Engine implements IEngine {
         this.provided.set(CLOCK_KEY, this.clock);
         this.provided.set(DISPATCH_CONTEXT, this.createDispatchHost());
         this.peerDispatchHost = this.createPeerDispatchHost();
+
+        if (opts.peers) {
+            const remoteContext: RemoteEngineContext = {
+                ...this.dispatchContext(),
+                lockService: this.lockService,
+                effectService: this.effectService,
+                peers: opts.peers,
+                getAgent: (name) => this.getAgent(name),
+                getChannel: (name) => this.getChannel(name),
+                detach: (work, run) => this.detach(work, run),
+                peerEvent: (run) => this.peerReceiver?.onRunEvent(run),
+            };
+
+            this.remote = new EngineRemote(remoteContext);
+            this.peerReceiver = new EnginePeerReceiver(remoteContext);
+        }
 
         for (const agent of opts.agents) {
             this.assertRegistrable(agent);
@@ -1440,25 +1464,9 @@ export class Engine implements IEngine {
         this.checkedRuns.delete(runId);
         this.emit({ type: 'run.updated', run: updated });
         await this.reconcileConversation(updated);
-        this.cancelRemoteOf(updated);
-        this.peerEvent(updated);
+        this.remote?.cancelSettled(updated);
+        this.peerReceiver?.onRunEvent(updated);
         await onRunSettled(this.dispatchContext(), updated);
-    }
-
-    /**
-     * A stand-in that settled `cancelled` here passes the cancel on to its
-     * remote run (detached, best effort: a failure reaches onError only).
-     */
-    protected cancelRemoteOf(run: Run): void {
-        if (!this.peers || run.status !== RunStatus.CANCELLED) {
-            return;
-        }
-
-        const ctx = this.remoteContext(this.peers);
-        const agent = this.agents.get(run.agent);
-        const peer = agent?.kind === 'remote' ? agent.definition.peer : undefined;
-
-        ctx.detach(() => cancelRemote(ctx, run, peer), run);
     }
 
     /**
@@ -1469,11 +1477,7 @@ export class Engine implements IEngine {
      * `invoker` authenticates as, `undefined`, with nothing written, otherwise.
      */
     async wake(runId: string, invoker: Invoker | undefined): Promise<WakeOutcome | undefined> {
-        if (!this.peers) {
-            return undefined;
-        }
-
-        return wakeRemote(this.remoteContext(this.peers), runId, invoker);
+        return this.remote?.wake(runId, invoker);
     }
 
     /**
@@ -1579,7 +1583,7 @@ export class Engine implements IEngine {
         }
 
         // a remote wait is polled detached (never awaited here), or timed out
-        if (this.peers && await pollRemoteWaits(this.remoteContext(this.peers), data, now)) {
+        if (this.remote && await this.remote.pollWaits(data, now)) {
             resumed = true;
         }
 
@@ -1766,7 +1770,7 @@ export class Engine implements IEngine {
         }
 
         // also on a pause on an approval delivered before: the peer side dedupes its notification
-        this.peerEvent(updated);
+        this.peerReceiver?.onRunEvent(updated);
 
         if (waiting.notifiedAt) {
             return;
@@ -2301,8 +2305,8 @@ export class Engine implements IEngine {
         if (updated) {
             this.emit({ type: 'run.updated', run: updated });
             await this.reconcileConversation(updated);
-            this.cancelRemoteOf(updated);
-            this.peerEvent(updated);
+            this.remote?.cancelSettled(updated);
+            this.peerReceiver?.onRunEvent(updated);
             await onRunSettled(this.dispatchContext(), updated);
         }
 
@@ -2470,35 +2474,6 @@ export class Engine implements IEngine {
             onError: (error, run) => this.onError(error, run),
             emit: (run) => this.emit({ type: 'run.updated', run }),
         };
-    }
-
-    protected remoteContext(peers: IPeerResolver): RemoteEngineContext {
-        return {
-            ...this.dispatchContext(),
-            lockService: this.lockService,
-            effectService: this.effectService,
-            peers,
-            getAgent: (name) => this.getAgent(name),
-            getChannel: (name) => this.getChannel(name),
-            detach: (work, run) => this.detach(work, run),
-            peerEvent: (run) => this.peerEvent(run),
-        };
-    }
-
-    /**
-     * The receiver's ping and approval notification for `run` (settled, or
-     * an approval pending in it): detached, never throws; nothing without peers.
-     */
-    protected peerEvent(run: Run): void {
-        if (!this.peers) {
-            return;
-        }
-
-        try {
-            onPeerEvent(this.remoteContext(this.peers), run);
-        } catch (error) {
-            this.onError(error, run);
-        }
     }
 
     /**

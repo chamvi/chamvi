@@ -8,63 +8,23 @@
 import { randomUUID } from 'node:crypto';
 import { Permission, can } from '@chamvi/access';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import { isObject } from 'smob';
 import type { PeerParent } from '@chamvi/store';
-import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
-import type { DispatchResult } from '../channel/types.ts';
-import { stableHash } from '../effect/helpers.ts';
-import type { DispatchEnvelope } from '../engine/types.ts';
-import { AgentNotFoundError, PeerStartBusyError, ValidationError } from '../errors/index.ts';
+import { AGENT_CHANNEL_NAME } from '../../channel/constants.ts';
+import type { DispatchResult } from '../../channel/types.ts';
+import { stableHash } from '../../effect/helpers.ts';
+import type { DispatchEnvelope } from '../../engine/types.ts';
+import { AgentNotFoundError, PeerStartBusyError, ValidationError } from '../../errors/index.ts';
 import {
     assertDispatchKey,
     findDispatchRole,
     fromOf,
     maxDepthOf,
     maxPerRunOf,
-    peerClaimKey,
     readCount,
     validatePayload,
-} from './helpers.ts';
-import type { PeerDispatchFields, PeerDispatchHost } from './types.ts';
-
-/** The lineage fields a peer sent, checked and copied (a ValidationError for a malformed one). */
-function readFields(fields: unknown): PeerDispatchFields {
-    if (!isObject(fields) || !isObject(fields.parent)) {
-        throw new ValidationError('A peer start needs a role, a stand-in and a parent.');
-    }
-
-    const { parent } = fields;
-
-    assertDispatchKey('peer role', fields.role, true);
-    assertDispatchKey('peer stand-in', fields.standIn, true);
-    assertDispatchKey('peer parent run', parent.runId, true);
-    assertDispatchKey('peer parent agent', parent.agent, true);
-    assertDispatchKey('peer origin', fields.origin, true);
-
-    if (fields.role === undefined || fields.standIn === undefined || parent.runId === undefined || parent.agent === undefined) {
-        throw new ValidationError('A peer start needs a role, a stand-in and a parent.');
-    }
-
-    if (typeof parent.depth !== 'number' || !Number.isSafeInteger(parent.depth) || parent.depth < 0) {
-        throw new ValidationError('The peer parent depth must be a non-negative integer.');
-    }
-
-    if (fields.taint !== undefined && typeof fields.taint !== 'boolean') {
-        throw new ValidationError('The peer taint must be a boolean.');
-    }
-
-    return {
-        role: fields.role,
-        standIn: fields.standIn,
-        parent: {
-            runId: parent.runId,
-            agent: parent.agent,
-            depth: parent.depth,
-        },
-        taint: fields.taint === true,
-        ...(fields.origin !== undefined ? { origin: fields.origin } : {}),
-    };
-}
+} from '../helpers.ts';
+import type { PeerDispatchFields, PeerDispatchHost } from '../types.ts';
+import { peerClaimKey, readPeerFields } from './helpers/index.ts';
 
 /**
  * Starts a run a peer asked for: the peer name comes only from the
@@ -97,7 +57,7 @@ export async function dispatchPeer(
         throw new ValidationError('The invoker is no configured peer.');
     }
 
-    const fields = readFields(input);
+    const fields = readPeerFields(input);
     const { role, parent } = fields;
     const target = envelope.agent;
     const agent = host.getAgent(target);

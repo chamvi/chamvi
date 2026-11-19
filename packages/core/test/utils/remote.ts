@@ -20,7 +20,7 @@ import type {
     RemoteAgentDefinition,
 } from '@chamvi/core';
 import type { Run } from '@chamvi/store';
-import { answerRemoteWait } from '../../src/engine/remote/module.ts';
+import { answerRemoteWait } from '../../src/engine/remote/caller/answer.ts';
 import type { RemoteOutcome } from '../../src/engine/remote/types.ts';
 import { ControllableClock } from './clock.ts';
 import { createTestServices, servicesOf } from './engine.ts';

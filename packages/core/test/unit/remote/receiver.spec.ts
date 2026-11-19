@@ -36,7 +36,7 @@ import type {
 import { RunStatus } from '@chamvi/store';
 import type { Invoker, Run } from '@chamvi/store';
 import { stableHash } from '../../../src/effect/helpers.ts';
-import { peerNotifyKey } from '../../../src/engine/remote/receiver.ts';
+import { peerNotifyKey } from '../../../src/engine/remote/helpers/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createTestServices, servicesOf } from '../../utils/engine.ts';
 import type { TestServiceSet } from '../../utils/engine.ts';
@@ -49,7 +49,7 @@ const LINK = 'https://ops.example/ui/approvals';
 /** Exposes the engine's peer event hook, to replay a pause on the same approval. */
 class ReceiverEngine extends Engine {
     firePeerEvent(run: Run): void {
-        this.peerEvent(run);
+        this.peerReceiver?.onRunEvent(run);
     }
 }
 

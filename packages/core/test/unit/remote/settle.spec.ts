@@ -15,7 +15,7 @@ import { z } from 'zod';
 import type { IEngine } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Run } from '@chamvi/store';
-import { readOutcome } from '../../../src/engine/remote/helpers.ts';
+import { readRemoteOutcome } from '../../../src/engine/remote/helpers/index.ts';
 import type { RemoteOutcome } from '../../../src/engine/remote/types.ts';
 import {
     readRun,
@@ -297,19 +297,19 @@ describe('the stand-in run: settle', () => {
     });
 });
 
-describe('readOutcome', () => {
+describe('readRemoteOutcome', () => {
     it('reads the four outcome statuses with a boolean taint', () => {
         for (const status of ['completed', 'failed', 'cancelled', 'timeout'] as const) {
-            expect(readOutcome(outcome({ status }))).toEqual(outcome({ status }));
+            expect(readRemoteOutcome(outcome({ status }))).toEqual(outcome({ status }));
         }
 
-        expect(readOutcome(undefined)).toBeUndefined();
+        expect(readRemoteOutcome(undefined)).toBeUndefined();
     });
 
     it('throws on a malformed record', () => {
-        expect(() => readOutcome({ ...outcome({}), status: 'running' })).toThrow();
-        expect(() => readOutcome({ ...outcome({}), tainted: 'yes' })).toThrow();
-        expect(() => readOutcome({ status: 'completed', tainted: false })).toThrow();
-        expect(() => readOutcome('completed')).toThrow();
+        expect(() => readRemoteOutcome({ ...outcome({}), status: 'running' })).toThrow();
+        expect(() => readRemoteOutcome({ ...outcome({}), tainted: 'yes' })).toThrow();
+        expect(() => readRemoteOutcome({ status: 'completed', tainted: false })).toThrow();
+        expect(() => readRemoteOutcome('completed')).toThrow();
     });
 });

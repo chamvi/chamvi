@@ -15,7 +15,7 @@ import { PEER_REQUEST_TIMEOUT_MS } from '@chamvi/core';
 import type { IEngine } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type { Invoker, Run } from '@chamvi/store';
-import { peerRequest } from '../../../src/engine/remote/helpers.ts';
+import { peerRequest } from '../../../src/engine/remote/helpers/index.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { peerRunView, rejectWith } from '../../utils/peers.ts';
 import {
