@@ -21,7 +21,7 @@ import type { TriggerEnvelope } from '@chamvi/store';
 import { GITHUB_CHANNEL_TIMEOUT_MS, githubChannel } from '@chamvi/github';
 import { createTestEngine } from '@chamvi/test-kit';
 import type { GithubAppOptions, GithubChannelOptions } from '@chamvi/github';
-import { renderComment } from '../../../src/channel/helpers.ts';
+import { renderComment } from '../../../src/channel/helpers/index.ts';
 import {
     APPROVAL,
     createCommentFixture,

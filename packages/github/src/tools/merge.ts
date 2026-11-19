@@ -35,7 +35,7 @@ import {
     requireRef,
     requireString,
     withOctokit,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import { toPullRequest } from './pulls.ts';
 import { createPullRequest, toCreated } from './pull-operation.ts';
 import type {

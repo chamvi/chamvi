@@ -6,7 +6,7 @@
  */
 
 import type { ToolSet } from 'ai';
-import { resolveMergeMethod } from '../tools/helpers.ts';
+import { resolveMergeMethod } from '../tools/helpers/index.ts';
 import { createPullRequestWriteTools } from '../tools/merge.ts';
 import type { normalizeProposals } from '../tools/proposals.ts';
 import { createProposalTools } from '../tools/proposals.ts';

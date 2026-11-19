@@ -9,7 +9,7 @@ import { describe, expect, it } from 'vitest';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { openclawChannel } from '@chamvi/channel-openclaw';
 import type { OpenclawChannelOptions } from '@chamvi/channel-openclaw';
-import { hookUrl } from '../../../src/channel/helpers.ts';
+import { hookUrl } from '../../../src/channel/helpers/index.ts';
 
 const valid: OpenclawChannelOptions = {
     baseUrl: 'http://openclaw:18789',

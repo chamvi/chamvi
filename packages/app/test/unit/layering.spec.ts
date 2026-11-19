@@ -81,7 +81,7 @@ const PORT_EXEMPTIONS: Array<{
     },
     {
         test: (path) => [
-            'packages/knowledge/src/knowledge/module.ts',
+            'packages/knowledge/src/knowledge/base.ts',
             'packages/knowledge/src/knowledge/types.ts',
         ].includes(path),
         names: ['IKnowledgeCollectionRepository'],

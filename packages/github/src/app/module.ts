@@ -18,8 +18,8 @@ import {
     normalizeSecrets,
     normalizeSlug,
     toInstallation,
-} from './helpers.ts';
-import { toolError } from '../tools/helpers.ts';
+} from './helpers/index.ts';
+import { toolError } from '../tools/helpers/index.ts';
 import { normalizeProposals } from '../tools/proposals.ts';
 import { GITHUB_REQUEST_ERROR_CODE } from '../tools/constants.ts';
 import { verifySignature } from '../webhook/helpers.ts';

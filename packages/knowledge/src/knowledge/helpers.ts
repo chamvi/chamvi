@@ -14,7 +14,7 @@ import { isObject } from 'smob';
 import { isEmbeddingModelObject, modelIdentity } from '../collection/helpers.ts';
 import { knowledgeCollection } from '../collection/module.ts';
 import type { EmbeddingModelRef, KnowledgeCollectionDefinition, ResolvedKnowledgeCollection } from '../collection/types.ts';
-import { isKnowledgeRepository } from '../service/helpers.ts';
+import { isKnowledgeRepository } from '../service/helpers/index.ts';
 import { KnowledgeService } from '../service/module.ts';
 import type { IKnowledgeService } from '../service/types.ts';
 import type { KnowledgeErrorContext, KnowledgeOptions } from './types.ts';

@@ -21,7 +21,7 @@ import {
     requireInteger,
     requireRef,
     withOctokit,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type {
     GithubPullRequest,
     GithubPullRequestChecks,

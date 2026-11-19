@@ -22,7 +22,7 @@ import {
     createKnowledge,
     knowledgeCollection,
 } from '@chamvi/knowledge';
-import { markOrphans } from '../../../src/indexer/module.ts';
+import { markOrphans } from '../../../src/indexer/orphans.ts';
 import type { IndexerSetup } from '../../utils/indexer.ts';
 import {
     createIndexerSetup,

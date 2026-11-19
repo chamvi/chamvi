@@ -13,7 +13,7 @@ import type {
     UserFacingSocketConfig,
     WAMessage,
 } from 'baileys';
-import type { ConversationRef, IClock } from '@chamvi/core';
+import type { ClockTimer, ConversationRef, IClock } from '@chamvi/core';
 import type { Invoker } from '@chamvi/store';
 import type {
     Adapter,
@@ -266,4 +266,55 @@ export type WhatsAppAdapter = Adapter<string, unknown> & {
     identityOf(message: Message): WhatsAppIdentity | undefined;
     /** one text send, optionally under a caller message id */
     send(threadId: string, text: string, messageId?: string): Promise<RawMessage<unknown>>;
+};
+
+/**
+ * One acquisition of the lease: every auth callback of its sockets is
+ * admitted only while it is in use, so nothing writes under an ended one.
+ */
+export type WhatsAppGeneration = {
+    readonly run: WhatsAppConnectionRun;
+    /** aborts with the run's signal, or when this generation closes */
+    readonly controller: AbortController;
+    readonly signal: AbortSignal;
+    /** auth calls are admitted (reads and writes) */
+    admitting: boolean;
+    /** close began: no socket, no reconnect from here on */
+    closed: boolean;
+    readonly writes: Set<Promise<unknown>>;
+    lease?: WhatsAppAuthLease;
+    /** the provider reported the lease lost: nothing is flushed under it */
+    leaseLost: boolean;
+    /** acquired for a reset: the provider handed out an emptied session */
+    reset: boolean;
+    /** settles once acquire settled and a late lease was released */
+    acquiring?: Promise<void>;
+    socket?: WhatsAppSocket;
+    detach?: () => void;
+    timer?: ClockTimer;
+    /** failed reconnect attempts in a row */
+    failures: number;
+    closing?: Promise<void>;
+};
+
+/** One connect until its close: the generations one after the other, and the acquire retries between them. */
+export type WhatsAppConnectionRun = {
+    readonly clock: IClock;
+    readonly signal: AbortSignal;
+    closed: boolean;
+    generation?: WhatsAppGeneration;
+    /** the pending acquire retry */
+    retry?: ClockTimer;
+    /** acquire retries since the last acquired lease (the backoff step) */
+    retries: number;
+    /** failed (not held) acquires since the last acquired lease */
+    failedAcquires: number;
+    /** the held-elsewhere notice went out since the last acquired lease */
+    heldReported: boolean;
+    /** a reset asked for a cleared session: the next acquire asks the provider for it, before any socket */
+    clearPending: boolean;
+    resetting?: Promise<void>;
+    closing?: Promise<void>;
+    /** gives back the console guard taken at connect (idempotent) */
+    releaseConsole: () => void;
 };

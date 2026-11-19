@@ -8,7 +8,7 @@
 import { isObject } from 'smob';
 import type { GithubOctokit } from '../app/types.ts';
 import { CHECKS_MAX } from './constants.ts';
-import { statusOf } from './helpers.ts';
+import { statusOf } from './helpers/index.ts';
 import type {
     GithubCheck,
     GithubCheckOutcome,
