@@ -48,4 +48,6 @@ export type EngineIntakeContext = Pick<
     resume: DispatchEngineContext['resume'];
     /** The engine's cancel (a subclass may wrap it). */
     cancel: DispatchEngineContext['cancel'];
+    /** The engine's createRun() (a subclass may wrap it): every run intake creates goes through it. */
+    createRun: IEngineIntake['createRun'];
 };

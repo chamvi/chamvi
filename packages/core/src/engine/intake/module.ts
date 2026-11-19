@@ -51,7 +51,7 @@ export class EngineIntake implements IEngineIntake {
         delete rest.parent;
         delete rest.conversation;
 
-        return this.createRun(rest);
+        return this.ctx.createRun(rest);
     }
 
     async dispatchPeer(envelope: DispatchEnvelope, fields: PeerStartInput['peer'] & { role: string }): Promise<DispatchResult> {
@@ -245,7 +245,7 @@ export class EngineIntake implements IEngineIntake {
                     throw new InvalidRunStateError(`Run "${parent.runId}" is not running: it cannot dispatch a run.`);
                 }
 
-                return this.createRun(envelope, parent);
+                return this.ctx.createRun(envelope, parent);
             },
             serial: createDispatchSerial(),
             inflight: new Map(),
@@ -264,7 +264,7 @@ export class EngineIntake implements IEngineIntake {
             peers: this.ctx.peers,
             locks: this.ctx.lockService,
             lockTtlMs: this.ctx.claimTtlMs,
-            createRun: (envelope, parent, taintSource) => this.createRun(envelope, parent, undefined, taintSource),
+            createRun: (envelope, parent, taintSource) => this.ctx.createRun(envelope, parent, undefined, taintSource),
             serial: createDispatchSerial(),
         };
     }

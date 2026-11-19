@@ -37,7 +37,7 @@ export class EngineRunner implements IEngineRunner {
 
         // cancel() asked for it while it ran elsewhere (or was interrupted): also for an agent unknown here
         if (run.cancelRequested) {
-            await this.settleRun(run.id, { status: RunStatus.CANCELLED });
+            await this.ctx.finish(run.id, { status: RunStatus.CANCELLED });
 
             return;
         }
@@ -60,7 +60,7 @@ export class EngineRunner implements IEngineRunner {
         const revision = revisions.get(run.agent);
 
         if (guard.replacedSince(run) || (revision !== undefined && guard.isStale(run, revision))) {
-            await this.settleRun(run.id, {
+            await this.ctx.finish(run.id, {
                 status: RunStatus.CANCELLED,
                 error: agentCancelReason(run.agent, 'replaced', revision),
             });
@@ -115,7 +115,7 @@ export class EngineRunner implements IEngineRunner {
             }
 
             if (signal.aborted) {
-                await this.settleRun(run.id, { status: RunStatus.CANCELLED });
+                await this.ctx.finish(run.id, { status: RunStatus.CANCELLED });
 
                 return;
             }
@@ -149,7 +149,7 @@ export class EngineRunner implements IEngineRunner {
             stateService: this.ctx.stateService,
             clock: this.ctx.clock,
             signal,
-            finish: (patch) => this.settleRun(run.id, patch),
+            finish: (patch) => this.ctx.finish(run.id, patch),
             update: (patch) => this.executionUpdate(run.id, patch),
             onStepAppended: (step) => this.ctx.emit({ type: 'step.appended', step }),
             onDelta: (delta) => this.ctx.emit({ type: 'run.delta', delta }),
@@ -201,7 +201,7 @@ export class EngineRunner implements IEngineRunner {
             artifactService: this.ctx.artifactService,
             clock: this.ctx.clock,
             signal: stopped.signal,
-            finish: (patch) => this.settleRun(run.id, patch),
+            finish: (patch) => this.ctx.finish(run.id, patch),
             update: (patch) => this.executionUpdate(run.id, patch),
             pause: (request, usage) => this.ctx.pause(run, request, usage),
             onError: (error, failed) => this.ctx.onError(error, failed),
@@ -226,7 +226,7 @@ export class EngineRunner implements IEngineRunner {
                     return;
                 }
 
-                await this.settleRun(run.id, { status: RunStatus.FAILED, error: toRunError(error) });
+                await this.ctx.finish(run.id, { status: RunStatus.FAILED, error: toRunError(error) });
                 this.ctx.onError(error, run);
             } finally {
                 // a later execution of the same run may hold the entry by now

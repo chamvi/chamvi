@@ -74,11 +74,11 @@ export default [
                     message: 'Name a module-level function after the concept it acts on (settleRemoteRun, not settle).',
                 },
                 {
-                    selector: 'Program > VariableDeclaration > VariableDeclarator[id.name=/^(settle|finish|build|read|check|run|handle|process|execute|apply|resolve|create|load|parse|validate)$/]',
+                    selector: 'Program > VariableDeclaration > VariableDeclarator[id.name=/^(settle|finish|build|read|check|run|handle|process|execute|apply|resolve|create|load|parse|validate)$/][init.type=/^(ArrowFunctionExpression|FunctionExpression)$/]',
                     message: 'Name a module-level function after the concept it acts on (settleRemoteRun, not settle).',
                 },
                 {
-                    selector: 'Program > ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name=/^(settle|finish|build|read|check|run|handle|process|execute|apply|resolve|create|load|parse|validate)$/]',
+                    selector: 'Program > ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name=/^(settle|finish|build|read|check|run|handle|process|execute|apply|resolve|create|load|parse|validate)$/][init.type=/^(ArrowFunctionExpression|FunctionExpression)$/]',
                     message: 'Name a module-level function after the concept it acts on (settleRemoteRun, not settle).',
                 },
             ],

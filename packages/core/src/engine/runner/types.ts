@@ -56,6 +56,8 @@ export type EngineRunnerContext = Pick<
     engine: IEngine;
     /** The engine's execute() (a subclass may wrap it): guardedExecute() runs every claimed run through it. */
     execute(run: Run, signal: AbortSignal): Promise<void>;
+    /** The engine's finish() (a subclass may wrap it): every settle of the runner goes through it. */
+    finish(id: string, patch: Partial<Run>): Promise<Run | undefined>;
     /** The live registry, read by reference. */
     registry: Pick<EngineRegistryState, 'agents' | 'revisions'>;
     skills: IEngineSkills;

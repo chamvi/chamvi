@@ -68,7 +68,7 @@ import type { IEnginePeerReceiver } from './remote/receiver/types.ts';
 import type { RemoteEngineContext } from './remote/types.ts';
 import { RunQueue } from './queue/module.ts';
 import { EngineRegistry } from './registry/engine.ts';
-import type { CancelReason, IEngineRegistry } from './registry/types.ts';
+import type { CancelReason, IEngineRegistry, PutAgentOptions } from './registry/types.ts';
 import { EngineRunner } from './runner/module.ts';
 import type { IEngineRunner } from './runner/types.ts';
 import type {
@@ -257,6 +257,7 @@ export class Engine implements IEngine {
             pump: () => this.queue.pump(),
             resume: (run, waitId, record, step, stale) => this.approvals.resume(run, waitId, record, step, stale),
             cancel: (runId, reason) => this.cancelRun(runId, reason),
+            createRun: (envelope, parent, conversation, taintSource) => this.createRun(envelope, parent, conversation, taintSource),
         });
         this.context.provided.set(DISPATCH_CONTEXT, this.createDispatchHost());
 
@@ -311,7 +312,7 @@ export class Engine implements IEngine {
             conversations: this.conversations,
             engine: this,
             dispatch: (envelope) => this.dispatch(envelope),
-            createRun: (envelope, parent, conversation) => this.intake.createRun(envelope, parent, conversation),
+            createRun: (envelope, parent, conversation) => this.createRun(envelope, parent, conversation),
             retryDeferred: () => this.queue.retryDeferred(),
             pump: () => this.queue.pump(),
         });
@@ -327,6 +328,7 @@ export class Engine implements IEngine {
             ...this.context,
             engine: this,
             execute: (run, signal) => this.execute(run, signal),
+            finish: (id, patch) => this.finish(id, patch),
             registry: this.registry.state,
             skills: this.skills,
             model: this.model,
@@ -484,15 +486,7 @@ export class Engine implements IEngine {
      * registry operation starts, it finishes with local publication even if
      * the caller or engine stops, keeping registration and durable state aligned.
      */
-    async putAgent(
-        agent: Agent,
-        options: {
-            revision?: string;
-            formerRevision?: string;
-            reload?: boolean;
-            signal?: AbortSignal
-        } = {},
-    ): Promise<'added' | 'replaced' | 'unchanged'> {
+    async putAgent(agent: Agent, options: PutAgentOptions = {}): Promise<'added' | 'replaced' | 'unchanged'> {
         return this.registry.putAgent(agent, options);
     }
 
