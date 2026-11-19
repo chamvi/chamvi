@@ -213,7 +213,7 @@ Each factory reads `options.env ?? process.env` when it is called and throws `In
 
 <<< ../../../app/src/module/constants.ts{ts}
 
-`AppContext`, `ILifecycleHook`, `AuthenticatorEntry`, `Server`, `AppTokens` (each token's value type) and the re-exported orkos `IModule` and eldin `IContainer` types:
+`AppContext`, `ILifecycleHook`, `AuthenticatorEntry`, `Server`, `AppTokens` (each token's value type), the re-exported orkos `IModule` and eldin `IContainer` types and eldin's `TypedToken` class (create a feature module's container keys with it):
 
 <<< ../../../app/src/module/types.ts{ts}
 

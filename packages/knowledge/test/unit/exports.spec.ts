@@ -5,7 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import { readFileSync } from 'node:fs';
 import { describe, expect, it } from 'vitest';
+import { TypedToken } from '@chamvi/app';
 import * as knowledge from '@chamvi/knowledge';
 import * as knowledgeModuleEntry from '@chamvi/knowledge/module';
 
@@ -129,5 +131,15 @@ describe('public api', () => {
         expect(knowledgeModuleEntry.KNOWLEDGE_MODEL_VARIABLE).toBe('CHAMVI_KNOWLEDGE_MODEL');
         expect(knowledgeModuleEntry.KNOWLEDGE_REPOSITORY_MODULE_NAME).toBe('chamvi:knowledge-repository');
         expect(knowledgeModuleEntry.KnowledgeToken.REPOSITORY.name).toBe('chamvi.knowledge-repository');
+    });
+
+    it('creates its token with app\'s TypedToken and depends on no eldin of its own', () => {
+        const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8')) as Record<string, Record<string, string> | undefined>;
+
+        expect(knowledgeModuleEntry.KnowledgeToken.REPOSITORY).toBeInstanceOf(TypedToken);
+
+        for (const field of ['dependencies', 'devDependencies', 'peerDependencies', 'optionalDependencies']) {
+            expect(pkg[field]?.eldin, field).toBeUndefined();
+        }
     });
 });

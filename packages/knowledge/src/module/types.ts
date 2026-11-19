@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import type { TypedToken } from 'eldin';
+import type { TypedToken } from '@chamvi/app';
 import type { EmbeddingModelRef, KnowledgeCollectionDefinition } from '../collection/types.ts';
 import type { IKnowledgeCollectionRepository } from '../store/types.ts';
 

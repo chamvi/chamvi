@@ -12,6 +12,7 @@ import {
     expectTypeOf,
     it,
 } from 'vitest';
+import { TypedToken } from 'eldin';
 import * as app from '@chamvi/app';
 import * as authup from '@chamvi/app/authup';
 import * as testing from '@chamvi/app/testing';
@@ -211,6 +212,10 @@ describe('public api', () => {
             'UI_AUTH',
             'UI_PAGES',
         ]);
+    });
+
+    it('exports eldin\'s TypedToken, so a feature module keys the container with the class it compares against', () => {
+        expect(app.TypedToken).toBe(TypedToken);
     });
 
     it('exports the module names and codes', () => {
