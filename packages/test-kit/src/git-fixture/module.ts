@@ -24,7 +24,7 @@ import { promisify } from 'node:util';
 import { ValidationError } from '@chamvi/core';
 import type { GitFixture } from './types.ts';
 
-const run = promisify(execFile);
+const execFileAsync = promisify(execFile);
 
 /**
  * A temporary git repository with one commit of `files` (paths relative to
@@ -63,7 +63,7 @@ export async function createGitFixture(files: Record<string, string>): Promise<G
         GIT_CONFIG_VALUE_1: 'false',
     };
     const git = async (...args: string[]) => {
-        const { stdout } = await run('git', args, { cwd: path, env });
+        const { stdout } = await execFileAsync('git', args, { cwd: path, env });
 
         return stdout;
     };

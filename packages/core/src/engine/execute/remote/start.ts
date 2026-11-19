@@ -11,7 +11,7 @@ import type { ArtifactInput } from '../../../artifact/types.ts';
 import { ArtifactNotFoundError, TimeoutError, ValidationError } from '../../../errors/index.ts';
 import type { PeerStartInput } from '../../../peer/types.ts';
 import { peerRequest, readRemoteStartRecord, remoteStartKey } from '../../remote/helpers/index.ts';
-import { toRunError } from '../helpers.ts';
+import { toRunError } from '../helpers/index.ts';
 import type { RemoteExecuteContext } from '../types.ts';
 
 /**

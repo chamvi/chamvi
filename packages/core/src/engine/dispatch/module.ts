@@ -7,12 +7,12 @@
 
 import { DISPATCH_DEPTH_MAX } from '../../dispatch/constants.ts';
 import {
-    isSettled,
+    isRunSettled,
     sumSubtreeUsage,
     toExpiredRecord,
     toWaitRecord,
     waitRecordKey,
-} from '../../dispatch/helpers.ts';
+} from '../../dispatch/helpers/index.ts';
 import type { DispatchWaitRecord } from '../../dispatch/types.ts';
 import { ErrorCode, InvalidRunStateError } from '../../errors/index.ts';
 import { RunStatus } from '@chamvi/store';
@@ -42,7 +42,7 @@ const SUBTREE_RECHECKS = 3;
 
 /** A child whose usage or subtreeUsage may still move: unsettled, or a settled one with descendants of its own. */
 function isVolatile(child: Run): boolean {
-    return !isSettled(child) || child.subtreeUsage !== undefined;
+    return !isRunSettled(child) || child.subtreeUsage !== undefined;
 }
 
 /**
@@ -191,7 +191,7 @@ export async function expireDispatchWait(ctx: DispatchEngineContext, parent: Run
     const { data } = await ctx.runService.find({ ids });
 
     for (const child of data) {
-        if (child.parentRunId !== run.id || isSettled(child) || child.cancelRequested) {
+        if (child.parentRunId !== run.id || isRunSettled(child) || child.cancelRequested) {
             continue;
         }
 
@@ -205,7 +205,7 @@ export async function expireDispatchWait(ctx: DispatchEngineContext, parent: Run
 
     // the cancels' pushes may have answered already (resumeWait then loses)
     const { data: after } = await ctx.runService.find({ ids });
-    const landing = after.some((child) => child.parentRunId === run.id && !isSettled(child));
+    const landing = after.some((child) => child.parentRunId === run.id && !isRunSettled(child));
 
     if (landing && now < waiting.expiresAt.getTime() + ctx.claimTtlMs) {
         return false;
@@ -330,7 +330,7 @@ export async function healCancelCascade(ctx: DispatchEngineContext): Promise<voi
  * dispatch wait when this was the last run it waited on.
  */
 export async function onRunSettled(ctx: DispatchEngineContext, run: Run): Promise<void> {
-    if (!isSettled(run)) {
+    if (!isRunSettled(run)) {
         return;
     }
 

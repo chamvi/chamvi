@@ -46,6 +46,45 @@ export default [
         },
     },
     {
+        // long files are hard to read: a source file stays within a few screens
+        // (tests and migrations exempt)
+        files: ['packages/*/src/**/*.ts', 'packages/*/app/**/*.{ts,vue}'],
+        ignores: ['**/migrations/**'],
+        rules: {
+            'max-lines': ['warn', {
+                max: 400,
+                skipBlankLines: true,
+                skipComments: true,
+            }],
+        },
+    },
+    {
+        // a module-level function with a bare verb name (settle, build) does not say which
+        // module it belongs to; small packages keep short names, their scope is clear
+        files: ['packages/{core,http,app,sandbox,store-db,knowledge,github,test-kit}/src/**/*.ts'],
+        rules: {
+            'no-restricted-syntax': [
+                'error',
+                {
+                    selector: 'Program > FunctionDeclaration[id.name=/^(settle|finish|build|read|check|run|handle|process|execute|apply|resolve|create|load|parse|validate)$/]',
+                    message: 'Name a module-level function after the concept it acts on (settleRemoteRun, not settle).',
+                },
+                {
+                    selector: 'Program > ExportNamedDeclaration > FunctionDeclaration[id.name=/^(settle|finish|build|read|check|run|handle|process|execute|apply|resolve|create|load|parse|validate)$/]',
+                    message: 'Name a module-level function after the concept it acts on (settleRemoteRun, not settle).',
+                },
+                {
+                    selector: 'Program > VariableDeclaration > VariableDeclarator[id.name=/^(settle|finish|build|read|check|run|handle|process|execute|apply|resolve|create|load|parse|validate)$/][init.type=/^(ArrowFunctionExpression|FunctionExpression)$/]',
+                    message: 'Name a module-level function after the concept it acts on (settleRemoteRun, not settle).',
+                },
+                {
+                    selector: 'Program > ExportNamedDeclaration > VariableDeclaration > VariableDeclarator[id.name=/^(settle|finish|build|read|check|run|handle|process|execute|apply|resolve|create|load|parse|validate)$/][init.type=/^(ArrowFunctionExpression|FunctionExpression)$/]',
+                    message: 'Name a module-level function after the concept it acts on (settleRemoteRun, not settle).',
+                },
+            ],
+        },
+    },
+    {
         // documentation samples: they log, and show values as bare expressions
         files: ['packages/docs/src/snippets/**/*.ts'],
         rules: {

@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { validate } from './helpers.ts';
+import { validateStateDocument } from './helpers.ts';
 import type { 
     IAgentState, 
     IStateService, 
@@ -59,7 +59,7 @@ export function createGuardedAgentState<S extends StateSchema = StateSchema>(
             upsert: async (id: string, doc: Infer<S[K]>) => {
                 assertWritable(`state.collection("${name}").upsert()`);
 
-                const value = await validate(agent, name, schema, doc);
+                const value = await validateStateDocument(agent, name, schema, doc);
 
                 // the execution may have ended during an async validation
                 assertWritable(`state.collection("${name}").upsert()`);

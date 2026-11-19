@@ -19,13 +19,13 @@ import { markUntrusted } from '../trust/module.ts';
 import { DEFAULT_DISPATCH_WAIT_TIMEOUT_MS, DISPATCH_CONTEXT } from './constants.ts';
 import {
     ancestorsOf,
-    isSettled,
-    readChildren,
+    isRunSettled,
+    readDispatchChildren,
     readWaitRecord,
     runSnapshotOf,
     toWaitRecord,
     waitRecordKey,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import { RunStatus } from '@chamvi/store';
 import type { Run } from '@chamvi/store';
 import type {
@@ -91,7 +91,7 @@ async function findKeyHolder(
     runId: string,
     children: readonly Run[],
 ): Promise<{ child: Run, holder: Run } | undefined> {
-    const keyed = children.filter((child) => child.concurrencyKey !== undefined && !isSettled(child));
+    const keyed = children.filter((child) => child.concurrencyKey !== undefined && !isRunSettled(child));
 
     if (keyed.length === 0) {
         return undefined;
@@ -149,7 +149,7 @@ async function waitFor(ctx: ToolContext<any>, runs: unknown, options: unknown): 
         host.runs.find({ ids: unique }),
         host.effects.findOne(`dispatch-children:${run.runId}`),
     ]);
-    const known = new Set(readChildren(children?.result));
+    const known = new Set(readDispatchChildren(children?.result));
     const found = new Map(data.map((r) => [r.id, r]));
 
     for (const runId of unique) {
@@ -191,7 +191,7 @@ async function waitFor(ctx: ToolContext<any>, runs: unknown, options: unknown): 
 
         const child = fresh.find((r) => r.id === blocked.child.id);
 
-        if (child && !isSettled(child)) {
+        if (child && !isRunSettled(child)) {
             throw new ValidationError(
                 `Run ${child.id} needs concurrency key "${child.concurrencyKey}" of agent "${child.agent}", ` +
                 `which run ${blocked.holder.id} holds while it waits: the wait could never end.`,

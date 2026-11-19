@@ -9,7 +9,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ToolSet } from 'ai';
 import type { Agent } from '../agent/types.ts';
 import { defineTool } from '../tool/define.ts';
-import { dispatchToolTarget, findDispatchRole } from './helpers.ts';
+import { dispatchToolTarget, findDispatchRole } from './helpers/index.ts';
 import { toRoleToolInput } from './schema.ts';
 import { dispatch, dispatchTo } from './start.ts';
 import type { DispatchToolTarget, RoleToolInput } from './types.ts';

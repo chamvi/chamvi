@@ -10,12 +10,12 @@ import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
 import { assertChannelName } from '../channel/helpers.ts';
 import { DEFAULT_DISPATCH_ROLE } from './constants.ts';
 import {
-    checkDescription,
-    checkFrom,
-    checkHooks,
-    checkMaxDepth,
-    checkMaxPerRun,
-} from './helpers.ts';
+    checkDispatchDescription,
+    checkDispatchFrom,
+    checkDispatchHooks,
+    checkDispatchMaxDepth,
+    checkDispatchMaxPerRun,
+} from './helpers/index.ts';
 import type { AgentSubscriber } from './types.ts';
 
 /**
@@ -33,12 +33,12 @@ export const agent: AgentSubscriber = {
         assertChannelName(role);
 
         const label = 'agent.on()';
-        const maxPerRun = checkMaxPerRun(label, options.maxPerRun);
-        const maxDepth = checkMaxDepth(label, options.maxDepth);
-        const from = checkFrom(label, options.from);
-        const description = checkDescription(label, options.description);
+        const maxPerRun = checkDispatchMaxPerRun(label, options.maxPerRun);
+        const maxDepth = checkDispatchMaxDepth(label, options.maxDepth);
+        const from = checkDispatchFrom(label, options.from);
+        const description = checkDispatchDescription(label, options.description);
 
-        checkHooks(label, options as Record<string, unknown>);
+        checkDispatchHooks(label, options as Record<string, unknown>);
 
         return {
             channel: AGENT_CHANNEL_NAME,

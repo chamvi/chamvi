@@ -7,7 +7,7 @@
 
 import type { PeerParent, Run } from '@chamvi/store';
 import { pendingApprovalOf } from '../../../dispatch/descendants.ts';
-import { ancestorsOf, isSettled } from '../../../dispatch/helpers.ts';
+import { ancestorsOf, isRunSettled } from '../../../dispatch/helpers/index.ts';
 import { ChannelNotFoundError, TimeoutError } from '../../../errors/index.ts';
 import { deliverOnce } from '../../notify/module.ts';
 import { peerNotifyKey, peerParentOf, peerRequest } from '../helpers/index.ts';
@@ -47,7 +47,7 @@ export class EnginePeerReceiver implements IEnginePeerReceiver {
     protected sendSignals(run: Run): void {
         const { ctx } = this;
 
-        if (isSettled(run)) {
+        if (isRunSettled(run)) {
             const parent = peerParentOf(run);
 
             if (parent) {

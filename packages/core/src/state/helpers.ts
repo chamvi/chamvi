@@ -25,7 +25,7 @@ export function describeIssues(issues: readonly Issue[]): string {
     }).join('; ');
 }
 
-export async function validate(agent: string, coll: string, schema: StateSchema | undefined, doc: unknown): Promise<unknown> {
+export async function validateStateDocument(agent: string, coll: string, schema: StateSchema | undefined, doc: unknown): Promise<unknown> {
     if (!schema) {
         return doc;
     }
