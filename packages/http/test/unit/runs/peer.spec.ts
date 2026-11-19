@@ -417,7 +417,7 @@ describe('POST /agents/:name/runs with peer fields', () => {
             errors, 
         } = setup();
 
-        expect(await engine.lockService.acquire('peer-count-lock:dev:caller-run-1:worker:review', 'other-replica', 60_000)).toBe(true);
+        expect(await engine.lockService.acquire('peer-count-lock:dev:caller-run-1:worker:review', 'other-replica', 60_000)).toBeTypeOf('number');
 
         const response = await call(app, 'POST', '/agents/worker/runs', { token: DEV_TOKEN, body: peerBody() });
 

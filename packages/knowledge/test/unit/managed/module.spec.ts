@@ -986,7 +986,7 @@ describe('managed collections', () => {
             await save(record);
             await service.saveDocument(document);
             setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
-            expect(await setup.locks.acquire('knowledge:notes', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+            expect(await setup.locks.acquire('knowledge:notes', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBeTypeOf('number');
 
             return fence;
         });

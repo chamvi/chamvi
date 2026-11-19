@@ -55,7 +55,7 @@ export function createConnectionVault(options: ConnectionVaultOptions): IConnect
 
             signal?.throwIfAborted();
 
-            if (!await lockService.acquire(lock, owner, leaseTtlMs)) {
+            if (await lockService.acquire(lock, owner, leaseTtlMs) === undefined) {
                 throw new ConnectionHeldError(name);
             }
 

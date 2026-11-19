@@ -264,7 +264,7 @@ describe('githubModule', () => {
 
         const locks = harness.container.resolve(AppToken.LOCK_SERVICE);
         // A busy slot is asked again with backoff (on the app's clock) until the send's timeout.
-        const acquire = vi.spyOn(locks, 'acquire').mockResolvedValueOnce(false);
+        const acquire = vi.spyOn(locks, 'acquire').mockResolvedValueOnce(undefined);
         const [channel] = harness.container.resolveAll(AppToken.CHANNELS);
         const message = {
             kind: 'message' as const,

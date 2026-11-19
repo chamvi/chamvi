@@ -54,7 +54,7 @@ describe('createRepositoryScheduleLock', () => {
             async acquire(key, owner, ttlMs) {
                 calls.push([key, owner, ttlMs]);
 
-                return true;
+                return 1;
             },
         };
 

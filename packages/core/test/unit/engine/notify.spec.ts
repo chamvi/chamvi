@@ -81,7 +81,7 @@ describe('deliverOnce store waits', () => {
     });
 
     it('resolves when pending never answers, and releases the lock', async () => {
-        const t = setup(async () => true);
+        const t = setup(async () => 1);
 
         t.delivery.pending.mockImplementation(() => never());
 
@@ -96,7 +96,7 @@ describe('deliverOnce store waits', () => {
     });
 
     it('resolves when record never answers, and releases the lock', async () => {
-        const t = setup(async () => true);
+        const t = setup(async () => 1);
 
         t.delivery.record.mockImplementation(() => never());
 
@@ -111,7 +111,7 @@ describe('deliverOnce store waits', () => {
     });
 
     it('releases a lock granted after the deadline, without holding deliverOnce', async () => {
-        const gate = Promise.withResolvers<boolean>();
+        const gate = Promise.withResolvers<number | undefined>();
         const t = setup(() => gate.promise);
         const done = deliverOnce(t.ctx, t.delivery);
 
@@ -119,7 +119,7 @@ describe('deliverOnce store waits', () => {
         await done;
         expect(t.release).not.toHaveBeenCalled();
 
-        gate.resolve(true);
+        gate.resolve(1);
         await settle();
         expect(t.release).toHaveBeenCalledTimes(1);
         expect(t.release).toHaveBeenCalledWith('notify:k', expect.any(String));
@@ -127,7 +127,7 @@ describe('deliverOnce store waits', () => {
     });
 
     it('reports a failed late release to onError with the run', async () => {
-        const gate = Promise.withResolvers<boolean>();
+        const gate = Promise.withResolvers<number | undefined>();
         const t = setup(() => gate.promise);
         const failure = new Error('release failed');
 
@@ -137,7 +137,7 @@ describe('deliverOnce store waits', () => {
 
         t.clock.advance(TTL + 1);
         await done;
-        gate.resolve(true);
+        gate.resolve(1);
         await settle();
         expect(t.errors).toEqual([failure]);
     });
@@ -153,7 +153,7 @@ describe('deliverOnce store waits', () => {
                 // only the notify lock hangs; the engine's own locks keep working
                 return Object.assign(Object.create(real), {
                     acquire: (key: string, owner: string, ttlMs: number) => (
-                        key.startsWith('notify:') ? (hangs++, never<boolean>()) : real.acquire(key, owner, ttlMs)
+                        key.startsWith('notify:') ? (hangs++, never<number | undefined>()) : real.acquire(key, owner, ttlMs)
                     ),
                 }) as ILockService;
             },

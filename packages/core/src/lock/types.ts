@@ -20,9 +20,11 @@ export type LockServiceContext = {
  */
 export interface ILockService {
     /**
-     * Takes the lease of `key` for `owner` until now + `ttlMs`; resolves
-     * false while another lease of the key is unexpired (also one of the
-     * same owner). An expired lease is taken over.
+     * Takes the lease of `key` for `owner` until now + `ttlMs` and resolves
+     * its fencing token (from `ILockRepository.nextToken()`: higher than
+     * any token issued before, for any key); resolves undefined while
+     * another lease of the key is unexpired (also one of the same owner).
+     * An expired lease is taken over with a new token.
      *
      * A held key is refused on one plain read (no transaction, no insert
      * that would raise a unique violation): a refusal may rest on an
@@ -30,13 +32,13 @@ export interface ILockService {
      * read found expired goes straight to the locked takeover; only a key
      * it found free (or one gone by the locked read) tries the insert.
      */
-    acquire(key: string, owner: string, ttlMs: number): Promise<boolean>;
+    acquire(key: string, owner: string, ttlMs: number): Promise<number | undefined>;
 
     /**
      * Extends the lease to now + `ttlMs`; resolves true only while `owner`
      * holds it unexpired, false when the lease is absent, expired (also
      * when nobody took it over), released or held by another owner. It
-     * never creates a lease.
+     * never creates a lease. The lease keeps its token.
      */
     renew(key: string, owner: string, ttlMs: number): Promise<boolean>;
 

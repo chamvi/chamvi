@@ -143,7 +143,7 @@ describe('orphaned collections', () => {
         const setup = createIndexerSetup();
 
         await seed(setup, 'old', 'declared');
-        expect(await setup.locks.acquire('knowledge:old', 'syncing-replica', 60_000)).toBe(true);
+        expect(await setup.locks.acquire('knowledge:old', 'syncing-replica', 60_000)).toBeTypeOf('number');
 
         const knowledge = createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(new Map([['a.md', 'text']]))] })] }));
 

@@ -124,7 +124,7 @@ export function createIndexLock(
             // owner-guarded: a no-op when the lease expired and another owner took it
             await locks.release(key, owner);
 
-            if (await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS)) {
+            if (await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS) !== undefined) {
                 acquiredAt = now;
 
                 return true;

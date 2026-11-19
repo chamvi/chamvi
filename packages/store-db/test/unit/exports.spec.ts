@@ -68,10 +68,10 @@ describe('public api', () => {
 
     it('exports the entities, migrations and lock name', () => {
         expect(pkg.STORE_ENTITIES).toBeInstanceOf(Array);
-        expect(pkg.STORE_ENTITIES).toHaveLength(17);
+        expect(pkg.STORE_ENTITIES).toHaveLength(18);
         expect(pkg.STORE_MIGRATIONS).toBeInstanceOf(Array);
-        expect(pkg.STORE_MIGRATIONS).toHaveLength(2);
-        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('ConnectionsRevisionsItemBytes1794230765000');
+        expect(pkg.STORE_MIGRATIONS).toHaveLength(3);
+        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('LockTokens1795093873329');
         expect(pkg.MIGRATION_LOCK_NAME).toBe('chamvi:migrations');
         expect(pkg.STORE_LEGACY_SCHEMA_CODE).toBe('store_legacy_schema');
         expect(pkg.DatabaseErrorCode).toEqual({

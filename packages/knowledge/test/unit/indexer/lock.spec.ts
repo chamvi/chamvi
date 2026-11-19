@@ -194,7 +194,7 @@ describe('the indexing lock', () => {
 
         // the lease is taken over while the last batch is embedded
         await setup.locks.release('knowledge:docs', 'replica-a');
-        expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+        expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBeTypeOf('number');
         model.open(2);
 
         await expect.poll(() => acquiresOf(setup, 'replica-a')).toEqual([true, false]);
@@ -250,7 +250,7 @@ describe('the indexing lock', () => {
         await expect.poll(() => gated.held()).toBe(true);
 
         setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
-        expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+        expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBeTypeOf('number');
 
         gated.open();
 
@@ -530,7 +530,7 @@ describe('the indexing lock', () => {
             const saved = await save(...args);
 
             setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
-            expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+            expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBeTypeOf('number');
 
             return saved;
         });
@@ -563,7 +563,7 @@ describe('the indexing lock', () => {
             // the backoff read after the acquire stalls past the lease, and another owner takes the lock
             if (reads === 2) {
                 setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
-                expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+                expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBeTypeOf('number');
             }
 
             return read(name);
@@ -716,7 +716,7 @@ describe('the indexing lock', () => {
 
             await save(record);
             setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
-            expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+            expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBeTypeOf('number');
 
             return fence;
         });

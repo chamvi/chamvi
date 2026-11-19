@@ -30,7 +30,7 @@ export async function admitRun(
     const key = `admission:${run.agent}`;
     const owner = randomUUID();
 
-    if (!await opts.lockService.acquire(key, owner, opts.claimTtlMs)) {
+    if (await opts.lockService.acquire(key, owner, opts.claimTtlMs) === undefined) {
         return undefined;
     }
 

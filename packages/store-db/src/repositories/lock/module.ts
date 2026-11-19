@@ -10,8 +10,9 @@ import type { ILockRepository, Lock } from '@chamvi/store';
 import { LockEntity } from '../../entities/index.ts';
 import { EntityRepositoryAdapter } from '../../entity/module.ts';
 import { removeExpiredBy } from '../../entity/helpers/index.ts';
+import { issueLockToken } from './helpers.ts';
 
-/** Locks in `chamvi_locks`, stored as given. */
+/** Locks in `chamvi_locks`, stored as given; tokens from the counter row of `chamvi_lock_tokens`. */
 export class DatabaseLockRepository extends EntityRepositoryAdapter<Lock, LockEntity> implements ILockRepository {
     constructor(source: DataSource | EntityManager) {
         super(source.getRepository(LockEntity), {
@@ -31,5 +32,13 @@ export class DatabaseLockRepository extends EntityRepositoryAdapter<Lock, LockEn
         }
 
         return this.persist(() => removeExpiredBy(this.repository, time), 'removeExpiredBy');
+    }
+
+    async nextToken(): Promise<number> {
+        if (this.mustQueue()) {
+            return this.transaction((repository) => repository.nextToken());
+        }
+
+        return this.persist(() => issueLockToken(this.repository.manager), 'nextToken');
     }
 }

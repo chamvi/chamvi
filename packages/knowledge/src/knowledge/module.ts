@@ -444,7 +444,7 @@ class Knowledge implements IKnowledge {
         const key = lockKey(name);
         const owner = `${this.owner}:create:${randomUUID()}`;
 
-        if (!await this.locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS)) {
+        if (await this.locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS) === undefined) {
             throw new InvalidRunStateError(`Knowledge collection "${name}" is being indexed; it exists or is being created.`);
         }
 

@@ -65,6 +65,7 @@ function lockOf(label: string, key: string, owner: string, expiresAt: number): L
         key,
         owner,
         expiresAt: new Date(expiresAt),
+        token: 1,
     };
 }
 

@@ -571,7 +571,7 @@ describePostgres('connection service in postgres', () => {
         }],
         ['taken over by another owner', async (ctx: { clock: ControllableClock; lockService: ILockService }) => {
             ctx.clock.advance(1_000);
-            expect(await ctx.lockService.acquire('connection:wa', 'o2', 60_000)).toBe(true);
+            expect(await ctx.lockService.acquire('connection:wa', 'o2', 60_000)).toBeTypeOf('number');
         }],
     ])('a fence %s while the fenced write waits for the connection row refuses every fenced write and writes nothing', async (_, change) => {
         const ds = await create();
@@ -684,7 +684,7 @@ describePostgres('connection service in postgres', () => {
         clock.advance(1_000);
         await release();
         expect(await renewing).toBe(false);
-        expect(await lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await lockService.acquire('connection:wa', 'o2', 1_000)).toBeTypeOf('number');
     });
 
     it('renew extends an unexpired lease from a fresh reading', async () => {
@@ -698,9 +698,9 @@ describePostgres('connection service in postgres', () => {
         expect(await lockService.renew('connection:wa', 'o2', 1_000)).toBe(false);
         // renewed at 999 until 1999
         clock.advance(999);
-        expect(await lockService.acquire('connection:wa', 'o2', 1_000)).toBe(false);
+        expect(await lockService.acquire('connection:wa', 'o2', 1_000)).toBeUndefined();
         clock.advance(1);
-        expect(await lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await lockService.acquire('connection:wa', 'o2', 1_000)).toBeTypeOf('number');
     });
 
     it('a fence check holds its lease row until the batch commits, so a takeover waits for it', async () => {
@@ -722,7 +722,7 @@ describePostgres('connection service in postgres', () => {
             taker.lockService.acquire(fence.lock, 'o2', 1_000),
         ]);
 
-        expect(results.at(-1)).toEqual({ status: 'fulfilled', value: true });
+        expect(results.at(-1)).toEqual({ status: 'fulfilled', value: expect.any(Number) });
 
         for (const result of results.slice(0, -1)) {
             if (result.status === 'rejected') {

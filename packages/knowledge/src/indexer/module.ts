@@ -596,7 +596,7 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                 }
             }
 
-            acquired = await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS);
+            acquired = await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS) !== undefined;
         } catch (error) {
             if (signal.aborted) {
                 return;
@@ -728,7 +728,7 @@ export async function markOrphans(
 
         const key = lockKey(candidate.name);
 
-        if (!await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS)) {
+        if (await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS) === undefined) {
             continue;
         }
 

@@ -128,7 +128,7 @@ describe('storeModule', () => {
         await expect(write()).resolves.toBeUndefined();
         clock.advance(1000);
         await expect(write()).rejects.toMatchObject({ code: 'lease_lost' });
-        await expect(locks.acquire('connection:wa', 'b', 1000)).resolves.toBe(true);
+        await expect(locks.acquire('connection:wa', 'b', 1000)).resolves.toBeTypeOf('number');
         await harness.stop();
     });
 
@@ -224,7 +224,7 @@ describe('storeModule', () => {
             createdAt: new Date(clock.now()),
             updatedAt: new Date(clock.now()),
         });
-        expect(await harness.container.resolve(AppToken.LOCK_SERVICE).acquire(fence.lock, fence.owner, 1000)).toBe(true);
+        expect(await harness.container.resolve(AppToken.LOCK_SERVICE).acquire(fence.lock, fence.owner, 1000)).toBeTypeOf('number');
         await expect(connections.writeEntries('wa', { set: { k: new Uint8Array([1]) } }, fence)).resolves.toBeUndefined();
         await harness.stop();
     });
@@ -251,7 +251,7 @@ describe('storeModule', () => {
             updatedAt: new Date(clock.now()),
         });
         await expect(write()).rejects.toMatchObject({ code: 'lease_lost' });
-        expect(await locks.acquire('connection:wa', 'a', 1000)).toBe(true);
+        expect(await locks.acquire('connection:wa', 'a', 1000)).toBeTypeOf('number');
         await expect(write()).resolves.toBeUndefined();
         clock.advance(1000);
         await expect(write()).rejects.toMatchObject({ code: 'lease_lost' });

@@ -22,6 +22,11 @@ import type { ILockService, LockServiceContext } from './types.ts';
  * renew, release), so a reader that locks the row (the connection fence)
  * sees either the lease before or after a change, never a change in
  * flight. The clock is read after the locked read.
+ *
+ * Every insert and takeover stores a new fencing token from
+ * `ILockRepository.nextToken()`, issued in the same transaction before
+ * its insert or locked read; a renewal keeps it. Tokens skipped by a
+ * refused takeover or a failed insert leave gaps, never repeats.
  */
 export class LockService implements ILockService {
     protected repository: ILockRepository;
@@ -33,33 +38,36 @@ export class LockService implements ILockService {
         this.clock = ctx.clock;
     }
 
-    async acquire(key: string, owner: string, ttlMs: number): Promise<boolean> {
+    async acquire(key: string, owner: string, ttlMs: number): Promise<number | undefined> {
         const current = await this.repository.findOneBy({ key });
 
         if (current) {
             if (current.expiresAt.getTime() > this.clock.now()) {
-                return false;
+                return undefined;
             }
 
             const taken = await this.takeOver(key, owner, ttlMs);
 
             if (taken !== undefined) {
-                return taken;
+                return taken.token;
             }
         }
 
         for (;;) {
             try {
-                await this.repository.transaction(async (repository) => {
+                return await this.repository.transaction(async (repository) => {
+                    const token = await repository.nextToken();
+
                     await repository.save(repository.create({
                         id: uuidv7(),
                         key,
                         owner,
                         expiresAt: new Date(this.clock.now() + ttlMs),
+                        token,
                     }));
-                });
 
-                return true;
+                    return token;
+                });
             } catch (error) {
                 if (!(error instanceof EntityConflictError)) {
                     throw error;
@@ -70,7 +78,7 @@ export class LockService implements ILockService {
             const taken = await this.takeOver(key, owner, ttlMs);
 
             if (taken !== undefined) {
-                return taken;
+                return taken.token;
             }
 
             // released or purged between the insert and the read: insert again
@@ -121,11 +129,15 @@ export class LockService implements ILockService {
 
     /**
      * In one transaction: the lease of `key` read locked, then taken over
-     * by `owner` if it expired. Resolves true when taken, false when it is
-     * unexpired, undefined when no lease is stored.
+     * by `owner` with a new token if it expired. Resolves `{ token }` when
+     * taken, `{}` when it is unexpired, undefined when no lease is stored.
      */
-    protected async takeOver(key: string, owner: string, ttlMs: number): Promise<boolean | undefined> {
+    protected async takeOver(key: string, owner: string, ttlMs: number): Promise<{ token?: number } | undefined> {
         return this.repository.transaction(async (repository) => {
+            // before the locked read, as on the insert path: a storage that locks its counter
+            // takes it first in every transaction, so a takeover and an insert never wait on
+            // each other in opposite orders; a token taken for a held lease is skipped
+            const token = await repository.nextToken();
             const lock: Lock | null = await repository.findOneBy({ key });
 
             if (!lock) {
@@ -135,13 +147,17 @@ export class LockService implements ILockService {
             const now = this.clock.now();
 
             if (lock.expiresAt.getTime() > now) {
-                return false;
+                return {};
             }
 
-            repository.merge(lock, { owner, expiresAt: new Date(now + ttlMs) });
+            repository.merge(lock, {
+                owner,
+                expiresAt: new Date(now + ttlMs),
+                token,
+            });
             await repository.save(lock);
 
-            return true;
+            return { token };
         });
     }
 }

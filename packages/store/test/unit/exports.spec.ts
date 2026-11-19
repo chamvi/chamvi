@@ -115,6 +115,7 @@ describe('public api', () => {
             key: string;
             owner: string;
             expiresAt: Date;
+            token: number;
         }>();
         expectTypeOf<store.IdempotencyKey>().toEqualTypeOf<{
             id: string;
@@ -125,6 +126,7 @@ describe('public api', () => {
         }>();
         expectTypeOf<store.ILockRepository>().toExtend<store.IEntityRepository<store.Lock>>();
         expectTypeOf<store.ILockRepository['removeExpiredBy']>().toEqualTypeOf<(time: Date) => Promise<number>>();
+        expectTypeOf<store.ILockRepository['nextToken']>().toEqualTypeOf<() => Promise<number>>();
         expectTypeOf<store.IIdempotencyRepository>().toExtend<store.IEntityRepository<store.IdempotencyKey>>();
         expectTypeOf<store.IIdempotencyRepository['removeExpiredBy']>().toEqualTypeOf<(time: Date) => Promise<number>>();
     });

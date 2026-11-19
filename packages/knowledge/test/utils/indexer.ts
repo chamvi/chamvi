@@ -55,7 +55,7 @@ export function embeddingResolver(models: Record<string, EmbeddingModel>): IMode
 }
 
 export type RecordedLocks = Pick<ILockService, 'acquire' | 'renew' | 'release'> & {
-    /** Every acquire with its owner and result, in call order. */
+    /** Every acquire with its owner and whether it was granted, in call order. */
     readonly acquired: Array<{
         key: string; 
         owner: string; 
@@ -75,7 +75,7 @@ export function recordingLocks(locks: Pick<ILockService, 'acquire' | 'renew' | '
             acquired.push({
                 key, 
                 owner, 
-                result, 
+                result: result !== undefined, 
             });
 
             return result;

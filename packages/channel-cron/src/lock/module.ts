@@ -14,5 +14,5 @@ import type { IScheduleLock } from 'hubwire';
  * a replica firing the same tick late cannot win it again.
  */
 export function createRepositoryScheduleLock(locks: Pick<ILockService, 'acquire'>, owner: string): IScheduleLock {
-    return { acquire: (key, ttlMs) => locks.acquire(key, owner, ttlMs) };
+    return { acquire: async (key, ttlMs) => await locks.acquire(key, owner, ttlMs) !== undefined };
 }

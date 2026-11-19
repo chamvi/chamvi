@@ -6,6 +6,8 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 A connection row is identified by its id, its generation, never by a timestamp: a save made from a form that another save, a WhatsApp reset or a delete and create replaced answers 409 `connection_changed`, and the dashboard keeps the typed values and offers **Reload values**. No migration: the id is the row's existing primary key.
 
+One store migration, `LockTokens1795093873329`, runs like any other (`CHAMVI_MIGRATE`, `chamvi migrate`): it adds the table `chamvi_lock_tokens` and the column `chamvi_locks.token` (bigint, `NOT NULL`), filled for the stored locks in the same transaction. Lock tokens start at the wall clock in microseconds, so a recreated or switched lock store never issues one below a token an earlier store handed out; a wall clock set back past the issued tokens can make a fenced writer refuse until it catches up.
+
 Agents can run in another chamvi app ([Remote agents](/guide/remote-agents)): `defineRemoteAgent()`, the new package `@chamvi/peer` with `peerModule()`, and `AppToken.PEERS`. Nothing changes for an app that configures no peer. `@chamvi/http` adds the route `POST /runs/:id/wake` (peers only; anyone else gets 404) and the error code `peer_start_busy` (503 with `Retry-After`, a peer's start only); a run can store the code `remote_failed`, and a waiting run the wait kind `remote`. A client that switches over `run.waiting.kind` must handle `remote`. `GET /agents` lists a remote agent with `kind: 'remote'` and `remote: { peer, agent }`.
 
 ### Breaking changes
@@ -24,6 +26,8 @@ Agents can run in another chamvi app ([Remote agents](/guide/remote-agents)): `d
 | `createMemoryKnowledgeRepository()` (`@chamvi/knowledge`) | Returned a `MemoryKnowledgeRepository` | Returns the root port `IKnowledgeCollectionRepository`; `createKnowledge({ repository })` and `knowledgeModule({ repository })` take it as before |
 | `IKnowledge.repository` (`@chamvi/knowledge`) | The `IKnowledgeRepository` | The root port; reads and writes go through the new `IKnowledge.service` |
 | `describeKnowledgeRepositoryContract()` (`@chamvi/test-kit`) | `(name, create)`, `create` returning a repository | `({ name, create })`, `create` returning a `KnowledgeService` over fresh repositories |
+| `ILockService.acquire()`, `LockService.acquire()` (`@chamvi/core`) | Resolved `true` when granted, `false` when refused | Resolves the lease's fencing token (a `number`) when granted, `undefined` when refused: test `!== undefined` where you tested the boolean. The token is higher than every token the lock store issued before, for any key; `renew` keeps it. `createRepositoryScheduleLock()` (`@chamvi/channel-cron`) still resolves a boolean for hubwire |
+| `Lock`, `ILockRepository` (`@chamvi/store`) | `Lock` was `id`, `key`, `owner`, `expiresAt` | `Lock.token: number` and `ILockRepository.nextToken()`: a custom lock repository stores `token` as given and issues `max(last + 1, Date.now() * 1000)`, strictly increasing across all keys and concurrent callers, and passes `describeLockRepositoryContract()` |
 
 ## Upgrading to 0.9
 

@@ -390,7 +390,7 @@ describe('the receiver: dispatchPeer()', () => {
         const { engine, store } = setup();
         const lockKey = 'peer-count-lock:dev:caller-1:notify:notify';
 
-        expect(await store.lockService.acquire(lockKey, 'other-replica', 60_000)).toBe(true);
+        expect(await store.lockService.acquire(lockKey, 'other-replica', 60_000)).toBeTypeOf('number');
 
         await expect(engine.dispatchPeer(envelope(), fields())).rejects.toBeInstanceOf(PeerStartBusyError);
         expect(await allRuns(store)).toHaveLength(0);
@@ -401,7 +401,7 @@ describe('the receiver: dispatchPeer()', () => {
         expect(await engine.dispatchPeer(envelope(), fields())).toMatchObject({ deduplicated: false });
         expect(await store.effectService.findOne('peer-count:dev:caller-1:notify:notify')).toMatchObject({ result: { count: 1 } });
         // released after the start
-        expect(await store.lockService.acquire(lockKey, 'other-replica', 60_000)).toBe(true);
+        expect(await store.lockService.acquire(lockKey, 'other-replica', 60_000)).toBeTypeOf('number');
     });
 
     it('counts maxPerRun per peer, caller run, agent and role, and refuses beyond it', async () => {

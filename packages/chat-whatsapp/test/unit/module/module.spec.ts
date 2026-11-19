@@ -194,7 +194,7 @@ describe('whatsappModule', () => {
 
         expect(w.sockets.sockets).toEqual([]);
         expect(await w.connections().find()).toEqual([]);
-        expect(await w.lockService().acquire('connection:bot', 'probe', 1000)).toBe(true);
+        expect(await w.lockService().acquire('connection:bot', 'probe', 1000)).toBeTypeOf('number');
     });
 
     it('a check still refuses a malformed keyring without echoing it', async () => {

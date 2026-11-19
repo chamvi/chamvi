@@ -38,17 +38,17 @@ describe('services on one clock', () => {
         await services.runService.create(run);
         expect(await services.runService.claim('run', 'first', 10)).toBe(true);
         expect(await services.idempotencyService.claim('scope', 'key', 'first', 10)).toEqual({ created: true, runId: 'first' });
-        expect(await services.lockService.acquire('lock', 'first', 10)).toBe(true);
+        expect(await services.lockService.acquire('lock', 'first', 10)).toBeTypeOf('number');
 
         clock.advance(9);
         expect(await services.runService.claim('run', 'second', 10)).toBe(false);
         expect(await services.idempotencyService.claim('scope', 'key', 'second', 10)).toEqual({ created: false, runId: 'first' });
-        expect(await services.lockService.acquire('lock', 'second', 10)).toBe(false);
+        expect(await services.lockService.acquire('lock', 'second', 10)).toBeUndefined();
 
         clock.advance(1);
         expect(await services.runService.claim('run', 'second', 10)).toBe(true);
         expect(await services.idempotencyService.claim('scope', 'key', 'second', 10)).toEqual({ created: true, runId: 'second' });
-        expect(await services.lockService.acquire('lock', 'second', 10)).toBe(true);
+        expect(await services.lockService.acquire('lock', 'second', 10)).toBeTypeOf('number');
         expect((await services.runService.update('run', { status: 'running' })).updatedAt).toEqual(new Date(clock.now()));
 
         const scope = await services.conversationService.resolve({

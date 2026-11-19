@@ -41,7 +41,7 @@ describePostgres('purgeExpired of the lock and idempotency services', () => {
         await expect(store.idempotencyService.purgeExpired()).resolves.toBe(1);
         await expect(store.lockService.purgeExpired()).resolves.toBe(1);
         await expect(store.idempotencyService.claim('s', 'k2', testUuid('other'), 1_000)).resolves.toEqual({ created: false, runId: testUuid('r2') });
-        await expect(store.lockService.acquire('l2', 'x', 1)).resolves.toBe(false);
+        await expect(store.lockService.acquire('l2', 'x', 1)).resolves.toBeUndefined();
         await expect(store.effectService.findOne('e')).resolves.toEqual({ result: 1 });
 
         await expect(store.idempotencyService.purgeExpired(new Date(5_000))).resolves.toBe(1);

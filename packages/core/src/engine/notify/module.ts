@@ -31,7 +31,7 @@ export async function deliverOnce(ctx: NotifyContext, delivery: NotifyDelivery):
     timer.unref?.();
 
     const signal = AbortSignal.any([delivery.signal, deadline.signal]);
-    let acquired = false;
+    let acquired: number | undefined;
 
     try {
         const acquiring = ctx.lockService.acquire(lockKey, attempt, ctx.claimTtlMs);
@@ -42,7 +42,7 @@ export async function deliverOnce(ctx: NotifyContext, delivery: NotifyDelivery):
             // The wait lost to the deadline or a drain: a lock the store grants later is released
             // by a continuation the delivery set does not track (idle() and drain() stay unchanged).
             acquiring.then(
-                (granted) => (granted ?
+                (token) => (token !== undefined ?
                     ctx.lockService.release(lockKey, attempt) :
                     undefined),
             ).catch((releaseError: unknown) => ctx.onError(releaseError, delivery.run));
@@ -50,7 +50,7 @@ export async function deliverOnce(ctx: NotifyContext, delivery: NotifyDelivery):
             throw error;
         }
 
-        if (!acquired || !await untilAborted(delivery.pending(), signal)) {
+        if (acquired === undefined || !await untilAborted(delivery.pending(), signal)) {
             return;
         }
 
@@ -65,7 +65,7 @@ export async function deliverOnce(ctx: NotifyContext, delivery: NotifyDelivery):
     } finally {
         timer.clear();
 
-        if (acquired) {
+        if (acquired !== undefined) {
             await ctx.lockService.release(lockKey, attempt).catch((releaseError: unknown) => ctx.onError(releaseError, delivery.run));
         }
     }

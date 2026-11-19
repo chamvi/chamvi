@@ -11,7 +11,7 @@ import {
     Index,
     PrimaryColumn,
 } from 'typeorm';
-import { TableName } from './constants.ts';
+import { BIGINT_NUMBER_TRANSFORMER, TableName } from './constants.ts';
 
 @Entity({ name: TableName.LOCKS })
 export class LockEntity {
@@ -37,4 +37,11 @@ export class LockEntity {
     @Index()
     @Column({ name: 'expires_at', type: 'timestamp with time zone' })
     expiresAt!: Date;
+
+    @Column({
+        name: 'token',
+        type: 'bigint',
+        transformer: BIGINT_NUMBER_TRANSFORMER,
+    })
+    token!: number;
 }

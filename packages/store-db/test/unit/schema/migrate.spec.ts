@@ -15,6 +15,7 @@ import {
 } from 'vitest';
 import { testUuid } from '@chamvi/test-kit';
 import { TableName } from '../../../src/entities/constants.ts';
+import { DatabaseLockRepository } from '../../../src/repositories/lock/index.ts';
 import { STORE_MIGRATIONS, migrateStore, pendingMigrations } from '../../../src/schema/index.ts';
 import { createTestDataSource, describePostgres } from '../../utils/database.ts';
 import { mockModel } from '../../utils/mock-model.ts';
@@ -23,6 +24,7 @@ import { createTestServices } from '../../utils/store.ts';
 
 const BASELINE = 'UuidBaseline1794096000000';
 const UPGRADE = 'ConnectionsRevisionsItemBytes1794230765000';
+const LOCK_TOKENS = 'LockTokens1795093873329';
 
 /** The unique key that carries each table's natural identity, as Postgres lists the columns. */
 const NATURAL_KEYS: [string, string][] = [
@@ -72,13 +74,28 @@ describePostgres('schema', () => {
         return rows.map((row) => row.column_name);
     };
 
+    const lockColumns = async (ds: DataSource) => {
+        const rows: { column_name: string }[] = await ds.query(
+            'SELECT column_name FROM information_schema.columns WHERE table_schema = current_schema() AND table_name = $1',
+            [TableName.LOCKS],
+        );
+
+        return rows.map((row) => row.column_name);
+    };
+
     /** Undo the migrations after the released baseline (v0.8.0): the schema a deployment upgrades from. */
     const toReleasedBaseline = async (ds: DataSource) => {
         for (let undone = 0; undone < STORE_MIGRATIONS.length - 1; undone++) {
             await ds.undoLastMigration({ transaction: 'each' });
         }
 
-        expect(await pendingMigrations(ds)).toEqual([UPGRADE]);
+        expect(await pendingMigrations(ds)).toEqual([UPGRADE, LOCK_TOKENS]);
+    };
+
+    /** Undo the migrations after the released v0.9 chain. */
+    const toReleasedChain = async (ds: DataSource) => {
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await pendingMigrations(ds)).toEqual([LOCK_TOKENS]);
     };
 
     afterEach(async () => {
@@ -208,7 +225,7 @@ describePostgres('schema', () => {
         await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
 
         // rollback and reapply keep the backfilled lengths
-        await ds.undoLastMigration({ transaction: 'each' });
+        await toReleasedBaseline(ds);
         expect(await itemColumns(ds)).not.toContain('bytes');
         await migrateStore(ds);
         expect((await ds.query(`SELECT bytes FROM "${TableName.CONVERSATION_ITEMS}" ORDER BY id`)).map((row: { bytes: number }) => row.bytes))
@@ -240,8 +257,7 @@ describePostgres('schema', () => {
         expect((await ds.query('SHOW server_encoding'))[0].server_encoding).toBe('LATIN1');
 
         // the released baseline, before the backfill
-        await ds.undoLastMigration({ transaction: 'each' });
-        expect(await pendingMigrations(ds)).toEqual([UPGRADE]);
+        await toReleasedBaseline(ds);
 
         await ds.query(
             `INSERT INTO "${TableName.RUNS}" (id, agent, status, trigger, usage, created_at, updated_at)
@@ -295,12 +311,17 @@ describePostgres('schema', () => {
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 1);
+        expect(await lockColumns(ds)).not.toContain('token');
+        expect(await pendingMigrations(ds)).toEqual([LOCK_TOKENS]);
+
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 2);
         expect(await itemColumns(ds)).not.toContain('bytes');
-        expect(await pendingMigrations(ds)).toEqual([UPGRADE]);
+        expect(await pendingMigrations(ds)).toEqual([UPGRADE, LOCK_TOKENS]);
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'public')).toBe(0);
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE, LOCK_TOKENS]);
 
         await migrateStore(ds);
         expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length);
@@ -513,6 +534,58 @@ describePostgres('schema', () => {
         }
     });
 
+    it('upgrades existing locks from the released chain with distinct tokens; a new acquire gets a higher one', async () => {
+        const ds = await create();
+
+        await toReleasedChain(ds);
+        await ds.query(
+            `INSERT INTO "${TableName.LOCKS}" (id, key, owner, expires_at) VALUES ($1, 'a', 'o', now() + interval '1 hour'), ($2, 'b', 'o', now() - interval '1 hour')`,
+            [testUuid('lock-a'), testUuid('lock-b')],
+        );
+
+        const floor = Date.now() * 1000 - 5_000_000;
+
+        await migrateStore(ds);
+
+        const store = createTestServices({ dataSource: ds });
+        const a = (await new DatabaseLockRepository(ds).findOneBy({ key: 'a' }))!;
+        const b = (await new DatabaseLockRepository(ds).findOneBy({ key: 'b' }))!;
+
+        expect(a.token).toBeGreaterThanOrEqual(floor);
+        expect(b.token).toBeGreaterThanOrEqual(floor);
+        expect(a.token).not.toBe(b.token);
+
+        const columns: { data_type: string, is_nullable: string }[] = await ds.query(
+            'SELECT data_type, is_nullable FROM information_schema.columns WHERE table_name = $1 AND column_name = $2',
+            [TableName.LOCKS, 'token'],
+        );
+
+        expect(columns).toEqual([{ data_type: 'bigint', is_nullable: 'NO' }]);
+
+        const taken = await store.lockService.acquire('b', 'other', 1_000);
+
+        expect(taken).toBeGreaterThan(Math.max(a.token, b.token));
+        expect(await store.lockService.acquire('c', 'other', 1_000)).toBeGreaterThan(taken!);
+    });
+
+    it('the lock token migration reverts and reapplies with existing locks', async () => {
+        const ds = await create();
+        const store = createTestServices({ dataSource: ds });
+        const before = (await store.lockService.acquire('a', 'o', 60_000))!;
+
+        await toReleasedChain(ds);
+        expect(await lockColumns(ds)).not.toContain('token');
+        expect(await tablesIn(ds, 'public')).toBe(Object.values(TableName).length - 1);
+
+        await migrateStore(ds);
+        await expect(assertSchemaMatchesMetadata(ds)).resolves.toBeUndefined();
+
+        const restored = (await new DatabaseLockRepository(ds).findOneBy({ key: 'a' }))!;
+
+        expect(restored.owner).toBe('o');
+        expect(await store.lockService.acquire('b', 'o', 60_000)).toBeGreaterThan(Math.max(before, restored.token));
+    });
+
     it('concurrent starts apply once', async () => {
         const ds = await create({ migrate: false });
 
@@ -543,7 +616,7 @@ describePostgres('schema', () => {
     it('pendingMigrations lists every migration on an empty database and none after migrateStore', async () => {
         const ds = await create({ migrate: false });
 
-        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE]);
+        expect(await pendingMigrations(ds)).toEqual([BASELINE, UPGRADE, LOCK_TOKENS]);
         await migrateStore(ds);
         expect(await pendingMigrations(ds)).toEqual([]);
     });
@@ -570,6 +643,8 @@ describePostgres('schema', () => {
 
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length - 1);
+        await ds.undoLastMigration({ transaction: 'each' });
+        expect(await tablesIn(ds, 'other')).toBe(Object.values(TableName).length - 2);
         await ds.undoLastMigration({ transaction: 'each' });
         expect(await tablesIn(ds, 'other')).toBe(0);
 
