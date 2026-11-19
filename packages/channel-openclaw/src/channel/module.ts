@@ -14,7 +14,7 @@ import {
     resolveOptions,
     responseError,
     transportKey,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type { OpenclawChannelOptions, OpenclawHookBody } from './types.ts';
 
 /**
