@@ -12,8 +12,8 @@ import { Permission } from '@chamvi/access';
 import { ControllableClock } from '@chamvi/test-kit';
 import { staticTokens } from '@chamvi/http';
 import type { Authenticator, Principal } from '@chamvi/http';
-import { buildContext, createErrorHandler } from '../../../src/app/helpers.ts';
-import { authorize } from '../../../src/auth/helpers.ts';
+import { buildContext, createErrorHandler } from '../../../src/app/helpers/index.ts';
+import { authorize } from '../../../src/auth/helpers/index.ts';
 import {
     READER_TOKEN,
     createTestApp,

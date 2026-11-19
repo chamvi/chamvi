@@ -11,7 +11,7 @@ export {
     authorizeRequest,
     toInvoker,
     usePrincipal,
-} from './helpers.ts';
+} from './helpers/index.ts';
 export * from './oidc/index.ts';
 export * from './static-tokens/index.ts';
 export type * from './types.ts';

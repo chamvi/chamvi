@@ -13,7 +13,7 @@ import {
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
-import { toInvoker, usePrincipal } from '../auth/helpers.ts';
+import { toInvoker, usePrincipal } from '../auth/helpers/index.ts';
 import { ForceLoggedInMiddleware } from '../middleware/index.ts';
 import type { MeView } from './types.ts';
 

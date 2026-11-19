@@ -10,9 +10,9 @@ import { ConnectionChangedError, assertConnectionName, storedConnectionName } fr
 import type { ConnectionConfigUpdate, ConnectionValues, IConnectionConfigStore } from '@chamvi/core';
 import { ConflictError, NotFoundError } from '@ebec/http';
 import { Container } from 'validup';
-import { forbidden, isGranted } from '../../auth/helpers.ts';
+import { forbidden, isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
-import { validateBody } from '../../request/helpers.ts';
+import { validateBody } from '../../request/helpers/index.ts';
 import type { UiPage } from '../../static/types.ts';
 import { NO_STORE_MESSAGE } from '../constants.ts';
 import {

@@ -5,22 +5,16 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import {
-    can,
-    canSome,
-    isPermissionAuthorization,
-    isPermissionBinding,
-} from '@chamvi/access';
+import { isPermissionAuthorization, isPermissionBinding } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import type { Agent, IClock } from '@chamvi/core';
 import type { Invoker } from '@chamvi/store';
-import { ForbiddenError, UnauthorizedError } from '@ebec/http';
+import { UnauthorizedError } from '@ebec/http';
 import type { IAppEvent } from 'routup';
 import { isObject } from 'smob';
-import { useHttpContext } from '../app/helpers.ts';
-import type { HttpContext } from '../app/types.ts';
-import { PRINCIPAL } from './constants.ts';
-import type { Authenticator, Principal } from './types.ts';
+import { useHttpContext } from '../../app/helpers/index.ts';
+import type { HttpContext } from '../../app/types.ts';
+import { PRINCIPAL } from '../constants.ts';
+import type { Authenticator, Principal } from '../types.ts';
 
 /**
  * Claims read as the invoker's display name, first non-empty string wins.
@@ -94,27 +88,6 @@ function isIdentity(value: unknown): boolean {
 }
 
 /**
- * Whether the principal holds `permission` for the resource `attributes`,
- * at the clock's time; without attributes, for every resource of that kind.
- */
-export function isGranted(principal: Principal, permission: string, clock: IClock, attributes?: Record<string, unknown>): Promise<boolean> {
-    return can(principal, permission, { ...(attributes !== undefined ? { attributes } : {}), now: new Date(clock.now()) });
-}
-
-/**
- * The resource attributes of the agent `name` (`{ name, private }`): an
- * agent the app does not hold counts as private, so a check fails closed.
- */
-export function agentResource(name: string, agent: Agent | undefined): { name: string; private: boolean } {
-    return { name, private: agent ? agent.definition.private === true : true };
-}
-
-/** Whether the principal holds `permission` for some resource (a collection gate). */
-export function isGrantedSome(principal: Principal, permission: string, clock: IClock): Promise<boolean> {
-    return canSome(principal, permission, { now: new Date(clock.now()) });
-}
-
-/**
  * Runs `authenticators` in order over `request`: the first principal wins;
  * a throw is remembered (and rethrown when no later one resolves), so the
  * chain goes on; none at all is a 401. A principal `isPrincipal` refuses is
@@ -167,62 +140,4 @@ export function authenticate(event: IAppEvent, ctx: HttpContext): Promise<Princi
  */
 export function usePrincipal(event: IAppEvent): Promise<Principal> {
     return authenticate(event, useHttpContext(event));
-}
-
-/**
- * 403 unless the principal holds `permission`: for the resource
- * `attributes` when given (`can`), else for some resource (`canSome`, a
- * collection gate), at the clock's time.
- */
-export async function assertGranted(
-    principal: Principal,
-    clock: IClock,
-    permission: string,
-    attributes?: Record<string, unknown>,
-): Promise<void> {
-    const granted = attributes !== undefined ?
-        await isGranted(principal, permission, clock, attributes) :
-        await isGrantedSome(principal, permission, clock);
-
-    if (!granted) {
-        throw forbidden(permission);
-    }
-}
-
-/**
- * `authenticate`, then `assertGranted` when `permission` is given, at the
- * engine clock's time.
- */
-export async function authorize(
-    event: IAppEvent,
-    ctx: HttpContext,
-    permission?: string,
-    attributes?: Record<string, unknown>,
-): Promise<Principal> {
-    const principal = await authenticate(event, ctx);
-
-    if (permission !== undefined) {
-        await assertGranted(principal, ctx.clock, permission, attributes);
-    }
-
-    return principal;
-}
-
-/**
- * `authorize` with the context `createHttpApp` put on the event, for a
- * controller or service: the principal (401 without one), then 403 unless it
- * holds `permission` (when given) for the resource `attributes`, or without
- * attributes for some resource. The chain runs once per request.
- */
-export function authorizeRequest(
-    event: IAppEvent,
-    permission?: string,
-    attributes?: Record<string, unknown>,
-): Promise<Principal> {
-    return authorize(event, useHttpContext(event), permission, attributes);
-}
-
-/** The 403 of a permission the principal does not hold. */
-export function forbidden(permission: string): ForbiddenError {
-    return new ForbiddenError({ message: `Missing permission "${permission}".` });
 }

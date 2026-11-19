@@ -10,7 +10,7 @@ import { describe, expect, it } from 'vitest';
 import { authorizeRequest, staticTokens } from '@chamvi/http';
 import type { Authenticator } from '@chamvi/http';
 import { HTTP_CONTEXT } from '../../../src/app/constants.ts';
-import { buildContext, createErrorHandler } from '../../../src/app/helpers.ts';
+import { buildContext, createErrorHandler } from '../../../src/app/helpers/index.ts';
 import { createTestApp } from '../../utils/app.ts';
 
 const GRANTED_TOKEN = 'granted-token-0123456789';

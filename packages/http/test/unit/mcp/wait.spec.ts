@@ -24,8 +24,8 @@ import {
 import type { Agent, IEngine } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import { ControllableClock, createTestEngine } from '@chamvi/test-kit';
-import { buildContext } from '../../../src/app/helpers.ts';
-import { waitForRun } from '../../../src/mcp/helpers.ts';
+import { buildContext } from '../../../src/app/helpers/index.ts';
+import { waitForRun } from '../../../src/mcp/helpers/index.ts';
 import {
     ADMIN_TOKEN,
     createRunAgents,

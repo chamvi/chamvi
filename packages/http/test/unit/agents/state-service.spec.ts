@@ -16,7 +16,7 @@ import { MemoryRegistry, MemoryStateDocumentRepository, MemoryStateRepository } 
 import { ControllableClock } from '@chamvi/test-kit';
 import { http } from '@chamvi/http';
 import { AgentStateService } from '../../../src/agents/service/index.ts';
-import { createErrorHandler } from '../../../src/app/helpers.ts';
+import { createErrorHandler } from '../../../src/app/helpers/index.ts';
 import type { HttpContext } from '../../../src/app/types.ts';
 import { restricted } from '../../utils/app.ts';
 import { inventoryAgents } from '../../utils/agents.ts';

@@ -11,17 +11,17 @@ import type { McpHttpHandler } from '@modelcontextprotocol/server';
 import { UnauthorizedError } from '@ebec/http';
 import { defineCoreHandler } from 'routup';
 import type { App } from 'routup';
-import { refuseWhenClosed } from '../app/helpers.ts';
+import { refuseWhenClosed } from '../app/helpers/index.ts';
 import type { HttpContext, McpOptions } from '../app/types.ts';
-import { authenticate } from '../auth/helpers.ts';
-import { assertContentLength, readBodyBytes } from '../request/helpers.ts';
+import { authenticate } from '../auth/helpers/index.ts';
+import { assertContentLength, readBodyBytes } from '../request/helpers/index.ts';
 import {
     DEFAULT_MCP_MAX_WAIT_SECONDS,
     DEFAULT_MCP_NAME,
     DEFAULT_MCP_VERSION,
     MCP_PATH,
 } from './constants.ts';
-import { readRequestExtra } from './helpers.ts';
+import { readRequestExtra } from './helpers/index.ts';
 import { createRunToolSource, registerTools } from './tools.ts';
 import type { McpEndpointOptions, McpRequestExtra, McpServices } from './types.ts';
 

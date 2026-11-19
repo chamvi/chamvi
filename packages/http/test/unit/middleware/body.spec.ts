@@ -15,7 +15,7 @@ import {
 import { App, defineCoreHandler } from 'routup';
 import { describe, expect, it } from 'vitest';
 import { HTTP_CONTEXT } from '../../../src/app/constants.ts';
-import { buildContext, createErrorHandler } from '../../../src/app/helpers.ts';
+import { buildContext, createErrorHandler } from '../../../src/app/helpers/index.ts';
 import {
     ForceLoggedInMiddleware,
     JsonBodyMiddleware,

@@ -9,7 +9,7 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { UnauthorizedError } from '@ebec/http';
 import { createVerifier } from 'vouchly';
 import type { VerifyResult } from 'vouchly';
-import { isPrincipal, readBearerToken } from '../helpers.ts';
+import { isPrincipal, readBearerToken } from '../helpers/index.ts';
 import type { Authenticator } from '../types.ts';
 import { mapVerifyError } from './helpers.ts';
 import type { OidcOptions } from './types.ts';

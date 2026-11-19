@@ -7,10 +7,10 @@
 
 import { Permission } from '@chamvi/access';
 import type { Agent } from '@chamvi/core';
-import { assertGranted, isGranted } from '../../auth/helpers.ts';
+import { assertGranted, isGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
 import { isWebhookChannel } from '../../channels/helpers.ts';
-import { listSchedules, summarizeAgent } from '../helpers.ts';
+import { listSchedules, summarizeAgent } from '../helpers/index.ts';
 import type {
     AgentListView,
     AgentServiceContext,

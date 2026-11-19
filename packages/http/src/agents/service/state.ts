@@ -8,9 +8,9 @@
 import { Permission } from '@chamvi/access';
 import type { Agent } from '@chamvi/core';
 import type { Container } from 'validup';
-import { assertGranted } from '../../auth/helpers.ts';
+import { assertGranted } from '../../auth/helpers/index.ts';
 import type { Principal } from '../../auth/types.ts';
-import { validateBody } from '../../request/helpers.ts';
+import { validateBody } from '../../request/helpers/index.ts';
 import {
     assertCanReadState,
     assertCollection,
@@ -19,7 +19,7 @@ import {
     parseKvListQuery,
     requireAgent,
     serializeDoc,
-} from '../helpers.ts';
+} from '../helpers/index.ts';
 import type {
     AgentStateServiceContext,
     IAgentStateService,

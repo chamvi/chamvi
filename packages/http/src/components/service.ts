@@ -8,7 +8,7 @@
 import { Permission } from '@chamvi/access';
 import type { ChannelStatus, IClock } from '@chamvi/core';
 import { isObject } from 'smob';
-import { assertGranted, isGranted } from '../auth/helpers.ts';
+import { assertGranted, isGranted } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
 import type {
     ComponentListView,

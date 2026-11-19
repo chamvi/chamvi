@@ -17,17 +17,17 @@ import { BadRequestError } from '@ebec/http';
 import { and, defineQuery, inArray } from '@rapiq/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Container } from 'validup';
-import { agentNotFound, requireAgent } from '../agents/helpers.ts';
+import { agentNotFound, requireAgent } from '../agents/helpers/index.ts';
 import {
     agentResource,
     assertGranted,
     forbidden,
     isGranted,
     toInvoker,
-} from '../auth/helpers.ts';
+} from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
 import { HTTP_CHANNEL_NAME } from '../channels/constants.ts';
-import { readIdempotencyHeader, validateBody, validatePayload } from '../request/helpers.ts';
+import { readIdempotencyHeader, validateBody, validatePayload } from '../request/helpers/index.ts';
 import {
     assertCanListRuns,
     createApproveContainer,
@@ -44,7 +44,7 @@ import {
     serializeStep,
     toPeerRunView,
     toRunListRequest,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type {
     ApproveBody,
     ApproveRunView,

@@ -8,9 +8,9 @@
 import { BadRequestError } from '@ebec/http';
 import { setRequestBody } from '@routup/body';
 import type { IAppEvent } from 'routup';
-import { useHttpContext } from '../app/helpers.ts';
-import { usePrincipal } from '../auth/helpers.ts';
-import { readJsonBody } from '../request/helpers.ts';
+import { useHttpContext } from '../app/helpers/index.ts';
+import { usePrincipal } from '../auth/helpers/index.ts';
+import { readJsonBody } from '../request/helpers/index.ts';
 
 /**
  * Authenticates first (a 401 before any read, whatever the middleware order;

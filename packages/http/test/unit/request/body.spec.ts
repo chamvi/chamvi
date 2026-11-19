@@ -10,8 +10,8 @@ import { App, defineCoreHandler } from 'routup';
 import { Container } from 'validup';
 import { describe, expect, it } from 'vitest';
 import { z } from 'zod';
-import { buildContext, createErrorHandler } from '../../../src/app/helpers.ts';
-import { readJsonBody, validateBody, validatePayload } from '../../../src/request/helpers.ts';
+import { buildContext, createErrorHandler } from '../../../src/app/helpers/index.ts';
+import { readJsonBody, validateBody, validatePayload } from '../../../src/request/helpers/index.ts';
 import { isDefined } from '../../../src/request/validators.ts';
 import { createTestApp, testAuth } from '../../utils/app.ts';
 

@@ -24,12 +24,12 @@ import { registerMcpRoutes } from '../mcp/module.ts';
 import { MeController } from '../me/controller.ts';
 import { registerOpenApiRoutes } from '../openapi/module.ts';
 import { installPlugins } from '../plugins/module.ts';
-import { assertNoNul } from '../request/helpers.ts';
+import { assertNoNul } from '../request/helpers/index.ts';
 import { registerRoutes } from '../routes/module.ts';
 import { RunController } from '../runs/controller.ts';
 import { RunHttpService } from '../runs/service.ts';
 import { HTTP_CONTEXT } from './constants.ts';
-import { buildContext, createErrorHandler } from './helpers.ts';
+import { buildContext, createErrorHandler } from './helpers/index.ts';
 import type { HttpAppOptions } from './types.ts';
 
 /**

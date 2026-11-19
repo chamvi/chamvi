@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { Permission, allPermissions } from '@chamvi/access';
 import type { Run, Step } from '@chamvi/store';
-import { serializeRun, serializeStep } from '../../../src/runs/helpers.ts';
+import { serializeRun, serializeStep } from '../../../src/runs/helpers/index.ts';
 import type { HttpAgents } from '../../../src/app/types.ts';
 
 const NO_AGENTS: HttpAgents = {

@@ -21,11 +21,11 @@ import {
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
-import { useHttpContext } from '../app/helpers.ts';
-import { usePrincipal } from '../auth/helpers.ts';
+import { useHttpContext } from '../app/helpers/index.ts';
+import { usePrincipal } from '../auth/helpers/index.ts';
 import { DQuerySchema } from '../decorators/index.ts';
 import { ForceLoggedInMiddleware, JsonBodyMiddleware, RequiredJsonBodyMiddleware } from '../middleware/index.ts';
-import { contentDisposition, toBody } from './helpers.ts';
+import { contentDisposition, toBody } from './helpers/index.ts';
 import { streamRun } from './stream/module.ts';
 import type {
     ApproveBody,

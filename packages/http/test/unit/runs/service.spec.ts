@@ -17,7 +17,7 @@ import { ErrorCode, defineModelAgent } from '@chamvi/core';
 import type { Agent } from '@chamvi/core';
 import { http } from '@chamvi/http';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
-import { createLiveAgents } from '../../../src/app/helpers.ts';
+import { createLiveAgents } from '../../../src/app/helpers/index.ts';
 import { KEY_MAX_LENGTH } from '../../../src/request/constants.ts';
 import { RunHttpService } from '../../../src/runs/service.ts';
 import type { StartRunBody } from '../../../src/runs/types.ts';
