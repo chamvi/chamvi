@@ -10,7 +10,7 @@ import { SUSPENDED_RESULT } from '../../approval/constants.ts';
 import { SuspendSignal } from '../../approval/request.ts';
 import { assertFrameActive } from '../../effect/frame.ts';
 import { FatalToolError, ValidationError } from '../../errors/index.ts';
-import { executePendingCall, toRunError } from './helpers.ts';
+import { executePendingCall, toRunError } from './helpers/index.ts';
 import type { SimpleToolsOptions } from './types.ts';
 
 /**

@@ -74,7 +74,7 @@ import { untilAborted } from '../run/helpers.ts';
 import { deliverOnce } from './notify/module.ts';
 import { DISPATCH_CONTEXT } from '../dispatch/constants.ts';
 import type { DispatchHost, PeerDispatchHost } from '../dispatch/types.ts';
-import { assertDispatchRoles, createSerial, declaresDispatchRole } from '../dispatch/helpers.ts';
+import { assertDispatchRoles, createDispatchSerial, declaresDispatchRole } from '../dispatch/helpers/index.ts';
 import { dispatchPeer } from '../dispatch/peer/module.ts';
 import { MODEL_CONTEXT } from '../model/constants.ts';
 import { checkAgentModel, checkDefaultModel } from '../model/module.ts';
@@ -100,7 +100,7 @@ import {
     DEFAULT_DRAIN_TIMEOUT_MS,
     IDEMPOTENCY_TTL_MS,
 } from './constants.ts';
-import { sameWait, toRunError, toWaitPoint } from './execute/helpers.ts';
+import { isSameWaitPoint, toRunError, toWaitPoint } from './execute/helpers/index.ts';
 import { executeSimpleRun } from './execute/simple.ts';
 import { executeRun } from './execute/module.ts';
 import { executeRemoteRun } from './execute/remote/module.ts';
@@ -674,7 +674,7 @@ export class Engine implements IEngine {
 
                 return this.createRun(envelope, parent);
             },
-            serial: createSerial(),
+            serial: createDispatchSerial(),
             inflight: new Map(),
         };
     }
@@ -692,7 +692,7 @@ export class Engine implements IEngine {
             locks: this.lockService,
             lockTtlMs: this.claimTtlMs,
             createRun: (envelope, parent, taintSource) => this.createRun(envelope, parent, undefined, taintSource),
-            serial: createSerial(),
+            serial: createDispatchSerial(),
         };
     }
 
@@ -1675,7 +1675,7 @@ export class Engine implements IEngine {
 
         try {
             // the run may have moved on to another wait since `waiting` was read
-            if (!sameWait(transitioned.waiting, waitId)) {
+            if (!isSameWaitPoint(transitioned.waiting, waitId)) {
                 throw stale();
             }
 
@@ -1728,7 +1728,7 @@ export class Engine implements IEngine {
         await this.conversations?.idle(run.id);
 
         const now = new Date(this.clock.now());
-        const waiting = sameWait(run.waiting, request.kind === 'approval' ? request.approvalId : request.id) &&
+        const waiting = isSameWaitPoint(run.waiting, request.kind === 'approval' ? request.approvalId : request.id) &&
             run.waiting?.kind === request.kind ?
             run.waiting :
             toWaitPoint(request, now);

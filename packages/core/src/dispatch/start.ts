@@ -21,24 +21,24 @@ import { DEFAULT_DISPATCH_ROLE, DISPATCH_CONTEXT } from './constants.ts';
 import {
     ancestorsOf,
     assertDispatchKey,
-    claimKey,
+    dispatchClaimKey,
     findDispatchRole,
     fromOf,
     maxDepthOf,
     maxPerRunOf,
-    readChildren,
-    readCount,
+    readDispatchChildren,
+    readDispatchCount,
     readDispatchSource,
     runSnapshotOf,
     sumSubtreeUsage,
-    validatePayload,
-} from './helpers.ts';
+    validateDispatchPayload,
+} from './helpers/index.ts';
 import type { DispatchHost, DispatchInput, DispatchToInput } from './types.ts';
 
 /** Appends `childId` to `dispatch-children:<runId>` (once); called under the run's serial chain. */
 async function recordChild(host: DispatchHost, runId: string, childId: string): Promise<void> {
     const key = `dispatch-children:${runId}`;
-    const runIds = readChildren((await host.effects.findOne(key))?.result);
+    const runIds = readDispatchChildren((await host.effects.findOne(key))?.result);
 
     if (!runIds.includes(childId)) {
         await host.effects.save(key, { runIds: [...runIds, childId] });
@@ -169,7 +169,7 @@ async function start(
         throw new ValidationError(`Agent "${target}" role "${role}" accepts dispatches up to depth ${maxDepth}.`);
     }
 
-    const payload = await validatePayload(target, role, subscription.options.schema as StandardSchemaV1 | undefined, input.payload);
+    const payload = await validateDispatchPayload(target, role, subscription.options.schema as StandardSchemaV1 | undefined, input.payload);
     const concurrencyKey = input.concurrencyKey ?? subscription.concurrencyKey?.(payload);
 
     assertDispatchKey('concurrency key', concurrencyKey, true);
@@ -188,7 +188,7 @@ async function start(
 
     assertDispatchKey('address', address, true);
 
-    const key = claimKey(role, given ?? `${run.runId}:${stableHash({
+    const key = dispatchClaimKey(role, given ?? `${run.runId}:${stableHash({
         agent: target,
         role,
         payload,
@@ -292,7 +292,7 @@ async function start(
 
             const countKey = `dispatch-count:${run.runId}:${target}:${role}`;
             const stored = await host.effects.findOne(countKey);
-            const { count, calls } = readCount(stored?.result);
+            const { count, calls } = readDispatchCount(stored?.result);
 
             // a call that already spent its slot (its record lost) redoes the deduplicating dispatch
             if (calls.includes(callHash)) {

@@ -24,7 +24,7 @@ import {
     InvalidAgentDefinitionError,
     ValidationError,
 } from '../../errors/index.ts';
-import { bindRunSnapshot } from '../../dispatch/helpers.ts';
+import { bindRunSnapshot } from '../../dispatch/helpers/index.ts';
 import { assertTranscriptMessages, splitInstructions } from '../../message/helpers.ts';
 import { toLanguageModel } from '../../model/asserts.ts';
 import { untilAborted } from '../../run/helpers.ts';
@@ -56,7 +56,7 @@ import {
     withToolResults,
     withoutPartialOutput,
     withoutResults,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type { CallSuspendRequest, ExecuteContext, ExecutionGate } from './types.ts';
 
 /**

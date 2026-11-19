@@ -20,9 +20,9 @@ import {
     fromOf,
     maxDepthOf,
     maxPerRunOf,
-    readCount,
-    validatePayload,
-} from '../helpers.ts';
+    readDispatchCount,
+    validateDispatchPayload,
+} from '../helpers/index.ts';
 import type { PeerDispatchFields, PeerDispatchHost } from '../types.ts';
 import { peerClaimKey, readPeerFields } from './helpers/index.ts';
 
@@ -93,7 +93,7 @@ export async function dispatchPeer(
     }
 
     const maxPerRun = maxPerRunOf(target, subscription);
-    const payload = await validatePayload(target, role, subscription.options.schema as StandardSchemaV1 | undefined, envelope.payload);
+    const payload = await validateDispatchPayload(target, role, subscription.options.schema as StandardSchemaV1 | undefined, envelope.payload);
     const given = envelope.idempotencyKey;
     const concurrencyKey = envelope.concurrencyKey ?? subscription.concurrencyKey?.(payload);
     const address = envelope.address ?? subscription.address?.(payload);
@@ -148,7 +148,7 @@ export async function dispatchPeer(
         }
 
         try {
-            const { count, calls } = readCount((await host.effects.findOne(countKey))?.result);
+            const { count, calls } = readDispatchCount((await host.effects.findOne(countKey))?.result);
 
             // a resend of a counted call (its answer lost) redoes the deduplicating start
             if (calls.includes(callHash)) {

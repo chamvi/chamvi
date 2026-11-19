@@ -6,7 +6,7 @@
  */
 
 import type { SimpleRunContext } from '../../agent/types.ts';
-import { bindRunSnapshot } from '../../dispatch/helpers.ts';
+import { bindRunSnapshot } from '../../dispatch/helpers/index.ts';
 import { runToolCall } from '../../effect/frame.ts';
 import type { ToolCallFrame } from '../../effect/types.ts';
 import { InvalidAgentDefinitionError, ValidationError } from '../../errors/index.ts';
@@ -17,7 +17,7 @@ import type { Step } from '@chamvi/store';
 import { assertTrust, bindTrust } from '../../trust/module.ts';
 import { resolveBudget, timeoutSignal } from '../budget.ts';
 import { createSimpleTools } from './simple-tools.ts';
-import { assembleTools, createToolContext, toRunError } from './helpers.ts';
+import { assembleTools, createToolContext, toRunError } from './helpers/index.ts';
 import type { ExecuteContext, ExecutionGate, SimpleToolStep } from './types.ts';
 
 /** The synthetic tool call a simple run's `run()` executes in: part of its approval and wait ids (`0:run:<n>`). */

@@ -9,7 +9,7 @@ import type { ToolSet } from 'ai';
 import { assertConcurrencyMaxRuns } from '../channel/concurrency.ts';
 import type { ChannelSubscription } from '../channel/types.ts';
 import { DEFAULT_DISPATCH_ROLE } from '../dispatch/constants.ts';
-import { assertOwnDispatchRoles } from '../dispatch/helpers.ts';
+import { assertOwnDispatchRoles } from '../dispatch/helpers/index.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { assertInstructions } from '../message/helpers.ts';
 import { REMOTE_TIMEOUT_DEFAULT_MS } from '../peer/constants.ts';

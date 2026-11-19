@@ -7,7 +7,7 @@
 
 import { isObject } from 'smob';
 import { ValidationError } from '../../../errors/index.ts';
-import { assertDispatchKey } from '../../helpers.ts';
+import { assertDispatchKey } from '../../helpers/index.ts';
 import type { PeerDispatchFields } from '../../types.ts';
 
 /** The lineage fields a peer sent, checked and copied (a ValidationError for a malformed one). */

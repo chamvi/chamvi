@@ -17,7 +17,7 @@ import {
 import { describeIssues } from '../../../state/helpers.ts';
 import { readRemoteStartRecord, remoteStartKey } from '../../remote/helpers/index.ts';
 import type { RemoteOutcome } from '../../remote/types.ts';
-import { toRunError } from '../helpers.ts';
+import { toRunError } from '../helpers/index.ts';
 import type { RemoteExecuteContext } from '../types.ts';
 
 function addRemoteUsage(a: Usage, b: Usage): Usage {

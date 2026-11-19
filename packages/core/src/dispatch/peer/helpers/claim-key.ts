@@ -10,7 +10,7 @@ import { TRIGGER_KEY_MAX_LENGTH } from '../../../trigger/constants.ts';
 
 /**
  * The idempotency key a peer's start claims: `peer:<key>`, or
- * `peer-sha256:<hex>` of it above 255 characters. Disjoint from claimKey()
+ * `peer-sha256:<hex>` of it above 255 characters. Disjoint from dispatchClaimKey()
  * by construction (no `dispatch:` or `sha256:` prefix), so a peer cannot
  * squat a local dispatch's key under the same invoker and channel.
  */
