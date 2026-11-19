@@ -23,8 +23,9 @@ import type { EngineModuleOptions } from './types.ts';
  * `model`/`providers`; every issue in one InvalidAgentDefinitionError) and
  * builds the model resolver (registered as `MODELS`), and contributes `agentChannel()` (channel
  * `agent`, the one dispatched runs come in on) to `CHANNELS`; `onReady` builds the engine with the default
- * model, the resolver (which refuses an agent whose model cannot resolve) and
- * every `CHANNELS` contribution (two of one name, or a subscription of a
+ * model, the resolver (which refuses an agent whose model cannot resolve),
+ * the `PEERS` resolver when a module registered one (else a remote agent is
+ * refused) and every `CHANNELS` contribution (two of one name, or a subscription of a
  * channel nobody contributed, is InvalidAgentDefinitionError),
  * prepares skills with the app signal (a check skips providers), registers
  * `ENGINE`, runs the `engineCreated` hooks and, in start mode,
@@ -107,6 +108,8 @@ export class EngineModule implements IModule {
             ...(context.skills !== undefined && { skills: context.skills }),
             ...(this.model !== undefined && { model: this.model }),
             ...(this.models !== undefined && { models: this.models }),
+            // optional: registered only by a peers module (peerModule() of @chamvi/peer/module)
+            ...(container.has(AppToken.PEERS) && { peers: container.resolve(AppToken.PEERS) }),
             channels: container.resolveAll(AppToken.CHANNELS),
             concurrencyMaxRuns: config.engine.concurrencyMaxRuns,
             clock: container.resolve(AppToken.CLOCK),

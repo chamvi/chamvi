@@ -123,7 +123,7 @@ type RunToolResult = {
     deduplicated: boolean;
     output?: unknown;
     error?: { code: string; message: string };
-    waiting?: RunToolApprovalWait | RunToolDispatchWait;
+    waiting?: RunToolApprovalWait | RunToolDispatchWait | RunToolRemoteWait;
 };
 type RunToolApprovalWait = { // the run, or a descendant it waits on, waits on an approval
     kind: 'approval';
@@ -142,6 +142,16 @@ type RunToolDispatchWait = { // the run waits on the runs it dispatched (get_run
     toolName: string;
     runIds: string[];
     expiresAt: string;
+};
+type RunToolRemoteWait = { // a remote agent's stand-in (runId, agent) waits on its run at a peer
+    kind: 'remote';
+    runId: string;
+    agent: string;
+    peer: string;
+    remoteAgent: string; // the agent's name at the peer
+    remoteRunId: string;
+    expiresAt: string;
+    approval?: { runId: string; approvalId: string; title: string; url?: string }; // pending at the peer, answered there (url), never with approve_run
 };
 type ApproveBody = { // POST /runs/:id/approve; approve_run takes the same fields plus runId
     approvalId: string;

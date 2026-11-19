@@ -14,6 +14,7 @@ import type { APIRequestOptions } from '../types.ts';
 import type {
     ApproveBody,
     IRunAPI,
+    PeerRunViewWire,
     RunDetail,
     RunListFields,
     RunListQuery,
@@ -39,8 +40,16 @@ export class RunAPI extends BaseAPI implements IRunAPI {
         return this.request<RunDetail>({ url: path('runs', id), method: 'GET' }, options);
     }
 
+    getPeerView(id: string, options?: APIRequestOptions): Promise<PeerRunViewWire> {
+        return this.request<PeerRunViewWire>({ url: path('runs', id), method: 'GET' }, options);
+    }
+
     async cancel(id: string, options?: APIRequestOptions): Promise<void> {
         await this.request({ url: `${path('runs', id)}/cancel`, method: 'POST' }, options);
+    }
+
+    async wake(id: string, options?: APIRequestOptions): Promise<void> {
+        await this.request({ url: `${path('runs', id)}/wake`, method: 'POST' }, options);
     }
 
     async approve(id: string, body: ApproveBody, options?: APIRequestOptions): Promise<void> {

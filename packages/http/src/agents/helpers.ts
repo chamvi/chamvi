@@ -67,6 +67,7 @@ export function summarizeAgent(agent: Agent, basePath: string, hookChannels: Rea
         budget: { maxSteps: DEFAULT_MAX_STEPS, ...definition.budget },
         state: Object.keys(definition.state ?? {}),
         private: definition.private === true,
+        ...(agent.kind === 'remote' ? { remote: { peer: agent.definition.peer, agent: agent.definition.agent } } : {}),
     };
 }
 
@@ -120,12 +121,17 @@ export function listSchedules(agents: Iterable<Agent>, now: Date): ScheduleSumma
     return schedules;
 }
 
+/** The 404 of an agent this app does not serve. */
+export function agentNotFound(name: string): NotFoundError {
+    return new NotFoundError({ message: `Agent "${name}" was not found.` });
+}
+
 /** The agent by name, else 404. */
 export function requireAgent(agents: HttpAgents, name: string): Agent {
     const agent = agents.get(name);
 
     if (!agent) {
-        throw new NotFoundError({ message: `Agent "${name}" was not found.` });
+        throw agentNotFound(name);
     }
 
     return agent;

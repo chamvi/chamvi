@@ -9,6 +9,7 @@ import type {
     Agent,
     ArtifactInput,
     ChannelSubscription,
+    PeerRunView,
 } from '@chamvi/core';
 import type {
     Artifact,
@@ -67,6 +68,30 @@ export type StartRunBody = {
     attachments?: ArtifactInput[];
 };
 
+/** The caller's lineage on a peer start (`peer` of `POST /agents/{name}/runs`). */
+export type PeerStartBody = {
+    /** The caller's stand-in run, the target of this app's wake-up ping. */
+    standIn: string;
+    /** The calling run on the peer. */
+    parent: {
+        runId: string;
+        agent: string;
+        depth: number;
+    };
+    /** Whether the calling run is tainted: the started run is tainted from the start. */
+    taint: boolean;
+    /** The name of the person behind the call, for display only (never a grant). */
+    origin?: string;
+};
+
+/** Body of a peer's `POST /agents/{name}/runs`; internal. */
+export type PeerStartRunBody = Omit<StartRunBody, 'idempotencyKey'> & {
+    idempotencyKey?: string;
+    /** The receiving `agent.on()` role. */
+    role: string;
+    peer: PeerStartBody;
+};
+
 /** One attachment of `POST /agents/{name}/runs` as sent. */
 export type AttachmentRequestBody = {
     /** `type/subtype`, e.g. `image/png`. */
@@ -83,6 +108,10 @@ export type StartRunRequestBody = {
     /** Where the run came from on the http channel (a caller-defined thread or conversation). */
     address?: string;
     attachments?: AttachmentRequestBody[];
+    /** Peer starts only: the receiving `agent.on()` role. Any other principal sending it gets 400. */
+    role?: string;
+    /** Peer starts only: the caller's lineage. Any other principal sending it gets 400. */
+    peer?: PeerStartBody;
 };
 
 /** Body of `POST /runs/{id}/approve`. */
@@ -111,7 +140,7 @@ export type RunListRequest = {
 
 // #region services
 /** What `RunHttpService` needs of the http context. */
-export type RunHttpServiceContext = Pick<HttpContext, 'engine' | 'runService' | 'stepService' | 'artifactService' | 'agents' | 'clock'>;
+export type RunHttpServiceContext = Pick<HttpContext, 'engine' | 'runService' | 'stepService' | 'artifactService' | 'agents' | 'clock' | 'onError'>;
 
 /** `POST /agents/{name}/runs`: the agent name, the untrusted body and the `Idempotency-Key` header. */
 export type StartRunInput = {
@@ -165,6 +194,9 @@ export type RunFindView = {
 /** `GET /runs/{id}`: the run with its steps. */
 export type RunDetailView = RunView & { steps: Step[] };
 
+/** `GET /runs/{id}`: the run with its steps, or for a peer the peer view of a run it started. */
+export type RunReadView = RunDetailView | PeerRunView;
+
 /** One artifact of a run with its bytes. */
 export type RunArtifactView = {
     artifact: Artifact;
@@ -188,7 +220,11 @@ export type ApproveRunView = {
  * the route it serves; `data` arguments are untrusted and validated here.
  */
 export interface IRunHttpService {
-    /** `chamvi_agent_run` (403), the agent (404), its http subscription (404), the body, then the dispatch. */
+    /**
+     * `chamvi_agent_run` (403), the agent (404), its http subscription (404), the body, then the dispatch.
+     * With `peer` or `role` in the body: a non-peer principal 400; a peer the agent (404, also
+     * ungranted), the body (400), then `engine.dispatchPeer()` (400, 404, 503 while another replica counts the call).
+     */
     start(input: StartRunInput, principal: Principal): Promise<StartRunView>;
     /**
      * Dispatches an `agent` the caller has already authorized and resolved:
@@ -201,12 +237,22 @@ export interface IRunHttpService {
     find(filter: RunFindFilter, principal: Principal): Promise<RunFindView>;
     /** The run once the principal may read it: 404 for a missing or protected agent's run, else 403. */
     getReadable(id: string, principal: Principal): Promise<Run>;
-    get(id: string, principal: Principal): Promise<RunDetailView>;
+    /** The run with its steps; for a peer the peer view of a run it started, any other run 404. */
+    get(id: string, principal: Principal): Promise<RunReadView>;
     artifacts(id: string, principal: Principal): Promise<{ data: Artifact[] }>;
     artifact(id: string, artifactId: string, principal: Principal): Promise<RunArtifactView>;
-    /** `chamvi_run_cancel` (403), for the run's agent when it exists (403), then the engine (404, 409). */
+    /**
+     * `chamvi_run_cancel` (403), for the run's agent when it exists (403), then the engine (404, 409).
+     * A peer cancels the runs it started without that grant, any other run 404.
+     */
     cancel(id: string, principal: Principal): Promise<CancelRunView>;
-    /** The run (404), `chamvi_agent_approve` for its agent (403), then the body. */
+    /**
+     * A peer's content-free wake of its stand-in run `id` (`engine.wake()`), then, for
+     * a fresh mark, a detached `engine.tick()`. Every peer gets 202 whatever the run
+     * (a stand-in settled meanwhile is routine); a non-peer gets the unknown-run 404.
+     */
+    wake(id: string, principal: Principal): Promise<void>;
+    /** A peer: the unknown-run 404, whatever its grants; else the run (404), `chamvi_agent_approve` for its agent (403), then the body. */
     approve(id: string, data: ApproveBody, principal: Principal): Promise<ApproveRunView>;
     /**
      * Answers the run's approval with an answer the caller validated: the run

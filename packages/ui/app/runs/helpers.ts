@@ -99,12 +99,31 @@ export function canCancel(run: RunWire, allowed: (name: string) => boolean): boo
     return CANCELABLE_STATUSES.includes(run.status) && allowed(Permission.RUN_CANCEL);
 }
 
-/** The run this one was dispatched from, with the run page's label; undefined for none or an unknown kind. */
-export function parentOf(run: RunWire): { runId: string; label: string } | undefined {
+/**
+ * The run this one was dispatched from, with the run page's label; undefined
+ * for none or an unknown kind. A peer parent is a run of another app
+ * (`remote`, no local page), labelled `from <peer>/<agent>` with the origin
+ * name when the peer sent one.
+ */
+export function parentOf(run: RunWire): {
+    runId: string; 
+    label: string; 
+    remote?: true 
+} | undefined {
     const { parent } = run.trigger;
 
     if (!parent || typeof parent.runId !== 'string') {
         return undefined;
+    }
+
+    if (parent.kind === 'peer') {
+        const origin = parent.origin !== undefined ? ` (${parent.origin})` : '';
+
+        return {
+            runId: parent.runId, 
+            label: `from ${parent.peer}/${parent.agent}${origin}`, 
+            remote: true, 
+        };
     }
 
     const label = Object.hasOwn(PARENT_LABELS, parent.kind) ? PARENT_LABELS[parent.kind] : undefined;
@@ -173,6 +192,50 @@ export function runDuration(run: RunWire, now: number): number | undefined {
 /** The tool a run's wait point paused in; none for a remote wait. */
 export function waitToolName(run: RunWire): string | undefined {
     return run.waiting && run.waiting.kind !== 'remote' ? run.waiting.toolName : undefined;
+}
+
+/** A remote agent as `<peer>/<agent>`: the peer and the agent's name there. */
+export function remoteLabel(remote: { peer: string; agent: string }): string {
+    return `${remote.peer}/${remote.agent}`;
+}
+
+/** The URL when it is an absolute http(s) URL, else undefined: a peer's link is never rendered otherwise. */
+export function httpUrl(value: string | undefined): string | undefined {
+    if (!value) {
+        return undefined;
+    }
+
+    try {
+        const url = new URL(value);
+
+        return url.protocol === 'http:' || url.protocol === 'https:' ? url.href : undefined;
+    } catch {
+        return undefined;
+    }
+}
+
+/**
+ * The run page's view of a stand-in's remote wait: `<peer>/<agent>`, the
+ * remote run id and, while the last poll saw one, the remote approval's title
+ * and the peer's link (http(s) only); undefined for any other run.
+ */
+export function remoteCallout(run: RunWire): {
+    target: string;
+    remoteRunId: string;
+    approval?: { title: string; url?: string };
+} | undefined {
+    if (run.status !== 'waiting' || run.waiting?.kind !== 'remote') {
+        return undefined;
+    }
+
+    const { waiting } = run;
+    const approval = waiting.remote?.approval;
+
+    return {
+        target: remoteLabel(waiting),
+        remoteRunId: waiting.remoteRunId,
+        ...(approval ? { approval: { title: approval.title, url: httpUrl(approval.url) } } : {}),
+    };
 }
 
 /** Use the entropy tail so nearby UUID v7 runs have distinguishable short labels. */

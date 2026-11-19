@@ -35,6 +35,7 @@ import {
     formatTokens,
     landedModelSteps,
     parentOf,
+    remoteCallout,
     runDuration,
     shortId,
     subtreeTotal,
@@ -74,6 +75,7 @@ const CHILD_COLUMNS = [
 const childRow = (value: unknown) => value as RunWire;
 const subtree = computed(() => (run.value ? subtreeTotal(run.value) : undefined));
 const dispatchLine = computed(() => (run.value ? dispatchCallout(run.value) : undefined));
+const remoteWait = computed(() => (run.value ? remoteCallout(run.value) : undefined));
 const budget = computed(() => agents.value.find((agent) => agent.name === run.value?.agent)?.budget);
 const parent = computed(() => (run.value ? parentOf(run.value) : undefined));
 const cancellable = computed(() => (run.value ? canCancel(run.value, session.allowed) : false));
@@ -224,7 +226,11 @@ async function onCancel(): Promise<void> {
                     <div v-if="parent">
                         <dt>{{ parent.label }}</dt>
                         <dd class="mono">
-                            <RouterLink :to="{ name: RouteName.RUN, params: { id: parent.runId } }">
+                            <span v-if="parent.remote">{{ parent.runId }}</span>
+                            <RouterLink
+                                v-else
+                                :to="{ name: RouteName.RUN, params: { id: parent.runId } }"
+                            >
                                 {{ parent.runId }}
                             </RouterLink>
                         </dd>
@@ -326,6 +332,38 @@ async function onCancel(): Promise<void> {
                     <h2>{{ waitToolName(run) }}<StatusChip status="waiting" /></h2>
                     <p>{{ dispatchLine }}.</p>
                 </div>
+            </div>
+        </div>
+
+        <div
+            v-if="remoteWait"
+            class="callout"
+            style="margin-bottom: 26px"
+            data-testid="remote-callout"
+        >
+            <div class="callout-head">
+                <span class="callout-icon"><NavIcon name="play" /></span>
+                <div class="callout-title">
+                    <h2>{{ remoteWait.target }}<StatusChip status="waiting" /></h2>
+                    <p>
+                        Waits for the remote run <span class="mono">{{ remoteWait.remoteRunId }}</span>.
+                    </p>
+                    <p
+                        v-if="remoteWait.approval"
+                        data-testid="remote-approval"
+                    >
+                        Waits for an approval at the peer: {{ remoteWait.approval.title }}
+                    </p>
+                </div>
+                <a
+                    v-if="remoteWait.approval?.url"
+                    class="btn btn-sm"
+                    :href="remoteWait.approval.url"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                >
+                    Answer at the peer
+                </a>
             </div>
         </div>
 

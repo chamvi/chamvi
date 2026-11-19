@@ -9,6 +9,7 @@ import {
     ChamviError,
     RunNotFoundError,
     findApprovalWaitBelow,
+    pendingApprovalOf,
     rebaseJsonSchemaRefs,
 } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
@@ -75,8 +76,9 @@ const TERMINAL = new Set<string>([
     RunStatus.CANCELLED,
 ]);
 
+/** Waits on an approval: its own, or a stand-in's pending at the peer (`pendingApprovalOf()`). */
 function isApprovalWait(run: Run): boolean {
-    return run.status === RunStatus.WAITING && run.waiting?.kind === 'approval';
+    return run.status === RunStatus.WAITING && pendingApprovalOf(run) !== undefined;
 }
 
 function isDispatchWait(run: Run): boolean {
@@ -295,6 +297,28 @@ export function toRunToolResult(run: Run, deduplicated: boolean, readable: boole
             toolName: waiting.toolName,
             runIds: [...waiting.runIds],
             expiresAt: waiting.expiresAt.toISOString(),
+        };
+    } else if (waiting?.kind === 'remote') {
+        const approval = pendingApprovalOf(waiter);
+
+        result.waiting = {
+            kind: 'remote',
+            runId: waiter.id,
+            agent: waiter.agent,
+            peer: waiting.peer,
+            remoteAgent: waiting.agent,
+            remoteRunId: waiting.remoteRunId,
+            expiresAt: waiting.expiresAt.toISOString(),
+            ...(approval ?
+                {
+                    approval: {
+                        runId: approval.runId,
+                        approvalId: approval.approvalId,
+                        title: approval.title,
+                        ...(approval.url !== undefined ? { url: approval.url } : {}),
+                    },
+                } :
+                {}),
         };
     }
 

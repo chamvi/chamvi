@@ -10,6 +10,7 @@ import {
     InvalidAgentDefinitionError,
     agent as agentRoles,
     defineModelAgent,
+    defineRemoteAgent,
     defineTool,
     resolveModel,
 } from '@chamvi/core';
@@ -18,6 +19,7 @@ import type {
     Agent,
     IChannel,
     IEngine,
+    IPeerResolver,
     ModelAgentDefinition,
     ModelRef,
 } from '@chamvi/core';
@@ -242,6 +244,44 @@ describe('engineModule', () => {
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
         expect(error.message).toBe('The channel "console" is registered more than once.');
+    });
+
+    it('passes a registered PEERS resolver to the engine', async () => {
+        const peers: IPeerResolver = {
+            has: (name) => name === 'billing',
+            settings: () => ({
+                pollMs: 60_000,
+                untrusted: false,
+                outgoing: true,
+            }),
+            transport: () => {
+                throw new Error('unused');
+            },
+            recognize: () => undefined,
+        };
+        const { harness } = build({
+            agents: [defineRemoteAgent({ name: 'invoice', peer: 'billing' })],
+            modules: [contributing('peers', (container) => {
+                container.register(AppToken.PEERS, { useValue: peers });
+            })],
+        });
+
+        await harness.setup();
+
+        expect(harness.container.resolve(AppToken.ENGINE).peers).toBe(peers);
+    });
+
+    it('without PEERS the engine has no peers and refuses a remote agent', async () => {
+        const plain = build({ agents: [agentWith(textModel())] });
+
+        await plain.harness.setup();
+        expect(plain.harness.container.resolve(AppToken.ENGINE).peers).toBeUndefined();
+
+        const { harness } = build({ agents: [defineRemoteAgent({ name: 'invoice', peer: 'billing' })] });
+        const error = await rejectionOf(harness.setup());
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(error.message).toContain('Agent "invoice" names unknown peer "billing"');
     });
 
     it('engineCreated hooks run before start, drained after drain', async () => {

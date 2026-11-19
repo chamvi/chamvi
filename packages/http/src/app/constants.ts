@@ -6,6 +6,8 @@
  */
 
 import { StoreErrorCode } from '@chamvi/store';
+import { ErrorCode } from '@chamvi/core';
+import { PEER_START_RETRY_AFTER_SECONDS } from '../runs/constants.ts';
 
 /** Where `createHttpApp` puts the HttpContext in `event.store`, for the middleware classes; internal. */
 export const HTTP_CONTEXT: unique symbol = Symbol('chamvi:http-context');
@@ -85,3 +87,9 @@ export const STORAGE_ERRORS: Readonly<Record<string, { status: number; message: 
     [StoreErrorCode.ENTITY_DEADLOCK]: { status: 409, message: 'The write conflicted with a concurrent write; retry the request.' },
     [DATABASE_UNAVAILABLE_CODE]: { status: 503, message: 'The database is unavailable; retry the request.' },
 };
+
+/**
+ * Expected, retryable refusals by error code: answered with this
+ * `Retry-After` (seconds) and never reported to `onError`.
+ */
+export const RETRY_AFTER_SECONDS: Readonly<Record<string, number>> = { [ErrorCode.PEER_START_BUSY]: PEER_START_RETRY_AFTER_SECONDS };

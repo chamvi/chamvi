@@ -24,6 +24,7 @@ import {
     DEFAULT_STREAM_POLL_MS,
     HTTP_CONTEXT,
     RESERVED_ROUTE_SEGMENTS,
+    RETRY_AFTER_SECONDS,
     STATIC_ROUTE_PATH,
     STORAGE_ERRORS,
     STREAM_RETRY_AFTER_SECONDS,
@@ -64,6 +65,8 @@ const CORE_STATUS: Record<string, number> = {
     [ErrorCode.DECRYPTION_FAILED]: 409,
     [ErrorCode.REPOSITORY_NOT_FOUND]: 404,
     [ErrorCode.INVALID_RUN_STATE]: 409,
+    // retryable: rendered with `Retry-After` (RETRY_AFTER_SECONDS), never reported
+    [ErrorCode.PEER_START_BUSY]: 503,
 };
 
 const APP_ERROR_CODE = 'APP_ERROR';
@@ -473,6 +476,14 @@ export function createErrorHandler(ctx: HttpContext): Handler {
     return defineErrorHandler((error, event) => {
         const cause = unwrap(error);
         let body = toErrorBody(cause);
+        const retryAfter = body && Object.hasOwn(RETRY_AFTER_SECONDS, body.code) ? RETRY_AFTER_SECONDS[body.code] : undefined;
+
+        // an expected refusal the caller retries: not reported
+        if (body && retryAfter !== undefined) {
+            event.response.headers.set('retry-after', String(retryAfter));
+
+            return renderError(event, body);
+        }
 
         if (!body || body.status >= 500) {
             ctx.onError(cause);

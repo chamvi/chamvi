@@ -60,6 +60,7 @@ function setup(extra: Agent[] = []) {
         artifactService: engine.artifactService,
         agents: createLiveAgents(engine),
         clock: engine.clock,
+        onError: () => {},
     });
 
     return { engine, service };

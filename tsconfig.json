@@ -24,6 +24,8 @@
             "@chamvi/http": ["./packages/http/src/index.ts"],
             "@chamvi/knowledge": ["./packages/knowledge/src/index.ts"],
             "@chamvi/knowledge/module": ["./packages/knowledge/src/module/index.ts"],
+            "@chamvi/peer": ["./packages/peer/src/index.ts"],
+            "@chamvi/peer/module": ["./packages/peer/src/module/index.ts"],
             "@chamvi/sandbox": ["./packages/sandbox/src/index.ts"],
             "@chamvi/sandbox/module": ["./packages/sandbox/src/module/index.ts"],
             "@chamvi/sandbox-docker": ["./packages/sandbox-docker/src/index.ts"],

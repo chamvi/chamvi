@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { buildQueryString, decodeRunListQuery } from '@chamvi/http-kit';
-import type { RunListFields } from '@chamvi/http-kit';
+import type { PeerRunViewWire, RunListFields } from '@chamvi/http-kit';
 import { json, sse } from '../../utils/responses.ts';
 import { createKitClient, linesOf } from '../../utils/kit.ts';
 
@@ -42,6 +42,37 @@ describe('RunAPI', () => {
 
         expect(linesOf(requests)).toEqual(['GET /api/runs/a%2Fb', 'POST /api/runs/a%2Fb/cancel', 'POST /api/runs/a%2Fb/approve']);
         expect(JSON.parse(requests[2]!.body!)).toEqual(body);
+    });
+
+    it('reads a run as a peer view', async () => {
+        const view: PeerRunViewWire = {
+            id: 'r1',
+            status: 'waiting',
+            waiting: 'approval',
+            approval: {
+                runId: 'r2',
+                approvalId: '0:c:0',
+                title: 'Deploy?',
+                url: 'https://peer.test/approvals?run=r2',
+            },
+            tainted: false,
+            usage: { inputTokens: 1, outputTokens: 2 },
+        };
+        const { client, requests } = createKitClient([json(view)]);
+
+        const read: PeerRunViewWire = await client.run.getPeerView('a/b');
+
+        expect(read).toEqual(view);
+        expect(linesOf(requests)).toEqual(['GET /api/runs/a%2Fb']);
+    });
+
+    it('wakes a run with no body', async () => {
+        const { client, requests } = createKitClient([new Response(null, { status: 204 })]);
+
+        await expect(client.run.wake('s1')).resolves.toBeUndefined();
+
+        expect(linesOf(requests)).toEqual(['POST /api/runs/s1/wake']);
+        expect(requests[0]!.body).toBeUndefined();
     });
 
     it('opens the run stream with the last event id', async () => {

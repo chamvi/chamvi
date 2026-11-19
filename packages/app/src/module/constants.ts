@@ -51,6 +51,7 @@ export const AppToken = {
     DATA_SOURCE: token('DATA_SOURCE'),
     ENGINE: token('ENGINE'),
     MODELS: token('MODELS'),
+    PEERS: token('PEERS'),
     SHUTDOWN: token('SHUTDOWN'),
     SERVER: token('SERVER'),
     HTTP_ROUTES: token('HTTP_ROUTES'),

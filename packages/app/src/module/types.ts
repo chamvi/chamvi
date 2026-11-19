@@ -24,6 +24,7 @@ import type {
     IKeyring,
     ILockService,
     IModelResolver,
+    IPeerResolver,
     IRunService,
     IStateService,
     IStepService,
@@ -282,6 +283,13 @@ export type AppTokens = {
     ENGINE: IEngine;
     /** The engine module's model resolver (start and job mode, a check too): chat and, through `embedding()`, embedding models. */
     MODELS: IModelResolver;
+    /**
+     * The peers remote agents run at (`peerModule()` of `@chamvi/peer/module`
+     * registers it in `setup`); optional (`container.has()`): the engine
+     * module passes it to the engine, which refuses a remote agent naming a
+     * peer it does not hold.
+     */
+    PEERS: IPeerResolver;
     SHUTDOWN: IShutdown;
     SERVER: Server;
     HTTP_ROUTES: HttpRoute;

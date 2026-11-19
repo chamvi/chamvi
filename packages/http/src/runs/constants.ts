@@ -19,3 +19,9 @@ export const ATTACHMENT_FILENAME_MAX_LENGTH = 255;
 
 /** The longest option id a body may select (core's `APPROVAL_OPTION_ID_PATTERN` allows 128). */
 export const APPROVAL_OPTION_ID_MAX_LENGTH = 128;
+
+/** Longest `peer.origin` (a display name) of a peer start. */
+export const PEER_ORIGIN_MAX_LENGTH = 128;
+
+/** The `Retry-After` (seconds) of a peer start refused with core's `PeerStartBusyError` (503). */
+export const PEER_START_RETRY_AFTER_SECONDS = 1;

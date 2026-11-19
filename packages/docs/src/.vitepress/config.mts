@@ -130,6 +130,7 @@ export default defineConfig({
                         { text: 'Effect Tools & Reconciliation', link: '/guide/effect-tools' },
                         { text: 'Approvals & Hooks', link: '/guide/approvals' },
                         { text: 'Dispatch', link: '/guide/dispatch' },
+                        { text: 'Remote Agents', link: '/guide/remote-agents' },
                         { text: 'Agent State', link: '/guide/state' },
                         { text: 'Conversation Memory', link: '/guide/conversations' },
                         { text: 'Knowledge', link: '/guide/knowledge' },

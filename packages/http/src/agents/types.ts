@@ -36,6 +36,11 @@ export type AgentSummary = {
     state: string[];
     /** A private agent: reading its runs and state needs `chamvi_agent_read` for it. */
     private: boolean;
+    /** A remote agent only: the peer that runs it and the agent's name there. */
+    remote?: {
+        peer: string;
+        agent: string;
+    };
 };
 
 /** An agent that failed to load, as `GET /agents` lists it next to the agents. */
