@@ -7,7 +7,7 @@
 
 import { isObject } from 'smob';
 import type { StepWire } from '@chamvi/http-kit';
-import { formatTokens } from '../../runs/helpers.ts';
+import { formatTokens } from '../../runs/helpers/index.ts';
 
 export type LlmOutput = {
     text?: string;

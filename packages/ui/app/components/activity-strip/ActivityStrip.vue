@@ -7,7 +7,7 @@
  */
 
 import { computed } from 'vue';
-import { activityLabel } from '../../agents/helpers.ts';
+import { activityLabel } from '../../agents/helpers/index.ts';
 import type { Activity } from '../../agents/types.ts';
 
 const props = defineProps<{ activity: Activity }>();

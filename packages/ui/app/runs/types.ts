@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { RunWire, StepWire } from '@chamvi/http-kit';
 import type { RunStatusLiteral } from '@chamvi/store';
 
 /** The run list a view shows: what it filters by and which page; `toRunQuery` makes the API query of it. */
@@ -17,4 +18,13 @@ export type RunListFilter = {
     waiting?: 'approval' | 'dispatch';
     limit?: number;
     offset?: number;
+};
+
+/** Live model output per model step (the checkpoint index a delta names). */
+export type LiveText = { text: string; reasoning: string };
+
+export type RunDetailState = {
+    run: RunWire;
+    steps: StepWire[];
+    live: Record<number, LiveText>;
 };

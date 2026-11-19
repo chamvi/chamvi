@@ -18,7 +18,7 @@ import {
     linkNotice,
     linkedApprovalState,
     readApprovalLink,
-} from '../../../../app/approvals/helpers.ts';
+} from '../../../../app/approvals/helpers/index.ts';
 import type { ApprovalLink, DecidedApproval } from '../../../../app/approvals/types.ts';
 import {
     DEV_CONFIG,

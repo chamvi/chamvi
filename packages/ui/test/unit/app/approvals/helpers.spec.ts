@@ -14,7 +14,7 @@ import {
     jsonBody,
     notifiedLine,
     pendingApprovals,
-} from '../../../../app/approvals/helpers.ts';
+} from '../../../../app/approvals/helpers/index.ts';
 import { wireRun } from '../../../utils/runs.ts';
 
 describe('pendingApprovals', () => {

@@ -7,7 +7,7 @@
  */
 
 import { computed } from 'vue';
-import { toJson } from '../../runs/helpers.ts';
+import { toJson } from '../../runs/helpers/index.ts';
 import { tokenizeJson } from './helpers.ts';
 
 const props = defineProps<{ value: unknown }>();

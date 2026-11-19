@@ -17,30 +17,26 @@ import { RouterLink, useRoute } from 'vue-router';
 import { useAgents } from '../agents/composables.ts';
 import { Permission } from '@chamvi/access';
 import { NavIcon, StatusChip, useAppContext } from '@chamvi/ui-kit';
-import { approvalLinkQuery, approvalWaitOf } from '../approvals/helpers.ts';
 import JsonBlock from '../components/json-block/JsonBlock.vue';
+import RunCallouts from '../components/run-callouts/RunCallouts.vue';
+import RunChildren from '../components/run-children/RunChildren.vue';
 import StepItem from '../components/step-item/StepItem.vue';
 import { errorText } from '../components/step-item/helpers.ts';
 import { refusalText } from '../errors/helpers.ts';
 import UntrustedChip from '../components/untrusted-chip/UntrustedChip.vue';
 import UsageMeter from '../components/usage-meter/UsageMeter.vue';
 import { RouteName } from '../router/constants.ts';
-import type { RunWire } from '@chamvi/http-kit';
 import { useRunChildren, useRunDetail } from '../runs/composables.ts';
 import {
     canCancel,
-    childRole,
-    dispatchCallout,
     formatDuration,
     formatTokens,
     landedModelSteps,
     parentOf,
-    remoteCallout,
     runDuration,
     shortId,
     subtreeTotal,
-    waitToolName,
-} from '../runs/helpers.ts';
+} from '../runs/helpers/index.ts';
 
 const { client, session } = useAppContext();
 const route = useRoute();
@@ -65,17 +61,7 @@ onScopeDispose(() => clearInterval(clock));
 
 const run = computed(() => state.value?.run);
 const { page: childPage, forbidden: childrenForbidden } = useRunChildren(client, runId, run);
-const childRows = computed(() => childPage.value?.data ?? []);
-const CHILD_COLUMNS = [
-    { key: 'id', label: 'Run' },
-    { key: 'agent', label: 'Agent' },
-    { key: 'role', label: 'Role' },
-    { key: 'status', label: 'Status' },
-];
-const childRow = (value: unknown) => value as RunWire;
 const subtree = computed(() => (run.value ? subtreeTotal(run.value) : undefined));
-const dispatchLine = computed(() => (run.value ? dispatchCallout(run.value) : undefined));
-const remoteWait = computed(() => (run.value ? remoteCallout(run.value) : undefined));
 const budget = computed(() => agents.value.find((agent) => agent.name === run.value?.agent)?.budget);
 const parent = computed(() => (run.value ? parentOf(run.value) : undefined));
 const cancellable = computed(() => (run.value ? canCancel(run.value, session.allowed) : false));
@@ -300,124 +286,12 @@ async function onCancel(): Promise<void> {
             </div>
         </section>
 
-        <div
-            v-if="run.status === 'waiting' && approvalWaitOf(run)"
-            class="callout"
-            style="margin-bottom: 26px"
-        >
-            <div class="callout-head">
-                <span class="callout-icon"><NavIcon name="hand" /></span>
-                <div class="callout-title">
-                    <h2>{{ approvalWaitOf(run)?.toolName }}<StatusChip status="waiting" /></h2>
-                    <p>The run waits for an approval of this tool call.</p>
-                </div>
-                <RouterLink
-                    class="btn btn-sm"
-                    :to="{ name: RouteName.APPROVALS, query: approvalLinkQuery(run) }"
-                >
-                    Open approvals
-                </RouterLink>
-            </div>
-        </div>
+        <RunCallouts :run="run" />
 
-        <div
-            v-if="dispatchLine"
-            class="callout"
-            style="margin-bottom: 26px"
-            data-testid="dispatch-callout"
-        >
-            <div class="callout-head">
-                <span class="callout-icon"><NavIcon name="play" /></span>
-                <div class="callout-title">
-                    <h2>{{ waitToolName(run) }}<StatusChip status="waiting" /></h2>
-                    <p>{{ dispatchLine }}.</p>
-                </div>
-            </div>
-        </div>
-
-        <div
-            v-if="remoteWait"
-            class="callout"
-            style="margin-bottom: 26px"
-            data-testid="remote-callout"
-        >
-            <div class="callout-head">
-                <span class="callout-icon"><NavIcon name="play" /></span>
-                <div class="callout-title">
-                    <h2>{{ remoteWait.target }}<StatusChip status="waiting" /></h2>
-                    <p>
-                        Waits for the remote run <span class="mono">{{ remoteWait.remoteRunId }}</span>.
-                    </p>
-                    <p
-                        v-if="remoteWait.approval"
-                        data-testid="remote-approval"
-                    >
-                        Waits for an approval at the peer: {{ remoteWait.approval.title }}
-                    </p>
-                </div>
-                <a
-                    v-if="remoteWait.approval?.url"
-                    class="btn btn-sm"
-                    :href="remoteWait.approval.url"
-                    target="_blank"
-                    rel="noopener noreferrer"
-                >
-                    Answer at the peer
-                </a>
-            </div>
-        </div>
-
-        <template v-if="childrenForbidden || childRows.length > 0">
-            <div class="section-head">
-                <h2 class="display">
-                    Dispatched runs
-                </h2>
-                <span v-if="childPage">{{ childPage.meta.total }}</span>
-            </div>
-            <div
-                v-if="childrenForbidden"
-                class="card notice"
-                style="margin-bottom: 26px"
-                data-testid="children-forbidden"
-            >
-                Listing dispatched runs needs <b class="mono">chamvi_run_read</b>.
-            </div>
-            <div
-                v-else
-                class="card table-card"
-                style="margin-bottom: 26px"
-            >
-                <div class="table-wrap">
-                    <VCTable
-                        class="t stack"
-                        :columns="CHILD_COLUMNS"
-                        :data="childRows"
-                        data-testid="children"
-                    >
-                        <template #cell-id="{ row: value }">
-                            <RouterLink
-                                class="id"
-                                :to="{ name: RouteName.RUN, params: { id: childRow(value).id } }"
-                                data-testid="child-link"
-                            >
-                                {{ shortId(childRow(value).id) }}
-                            </RouterLink>
-                        </template>
-                        <template #cell-agent="{ row: value }">
-                            <RouterLink :to="{ name: RouteName.AGENT, params: { name: childRow(value).agent } }">
-                                {{ childRow(value).agent }}
-                            </RouterLink>
-                        </template>
-                        <template #cell-role="{ row: value }">
-                            <span class="mono">{{ childRole(childRow(value)) }}</span>
-                        </template>
-                        <template #cell-status="{ row: value }">
-                            <StatusChip :status="childRow(value).status" />
-                        </template>
-                    </VCTable>
-                </div>
-            </div>
-        </template>
+        <RunChildren
+            :page="childPage"
+            :forbidden="childrenForbidden"
+        />
 
         <div class="section-head">
             <h2 class="display">

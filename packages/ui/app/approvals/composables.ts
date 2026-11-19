@@ -16,7 +16,7 @@ import { createPoller } from '@chamvi/ui-kit';
 import { ApiError, asApiError, retryDelayOf } from '@chamvi/http-kit';
 import type { IClient, RunDetail, RunWire } from '@chamvi/http-kit';
 import { INBOX_PAGE_SIZE, INBOX_POLL_MS } from './constants.ts';
-import { approvalWaitOf } from './helpers.ts';
+import { approvalWaitOf } from './helpers/index.ts';
 import type { AnswerResult, ApprovalLink } from './types.ts';
 import { toRunQuery } from '../runs/query.ts';
 

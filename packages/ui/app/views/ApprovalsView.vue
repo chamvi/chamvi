@@ -20,14 +20,14 @@ import {
     linkedApprovalState,
     pendingApprovals,
     readApprovalLink,
-} from '../approvals/helpers.ts';
+} from '../approvals/helpers/index.ts';
 import type { AnswerResult, DecidedApproval } from '../approvals/types.ts';
 import { NavIcon, StatusChip, useAppContext } from '@chamvi/ui-kit';
 import ApprovalCallout from '../components/approval-callout/ApprovalCallout.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';
 import { RouteName } from '../router/constants.ts';
-import { shortId, waitToolName } from '../runs/helpers.ts';
+import { shortId, waitToolName } from '../runs/helpers/index.ts';
 
 const { client, session } = useAppContext();
 const toast = useToast();

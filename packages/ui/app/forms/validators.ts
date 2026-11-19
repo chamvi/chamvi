@@ -8,7 +8,7 @@
 import { IssueCode } from '@ebec/core';
 import { createValidupError, defineValidator } from 'validup';
 import type { ValidatorDescriptor } from 'validup';
-import { parsePayload } from '../agents/helpers.ts';
+import { parsePayload } from '../agents/helpers/index.ts';
 
 /** A string with more than whitespace in it; returns it trimmed. Never echoes the value (a token goes through here). */
 export function isFilled(): ValidatorDescriptor {
