@@ -25,6 +25,7 @@ import {
 import type { IKnowledge, KnowledgeCollection, KnowledgeOptions } from '@chamvi/knowledge';
 import {
     CHUNKER_VERSION,
+    KNOWLEDGE_LOCK_TTL_MS,
     KNOWLEDGE_MANAGED_POLL_MS,
     MANAGED_CONTENT_MAX_CHARS,
     contentHash,
@@ -47,7 +48,7 @@ afterEach(async () => {
 });
 
 function create(setup: IndexerSetup, extra: Partial<KnowledgeOptions> = {}): IKnowledge {
-    const knowledge = createKnowledge(setup.options(extra));
+    const knowledge = setup.adopt(createKnowledge(setup.options(extra)));
 
     started.push(knowledge);
 
@@ -70,12 +71,12 @@ async function settle(): Promise<void> {
 
 async function waitForDocument(setup: IndexerSetup, collection: string, id: string, status: string, hash?: string) {
     await vi.waitFor(async () => {
-        const document = await setup.repository.findOneDocument(collection, id);
+        const document = await setup.service.findOneDocument(collection, id);
 
         expect(document).toMatchObject({ status, ...(hash === undefined ? {} : { hash }) });
     });
 
-    return (await setup.repository.findOneDocument(collection, id))!;
+    return (await setup.service.findOneDocument(collection, id))!;
 }
 
 /** An embedding model rejecting a text with "reject" (400), "busy" (429), "denied" (401), "forbidden" (403) or "boom" (500). */
@@ -119,7 +120,7 @@ describe('managed collections', () => {
             chunker: CHUNKER_VERSION,
             status: 'ready',
         });
-        expect(await setup.repository.findOneCollection('notes')).toEqual(created);
+        expect(await setup.service.findOneCollection('notes')).toEqual(created);
         expect(knowledge.view(created)).toEqual(created);
     });
 
@@ -131,7 +132,7 @@ describe('managed collections', () => {
         });
         const at = new Date(setup.clock.now());
 
-        await setup.repository.saveCollection({
+        await setup.service.saveCollection({
             name: 'old',
             kind: 'declared',
             trusted: true,
@@ -154,7 +155,36 @@ describe('managed collections', () => {
         await expect(without.createCollection('wiki')).rejects.toThrow(new InvalidRunStateError(
             'Managed collections need an embedding model: set CHAMVI_KNOWLEDGE_MODEL or knowledgeModule({ embeddingModel }).',
         ));
-        expect(await setup.repository.findOneCollection('wiki')).toBeUndefined();
+        expect(await setup.service.findOneCollection('wiki')).toBeUndefined();
+    });
+
+    it('createCollection never replaces a record created after its existence check', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        const at = new Date(setup.clock.now() - 1000);
+        const theirs: KnowledgeCollection = {
+            name: 'notes',
+            kind: 'managed',
+            trusted: false,
+            generation: 3,
+            model: 'mock/other',
+            chunker: CHUNKER_VERSION,
+            status: 'ready',
+            createdAt: at,
+            updatedAt: at,
+        };
+
+        // the check reads no record; another replica's create lands right after it (a lease that ran out)
+        vi.spyOn(service, 'findOneCollection').mockImplementationOnce(async () => {
+            await save(theirs);
+
+            return undefined;
+        });
+
+        await expect(knowledge.createCollection('notes')).rejects.toThrow(new InvalidRunStateError('Knowledge collection "notes" exists.'));
+        expect(await setup.service.findOneCollection('notes')).toEqual(theirs);
     });
 
     it('refuses an embeddingModel that does not resolve', () => {
@@ -194,7 +224,7 @@ describe('managed collections', () => {
         });
         expect(document.error).toBeUndefined();
 
-        const [match] = await setup.repository.search('notes', 1, await vectorOf('refund policy'), { topK: 1 });
+        const [match] = await setup.service.search('notes', 1, await vectorOf('refund policy'), { topK: 1 });
 
         expect(match).toMatchObject({
             document: 'refunds',
@@ -228,12 +258,86 @@ describe('managed collections', () => {
 
         // new metadata only: stored, nothing to embed (chunks carry title and source only)
         expect(await knowledge.putDocument('notes', { ...input, metadata: { v: 2 } })).toEqual({ status: 'ready', changed: true });
-        expect(await setup.repository.findOneDocument('notes', 'refunds')).toMatchObject({ status: 'ready', metadata: { v: 2 } });
+        expect(await setup.service.findOneDocument('notes', 'refunds')).toMatchObject({ status: 'ready', metadata: { v: 2 } });
 
         knowledge.sync('notes');
         await settle();
 
         expect(model.calls).toHaveLength(calls);
+    });
+
+    it('a details PUT on a pending document that failed before its write requeues it', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const content = 'Refunds within thirty days.';
+        const update = service.updateDetails.bind(service);
+
+        // never started: the document stays pending until the test fails it
+        await knowledge.createCollection('notes');
+        await knowledge.putDocument('notes', { id: 'doc', content });
+
+        // the embedding fails between the PUT's read and its details write
+        vi.spyOn(service, 'updateDetails').mockImplementationOnce(async (...args) => {
+            const stored = await service.findOneDocumentOrFail('notes', 'doc');
+
+            expect(await service.updateDocument('notes', 'doc', stored, { status: 'failed', error: 'refused' })).toBe(true);
+
+            return update(...args);
+        });
+
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content,
+            metadata: { v: 2 },
+        })).toEqual({ status: 'pending', changed: true });
+
+        const document = await setup.service.findOneDocumentOrFail('notes', 'doc');
+
+        expect(document).toMatchObject({ status: 'pending', metadata: { v: 2 } });
+        expect(document.error).toBeUndefined();
+    });
+
+    it('a PUT with the same metadata in another key order answers changed false', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+
+        const input = {
+            id: 'refunds',
+            content: 'Refunds within thirty days.',
+            metadata: {
+                topic: 'x',
+                n: 1,
+                nested: { b: 2, a: [1, { d: 4, c: 3 }] },
+            },
+        };
+
+        await knowledge.putDocument('notes', input);
+
+        const stored = await waitForDocument(setup, 'notes', 'refunds', 'ready');
+
+        expect(await knowledge.putDocument('notes', {
+            ...input,
+            metadata: {
+                nested: { a: [1, { c: 3, d: 4 }], b: 2 },
+                n: 1,
+                topic: 'x',
+            },
+        })).toEqual({ status: 'ready', changed: false });
+        expect(await setup.service.findOneDocument('notes', 'refunds')).toEqual(stored);
+
+        // a changed order in a nested array is still a change
+        expect(await knowledge.putDocument('notes', {
+            ...input,
+            metadata: {
+                nested: { a: [{ c: 3, d: 4 }, 1], b: 2 },
+                n: 1,
+                topic: 'x',
+            },
+        })).toEqual({ status: 'ready', changed: true });
     });
 
     it('a PUT during the embedding of the previous content ends ready with the new content', async () => {
@@ -256,58 +360,409 @@ describe('managed collections', () => {
         await settle();
 
         // the old content is never marked ready under the new hash
-        expect(await setup.repository.findOneDocument('notes', 'doc')).toMatchObject({ status: 'pending', hash: contentHash(after) });
+        expect(await setup.service.findOneDocument('notes', 'doc')).toMatchObject({ status: 'pending', hash: contentHash(after) });
 
         model.open(1);
 
         await waitForDocument(setup, 'notes', 'doc', 'ready', contentHash(after));
 
-        const matches = await setup.repository.search('notes', 1, await vectorOf(after), { topK: 10 });
+        const matches = await setup.service.search('notes', 1, await vectorOf(after), { topK: 10 });
 
         expect(matches.map((match) => match.text)).toEqual([after]);
         expect(setup.errors).toEqual([]);
     });
 
-    it('a same-content PUT with a new title during the ready write leaves it pending and re-embeds the new title', async () => {
+    it('a same-content PUT with a new title during the ready write leaves it pending, then ready under the new title', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
-        const { repository } = setup;
-        const replace = repository.replaceChunks.bind(repository);
+        const { service } = setup;
+        const replace = service.replaceChunks.bind(service);
         let put: unknown;
 
         await knowledge.createCollection('notes');
 
         // the PUT lands between the chunks of the old title and the ready write
-        repository.replaceChunks = async (collection, document, generation, chunks) => {
+        service.replaceChunks = async (collection, document, generation, chunks) => {
             await replace(collection, document, generation, chunks);
 
             if (put === undefined && chunks.length > 0) {
                 put = await knowledge.putDocument('notes', {
-                    id: 'a', 
-                    content: 'Alpha.', 
-                    title: 'New title', 
+                    id: 'a',
+                    content: 'Alpha.',
+                    title: 'New title',
                 });
             }
         };
 
         knowledge.start();
         await knowledge.putDocument('notes', {
-            id: 'a', 
-            content: 'Alpha.', 
-            title: 'Old title', 
+            id: 'a',
+            content: 'Alpha.',
+            title: 'Old title',
         });
 
         await vi.waitFor(() => {
             expect(put).toEqual({ status: 'pending', changed: true });
         });
 
-        // the next round embeds the new title; ready is never written for the old one
+        // the chunks are written again under the new title; ready is never written for the old one
         await vi.waitFor(async () => {
-            const matches = await repository.search('notes', 1, await vectorOf('Alpha.'), { topK: 10 });
+            const matches = await service.search('notes', 1, await vectorOf('Alpha.'), { topK: 10 });
 
             expect(matches.map((match) => match.title)).toEqual(['New title']);
         });
         expect(await waitForDocument(setup, 'notes', 'a', 'ready')).toMatchObject({ title: 'New title' });
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a PUT with unchanged content and a new title embeds nothing and search shows the new title', async () => {
+        const setup = createIndexerSetup();
+        const model = mockEmbeddingModel();
+        const knowledge = create(setup, { embeddingModel: model });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+
+        const input = {
+            id: 'refunds',
+            content: 'Refunds within thirty days.',
+            title: 'Refunds',
+            source: 'crm/refunds',
+        };
+
+        await knowledge.putDocument('notes', input);
+        await waitForDocument(setup, 'notes', 'refunds', 'ready');
+
+        const calls = model.calls.length;
+
+        expect(await knowledge.putDocument('notes', {
+            id: input.id,
+            content: input.content,
+            title: 'Returns',
+            metadata: { v: 2 },
+        })).toEqual({ status: 'ready', changed: true });
+
+        const document = (await setup.service.findOneDocument('notes', 'refunds'))!;
+
+        expect(document).toMatchObject({
+            status: 'ready',
+            generation: 1,
+            title: 'Returns',
+            metadata: { v: 2 },
+        });
+        expect(document.source).toBeUndefined();
+
+        knowledge.sync('notes');
+        await settle();
+
+        expect(model.calls).toHaveLength(calls);
+
+        const [match] = await setup.service.search('notes', 1, await vectorOf(input.content), { topK: 1 });
+
+        expect(match).toMatchObject({ document: 'refunds', title: 'Returns' });
+        expect(match!.source).toBeUndefined();
+        expect(setup.errors).toEqual([]);
+    });
+
+    describe('two details PUTs racing on a ready document', () => {
+        const content = 'Refunds within thirty days.';
+
+        /** A ready document titled "A" with metadata, the knowledge, and a check that the document and its chunks agree. */
+        const ready = async () => {
+            const setup = createIndexerSetup();
+            const model = mockEmbeddingModel();
+            const knowledge = create(setup, { embeddingModel: model });
+
+            await knowledge.createCollection('notes');
+            knowledge.start();
+            await knowledge.putDocument('notes', {
+                id: 'doc',
+                content,
+                title: 'A',
+                metadata: { v: 1 },
+            });
+            await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+            const stored = async () => {
+                const document = (await setup.service.findOneDocument('notes', 'doc'))!;
+                const matches = await setup.service.search('notes', 1, await vectorOf(content), { topK: 10 });
+
+                return { document, titles: matches.map((match) => match.title) };
+            };
+
+            return {
+                setup,
+                model,
+                knowledge,
+                stored,
+            };
+        };
+
+        it('a PUT landing between another PUT\'s details and its metadata write leaves the document and its chunks agreeing', async () => {
+            const {
+                setup,
+                model,
+                knowledge,
+                stored,
+            } = await ready();
+            const calls = model.calls.length;
+            const { service } = setup;
+            const update = service.updateDetails.bind(service);
+            let raced = false;
+
+            // the other PUT runs right after this PUT's details write
+            service.updateDetails = async (...args) => {
+                const result = await update(...args);
+
+                if (!raced) {
+                    raced = true;
+                    await knowledge.putDocument('notes', {
+                        id: 'doc',
+                        content,
+                        title: 'C',
+                    });
+                }
+
+                return result;
+            };
+
+            expect(await knowledge.putDocument('notes', {
+                id: 'doc',
+                content,
+                title: 'B',
+                metadata: { v: 2 },
+            })).toEqual({ status: 'ready', changed: true });
+
+            const { document, titles } = await stored();
+
+            expect(raced).toBe(true);
+            // the later PUT wins, with its (absent) metadata, and the chunks carry its title
+            expect(document).toMatchObject({ status: 'ready', title: 'C' });
+            expect(document.metadata).toBeUndefined();
+            expect(titles).toEqual(['C']);
+            expect(model.calls).toHaveLength(calls);
+            expect(setup.errors).toEqual([]);
+        });
+
+        it('a PUT whose read was overtaken by another PUT writes its details over the current version', async () => {
+            const {
+                setup,
+                model,
+                knowledge,
+                stored,
+            } = await ready();
+            const calls = model.calls.length;
+            const { service } = setup;
+            const update = service.updateDetails.bind(service);
+            let raced = false;
+
+            // the other PUT lands between this PUT's read and its details write
+            service.updateDetails = async (...args) => {
+                if (!raced) {
+                    raced = true;
+                    await knowledge.putDocument('notes', {
+                        id: 'doc',
+                        content,
+                        title: 'C',
+                    });
+                }
+
+                return update(...args);
+            };
+
+            expect(await knowledge.putDocument('notes', {
+                id: 'doc',
+                content,
+                title: 'B',
+                metadata: { v: 2 },
+            })).toEqual({ status: 'ready', changed: true });
+
+            expect(raced).toBe(true);
+
+            const { document, titles } = await stored();
+
+            expect(document).toMatchObject({
+                status: 'ready',
+                title: 'B',
+                metadata: { v: 2 },
+            });
+            expect(titles).toEqual(['B']);
+            expect(model.calls).toHaveLength(calls);
+            expect(setup.errors).toEqual([]);
+        });
+    });
+
+    it('a stop during the ready write ends the rewrite loop before another round', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const update = service.updateDocument.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+        let stopping: Promise<void> | undefined;
+
+        await knowledge.createCollection('notes');
+
+        // the ready write loses to new details and the knowledge stops meanwhile
+        vi.spyOn(service, 'updateDocument').mockImplementationOnce(async (...args) => {
+            const [name, id, current] = args;
+
+            await service.updateDetails(name, id, current, { title: 'Moved' });
+            stopping = knowledge.stop();
+
+            return update(...args);
+        });
+
+        knowledge.start();
+        await knowledge.putDocument('notes', { id: 'doc', content: 'Refunds within thirty days.' });
+
+        // a promise from poll() would be awaited: poll for the flag
+        await expect.poll(() => stopping !== undefined).toBe(true);
+        await stopping;
+
+        expect(replace).toHaveBeenCalledTimes(1);
+        expect(await service.findOneDocument('notes', 'doc')).toMatchObject({ status: 'pending', title: 'Moved' });
+    });
+
+    it('a metadata PUT on a pending document keeps the served chunks\' details until the new content is embedded', async () => {
+        const setup = createIndexerSetup();
+        const model = gatedModel({ opened: 1 });
+        const knowledge = create(setup, { embeddingModel: model });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+
+        const before = 'Kubernetes pods are scheduled onto nodes.';
+        const after = 'Invoices are sent on the first day of each month.';
+
+        await knowledge.putDocument('notes', {
+            id: 'doc',
+            content: before,
+            title: 'A',
+        });
+        await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        // the new content waits for its embed; the old chunks keep serving under the old title
+        await knowledge.putDocument('notes', {
+            id: 'doc',
+            content: after,
+            title: 'B',
+        });
+        await expect.poll(() => model.started.length).toBe(2);
+
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content: after,
+            title: 'B',
+            metadata: { v: 2 },
+        })).toEqual({ status: 'pending', changed: true });
+        expect(await setup.service.findOneDocument('notes', 'doc')).toMatchObject({
+            status: 'pending',
+            title: 'B',
+            metadata: { v: 2 },
+        });
+
+        const served = await setup.service.search('notes', 1, await vectorOf(before), { topK: 10 });
+
+        // never the old text next to the new title
+        expect(served.map((match) => [match.text, match.title])).toEqual([[before, 'A']]);
+
+        model.open(1);
+
+        const ready = await waitForDocument(setup, 'notes', 'doc', 'ready', contentHash(after));
+
+        expect(ready).toMatchObject({ title: 'B', metadata: { v: 2 } });
+
+        const matches = await setup.service.search('notes', 1, await vectorOf(after), { topK: 10 });
+
+        expect(matches.map((match) => [match.text, match.title])).toEqual([[after, 'B']]);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a PUT with a new title during an embed never leaves old details ready under the new version', async () => {
+        const setup = createIndexerSetup();
+        const model = gatedModel();
+        const knowledge = create(setup, { embeddingModel: model });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+
+        const content = 'Kubernetes pods are scheduled onto nodes.';
+
+        await knowledge.putDocument('notes', {
+            id: 'doc',
+            content,
+            title: 'Old title',
+        });
+        await expect.poll(() => model.started.length).toBe(1);
+
+        // the embed is in flight: the document is pending, so the PUT takes the pending path
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content,
+            title: 'New title',
+        })).toEqual({ status: 'pending', changed: true });
+
+        model.open(0);
+        model.open(1);
+
+        const document = await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        expect(document.title).toBe('New title');
+
+        const matches = await setup.service.search('notes', 1, await vectorOf(content), { topK: 10 });
+
+        expect(matches.map((match) => match.title)).toEqual(['New title']);
+        // same content: the vectors hold, only the details changed
+        expect(model.started).toHaveLength(1);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a PUT with a new title during a re-embed keeps the document searchable under the new title', async () => {
+        const setup = createIndexerSetup();
+        const next = gatedModel();
+        const models = { 'mock/a': mockEmbeddingModel(), 'mock/b': next };
+        const first = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+
+        await first.createCollection('notes');
+        first.start();
+
+        const content = 'Our refund policy allows returns within thirty days.';
+
+        await first.putDocument('notes', {
+            id: 'refunds',
+            content,
+            title: 'Refunds',
+        });
+        await waitForDocument(setup, 'notes', 'refunds', 'ready');
+        await first.stop();
+
+        const second = create(setup, { embeddingModel: 'mock/b', models: embeddingResolver(models) });
+
+        second.start();
+        await vi.waitFor(() => second.sync('notes'));
+        await expect.poll(() => next.started.length).toBe(1);
+
+        // the document is ready at the served generation while the re-embed embeds it
+        expect(await second.putDocument('notes', {
+            id: 'refunds',
+            content,
+            title: 'Returns',
+        })).toEqual({ status: 'ready', changed: true });
+
+        next.open(0);
+        next.open(1);
+        await waitForCollection(setup.service, 'notes', (collection) => collection.generation === 2);
+
+        expect(await setup.service.findOneDocument('notes', 'refunds')).toMatchObject({
+            status: 'ready',
+            generation: 2,
+            title: 'Returns',
+        });
+
+        const [vector] = (await mockEmbeddingModel().doEmbed({ values: [content] })).embeddings;
+
+        expect(await setup.service.search('notes', 2, vector!, { topK: 10 })).toMatchObject([{ document: 'refunds', title: 'Returns' }]);
+        expect(next.started).toHaveLength(1);
         expect(setup.errors).toEqual([]);
     });
 
@@ -328,9 +783,9 @@ describe('managed collections', () => {
         model.open(0);
         await settle();
 
-        expect(await setup.repository.findOneCollection('notes')).toBeUndefined();
-        expect(await setup.repository.findOneDocument('notes', 'doc')).toBeUndefined();
-        expect(await setup.repository.search('notes', 1, await vectorOf('refunds'), { topK: 10 })).toEqual([]);
+        expect(await setup.service.findOneCollection('notes')).toBeUndefined();
+        expect(await setup.service.findOneDocument('notes', 'doc')).toBeUndefined();
+        expect(await setup.service.search('notes', 1, await vectorOf('refunds'), { topK: 10 })).toEqual([]);
         expect(setup.errors).toEqual([]);
 
         // the poll stops this instance's loop: a sync() then finds none
@@ -338,7 +793,7 @@ describe('managed collections', () => {
         await settle();
 
         expect(() => knowledge.sync('notes')).toThrow(ValidationError);
-        expect(await setup.repository.findOneCollection('notes')).toBeUndefined();
+        expect(await setup.service.findOneCollection('notes')).toBeUndefined();
     });
 
     it('a collection deleted here stops its loop at once', async () => {
@@ -355,7 +810,7 @@ describe('managed collections', () => {
         expect(() => knowledge.sync('notes')).toThrow(ValidationError);
         await settle();
 
-        expect(await setup.repository.findOneCollection('notes')).toBeUndefined();
+        expect(await setup.service.findOneCollection('notes')).toBeUndefined();
         expect(setup.errors).toEqual([]);
     });
 
@@ -371,6 +826,206 @@ describe('managed collections', () => {
 
         expect(await knowledge.deleteCollection('notes')).toBe(true);
         await expect(knowledge.createCollection('notes')).resolves.toMatchObject({ name: 'notes', kind: 'managed' });
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose fence another owner advanced writes nothing more and reports nothing', async () => {
+        const setup = createIndexerSetup();
+        const content = 'Refunds within thirty days.';
+        // the same model identity as the mock, other vectors: its chunks score apart from the mock's
+        const turned = new MockEmbeddingModelV4({
+            maxEmbeddingsPerCall: null,
+            supportsParallelCalls: true,
+            doEmbed: async ({ values }) => ({
+                embeddings: values.map(() => Array.from({ length: 64 }, (_, i) => (i === 0 ? 1 : 0))),
+                warnings: [],
+            }),
+        });
+        const knowledge = create(setup, { embeddingModel: turned });
+        const { service } = knowledge;
+        const replace = service.replaceChunks.bind(service);
+        const gate = Promise.withResolvers<void>();
+        // the first write after the renew waits, as a store slower than the lease would
+        const held = vi.spyOn(service, 'replaceChunks').mockImplementationOnce(async (...args) => {
+            await gate.promise;
+
+            return replace(...args);
+        });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+        await knowledge.putDocument('notes', { id: 'doc', content });
+        await expect.poll(() => held.mock.calls.length).toBe(1);
+
+        try {
+            // the lease expires while the write waits: a second instance takes it and embeds the document
+            setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+
+            const other = create(setup, { embeddingModel: mockEmbeddingModel() });
+
+            other.start();
+            await waitForDocument(setup, 'notes', 'doc', 'ready');
+        } finally {
+            // also on a failure: stop() waits for the held write
+            gate.resolve();
+        }
+
+        await expect.poll(() => held.mock.settledResults[0]?.type).toBe('rejected');
+        await settle();
+
+        expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost', lock: 'knowledge:notes' } });
+
+        const matches = await setup.service.search('notes', 1, await vectorOf(content), { topK: 10 });
+
+        expect(matches).toHaveLength(1);
+        expect(matches[0]!.score).toBeCloseTo(1);
+        expect(await setup.service.findOneDocument('notes', 'doc')).toMatchObject({ status: 'ready', generation: 1 });
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose record appeared after the fence was advanced writes with a fence', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const save = service.saveCollection.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+
+        await knowledge.createCollection('notes');
+
+        const record = (await service.findOneCollection('notes'))!;
+
+        // deleted and created again between the loop's advance (no row then) and the pass's own read
+        vi.spyOn(service, 'advanceFence').mockImplementationOnce(async (name) => {
+            await service.deleteCollection(name);
+
+            const fence = await advance(name);
+
+            await save(record);
+            await service.saveDocument({
+                collection: name,
+                id: 'doc',
+                content: 'Refunds within thirty days.',
+                hash: contentHash('Refunds within thirty days.'),
+                status: 'pending',
+                generation: 0,
+                updatedAt: new Date(setup.clock.now()),
+            });
+
+            return fence;
+        });
+
+        knowledge.start();
+
+        await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        expect(replace.mock.calls).toHaveLength(1);
+        expect(replace.mock.calls[0]![4]?.fence).toBeDefined();
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose record appeared after the fence was advanced renews the lock before its own advance', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel(), owner: 'replica-a' });
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const save = service.saveCollection.bind(service);
+        const replace = vi.spyOn(service, 'replaceChunks');
+
+        await knowledge.createCollection('notes');
+
+        const record = (await service.findOneCollection('notes'))!;
+        const document = {
+            collection: 'notes',
+            id: 'doc',
+            content: 'Refunds within thirty days.',
+            hash: contentHash('Refunds within thirty days.'),
+            status: 'pending' as const,
+            generation: 0,
+            updatedAt: new Date(setup.clock.now()),
+        };
+
+        // created again after the loop's advance (no row then), then the lease runs out and another owner takes the lock
+        const fences = vi.spyOn(service, 'advanceFence').mockImplementationOnce(async (name) => {
+            await service.deleteCollection(name);
+
+            const fence = await advance(name);
+
+            await save(record);
+            await service.saveDocument(document);
+            setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+            expect(await setup.locks.acquire('knowledge:notes', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBe(true);
+
+            return fence;
+        });
+
+        knowledge.start();
+
+        await expect.poll(() => setup.locks.acquired.filter((entry) => entry.owner === 'replica-a').map((entry) => entry.result)).toEqual([true, false]);
+        await settle();
+
+        // the pass ended without a fence of its own: the intruder's token stays the newest
+        expect(fences).toHaveBeenCalledTimes(1);
+        expect(replace).not.toHaveBeenCalled();
+        expect(await service.findOneDocument('notes', 'doc')).toEqual(document);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('a pass whose record appeared after the fence was advanced decides on the record read after its own advance', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+        const { service } = knowledge;
+        const advance = service.advanceFence.bind(service);
+        const save = service.saveCollection.bind(service);
+
+        await knowledge.createCollection('notes');
+
+        const record = (await service.findOneCollection('notes'))!;
+
+        vi.spyOn(service, 'advanceFence')
+            // deleted and created again between the loop's advance (no row then) and the pass's own read
+            .mockImplementationOnce(async (name) => {
+                await service.deleteCollection(name);
+
+                const fence = await advance(name);
+
+                await save(record);
+                await service.saveDocument({
+                    collection: name,
+                    id: 'doc',
+                    content: 'Refunds within thirty days.',
+                    hash: contentHash('Refunds within thirty days.'),
+                    status: 'pending',
+                    generation: 0,
+                    updatedAt: new Date(setup.clock.now()),
+                });
+
+                return fence;
+            })
+            // the previous owner started a re-embed toward another model between the pass's read and its advance
+            .mockImplementationOnce(async (name) => {
+                await save({
+                    ...record,
+                    pending: {
+                        generation: 2,
+                        model: 'other/model',
+                        chunker: CHUNKER_VERSION,
+                    },
+                    lastGeneration: 2,
+                });
+
+                return advance(name);
+            });
+
+        knowledge.start();
+
+        await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        // the pass abandoned the re-embed it found after its advance
+        const stored = await service.findOneCollection('notes');
+
+        expect(stored).toMatchObject({ generation: 1, lastGeneration: 2 });
+        expect(stored?.pending).toBeUndefined();
         expect(setup.errors).toEqual([]);
     });
 
@@ -399,8 +1054,8 @@ describe('managed collections', () => {
         });
         expect(setup.errors[0]).toMatchObject({ collection: 'notes' });
         expect(APICallError.isInstance(setup.errors[0]!.error)).toBe(true);
-        expect(await setup.repository.findOneDocument('notes', 'c')).toMatchObject({ status: 'pending' });
-        expect((await setup.repository.findOneDocument('notes', 'c'))?.error).toBeUndefined();
+        expect(await setup.service.findOneDocument('notes', 'c')).toMatchObject({ status: 'pending' });
+        expect((await setup.service.findOneDocument('notes', 'c'))?.error).toBeUndefined();
 
         // a later PUT of fixed content clears the failure
         await knowledge.putDocument('notes', { id: 'a', content: 'A fixed text.' });
@@ -430,13 +1085,13 @@ describe('managed collections', () => {
         });
         expect(APICallError.isInstance(setup.errors[0]!.error)).toBe(true);
 
-        const document = await setup.repository.findOneDocument('notes', 'a');
+        const document = await setup.service.findOneDocument('notes', 'a');
 
         expect(document).toMatchObject({ status: 'pending' });
         expect(document?.error).toBeUndefined();
 
         // a managed record stores no failure: the loop backs off on its own (KNOWLEDGE_RETRY_MS first)
-        expect((await setup.repository.findOneCollection('notes'))?.error).toBeUndefined();
+        expect((await setup.service.findOneCollection('notes'))?.error).toBeUndefined();
         setup.clock.advance(4_999);
         await settle();
         expect(setup.errors).toHaveLength(1);
@@ -445,7 +1100,7 @@ describe('managed collections', () => {
         await vi.waitFor(() => {
             expect(setup.errors).toHaveLength(2);
         });
-        expect(await setup.repository.findOneDocument('notes', 'a')).toMatchObject({ status: 'pending' });
+        expect(await setup.service.findOneDocument('notes', 'a')).toMatchObject({ status: 'pending' });
     });
 
     it('a changed default model reports stale, and sync() re-embeds into the next generation and serves it', async () => {
@@ -463,16 +1118,16 @@ describe('managed collections', () => {
         await first.stop();
 
         const second = create(setup, { embeddingModel: 'mock/b', models: embeddingResolver(models) });
-        const record = (await setup.repository.findOneCollection('notes'))!;
+        const record = (await setup.service.findOneCollection('notes'))!;
 
         expect(record).toMatchObject({ model: 'mock/a', status: 'ready' });
         expect(second.view(record)).toMatchObject({ model: 'mock/a', status: 'stale' });
         expect(first.view(record).status).toBe('ready');
 
         const saves: KnowledgeCollection[] = [];
-        const save = setup.repository.saveCollection.bind(setup.repository);
+        const save = setup.service.saveCollection.bind(setup.service);
 
-        vi.spyOn(setup.repository, 'saveCollection').mockImplementation(async (collection) => {
+        vi.spyOn(setup.service, 'saveCollection').mockImplementation(async (collection) => {
             saves.push(structuredClone(collection));
 
             return save(collection);
@@ -481,7 +1136,7 @@ describe('managed collections', () => {
         // the poll started its loop: nothing is re-embedded without a sync()
         await vi.waitFor(() => second.sync('notes'));
 
-        const switched = await waitForCollection(setup.repository, 'notes', (collection) => collection.generation === 2);
+        const switched = await waitForCollection(setup.service, 'notes', (collection) => collection.generation === 2);
 
         expect(switched).toMatchObject({
             model: 'mock/b',
@@ -493,13 +1148,173 @@ describe('managed collections', () => {
         // the learned length was stored on the pending re-embed before the switch
         expect(saves.some((saved) => saved.pending?.generation === 2 && saved.pending.dimensions === 32)).toBe(true);
         expect(second.view(switched).status).toBe('ready');
-        expect(await setup.repository.findOneDocument('notes', 'refunds')).toMatchObject({ status: 'ready', generation: 2 });
+        expect(await setup.service.findOneDocument('notes', 'refunds')).toMatchObject({ status: 'ready', generation: 2 });
 
         const [vector] = (await models['mock/b'].doEmbed({ values: ['refund policy'] })).embeddings;
 
-        expect(await setup.repository.search('notes', 2, vector!, { topK: 1 })).toMatchObject([{ document: 'refunds', text }]);
-        expect(await setup.repository.search('notes', 1, await vectorOf('refund policy'), { topK: 1 })).toEqual([]);
+        expect(await setup.service.search('notes', 2, vector!, { topK: 1 })).toMatchObject([{ document: 'refunds', text }]);
+        expect(await setup.service.search('notes', 1, await vectorOf('refund policy'), { topK: 1 })).toEqual([]);
         expect(setup.errors).toEqual([]);
+    });
+
+    describe('a re-embed the default model left', () => {
+        const after = 'Invoices are sent on the first day of each month.';
+
+        /**
+         * Documents a, b and c ready at generation 1 (mock/a); a re-embed with
+         * mock/b made "a" and the new content of "b" (PUT during the re-embed)
+         * ready at generation 2, then stopped before "c" (the default changes).
+         */
+        async function leaveReembed(setup: IndexerSetup) {
+            const next = gatedModel();
+            const models: Record<string, EmbeddingModel> = { 'mock/a': mockEmbeddingModel(), 'mock/b': next };
+            const first = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+
+            await first.createCollection('notes');
+            first.start();
+            await first.putDocument('notes', { id: 'a', content: 'Refunds within thirty days.' });
+            await first.putDocument('notes', { id: 'b', content: 'Kubernetes pods are scheduled onto nodes.' });
+            await first.putDocument('notes', { id: 'c', content: 'Support answers within a day.' });
+            await waitForDocument(setup, 'notes', 'c', 'ready');
+            await first.stop();
+
+            const second = create(setup, { embeddingModel: 'mock/b', models: embeddingResolver(models) });
+
+            second.start();
+            await vi.waitFor(() => second.sync('notes'));
+            await expect.poll(() => next.started.length).toBe(1);
+
+            // PUT while the re-embed embeds "a": the re-embed reaches "b" later and makes the new content ready at its generation
+            await second.putDocument('notes', { id: 'b', content: after });
+
+            next.open(0);
+            next.open(1);
+            await waitForDocument(setup, 'notes', 'b', 'ready', contentHash(after));
+            await expect.poll(() => next.started.length).toBe(3);
+
+            expect(await setup.service.findOneDocument('notes', 'b')).toMatchObject({ generation: 2 });
+
+            // "c" is never embedded with mock/b
+            await second.stop();
+
+            return { models, next };
+        }
+
+        /** The re-embed abandoned: every document ready at generation 1 (mock/a), "b" with its new content, nothing at generation 2. */
+        async function expectServed(setup: IndexerSetup, knowledge: IKnowledge) {
+            await waitForCollection(setup.service, 'notes', (collection) => collection.pending === undefined);
+            await waitForDocument(setup, 'notes', 'b', 'ready', contentHash(after));
+            await waitForDocument(setup, 'notes', 'a', 'ready');
+
+            const record = (await setup.service.findOneCollection('notes'))!;
+
+            expect(record).toMatchObject({
+                model: 'mock/a',
+                generation: 1,
+                status: 'ready',
+            });
+            expect(knowledge.view(record).status).toBe('ready');
+
+            for (const id of ['a', 'b', 'c']) {
+                expect(await setup.service.findOneDocument('notes', id)).toMatchObject({ status: 'ready', generation: 1 });
+            }
+
+            expect(await setup.service.search('notes', 2, await vectorOf(after), { topK: 10 })).toEqual([]);
+
+            const matches = await setup.service.search('notes', 1, await vectorOf(after), { topK: 10 });
+
+            expect(matches.filter((match) => match.document === 'b').map((match) => match.text)).toEqual([after]);
+        }
+
+        it('a re-embed abandoned by reverting the default model serves the new content at the served generation', async () => {
+            const setup = createIndexerSetup();
+            const { models, next } = await leaveReembed(setup);
+            const third = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+
+            third.start();
+
+            await expectServed(setup, third);
+            expect(next.started).toHaveLength(3);
+            expect(setup.errors).toEqual([]);
+        });
+
+        it.each(['requeueGeneration', 'deleteGeneration', 'saveCollection'] as const)(
+            'an abandon whose %s fails is repeated by the next pass',
+            async (method) => {
+                const setup = createIndexerSetup();
+                const { models } = await leaveReembed(setup);
+                const third = create(setup, { embeddingModel: 'mock/a', models: embeddingResolver(models) });
+                const failure = new Error('store down');
+
+                // the first call of each is the abandon's (the managed pass writes the record nowhere else)
+                vi.spyOn(setup.service, method).mockRejectedValueOnce(failure);
+                third.start();
+
+                await vi.waitFor(() => {
+                    expect(setup.errors).toEqual([{ error: failure, collection: 'notes' }]);
+                });
+                expect((await setup.service.findOneCollection('notes'))!.pending).toMatchObject({ generation: 2, model: 'mock/b' });
+
+                // the loop backs off before its next pass
+                setup.clock.advance(5_000);
+
+                await expectServed(setup, third);
+                expect(setup.errors).toHaveLength(1);
+            },
+        );
+
+        it('a sync() for a third default model abandons the pending re-embed before it starts the next generation', async () => {
+            const setup = createIndexerSetup();
+            const { models, next } = await leaveReembed(setup);
+            const latest = mockEmbeddingModel({ dimensions: 32 });
+            const third = create(setup, {
+                embeddingModel: 'mock/c',
+                models: embeddingResolver({ ...models, 'mock/c': latest }),
+            });
+            const writes: string[] = [];
+            const { service } = setup;
+            const deleteGeneration = service.deleteGeneration.bind(service);
+            const saveCollection = service.saveCollection.bind(service);
+
+            vi.spyOn(service, 'deleteGeneration').mockImplementation(async (collection, generation, options) => {
+                writes.push(`delete ${generation}`);
+
+                return deleteGeneration(collection, generation, options);
+            });
+            vi.spyOn(service, 'saveCollection').mockImplementation(async (collection, options) => {
+                writes.push(`save ${collection.pending?.generation ?? '-'}`);
+
+                return saveCollection(collection, options);
+            });
+
+            third.start();
+            await vi.waitFor(() => third.sync('notes'));
+
+            const switched = await waitForCollection(service, 'notes', (collection) => collection.generation === 3);
+
+            expect(switched).toMatchObject({
+                model: 'mock/c',
+                dimensions: 32,
+                status: 'ready',
+                lastGeneration: 3,
+            });
+            expect(switched.pending).toBeUndefined();
+            // the abandoned generation is gone before the next one is named
+            expect(writes.indexOf('delete 2')).toBeGreaterThan(-1);
+            expect(writes.indexOf('delete 2')).toBeLessThan(writes.indexOf('save 3'));
+
+            for (const id of ['a', 'b', 'c']) {
+                expect(await service.findOneDocument('notes', id)).toMatchObject({ status: 'ready', generation: 3 });
+            }
+
+            const [vector] = (await latest.doEmbed({ values: [after] })).embeddings;
+            const matches = await service.search('notes', 3, vector!, { topK: 10 });
+
+            expect(matches.filter((match) => match.document === 'b').map((match) => match.text)).toEqual([after]);
+            expect(await service.search('notes', 2, await vectorOf(after), { topK: 10 })).toEqual([]);
+            expect(next.started).toHaveLength(3);
+            expect(setup.errors).toEqual([]);
+        });
     });
 
     it('a stale collection embeds pending documents at its served model until a sync()', async () => {
@@ -516,7 +1331,7 @@ describe('managed collections', () => {
 
         await waitForDocument(setup, 'notes', 'doc', 'ready');
 
-        const record = (await setup.repository.findOneCollection('notes'))!;
+        const record = (await setup.service.findOneCollection('notes'))!;
 
         expect(record).toMatchObject({ model: 'mock/a', generation: 1 });
         expect(record.pending).toBeUndefined();
@@ -538,9 +1353,9 @@ describe('managed collections', () => {
         second.start();
         await vi.waitFor(() => second.sync('notes'));
 
-        await waitForCollection(setup.repository, 'notes', (collection) => collection.generation === 2);
+        await waitForCollection(setup.service, 'notes', (collection) => collection.generation === 2);
         await waitForDocument(setup, 'notes', 'doc', 'ready');
-        expect(await setup.repository.findOneCollection('notes')).toMatchObject({ model: 'mock-provider/other', dimensions: 16 });
+        expect(await setup.service.findOneCollection('notes')).toMatchObject({ model: 'mock-provider/other', dimensions: 16 });
         expect(setup.errors).toEqual([]);
     });
 
@@ -557,7 +1372,7 @@ describe('managed collections', () => {
         await other.putDocument('notes', { id: 'doc', content: 'Refunds within thirty days.' });
         await settle();
 
-        expect(await setup.repository.findOneDocument('notes', 'doc')).toMatchObject({ status: 'pending' });
+        expect(await setup.service.findOneDocument('notes', 'doc')).toMatchObject({ status: 'pending' });
 
         setup.clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
 
@@ -567,14 +1382,14 @@ describe('managed collections', () => {
     it('a collection deleted and created again while the poll reads the list keeps its new loop', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
-        const { repository } = setup;
-        const find = repository.findCollections.bind(repository);
+        const { service } = setup;
+        const find = service.findCollections.bind(service);
         let armed = false;
         let raced = false;
 
         await knowledge.createCollection('notes');
 
-        repository.findCollections = async () => {
+        service.findCollections = async () => {
             const records = await find();
 
             // the next poll: its snapshot still holds the old record
@@ -619,20 +1434,20 @@ describe('managed collections', () => {
             updatedAt: at,
         };
 
-        await setup.repository.saveCollection({
-            ...declared, 
-            name: 'old', 
-            status: 'orphaned', 
+        await setup.service.saveCollection({
+            ...declared,
+            name: 'old',
+            status: 'orphaned',
         });
-        await setup.repository.saveCollection({
-            ...declared, 
-            name: 'elsewhere', 
-            status: 'ready', 
+        await setup.service.saveCollection({
+            ...declared,
+            name: 'elsewhere',
+            status: 'ready',
         });
-        await setup.repository.saveCollection({
-            ...declared, 
-            name: 'docs', 
-            status: 'ready', 
+        await setup.service.saveCollection({
+            ...declared,
+            name: 'docs',
+            status: 'ready',
         });
         await knowledge.createCollection('notes');
 
@@ -642,7 +1457,7 @@ describe('managed collections', () => {
         await expect(knowledge.deleteCollection('docs')).rejects.toBeInstanceOf(InvalidRunStateError);
         await expect(knowledge.deleteCollection('elsewhere')).rejects.toBeInstanceOf(InvalidRunStateError);
 
-        expect((await setup.repository.findCollections()).map((collection) => collection.name)).toEqual(['docs', 'elsewhere']);
+        expect((await setup.service.findCollections()).map((collection) => collection.name)).toEqual(['docs', 'elsewhere']);
     });
 
     it('putDocument and deleteDocument refuse a missing or unmanaged collection and invalid input', async () => {
@@ -650,7 +1465,7 @@ describe('managed collections', () => {
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
         const at = new Date(setup.clock.now());
 
-        await setup.repository.saveCollection({
+        await setup.service.saveCollection({
             name: 'docs',
             kind: 'declared',
             trusted: true,
@@ -673,6 +1488,8 @@ describe('managed collections', () => {
         for (const input of [
             { id: '', content: 'x' },
             { id: 'a\0b', content: 'x' },
+            { id: 'a\uD800b', content: 'x' },
+            { id: 'a\uDFFFb', content: 'x' },
             { id: 'x'.repeat(256), content: 'x' },
             { id: 'doc', content: '' },
             { id: 'doc', content: 'x'.repeat(MANAGED_CONTENT_MAX_CHARS + 1) },
@@ -692,7 +1509,7 @@ describe('managed collections', () => {
             await expect(knowledge.putDocument('notes', input as never)).rejects.toBeInstanceOf(ValidationError);
         }
 
-        expect(await setup.repository.findDocuments('notes')).toEqual({ data: [], total: 0 });
+        expect(await setup.service.findDocuments('notes')).toEqual({ data: [], total: 0 });
         expect(await knowledge.putDocument('notes', valid)).toEqual({ status: 'pending', changed: true });
         expect(await knowledge.deleteDocument('notes', 'doc')).toBe(true);
         expect(await knowledge.deleteDocument('notes', 'doc')).toBe(false);

@@ -7,15 +7,17 @@
 
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import {
+    advanceLockFence,
     highestGeneration,
     messageOf,
-    sameOrigin,
     settled,
+    writeOptionsOf,
 } from '../indexer/helpers.ts';
 import { embedDocument } from '../indexer/module.ts';
-import type { KnowledgeCollection, KnowledgeDocument } from '../repository/types.ts';
+import { withOrigin } from '../service/helpers.ts';
+import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import { MANAGED_PAGE_SIZE } from './constants.ts';
-import { isProviderRejection, needsReembed } from './helpers.ts';
+import { isAbandoned, isProviderRejection, needsReembed } from './helpers.ts';
 import type { SyncManagedInput } from './types.ts';
 
 /** What embedding one document left: `stop` ends the pass (the lock or the collection is gone). */
@@ -23,7 +25,7 @@ type Outcome = { stop: true } | { stop: false; dimensions: number | undefined };
 
 /** Whether the stored record is still the managed collection the pass read (not deleted, not re-created). */
 async function isSameCollection(input: SyncManagedInput, record: KnowledgeCollection): Promise<KnowledgeCollection | undefined> {
-    const current = await input.repository.findOneCollection(input.name);
+    const current = await input.service.findOneCollection(input.name);
 
     if (!current || current.kind !== 'managed' || current.createdAt.getTime() !== record.createdAt.getTime()) {
         return undefined;
@@ -35,9 +37,11 @@ async function isSameCollection(input: SyncManagedInput, record: KnowledgeCollec
 /**
  * Embeds one document with `model` and writes its chunks at `generation`,
  * then marks it `ready` there, both only while the stored document still has
- * the hash, title and source that were embedded (the chunks carry a copy of
- * title and source; a PUT meanwhile leaves it `pending` for the next round)
- * and the collection is the one the pass read. A document deleted between
+ * the hash that was embedded (new content PUT meanwhile leaves it `pending`
+ * for the next round) and the collection is the one the pass read. The
+ * chunks carry the title and source stored at the ready write: a PUT of new
+ * details meanwhile has the chunks written again under them, never the old
+ * details `ready` under the new version. A document deleted between
  * the re-read and the ready write gets its chunks of that generation removed
  * again. A provider rejection
  * marks it `failed` with the error and removes its chunks of that generation
@@ -53,7 +57,7 @@ async function embedOne(
 ): Promise<Outcome> {
     const {
         name,
-        repository,
+        service,
         signal,
         lock,
     } = input;
@@ -85,35 +89,98 @@ async function embedOne(
         return { stop: true };
     }
 
-    const current = await repository.findOneDocument(name, document.id);
+    let current = await service.findOneDocument(name, document.id);
 
-    if (!current || current.hash !== document.hash || !sameOrigin(current, document)) {
+    if (!current || current.hash !== document.hash) {
         // replaced or deleted while it was embedded
         return { stop: false, dimensions: embedded?.dimensions ?? dimensions };
     }
 
     if (!embedded) {
-        await repository.replaceChunks(name, document.id, generation, []);
-        await repository.updateDocument(name, document.id, document, {
+        await service.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
+        await service.updateDocument(name, document.id, current, {
             status: 'failed',
             error: messageOf(rejection),
             generation,
-        });
+        }, writeOptionsOf(lock));
 
         return { stop: false, dimensions };
     }
 
-    await repository.replaceChunks(name, document.id, generation, embedded.chunks);
+    // same content: the vectors hold, the chunks take the title and source stored now (a PUT may have changed them)
+    for (;;) {
+        // a stop ends the loop: each round writes again
+        signal.throwIfAborted();
 
-    if (
-        !await repository.updateDocument(name, document.id, document, { status: 'ready', generation }) &&
-        !await repository.findOneDocument(name, document.id)
-    ) {
-        // deleted after the re-read: the chunks just written would be searchable orphans
-        await repository.replaceChunks(name, document.id, generation, []);
+        const chunks = embedded.chunks.map((chunk) => withOrigin(chunk, current!));
+
+        await service.replaceChunks(name, document.id, generation, chunks, writeOptionsOf(lock));
+
+        if (await service.updateDocument(name, document.id, current, { status: 'ready', generation }, writeOptionsOf(lock))) {
+            break;
+        }
+
+        current = await service.findOneDocument(name, document.id);
+
+        if (!current) {
+            // deleted after the re-read: the chunks just written would be searchable orphans
+            await service.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
+
+            break;
+        }
+
+        // replaced: pending for the next round; new details only: written again under them
+        if (current.hash !== document.hash || !await lock.renew()) {
+            break;
+        }
     }
 
     return { stop: false, dimensions: embedded.dimensions };
+}
+
+/**
+ * Abandons the re-embed the record names as pending (its model or chunker
+ * is not the default any more): every document at that generation is set
+ * `pending` at the served generation (a page per write; embedded there by
+ * the pass), the generation's chunks are deleted, then `pending` is cleared
+ * on the record read again. In this order a pass ending in between leaves
+ * `pending` set, so the next one repeats the step. The record, or undefined
+ * when the pass ends (the lock or the collection is gone).
+ */
+async function abandon(input: SyncManagedInput, stored: KnowledgeCollection): Promise<KnowledgeCollection | undefined> {
+    const {
+        name,
+        service,
+        clock,
+        signal,
+        lock,
+    } = input;
+    const { generation } = stored.pending!;
+
+    // a page per transaction: the collection row stays locked for one page only
+    while (await service.requeueGeneration(name, generation, stored.generation, MANAGED_PAGE_SIZE, writeOptionsOf(lock)) > 0) {
+        signal.throwIfAborted();
+
+        if (!await lock.renew()) {
+            return undefined;
+        }
+    }
+
+    await service.deleteGeneration(name, generation, writeOptionsOf(lock));
+
+    const current = await isSameCollection(input, stored);
+
+    if (current?.pending?.generation !== generation) {
+        return undefined;
+    }
+
+    const record: KnowledgeCollection = { ...current, updatedAt: new Date(clock.now()) };
+
+    delete record.pending;
+
+    await service.saveCollection(record, writeOptionsOf(lock));
+
+    return record;
 }
 
 /**
@@ -131,7 +198,7 @@ async function reembed(
 ): Promise<KnowledgeCollection | undefined> {
     const {
         name,
-        repository,
+        service,
         clock,
         signal,
         lock,
@@ -142,8 +209,6 @@ async function reembed(
     if (record.pending?.model === model && record.pending.chunker === CHUNKER_VERSION) {
         target = record.pending.generation;
     } else {
-        const abandoned = record.pending?.generation;
-
         // never a number given out before: documents of an abandoned generation still name it
         target = highestGeneration(record) + 1;
 
@@ -163,24 +228,20 @@ async function reembed(
             lastGeneration: target,
             updatedAt: new Date(clock.now()),
         };
-        await repository.saveCollection(record);
-
-        if (abandoned !== undefined) {
-            await repository.deleteGeneration(name, abandoned);
-        }
+        await service.saveCollection(record, writeOptionsOf(lock));
     }
 
     let dimensions = record.pending?.dimensions;
 
     // the ids now: a document PUT later is pending and embedded after the switch
-    for (const id of await repository.findDocumentIds(name)) {
+    for (const id of await service.findDocumentIds(name)) {
         signal.throwIfAborted();
 
         if (!await lock.renew()) {
             return undefined;
         }
 
-        const document = await repository.findOneDocument(name, id);
+        const document = await service.findOneDocument(name, id);
 
         // deleted meanwhile, or written for this generation by an interrupted re-embed
         if (!document || (document.generation === target && document.status !== 'pending')) {
@@ -210,7 +271,7 @@ async function reembed(
                 pending: { ...current.pending, dimensions: outcome.dimensions },
                 updatedAt: new Date(clock.now()),
             };
-            await repository.saveCollection(record);
+            await service.saveCollection(record, writeOptionsOf(lock));
         }
 
         ({ dimensions } = outcome);
@@ -244,10 +305,10 @@ async function reembed(
         updatedAt: new Date(clock.now()),
     };
 
-    await repository.saveCollection(next);
+    await service.saveCollection(next, writeOptionsOf(lock));
 
     if (previous > 0) {
-        await repository.deleteGeneration(name, previous);
+        await service.deleteGeneration(name, previous, writeOptionsOf(lock));
     }
 
     return next;
@@ -255,25 +316,58 @@ async function reembed(
 
 /**
  * One pass over a managed collection. Re-reads the record (missing or no
- * longer managed: nothing to do). A stale record (another default model or
- * chunker) is re-embedded first when `reembed` asks for it or the record
- * names that re-embed as pending (see `reembed`). Then every `pending`
- * document, in id order, is embedded at the served generation and model
- * (see `embedOne`); a stale record whose served model is not available here
- * keeps them pending until a re-embed. The record itself is written only by
- * a re-embed.
+ * longer managed: nothing to do). A pending re-embed for another model or
+ * chunker than the default is abandoned first (see `abandon`). A stale
+ * record (another default model or chunker) is re-embedded first when
+ * `reembed` asks for it or the record names that re-embed as pending (see
+ * `reembed`). Then every `pending` document, in id order, is embedded at the
+ * served generation and model (see `embedOne`); a stale record whose served
+ * model is not available here keeps them pending until a re-embed. The
+ * record itself is written only by a re-embed or an abandon. Every write
+ * carries the lock's fence (a `LeaseLostError` once another owner took the
+ * lock).
  */
 export async function syncManaged(input: SyncManagedInput): Promise<void> {
     const {
         name,
-        repository,
+        service,
         signal,
         lock,
     } = input;
-    let record = await repository.findOneCollection(name);
+    let record = await service.findOneCollection(name);
 
     if (record?.kind !== 'managed') {
         return;
+    }
+
+    if (lock.fence === undefined) {
+        // the record appeared after the loop advanced the fence (no row then):
+        // take a token while the lock holds, then decide on what is stored from here on
+        if (!await lock.renew()) {
+            return;
+        }
+
+        await advanceLockFence(service, name, lock);
+
+        // gone again (nothing to write, and never a write without a token), or a stall
+        // inside the advance outlasted the lease (never a write with that token)
+        if (lock.fence === undefined || !await lock.renew()) {
+            return;
+        }
+
+        record = await service.findOneCollection(name);
+
+        if (record?.kind !== 'managed') {
+            return;
+        }
+    }
+
+    if (isAbandoned(record, input.model)) {
+        record = await abandon(input, record);
+
+        if (!record) {
+            return;
+        }
     }
 
     if (needsReembed(record, input.model) && (input.reembed || record.pending?.model === input.model)) {
@@ -296,7 +390,7 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
     for (;;) {
         signal.throwIfAborted();
 
-        const { data } = await repository.findDocuments(name, {
+        const { data } = await service.findDocuments(name, {
             status: 'pending',
             limit: MANAGED_PAGE_SIZE,
             offset,

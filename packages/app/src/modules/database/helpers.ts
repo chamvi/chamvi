@@ -21,6 +21,7 @@ import {
     DATABASE_PREFIX,
     DEFAULT_DATABASE_NAME,
     MIGRATIONS_TABLE_PATTERN,
+    OWNED_MIGRATIONS_TABLES,
     RESERVED_DATABASE_NAMES,
     RESERVED_MIGRATIONS_TABLE,
     RESERVED_MIGRATIONS_TABLE_PREFIXES,
@@ -92,7 +93,9 @@ export function buildDescriptor(options: DatabaseModuleOptions): DatabaseDescrip
         );
     }
 
-    const reserved = RESERVED_MIGRATIONS_TABLE_PREFIXES.find((prefix) => table.startsWith(prefix));
+    const reserved = OWNED_MIGRATIONS_TABLES.includes(table) ?
+        undefined :
+        RESERVED_MIGRATIONS_TABLE_PREFIXES.find((prefix) => table.startsWith(prefix));
 
     if (reserved) {
         throw new InvalidAgentDefinitionError(
@@ -121,6 +124,17 @@ export function readWaitTimeout(options: DatabaseModuleOptions): number | undefi
 
     if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < 1 || value > TIMER_MAX_MS) {
         throw new InvalidAgentDefinitionError(`databaseModule's waitTimeoutMs must be a whole number of milliseconds from 1 to ${TIMER_MAX_MS}.`);
+    }
+
+    return value;
+}
+
+/** The boolean option `key` of `databaseModule(options)`, else InvalidAgentDefinitionError. */
+export function readFlag(options: DatabaseModuleOptions, key: 'postgres' | 'installExtensions'): boolean | undefined {
+    const value = options[key];
+
+    if (value !== undefined && typeof value !== 'boolean') {
+        throw new InvalidAgentDefinitionError(`databaseModule's ${key} must be a boolean.`);
     }
 
     return value;

@@ -8,7 +8,8 @@
 import type { IClock, ILockService } from '@chamvi/core';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
 import type { KnowledgeErrorContext } from '../knowledge/types.ts';
-import type { IKnowledgeRepository, KnowledgeChunkInput } from '../repository/types.ts';
+import type { IKnowledgeService, KnowledgeFence } from '../service/types.ts';
+import type { KnowledgeChunkInput } from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 
 /** Embeds texts with the model of a stored identity, one vector per text. */
@@ -18,11 +19,17 @@ export type KnowledgeEmbed = (model: string, texts: string[], signal: AbortSigna
 export type KnowledgeIndexLock = {
     /** Whether the lock is still this owner's (re-acquired once half the TTL passed). */
     renew(): Promise<boolean>;
+    /**
+     * The collection's fence token, advanced once the lock was taken (and once
+     * a first pass created the record); every write of the pass carries it,
+     * so a pass whose lock another owner took is refused (`LeaseLostError`).
+     */
+    fence?: KnowledgeFence;
 };
 
 export type SyncCollectionInput = {
     definition: ResolvedKnowledgeCollection;
-    repository: IKnowledgeRepository;
+    service: IKnowledgeService;
     embed: KnowledgeEmbed;
     clock: IClock;
     signal: AbortSignal;
@@ -50,7 +57,7 @@ export type KnowledgePass = (lock: KnowledgeIndexLock, report: (error: unknown) 
 export type CollectionLoopInput = {
     /** The collection (the lock `knowledge:<name>`, the error context). */
     name: string;
-    repository: IKnowledgeRepository;
+    service: IKnowledgeService;
     locks: Pick<ILockService, 'acquire' | 'release'>;
     owner: string;
     clock: IClock;
@@ -60,6 +67,8 @@ export type CollectionLoopInput = {
     wake: KnowledgeWake;
     /** The time from the end of a pass (on any replica) to the next one; absent: a wake only. */
     idleMs?: number;
+    /** How often an idle loop reads its record: a missing one (deleted elsewhere) runs a pass; absent: never. */
+    checkMs?: number;
 };
 
 export type EmbedDocumentInput = {

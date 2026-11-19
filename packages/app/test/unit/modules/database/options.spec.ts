@@ -13,6 +13,7 @@ import { configModule, databaseModule } from '@chamvi/app';
 import type { AppMode, DatabaseModuleOptions } from '@chamvi/app';
 import { memoryStoreModule } from '@chamvi/app/testing';
 import {
+    CHAMVI_OWNED_MIGRATIONS_TABLES,
     DATABASE_LOCK_PREFIX,
     DATABASE_MIGRATIONS_TABLE_PATTERN,
     RESERVED_TABLE_PREFIXES,
@@ -21,6 +22,7 @@ import {
 import {
     DATABASE_PREFIX,
     MIGRATIONS_TABLE_PATTERN,
+    OWNED_MIGRATIONS_TABLES,
     RESERVED_DATABASE_NAMES,
     RESERVED_MIGRATIONS_TABLE_PREFIXES,
 } from '../../../../src/modules/database/constants.ts';
@@ -110,10 +112,32 @@ describe('databaseModule options', () => {
         expect(() => databaseModule(notesDatabase({ migrationsTableName: 'my_chamvi_migrations' }))).not.toThrow();
     });
 
+    it('chamvi_vector_migrations is accepted and any other chamvi_ table still refused', () => {
+        expect(() => databaseModule(notesDatabase({ migrationsTableName: 'chamvi_vector_migrations' }))).not.toThrow();
+
+        for (const table of ['chamvi_vector', 'chamvi_vector_migrations_2', 'chamvi_migrations']) {
+            expect(() => databaseModule(notesDatabase({ migrationsTableName: table })), table).toThrow(/chamvi's own store and TypeORM/);
+        }
+    });
+
+    it('postgres: true without DATABASE_URL fails the setup', async () => {
+        const { error } = await setupError(notesDatabase({ name: 'vector', postgres: true }));
+
+        expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(error?.message).toBe('The database "vector" needs PostgreSQL: set DATABASE_URL.');
+    });
+
+    it('refuses postgres or installExtensions that is no boolean', () => {
+        expect(() => databaseModule(notesDatabase({ postgres: 'yes' as never }))).toThrow(/postgres/);
+        expect(() => databaseModule(notesDatabase({ installExtensions: 0 as never }))).toThrow(/installExtensions/);
+        expect(() => databaseModule(notesDatabase({ postgres: false, installExtensions: true }))).not.toThrow();
+    });
+
     it('applies the table rule @chamvi/store-db applies', () => {
         expect(MIGRATIONS_TABLE_PATTERN.source).toBe(DATABASE_MIGRATIONS_TABLE_PATTERN.source);
         expect(MIGRATIONS_TABLE_PATTERN.flags).toBe(DATABASE_MIGRATIONS_TABLE_PATTERN.flags);
         expect(RESERVED_MIGRATIONS_TABLE_PREFIXES).toEqual(RESERVED_TABLE_PREFIXES);
+        expect(OWNED_MIGRATIONS_TABLES).toEqual(CHAMVI_OWNED_MIGRATIONS_TABLES);
     });
 
     it.each([0, -1, 1.5, NaN, 2 ** 31, '1000'])('refuses the wait limit %j', (waitTimeoutMs) => {

@@ -30,6 +30,9 @@ const PORT = /\bI[A-Z]\w*Repository\b/g;
 /** A repository token, by its key (`RUN_REPOSITORY`) or its value (`chamvi.run-repository`). */
 const TOKEN = /\b[A-Z][A-Z_]*_REPOSITORY\b|\bchamvi\.[a-z-]+-repository\b/g;
 
+/** The ports of `@chamvi/knowledge`, built on the generic one. */
+const KNOWLEDGE_PORTS = ['IKnowledgeCollectionRepository', 'IKnowledgeDocumentRepository', 'IKnowledgeChunkRepository'];
+
 /**
  * The files that may name a repository port or a repository token, each
  * with its reason; `names` narrows an exemption to those names. Everything
@@ -68,9 +71,22 @@ const PORT_EXEMPTIONS: Array<{
         reason: 'the database guide\'s sample app: its own port on the generic one; a chamvi store port is no exemption there',
     },
     {
-        test: (path) => path.startsWith('packages/knowledge/src/'),
-        names: ['IKnowledgeRepository'],
-        reason: '@chamvi/knowledge keeps its own IKnowledgeRepository until plan 039; a chamvi store port is no exemption there',
+        test: (path) => path.startsWith('packages/knowledge/src/store/') ||
+            path.startsWith('packages/knowledge/src/service/') ||
+            path.startsWith('packages/store-db-vector/src/'),
+        names: ['IEntityRepository', ...KNOWLEDGE_PORTS],
+        reason: 'the knowledge ports and their memory repositories, the knowledge service and its context type, ' +
+            'and the pgvector repositories: the knowledge ports only, a chamvi store port is no exemption there',
+    },
+    {
+        test: (path) => [
+            'packages/knowledge/src/knowledge/module.ts',
+            'packages/knowledge/src/knowledge/types.ts',
+            'packages/knowledge/src/module/types.ts',
+        ].includes(path),
+        names: ['IKnowledgeCollectionRepository'],
+        reason: 'the options of createKnowledge() and knowledgeModule() and the knowledge\'s repository field: they take the ' +
+            'collection repository a backend provides and hand it to the knowledge service, which alone reads and writes it',
     },
 ];
 
@@ -236,16 +252,18 @@ describe('layering', () => {
             { path: 'packages/github/src/b.ts', source: 'import store, { type ILockRepository as L } from \'@chamvi/store\';' },
             { path: 'packages/github/src/c.ts', source: 'container.resolve(AppToken.STEP_REPOSITORY);\nnew TypedToken(\'chamvi.lock-repository\');' },
             {
-                path: 'packages/knowledge/src/d.ts',
-                source: 'import type { IKnowledgeRepository } from \'./types.ts\';\nimport type { IRunRepository } from \'@chamvi/store\';',
+                path: 'packages/knowledge/src/store/d.ts',
+                source: 'import type { IKnowledgeCollectionRepository } from \'./types.ts\';\nimport type { IRunRepository } from \'@chamvi/store\';',
             },
+            { path: 'packages/knowledge/src/indexer/e.ts', source: 'import type { IKnowledgeCollectionRepository } from \'../store/types.ts\';' },
             { path: 'packages/core/src/run/service.ts', source: 'import type { IRunRepository } from \'@chamvi/store\';' },
         ])).toEqual([
             'packages/github/src/a.ts names IRunRepository',
             'packages/github/src/b.ts names ILockRepository',
             'packages/github/src/c.ts names STEP_REPOSITORY',
             'packages/github/src/c.ts names chamvi.lock-repository',
-            'packages/knowledge/src/d.ts names IRunRepository',
+            'packages/knowledge/src/store/d.ts names IRunRepository',
+            'packages/knowledge/src/indexer/e.ts names IKnowledgeCollectionRepository',
         ]);
     });
 

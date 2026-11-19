@@ -42,7 +42,7 @@ function notFound(): RepositoryNotFoundError {
 }
 
 function readHandler(knowledge: IKnowledge): Handler {
-    const { repository } = knowledge;
+    const { service } = knowledge;
 
     return async ({
         request,
@@ -57,7 +57,7 @@ function readHandler(knowledge: IKnowledge): Handler {
         }
 
         if (name === undefined) {
-            const records = await repository.findCollections();
+            const records = await service.findCollections();
             const now = new Date(ctx.clock.now());
             const readable = await Promise.all(records.map((record) => can(principal, KNOWLEDGE_READ_PERMISSION, {
                 attributes: { name: record.name },
@@ -71,7 +71,7 @@ function readHandler(knowledge: IKnowledge): Handler {
         }
 
         if (sub === undefined) {
-            const record = await repository.findOneCollectionOrFail(name);
+            const record = await service.findOneCollectionOrFail(name);
 
             return { status: 200, body: toCollectionView(knowledge.view(record)) };
         }
@@ -83,9 +83,9 @@ function readHandler(knowledge: IKnowledge): Handler {
         if (id === undefined) {
             const query = readDocumentQuery(new URL(request.request.url));
 
-            await repository.findOneCollectionOrFail(name);
+            await service.findOneCollectionOrFail(name);
 
-            const page = await repository.findDocuments(name, query);
+            const page = await service.findDocuments(name, query);
             const body: KnowledgeDocumentListView = {
                 data: page.data.map((document) => toDocumentView(document)),
                 meta: {
@@ -98,7 +98,7 @@ function readHandler(knowledge: IKnowledge): Handler {
             return { status: 200, body };
         }
 
-        const document = await repository.findOneDocumentOrFail(name, documentIdOf(id));
+        const document = await service.findOneDocumentOrFail(name, documentIdOf(id));
 
         return { status: 200, body: toDocumentView(document, true) };
     };

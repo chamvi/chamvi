@@ -29,7 +29,7 @@ import {
 } from '../indexer/constants.ts';
 import {
     createWake,
-    lockKey,
+    isLeaseLost,
     messageOf,
     sameDetails,
     sameOrigin,
@@ -40,9 +40,10 @@ import { KNOWLEDGE_MANAGED_COMPONENT_NAME, KNOWLEDGE_MANAGED_POLL_MS } from '../
 import { managedDocumentProblem, needsReembed } from '../managed/helpers.ts';
 import { syncManaged } from '../managed/module.ts';
 import type { ManagedLoop } from '../managed/types.ts';
-import { copy } from '../repository/helpers.ts';
-import type { IKnowledgeRepository, KnowledgeCollection, KnowledgeDocument } from '../repository/types.ts';
+import { copy, lockKey } from '../service/helpers.ts';
+import type { IKnowledgeService } from '../service/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
+import type { IKnowledgeCollectionRepository, KnowledgeCollection } from '../store/types.ts';
 import { normalizeOptions, resolveCollection, resolveEmbeddingModel } from './helpers.ts';
 import type {
     IKnowledge,
@@ -54,7 +55,9 @@ import type {
 const NO_DEFAULT_MODEL = 'Managed collections need an embedding model: set CHAMVI_KNOWLEDGE_MODEL or knowledgeModule({ embeddingModel }).';
 
 class Knowledge implements IKnowledge {
-    readonly repository: IKnowledgeRepository;
+    readonly repository: IKnowledgeCollectionRepository;
+
+    readonly service: IKnowledgeService;
 
     protected readonly locks: Pick<ILockService, 'acquire' | 'release'>;
 
@@ -108,6 +111,7 @@ class Knowledge implements IKnowledge {
         const normalized = normalizeOptions(options);
 
         this.repository = normalized.repository;
+        this.service = normalized.service;
         this.locks = normalized.locks;
         this.models = normalized.models;
         this.clock = normalized.clock;
@@ -210,7 +214,7 @@ class Knowledge implements IKnowledge {
         const embed = (model: string, texts: string[], abortSignal: AbortSignal) => this.embed(model, texts, abortSignal);
         const managed = new Map<string, ManagedLoop>();
         const tasks = [
-            markOrphans(this.repository, new Set(this.collections.keys()), this.locks, this.owner, this.clock)
+            markOrphans(this.service, new Set(this.collections.keys()), this.locks, this.owner, this.clock)
                 .catch((error: unknown) => this.onError(error, {})),
             ...this.collections.values().map((definition) => {
                 const wake = createWake();
@@ -219,7 +223,7 @@ class Knowledge implements IKnowledge {
 
                 const task = runCollection({
                     name: definition.name,
-                    repository: this.repository,
+                    service: this.service,
                     locks: this.locks,
                     owner: this.owner,
                     clock: this.clock,
@@ -227,9 +231,11 @@ class Knowledge implements IKnowledge {
                     onError: this.onError,
                     wake,
                     ...(definition.resyncMs === undefined ? {} : { idleMs: definition.resyncMs }),
+                    // a record deleted on another replica (#120) is rebuilt without a resync or a restart
+                    checkMs: KNOWLEDGE_MANAGED_POLL_MS,
                     pass: (lock, report) => syncCollection({
                         definition,
-                        repository: this.repository,
+                        service: this.service,
                         embed,
                         clock: this.clock,
                         signal,
@@ -296,7 +302,7 @@ class Knowledge implements IKnowledge {
         this.deletedDuringPoll = deleted;
 
         try {
-            records = await this.repository.findCollections();
+            records = await this.service.findCollections();
         } finally {
             this.deletedDuringPoll = undefined;
         }
@@ -333,7 +339,7 @@ class Knowledge implements IKnowledge {
         const wake = createWake();
         const task = runCollection({
             name,
-            repository: this.repository,
+            service: this.service,
             locks: this.locks,
             owner: this.owner,
             clock: this.clock,
@@ -388,7 +394,7 @@ class Knowledge implements IKnowledge {
         try {
             await syncManaged({
                 name,
-                repository: this.repository,
+                service: this.service,
                 embed: (model, texts, abortSignal) => this.embed(model, texts, abortSignal),
                 hasModel: (model) => this.hasEmbedding(model),
                 ...(this.defaultModel === undefined ? {} : { model: this.defaultModel }),
@@ -443,9 +449,11 @@ class Knowledge implements IKnowledge {
 
         let record: KnowledgeCollection;
 
+        const exists = () => new InvalidRunStateError(`Knowledge collection "${name}" exists.`);
+
         try {
-            if (await this.repository.findOneCollection(name)) {
-                throw new InvalidRunStateError(`Knowledge collection "${name}" exists.`);
+            if (await this.service.findOneCollection(name)) {
+                throw exists();
             }
 
             const now = new Date(this.clock.now());
@@ -462,7 +470,10 @@ class Knowledge implements IKnowledge {
                 updatedAt: now,
             };
 
-            await this.repository.saveCollection(record);
+            // insert only: a record another owner created after the check (a lease that ran out) is never replaced
+            await this.service.saveCollection(record, { create: true }).catch((error: unknown) => {
+                throw isLeaseLost(error) ? exists() : error;
+            });
         } finally {
             await this.locks.release(key, owner);
         }
@@ -477,7 +488,7 @@ class Knowledge implements IKnowledge {
             throw new InvalidRunStateError(`Knowledge collection "${name}" is declared by this app; remove it from the code first.`);
         }
 
-        const record = await this.repository.findOneCollection(name);
+        const record = await this.service.findOneCollection(name);
 
         if (!record) {
             return false;
@@ -494,7 +505,7 @@ class Knowledge implements IKnowledge {
         this.reembeds.delete(name);
         this.deletedDuringPoll?.add(name);
 
-        const deleted = await this.repository.deleteCollection(name);
+        const deleted = await this.service.deleteCollection(name);
 
         // its lock released, so the name can be created again at once (runCollection never rejects)
         await loop?.task;
@@ -504,7 +515,7 @@ class Knowledge implements IKnowledge {
 
     /** The managed record of `name`, else RepositoryNotFoundError (missing) or InvalidRunStateError. */
     protected async managedRecord(name: string): Promise<KnowledgeCollection> {
-        const record = await this.repository.findOneCollection(name);
+        const record = await this.service.findOneCollection(name);
 
         if (!record) {
             throw new RepositoryNotFoundError('knowledge collections');
@@ -527,30 +538,35 @@ class Knowledge implements IKnowledge {
         await this.managedRecord(collection);
 
         const hash = contentHash(input.content);
-        const existing = await this.repository.findOneDocument(collection, input.id);
         const details = {
             ...(input.title === undefined ? {} : { title: input.title }),
             ...(input.source === undefined ? {} : { source: input.source }),
             ...(input.metadata === undefined ? {} : { metadata: input.metadata }),
         };
+        let existing = await this.service.findOneDocument(collection, input.id);
 
         // a failed document is embedded again, also for the same content (the provider may accept it now)
-        if (existing && existing.status !== 'failed' && existing.hash === hash && sameOrigin(existing, input)) {
+        while (existing && existing.status !== 'failed' && existing.hash === hash) {
             if (sameDetails(existing, input)) {
                 return { status: existing.status, changed: false };
             }
 
-            // new metadata only: the chunks carry title and source, nothing to embed
-            const kept: KnowledgeDocument = { ...existing, updatedAt: new Date(this.clock.now()) };
+            // a pending document with a new title or source is stored pending again (its embed may be in flight)
+            if (existing.status !== 'ready' && !sameOrigin(existing, input)) {
+                break;
+            }
 
-            delete kept.metadata;
+            // the vectors hold: one versioned write of the details to the document and its chunks,
+            // also checking the status read (a pending document failed meanwhile is requeued below)
+            if (await this.service.updateDetails(collection, input.id, existing, details)) {
+                return { status: existing.status, changed: true };
+            }
 
-            await this.repository.saveDocument({ ...kept, ...details });
-
-            return { status: existing.status, changed: true };
+            // another PUT or the pass wrote meanwhile: decide on what is stored now
+            existing = await this.service.findOneDocument(collection, input.id);
         }
 
-        await this.repository.saveDocument({
+        await this.service.saveDocument({
             collection,
             id: input.id,
             content: input.content,
@@ -570,7 +586,7 @@ class Knowledge implements IKnowledge {
     async deleteDocument(collection: string, id: string): Promise<boolean> {
         await this.managedRecord(collection);
 
-        return this.repository.deleteDocument(collection, id);
+        return this.service.deleteDocument(collection, id);
     }
 
     view(record: KnowledgeCollection): KnowledgeCollection {
@@ -701,7 +717,7 @@ class Knowledge implements IKnowledge {
                 }
             }
 
-            const record = await this.repository.findOneCollection(definition.name);
+            const record = await this.service.findOneCollection(definition.name);
 
             if (record?.kind === 'managed') {
                 throw managedNameError(definition.name);

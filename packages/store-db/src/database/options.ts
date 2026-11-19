@@ -10,6 +10,7 @@ import { pinTimezone } from 'typeorm-extension';
 import { DatabaseOptionsError } from '../error/options.ts';
 import {
     CHAMVI_MIGRATIONS_TABLE,
+    CHAMVI_OWNED_MIGRATIONS_TABLES,
     DATABASE_MIGRATIONS_TABLE_PATTERN,
     POSTGRES_PROTOCOLS,
     RESERVED_TABLE_PREFIXES,
@@ -27,8 +28,8 @@ import type { DatabaseOptions, DatabaseOptionsInput } from './types.ts';
  * PostgreSQL (the UTC pin builds on its types), nothing on SQLite.
  * Throws `DatabaseOptionsError` (naming the option, never the URL) for a
  * URL that is not PostgreSQL, a migrations table that is no plain
- * identifier, is `migrations` or starts with `chamvi_` or
- * `typeorm_metadata`, no URL in `migrate` mode, and no URL in
+ * identifier, is `migrations` or starts with `chamvi_` (but for
+ * `CHAMVI_OWNED_MIGRATIONS_TABLES`) or `typeorm_metadata`, no URL in `migrate` mode, and no URL in
  * production.
  */
 function assertInput(input: DatabaseOptionsInput): void {
@@ -45,7 +46,9 @@ function assertInput(input: DatabaseOptionsInput): void {
         throw new DatabaseOptionsError(`migrationsTableName cannot be "${CHAMVI_MIGRATIONS_TABLE}": chamvi's own store records its migrations there.`);
     }
 
-    const reserved = RESERVED_TABLE_PREFIXES.find((prefix) => table.startsWith(prefix));
+    const reserved = CHAMVI_OWNED_MIGRATIONS_TABLES.includes(table) ?
+        undefined :
+        RESERVED_TABLE_PREFIXES.find((prefix) => table.startsWith(prefix));
 
     if (reserved) {
         throw new DatabaseOptionsError(`migrationsTableName cannot start with "${reserved}": chamvi's own store and TypeORM name their tables so.`);
@@ -85,6 +88,7 @@ export function buildDatabaseOptions(input: DatabaseOptionsInput): DatabaseOptio
             synchronize: false,
             logging: false,
             connectTimeoutMS: input.connectTimeoutMs,
+            ...(input.installExtensions !== undefined && { installExtensions: input.installExtensions }),
         };
 
         return { kind: 'postgres', options: pinTimezone(options, 'UTC') };

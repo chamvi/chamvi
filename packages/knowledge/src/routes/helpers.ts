@@ -13,7 +13,7 @@ import type {
     KnowledgeDocument,
     KnowledgeDocumentFindOptions,
     KnowledgeDocumentStatus,
-} from '../repository/types.ts';
+} from '../store/types.ts';
 import { KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH } from '../source/constants.ts';
 import { isDocumentId } from '../source/helpers.ts';
 import { KNOWLEDGE_DOCUMENTS_DEFAULT_LIMIT, KNOWLEDGE_DOCUMENTS_MAX_LIMIT } from './constants.ts';
@@ -43,7 +43,7 @@ export function parseSubpath(subpath: string): string[] {
 /** The document id of a path segment, else ValidationError. */
 export function documentIdOf(segment: string): string {
     if (!isDocumentId(segment)) {
-        throw new ValidationError(`A knowledge document id must be 1 to ${KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH} characters without NUL.`);
+        throw new ValidationError(`A knowledge document id must be 1 to ${KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH} well-formed characters without NUL.`);
     }
 
     return segment;

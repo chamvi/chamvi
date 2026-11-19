@@ -17,7 +17,7 @@ import {
     expect,
     it,
 } from 'vitest';
-import { InvalidAgentDefinitionError, defineModelAgent } from '@chamvi/core';
+import { InvalidAgentDefinitionError, defineModelAgent, systemClock } from '@chamvi/core';
 import type { Agent, IClock } from '@chamvi/core';
 import { ControllableClock, mockEmbeddingModel, mockModel } from '@chamvi/test-kit';
 import {
@@ -38,6 +38,7 @@ import type { ModuleHarness, ModuleHarnessOptions } from '@chamvi/app/testing';
 import {
     KNOWLEDGE_MANAGED_POLL_MS,
     KNOWLEDGE_ROUTE_PATH,
+    KnowledgeService,
     contentHash,
     createMemoryKnowledgeRepository,
     defineKnowledgeSource,
@@ -384,6 +385,7 @@ describe('knowledgeModule()', () => {
     it('indexes in start mode and the engine\'s tools reach the knowledge', async () => {
         const model = mockEmbeddingModel();
         const repository = createMemoryKnowledgeRepository();
+        const service = new KnowledgeService({ repository, clock: systemClock });
         const module = knowledgeModule({
             repository,
             collections: [knowledgeCollection('docs', { model: 'mock/embed', sources: [folder(await docsDir())] })],
@@ -399,7 +401,7 @@ describe('knowledgeModule()', () => {
         expect(module.knowledge.collection('docs')?.embedding).toBe(model);
         expect(module.knowledge.repository).toBe(repository);
 
-        const ready = await waitForReady(repository, 'docs');
+        const ready = await waitForReady(service, 'docs');
 
         expect(ready).toMatchObject({ kind: 'declared', model: 'mock/embed' });
         expect(model.calls.length).toBeGreaterThan(0);
@@ -433,15 +435,16 @@ describe('knowledgeModule()', () => {
     ] as const)('%s never indexes nor contributes routes, even when asked to start', async (_, options) => {
         const model = mockEmbeddingModel();
         const repository = createMemoryKnowledgeRepository();
+        const service = new KnowledgeService({ repository, clock: systemClock });
         const at = new Date('2026-11-01T00:00:00Z');
 
         // a managed collection with a pending document: no managed loop may embed it
-        await repository.saveCollection({
+        await service.saveCollection({
             ...record('notes', 'managed'), 
             status: 'ready', 
             generation: 1, 
         });
-        await repository.saveDocument({
+        await service.saveDocument({
             collection: 'notes',
             id: 'a',
             content: 'alpha beta',
@@ -476,24 +479,25 @@ describe('knowledgeModule()', () => {
         await runHooks(harness.container, 'started');
 
         expect(model.calls).toHaveLength(0);
-        expect((await repository.findCollections()).map((entry) => entry.name)).toEqual(['notes']);
-        expect((await repository.findOneDocument('notes', 'a'))?.status).toBe('pending');
+        expect((await service.findCollections()).map((entry) => entry.name)).toEqual(['notes']);
+        expect((await service.findOneDocument('notes', 'a'))?.status).toBe('pending');
     });
 
     it('contributes the managed poll as knowledge-managed and runs no poll of its own', async () => {
         const model = mockEmbeddingModel();
         const repository = createMemoryKnowledgeRepository();
+        const service = new KnowledgeService({ repository, clock: systemClock });
         const at = new Date('2026-11-01T00:00:00Z');
 
         // a managed collection another instance left with a pending document
-        await repository.saveCollection({
+        await service.saveCollection({
             ...record('notes', 'managed'),
             model: 'mock-provider/mock-model-id',
             status: 'ready',
             generation: 1,
             lastGeneration: 1,
         });
-        await repository.saveDocument({
+        await service.saveDocument({
             collection: 'notes',
             id: 'a',
             content: 'alpha beta',
@@ -514,7 +518,7 @@ describe('knowledgeModule()', () => {
         expect(harness.container.resolve(AppToken.COMPONENT_LIST).map((entry) => entry.name)).toContain('knowledge-managed');
 
         // the components module started it: the indexing first, so its first pass (at once) started the loop
-        await expect.poll(async () => (await repository.findOneDocument('notes', 'a'))?.status).toBe('ready');
+        await expect.poll(async () => (await service.findOneDocument('notes', 'a'))?.status).toBe('ready');
         expect(knowledge.managedPoll.status().lastSuccessAt).toBeTypeOf('number');
 
         // runManagedPoll: false: the knowledge's own stop and start leave the poll to the components
@@ -560,16 +564,16 @@ describe('knowledgeModule()', () => {
 
     it('the start and the listen do not wait for the managed poll\'s first pass', async () => {
         const repository = createMemoryKnowledgeRepository();
-        const findCollections = repository.findCollections.bind(repository);
+        const findMany = repository.findMany.bind(repository);
         const gate = Promise.withResolvers<void>();
         let reads = 0;
 
-        // the first pass's read hangs (a slow or unreachable store) until the gate opens
-        repository.findCollections = async () => {
+        // the first pass's read (the collection list) hangs (a slow or unreachable store) until the gate opens
+        repository.findMany = async (query) => {
             reads++;
             await gate.promise;
 
-            return findCollections();
+            return findMany(query);
         };
 
         const module = knowledgeModule({
@@ -626,8 +630,9 @@ describe('knowledgeModule()', () => {
         ['check', { check: true }],
     ] as const)('a managed record of a declared name fails setup (%s)', async (_, options) => {
         const repository = createMemoryKnowledgeRepository();
+        const service = new KnowledgeService({ repository, clock: systemClock });
 
-        await repository.saveCollection(record('docs', 'managed'));
+        await service.saveCollection(record('docs', 'managed'));
 
         const harness = buildModuleHarness({
             ...options,
@@ -648,7 +653,7 @@ describe('knowledgeModule()', () => {
             'Knowledge collection "docs" is managed in the store; a declared collection cannot take its name.',
         ));
         // a check reads, never writes
-        expect(await repository.findCollections()).toEqual([record('docs', 'managed')]);
+        expect(await service.findCollections()).toEqual([record('docs', 'managed')]);
     });
 
     it('a string model the app cannot resolve fails setup', async () => {
@@ -716,6 +721,7 @@ describe('knowledgeModule()', () => {
     it('stopping aborts indexing', async () => {
         const model = gatedModel();
         const repository = createMemoryKnowledgeRepository();
+        const service = new KnowledgeService({ repository, clock: systemClock });
         const harness = await harnessOf({
             knowledge: knowledgeModule({
                 repository,
@@ -733,7 +739,7 @@ describe('knowledgeModule()', () => {
         expect(call?.abortSignal?.aborted).toBe(true);
         expect(harness.reported).toEqual([]);
 
-        const stored = await waitForCollection(repository, 'docs', () => true);
+        const stored = await waitForCollection(service, 'docs', () => true);
 
         expect(stored.status).toBe('pending');
         expect(stored.generation).toBe(0);

@@ -5,8 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-export const copy = <T>(value: T): T => structuredClone(value);
-
 /**
  * Orders strings by Unicode code point, like Postgres `COLLATE "C"` on
  * UTF-8 (`<` compares UTF-16 code units, which puts an astral character
@@ -34,33 +32,4 @@ export function compareCodePoints(a: string, b: string): number {
             return diff;
         }
     }
-}
-
-/**
- * Cosine similarity of two vectors of one length; `undefined` for vectors of
- * different lengths (two models never meet in one generation), 0 when one
- * of them is the zero vector.
- */
-export function cosineSimilarity(a: readonly number[], b: readonly number[]): number | undefined {
-    if (a.length !== b.length) {
-        return undefined;
-    }
-
-    let dot = 0;
-    let left = 0;
-    let right = 0;
-
-    for (const [index, value] of a.entries()) {
-        const other = b[index]!;
-
-        dot += value * other;
-        left += value * value;
-        right += other * other;
-    }
-
-    if (left === 0 || right === 0) {
-        return 0;
-    }
-
-    return dot / Math.sqrt(left * right);
 }

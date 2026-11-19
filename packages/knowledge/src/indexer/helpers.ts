@@ -6,17 +6,15 @@
  */
 
 import type { IClock, ILockService } from '@chamvi/core';
+import { ErrorCode } from '@chamvi/core';
+import { isObject } from 'smob';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import type { ResolvedKnowledgeCollection } from '../collection/types.ts';
-import type { KnowledgeCollection, KnowledgeDocument } from '../repository/types.ts';
+import type { IKnowledgeService, KnowledgeFence, KnowledgeWriteOptions } from '../service/types.ts';
+import type { KnowledgeCollection, KnowledgeDocument } from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { KNOWLEDGE_LOCK_TTL_MS } from './constants.ts';
 import type { KnowledgeIndexLock, KnowledgeWake, KnowledgeWakeReason } from './types.ts';
-
-/** The store lock of a collection's indexer. */
-export function lockKey(collection: string): string {
-    return `knowledge:${collection}`;
-}
 
 export function messageOf(error: unknown): string {
     return Error.isError(error) ? error.message : String(error);
@@ -139,6 +137,43 @@ export function createIndexLock(
     };
 }
 
+/** The write options of a pass under `lock`: its fence, once it has one. */
+export function writeOptionsOf(lock: KnowledgeIndexLock): KnowledgeWriteOptions {
+    return lock.fence === undefined ? {} : { fence: lock.fence };
+}
+
+/**
+ * Advances the collection's fence and gives `lock` the new token (none for a
+ * missing collection); answers it. Every caller renews the lock right after
+ * and writes nothing when that fails: a holder stalled inside the advance
+ * past its lease never uses the token it got over the current owner's.
+ */
+export async function advanceLockFence(
+    service: Pick<IKnowledgeService, 'advanceFence'>,
+    name: string,
+    lock: KnowledgeIndexLock,
+): Promise<KnowledgeFence | undefined> {
+    const fence = await service.advanceFence(name);
+
+    if (fence === undefined) {
+        delete lock.fence;
+    } else {
+        lock.fence = fence;
+    }
+
+    return fence;
+}
+
+/** A write refused for a fence another owner advanced (LeaseLostError, by code across core copies). */
+export function isLeaseLost(error: unknown): boolean {
+    return isObject(error) && error.code === ErrorCode.LEASE_LOST;
+}
+
+/** A write refused for a row deleted meanwhile (RepositoryNotFoundError, by code across core copies). */
+export function isRepositoryNotFound(error: unknown): boolean {
+    return isObject(error) && error.code === ErrorCode.REPOSITORY_NOT_FOUND;
+}
+
 /** Whether the record serves the definition's model and chunker (nothing to re-embed). */
 export function servesDefinition(record: KnowledgeCollection, definition: ResolvedKnowledgeCollection): boolean {
     return record.generation > 0 &&
@@ -151,10 +186,34 @@ export function sameOrigin(stored: KnowledgeDocument, input: KnowledgeDocumentIn
     return stored.title === input.title && stored.source === input.source;
 }
 
-/** Whether a stored document needs no new record: same title, source and metadata. */
+/** Whether `value` is a plain object (`{}` or without a prototype), not a boxed primitive or a class instance. */
+function isPlainObject(value: unknown): value is Record<string, unknown> {
+    if (!isObject(value)) {
+        return false;
+    }
+
+    const prototype: unknown = Object.getPrototypeOf(value);
+
+    return prototype === Object.prototype || prototype === null;
+}
+
+/**
+ * The JSON of `value` with every plain object's keys sorted (arrays keep
+ * their order, `toJSON` applies first, a boxed primitive stays its value).
+ */
+function canonicalJson(value: unknown): string | undefined {
+    return JSON.stringify(value, (_key, item: unknown) => (isPlainObject(item) ?
+        Object.fromEntries(Object.keys(item).sort().map((key) => [key, item[key]])) :
+        item));
+}
+
+/**
+ * Whether a stored document needs no new record: same title, source and
+ * metadata, key order aside (a jsonb column reads its keys back reordered).
+ */
 export function sameDetails(stored: KnowledgeDocument, input: KnowledgeDocumentInput): boolean {
     return sameOrigin(stored, input) &&
-        JSON.stringify(stored.metadata) === JSON.stringify(input.metadata);
+        canonicalJson(stored.metadata) === canonicalJson(input.metadata);
 }
 
 /** The record without a pending re-embed. */

@@ -14,29 +14,14 @@ import { isObject } from 'smob';
 import { isEmbeddingModelObject, modelIdentity } from '../collection/helpers.ts';
 import { knowledgeCollection } from '../collection/module.ts';
 import type { EmbeddingModelRef, KnowledgeCollectionDefinition, ResolvedKnowledgeCollection } from '../collection/types.ts';
-import type { IKnowledgeRepository } from '../repository/types.ts';
+import { isKnowledgeRepository } from '../service/helpers.ts';
+import { KnowledgeService } from '../service/module.ts';
+import type { IKnowledgeService } from '../service/types.ts';
 import type { KnowledgeErrorContext, KnowledgeOptions } from './types.ts';
 
-const REPOSITORY_METHODS: readonly (keyof IKnowledgeRepository)[] = [
-    'saveCollection',
-    'findOneCollection',
-    'findOneCollectionOrFail',
-    'findCollections',
-    'deleteCollection',
-    'saveDocument',
-    'findOneDocument',
-    'findOneDocumentOrFail',
-    'findDocumentIds',
-    'findDocuments',
-    'updateDocument',
-    'deleteDocument',
-    'replaceChunks',
-    'deleteGeneration',
-    'deleteGenerationsExcept',
-    'search',
-];
-
-type NormalizedOptions = Required<Omit<KnowledgeOptions, 'models' | 'embeddingModel'>> & Pick<KnowledgeOptions, 'models' | 'embeddingModel'>;
+type NormalizedOptions = Required<Omit<KnowledgeOptions, 'models' | 'embeddingModel'>> & Pick<KnowledgeOptions, 'models' | 'embeddingModel'> & {
+    service: IKnowledgeService;
+};
 
 function messageOf(error: unknown): string {
     return Error.isError(error) ? error.message : String(error);
@@ -44,11 +29,6 @@ function messageOf(error: unknown): string {
 
 function hasMethods(value: unknown, methods: readonly string[]): boolean {
     return isObject(value) && methods.every((method) => typeof value[method] === 'function');
-}
-
-/** Whether `value` has every method of IKnowledgeRepository. */
-export function isKnowledgeRepository(value: unknown): value is IKnowledgeRepository {
-    return hasMethods(value, REPOSITORY_METHODS);
 }
 
 /** The options checked, with their defaults (InvalidAgentDefinitionError). */
@@ -106,6 +86,7 @@ export function normalizeOptions(options: KnowledgeOptions): NormalizedOptions {
 
     return {
         repository: options.repository,
+        service: new KnowledgeService({ repository: options.repository, clock }),
         locks: options.locks,
         collections: options.collections ?? [],
         models: options.models,

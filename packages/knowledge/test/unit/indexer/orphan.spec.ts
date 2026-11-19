@@ -11,6 +11,7 @@ import {
     describe, 
     expect, 
     it, 
+    vi,
 } from 'vitest';
 import type { IKnowledge, KnowledgeCollectionKind } from '@chamvi/knowledge';
 import {
@@ -36,7 +37,7 @@ afterEach(async () => {
 async function seed(setup: IndexerSetup, name: string, kind: KnowledgeCollectionKind): Promise<void> {
     const now = new Date(setup.clock.now());
 
-    await setup.repository.saveCollection({
+    await setup.service.saveCollection({
         name,
         kind,
         trusted: true,
@@ -48,7 +49,7 @@ async function seed(setup: IndexerSetup, name: string, kind: KnowledgeCollection
         createdAt: now,
         updatedAt: now,
     });
-    await setup.repository.replaceChunks(name, 'kept.md', 1, [{
+    await setup.service.replaceChunks(name, 'kept.md', 1, [{
         index: 0,
         text: 'kept',
         start: 0,
@@ -56,7 +57,7 @@ async function seed(setup: IndexerSetup, name: string, kind: KnowledgeCollection
         vector: [1, 0],
         title: 'kept.md',
     }]);
-    await setup.repository.saveDocument({
+    await setup.service.saveDocument({
         collection: name,
         id: 'kept.md',
         content: 'kept',
@@ -79,12 +80,12 @@ describe('orphaned collections', () => {
         started.push(knowledge);
         knowledge.start();
 
-        const orphaned = await waitForCollection(setup.repository, 'old', (found) => found.status === 'orphaned');
+        const orphaned = await waitForCollection(setup.service, 'old', (found) => found.status === 'orphaned');
 
         expect(orphaned).toMatchObject({ generation: 1, kind: 'declared' });
-        expect(await setup.repository.findDocumentIds('old')).toEqual(['kept.md']);
-        expect(await setup.repository.search('old', 1, [1, 0], { topK: 1 })).toHaveLength(1);
-        await waitForReady(setup.repository, 'docs');
+        expect(await setup.service.findDocumentIds('old')).toEqual(['kept.md']);
+        expect(await setup.service.search('old', 1, [1, 0], { topK: 1 })).toHaveLength(1);
+        await waitForReady(setup.service, 'docs');
     });
 
     it('marks orphans also without any declared collection', async () => {
@@ -97,7 +98,7 @@ describe('orphaned collections', () => {
         started.push(knowledge);
         knowledge.start();
 
-        await waitForCollection(setup.repository, 'old', (found) => found.status === 'orphaned');
+        await waitForCollection(setup.service, 'old', (found) => found.status === 'orphaned');
     });
 
     it('leaves a managed record alone', async () => {
@@ -111,9 +112,9 @@ describe('orphaned collections', () => {
         started.push(knowledge);
         knowledge.start();
 
-        await waitForCollection(setup.repository, 'old', (found) => found.status === 'orphaned');
+        await waitForCollection(setup.service, 'old', (found) => found.status === 'orphaned');
 
-        expect((await setup.repository.findOneCollection('managed'))?.status).toBe('ready');
+        expect((await setup.service.findOneCollection('managed'))?.status).toBe('ready');
     });
 
     it('serves an orphaned collection again once it is declared again', async () => {
@@ -121,8 +122,8 @@ describe('orphaned collections', () => {
         const model = mockEmbeddingModel();
 
         await seed(setup, 'old', 'declared');
-        await setup.repository.saveCollection({
-            ...(await setup.repository.findOneCollectionOrFail('old')),
+        await setup.service.saveCollection({
+            ...(await setup.service.findOneCollectionOrFail('old')),
             status: 'orphaned',
         });
 
@@ -131,7 +132,7 @@ describe('orphaned collections', () => {
         started.push(knowledge);
         knowledge.start();
 
-        const collection = await waitForReady(setup.repository, 'old');
+        const collection = await waitForReady(setup.service, 'old');
 
         expect(collection.status).toBe('ready');
         // same content, same generation, same model: nothing to embed
@@ -148,10 +149,73 @@ describe('orphaned collections', () => {
 
         started.push(knowledge);
         knowledge.start();
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await knowledge.stop();
 
-        expect((await setup.repository.findOneCollection('old'))?.status).toBe('ready');
+        expect((await setup.service.findOneCollection('old'))?.status).toBe('ready');
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('leaves a record alone when another owner advanced its fence during the mark', async () => {
+        const setup = createIndexerSetup();
+
+        await seed(setup, 'old', 'declared');
+
+        const knowledge = setup.adopt(createKnowledge(setup.options({})));
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        const gate = Promise.withResolvers<void>();
+        // the mark waits, as a store slower than the lease would
+        const held = vi.spyOn(service, 'saveCollection').mockImplementationOnce(async (...args) => {
+            await gate.promise;
+
+            return save(...args);
+        });
+
+        started.push(knowledge);
+        knowledge.start();
+
+        try {
+            await expect.poll(() => held.mock.calls.length).toBe(1);
+            // another owner took the lock and advanced the fence
+            await service.advanceFence('old');
+        } finally {
+            // also on a failure: stop() waits for the held mark
+            gate.resolve();
+        }
+
+        await expect.poll(() => held.mock.settledResults[0]?.type).toBe('rejected');
+        await knowledge.stop();
+
+        expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost' } });
+        expect((await setup.service.findOneCollection('old'))?.status).toBe('ready');
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('leaves a record deleted during its mark and marks the others', async () => {
+        const setup = createIndexerSetup();
+
+        await seed(setup, 'a-old', 'declared');
+        await seed(setup, 'b-old', 'declared');
+
+        const knowledge = setup.adopt(createKnowledge(setup.options({})));
+        const { service } = knowledge;
+        const save = service.saveCollection.bind(service);
+        // deleted between the mark's advance and its save
+        const deleted = vi.spyOn(service, 'saveCollection').mockImplementationOnce(async (...args) => {
+            await service.deleteCollection(args[0].name);
+
+            return save(...args);
+        });
+
+        started.push(knowledge);
+        knowledge.start();
+
+        await waitForCollection(setup.service, 'b-old', (found) => found.status === 'orphaned');
+        await knowledge.stop();
+
+        expect(deleted.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'repository_not_found' } });
+        expect(await setup.service.findOneCollection('a-old')).toBeUndefined();
         expect(setup.errors).toEqual([]);
     });
 });

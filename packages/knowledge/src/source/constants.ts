@@ -11,5 +11,5 @@ export const FOLDER_EXTENSIONS: readonly string[] = Object.freeze(['.md', '.mark
 /** folder() skips (and reports) a file larger than this. */
 export const FOLDER_FILE_MAX_BYTES = 1_048_576;
 
-/** A document id is 1 to this many characters, without NUL. */
+/** A document id is 1 to this many well-formed characters (no lone surrogate), without NUL. */
 export const KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH = 255;

@@ -11,8 +11,8 @@ import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
 import { assertCollectionName } from '../collection/helpers.ts';
-import { compareCodePoints } from '../repository/helpers.ts';
-import type { KnowledgeMatch } from '../repository/types.ts';
+import { compareCodePoints } from '../store/helpers.ts';
+import type { KnowledgeMatch } from '../store/types.ts';
 import {
     KNOWLEDGE_QUERY_MAX_LENGTH,
     KNOWLEDGE_SEARCH_DEFAULT_RESULTS,

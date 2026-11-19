@@ -172,7 +172,7 @@ The module checks its options when called, builds the knowledge in `setup` (a mo
 ## Sources
 
 - `folder(path, { extensions?, trusted? })`: every `.md`, `.markdown`, `.mdx` and `.txt` file below `path` (resolved against the cwd when called), sorted by path, dot entries skipped. The id and source are the relative POSIX path, the title the first `# ` heading outside fenced code blocks, else the file name. Symbolic links (to files or directories, never followed), files that are no regular file, files over 1 MiB, files that are not UTF-8 and relative paths over 255 characters are reported through `onError` and skipped (a document skipped so is deleted); the rest indexes. Subdirectories that cannot be listed and files that cannot be read are reported and skipped too, but mark the read incomplete, so their documents stay indexed. A path that is no directory fails `knowledge.check()` (the boot and `start --check`).
-- `defineKnowledgeSource({ kind?, trusted?, check?, documents })`: your own; `documents(ctx)` yields `{ id, content, title?, source?, metadata? }`. An invalid item (an id that is empty, over 255 characters or holds NUL, content that is no string, metadata that is no plain object or cannot be cloned) is reported by id and skipped. `ctx.incomplete(reason)` marks a read that a transient failure cut short: the pass deletes no document and a re-embed does not switch. `check()` validates the configuration up front; an `InvalidAgentDefinitionError` from a source is stored and reported once, never retried.
+- `defineKnowledgeSource({ kind?, trusted?, check?, documents })`: your own; `documents(ctx)` yields `{ id, content, title?, source?, metadata? }`. An invalid item (an id that is empty, over 255 characters, holds a lone surrogate or NUL, content that is no string, metadata that is no plain object or cannot be cloned) is reported by id and skipped. `ctx.incomplete(reason)` marks a read that a transient failure cut short: the pass deletes no document and a re-embed does not switch. `check()` validates the configuration up front; an `InvalidAgentDefinitionError` from a source is stored and reported once, never retried.
 
 A document id is stable: yielding the same id with new content replaces the document, an id no source yields any more is deleted (unless a source marked its read incomplete).
 
@@ -214,7 +214,9 @@ Each collection has a `trusted` flag: `folder()` and custom sources are trusted 
 
 ## Repository
 
-`IKnowledgeRepository` stores collections, documents and passage vectors. `createMemoryKnowledgeRepository()` keeps them in the process; persistent backends implement the same contract and run `describeKnowledgeRepositoryContract()` from `@chamvi/test-kit`.
+`createMemoryKnowledgeRepository()` returns the root port `IKnowledgeCollectionRepository`: the collections, with their documents and passage vectors as child repositories (`documents`, `chunks`), kept in the process. `createKnowledge({ repository })` builds a `KnowledgeService` over it (`knowledge.service`), which holds every rule: the orders, the version guards, the errors and the fence.
+
+Each pass advances its collection's fence once it holds the lock `knowledge:<name>`, and every write of the pass carries it: a pass whose lock lapsed and was taken by another owner writes nothing more (`LeaseLostError`, the pass ends quietly), and a collection deleted meanwhile is never written back. A persistent backend implements the three ports and runs `describeKnowledgeRepositoryContract({ name, create })` from `@chamvi/test-kit`, with `create` returning a `KnowledgeService` over fresh repositories.
 
 ## Not built yet
 

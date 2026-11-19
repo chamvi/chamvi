@@ -31,6 +31,13 @@ export const CHAMVI_MIGRATIONS_TABLE = 'migrations';
 export const RESERVED_TABLE_PREFIXES: readonly string[] = ['chamvi_', 'typeorm_metadata'];
 
 /**
+ * The migrations tables of chamvi's own app databases (the knowledge
+ * vector store): the only `chamvi_` names an app database may record its
+ * migrations in.
+ */
+export const CHAMVI_OWNED_MIGRATIONS_TABLES: readonly string[] = ['chamvi_vector_migrations'];
+
+/**
  * TypeORM's errors of an entity or metadata mistake (their messages name
  * entities, properties and columns), reported as a configuration error;
  * `TypeORMError` itself is what its metadata builder throws for a

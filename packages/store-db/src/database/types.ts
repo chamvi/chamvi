@@ -33,6 +33,11 @@ export type DatabaseOptionsInput = {
     migrationsTableName: string;
     /** How long PostgreSQL may take to accept the first connection. */
     connectTimeoutMs: number;
+    /**
+     * PostgreSQL only: whether TypeORM installs the extensions the
+     * entities' column types need; default TypeORM's (it does).
+     */
+    installExtensions?: boolean;
 };
 
 export type DatabaseOptions = {

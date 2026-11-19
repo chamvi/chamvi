@@ -137,7 +137,7 @@ function createFixture(extra: Partial<KnowledgeOptions> = {}): Fixture {
 async function saveDeclared(setup: IndexerSetup, name: string): Promise<void> {
     const at = new Date(setup.clock.now());
 
-    await setup.repository.saveCollection({
+    await setup.service.saveCollection({
         name,
         kind: 'declared',
         trusted: true,
@@ -279,7 +279,7 @@ describe('knowledgeRoutes', () => {
         const { send, setup } = createFixture();
         const at = new Date(setup.clock.now());
 
-        await setup.repository.saveCollection({
+        await setup.service.saveCollection({
             name: 'notes',
             kind: 'managed',
             trusted: false,
@@ -308,7 +308,7 @@ describe('knowledgeRoutes', () => {
 
         expect(deleted.status).toBe(204);
         expect(await deleted.text()).toBe('');
-        expect(await setup.repository.findOneCollection('notes')).toBeUndefined();
+        expect(await setup.service.findOneCollection('notes')).toBeUndefined();
         expect((await send('DELETE', `${base}/notes`)).status).toBe(404);
         expect((await send('DELETE', `${base}/docs`)).status).toBe(409);
     });
@@ -343,7 +343,7 @@ describe('knowledgeRoutes', () => {
 
         expect(put.status).toBe(202);
         expect(await put.json()).toEqual({ status: 'pending' });
-        expect(await setup.repository.findOneDocument('notes', 'a')).toMatchObject({
+        expect(await setup.service.findOneDocument('notes', 'a')).toMatchObject({
             content: 'Alpha text.',
             title: 'Alpha',
             source: 'https://example.test/a',
@@ -395,7 +395,7 @@ describe('knowledgeRoutes', () => {
         const response = await send('PUT', `${base}/notes/documents/a`, { raw: invalid });
 
         expect(response.status).toBe(400);
-        expect(await setup.repository.findOneDocument('notes', 'a')).toBeUndefined();
+        expect(await setup.service.findOneDocument('notes', 'a')).toBeUndefined();
     });
 
     it('GET /knowledge/collections/:c/documents/:id answers the view with content, or 404', async () => {
@@ -427,7 +427,7 @@ describe('knowledgeRoutes', () => {
         await send('PUT', `${base}/notes/documents/a`, { body: { content: 'Alpha text.' } });
 
         expect((await send('DELETE', `${base}/notes/documents/a`)).status).toBe(204);
-        expect(await setup.repository.findOneDocument('notes', 'a')).toBeUndefined();
+        expect(await setup.service.findOneDocument('notes', 'a')).toBeUndefined();
         expect((await send('DELETE', `${base}/notes/documents/a`)).status).toBe(404);
         expect((await send('DELETE', `${base}/missing/documents/a`)).status).toBe(404);
         expect((await send('DELETE', `${base}/other/documents/a`)).status).toBe(409);
@@ -442,7 +442,7 @@ describe('knowledgeRoutes', () => {
             await send('PUT', `${base}/notes/documents/${id}`, { body: { content: `Text ${id}.`, metadata: { id } } });
         }
 
-        await setup.repository.updateDocument('notes', 'b', { hash: contentHash('Text b.') }, { status: 'ready', generation: 1 });
+        await setup.service.updateDocument('notes', 'b', { hash: contentHash('Text b.') }, { status: 'ready', generation: 1 });
 
         const first = await send('GET', `${base}/notes/documents?page[limit]=2&page[offset]=1`);
 
@@ -451,9 +451,9 @@ describe('knowledgeRoutes', () => {
         const page = await first.json() as { data: Array<Record<string, unknown>>; meta: unknown };
 
         expect(page.meta).toEqual({
-            total: 4, 
-            limit: 2, 
-            offset: 1, 
+            total: 4,
+            limit: 2,
+            offset: 1,
         });
         expect(page.data.map((document) => document.id)).toEqual(['b', 'c']);
         expect(page.data[0]).toEqual({
@@ -470,9 +470,9 @@ describe('knowledgeRoutes', () => {
         };
 
         expect(pending.meta).toEqual({
-            total: 3, 
-            limit: 50, 
-            offset: 0, 
+            total: 3,
+            limit: 50,
+            offset: 0,
         });
         expect(pending.data.map((document) => document.id)).toEqual(['a', 'c', 'd']);
 
@@ -491,14 +491,14 @@ describe('knowledgeRoutes', () => {
         await send('POST', base, { body: { name: 'notes' } });
 
         expect((await send('PUT', path, { body: { content: 'Hello.' } })).status).toBe(202);
-        expect(await setup.repository.findDocumentIds('notes')).toEqual([id]);
+        expect(await setup.service.findDocumentIds('notes')).toEqual([id]);
         expect(await (await send('GET', path)).json()).toMatchObject({ id, content: 'Hello.' });
 
         const list = await (await send('GET', `${base}/notes/documents`)).json() as { data: Array<{ id: string }> };
 
         expect(list.data.map((document) => document.id)).toEqual([id]);
         expect((await send('DELETE', path)).status).toBe(204);
-        expect(await setup.repository.findDocumentIds('notes')).toEqual([]);
+        expect(await setup.service.findDocumentIds('notes')).toEqual([]);
     });
 
     it('refuses an id over 255 characters, an empty one and one with %00', async () => {
@@ -523,6 +523,8 @@ describe('knowledgeRoutes', () => {
         await send('POST', base, { body: { name: 'notes' } });
 
         expect((await send('GET', `${base}/notes/documents/%E0%A4%A`)).status).toBe(400);
+        // a lone surrogate (U+D800 as UTF-8) is no valid UTF-8: never an id
+        expect((await send('PUT', `${base}/notes/documents/a%ED%A0%80b`, { body: { content: 'x' } })).status).toBe(400);
 
         for (const [method, path] of [
             ['GET', KNOWLEDGE_ROUTE_PATH],
@@ -540,9 +542,9 @@ describe('knowledgeRoutes', () => {
 
     it('a PUT makes the document searchable once the background pass ran', async () => {
         const {
-            send, 
-            setup, 
-            knowledge, 
+            send,
+            setup,
+            knowledge,
         } = createFixture();
 
         knowledge.start();
@@ -550,7 +552,7 @@ describe('knowledgeRoutes', () => {
         await send('PUT', `${base}/notes/documents/a`, { body: { content: 'Alpha text.' } });
 
         await vi.waitFor(async () => {
-            expect(await setup.repository.findOneDocument('notes', 'a')).toMatchObject({ status: 'ready' });
+            expect(await setup.service.findOneDocument('notes', 'a')).toMatchObject({ status: 'ready' });
         });
 
         expect(await (await send('GET', `${base}/notes/documents/a`)).json()).toMatchObject({ status: 'ready' });

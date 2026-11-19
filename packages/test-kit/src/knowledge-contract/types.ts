@@ -6,10 +6,10 @@
  */
 
 /*
- * Structural copies of `@chamvi/knowledge`'s repository types: an import
+ * Structural copies of `@chamvi/knowledge`'s service types: an import
  * would make the kit depend on `@chamvi/knowledge`, which depends on the kit
  * for its tests, a cycle in the graph release-please builds. Every
- * `IKnowledgeRepository` is a `ContractKnowledgeRepository`.
+ * `KnowledgeService` is a `ContractKnowledgeService`.
  */
 
 export type ContractKnowledgeTarget = {
@@ -74,13 +74,35 @@ export type ContractKnowledgeMatch = {
     source?: string;
 };
 
-export type ContractKnowledgeRepository = {
-    saveCollection(collection: ContractKnowledgeCollection): Promise<void>;
+/** A stored collection: the collection with its row id (a uuid v7, given at creation) and its fence counter. */
+export type ContractKnowledgeCollectionRecord = ContractKnowledgeCollection & {
+    id: string;
+    fence: number;
+};
+
+/** A pass's fence token: the collection row's id and its fence counter. */
+export type ContractKnowledgeFence = {
+    id: string;
+    fence: number;
+};
+
+export type ContractKnowledgeWriteOptions = {
+    fence?: ContractKnowledgeFence;
+    /** `saveCollection` only: insert, never replace. */
+    create?: boolean;
+};
+
+export type ContractKnowledgeService = {
+    saveCollection(
+        collection: ContractKnowledgeCollection,
+        options?: ContractKnowledgeWriteOptions,
+    ): Promise<ContractKnowledgeCollectionRecord>;
+    advanceFence(name: string): Promise<ContractKnowledgeFence | undefined>;
     findOneCollection(name: string): Promise<ContractKnowledgeCollection | undefined>;
     findOneCollectionOrFail(name: string): Promise<ContractKnowledgeCollection>;
     findCollections(): Promise<ContractKnowledgeCollection[]>;
     deleteCollection(name: string): Promise<boolean>;
-    saveDocument(document: ContractKnowledgeDocument): Promise<void>;
+    saveDocument(document: ContractKnowledgeDocument, options?: ContractKnowledgeWriteOptions): Promise<void>;
     findOneDocument(collection: string, id: string): Promise<ContractKnowledgeDocument | undefined>;
     findOneDocumentOrFail(collection: string, id: string): Promise<ContractKnowledgeDocument>;
     findDocumentIds(collection: string): Promise<string[]>;
@@ -105,16 +127,40 @@ export type ContractKnowledgeRepository = {
             error?: string; 
             generation?: number 
         },
+        options?: ContractKnowledgeWriteOptions,
     ): Promise<boolean>;
-    deleteDocument(collection: string, id: string): Promise<boolean>;
+    updateDetails(
+        collection: string,
+        id: string,
+        version: {
+            hash: string;
+            title?: string;
+            source?: string;
+            status?: ContractKnowledgeDocumentStatus
+        },
+        details: {
+            title?: string;
+            source?: string;
+            metadata?: Record<string, unknown>
+        },
+    ): Promise<boolean>;
+    requeueGeneration(
+        collection: string,
+        generation: number,
+        target: number,
+        limit: number,
+        options?: ContractKnowledgeWriteOptions,
+    ): Promise<number>;
+    deleteDocument(collection: string, id: string, options?: ContractKnowledgeWriteOptions): Promise<boolean>;
     replaceChunks(
         collection: string,
         document: string,
         generation: number,
         chunks: ContractKnowledgeChunk[],
+        options?: ContractKnowledgeWriteOptions,
     ): Promise<void>;
-    deleteGeneration(collection: string, generation: number): Promise<void>;
-    deleteGenerationsExcept(collection: string, generation: number): Promise<void>;
+    deleteGeneration(collection: string, generation: number, options?: ContractKnowledgeWriteOptions): Promise<void>;
+    deleteGenerationsExcept(collection: string, generation: number, options?: ContractKnowledgeWriteOptions): Promise<void>;
     search(
         collection: string,
         generation: number,
@@ -123,5 +169,11 @@ export type ContractKnowledgeRepository = {
     ): Promise<ContractKnowledgeMatch[]>;
 };
 
-/** A fresh, empty repository per call. */
-export type KnowledgeRepositoryContractFactory = () => ContractKnowledgeRepository | Promise<ContractKnowledgeRepository>;
+/** A service over fresh, empty repositories per call. */
+export type KnowledgeRepositoryContractFactory = () => ContractKnowledgeService | Promise<ContractKnowledgeService>;
+
+export type KnowledgeRepositoryContractOptions = {
+    /** Label of the suite, e.g. the backend. */
+    name: string;
+    create: KnowledgeRepositoryContractFactory;
+};

@@ -9,7 +9,7 @@ import type {
     KnowledgeCollectionKind,
     KnowledgeCollectionStatus,
     KnowledgeDocumentStatus,
-} from '../repository/types.ts';
+} from '../store/types.ts';
 
 /** A collection as the REST routes answer it (dates as ISO strings). */
 export type KnowledgeCollectionView = {

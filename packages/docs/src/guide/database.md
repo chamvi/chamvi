@@ -25,6 +25,8 @@ npm install --save-dev better-sqlite3   # SQLite without DATABASE_URL: developme
 | `name` | Default `default`. The module is `chamvi:db:<name>`, its data source `dataSourceToken(name)` (`DatabaseToken.DATA_SOURCE` for `default`), its migration lock `chamvi:db:<name>`. `store` is reserved |
 | `env` | Where `DATABASE_URL` and `NODE_ENV` are read; default the app's env |
 | `waitTimeoutMs` | SQLite only: how long work waits behind one holder of the connection, default 30 s |
+| `postgres` | `true` requires PostgreSQL: without `DATABASE_URL` the start fails with `InvalidAgentDefinitionError` instead of running on SQLite in memory. Default `false` |
+| `installExtensions` | PostgreSQL only: whether TypeORM creates the extensions the entities' column types need when it connects (`CREATE EXTENSION`). Default TypeORM's (it does); `false` for a database whose migration or operator installs them, so the app needs no right to create extensions |
 
 What the module does depends on `DATABASE_URL` and on what the app is doing:
 

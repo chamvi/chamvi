@@ -139,7 +139,7 @@ fake.failNext('POST', '/repos/octo/demo/issues/7/comments', 502); // one injecte
 | `mockEmbeddingModel` | function | A deterministic AI SDK embedding model without network; its calls are recorded in `calls` |
 | `describeEntityRepositoryContract` | function | Vitest suite of an `IEntityRepository` driver, on a parent and a child fixture |
 | `describeRunRepositoryContract`, `describeStepRepositoryContract`, ..., `describeConversationRepositoryContract` | functions | Vitest suite every port's repository must pass (see [Repository contracts](#repository-contracts)) |
-| `describeKnowledgeRepositoryContract` | function | Vitest suite every `IKnowledgeRepository` of `@chamvi/knowledge` must pass |
+| `describeKnowledgeRepositoryContract` | function | Vitest suite every `@chamvi/knowledge` backend must pass, driven through a `KnowledgeService` over its repositories (`{ name, create }`) |
 | `describeWorkspaceContract` | function | Vitest suite every sandbox provider's `IWorkspace` must pass |
 | `createTestDataSource` | function | A data source for an app's database specs: SQLite in memory (guarded) or a database of its own on a PostgreSQL server |
 | `createGitFixture` | function | A temporary git repository with one commit (branch `main`, tag `v1`) |

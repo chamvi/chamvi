@@ -10,11 +10,16 @@ import { isObject } from 'smob';
 import { KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH } from './constants.ts';
 import type { KnowledgeDocumentInput } from './types.ts';
 
-/** Whether `value` is a document id: 1 to KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH characters without NUL. */
+/**
+ * Whether `value` is a document id: 1 to KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH
+ * characters, well-formed (no lone surrogate: PostgreSQL would store U+FFFD
+ * and never find the id again) and without NUL.
+ */
 export function isDocumentId(value: unknown): value is string {
     return typeof value === 'string' &&
         value.length > 0 &&
         value.length <= KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH &&
+        value.isWellFormed() &&
         !value.includes('\0');
 }
 
@@ -35,7 +40,7 @@ export function documentProblem(value: unknown, origin: 'source' | 'request' = '
 
     if (!isDocumentId(item.id)) {
         return new ValidationError(
-            `${subject} whose id is not 1 to ${KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH} characters without NUL${end}`,
+            `${subject} whose id is not 1 to ${KNOWLEDGE_DOCUMENT_ID_MAX_LENGTH} well-formed characters without NUL${end}`,
         );
     }
 

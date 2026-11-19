@@ -12,7 +12,7 @@ import { provideKnowledgeContext } from '../context/module.ts';
 import { createKnowledge } from '../knowledge/module.ts';
 import { KNOWLEDGE_MANAGED_COMPONENT_NAME } from '../managed/constants.ts';
 import type { IKnowledge } from '../knowledge/types.ts';
-import { createMemoryKnowledgeRepository } from '../repository/memory.ts';
+import { createMemoryKnowledgeRepository } from '../store/memory/collection.ts';
 import { knowledgeRoutes } from '../routes/module.ts';
 import { KNOWLEDGE_MODEL_VARIABLE, KNOWLEDGE_MODULE_NAME, MEMORY_KNOWLEDGE_WARNING } from './constants.ts';
 import { assertEnvModel, checkModuleOptions } from './helpers.ts';

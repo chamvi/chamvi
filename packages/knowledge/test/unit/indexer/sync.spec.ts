@@ -7,11 +7,11 @@
 
 import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
 import { mockEmbeddingModel } from '@chamvi/test-kit';
-import { 
-    afterEach, 
-    describe, 
-    expect, 
-    it, 
+import {
+    afterEach,
+    describe,
+    expect,
+    it,
 } from 'vitest';
 import type { IKnowledge } from '@chamvi/knowledge';
 import {
@@ -58,7 +58,7 @@ describe('syncing a declared collection', () => {
 
         start(createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model, sources: [mapSource(docs)] })] })));
 
-        const collection = await waitForReady(setup.repository, 'docs');
+        const collection = await waitForReady(setup.service, 'docs');
 
         expect(collection).toMatchObject({
             name: 'docs',
@@ -73,8 +73,8 @@ describe('syncing a declared collection', () => {
         expect(collection.pending).toBeUndefined();
         expect(collection.error).toBeUndefined();
         expect(model.calls.flatMap((call) => call.values)).toHaveLength(3);
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
-        expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(await setup.service.findOneDocument('docs', 'a.md')).toMatchObject({
             collection: 'docs',
             id: 'a.md',
             content: docs.get('a.md'),
@@ -83,10 +83,10 @@ describe('syncing a declared collection', () => {
             status: 'ready',
             generation: 1,
         });
-        expect((await setup.repository.findOneDocument('docs', 'a.md'))?.error).toBeUndefined();
+        expect((await setup.service.findOneDocument('docs', 'a.md'))?.error).toBeUndefined();
 
         const [query] = (await model.doEmbed({ values: ['refund policy'] })).embeddings;
-        const matches = await setup.repository.search('docs', 1, query!, { topK: 1 });
+        const matches = await setup.service.search('docs', 1, query!, { topK: 1 });
 
         expect(matches[0]).toMatchObject({ document: 'a.md', title: 'a.md' });
         expect(setup.errors).toEqual([]);
@@ -100,7 +100,7 @@ describe('syncing a declared collection', () => {
 
         const first = start(createKnowledge(setup.options({ collections })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await first.stop();
 
         const calls = model.calls.length;
@@ -109,7 +109,7 @@ describe('syncing a declared collection', () => {
         start(createKnowledge(setup.options({ collections })));
 
         const collection = await waitForCollection(
-            setup.repository,
+            setup.service,
             'docs',
             (found) => found.updatedAt.getTime() === setup.clock.now(),
         );
@@ -127,7 +127,7 @@ describe('syncing a declared collection', () => {
 
         const first = start(createKnowledge(setup.options({ collections })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await first.stop();
 
         const calls = model.calls.length;
@@ -138,16 +138,16 @@ describe('syncing a declared collection', () => {
 
         start(createKnowledge(setup.options({ collections })));
 
-        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
+        await waitForCollection(setup.service, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
 
         const embedded = model.calls.slice(calls).flatMap((call) => call.values);
 
         expect(embedded).toEqual(['Refunds are no longer offered.']);
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'c.md']);
-        expect((await setup.repository.findOneDocument('docs', 'a.md'))?.hash).toBe(contentHash('Refunds are no longer offered.'));
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'c.md']);
+        expect((await setup.service.findOneDocument('docs', 'a.md'))?.hash).toBe(contentHash('Refunds are no longer offered.'));
 
         const [query] = (await model.doEmbed({ values: ['Kubernetes pods scheduled nodes'] })).embeddings;
-        const matches = await setup.repository.search('docs', 1, query!, { topK: 10 });
+        const matches = await setup.service.search('docs', 1, query!, { topK: 10 });
 
         expect(matches.map((match) => match.document).sort()).toEqual(['a.md', 'c.md']);
         expect(matches.find((match) => match.document === 'a.md')?.text).toBe('Refunds are no longer offered.');
@@ -169,22 +169,22 @@ describe('syncing a declared collection', () => {
         });
         const collections = [knowledgeCollection('docs', { model, sources: [source] })];
         const [query] = (await model.doEmbed({ values: ['refund policy'] })).embeddings;
-        const search = async () => (await setup.repository.search('docs', 1, query!, { topK: 1 }))[0];
+        const search = async () => (await setup.service.search('docs', 1, query!, { topK: 1 }))[0];
 
         const first = start(createKnowledge(setup.options({ collections })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await first.stop();
 
         expect(await search()).toMatchObject({
-            document: 'a.md', 
-            title: 'Refunds', 
-            source: 'policies/refunds.md', 
+            document: 'a.md',
+            title: 'Refunds',
+            source: 'policies/refunds.md',
         });
 
         // the record alone changing never reaches a search result: the chunk carries its own copy
-        await setup.repository.saveDocument({
-            ...(await setup.repository.findOneDocumentOrFail('docs', 'a.md')),
+        await setup.service.saveDocument({
+            ...(await setup.service.findOneDocumentOrFail('docs', 'a.md')),
             title: 'Changed elsewhere',
         });
 
@@ -195,14 +195,14 @@ describe('syncing a declared collection', () => {
         setup.clock.advance(1000);
         start(createKnowledge(setup.options({ collections })));
 
-        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
+        await waitForCollection(setup.service, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
 
         expect(await search()).toMatchObject({
-            document: 'a.md', 
-            title: 'Returns', 
-            source: 'policies/returns.md', 
+            document: 'a.md',
+            title: 'Returns',
+            source: 'policies/returns.md',
         });
-        expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({
+        expect(await setup.service.findOneDocument('docs', 'a.md')).toMatchObject({
             title: 'Returns',
             source: 'policies/returns.md',
             status: 'ready',
@@ -227,7 +227,7 @@ describe('syncing a declared collection', () => {
 
         const first = start(createKnowledge(setup.options({ collections })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await first.stop();
 
         const calls = model.calls.length;
@@ -236,10 +236,48 @@ describe('syncing a declared collection', () => {
         setup.clock.advance(1000);
         start(createKnowledge(setup.options({ collections })));
 
-        await waitForCollection(setup.repository, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
+        await waitForCollection(setup.service, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
 
         expect(model.calls).toHaveLength(calls);
-        expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({ metadata: { tag: 'two' }, status: 'ready' });
+        expect(await setup.service.findOneDocument('docs', 'a.md')).toMatchObject({ metadata: { tag: 'two' }, status: 'ready' });
+    });
+
+    it('saves nothing for the same metadata in another key order', async () => {
+        const setup = createIndexerSetup();
+        let metadata: Record<string, unknown> = {
+            topic: 'x',
+            n: 1,
+            nested: { b: 2, a: 1 },
+        };
+        const source = defineKnowledgeSource({
+            async* documents() {
+                yield {
+                    id: 'a.md',
+                    content: 'Invoices are sent on the first day of each month.',
+                    metadata,
+                };
+            },
+        });
+        const collections = [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [source] })];
+
+        const first = start(createKnowledge(setup.options({ collections })));
+
+        await waitForReady(setup.service, 'docs');
+        await first.stop();
+
+        const stored = await setup.service.findOneDocument('docs', 'a.md');
+
+        metadata = {
+            nested: { a: 1, b: 2 },
+            n: 1,
+            topic: 'x',
+        };
+        setup.clock.advance(1000);
+        start(createKnowledge(setup.options({ collections })));
+
+        await waitForCollection(setup.service, 'docs', (collection) => collection.updatedAt.getTime() === setup.clock.now());
+
+        expect(await setup.service.findOneDocument('docs', 'a.md')).toEqual(stored);
     });
 
     it('saves a document without text with no chunks', async () => {
@@ -248,10 +286,10 @@ describe('syncing a declared collection', () => {
 
         start(createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model, sources: [mapSource(new Map([['empty.md', '  \n\n ']]))] })] })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
         expect(model.calls).toHaveLength(0);
-        expect(await setup.repository.findOneDocument('docs', 'empty.md')).toMatchObject({ generation: 1 });
+        expect(await setup.service.findOneDocument('docs', 'empty.md')).toMatchObject({ generation: 1 });
     });
 
     it('embeds a long document in batches of EMBED_BATCH_SIZE', async () => {
@@ -261,7 +299,7 @@ describe('syncing a declared collection', () => {
 
         start(createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model, sources: [mapSource(new Map([['long.md', paragraphs.join('\n\n')]]))] })] })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
         expect(model.calls.length).toBeGreaterThan(1);
         expect(Math.max(...model.calls.map((call) => call.values.length))).toBe(64);
@@ -281,9 +319,9 @@ describe('syncing a declared collection', () => {
             })],
         })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
-        expect((await setup.repository.findOneDocument('docs', 'a.md'))?.content).toBe('first text');
+        expect((await setup.service.findOneDocument('docs', 'a.md'))?.content).toBe('first text');
         expect(setup.errors).toHaveLength(1);
         expect(setup.errors[0]!.collection).toBe('docs');
         expect(setup.errors[0]!.error).toBeInstanceOf(ValidationError);
@@ -312,7 +350,7 @@ describe('syncing a declared collection', () => {
         const collections = [knowledgeCollection('docs', { model, sources: [source] })];
         const first = start(createKnowledge(setup.options({ collections })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await first.stop();
 
         partial = true;
@@ -321,14 +359,14 @@ describe('syncing a declared collection', () => {
         start(createKnowledge(setup.options({ collections })));
 
         const collection = await waitForCollection(
-            setup.repository,
+            setup.service,
             'docs',
             (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
         );
 
         expect(collection.error).toBeUndefined();
         // neither the unread b.md nor the removed c.md is deleted while the read was partial
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
         expect(setup.errors).toHaveLength(1);
         expect(setup.errors[0]).toMatchObject({ collection: 'docs' });
         expect((setup.errors[0]!.error as Error).message).toBe(
@@ -356,13 +394,13 @@ describe('syncing a declared collection', () => {
         });
         const first = start(createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [source] })] })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await first.stop();
 
         partial = true;
         start(createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model: gatedModel({ opened: 100 }), sources: [source] })] })));
 
-        const collection = await waitForCollection(setup.repository, 'docs', (found) => found.error !== undefined);
+        const collection = await waitForCollection(setup.service, 'docs', (found) => found.error !== undefined);
 
         expect(collection).toMatchObject({
             generation: 1,
@@ -371,7 +409,7 @@ describe('syncing a declared collection', () => {
             failures: 1,
         });
         expect(collection.error).toMatch(/only part of its documents/);
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
     });
 
     it('reports a skipped document with its collection and indexes the rest', async () => {
@@ -386,9 +424,9 @@ describe('syncing a declared collection', () => {
 
         start(createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model, sources: [source] })] })));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['ok.md']);
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['ok.md']);
         expect(setup.errors).toHaveLength(1);
         expect(setup.errors[0]!.collection).toBe('docs');
     });
@@ -399,13 +437,13 @@ describe('syncing a declared collection', () => {
 
         start(createKnowledge(setup.options({
             collections: [knowledgeCollection('docs', {
-                model, 
-                sources: [mapSource(documents())], 
-                trusted: false, 
-            })], 
+                model,
+                sources: [mapSource(documents())],
+                trusted: false,
+            })],
         })));
 
-        expect((await waitForReady(setup.repository, 'docs')).trusted).toBe(false);
+        expect((await waitForReady(setup.service, 'docs')).trusted).toBe(false);
     });
 
     it('keeps the record untrusted until the untrusted content it served is replaced', async () => {
@@ -422,7 +460,7 @@ describe('syncing a declared collection', () => {
             })],
         })));
 
-        expect((await waitForReady(setup.repository, 'docs')).trusted).toBe(false);
+        expect((await waitForReady(setup.service, 'docs')).trusted).toBe(false);
         await untrusted.stop();
 
         // the next deploy feeds the same collection from a trusted source
@@ -431,7 +469,7 @@ describe('syncing a declared collection', () => {
         start(createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model, sources: [mapSource(documents())] })] })));
 
         await expect.poll(() => model.started.length).toBe(1);
-        expect((await setup.repository.findOneCollection('docs'))?.trusted).toBe(false);
+        expect((await setup.service.findOneCollection('docs'))?.trusted).toBe(false);
 
         model.open(0);
         model.open(1);
@@ -439,20 +477,20 @@ describe('syncing a declared collection', () => {
         setup.clock.advance(1000);
 
         const ready = await waitForCollection(
-            setup.repository,
+            setup.service,
             'docs',
             (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
         );
 
         expect(ready.trusted).toBe(true);
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
     });
 
     it('downgrades the record at once when its definition is no longer trusted', async () => {
         const setup = createIndexerSetup();
         const trusted = start(createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(documents())] })] })));
 
-        expect((await waitForReady(setup.repository, 'docs')).trusted).toBe(true);
+        expect((await waitForReady(setup.service, 'docs')).trusted).toBe(true);
         await trusted.stop();
 
         const model = gatedModel({ modelId: 'mock-model-id' });
@@ -461,14 +499,14 @@ describe('syncing a declared collection', () => {
         changed.set('a.md', 'Changed text from outside.');
         start(createKnowledge(setup.options({
             collections: [knowledgeCollection('docs', {
-                model, 
-                sources: [mapSource(changed)], 
-                trusted: false, 
+                model,
+                sources: [mapSource(changed)],
+                trusted: false,
             })],
         })));
 
         await expect.poll(() => model.started.length).toBe(1);
-        expect((await setup.repository.findOneCollection('docs'))?.trusted).toBe(false);
+        expect((await setup.service.findOneCollection('docs'))?.trusted).toBe(false);
     });
 
     it('refuses a collection the store holds as managed', async () => {
@@ -476,7 +514,7 @@ describe('syncing a declared collection', () => {
         const model = mockEmbeddingModel();
         const now = new Date(setup.clock.now());
 
-        await setup.repository.saveCollection({
+        await setup.service.saveCollection({
             name: 'docs',
             kind: 'managed',
             trusted: false,
@@ -499,12 +537,12 @@ describe('syncing a declared collection', () => {
         );
         expect(model.calls).toHaveLength(0);
 
-        const stored = await setup.repository.findOneCollection('docs');
+        const stored = await setup.service.findOneCollection('docs');
 
         expect(stored).toMatchObject({
-            kind: 'managed', 
-            generation: 0, 
-            status: 'pending', 
+            kind: 'managed',
+            generation: 0,
+            status: 'pending',
         });
         expect(stored?.error).toBeUndefined();
     });

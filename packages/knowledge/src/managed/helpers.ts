@@ -8,7 +8,7 @@
 import { ValidationError } from '@chamvi/core';
 import { APICallError } from 'ai';
 import { CHUNKER_VERSION } from '../chunk/constants.ts';
-import type { KnowledgeCollection } from '../repository/types.ts';
+import type { KnowledgeCollection } from '../store/types.ts';
 import { documentProblem } from '../source/helpers.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import { MANAGED_CONTENT_MAX_CHARS } from './constants.ts';
@@ -34,6 +34,13 @@ export function needsReembed(record: KnowledgeCollection, model: string | undefi
     return model !== undefined &&
         record.kind === 'managed' &&
         (record.model !== model || record.chunker !== CHUNKER_VERSION);
+}
+
+/** Whether the record's pending re-embed targets another model or chunker than `model` and this chunker. */
+export function isAbandoned(record: KnowledgeCollection, model: string | undefined): boolean {
+    return model !== undefined &&
+        record.pending !== undefined &&
+        (record.pending.model !== model || record.pending.chunker !== CHUNKER_VERSION);
 }
 
 /** The ValidationError of a document a request sent, or undefined when it is valid. */

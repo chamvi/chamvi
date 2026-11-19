@@ -36,8 +36,7 @@ type PollSetup = IndexerSetup & {
 
 function createPollSetup(): PollSetup {
     const setup = createIndexerSetup();
-    const { repository } = setup;
-    const find = repository.findCollections.bind(repository);
+    const adopt = setup.adopt.bind(setup);
     let held: Promise<void> | undefined;
     const poll = Object.assign(setup, {
         reads: 0,
@@ -50,22 +49,32 @@ function createPollSetup(): PollSetup {
         },
     });
 
-    repository.findCollections = async () => {
-        poll.reads++;
+    // the reads are counted and held on the knowledge's own service
+    poll.adopt = (knowledge) => {
+        adopt(knowledge);
 
-        const gate = held;
+        const { service } = poll;
+        const find = service.findCollections.bind(service);
 
-        held = undefined;
-        await gate;
+        service.findCollections = async () => {
+            poll.reads++;
 
-        return find();
+            const gate = held;
+
+            held = undefined;
+            await gate;
+
+            return find();
+        };
+
+        return knowledge;
     };
 
     return poll;
 }
 
 function create(setup: IndexerSetup, extra: Partial<KnowledgeOptions> = {}): IKnowledge {
-    const knowledge = createKnowledge(setup.options({ embeddingModel: mockEmbeddingModel(), ...extra }));
+    const knowledge = setup.adopt(createKnowledge(setup.options({ embeddingModel: mockEmbeddingModel(), ...extra })));
 
     created.push(knowledge);
 
@@ -95,8 +104,8 @@ async function seedPending(setup: IndexerSetup): Promise<void> {
         updatedAt: new Date(setup.clock.now()),
     };
 
-    await setup.repository.saveCollection(record);
-    await setup.repository.saveDocument({
+    await setup.service.saveCollection(record);
+    await setup.service.saveDocument({
         collection: 'notes',
         id: 'doc',
         content: 'Refunds within thirty days.',
@@ -108,7 +117,7 @@ async function seedPending(setup: IndexerSetup): Promise<void> {
 }
 
 async function documentStatus(setup: IndexerSetup): Promise<string | undefined> {
-    return (await setup.repository.findOneDocument('notes', 'doc'))?.status;
+    return (await setup.service.findOneDocument('notes', 'doc'))?.status;
 }
 
 describe('the managed poll (createKnowledge() runs it)', () => {
@@ -152,11 +161,11 @@ describe('the managed poll (createKnowledge() runs it)', () => {
     it('reports a failed pass and tries again at the next poll', async () => {
         const setup = createPollSetup();
         const knowledge = create(setup);
-        const { repository } = setup;
-        const find = repository.findCollections;
+        const { service } = setup;
+        const find = service.findCollections;
         let fail = true;
 
-        repository.findCollections = async () => {
+        service.findCollections = async () => {
             // the orphan pass reads first; the poll's read fails once
             if (fail && setup.reads === 1) {
                 fail = false;
@@ -190,10 +199,10 @@ describe('the managed poll (createKnowledge() runs it)', () => {
         await seedPending(setup);
 
         // the orphan pass reads first, unheld; the poll's read waits
-        const find = setup.repository.findCollections;
+        const find = setup.service.findCollections;
         let release: (() => void) | undefined;
 
-        setup.repository.findCollections = () => {
+        setup.service.findCollections = () => {
             if (setup.reads === 1) {
                 release = setup.hold();
             }
@@ -228,10 +237,10 @@ describe('the managed poll (createKnowledge() runs it)', () => {
     it('a restart waits for the previous stop: the next pass begins once the stopped one settled', async () => {
         const setup = createPollSetup();
         const knowledge = create(setup);
-        const find = setup.repository.findCollections;
+        const find = setup.service.findCollections;
         let release: (() => void) | undefined;
 
-        setup.repository.findCollections = () => {
+        setup.service.findCollections = () => {
             if (setup.reads === 1) {
                 release = setup.hold();
             }

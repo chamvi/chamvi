@@ -21,11 +21,13 @@ import {
 } from 'vitest';
 import {
     AppToken,
+    DatabaseModule,
     DatabaseToken,
     configModule,
     createApp,
     dataSourceToken,
     databaseModule,
+    readDatabaseDescriptors,
 } from '@chamvi/app';
 import type { IApp, IModule } from '@chamvi/app';
 import { memoryStoreModule } from '@chamvi/app/testing';
@@ -113,6 +115,33 @@ describe('databaseModule', () => {
     it('is named after its database and depends on the config and store modules', () => {
         expect(databaseModule(notesDatabase())).toMatchObject({ name: 'chamvi:db:default', dependencies: ['chamvi:config', 'chamvi:store'] });
         expect(databaseModule(tagsDatabase()).name).toBe('chamvi:db:tags');
+    });
+
+    it('a subclass overriding name keeps the descriptor\'s name, its lock and its data source token', async () => {
+        class RenamedDatabaseModule extends DatabaseModule {
+            override readonly name = 'renamed';
+        }
+
+        const renamed = new RenamedDatabaseModule(tagsDatabase());
+        let container: IContainer | undefined;
+        const keep: IModule = {
+            name: 'keep',
+            dependencies: ['renamed'],
+            async setup(given) {
+                container = given;
+            },
+        };
+        const { app } = build([renamed, keep]);
+        const { env } = await envFor();
+
+        expect(renamed.name).toBe('renamed');
+        expect(readDatabaseDescriptors(app)).toMatchObject([{ name: 'tags', lockName: 'chamvi:db:tags' }]);
+
+        await app.start({ env });
+
+        expect(container!.resolve(dataSourceToken('tags')).isInitialized).toBe(true);
+        expect(container!.resolveAll(DatabaseToken.DESCRIPTORS)).toMatchObject([{ name: 'tags', lockName: 'chamvi:db:tags' }]);
+        expect(container!.resolveAll(AppToken.LIFECYCLE_HOOKS).map((hook) => hook.name)).toContain('chamvi:db:tags');
     });
 
     it('starts on SQLite without DATABASE_URL and serves the entities', async () => {

@@ -16,7 +16,7 @@ function knowledgeModule(options?: KnowledgeModuleOptions): KnowledgeModule; // 
 
 type KnowledgeModuleOptions = {
     collections?: readonly KnowledgeCollectionDefinition[];
-    repository?: IKnowledgeRepository; // default in memory, warned outside dev
+    repository?: IKnowledgeCollectionRepository; // default in memory, warned outside dev
     owner?: string;                     // the indexer's lock owner, default `${hostname}-${pid}`
     embeddingModel?: string | EmbeddingModel; // managed collections' model; CHAMVI_KNOWLEDGE_MODEL wins
     env?: Record<string, string | undefined>; // where CHAMVI_KNOWLEDGE_MODEL is read, default process.env
@@ -67,7 +67,7 @@ Every factory throws `InvalidAgentDefinitionError` for bad options. `folder()` n
 function createKnowledge(options: KnowledgeOptions): IKnowledge;
 
 type KnowledgeOptions = {
-    repository: IKnowledgeRepository;
+    repository: IKnowledgeCollectionRepository; // createMemoryKnowledgeRepository() or a persistent backend
     locks: Pick<LockService, 'acquire' | 'release'>; // engine.lockService: one indexer per collection across replicas
     collections?: readonly KnowledgeCollectionDefinition[];
     models?: IModelResolver;          // resolves string models (embedding())
@@ -78,7 +78,8 @@ type KnowledgeOptions = {
 };
 
 interface IKnowledge {
-    readonly repository: IKnowledgeRepository;
+    readonly repository: IKnowledgeCollectionRepository;
+    readonly service: IKnowledgeService; // over repository and clock: every read and write goes through it
     collection(name: string): ResolvedKnowledgeCollection | undefined;
     embedding(model: string): EmbeddingModel;
     start(): void;                    // indexes every declared and managed collection in the background
@@ -153,32 +154,55 @@ const KNOWLEDGE_QUERY_MAX_LENGTH: 1000;
 
 A search over an untrusted collection, or one without a record that this app does not declare trusted, taints the run (`tool:knowledge_search`).
 
-## Repository
+## Storage
 
 ```ts
-interface IKnowledgeRepository {
-    saveCollection(collection: KnowledgeCollection): Promise<void>;
+function createMemoryKnowledgeRepository(): IKnowledgeCollectionRepository;
+
+interface IKnowledgeCollectionRepository extends IEntityRepository<KnowledgeCollectionRecord> {
+    readonly documents: IKnowledgeDocumentRepository; // IEntityRepository<KnowledgeDocumentRecord>
+    readonly chunks: IKnowledgeChunkRepository;       // IEntityRepository<KnowledgeChunkRecord> with search()
+}
+
+type KnowledgeCollectionRecord = KnowledgeCollection & { id: string; fence: number };
+
+class KnowledgeService implements IKnowledgeService {
+    constructor(ctx: { repository: IKnowledgeCollectionRepository; clock: IClock });
+}
+
+interface IKnowledgeService {
+    saveCollection(collection: KnowledgeCollection, options?: KnowledgeWriteOptions): Promise<KnowledgeCollectionRecord>;
+    advanceFence(name: string): Promise<KnowledgeFence | undefined>;
     findOneCollection(name: string): Promise<KnowledgeCollection | undefined>;
     findOneCollectionOrFail(name: string): Promise<KnowledgeCollection>;
     findCollections(): Promise<KnowledgeCollection[]>;
     deleteCollection(name: string): Promise<boolean>;
-    saveDocument(document: KnowledgeDocument): Promise<void>;
+    saveDocument(document: KnowledgeDocument, options?: KnowledgeWriteOptions): Promise<void>;
     findOneDocument(collection: string, id: string): Promise<KnowledgeDocument | undefined>;
     findOneDocumentOrFail(collection: string, id: string): Promise<KnowledgeDocument>;
     findDocumentIds(collection: string): Promise<string[]>;
     findDocuments(collection: string, options?: { status?: KnowledgeDocumentStatus; limit?: number; offset?: number }): Promise<{ data: KnowledgeDocument[]; total: number }>;
-    updateDocument(collection: string, id: string, version: KnowledgeDocumentVersion, patch: { status: KnowledgeDocumentStatus; error?: string; generation?: number }): Promise<boolean>;
-    deleteDocument(collection: string, id: string): Promise<boolean>;
-    replaceChunks(collection: string, document: string, generation: number, chunks: KnowledgeChunkInput[]): Promise<void>;
-    deleteGeneration(collection: string, generation: number): Promise<void>;
-    deleteGenerationsExcept(collection: string, generation: number): Promise<void>;
+    updateDocument(collection: string, id: string, version: KnowledgeDocumentVersion, patch: { status: KnowledgeDocumentStatus; error?: string; generation?: number }, options?: KnowledgeWriteOptions): Promise<boolean>;
+    updateDetails(collection: string, id: string, version: KnowledgeDocumentVersion, details: { title?: string; source?: string; metadata?: Record<string, unknown> }): Promise<boolean>;
+    requeueGeneration(collection: string, generation: number, target: number, limit: number, options?: KnowledgeWriteOptions): Promise<number>;
+    deleteDocument(collection: string, id: string, options?: KnowledgeWriteOptions): Promise<boolean>;
+    replaceChunks(collection: string, document: string, generation: number, chunks: KnowledgeChunkInput[], options?: KnowledgeWriteOptions): Promise<void>;
+    deleteGeneration(collection: string, generation: number, options?: KnowledgeWriteOptions): Promise<void>;
+    deleteGenerationsExcept(collection: string, generation: number, options?: KnowledgeWriteOptions): Promise<void>;
     search(collection: string, generation: number, vector: number[], options: { topK: number; minScore?: number }): Promise<KnowledgeMatch[]>;
 }
 
-function createMemoryKnowledgeRepository(): MemoryKnowledgeRepository;
+type KnowledgeFence = { id: string; fence: number };
+type KnowledgeWriteOptions = { fence?: KnowledgeFence; create?: boolean };
 ```
 
-A `KnowledgeCollection` record holds the served `generation`, its `model`, `dimensions` and `chunker`, an optional `pending` re-embed, `lastGeneration` (never reused), `status` (`pending`, `ready`, `stale`, `orphaned`), `trusted`, and after a failure `error`, `failures` and `retryAt` (a `Date`). A `KnowledgeCollection` also holds `syncedAt`, the end of the last successful pass, which `resyncMs` counts from. A `KnowledgeDocument` has a `status` (`pending`, `ready`, `failed` with an `error`); `updateDocument()` writes its patch only while the stored document still has the version's `hash`, `title` and `source` (`KnowledgeDocumentVersion`; an absent value matches only an absent one). Each chunk keeps its own `title` and `source`, which search results show. Every repository runs `describeKnowledgeRepositoryContract()` from [`@chamvi/test-kit`](/reference/test-kit).
+`createMemoryKnowledgeRepository()` keeps collections, documents and chunks in the process, on one registry that enforces the collection reference like a foreign key. The repositories store and read only; `KnowledgeService` holds every rule: code-point orders, the version guards, the errors (`RepositoryNotFoundError` for a missing collection or document) and the timestamps from its clock.
+
+A `KnowledgeCollection` record holds the served `generation`, its `model`, `dimensions` and `chunker`, an optional `pending` re-embed, `lastGeneration` (never reused), `status` (`pending`, `ready`, `stale`, `orphaned`), `trusted`, and after a failure `error`, `failures` and `retryAt` (a `Date`). A `KnowledgeCollection` also holds `syncedAt`, the end of the last successful pass, which `resyncMs` counts from. Its row adds an `id` (a uuid v7 given at creation: a collection deleted and created again is another row) and the `fence` counter. A `KnowledgeDocument` has a `status` (`pending`, `ready`, `failed` with an `error`); `updateDocument()` writes its patch only while the stored document still has the version's `hash`, `title` and `source` (`KnowledgeDocumentVersion`; an absent value matches only an absent one). `updateDetails()` rewrites a document's title, source and metadata under the same guard and, for a `ready` document, the title and source of its chunks in the same transaction, without re-embedding. `requeueGeneration()` sets at most `limit` documents of one generation back to `pending` at another and answers how many. Each chunk keeps its own `title` and `source`, which search results show.
+
+**The fence.** A pass calls `advanceFence(name)` once it holds the lock `knowledge:<name>` and passes the token as `{ fence }` with each write (a declared collection's first pass saves the record with `{ create: true }`, then advances). A fenced write locks the collection row first: a missing collection is `RepositoryNotFoundError`, another fence or row id is `LeaseLostError` and nothing is written, so a pass whose lock lapsed writes nothing once another owner advanced the fence, and a collection deleted during a pass is never written back. Writes without a fence (the managed API) are never refused.
+
+Every backend runs `describeKnowledgeRepositoryContract()` from [`@chamvi/test-kit`](/reference/test-kit) with a `KnowledgeService` over its repositories.
 
 ## Chunking
 

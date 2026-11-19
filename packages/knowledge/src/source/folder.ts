@@ -16,7 +16,7 @@ import {
 } from 'node:path';
 import { InvalidAgentDefinitionError, ValidationError } from '@chamvi/core';
 import { isObject } from 'smob';
-import { compareCodePoints } from '../repository/helpers.ts';
+import { compareCodePoints } from '../store/helpers.ts';
 import { FOLDER_EXTENSIONS, FOLDER_FILE_MAX_BYTES } from './constants.ts';
 import { defineKnowledgeSource } from './module.ts';
 import type {

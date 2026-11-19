@@ -12,12 +12,13 @@ import { CHUNKER_VERSION } from '../chunk/constants.ts';
 import { managedNameError } from '../collection/helpers.ts';
 import { chunkText, contentHash } from '../chunk/module.ts';
 import type { KnowledgeErrorContext } from '../knowledge/types.ts';
+import { lockKey } from '../service/helpers.ts';
+import type { IKnowledgeService } from '../service/types.ts';
 import type {
-    IKnowledgeRepository,
     KnowledgeChunkInput,
     KnowledgeCollection,
     KnowledgeDocument,
-} from '../repository/types.ts';
+} from '../store/types.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import {
     EMBED_BATCH_SIZE,
@@ -26,9 +27,11 @@ import {
     KNOWLEDGE_RETRY_MS,
 } from './constants.ts';
 import {
+    advanceLockFence,
     createIndexLock,
     highestGeneration,
-    lockKey,
+    isLeaseLost,
+    isRepositoryNotFound,
     messageOf,
     sameDetails,
     sameOrigin,
@@ -36,6 +39,7 @@ import {
     settled,
     wait,
     withoutPending,
+    writeOptionsOf,
 } from './helpers.ts';
 import type {
     CollectionLoopInput,
@@ -155,19 +159,39 @@ export async function embedDocument(input: EmbedDocumentInput): Promise<Embedded
  * a re-embed then fails, retried on the backoff) and, for a re-embed, switches the served generation and deletes
  * the previous one. A document with unchanged content, title and source costs
  * nothing (its chunks carry the title and source). Ends early, without an
- * error, once `lock.renew()` answers false.
+ * error, once `lock.renew()` answers false. Every write carries the lock's
+ * fence (a first pass creates the record create-only, then renews the lock
+ * and advances it, ending when the token is not the created row's), so a
+ * write after another owner took the lock is a `LeaseLostError`.
  */
 export async function syncCollection(input: SyncCollectionInput): Promise<void> {
     const {
         definition,
-        repository,
+        service,
         clock,
         signal,
         lock,
     } = input;
     const { name } = definition;
     const label = `Knowledge collection "${name}"`;
-    const stored = await repository.findOneCollection(name);
+    let stored = await service.findOneCollection(name);
+
+    if (stored && lock.fence === undefined) {
+        // the record appeared after the loop advanced the fence (no row then):
+        // take a token while the lock holds, then decide on what is stored from here on
+        if (!await lock.renew()) {
+            return;
+        }
+
+        await advanceLockFence(service, name, lock);
+
+        // a stall inside the advance may have outlasted the lease: never a write with that token then
+        if (!await lock.renew()) {
+            return;
+        }
+
+        stored = await service.findOneCollection(name);
+    }
 
     if (stored?.kind === 'managed') {
         throw managedNameError(name);
@@ -222,13 +246,31 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         record = { ...record, status: record.generation > 0 ? 'stale' : 'pending' };
     }
 
-    await repository.saveCollection(record);
+    // without a token only a create: a record another owner created meanwhile is never replaced
+    const saved = await service.saveCollection(record, lock.fence === undefined ? { create: true } : writeOptionsOf(lock));
+
+    if (lock.fence === undefined) {
+        // the create may have outlasted the lease: never a token once another owner may hold it
+        if (!await lock.renew()) {
+            return;
+        }
+
+        // the record exists from here on: the writes that follow carry its fence
+        const fence = await advanceLockFence(service, name, lock);
+
+        // a stall inside the advance may have outlasted the lease (never a write with that
+        // token then); deleted (or deleted and created again) since the create: never a
+        // write without a token, nor one into another row of the name
+        if (!await lock.renew() || fence?.id !== saved.id) {
+            return;
+        }
+    }
 
     if (serves) {
         // also what a crash between an earlier switch and its cleanup left behind
-        await repository.deleteGenerationsExcept(name, target);
+        await service.deleteGenerationsExcept(name, target, writeOptionsOf(lock));
     } else if (abandoned !== undefined) {
-        await repository.deleteGeneration(name, abandoned);
+        await service.deleteGeneration(name, abandoned, writeOptionsOf(lock));
     }
 
     let dimensions = target === record.generation ? record.dimensions : record.pending?.dimensions;
@@ -262,7 +304,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
             }
 
             const hash = contentHash(document.content);
-            const existing = await repository.findOneDocument(name, document.id);
+            const existing = await service.findOneDocument(name, document.id);
 
             // a new title or source re-writes the chunks: each carries its own copy for search results
             if (
@@ -273,7 +315,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                 sameOrigin(existing, document)
             ) {
                 if (!sameDetails(existing, document)) {
-                    await repository.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())));
+                    await service.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())), writeOptionsOf(lock));
                 }
 
                 continue;
@@ -292,7 +334,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                     }
 
                     record = { ...record, pending: { ...record.pending, dimensions: length } };
-                    await repository.saveCollection(record);
+                    await service.saveCollection(record, writeOptionsOf(lock));
                 },
             });
 
@@ -305,8 +347,8 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                 return;
             }
 
-            await repository.replaceChunks(name, document.id, target, embedded.chunks);
-            await repository.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())));
+            await service.replaceChunks(name, document.id, target, embedded.chunks, writeOptionsOf(lock));
+            await service.saveDocument(documentOf(name, document, hash, target, new Date(clock.now())), writeOptionsOf(lock));
         }
     }
 
@@ -328,9 +370,9 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         // a document it could not read is no deleted document
         input.onError(new ValidationError(`${partial}; no document was deleted.`));
     } else {
-        for (const id of await repository.findDocumentIds(name)) {
+        for (const id of await service.findDocumentIds(name)) {
             if (!seen.has(id)) {
-                await repository.deleteDocument(name, id);
+                await service.deleteDocument(name, id, writeOptionsOf(lock));
             }
         }
     }
@@ -338,14 +380,14 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
     const finishedAt = new Date(clock.now());
 
     if (target === record.generation) {
-        await repository.saveCollection({
+        await service.saveCollection({
             ...settled(record),
             trusted: definition.trusted,
             ...(dimensions === undefined ? {} : { dimensions }),
             status: 'ready',
             syncedAt: finishedAt,
             updatedAt: finishedAt,
-        });
+        }, writeOptionsOf(lock));
 
         return;
     }
@@ -356,7 +398,7 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
 
     delete switched.dimensions;
 
-    await repository.saveCollection({
+    await service.saveCollection({
         ...switched,
         trusted: definition.trusted,
         generation: target,
@@ -366,21 +408,23 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         status: 'ready',
         syncedAt: finishedAt,
         updatedAt: finishedAt,
-    });
+    }, writeOptionsOf(lock));
 
     if (previous > 0) {
-        await repository.deleteGeneration(name, previous);
+        await service.deleteGeneration(name, previous, writeOptionsOf(lock));
     }
 }
 
 /**
  * Stores a failure on the declared record (never on a managed one), only while
- * the lock is still this owner's: a lost lock leaves the record to its holder.
+ * the lock is still this owner's (renewed, and the write fenced; a pass
+ * without a token advances the fence first, and with no record records
+ * nothing): a lost lock leaves the record to its holder.
  * The failure count and the time of the next attempt go with it, so every
  * replica backs off together. Whether it was stored.
  */
 async function recordErrorUnderLock(
-    repository: IKnowledgeRepository,
+    service: IKnowledgeService,
     name: string,
     error: unknown,
     clock: IClock,
@@ -390,7 +434,17 @@ async function recordErrorUnderLock(
         return false;
     }
 
-    const record = await repository.findOneCollection(name);
+    if (lock.fence === undefined) {
+        // a pass that failed before it had a token: never a write without one
+        await advanceLockFence(service, name, lock);
+
+        // a stall inside the advance may have outlasted the lease: never a write with that token then
+        if (lock.fence === undefined || !await lock.renew()) {
+            return false;
+        }
+    }
+
+    const record = await service.findOneCollection(name);
 
     if (record?.kind !== 'declared') {
         return false;
@@ -399,20 +453,20 @@ async function recordErrorUnderLock(
     const now = new Date(clock.now());
     const failures = (record.failures ?? 0) + 1;
 
-    await repository.saveCollection({
+    await service.saveCollection({
         ...record,
         error: messageOf(error),
         failures,
         retryAt: new Date(now.getTime() + backoffOf(failures)),
         updatedAt: now,
-    });
+    }, writeOptionsOf(lock));
 
     return true;
 }
 
 /** How long until the stored backoff of the collection ends (0 when none). */
-async function retryDelayOf(repository: IKnowledgeRepository, name: string, clock: IClock): Promise<number> {
-    const record = await repository.findOneCollection(name);
+async function retryDelayOf(service: IKnowledgeService, name: string, clock: IClock): Promise<number> {
+    const record = await service.findOneCollection(name);
     const retryAt = record?.kind === 'declared' ? record.retryAt : undefined;
 
     if (!retryAt) {
@@ -424,27 +478,39 @@ async function retryDelayOf(repository: IKnowledgeRepository, name: string, cloc
 }
 
 /**
- * How long until an interval pass is due (0: now): `idleMs` after the
- * stored `syncedAt`, the end of the last successful pass on any replica.
+ * How long until a pass is due (0: now; undefined: only on a wake): at once
+ * for a missing record (deleted elsewhere: rebuilt) or one no pass completed
+ * yet (a failed rebuild is retried, after its stored backoff), else, with
+ * `idleMs`, that long after the stored `syncedAt`, the end of the last
+ * successful pass on any replica.
  */
 async function dueDelayOf(
-    repository: IKnowledgeRepository,
+    service: IKnowledgeService,
     name: string,
     clock: IClock,
     idleMs: number | undefined,
-): Promise<number> {
-    if (idleMs === undefined) {
+): Promise<number | undefined> {
+    const record = await service.findOneCollection(name);
+
+    if (!record?.syncedAt) {
         return 0;
     }
 
-    const syncedAt = (await repository.findOneCollection(name))?.syncedAt;
-
-    if (!syncedAt) {
-        return 0;
+    if (idleMs === undefined) {
+        return undefined;
     }
 
     // a clock skewed between replicas never parks the loop longer than the interval
-    return Math.min(Math.max(idleMs - (clock.now() - syncedAt.getTime()), 0), idleMs);
+    return Math.min(Math.max(idleMs - (clock.now() - record.syncedAt.getTime()), 0), idleMs);
+}
+
+/** The idle wait until a due pass (none: `undefined`) or the next record check, whichever comes first. */
+function idleWaitOf(dueIn: number | undefined, checkMs: number | undefined): number | undefined {
+    if (dueIn === undefined) {
+        return checkMs;
+    }
+
+    return checkMs === undefined ? dueIn : Math.min(dueIn, checkMs);
 }
 
 /**
@@ -464,18 +530,24 @@ async function dueDelayOf(
  * meanwhile waits for it too. A configuration error
  * (InvalidAgentDefinitionError) is stored and reported once and ends the
  * loop. A failed lock acquire or store read is only reported and retried on
- * this loop's own backoff. Never rejects; an abort ends it.
+ * this loop's own backoff. Each pass first renews the lock, advances the
+ * collection's fence (`lock.fence`) and renews again (no pass when it fails); a write the fence refuses (`LeaseLostError`: another owner
+ * took the lock) ends the pass like a lost lock: nothing reported or stored,
+ * no backoff. With `checkMs`, an idle loop also reads its record that often:
+ * a missing one (deleted on another replica) or one no pass completed yet
+ * runs a pass whatever `idleMs` says; a synced one costs that read only. Never rejects; an abort ends it.
  */
 export async function runCollection(input: CollectionLoopInput): Promise<void> {
     const {
         name,
-        repository,
+        service,
         locks,
         owner,
         clock,
         signal,
         wake,
         idleMs,
+        checkMs,
     } = input;
     const key = lockKey(name);
     const context: KnowledgeErrorContext = { collection: name };
@@ -497,10 +569,10 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
         first = false;
 
         try {
-            const dueIn = reason === 'timeout' ? await dueDelayOf(repository, name, clock, idleMs) : 0;
+            const dueIn = reason === 'timeout' ? await dueDelayOf(service, name, clock, idleMs) : 0;
 
-            if (dueIn > 0) {
-                const woken = await wake.wait(clock, dueIn, signal);
+            if (dueIn !== 0) {
+                const woken = await wake.wait(clock, idleWaitOf(dueIn, checkMs), signal);
 
                 if (woken === 'abort') {
                     return;
@@ -511,7 +583,7 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                 continue;
             }
 
-            const retryIn = honourRetry ? await retryDelayOf(repository, name, clock) : 0;
+            const retryIn = honourRetry ? await retryDelayOf(service, name, clock) : 0;
 
             if (retryIn > 0) {
                 await wait(clock, retryIn, signal);
@@ -536,32 +608,47 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
         if (acquired) {
             const lock = createIndexLock(locks, key, owner, clock);
             let failure: { error: unknown; stored: boolean } | undefined;
+            // a write refused for a fence another owner advanced: the lock is lost
+            let fenced = false;
             let deferred = false;
-            let dueIn = 0;
+            let dueIn: number | undefined = 0;
 
             try {
                 // another replica may have failed between our wait and the acquire
-                deferred = honourRetry && await retryDelayOf(repository, name, clock) > 0;
+                deferred = honourRetry && await retryDelayOf(service, name, clock) > 0;
 
                 if (!deferred && reason === 'timeout') {
                     // or run this interval's pass
-                    dueIn = await dueDelayOf(repository, name, clock, idleMs);
+                    dueIn = await dueDelayOf(service, name, clock, idleMs);
                 }
 
-                if (!deferred && dueIn === 0) {
+                // the reads above may have outlasted the lease: never a token once another owner may hold it
+                if (!deferred && dueIn === 0 && await lock.renew()) {
                     // a wake from here on asks for one more pass
                     wake.clear();
-                    await input.pass(lock, report);
+                    // a pass that lost the lock before this advance writes nothing more
+                    await advanceLockFence(service, name, lock);
+
+                    // a stall inside the advance may have outlasted the lease: never a pass with that token then
+                    if (await lock.renew()) {
+                        await input.pass(lock, report);
+                    }
                 }
             } catch (error) {
-                failure = { error, stored: false };
+                if (isLeaseLost(error)) {
+                    fenced = true;
+                } else {
+                    failure = { error, stored: false };
 
-                if (!signal.aborted) {
-                    failure.stored = await recordErrorUnderLock(repository, name, error, clock, lock).catch((recordError: unknown) => {
-                        report(recordError);
+                    if (!signal.aborted) {
+                        failure.stored = await recordErrorUnderLock(service, name, error, clock, lock).catch((recordError: unknown) => {
+                            if (!isLeaseLost(recordError)) {
+                                report(recordError);
+                            }
 
-                        return false;
-                    });
+                            return false;
+                        });
+                    }
                 }
             } finally {
                 await locks.release(key, owner).catch(report);
@@ -589,10 +676,11 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                 continue;
             }
 
-            if (!lock.lost) {
+            if (!lock.lost && !fenced) {
                 delay = KNOWLEDGE_RETRY_MS;
 
-                const woken = await wake.wait(clock, dueIn > 0 ? dueIn : idleMs, signal);
+                // a pass ran (dueIn 0): the next is an interval away
+                const woken = await wake.wait(clock, idleWaitOf(dueIn === 0 ? idleMs : dueIn, checkMs), signal);
 
                 if (woken === 'abort') {
                     return;
@@ -614,10 +702,12 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
  * Marks every declared record without a definition `orphaned`: kept with its
  * documents and chunks, searchable by no agent. Each mark is written under
  * the record's `knowledge:<name>` lock (a held one means a replica that
- * declares it is syncing it: left alone), re-read once the lock is held.
+ * declares it is syncing it: left alone), re-read once the lock is held and
+ * its fence advanced; a mark the fence refuses (another owner took the lock
+ * meanwhile) or that finds the row deleted leaves the record alone too.
  */
 export async function markOrphans(
-    repository: IKnowledgeRepository,
+    service: IKnowledgeService,
     declared: ReadonlySet<string>,
     locks: Pick<ILockService, 'acquire' | 'release'>,
     owner: string,
@@ -628,7 +718,7 @@ export async function markOrphans(
         record.status !== 'orphaned' &&
         !declared.has(record.name);
 
-    for (const candidate of await repository.findCollections()) {
+    for (const candidate of await service.findCollections()) {
         if (!isOrphan(candidate)) {
             continue;
         }
@@ -639,15 +729,29 @@ export async function markOrphans(
             continue;
         }
 
-        try {
-            const record = await repository.findOneCollection(candidate.name);
+        const lock = createIndexLock(locks, key, owner, clock);
 
-            if (isOrphan(record)) {
-                await repository.saveCollection({
+        try {
+            const fence = await service.advanceFence(candidate.name);
+
+            // a stall inside the advance may have outlasted the lease: never a mark with that token then
+            if (!await lock.renew()) {
+                continue;
+            }
+
+            const record = await service.findOneCollection(candidate.name);
+
+            if (fence && isOrphan(record)) {
+                await service.saveCollection({
                     ...record,
                     status: 'orphaned',
                     updatedAt: new Date(clock.now()),
-                });
+                }, { fence });
+            }
+        } catch (error) {
+            // another owner took the lock, or the record was deleted meanwhile: left to them
+            if (!isLeaseLost(error) && !isRepositoryNotFound(error)) {
+                throw error;
             }
         } finally {
             await locks.release(key, owner);

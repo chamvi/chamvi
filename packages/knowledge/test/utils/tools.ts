@@ -10,7 +10,7 @@ import { embedMany } from 'ai';
 import { createAgentState } from '@chamvi/core';
 import type { IRunArtifacts, ToolContext } from '@chamvi/core';
 import { createTestEngine } from '@chamvi/test-kit';
-import type { IKnowledge, KnowledgeCollection, MemoryKnowledgeRepository } from '@chamvi/knowledge';
+import type { IKnowledge, IKnowledgeService, KnowledgeCollection } from '@chamvi/knowledge';
 import { bindProvided } from '../../../core/src/context/helpers.ts';
 import { KNOWLEDGE_CONTEXT } from '../../src/context/constants.ts';
 
@@ -77,9 +77,9 @@ export type SeedInput = {
     documents: Record<string, Array<{ text: string; vector?: number[] }>>;
 };
 
-/** Writes a collection with its documents and chunks straight into the repository. */
+/** Writes a collection with its documents and chunks straight through the service. */
 export async function seedCollection(
-    repository: MemoryKnowledgeRepository,
+    service: IKnowledgeService,
     name: string,
     embedding: EmbeddingModel,
     input: SeedInput,
@@ -87,7 +87,7 @@ export async function seedCollection(
     const at = new Date('2026-11-01T00:00:00Z');
     const generation = input.generation ?? 1;
 
-    await repository.saveCollection({
+    await service.saveCollection({
         name,
         kind: input.kind ?? 'managed',
         trusted: input.trusted ?? false,
@@ -106,7 +106,7 @@ export async function seedCollection(
             { embeddings: [] };
         let next = 0;
 
-        await repository.replaceChunks(name, id, generation, chunks.map((chunk, index) => ({
+        await service.replaceChunks(name, id, generation, chunks.map((chunk, index) => ({
             index,
             text: chunk.text,
             start: 0,
@@ -115,7 +115,7 @@ export async function seedCollection(
             title: `Title ${id}`,
             source: `${name}/${id}.md`,
         })));
-        await repository.saveDocument({
+        await service.saveDocument({
             collection: name,
             id,
             content: chunks.map((chunk) => chunk.text).join('\n\n'),
