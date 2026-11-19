@@ -81,12 +81,13 @@ export class WorkspaceManagerContext {
         // eslint-disable-next-line no-console
         this.onError = options.onError ?? ((error: unknown) => console.error('[chamvi]', error));
 
+        const { onError } = this;
         const sources = credentialSources(options.credentials);
 
         this.credentials = sources.length === 0 ? undefined : createCredentialSupport({
             sources,
             clock: this.clock,
-            onError: (error) => this.onError(error),
+            onError: (error) => onError(error),
         });
 
         if (options.env !== undefined || options.author !== undefined) {

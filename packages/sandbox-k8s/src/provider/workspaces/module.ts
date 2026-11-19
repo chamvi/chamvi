@@ -93,7 +93,11 @@ export class KubernetesWorkspaces {
         return guard(`delete workspace claim ${name}`, () => this.client.deleteClaim!(name));
     }
 
-    /** The pod's transport; with `persistence` its removal deletes the claim of the same name after the pod. */
+    /**
+     * The pod's transport; with `persistence` its removal deletes the pod and
+     * the claim of the same name concurrently, the claim even when the pod
+     * deletion fails.
+     */
     transportOf(name: string): IExecTransport {
         const transport = createPodTransport(this.client, name);
 
