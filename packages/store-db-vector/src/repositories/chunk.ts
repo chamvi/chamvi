@@ -83,7 +83,11 @@ export class DatabaseKnowledgeChunkRepository
             .addOrderBy('chunk.index', 'ASC');
 
         if (options.minScore !== undefined) {
-            statement.andWhere(`1 - ${distance} >= :minScore`, { minScore: options.minScore });
+            // PostgreSQL may evaluate WHERE conditions in any order: the CASE keeps `<=>` off another length
+            statement.andWhere(
+                `CASE WHEN vector_dims("chunk"."embedding") = :dimensions THEN 1 - ${distance} >= :minScore ELSE false END`,
+                { minScore: options.minScore },
+            );
         }
 
         if (Number.isFinite(limit)) {

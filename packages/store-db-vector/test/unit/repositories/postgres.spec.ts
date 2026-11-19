@@ -6,7 +6,12 @@
  */
 
 import { randomUUID } from 'node:crypto';
-import { KnowledgeService, createKnowledge } from '@chamvi/knowledge';
+import {
+    KnowledgeService,
+    createKnowledge,
+    defineKnowledgeSource,
+    knowledgeCollection,
+} from '@chamvi/knowledge';
 import type {
     KnowledgeChunkInput,
     KnowledgeCollection,
@@ -23,6 +28,7 @@ import {
     describe,
     expect,
     it,
+    vi,
 } from 'vitest';
 import { VectorTableName } from '../../../src/entities/constants.ts';
 import { DatabaseKnowledgeRepository } from '../../../src/repositories/index.ts';
@@ -117,6 +123,29 @@ function createGate() {
     };
 }
 
+/**
+ * Releases the gate once `waiting` statements wait on a row lock; when they
+ * never do, releases it anyway and settles the started operations before
+ * failing, so no transaction stays open into the next spec.
+ */
+async function releaseAfterLockWait(
+    dataSource: DataSource,
+    gate: { release: () => void },
+    started: Promise<unknown>[],
+    waiting = 1,
+): Promise<void> {
+    try {
+        await untilLockWait(dataSource, waiting);
+    } catch (error) {
+        gate.release();
+        await Promise.allSettled(started);
+
+        throw error;
+    }
+
+    gate.release();
+}
+
 describePostgres('knowledge repositories on PostgreSQL', () => {
     let dataSource: DataSource;
     let clock: ControllableClock;
@@ -195,6 +224,59 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
         }]);
     });
 
+    it('a restart embeds nothing for a document whose title, source or metadata the store sanitized', async () => {
+        const dirty = 'a\0b\uD800c';
+        const model = mockEmbeddingModel();
+        const source = defineKnowledgeSource({
+            async* documents() {
+                yield {
+                    id: 'a',
+                    content: 'Unchanged text.',
+                    title: dirty,
+                    source: dirty,
+                    metadata: { [dirty]: dirty },
+                };
+            },
+        });
+        const options = {
+            repository,
+            locks: createTestEngine({ agents: [], clock }).lockService,
+            clock,
+            collections: [knowledgeCollection('docs', { model, sources: [source] })],
+        };
+        const first = createKnowledge(options);
+
+        first.start();
+        await vi.waitFor(async () => {
+            expect(await service.findOneCollection('docs')).toMatchObject({ status: 'ready' });
+        });
+        await first.stop();
+
+        const calls = model.calls.length;
+
+        clock.advance(1000);
+
+        const second = createKnowledge(options);
+
+        second.start();
+        await vi.waitFor(async () => {
+            expect((await service.findOneCollectionOrFail('docs')).updatedAt.getTime()).toBe(clock.now());
+        });
+        await second.stop();
+
+        expect(calls).toBeGreaterThan(0);
+        expect(model.calls).toHaveLength(calls);
+    });
+
+    it('search with minScore skips chunks of another vector length instead of failing', async () => {
+        await service.saveCollection(collectionOf('docs'));
+        await service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'two')]);
+        await service.replaceChunks('docs', 'b', 1, [chunkOf(0, [1, 0, 0], 'three')]);
+
+        expect((await service.search('docs', 1, [1, 0], { topK: 10, minScore: 0.5 })).map((match) => match.text)).toEqual(['two']);
+        expect((await service.search('docs', 1, [0, 1, 0], { topK: 10, minScore: 0.5 }))).toEqual([]);
+    });
+
     it('a PUT with the same metadata answers unchanged although jsonb reorders its keys', async () => {
         const knowledge = createKnowledge({
             repository,
@@ -237,8 +319,7 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
 
         const deleting = service.deleteCollection('docs');
 
-        await untilLockWait(dataSource);
-        gate.release();
+        await releaseAfterLockWait(dataSource, gate, [writing, deleting]);
 
         await writing;
         expect(await deleting).toBe(true);
@@ -263,8 +344,7 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
         const unfenced = expect(service.saveDocument(documentOf('docs', 'a')))
             .rejects.toMatchObject({ code: 'repository_not_found' });
 
-        await untilLockWait(dataSource, 2);
-        gate.release();
+        await releaseAfterLockWait(dataSource, gate, [deleting, fenced, unfenced], 2);
 
         expect(await deleting).toBe(true);
         await fenced;
@@ -290,8 +370,7 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
         const refused = expect(service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'stale')], { fence: stale! }))
             .rejects.toMatchObject({ code: 'lease_lost', lock: 'knowledge:docs' });
 
-        await untilLockWait(dataSource);
-        gate.release();
+        await releaseAfterLockWait(dataSource, gate, [writing, refused]);
 
         await writing;
         await refused;
