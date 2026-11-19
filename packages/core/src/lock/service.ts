@@ -9,6 +9,7 @@ import { uuidv7 } from 'uuidv7';
 import { EntityConflictError } from '@chamvi/store';
 import type { ILockRepository, Lock } from '@chamvi/store';
 import type { IClock } from '../clock/index.ts';
+import { InvalidRunStateError } from '../errors/index.ts';
 import type { ILockService, LockServiceContext } from './types.ts';
 
 /**
@@ -26,7 +27,8 @@ import type { ILockService, LockServiceContext } from './types.ts';
  * Every insert and takeover stores a new fencing token from
  * `ILockRepository.nextToken()`, issued in the same transaction before
  * its insert or locked read (a takeover whose token is not above the
- * stored lease's takes another after the read); a renewal keeps it. Tokens
+ * stored lease's takes another after the read, and refuses with an
+ * InvalidRunStateError if that one is not above it either); a renewal keeps it. Tokens
  * skipped by a refused takeover or a failed insert leave gaps, never repeats.
  */
 export class LockService implements ILockService {
@@ -155,6 +157,11 @@ export class LockService implements ILockService {
                 // a counter that is not commit-ordered issued it before the stored lease committed:
                 // one issued after the locked read is above it, so a later holder's token is higher
                 token = await repository.nextToken();
+            }
+
+            if (token <= lock.token) {
+                // a key's tokens only ever increase: a lower one would let the expired holder pass a fence again
+                throw new InvalidRunStateError(`The lock "${key}" was not taken over: the issued token ${token} is not above the stored token ${lock.token}.`);
             }
 
             repository.merge(lock, {

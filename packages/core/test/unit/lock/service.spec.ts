@@ -150,6 +150,22 @@ describe('LockService', () => {
         expect((await repository.findOneBy({ key: 'k' }))?.token).toBe(token);
     });
 
+    it('a takeover whose second token is still not above the stored one refuses loudly and leaves the row unchanged', async () => {
+        const first = await locks.acquire('k', 'a', 1_000);
+        const before = await repository.findOneBy({ key: 'k' });
+
+        // a counter that stays below the stored lease's token (e.g. a reseeded one)
+        repository.nextToken = async () => first! - 5;
+
+        clock.advance(1_000);
+
+        await expect(locks.acquire('k', 'b', 1_000)).rejects.toMatchObject({
+            code: 'invalid_run_state',
+            message: expect.stringMatching(/"k".*\d+.*\d+/),
+        });
+        expect(await repository.findOneBy({ key: 'k' })).toEqual(before);
+    });
+
     it('release by the owner frees the key; a release by another owner or of an unknown key does nothing', async () => {
         await locks.acquire('k', 'a', 1_000);
 
