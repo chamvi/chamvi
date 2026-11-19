@@ -223,7 +223,7 @@ class Knowledge implements IKnowledge {
 
                 const task = runCollection({
                     name: definition.name,
-                    repository: this.service,
+                    service: this.service,
                     locks: this.locks,
                     owner: this.owner,
                     clock: this.clock,
@@ -235,7 +235,7 @@ class Knowledge implements IKnowledge {
                     checkMs: KNOWLEDGE_MANAGED_POLL_MS,
                     pass: (lock, report) => syncCollection({
                         definition,
-                        repository: this.service,
+                        service: this.service,
                         embed,
                         clock: this.clock,
                         signal,
@@ -339,7 +339,7 @@ class Knowledge implements IKnowledge {
         const wake = createWake();
         const task = runCollection({
             name,
-            repository: this.service,
+            service: this.service,
             locks: this.locks,
             owner: this.owner,
             clock: this.clock,
@@ -394,7 +394,7 @@ class Knowledge implements IKnowledge {
         try {
             await syncManaged({
                 name,
-                repository: this.service,
+                service: this.service,
                 embed: (model, texts, abortSignal) => this.embed(model, texts, abortSignal),
                 hasModel: (model) => this.hasEmbedding(model),
                 ...(this.defaultModel === undefined ? {} : { model: this.defaultModel }),

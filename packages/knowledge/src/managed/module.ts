@@ -25,7 +25,7 @@ type Outcome = { stop: true } | { stop: false; dimensions: number | undefined };
 
 /** Whether the stored record is still the managed collection the pass read (not deleted, not re-created). */
 async function isSameCollection(input: SyncManagedInput, record: KnowledgeCollection): Promise<KnowledgeCollection | undefined> {
-    const current = await input.repository.findOneCollection(input.name);
+    const current = await input.service.findOneCollection(input.name);
 
     if (!current || current.kind !== 'managed' || current.createdAt.getTime() !== record.createdAt.getTime()) {
         return undefined;
@@ -57,7 +57,7 @@ async function embedOne(
 ): Promise<Outcome> {
     const {
         name,
-        repository,
+        service,
         signal,
         lock,
     } = input;
@@ -89,7 +89,7 @@ async function embedOne(
         return { stop: true };
     }
 
-    let current = await repository.findOneDocument(name, document.id);
+    let current = await service.findOneDocument(name, document.id);
 
     if (!current || current.hash !== document.hash) {
         // replaced or deleted while it was embedded
@@ -97,8 +97,8 @@ async function embedOne(
     }
 
     if (!embedded) {
-        await repository.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
-        await repository.updateDocument(name, document.id, current, {
+        await service.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
+        await service.updateDocument(name, document.id, current, {
             status: 'failed',
             error: messageOf(rejection),
             generation,
@@ -114,17 +114,17 @@ async function embedOne(
 
         const chunks = embedded.chunks.map((chunk) => withOrigin(chunk, current!));
 
-        await repository.replaceChunks(name, document.id, generation, chunks, writeOptionsOf(lock));
+        await service.replaceChunks(name, document.id, generation, chunks, writeOptionsOf(lock));
 
-        if (await repository.updateDocument(name, document.id, current, { status: 'ready', generation }, writeOptionsOf(lock))) {
+        if (await service.updateDocument(name, document.id, current, { status: 'ready', generation }, writeOptionsOf(lock))) {
             break;
         }
 
-        current = await repository.findOneDocument(name, document.id);
+        current = await service.findOneDocument(name, document.id);
 
         if (!current) {
             // deleted after the re-read: the chunks just written would be searchable orphans
-            await repository.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
+            await service.replaceChunks(name, document.id, generation, [], writeOptionsOf(lock));
 
             break;
         }
@@ -150,7 +150,7 @@ async function embedOne(
 async function abandon(input: SyncManagedInput, stored: KnowledgeCollection): Promise<KnowledgeCollection | undefined> {
     const {
         name,
-        repository,
+        service,
         clock,
         signal,
         lock,
@@ -158,7 +158,7 @@ async function abandon(input: SyncManagedInput, stored: KnowledgeCollection): Pr
     const { generation } = stored.pending!;
 
     // a page per transaction: the collection row stays locked for one page only
-    while (await repository.requeueGeneration(name, generation, stored.generation, MANAGED_PAGE_SIZE, writeOptionsOf(lock)) > 0) {
+    while (await service.requeueGeneration(name, generation, stored.generation, MANAGED_PAGE_SIZE, writeOptionsOf(lock)) > 0) {
         signal.throwIfAborted();
 
         if (!await lock.renew()) {
@@ -166,7 +166,7 @@ async function abandon(input: SyncManagedInput, stored: KnowledgeCollection): Pr
         }
     }
 
-    await repository.deleteGeneration(name, generation, writeOptionsOf(lock));
+    await service.deleteGeneration(name, generation, writeOptionsOf(lock));
 
     const current = await isSameCollection(input, stored);
 
@@ -178,7 +178,7 @@ async function abandon(input: SyncManagedInput, stored: KnowledgeCollection): Pr
 
     delete record.pending;
 
-    await repository.saveCollection(record, writeOptionsOf(lock));
+    await service.saveCollection(record, writeOptionsOf(lock));
 
     return record;
 }
@@ -198,7 +198,7 @@ async function reembed(
 ): Promise<KnowledgeCollection | undefined> {
     const {
         name,
-        repository,
+        service,
         clock,
         signal,
         lock,
@@ -228,20 +228,20 @@ async function reembed(
             lastGeneration: target,
             updatedAt: new Date(clock.now()),
         };
-        await repository.saveCollection(record, writeOptionsOf(lock));
+        await service.saveCollection(record, writeOptionsOf(lock));
     }
 
     let dimensions = record.pending?.dimensions;
 
     // the ids now: a document PUT later is pending and embedded after the switch
-    for (const id of await repository.findDocumentIds(name)) {
+    for (const id of await service.findDocumentIds(name)) {
         signal.throwIfAborted();
 
         if (!await lock.renew()) {
             return undefined;
         }
 
-        const document = await repository.findOneDocument(name, id);
+        const document = await service.findOneDocument(name, id);
 
         // deleted meanwhile, or written for this generation by an interrupted re-embed
         if (!document || (document.generation === target && document.status !== 'pending')) {
@@ -271,7 +271,7 @@ async function reembed(
                 pending: { ...current.pending, dimensions: outcome.dimensions },
                 updatedAt: new Date(clock.now()),
             };
-            await repository.saveCollection(record, writeOptionsOf(lock));
+            await service.saveCollection(record, writeOptionsOf(lock));
         }
 
         ({ dimensions } = outcome);
@@ -305,10 +305,10 @@ async function reembed(
         updatedAt: new Date(clock.now()),
     };
 
-    await repository.saveCollection(next, writeOptionsOf(lock));
+    await service.saveCollection(next, writeOptionsOf(lock));
 
     if (previous > 0) {
-        await repository.deleteGeneration(name, previous, writeOptionsOf(lock));
+        await service.deleteGeneration(name, previous, writeOptionsOf(lock));
     }
 
     return next;
@@ -330,11 +330,11 @@ async function reembed(
 export async function syncManaged(input: SyncManagedInput): Promise<void> {
     const {
         name,
-        repository,
+        service,
         signal,
         lock,
     } = input;
-    let record = await repository.findOneCollection(name);
+    let record = await service.findOneCollection(name);
 
     if (record?.kind !== 'managed') {
         return;
@@ -347,7 +347,7 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
             return;
         }
 
-        await advanceLockFence(repository, name, lock);
+        await advanceLockFence(service, name, lock);
 
         // gone again (nothing to write, and never a write without a token), or a stall
         // inside the advance outlasted the lease (never a write with that token)
@@ -355,7 +355,7 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
             return;
         }
 
-        record = await repository.findOneCollection(name);
+        record = await service.findOneCollection(name);
 
         if (record?.kind !== 'managed') {
             return;
@@ -390,7 +390,7 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
     for (;;) {
         signal.throwIfAborted();
 
-        const { data } = await repository.findDocuments(name, {
+        const { data } = await service.findDocuments(name, {
             status: 'pending',
             limit: MANAGED_PAGE_SIZE,
             offset,

@@ -78,7 +78,7 @@ describe('indexing failures', () => {
 
         expect(setup.errors[0]!.collection).toBe('docs');
         expect((setup.errors[0]!.error as Error).message).toContain('provider unavailable');
-        expect((await setup.repository.findOneCollection('docs'))?.error).toContain('provider unavailable');
+        expect((await setup.service.findOneCollection('docs'))?.error).toContain('provider unavailable');
 
         setup.clock.advance(KNOWLEDGE_RETRY_MS - 1);
         await new Promise<void>((resolve) => {
@@ -91,7 +91,7 @@ describe('indexing failures', () => {
 
         setup.clock.advance(KNOWLEDGE_RETRY_MS * 2);
 
-        const collection = await waitForReady(setup.repository, 'docs');
+        const collection = await waitForReady(setup.service, 'docs');
 
         expect(collection.error).toBeUndefined();
         expect(setup.errors).toHaveLength(2);
@@ -120,10 +120,10 @@ describe('indexing failures', () => {
         await new Promise<void>((resolve) => {
             setImmediate(resolve);
         });
-        expect((await setup.repository.findOneCollection('docs'))?.status).toBe('pending');
+        expect((await setup.service.findOneCollection('docs'))?.status).toBe('pending');
 
         setup.clock.advance(1);
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
     });
 
     it('resolves stop() during the backoff', async () => {
@@ -165,7 +165,7 @@ describe('indexing failures', () => {
 
         started.push(knowledge);
         knowledge.start();
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await knowledge.stop();
 
         fail = true;
@@ -173,8 +173,8 @@ describe('indexing failures', () => {
 
         await expect.poll(() => setup.errors.length).toBe(1);
 
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md']);
-        expect((await setup.repository.findOneCollection('docs'))?.error).toBe('source unreachable');
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md']);
+        expect((await setup.service.findOneCollection('docs'))?.error).toBe('source unreachable');
     });
 
     it('stores and reports a configuration error once and never retries it', async () => {
@@ -197,7 +197,7 @@ describe('indexing failures', () => {
         await expect.poll(() => setup.errors.length).toBe(1);
 
         expect(setup.errors[0]!.error).toBeInstanceOf(InvalidAgentDefinitionError);
-        expect((await setup.repository.findOneCollection('docs'))?.error).toBe('folder(): "docs" is no directory.');
+        expect((await setup.service.findOneCollection('docs'))?.error).toBe('folder(): "docs" is no directory.');
 
         for (let step = 0; step < 5; step++) {
             setup.clock.advance(KNOWLEDGE_RETRY_MAX_MS);
@@ -250,7 +250,7 @@ describe('indexing failures', () => {
             message: `The embedding model did not answer within ${KNOWLEDGE_EMBED_TIMEOUT_MS}ms.`,
         });
         expect(calls[0]!.aborted).toBe(true);
-        expect((await setup.repository.findOneCollection('docs'))?.error).toContain('did not answer');
+        expect((await setup.service.findOneCollection('docs'))?.error).toContain('did not answer');
 
         setup.clock.advance(KNOWLEDGE_RETRY_MS);
         await expect.poll(() => calls.length).toBe(2);
@@ -275,7 +275,7 @@ describe('indexing failures', () => {
             started.push(knowledge);
             knowledge.start();
 
-            await waitForReady(setup.repository, 'docs');
+            await waitForReady(setup.service, 'docs');
 
             expect(logged).toHaveBeenCalledWith('[chamvi]', expect.objectContaining({ message: 'onError threw' }), { collection: 'docs' });
         } finally {
@@ -298,11 +298,11 @@ describe('indexing failures', () => {
             setImmediate(resolve);
         });
 
-        expect(await setup.repository.findOneCollection('docs')).toMatchObject({ status: 'pending', failures: 1 });
+        expect(await setup.service.findOneCollection('docs')).toMatchObject({ status: 'pending', failures: 1 });
 
         setup.clock.advance(1);
 
-        const collection = await waitForReady(setup.repository, 'docs');
+        const collection = await waitForReady(setup.service, 'docs');
 
         expect(collection.error).toBeUndefined();
         expect(setup.errors).toHaveLength(1);

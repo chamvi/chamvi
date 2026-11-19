@@ -29,7 +29,7 @@ export type KnowledgeIndexLock = {
 
 export type SyncCollectionInput = {
     definition: ResolvedKnowledgeCollection;
-    repository: IKnowledgeService;
+    service: IKnowledgeService;
     embed: KnowledgeEmbed;
     clock: IClock;
     signal: AbortSignal;
@@ -57,7 +57,7 @@ export type KnowledgePass = (lock: KnowledgeIndexLock, report: (error: unknown) 
 export type CollectionLoopInput = {
     /** The collection (the lock `knowledge:<name>`, the error context). */
     name: string;
-    repository: IKnowledgeService;
+    service: IKnowledgeService;
     locks: Pick<ILockService, 'acquire' | 'release'>;
     owner: string;
     clock: IClock;

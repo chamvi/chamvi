@@ -59,7 +59,7 @@ async function queryVector(text: string): Promise<number[]> {
 async function indexed(setup: IndexerSetup): Promise<void> {
     const knowledge = start(setup, 'mock/a', { 'mock/a': mockEmbeddingModel() });
 
-    await waitForReady(setup.repository, 'docs');
+    await waitForReady(setup.service, 'docs');
     await knowledge.stop();
 }
 
@@ -75,7 +75,7 @@ describe('re-embedding a collection', () => {
 
         await expect.poll(() => model.started.length).toBe(1);
 
-        const during = await setup.repository.findOneCollection('docs');
+        const during = await setup.service.findOneCollection('docs');
 
         expect(during).toMatchObject({
             generation: 1,
@@ -90,13 +90,13 @@ describe('re-embedding a collection', () => {
 
         const query = await queryVector('refund policy');
 
-        expect((await setup.repository.search('docs', 1, query, { topK: 1 }))[0]?.document).toBe('a.md');
+        expect((await setup.service.search('docs', 1, query, { topK: 1 }))[0]?.document).toBe('a.md');
 
         model.open(0);
         model.open(1);
         model.open(2);
 
-        const after = await waitForReady(setup.repository, 'docs', 2);
+        const after = await waitForReady(setup.service, 'docs', 2);
 
         expect(after).toMatchObject({
             model: 'mock/b', 
@@ -104,9 +104,9 @@ describe('re-embedding a collection', () => {
             chunker: CHUNKER_VERSION, 
         });
         expect(after.pending).toBeUndefined();
-        expect(await setup.repository.search('docs', 1, query, { topK: 10 })).toEqual([]);
-        expect((await setup.repository.search('docs', 2, query, { topK: 1 }))[0]?.document).toBe('a.md');
-        expect((await setup.repository.findOneDocument('docs', 'c.md'))?.generation).toBe(2);
+        expect(await setup.service.search('docs', 1, query, { topK: 10 })).toEqual([]);
+        expect((await setup.service.search('docs', 2, query, { topK: 1 }))[0]?.document).toBe('a.md');
+        expect((await setup.service.findOneDocument('docs', 'c.md'))?.generation).toBe(2);
     });
 
     it('resumes an interrupted re-embed at the same pending generation', async () => {
@@ -118,11 +118,11 @@ describe('re-embedding a collection', () => {
         const interrupted = start(setup, 'mock/b', { 'mock/b': gated });
 
         await expect.poll(() => gated.started.length).toBe(2);
-        expect((await setup.repository.findOneDocument('docs', 'a.md'))?.generation).toBe(2);
+        expect((await setup.service.findOneDocument('docs', 'a.md'))?.generation).toBe(2);
 
         await interrupted.stop();
 
-        expect(await setup.repository.findOneCollection('docs')).toMatchObject({
+        expect(await setup.service.findOneCollection('docs')).toMatchObject({
             generation: 1,
             status: 'stale',
             pending: { generation: 2, model: 'mock/b' },
@@ -132,7 +132,7 @@ describe('re-embedding a collection', () => {
 
         start(setup, 'mock/b', { 'mock/b': model });
 
-        await waitForReady(setup.repository, 'docs', 2);
+        await waitForReady(setup.service, 'docs', 2);
 
         expect(model.calls.flatMap((call) => call.values)).toEqual([docs.get('b.md'), docs.get('c.md')]);
     });
@@ -154,7 +154,7 @@ describe('re-embedding a collection', () => {
         start(setup, 'mock/a', { 'mock/a': model });
 
         const collection = await waitForCollection(
-            setup.repository,
+            setup.service,
             'docs',
             (found) => found.updatedAt.getTime() === setup.clock.now() && found.pending === undefined,
         );
@@ -166,7 +166,7 @@ describe('re-embedding a collection', () => {
         });
         // a.md was written for generation 2 only: it is embedded again
         expect(model.calls.flatMap((call) => call.values)).toEqual([docs.get('a.md')]);
-        expect(await setup.repository.search('docs', 2, await queryVector('refund'), { topK: 10 })).toEqual([]);
+        expect(await setup.service.search('docs', 2, await queryVector('refund'), { topK: 10 })).toEqual([]);
     });
 
     it('moves past an abandoned pending generation for a third model', async () => {
@@ -184,12 +184,12 @@ describe('re-embedding a collection', () => {
 
         start(setup, 'mock/c', { 'mock/c': model });
 
-        const collection = await waitForReady(setup.repository, 'docs', 3);
+        const collection = await waitForReady(setup.service, 'docs', 3);
 
         expect(collection).toMatchObject({ model: 'mock/c' });
         expect(model.calls.flatMap((call) => call.values)).toHaveLength(3);
-        expect(await setup.repository.search('docs', 1, await queryVector('refund'), { topK: 10 })).toEqual([]);
-        expect(await setup.repository.search('docs', 2, await queryVector('refund'), { topK: 10 })).toEqual([]);
+        expect(await setup.service.search('docs', 1, await queryVector('refund'), { topK: 10 })).toEqual([]);
+        expect(await setup.service.search('docs', 2, await queryVector('refund'), { topK: 10 })).toEqual([]);
     });
 
     it('never reuses the number of an abandoned generation, so its documents are embedded again', async () => {
@@ -203,7 +203,7 @@ describe('re-embedding a collection', () => {
 
         await expect.poll(() => toB.started.length).toBe(2);
         await first.stop();
-        expect((await setup.repository.findOneDocument('docs', 'a.md'))?.generation).toBe(2);
+        expect((await setup.service.findOneDocument('docs', 'a.md'))?.generation).toBe(2);
 
         // back to model A: generation 2 is abandoned, then the sync stops while re-embedding a.md
         const back = gatedModel({ modelId: 'mock-model-id' });
@@ -211,8 +211,8 @@ describe('re-embedding a collection', () => {
 
         await expect.poll(() => back.started.length).toBe(1);
         await rollback.stop();
-        expect(await setup.repository.findOneCollection('docs')).toMatchObject({ generation: 1, status: 'ready' });
-        expect((await setup.repository.findOneDocument('docs', 'a.md'))?.generation).toBe(2);
+        expect(await setup.service.findOneCollection('docs')).toMatchObject({ generation: 1, status: 'ready' });
+        expect((await setup.service.findOneDocument('docs', 'a.md'))?.generation).toBe(2);
 
         // model B again: a fresh generation, every document embedded into it
         const model = mockEmbeddingModel();
@@ -220,14 +220,14 @@ describe('re-embedding a collection', () => {
         start(setup, 'mock/b', { 'mock/b': model });
 
         const collection = await waitForCollection(
-            setup.repository,
+            setup.service,
             'docs',
             (found) => found.status === 'ready' && found.model === 'mock/b',
         );
 
         expect(collection.generation).toBe(3);
         expect(model.calls.flatMap((call) => call.values)).toEqual(docs.values().toArray());
-        expect((await setup.repository.search('docs', 3, await queryVector('refund policy'), { topK: 1 }))[0]?.document).toBe('a.md');
+        expect((await setup.service.search('docs', 3, await queryVector('refund policy'), { topK: 1 }))[0]?.document).toBe('a.md');
     });
 
     it('deletes a generation a crash left behind after the switch', async () => {
@@ -237,11 +237,11 @@ describe('re-embedding a collection', () => {
 
         const switched = start(setup, 'mock/b', { 'mock/b': mockEmbeddingModel() });
 
-        await waitForReady(setup.repository, 'docs', 2);
+        await waitForReady(setup.service, 'docs', 2);
         await switched.stop();
 
         // what the process left when it died between the switch and its cleanup
-        await setup.repository.replaceChunks('docs', 'a.md', 1, [{
+        await setup.service.replaceChunks('docs', 'a.md', 1, [{
             index: 0,
             text: 'left over',
             start: 0,
@@ -253,13 +253,13 @@ describe('re-embedding a collection', () => {
         start(setup, 'mock/b', { 'mock/b': mockEmbeddingModel() });
 
         await waitForCollection(
-            setup.repository,
+            setup.service,
             'docs',
             (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
         );
 
-        expect(await setup.repository.search('docs', 1, await queryVector('refund'), { topK: 10 })).toEqual([]);
-        expect(await setup.repository.search('docs', 2, await queryVector('refund'), { topK: 10 })).toHaveLength(3);
+        expect(await setup.service.search('docs', 1, await queryVector('refund'), { topK: 10 })).toEqual([]);
+        expect(await setup.service.search('docs', 2, await queryVector('refund'), { topK: 10 })).toHaveLength(3);
     });
 
     it('forgets the previous model\'s dimensions when a re-embed switches without writing a chunk', async () => {
@@ -278,14 +278,14 @@ describe('re-embedding a collection', () => {
         };
         const first = run('mock/a', mockEmbeddingModel());
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await first.stop();
 
         // the sources yield nothing while the model changes to a smaller one
         own.clear();
 
         const second = run('mock/b', mockEmbeddingModel({ dimensions: 8 }));
-        const switched = await waitForReady(setup.repository, 'docs', 2);
+        const switched = await waitForReady(setup.service, 'docs', 2);
 
         await second.stop();
         expect(switched.dimensions).toBeUndefined();
@@ -295,13 +295,13 @@ describe('re-embedding a collection', () => {
         run('mock/b', mockEmbeddingModel({ dimensions: 8 }));
 
         const after = await waitForCollection(
-            setup.repository,
+            setup.service,
             'docs',
             (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
         );
 
         expect(after).toMatchObject({ generation: 2, dimensions: 8 });
         expect(after.error).toBeUndefined();
-        expect((await setup.repository.findOneDocument('docs', 'd.md'))?.generation).toBe(2);
+        expect((await setup.service.findOneDocument('docs', 'd.md'))?.generation).toBe(2);
     });
 });

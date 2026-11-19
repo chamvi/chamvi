@@ -55,7 +55,7 @@ const done = { parts: [{ type: 'text' as const, text: 'done' }] };
 
 type Setup = {
     engine: Engine;
-    repository: IKnowledgeService;
+    service: IKnowledgeService;
     model: MockEmbeddingModel;
     writes: () => number;
 };
@@ -70,7 +70,7 @@ async function setup(source: IKnowledgeSource, options: { index?: boolean } = {}
 
     if (options.index !== false) {
         knowledge.start();
-        await waitForReady(indexer.repository, 'wiki');
+        await waitForReady(indexer.service, 'wiki');
     }
 
     let writes = 0;
@@ -104,7 +104,7 @@ async function setup(source: IKnowledgeSource, options: { index?: boolean } = {}
 
     return {
         engine,
-        repository: indexer.repository,
+        service: indexer.service,
         model,
         writes: () => writes,
     };
@@ -223,15 +223,15 @@ it('answers no passage when the collection turns untrusted while it is searched'
     });
     const {
         engine,
-        repository,
+        service,
     } = await setup(source);
-    const search = repository.search.bind(repository);
+    const search = service.search.bind(service);
 
     // a sync downgrades the collection between the taint check and the search
-    repository.search = async (collection, generation, vector, options) => {
-        const record = (await repository.findOneCollection(collection))!;
+    service.search = async (collection, generation, vector, options) => {
+        const record = (await service.findOneCollection(collection))!;
 
-        await repository.saveCollection({ ...record, trusted: false });
+        await service.saveCollection({ ...record, trusted: false });
 
         return search(collection, generation, vector, options);
     };
