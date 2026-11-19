@@ -30,9 +30,9 @@ export class EngineStartGuard implements IEngineStartGuard {
      */
     async prepareStart(): Promise<(run: Run) => boolean> {
         const {
-            agents, 
-            revisions, 
-            syncing, 
+            agents,
+            revisions,
+            syncing,
         } = this.ctx.registry;
 
         // a folder agent's runs start at its marker; an agent without a revision cancels stamped runs without one

@@ -44,11 +44,11 @@ import { EngineApprovals } from './approvals/module.ts';
 import type { IEngineApprovals } from './approvals/types.ts';
 import { EngineCancel } from './cancel/module.ts';
 import type { IEngineCancel } from './cancel/types.ts';
-import { 
-    createEngineConversations, 
-    provideEngineContextValue, 
-    subscribeEngineEvent, 
-    toEngineChannelMap, 
+import {
+    createEngineConversations,
+    provideEngineContextValue,
+    subscribeEngineEvent,
+    toEngineChannelMap,
 } from './context/helpers.ts';
 import { createEngineContext } from './context/module.ts';
 import type { EngineContext } from './context/types.ts';
@@ -364,11 +364,9 @@ export class Engine implements IEngine {
         });
     }
 
-
     async dispatch(envelope: DispatchEnvelope): Promise<{ runId: string; deduplicated: boolean }> {
         return this.intake.dispatch(envelope);
     }
-
 
     /**
      * Starts a run a peer asked for (a stand-in run of another chamvi app
@@ -384,7 +382,6 @@ export class Engine implements IEngine {
     async dispatchPeer(envelope: DispatchEnvelope, fields: PeerStartInput['peer'] & { role: string }): Promise<DispatchResult> {
         return this.intake.dispatchPeer(envelope, fields);
     }
-
 
     /**
      * dispatch()'s body; `parent` comes only from this argument (the
@@ -470,7 +467,7 @@ export class Engine implements IEngine {
      * one goes last). With a `revision` (a folder agent's content hash) the
      * store's revision marker is brought to it under the lock `agents:<name>`:
      * a changed marker cancels the agent's unsettled runs created before the
-     * change, once across replicas. Without one, replacing a registered agen
+     * change, once across replicas. Without one, replacing a registered agent
      * cancels its unsettled runs created before now. Emits `agents.changed`,
      * except for the same agent at the same revision (`unchanged`).
      *
@@ -518,7 +515,7 @@ export class Engine implements IEngine {
      * `agents:<name>`: with a stored revision marker (also one this engine
      * never loaded) all its unsettled runs are cancelled and the marker
      * deleted, unless this engine had the agent at another revision (a newer
-     * one registered elsewhere); without a marker, the runs of an agen
+     * one registered elsewhere); without a marker, the runs of an agent
      * registered here are cancelled. Resolves whether it was registered here.
      */
     async removeAgent(name: string): Promise<boolean> {
@@ -547,7 +544,7 @@ export class Engine implements IEngine {
      * Recovers abandoned runs, starts every channel (in registration order,
      * unless `channels: false`), then starts executing queued runs and
      * polling. A throwing channel start rejects after the channels already
-     * started were stopped and polling stopped. A call while another star
+     * started were stopped and polling stopped. A call while another start
      * is in flight joins it; its `signal` then only rejects that call, the
      * joined start goes on (only its own caller's signal or stop() cancel it).
      */
@@ -591,7 +588,7 @@ export class Engine implements IEngine {
      * on another replica (or `interrupted`) gets `cancelRequested`: its owner
      * aborts it on the next poll (within claimTtlMs / 3), and a recovered
      * execution settles it cancelled without a model call. Throws
-     * InvalidRunStateError for a settled run, and when the local execution los
+     * InvalidRunStateError for a settled run, and when the local execution lost
      * its lease meanwhile: the run was not cancelled and may execute on another
      * owner now.
      */
@@ -609,7 +606,7 @@ export class Engine implements IEngine {
     }
 
     /**
-     * Marks the remote wait of stand-in `runId` `wakeRequested`, so the nex
+     * Marks the remote wait of stand-in `runId` `wakeRequested`, so the next
      * tick on any replica polls its remote run at once (a peer's
      * content-free wake): `marked` when this call set the mark, `pending`
      * when it was set already; only for a stand-in waiting on the peer
@@ -622,7 +619,7 @@ export class Engine implements IEngine {
     /**
      * Answers the current wait point of a `waiting` run (the caller authorized
      * the approver) and requeues it. Single use: a second answer of the same
-     * wait point throws InvalidRunStateError, as does a run that is no
+     * wait point throws InvalidRunStateError, as does a run that is not
      * waiting, waits on another approval or whose wait point expired
      * (`tick()` denies that one).
      */
@@ -662,7 +659,7 @@ export class Engine implements IEngine {
     }
 
     /**
-     * What putAgent() refuses before any store read or write: a model tha
+     * What putAgent() refuses before any store read or write: a model that
      * does not resolve, a subscription to a channel the engine does not have
      * (InvalidAgentDefinitionError). Registers nothing: its skill check
      * neither selects a skill runtime nor captures the agent's inputs.
