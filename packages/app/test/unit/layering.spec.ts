@@ -48,9 +48,10 @@ const PORT_EXEMPTIONS: Array<{
         reason: 'the ports themselves and their memory and database implementations',
     },
     {
-        test: (path) => /^packages\/core\/src\/[^/]+\/(service|types)\.ts$/.test(path) &&
-            globSync(`${path.slice(0, path.lastIndexOf('/'))}/service.ts`, { cwd: ROOT }).length > 0,
-        reason: 'a core service and the context type it is built from (types.ts beside a service.ts)',
+        test: (path) => /^packages\/core\/src\/[^/]+\/service\/[^/]+\.ts$/.test(path) ||
+            (/^packages\/core\/src\/[^/]+\/(service|types)\.ts$/.test(path) &&
+                globSync(`${path.slice(0, path.lastIndexOf('/'))}/{service.ts,service/module.ts}`, { cwd: ROOT }).length > 0),
+        reason: 'a core service (service.ts or a service/ folder) and the context type it is built from (types.ts beside it)',
     },
     {
         test: (path) => path.startsWith('packages/app/src/modules/repository/') ||
