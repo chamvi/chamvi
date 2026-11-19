@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '../agent/constants.ts';
 import { InvalidAgentDefinitionError } from '../errors/index.ts';
 import { KEYRING_KEY_LENGTH } from './constants.ts';
 
@@ -13,9 +13,9 @@ const BASE64_PATTERN = /^(?:[A-Za-z0-9+/]{4})*(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/
 
 /** Throws when `id` breaks the agent-name rule; the message names `label`, never the id. */
 export function assertKeyId(id: unknown, label: string): asserts id is string {
-    if (typeof id !== 'string' || id.length > NAME_MAX_LENGTH || !NAME_PATTERN.test(id)) {
+    if (typeof id !== 'string' || id.length > AGENT_NAME_MAX_LENGTH || !AGENT_NAME_PATTERN.test(id)) {
         throw new InvalidAgentDefinitionError(
-            `${label}: the key id must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+            `${label}: the key id must match ${AGENT_NAME_PATTERN} and be at most ${AGENT_NAME_MAX_LENGTH} characters.`,
         );
     }
 }

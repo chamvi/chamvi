@@ -17,10 +17,10 @@ import { assertAgentTrust } from '../trust/asserts.ts';
 import { snapshotSkillInputs } from '../skill/helpers.ts';
 import type { StateSchema } from '../state/types.ts';
 import {
+    AGENT_NAME_MAX_LENGTH,
+    AGENT_NAME_PATTERN,
     DEFAULT_MAX_STEPS,
     DEFAULT_TIMEOUT_MS,
-    NAME_MAX_LENGTH,
-    NAME_PATTERN,
 } from './constants.ts';
 import {
     assertDescription,
@@ -102,11 +102,11 @@ export function isAgentName(value: unknown): value is string {
 function assertName(name: unknown): void {
     if (
         typeof name !== 'string' ||
-        name.length > NAME_MAX_LENGTH ||
-        !NAME_PATTERN.test(name)
+        name.length > AGENT_NAME_MAX_LENGTH ||
+        !AGENT_NAME_PATTERN.test(name)
     ) {
         throw new InvalidAgentDefinitionError(
-            `Invalid agent name "${String(name)}": must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+            `Invalid agent name "${String(name)}": must match ${AGENT_NAME_PATTERN} and be at most ${AGENT_NAME_MAX_LENGTH} characters.`,
         );
     }
 }

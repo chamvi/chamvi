@@ -8,7 +8,7 @@
 import type { Tool, ToolSet } from 'ai';
 import { jsonSchema } from 'ai';
 import { isObject } from 'smob';
-import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '../agent/constants.ts';
 import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
 import { InvalidAgentDefinitionError, InvalidRunStateError } from '../errors/index.ts';
 import { defineTool } from '../tool/define.ts';
@@ -18,9 +18,9 @@ import type { DispatchToolTarget, DispatchToolsOptions, DispatchWaitOptions } fr
 const LABEL = 'dispatchTools()';
 
 function checkName(kind: 'role' | 'agent', value: unknown): string {
-    if (typeof value !== 'string' || value.length > NAME_MAX_LENGTH || !NAME_PATTERN.test(value)) {
+    if (typeof value !== 'string' || value.length > AGENT_NAME_MAX_LENGTH || !AGENT_NAME_PATTERN.test(value)) {
         throw new InvalidAgentDefinitionError(
-            `${LABEL}: ${kind} "${String(value)}" must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+            `${LABEL}: ${kind} "${String(value)}" must match ${AGENT_NAME_PATTERN} and be at most ${AGENT_NAME_MAX_LENGTH} characters.`,
         );
     }
 

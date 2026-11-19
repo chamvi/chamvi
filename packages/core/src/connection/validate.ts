@@ -6,7 +6,7 @@
  */
 
 import { isObject } from 'smob';
-import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '../agent/constants.ts';
 import { ValidationError } from '../errors/index.ts';
 import {
     CONNECTION_ENTRY_KEY_MAX_LENGTH,
@@ -77,8 +77,8 @@ const isDate = (value: unknown): value is Date => value instanceof Date && !Numb
 
 /** A connection name follows the agent-name rule; a ValidationError otherwise. */
 export function assertConnectionName(name: unknown): asserts name is string {
-    if (typeof name !== 'string' || name.length > NAME_MAX_LENGTH || !NAME_PATTERN.test(name)) {
-        throw new ValidationError(`A connection name must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`);
+    if (typeof name !== 'string' || name.length > AGENT_NAME_MAX_LENGTH || !AGENT_NAME_PATTERN.test(name)) {
+        throw new ValidationError(`A connection name must match ${AGENT_NAME_PATTERN} and be at most ${AGENT_NAME_MAX_LENGTH} characters.`);
     }
 }
 

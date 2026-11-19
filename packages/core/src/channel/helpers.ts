@@ -21,7 +21,7 @@ import {
     InvalidRunStateError,
     ValidationError,
 } from '../errors/index.ts';
-import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
+import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '../agent/constants.ts';
 import { untilAborted } from '../run/helpers.ts';
 import type { RunContext } from '../run/types.ts';
 import type { IEffectService } from '../effect/types.ts';
@@ -46,9 +46,9 @@ export function assertDefaultAddress(channel: { name: string; defaultAddress?: u
 }
 
 export function assertChannelName(name: unknown): asserts name is string {
-    if (typeof name !== 'string' || name.length > NAME_MAX_LENGTH || !NAME_PATTERN.test(name)) {
+    if (typeof name !== 'string' || name.length > AGENT_NAME_MAX_LENGTH || !AGENT_NAME_PATTERN.test(name)) {
         throw new InvalidAgentDefinitionError(
-            `Invalid channel name "${String(name)}": must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
+            `Invalid channel name "${String(name)}": must match ${AGENT_NAME_PATTERN} and be at most ${AGENT_NAME_MAX_LENGTH} characters.`,
         );
     }
 }

@@ -32,7 +32,7 @@ export type RemoteOutcome = {
 export type RemoteStartRecord = {
     runId: string;
     /** The peer the remote run lives at (a cancel still reaches it after the agent is gone). */
-    peer?: string;
+    peer: string;
 };
 
 /** What answerRemoteWait() needs from the engine. */
