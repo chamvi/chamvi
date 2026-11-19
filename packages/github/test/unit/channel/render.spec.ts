@@ -13,7 +13,7 @@ import {
     markerKey,
     parseAddress,
     renderComment,
-} from '../../../src/channel/helpers.ts';
+} from '../../../src/channel/helpers/index.ts';
 
 const approval: ChannelMessage = {
     kind: 'approval',

@@ -13,7 +13,7 @@ import type {
 } from '@chamvi/core';
 import { readRequestBody } from '@chamvi/http';
 import { NotFoundError, UnauthorizedError, UnsupportedMediaTypeError } from '@ebec/http';
-import { isSameLogin } from '../app/helpers.ts';
+import { isSameLogin } from '../app/helpers/index.ts';
 import type { IGithubApp } from '../app/types.ts';
 import type { ResolvedGithubChannelOptions } from '../channel/types.ts';
 import { acceptsSelfSent, eventAddress, matchesGithubSubscription } from '../subscription/helpers.ts';

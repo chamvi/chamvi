@@ -14,8 +14,8 @@ import {
 } from '@chamvi/core';
 import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
-import { isChannelOf, isSameLogin } from '../app/helpers.ts';
-import { parseAddress } from '../channel/helpers.ts';
+import { isChannelOf, isSameLogin } from '../app/helpers/index.ts';
+import { parseAddress } from '../channel/helpers/index.ts';
 import type { IGithubApp } from '../app/types.ts';
 import { ISSUE_TITLE_MAX_CHARS, LABELS_MAX } from './constants.ts';
 import {
@@ -30,7 +30,7 @@ import {
     requireString,
     stepOf,
     withOctokit,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type {
     GithubClosedIssue,
     GithubComment,

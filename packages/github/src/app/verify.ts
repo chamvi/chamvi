@@ -9,7 +9,7 @@ import { ChamviError, systemClock } from '@chamvi/core';
 import { normalizePrivateKey } from '../auth/helpers.ts';
 import { createInstallationTokens } from '../auth/module.ts';
 import { GITHUB_REQUEST_ERROR_CODE } from '../tools/constants.ts';
-import { normalizeAppId, normalizeBaseUrl } from './helpers.ts';
+import { normalizeAppId, normalizeBaseUrl } from './helpers/index.ts';
 import type { GithubAppOptions } from './types.ts';
 
 /** The fixed sentence of a failed `GET /app`: a bad JWT gets 401 or 403, a wrong API URL usually 404. */

@@ -7,10 +7,10 @@
 
 import { ServiceUnavailableError } from '@ebec/http';
 import { isGithubAppConfigured } from '../app/deferred.ts';
-import { registerChannelName } from '../app/helpers.ts';
+import { registerChannelName } from '../app/helpers/index.ts';
 import { createGithubSubscription, githubAddress } from '../subscription/module.ts';
 import { receiveDelivery } from '../webhook/module.ts';
-import { resolveOptions } from './helpers.ts';
+import { resolveOptions } from './helpers/index.ts';
 import { createCommentSender } from './out.ts';
 import type { GithubChannel, GithubChannelOptions } from './types.ts';
 

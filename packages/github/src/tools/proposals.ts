@@ -5,52 +5,39 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { createHash } from 'node:crypto';
-import { matchesGlob } from 'node:path';
-import type { ToolExecutionOptions, ToolSet } from 'ai';
+import type { ToolSet } from 'ai';
 import {
     InvalidAgentDefinitionError,
     ValidationError,
     defineEffectTool,
     effectMarker,
 } from '@chamvi/core';
-import type { ToolContext } from '@chamvi/core';
 import { isObject } from 'smob';
-import type { GithubOctokit, GithubProposalsOptions, IGithubApp } from '../app/types.ts';
+import type { GithubProposalsOptions, IGithubApp } from '../app/types.ts';
 import {
+    MAX_HISTORY_COMMITS,
     REPO_PROPERTY,
-    hasFooterMarker,
+    assertHead,
+    branchMarker,
+    checkDiff,
+    findPulls,
+    hasProposalFooter,
+    headOf,
+    isNotFound,
     objectSchema,
+    orphanHasEffect,
     parseRepo,
-    requireString,
-    stepOf,
+    proposalBranch,
+    proposalKey,
+    pullHasEffect,
+    readFile,
+    safePath,
+    selectBranch,
+    validateProposal,
     withOctokit,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import { createPullRequest, toCreated } from './pull-operation.ts';
-import type { GithubCreatedPullRequest, GithubProposeChangeInput, RepoTarget } from './types.ts';
-
-/** Root folders whose files steer CI, hooks or review, refused whatever the allowlist says. */
-const FORBIDDEN_ROOTS = new Set(['.github', '.husky']);
-
-/** File names refused in any folder: review ownership and submodule targets. */
-const FORBIDDEN_NAMES = new Set(['codeowners', '.gitmodules']);
-
-/**
- * No normalization: accepting a different spelling could bypass the allowlist or target a different file.
- * Unicode format characters (category Cf: bidi overrides, zero-width joiners) are refused, since they
- * make a path (and the PR title built from it) read differently from what GitHub writes.
- */
-function safePath(path: string): boolean {
-    const printable = Array.from(path).every((char) => char.charCodeAt(0) >= 32 && char.charCodeAt(0) !== 127);
-    const parts = path.split('/');
-
-    return path.length > 0 && path.trim() === path && printable &&
-        !/\p{Cf}/u.test(path) &&
-        !/[\\%:#?]/.test(path) &&
-        parts.every((part) => part !== '' && part !== '.' && part !== '..') &&
-        !FORBIDDEN_ROOTS.has(parts[0]!.toLowerCase()) &&
-        parts.every((part) => !FORBIDDEN_NAMES.has(part.toLowerCase()));
-}
+import type { GithubCreatedPullRequest, GithubProposeChangeInput } from './types.ts';
 
 /** Validate and snapshot policy before any tools can be built, retaining no caller-owned objects. */
 export function normalizeProposals(input: GithubProposalsOptions | undefined): GithubProposalsOptions | undefined {
@@ -88,333 +75,6 @@ export function normalizeProposals(input: GithubProposalsOptions | undefined): G
     }
 
     return { repos };
-}
-
-function allowedPath(path: string, repo: string, policy: GithubProposalsOptions): boolean {
-    return typeof path === 'string' && safePath(path) &&
-        (policy.repos[repo.toLowerCase()]?.paths.some((pattern) => matchesGlob(path, pattern)) ?? false);
-}
-
-function validateProposal(input: GithubProposeChangeInput, policy: GithubProposalsOptions): RepoTarget {
-    const target = parseRepo(input.repo);
-    const allowed = allowedPath(input.path, input.repo, policy);
-
-    if (!allowed) {
-        throw new ValidationError('Proposal repository/path is not allowed (unsafe paths, .github, .husky, CODEOWNERS and .gitmodules are always forbidden).');
-    }
-
-    if (typeof input.content !== 'string') {
-        throw new ValidationError('content must be a string.');
-    }
-
-    requireString(input.reason, 'reason');
-
-    return target;
-}
-
-/**
- * One effect per run, repository, path, content and model step: a corrected proposal
- * (another content for the same path) is a new effect, never the recorded first one,
- * and so is a later step returning to an earlier content (A, B, A), which must write A
- * again instead of answering with A's first record while the branch holds B.
- */
-function proposalKey(
-    input: GithubProposeChangeInput,
-    ctx: ToolContext,
-    options: Pick<ToolExecutionOptions<unknown>, 'toolCallId' | 'messages'>,
-): string {
-    const content = createHash('sha256').update(input.content).digest('hex');
-
-    return `${ctx.run.runId}:propose:${input.repo.toLowerCase()}:${input.path}:${content}:${stepOf(options)}`;
-}
-
-function branchMarker(branch: string): string {
-    return `<!-- chamvi:proposal=${branch} -->`;
-}
-
-/** The tool-owned footer of a proposal body or commit message: the branch marker, then an effect marker, last. */
-function hasProposalFooter(text: string | null | undefined, branch: string): boolean {
-    if (typeof text !== 'string') {
-        return false;
-    }
-
-    const lines = text.trimEnd().split('\n');
-    const effect = lines.at(-1) ?? '';
-
-    return lines.length >= 3 && lines.at(-2) === branchMarker(branch) &&
-        effect.startsWith('<!-- chamvi:effect=') && effect.endsWith(' -->');
-}
-
-/** The tool-owned footer naming exactly this effect; a marker quoted in the model-written `reason` never counts. */
-function hasEffectFooter(text: string | null | undefined, branch: string, effect: string): boolean {
-    return hasFooterMarker(text, `${branchMarker(branch)}\n${effect}`);
-}
-
-function proposalBranch(input: GithubProposeChangeInput, ctx: ToolContext): string {
-    const slug = input.path.toLowerCase().replaceAll(/[^a-z0-9-]+/g, '-').slice(0, 80).replaceAll(/^-+|-+$/g, '') || 'file';
-    const hash = createHash('sha256').update(input.path).digest('hex').slice(0, 16);
-    const { agent } = ctx.run;
-
-    return `chamvi/${agent}/${slug}-${hash}`;
-}
-
-function isNotFound(error: unknown): boolean {
-    return isObject(error) && error.status === 404;
-}
-
-async function headOf(octokit: GithubOctokit, target: RepoTarget, branch: string): Promise<string> {
-    const { data } = await octokit.request('GET /repos/{owner}/{repo}/git/ref/{ref}', {
-        ...target,
-        ref: `heads/${branch}`,
-    });
-
-    return data.object.sha;
-}
-
-async function assertHead(octokit: GithubOctokit, target: RepoTarget, branch: string, sha: string): Promise<void> {
-    if (await headOf(octokit, target, branch) !== sha) {
-        throw new ValidationError('Proposal branch moved during execution; retry after reviewing concurrent writes.');
-    }
-}
-
-/** Contents dereferences symlinks. Walk the pinned Git tree instead, including every parent directory. */
-async function readFile(octokit: GithubOctokit, target: RepoTarget, path: string, sha: string) {
-    const { data: commit } = await octokit.request('GET /repos/{owner}/{repo}/git/commits/{commit_sha}', {
-        ...target,
-        commit_sha: sha,
-    });
-    let tree = commit.tree.sha;
-    const parts = path.split('/');
-
-    for (const [index, part] of parts.entries()) {
-        const { data } = await octokit.request('GET /repos/{owner}/{repo}/git/trees/{tree_sha}', {
-            ...target,
-            tree_sha: tree,
-        });
-
-        if (data.truncated) {
-            throw new ValidationError('Proposal tree is truncated.');
-        }
-
-        const entry = data.tree.find((item) => item.path === part);
-
-        if (!entry) {
-            return {
-                tree: commit.tree.sha,
-                mode: '100644' as const,
-                content: undefined,
-            };
-        }
-
-        if (index < parts.length - 1) {
-            if (entry.type !== 'tree' || entry.mode !== '040000' || !entry.sha) {
-                throw new ValidationError('Proposal parent must be a directory, not a symlink or submodule.');
-            }
-
-            tree = entry.sha;
-        } else {
-            if (entry.type !== 'blob' || !['100644', '100755'].includes(entry.mode ?? '') || !entry.sha) {
-                throw new ValidationError('Proposal path must be a regular file.');
-            }
-
-            const { data: blob } = await octokit.request('GET /repos/{owner}/{repo}/git/blobs/{file_sha}', {
-                ...target,
-                file_sha: entry.sha,
-            });
-
-            if (blob.encoding !== 'base64') {
-                throw new ValidationError('Proposal blob must be Base64 encoded.');
-            }
-
-            return {
-                tree: commit.tree.sha,
-                mode: entry.mode as '100644' | '100755',
-                content: Buffer.from(blob.content, 'base64').toString('utf8'),
-            };
-        }
-    }
-
-    throw new ValidationError('Proposal path must not be empty.');
-}
-
-const MAX_PULL_PAGES = 10;
-const MAX_HISTORY_COMMITS = 250;
-const MAX_GENERATIONS = 250;
-
-/** The PRs of one head branch (`head=<owner>:<branch>`), never a scan of the repository's PRs. */
-async function pullsOf(octokit: GithubOctokit, target: RepoTarget, branch: string) {
-    const pulls = [];
-    let pageCount = 0;
-    const pages = octokit.paginate.iterator('GET /repos/{owner}/{repo}/pulls', {
-        ...target,
-        state: 'all',
-        head: `${target.owner}:${branch}`,
-        per_page: 100,
-    });
-
-    for await (const page of pages) {
-        pageCount += 1;
-
-        // A full final page may have more results. Never select a generation from
-        // incomplete discovery, even if the matching PRs were on earlier pages.
-        if (pageCount >= MAX_PULL_PAGES && page.data.length >= 100) {
-            throw new ValidationError('Proposal PR discovery limit exceeded; manual review is required.');
-        }
-
-        pulls.push(...page.data.filter((item) => item.head.ref === branch &&
-            item.head.repo?.full_name.toLowerCase() === `${target.owner}/${target.repo}`.toLowerCase()));
-    }
-
-    return pulls;
-}
-
-/**
- * Every generation of a proposal: the root branch, then `<root>-g-<n>` for the number
- * `n` of every PR found so far (`selectBranch` names the next generation after the
- * highest one). Following each number, not only the highest, keeps a PR off the
- * predicted chain (a human's PR on a proposal branch) from hiding the tool's own open
- * PR, so the multiple-open guard still sees it. Each step is one filtered request, so
- * the repository's PR count is irrelevant.
- */
-async function findPulls(octokit: GithubOctokit, target: RepoTarget, root: string) {
-    const pulls: Awaited<ReturnType<typeof pullsOf>> = [];
-    const seen = new Set<string>([root]);
-    const queue = [root];
-
-    for (let requests = 0; requests < MAX_GENERATIONS; requests += 1) {
-        const branch = queue.shift();
-
-        if (branch === undefined) {
-            return pulls;
-        }
-
-        for (const pull of await pullsOf(octokit, target, branch)) {
-            pulls.push(pull);
-
-            const next = `${root}-g-${pull.number}`;
-
-            if (!seen.has(next)) {
-                seen.add(next);
-                queue.push(next);
-            }
-        }
-    }
-
-    if (queue.length === 0) {
-        return pulls;
-    }
-
-    throw new ValidationError('Proposal generation limit exceeded; manual review is required.');
-}
-
-type ProposalPull = Awaited<ReturnType<typeof findPulls>>[number];
-
-function selectBranch(root: string, pulls: ProposalPull[]): string {
-    const open = pulls.filter((pull) => pull.state === 'open');
-
-    if (open.length > 1) {
-        throw new ValidationError('Multiple open proposal branches require manual review.');
-    }
-
-    // All runs converge on the same next generation, including retries before PR creation.
-    const previous = Math.max(0, ...pulls.map((pull) => pull.number));
-
-    return open[0]?.head.ref ?? (previous === 0 ? root : `${root}-g-${previous}`);
-}
-
-async function pullHasEffect(
-    octokit: GithubOctokit,
-    target: RepoTarget,
-    pull: ProposalPull,
-    marker: string,
-): Promise<{ found: boolean; commits: number }> {
-    // GitHub retains PR commits after merge/deletion. Comparing today's base SHA
-    // to the head instead can erase the very commits needed for reconciliation.
-    const pages = octokit.paginate.iterator('GET /repos/{owner}/{repo}/pulls/{pull_number}/commits', {
-        ...target,
-        pull_number: pull.number,
-        per_page: 100,
-    });
-    let inspected = 0;
-
-    for await (const page of pages) {
-        inspected += page.data.length;
-
-        // Positive evidence is sufficient even if the remaining history is capped.
-        const found = page.data.some((commit) => hasEffectFooter(commit.commit.message, pull.head.ref, marker));
-
-        if (found) {
-            return { found: true, commits: inspected };
-        }
-
-        // The PR endpoint silently caps results at 250 commits. Never infer absence there.
-        if (inspected >= MAX_HISTORY_COMMITS) {
-            throw new ValidationError('Proposal history limit exceeded; manual review is required.');
-        }
-    }
-
-    return { found: false, commits: inspected };
-}
-
-async function orphanHasEffect(
-    octokit: GithubOctokit,
-    target: RepoTarget,
-    sha: string,
-    base: string,
-    marker: string,
-    branch: string,
-): Promise<boolean> {
-    // An unpublished branch has no PR commit list. Only follow its tool-owned,
-    // single-parent chain, refusing ambiguity rather than missing an older effect.
-    let remaining = MAX_HISTORY_COMMITS;
-
-    while (sha !== base && remaining > 0) {
-        remaining -= 1;
-
-        const { data: commit } = await octokit.request('GET /repos/{owner}/{repo}/git/commits/{commit_sha}', {
-            ...target,
-            commit_sha: sha,
-        });
-
-        if (!hasProposalFooter(commit.message, branch)) {
-            throw new ValidationError('Proposal commit ancestry is not proposal-owned; manual review is required.');
-        }
-
-        if (commit.parents.length !== 1 || !commit.parents[0]?.sha) {
-            throw new ValidationError('Proposal commit ancestry is not a single-parent chain; manual review is required.');
-        }
-
-        if (hasEffectFooter(commit.message, branch, marker)) {
-            return true;
-        }
-
-        sha = commit.parents[0].sha;
-    }
-
-    if (sha !== base) {
-        throw new ValidationError('Proposal history limit exceeded; manual review is required.');
-    }
-
-    return false;
-}
-
-/** Compare files are only returned on page one, capped at 300. Reject the cap rather than trusting a truncated diff. */
-async function checkDiff(octokit: GithubOctokit, target: RepoTarget, base: string, branch: string, policy: GithubProposalsOptions) {
-    const { data } = await octokit.request('GET /repos/{owner}/{repo}/compare/{basehead}', {
-        ...target,
-        basehead: `${base}...${branch}`,
-        per_page: 1,
-    });
-    const { files } = data;
-    const safe = files !== undefined && files.length < 300 && files.every((file) =>
-        allowedPath(file.filename, `${target.owner}/${target.repo}`, policy) &&
-        (!file.previous_filename || allowedPath(file.previous_filename, `${target.owner}/${target.repo}`, policy)));
-
-    if (!safe) {
-        throw new ValidationError('Proposal branch diff is unavailable, truncated, or contains disallowed paths.');
-    }
-
-    return data;
 }
 
 export function createProposalTools(app: IGithubApp, policy: GithubProposalsOptions): ToolSet {

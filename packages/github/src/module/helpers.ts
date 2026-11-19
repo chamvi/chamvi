@@ -19,7 +19,7 @@ import {
     normalizeInstallationId,
     normalizeSecrets,
     normalizeSlug,
-} from '../app/helpers.ts';
+} from '../app/helpers/index.ts';
 import type { GithubAppOptions } from '../app/types.ts';
 import { normalizePrivateKey } from '../auth/helpers.ts';
 import { GITHUB_CONNECTION_TYPE } from './constants.ts';

@@ -7,7 +7,7 @@
 
 import type { ToolSet } from 'ai';
 import type { IClock } from '@chamvi/core';
-import type { PaginatedOctokit } from './helpers.ts';
+import type { PaginatedOctokit } from './helpers/index.ts';
 
 export type GithubAppOptions = {
     appId: string | number;

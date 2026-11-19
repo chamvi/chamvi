@@ -9,7 +9,7 @@ import type { ModelMessage } from 'ai';
 import { describe, expect, it } from 'vitest';
 import { ValidationError } from '@chamvi/core';
 import { REPO_PATTERN } from '../../../src/tools/constants.ts';
-import { parseRepo, stepOf, toolError } from '../../../src/tools/helpers.ts';
+import { parseRepo, stepOf, toolError } from '../../../src/tools/helpers/index.ts';
 import { assistant } from '../../utils/tools.ts';
 
 describe('stepOf', () => {

@@ -8,7 +8,7 @@
 import type { KeyObject } from 'node:crypto';
 import { ChamviError } from '@chamvi/core';
 import type { IClock } from '@chamvi/core';
-import { PaginatedOctokit } from '../app/helpers.ts';
+import { PaginatedOctokit } from '../app/helpers/index.ts';
 import type { GithubOctokit, GithubPermissions } from '../app/types.ts';
 import { GITHUB_REQUEST_ERROR_CODE } from '../tools/constants.ts';
 import { APP_REQUEST_TIMEOUT_MS, GITHUB_USER_AGENT, TOKEN_REFRESH_MARGIN_MS } from './constants.ts';

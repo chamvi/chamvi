@@ -6,13 +6,7 @@
  */
 
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { Octokit } from '@octokit/core';
-import { paginateRest } from '@octokit/plugin-paginate-rest';
-import { isObject } from 'smob';
-import { DEFAULT_GITHUB_API_URL } from './constants.ts';
-import type { GithubInstallation, GithubPermissions } from './types.ts';
-
-export const PaginatedOctokit = Octokit.plugin(paginateRest);
+import { DEFAULT_GITHUB_API_URL } from '../constants.ts';
 
 /** The webhook secrets as a non-empty list of non-empty strings. */
 export function normalizeSecrets(input: string | readonly string[]): string[] {
@@ -72,11 +66,6 @@ export function normalizeSlug(input: string | undefined): string | undefined {
     return input;
 }
 
-/** True when two GitHub logins name the same account (logins are case-insensitive). */
-export function isSameLogin(a: unknown, b: string): boolean {
-    return typeof a === 'string' && a.toLowerCase() === b.toLowerCase();
-}
-
 /**
  * The REST API root without trailing slashes: an absolute https URL
  * without query or hash (plain http would send the App JWT and installation
@@ -101,57 +90,4 @@ export function normalizeBaseUrl(input: string | undefined): string {
     }
 
     return input.replace(/\/+$/, '');
-}
-
-/** The names of the GitHub channels made for each app (githubChannel() registers its own). */
-const CHANNEL_NAMES = new WeakMap<object, Set<string>>();
-
-/** Records that the channel `name` takes the deliveries of `app` (githubChannel() calls it). */
-export function registerChannelName(app: object, name: string): void {
-    let names = CHANNEL_NAMES.get(app);
-
-    if (!names) {
-        names = new Set();
-        CHANNEL_NAMES.set(app, names);
-    }
-
-    names.add(name);
-}
-
-/** Whether any githubChannel() was made for `app`. */
-export function hasChannel(app: object): boolean {
-    return (CHANNEL_NAMES.get(app)?.size ?? 0) > 0;
-}
-
-/** Whether a githubChannel() of `app` is named `name`. */
-export function isChannelOf(app: object, name: unknown): boolean {
-    return typeof name === 'string' && (CHANNEL_NAMES.get(app)?.has(name) ?? false);
-}
-
-function stringOf(value: unknown): string | undefined {
-    return typeof value === 'string' && value.length > 0 ? value : undefined;
-}
-
-/** A `GET /app/installations` item as a GithubInstallation (an enterprise account has a slug, no login). */
-export function toInstallation(item: unknown): GithubInstallation {
-    const data = isObject(item) ? item : {};
-    const account = isObject(data.account) ? data.account : {};
-    const permissions: GithubPermissions = {};
-
-    if (isObject(data.permissions)) {
-        for (const [name, level] of Object.entries(data.permissions)) {
-            if (level === 'read' || level === 'write') {
-                permissions[name] = level;
-            }
-        }
-    }
-
-    return {
-        id: Number(data.id),
-        account: stringOf(account.login) ?? stringOf(account.slug) ?? '',
-        accountType: stringOf(account.type) ?? (stringOf(account.slug) ? 'Enterprise' : 'User'),
-        repositorySelection: data.repository_selection === 'all' ? 'all' : 'selected',
-        permissions,
-        suspended: typeof data.suspended_at === 'string',
-    };
 }

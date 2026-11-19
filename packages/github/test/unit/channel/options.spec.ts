@@ -10,7 +10,7 @@ import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { createTestEngine } from '@chamvi/test-kit';
 import { githubChannel } from '@chamvi/github';
 import type { GithubChannelOptions } from '@chamvi/github';
-import { resolveOptions } from '../../../src/channel/helpers.ts';
+import { resolveOptions } from '../../../src/channel/helpers/index.ts';
 import { createCommentFixture } from '../../utils/github.ts';
 
 /** The persistent-comment locks every channel of this spec takes. */

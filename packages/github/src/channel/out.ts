@@ -15,17 +15,17 @@ import {
 } from '@chamvi/core';
 import type { ChannelMessage, ChannelSendOptions } from '@chamvi/core';
 import type { TriggerEnvelope } from '@chamvi/store';
-import { isSameLogin } from '../app/helpers.ts';
+import { isSameLogin } from '../app/helpers/index.ts';
 import { isPositiveInteger } from '../subscription/helpers.ts';
 import { GITHUB_REQUEST_ERROR_CODE } from '../tools/constants.ts';
-import { hasFooterMarker, untilAborted } from '../tools/helpers.ts';
+import { hasFooterMarker, untilAborted } from '../tools/helpers/index.ts';
 import { RECONCILE_SKEW_MS, SLOT_LOCK_RETRY_MAX_MS, SLOT_LOCK_RETRY_MS } from './constants.ts';
 import {
     markerKey,
     parseAddress,
     renderComment,
     waitOn,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type { ResolvedGithubChannelOptions } from './types.ts';
 
 function requestError(error: unknown): ChamviError {

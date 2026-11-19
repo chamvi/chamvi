@@ -21,7 +21,7 @@ import {
     requireString,
     toolError,
     withOctokit,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type {
     GithubIssueList,
     GithubIssueSummary,
