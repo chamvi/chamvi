@@ -15,7 +15,7 @@ import {
     optionalPath,
     signalOf,
     workspaceOf,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type { CodingWorkspaces, GitDiffResult } from './types.ts';
 
 type GitDiffInput = {
