@@ -38,6 +38,10 @@ function httpUrl(value: unknown): string | undefined {
         return undefined;
     }
 
+    // an empty `?` or `#` passes the checks above but stays in href
+    url.search = '';
+    url.hash = '';
+
     return url.href.replace(/\/+$/, '');
 }
 

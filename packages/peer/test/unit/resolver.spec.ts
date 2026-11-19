@@ -11,6 +11,7 @@ import type { Invoker } from '@chamvi/store';
 import { ControllableClock } from '@chamvi/test-kit';
 import { PEER_POLL_DEFAULT_MS, createPeerResolver } from '@chamvi/peer';
 import type { PeerOptions } from '@chamvi/peer';
+import { createFakeFetch, json } from '../utils/fetch.ts';
 
 const SECRET = 'outgoing-secret-0123456789';
 
@@ -160,6 +161,40 @@ describe('createPeerResolver: options', () => {
             outgoing: false,
             approvals: { channel: 'whatsapp', address: 'owner' },
         });
+    });
+
+    it('drops an empty query or fragment delimiter from the peer and authup urls', async () => {
+        const fake = createFakeFetch((request) => (request.url.endsWith('/token') ?
+            json({ access_token: 'access-1', expires_in: 3_600 }) :
+            json({
+                id: 'remote-1',
+                status: 'running',
+                tainted: false,
+                usage: { inputTokens: 0, outputTokens: 0 },
+            })));
+        const resolver = createPeerResolver({
+            peers: {
+                dev: {
+                    url: 'https://dev.example/api?',
+                    outgoing: {
+                        authup: {
+                            url: 'https://auth.example/#',
+                            clientId: 'chamvi-assistants',
+                            clientSecret: SECRET,
+                        },
+                    },
+                },
+            },
+            clock: new ControllableClock(new Date('2026-11-19T10:00:00Z')),
+            fetch: fake.fetch,
+        });
+
+        await resolver.transport('dev').read('remote-1', { signal: new AbortController().signal });
+
+        expect(fake.requests.map((r) => r.url)).toEqual([
+            'https://auth.example/token',
+            'https://dev.example/api/runs/remote-1',
+        ]);
     });
 
     it('refuses settings and a transport for an unknown peer, and a transport without outgoing', () => {
