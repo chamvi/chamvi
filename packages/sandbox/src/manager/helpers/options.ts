@@ -5,51 +5,13 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { jsonSchema } from 'ai';
-import type { JSONSchema7 } from 'ai';
-import {
-    ChamviError,
-    InvalidAgentDefinitionError,
-    SandboxError,
-    ValidationError,
-} from '@chamvi/core';
-import { RunStatus } from '@chamvi/store';
+import { InvalidAgentDefinitionError } from '@chamvi/core';
 import { isObject } from 'smob';
-import { assertSandboxEnv, resolveLimits } from '../limits/module.ts';
-import { assertDeployment, assertImageOption } from '../provider/module.ts';
-import { WORKSPACE_ROOT } from '../workspace/constants.ts';
-import { GC_INTERVAL_MAX_MS } from './constants.ts';
-import type { IGitCredentials } from '../credentials/types.ts';
-import type { RepositoryInstructions } from '../instructions/types.ts';
-import type { IWorkspace } from '../workspace/types.ts';
-import type { ISandboxProvider } from '../provider/types.ts';
-import type {
-    GitAuthor,
-    PushPolicy,
-    WorkspaceManagerOptions,
-    WorkspaceToolResult,
-} from './types.ts';
-
-/** The name of the local provider, which runs no images. */
-const LOCAL_PROVIDER = 'local';
-
-/**
- * Whether `create_workspace` offers an `image`: only with an allow-list and
- * never on the local provider (it runs no images).
- */
-export function offersImage(
-    provider: Pick<ISandboxProvider, 'name'>,
-    allowImage: WorkspaceManagerOptions['allowImage'],
-): boolean {
-    return allowImage !== undefined && provider.name !== LOCAL_PROVIDER;
-}
-
-/** Why a requested image is refused when the manager offers none. */
-export function imageNotOfferedMessage(provider: Pick<ISandboxProvider, 'name'>): string {
-    return provider.name === LOCAL_PROVIDER ?
-        'image is not offered: the local provider runs no images.' :
-        'image is not offered: the operator configured no image allow-list.';
-}
+import type { IGitCredentials } from '../../credentials/types.ts';
+import { assertSandboxEnv, resolveLimits } from '../../limits/module.ts';
+import { assertDeployment, assertImageOption } from '../../provider/module.ts';
+import { GC_INTERVAL_MAX_MS } from '../constants.ts';
+import type { GitAuthor, PushPolicy, WorkspaceManagerOptions } from '../types.ts';
 
 /** Checks the manager options; InvalidAgentDefinitionError for a misconfiguration. */
 export function assertManagerOptions(options: WorkspaceManagerOptions): void {
@@ -195,125 +157,4 @@ function assertPushPolicy(push: PushPolicy | undefined): void {
     if (push.channel !== undefined && (typeof push.channel !== 'string' || push.channel.length === 0)) {
         throw fail('channel must be a non-empty channel name.');
     }
-}
-
-/** True for the statuses after which a run never executes again. */
-export function isTerminal(status: string): boolean {
-    return status === RunStatus.COMPLETED || status === RunStatus.FAILED || status === RunStatus.CANCELLED;
-}
-
-export function isExpired(workspace: IWorkspace, now: Date): boolean {
-    return workspace.info.expiresAt.getTime() <= now.getTime();
-}
-
-/** chamvi errors pass through; anything else becomes a SandboxError `<what>: <message>` with the cause. */
-export function toSandboxError(error: unknown, what: string): ChamviError {
-    if (error instanceof ChamviError) {
-        return error;
-    }
-
-    const message = Error.isError(error) ? error.message : String(error);
-
-    return new SandboxError(`${what}: ${message}`, { cause: error });
-}
-
-/** A string or undefined, else a ValidationError (a tool error the model can correct). */
-export function optionalString(value: unknown, name: string): string | undefined {
-    if (value === undefined) {
-        return undefined;
-    }
-
-    if (typeof value !== 'string') {
-        throw new ValidationError(`${name} must be a string.`);
-    }
-
-    return value;
-}
-
-/** A boolean or undefined, else a ValidationError. */
-export function optionalBoolean(value: unknown, name: string): boolean | undefined {
-    if (value === undefined) {
-        return undefined;
-    }
-
-    if (typeof value !== 'boolean') {
-        throw new ValidationError(`${name} must be a boolean.`);
-    }
-
-    return value;
-}
-
-/** The tool input as an object, else a ValidationError. */
-export function inputObject(input: unknown): Record<string, unknown> {
-    if (!isObject(input)) {
-        throw new ValidationError('The tool input must be an object.');
-    }
-
-    return input;
-}
-
-/** An object schema of optional `properties`. */
-export function optionalObjectSchema<T>(properties: Record<string, JSONSchema7>) {
-    return jsonSchema<T>({
-        type: 'object',
-        properties,
-        additionalProperties: false,
-    });
-}
-
-/** Redact strings after collection too, including metadata and nested instruction context. */
-export function redactToolResult<T>(workspace: IWorkspace, result: T): T {
-    if (!workspace.redact) {
-        return result;
-    }
-
-    return JSON.parse(JSON.stringify(result, (_key, value: unknown) => (
-        typeof value === 'string' ? workspace.redact!(value) : value
-    ))) as T;
-}
-
-/**
- * Collects guidance for `create_workspace`: a failure (a missing utility, a
- * stray stderr line, an exec timeout) degrades to `instructions: null` plus
- * the reason, since the workspace is usable without it; a cancelled run
- * still rejects.
- */
-export async function collectInstructions(
-    collect: () => Promise<RepositoryInstructions>,
-    signal: AbortSignal | undefined,
-): Promise<{ instructions: RepositoryInstructions | null; instructionsError?: string }> {
-    try {
-        return { instructions: await collect() };
-    } catch (error) {
-        if (signal?.aborted) {
-            throw error;
-        }
-
-        const message = Error.isError(error) ? error.message : String(error);
-
-        return { instructions: null, instructionsError: `Repository guidance could not be read: ${message}` };
-    }
-}
-
-export function toToolResult(
-    workspace: IWorkspace,
-    reused: boolean,
-    instructions: RepositoryInstructions | null,
-    instructionsError?: string,
-): WorkspaceToolResult {
-    const { info } = workspace;
-
-    return redactToolResult(workspace, {
-        workspace: workspace.id,
-        root: WORKSPACE_ROOT,
-        repo: info.repo ?? null,
-        ref: info.ref ?? null,
-        commit: info.commit ?? null,
-        defaultBranch: info.defaultBranch ?? null,
-        image: info.image ?? null,
-        expiresAt: info.expiresAt.toISOString(),
-        reused,
-        instructions,
-        ...(instructionsError !== undefined && { instructionsError }),
-    });
 }

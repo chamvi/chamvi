@@ -27,7 +27,7 @@ import { isObject } from 'smob';
 import { provideSandboxContext } from '../context/module.ts';
 import { staticGitCredentials } from '../credentials/module.ts';
 import type { IGitCredentials, StaticGitCredential } from '../credentials/types.ts';
-import { isTerminal } from '../manager/helpers.ts';
+import { isTerminal } from '../manager/helpers/index.ts';
 import { GC_INTERVAL_MS } from '../manager/constants.ts';
 import { createWorkspaceManager } from '../manager/module.ts';
 import type { IWorkspaceManager } from '../manager/types.ts';

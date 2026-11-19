@@ -6,6 +6,7 @@
  */
 
 import type { IClock } from '@chamvi/core';
+import type { IWorkspace } from '../workspace/types.ts';
 import type { InspectionStatusKind, InstructionDiagnosticCode } from './constants.ts';
 
 /** One instruction file, read whole: an entrypoint (`AGENTS.md`, `CLAUDE.md`) or a file one includes. */
@@ -76,4 +77,18 @@ export type IncludeTarget = { kind: 'path'; path: string } | {
 export type DiagnosticList = {
     readonly entries: RepositoryInstructionDiagnostic[];
     add(path: string, code: RepositoryInstructionDiagnosticCode, message: string): void;
+};
+
+export type InstructionNode = {
+    source: RepositoryInstructionSource;
+    includes: string[];
+} | undefined;
+
+/** What one discovery script exec is bounded by: the caller's signal, the request deadline and its expiry. */
+export type DiscoveryExecContext = {
+    workspace: IWorkspace;
+    clock: IClock;
+    signal: AbortSignal | undefined;
+    deadline: number;
+    expiry: AbortController;
 };

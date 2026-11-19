@@ -17,7 +17,7 @@ import {
     optionalString,
     redactToolResult,
     toToolResult,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type {
     DisposeWorkspaceResult,
     IWorkspaceManager,
