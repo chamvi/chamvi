@@ -167,7 +167,7 @@ export default createApp({
 });
 ```
 
-The module checks its options when called, builds the knowledge in `setup` (a model that does not resolve fails the boot), provides it to the engine's tools and indexes once the app started (the managed poll runs as the app component `knowledge-managed`), in `chamvi start` only: `run-job`, `start --check` and `migrate` never embed. Collections are declared at app level only; agents name the ones they may search. Without `repository` the vectors live in memory (warned outside dev): every restart re-embeds.
+The module checks its options when called, builds the knowledge in `setup` (a model that does not resolve fails the boot), provides it to the engine's tools and indexes once the app started (the managed poll runs as the app component `knowledge-managed`), in `chamvi start` only: `run-job`, `start --check` and `migrate` never embed. Collections are declared at app level only; agents name the ones they may search. Without `repository` the vectors live in memory (warned outside dev): every restart re-embeds. `vectorStoreModule()` of [`@chamvi/store-db-vector`](../store-db-vector) keeps them in PostgreSQL with pgvector, shared by every replica; listed beside `knowledgeModule()`, it is the repository unless `repository` names another.
 
 ## Sources
 
@@ -220,7 +220,7 @@ Each pass advances its collection's fence once it holds the lock `knowledge:<nam
 
 ## Not built yet
 
-A pgvector repository, `git()` and `urls()` sources and PDF documents are planned.
+`git()` and `urls()` sources, PDF documents and an approximate index in the pgvector store are planned.
 
 ## License
 

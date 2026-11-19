@@ -410,14 +410,19 @@ export class KnowledgeService implements IKnowledgeService {
                 return;
             }
 
-            const { data } = await repository.chunks.findMany(defineQuery({
-                fields: ['generation'],
-                filters: and(eq('collectionId', record.id), ne('generation', generation)),
-            }));
-            const others = [...new Set(data.map((chunk) => chunk.generation))];
+            // one generation per round: a read of every other chunk would be unbounded
+            for (;;) {
+                const { data: [other] } = await repository.chunks.findMany(defineQuery({
+                    fields: ['generation'],
+                    filters: and(eq('collectionId', record.id), ne('generation', generation)),
+                    pagination: { limit: 1 },
+                }));
 
-            if (others.length > 0) {
-                await repository.chunks.removeManyBy({ collectionId: record.id, generation: others });
+                if (!other) {
+                    return;
+                }
+
+                await repository.chunks.removeManyBy({ collectionId: record.id, generation: other.generation });
             }
         });
     }

@@ -71,3 +71,49 @@ export function documentProblem(value: unknown, origin: 'source' | 'request' = '
 
     return undefined;
 }
+
+/**
+ * Text as every backend keeps it: NUL (refused by a PostgreSQL text column)
+ * and lone surrogates (not encodable as UTF-8) become U+FFFD. Each replaces
+ * one UTF-16 code unit, so chunk offsets hold.
+ */
+export function storedText(value: string): string {
+    return value.replaceAll('\0', '\uFFFD').toWellFormed();
+}
+
+/** `value` with every string and plain-object key as stored (`storedText`); other values as given. */
+function storedJson(value: unknown): unknown {
+    if (typeof value === 'string') {
+        return storedText(value);
+    }
+
+    if (Array.isArray(value)) {
+        return value.map((item) => storedJson(item));
+    }
+
+    if (isObject(value)) {
+        const prototype: unknown = Object.getPrototypeOf(value);
+
+        if (prototype === Object.prototype || prototype === null) {
+            return Object.fromEntries(Object.entries(value).map(([key, item]) => [storedText(key), storedJson(item)]));
+        }
+    }
+
+    return value;
+}
+
+/**
+ * A valid document as every backend stores it, so memory and PostgreSQL hold
+ * the same text and a document compares equal to its next yield (rejected:
+ * comparing through the replacement while memory keeps the raw text, which
+ * lost a NUL-to-U+FFFD edit there).
+ */
+export function storedDocument(document: KnowledgeDocumentInput): KnowledgeDocumentInput {
+    return {
+        ...document,
+        content: storedText(document.content),
+        ...(document.title === undefined ? {} : { title: storedText(document.title) }),
+        ...(document.source === undefined ? {} : { source: storedText(document.source) }),
+        ...(document.metadata === undefined ? {} : { metadata: storedJson(document.metadata) as Record<string, unknown> }),
+    };
+}

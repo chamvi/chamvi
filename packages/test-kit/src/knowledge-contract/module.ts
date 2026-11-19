@@ -106,9 +106,9 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 await service.saveCollection(collectionOf('docs', { status: 'pending', generation: 0 }));
                 await service.saveCollection(collectionOf('docs', {
                     pending: {
-                        generation: 2, 
-                        model: 'p/m', 
-                        dimensions: 4, 
+                        generation: 2,
+                        model: 'p/m',
+                        dimensions: 4,
                         chunker: 'text-v1',
                     },
                     lastGeneration: 3,
@@ -122,9 +122,9 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
 
                 expect(stored).toEqual(collectionOf('docs', {
                     pending: {
-                        generation: 2, 
-                        model: 'p/m', 
-                        dimensions: 4, 
+                        generation: 2,
+                        model: 'p/m',
+                        dimensions: 4,
                         chunker: 'text-v1',
                     },
                     lastGeneration: 3,
@@ -140,12 +140,54 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.findCollections()).toHaveLength(1);
             });
 
+            it('saveCollection clears optional fields on replace', async () => {
+                const service = await create();
+
+                await service.saveCollection(collectionOf('docs', {
+                    pending: {
+                        generation: 2,
+                        model: 'p/m',
+                        dimensions: 4,
+                        chunker: 'text-v1',
+                    },
+                    lastGeneration: 3,
+                    error: 'failed once',
+                    failures: 2,
+                    retryAt: new Date(5_000),
+                    syncedAt: new Date(4_000),
+                }));
+
+                const bare = collectionOf('docs');
+
+                delete bare.dimensions;
+
+                await service.saveCollection(bare);
+
+                expect(await service.findOneCollectionOrFail('docs')).toEqual(bare);
+            });
+
+            it('saveCollection ignores an id or fence carried by the input', async () => {
+                const service = await create();
+                const foreign = {
+                    ...collectionOf('docs'),
+                    id: 'another-row',
+                    fence: 9,
+                };
+
+                const created = await service.saveCollection(foreign);
+
+                expect(created.id).not.toBe('another-row');
+                expect(created.fence).toBe(0);
+                expect(await service.advanceFence('docs')).toEqual({ id: created.id, fence: 1 });
+                expect(await service.findOneCollectionOrFail('docs')).toEqual(collectionOf('docs'));
+            });
+
             it('copies collections in and out', async () => {
                 const service = await create();
                 const input = collectionOf('docs', {
                     pending: {
-                        generation: 2, 
-                        model: 'p/m', 
+                        generation: 2,
+                        model: 'p/m',
                         chunker: 'text-v1',
                     },
                 });
@@ -303,9 +345,9 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 });
 
                 await service.saveDocument(documentOf('docs', 'a', {
-                    content: 'new', 
-                    hash: 'sha256:new', 
-                    generation: 2, 
+                    content: 'new',
+                    hash: 'sha256:new',
+                    generation: 2,
                 }));
 
                 const replaced = await service.findOneDocumentOrFail('docs', 'a');
@@ -868,6 +910,28 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect((await service.search('docs', 1, [1, 0, 0], { topK: 10 })).map((match) => match.text))
                     .toEqual(['three']);
                 expect(await service.search('docs', 1, [1, 0, 0, 0], { topK: 10 })).toEqual([]);
+            });
+
+            it('scores a zero vector 0 on either side', async () => {
+                const service = await create();
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.replaceChunks('docs', 'a', 1, [chunkOf(0, [0, 0], 'zero')]);
+                await service.replaceChunks('docs', 'b', 1, [chunkOf(0, [1, 0], 'unit')]);
+
+                const scores = (matches: Array<{ text: string; score: number }>) => matches
+                    .map((match) => [match.text, match.score]);
+
+                expect(scores(await service.search('docs', 1, [1, 0], { topK: 10 }))).toEqual([
+                    ['unit', expect.closeTo(1, 6)],
+                    ['zero', 0],
+                ]);
+                // equal scores: by document
+                expect(scores(await service.search('docs', 1, [0, 0], { topK: 10 }))).toEqual([
+                    ['zero', 0],
+                    ['unit', 0],
+                ]);
+                expect(await service.search('docs', 1, [0, 0], { topK: 10, minScore: 0.5 })).toEqual([]);
             });
 
             it('orders equal scores by document, then index', async () => {

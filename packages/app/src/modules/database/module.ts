@@ -103,6 +103,7 @@ export class DatabaseModule implements IModule {
             throw new InvalidAgentDefinitionError(`The database "${descriptor.name}" needs PostgreSQL: set DATABASE_URL.`);
         }
 
+        this.assertOwnName(container, descriptor);
         this.assertOwnTable(container, descriptor);
         container.registerMany(DatabaseToken.DESCRIPTORS, { useValue: descriptor });
 
@@ -236,6 +237,21 @@ export class DatabaseModule implements IModule {
                 code: APP_ERROR_CODE.STORE_NOT_MIGRATED,
                 message: `The database "${this[DATABASE_DESCRIPTOR].name}" has ${pending.length} pending migration(s); ${STORE_NOT_MIGRATED_HINT}`,
             });
+        }
+    }
+
+    /**
+     * Two databases of one name would share a data source token and a
+     * migration lock; module names alone do not tell, since a subclass may
+     * rename its module.
+     */
+    protected assertOwnName(container: IContainer, descriptor: DatabaseDescriptor): void {
+        const others = container.has(DatabaseToken.DESCRIPTORS) ? container.resolveAll(DatabaseToken.DESCRIPTORS) : [];
+
+        const taken = others.some((candidate) => candidate.name === descriptor.name);
+
+        if (taken) {
+            throw new InvalidAgentDefinitionError(`Two database modules are named "${descriptor.name}": each database needs its own name.`);
         }
     }
 

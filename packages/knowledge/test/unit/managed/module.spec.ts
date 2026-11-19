@@ -235,6 +235,38 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('putDocument stores NUL and lone surrogates as U+FFFD, as every backend keeps them', async () => {
+        const setup = createIndexerSetup();
+        const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+
+        const clean = {
+            id: 'doc',
+            content: 'Refunds\uFFFD.',
+            title: 'a\uFFFDb',
+            source: 's\uFFFD',
+            metadata: { 'k\uFFFD': 'v\uFFFD', list: ['x\uFFFD'] },
+        };
+
+        expect(await knowledge.putDocument('notes', {
+            id: 'doc',
+            content: 'Refunds\0.',
+            title: 'a\0b',
+            source: 's\uD800',
+            metadata: { 'k\0': 'v\uDC00', list: ['x\0'] },
+        })).toEqual({ status: 'pending', changed: true });
+
+        const stored = await waitForDocument(setup, 'notes', 'doc', 'ready');
+
+        expect(stored).toMatchObject(clean);
+        expect(stored.hash).toBe(contentHash(clean.content));
+        expect(await knowledge.putDocument('notes', clean)).toEqual({ status: 'ready', changed: false });
+        expect(await knowledge.putDocument('notes', { ...clean, title: 'ab' })).toEqual({ status: 'ready', changed: true });
+        expect(await setup.service.findOneDocument('notes', 'doc')).toMatchObject({ title: 'ab' });
+    });
+
     it('putDocument with unchanged content answers changed false and embeds nothing', async () => {
         const setup = createIndexerSetup();
         const model = mockEmbeddingModel();

@@ -119,6 +119,38 @@ describe('syncing a declared collection', () => {
         expect(model.calls).toHaveLength(calls);
     });
 
+    it('stores NUL and lone surrogates of a yielded document as U+FFFD, as every backend keeps them', async () => {
+        const setup = createIndexerSetup();
+        const source = defineKnowledgeSource({
+            async* documents() {
+                yield {
+                    id: 'a.md',
+                    content: 'Text\0.',
+                    title: 'a\0b',
+                    source: 's\uD800',
+                    metadata: { 'k\0': ['v\uDC00'] },
+                };
+            },
+        });
+
+        start(createKnowledge(setup.options({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [source] })] })));
+        await waitForReady(setup.service, 'docs');
+
+        expect(await setup.service.findOneDocument('docs', 'a.md')).toMatchObject({
+            content: 'Text\uFFFD.',
+            hash: contentHash('Text\uFFFD.'),
+            title: 'a\uFFFDb',
+            source: 's\uFFFD',
+            metadata: { 'k\uFFFD': ['v\uFFFD'] },
+        });
+        expect((await setup.service.search('docs', 1, (await mockEmbeddingModel().doEmbed({ values: ['Text\uFFFD.'] })).embeddings[0]!, { topK: 1 }))[0])
+            .toMatchObject({
+                text: 'Text\uFFFD.', 
+                title: 'a\uFFFDb', 
+                source: 's\uFFFD', 
+            });
+    });
+
     it('re-embeds only a changed document and drops a removed one', async () => {
         const setup = createIndexerSetup();
         const model = mockEmbeddingModel();
