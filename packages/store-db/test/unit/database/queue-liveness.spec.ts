@@ -22,7 +22,7 @@ import {
     it,
 } from 'vitest';
 import { closeDatabase } from '../../../src/database/index.ts';
-import { isInTransaction, queueOf } from '../../../src/entity/helpers/serialize.ts';
+import { isInTransaction, queueOf } from '../../../src/entity/helpers/serialize/index.ts';
 import { DatabaseBusyError, DatabaseUnavailableError } from '../../../src/error/index.ts';
 import { openFixtureDataSource } from '../../utils/entity/data-source.ts';
 import type { FixtureDataSource, FixtureDataSourceOptions } from '../../utils/entity/data-source.ts';
