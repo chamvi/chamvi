@@ -15,7 +15,7 @@ import type {
     RemoteAgent,
     SimpleAgent,
 } from '../agent/types.ts';
-import { assertAgentKind, conversationKey } from '../agent/asserts.ts';
+import { assertAgentKind, assertRemoteAgent, conversationKey } from '../agent/asserts.ts';
 import { approvalDecisionKey, assertSelectionShape, toSelection } from '../approval/helpers.ts';
 import { assertArtifactInput } from '../artifact/helpers.ts';
 import { storeArtifact } from '../artifact/module.ts';
@@ -132,6 +132,7 @@ import type {
     EngineOptions,
     EngineStartOptions,
     IEngine,
+    WakeOutcome,
 } from './types.ts';
 
 /** What `answer()` records: an `ApprovalAnswer` without its approval id. */
@@ -1463,12 +1464,13 @@ export class Engine implements IEngine {
     /**
      * Marks the remote wait of stand-in `runId` `wakeRequested`, so the next
      * tick on any replica polls its remote run at once (a peer's
-     * content-free wake). True only for a stand-in waiting on the peer
-     * `invoker` authenticates as; false, with nothing written, otherwise.
+     * content-free wake): `marked` when this call set the mark, `pending`
+     * when it was set already; only for a stand-in waiting on the peer
+     * `invoker` authenticates as, `undefined`, with nothing written, otherwise.
      */
-    async wake(runId: string, invoker: Invoker | undefined): Promise<boolean> {
+    async wake(runId: string, invoker: Invoker | undefined): Promise<WakeOutcome | undefined> {
         if (!this.peers) {
-            return false;
+            return undefined;
         }
 
         return wakeRemote(this.remoteContext(this.peers), runId, invoker);
@@ -2041,10 +2043,23 @@ export class Engine implements IEngine {
         return updated;
     }
 
-    /** What one execution of a remote agent's stand-in `run` gets from this engine. */
+    /**
+     * What one execution of a remote agent's stand-in `run` gets from this
+     * engine. Its signal aborts with the execution's stop as the reason
+     * (`cancel`, `drain`, `lease-lost`), so the start can outlive a cancel.
+     */
     protected remoteExecuteContext(run: Run, agent: RemoteAgent, signal: AbortSignal): RemoteExecuteContext {
         if (!this.peers) {
             throw new InvalidRunStateError(`Agent "${agent.name}" is a remote agent, but the engine has no peers.`);
+        }
+
+        const stopped = new AbortController();
+        const forward = () => stopped.abort(this.executions.get(run.id)?.stop ?? 'cancel');
+
+        if (signal.aborted) {
+            forward();
+        } else {
+            signal.addEventListener('abort', forward, { once: true });
         }
 
         return {
@@ -2054,7 +2069,7 @@ export class Engine implements IEngine {
             effectService: this.effectService,
             artifactService: this.artifactService,
             clock: this.clock,
-            signal,
+            signal: stopped.signal,
             finish: (patch) => this.finish(run.id, patch),
             update: (patch) => this.executionUpdate(run.id, patch),
             pause: (request, usage) => this.pause(run, request, usage),
@@ -2402,9 +2417,21 @@ export class Engine implements IEngine {
         this.skills.checkAgent(agent, options);
     }
 
-    /** A remote agent's peer is configured and its `approvals` channel registered with `out`. */
+    /**
+     * A remote agent passes defineRemoteAgent()'s checks again (a hand-built
+     * one skipped them) with `agent`, `role` and `timeoutMs` set, its peer is
+     * configured and its `approvals` channel registered with `out`.
+     */
     protected assertRemoteAgent(agent: RemoteAgent): void {
-        const { peer, approvals } = agent.definition;
+        const { definition } = agent;
+
+        assertRemoteAgent(definition);
+
+        if (definition.agent === undefined || definition.role === undefined || definition.timeoutMs === undefined) {
+            throw new InvalidAgentDefinitionError(`Agent "${agent.name}" needs agent, role and timeoutMs: build it with defineRemoteAgent().`);
+        }
+
+        const { peer, approvals } = definition;
 
         if (!this.peers) {
             throw new InvalidAgentDefinitionError(`Agent "${agent.name}" names unknown peer "${peer}": the engine has no peers (EngineOptions.peers).`);

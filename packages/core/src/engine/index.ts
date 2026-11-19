@@ -21,4 +21,5 @@ export type {
     EngineOptions,
     EngineStartOptions,
     RunEvent,
+    WakeOutcome,
 } from './types.ts';

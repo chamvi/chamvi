@@ -14,7 +14,7 @@ import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
 import type { DispatchResult } from '../channel/types.ts';
 import { stableHash } from '../effect/helpers.ts';
 import type { DispatchEnvelope } from '../engine/types.ts';
-import { AgentNotFoundError, InvalidRunStateError, ValidationError } from '../errors/index.ts';
+import { AgentNotFoundError, PeerStartBusyError, ValidationError } from '../errors/index.ts';
 import {
     assertDispatchKey,
     findDispatchRole,
@@ -57,9 +57,9 @@ function readFields(fields: unknown): PeerDispatchFields {
         role: fields.role,
         standIn: fields.standIn,
         parent: {
-            runId: parent.runId, 
-            agent: parent.agent, 
-            depth: parent.depth, 
+            runId: parent.runId,
+            agent: parent.agent,
+            depth: parent.depth,
         },
         taint: fields.taint === true,
         ...(fields.origin !== undefined ? { origin: fields.origin } : {}),
@@ -77,11 +77,12 @@ function readFields(fields: unknown): PeerDispatchFields {
  * in `from`, `parent.depth + 1` above `maxDepth`, the role schema and a
  * missing idempotency key (ValidationError). Nothing refused claims a key.
  * `maxPerRun` is counted under `peer-count:<peer>:<parent.runId>:<agent>:<role>`
- * under the store lock `peer-count:<count key>` (held by another replica:
- * InvalidRunStateError, retryable, nothing written), before the run is
+ * under the store lock `peer-count-lock:<same scope>` (held by another replica:
+ * PeerStartBusyError, retryable, nothing written), before the run is
  * created; a resend of a counted call spends no slot. The run is created on
  * channel `agent` with the peer's invoker, a `PeerParent` lineage, for a
- * tainted caller taint `peer:<peer>` from the start, and the claim key
+ * tainted caller or an `untrusted` peer taint `peer:<peer>` from the start,
+ * and the claim key
  * `peerClaimKey(key)`, so the same peer key dedupes into the same run while
  * no peer key equals a local dispatch's claim key.
  */
@@ -159,8 +160,11 @@ export async function dispatchPeer(
     };
     // the claimed key is the call's identity: a resend whose validated payload differs (a schema adding a fresh value) still reuses its slot
     const callHash = stableHash({ idempotencyKey });
-    const countKey = `peer-count:${peer}:${parent.runId}:${target}:${role}`;
-    const lockKey = `peer-count:${countKey}`;
+    const countScope = `${peer}:${parent.runId}:${target}:${role}`;
+    const countKey = `peer-count:${countScope}`;
+    const lockKey = `peer-count-lock:${countScope}`;
+    // an untrusted peer taints every run it starts, a trusted one only a tainted caller's
+    const tainted = fields.taint || host.peers?.settings(peer).untrusted === true;
     const create = () => host.createRun({
         agent: target,
         trigger: role,
@@ -173,14 +177,14 @@ export async function dispatchPeer(
         ...(address !== undefined ? { address } : {}),
         // the agent the invoker check saw: a replacement since is refused (AgentReplacedError)
         checked: agent,
-    }, lineage, fields.taint ? `peer:${peer}` : undefined);
+    }, lineage, tainted ? `peer:${peer}` : undefined);
 
     // the count is a read-check-write: one at a time per count key in this process, and under a store lock across replicas
     return host.serial(countKey, async () => {
         const owner = randomUUID();
 
         if (!await host.locks.acquire(lockKey, owner, host.lockTtlMs)) {
-            throw new InvalidRunStateError(`Another start of run ${parent.runId} of peer "${peer}" is being counted; resend it.`);
+            throw new PeerStartBusyError(peer, parent.runId);
         }
 
         try {

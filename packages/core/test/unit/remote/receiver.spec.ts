@@ -16,6 +16,7 @@ import { Permission } from '@chamvi/access';
 import {
     AgentNotFoundError,
     Engine,
+    PeerStartBusyError,
     ValidationError,
     agent,
     agentChannel,
@@ -387,11 +388,11 @@ describe('the receiver: dispatchPeer()', () => {
 
     it('refuses a start while another replica holds the count lock, and counts it on the resend', async () => {
         const { engine, store } = setup();
-        const lockKey = 'peer-count:peer-count:dev:caller-1:notify:notify';
+        const lockKey = 'peer-count-lock:dev:caller-1:notify:notify';
 
         expect(await store.lockService.acquire(lockKey, 'other-replica', 60_000)).toBe(true);
 
-        await expect(engine.dispatchPeer(envelope(), fields())).rejects.not.toBeInstanceOf(ValidationError);
+        await expect(engine.dispatchPeer(envelope(), fields())).rejects.toBeInstanceOf(PeerStartBusyError);
         expect(await allRuns(store)).toHaveLength(0);
         expect(await store.effectService.findOne('peer-count:dev:caller-1:notify:notify')).toBeUndefined();
 
@@ -441,6 +442,14 @@ describe('the receiver: dispatchPeer()', () => {
     it('taints the run from the start when the caller is tainted', async () => {
         const { engine, store } = setup();
         const { runId } = await engine.dispatchPeer(envelope(), fields({ taint: true }));
+        const run = await readRun(store, runId);
+
+        expect(run.taint).toEqual({ at: expect.any(Date), source: 'peer:dev' });
+    });
+
+    it('taints the run from the start when the peer is configured untrusted', async () => {
+        const { engine, store } = setup({ dev: { untrusted: true } });
+        const { runId } = await engine.dispatchPeer(envelope(), fields({ taint: false }));
         const run = await readRun(store, runId);
 
         expect(run.taint).toEqual({ at: expect.any(Date), source: 'peer:dev' });

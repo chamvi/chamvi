@@ -106,11 +106,12 @@ export interface IEngine extends IContextProvider {
     cancel(runId: string): Promise<void>;
     approve(runId: string, answer: ApprovalAnswer): Promise<void>;
     /**
-     * A peer's content-free wake of stand-in `runId`: true when it waits on
-     * the peer `invoker` authenticates as (the next tick polls it at once),
-     * false with nothing written otherwise.
+     * A peer's content-free wake of stand-in `runId` waiting on the peer
+     * `invoker` authenticates as (the next tick polls it at once): `marked`
+     * when this call set the mark, `pending` when it was set already;
+     * `undefined`, with nothing written, for any other run or invoker.
      */
-    wake(runId: string, invoker: Invoker | undefined): Promise<boolean>;
+    wake(runId: string, invoker: Invoker | undefined): Promise<WakeOutcome | undefined>;
     tick(): Promise<void>;
     checkAgent(agent: Agent): void;
 }
@@ -223,6 +224,9 @@ export type EngineOptions = {
     /** Receives errors that have no caller to throw to. Default console.error. */
     onError?: (error: unknown, run?: Run) => void;
 };
+
+/** What a peer's wake did to a stand-in's remote wait: set the mark, or found it set. */
+export type WakeOutcome = 'marked' | 'pending';
 
 /** A run to create; `parent` is no field: only the dispatch host (dispatch()) sets the lineage. */
 export type DispatchEnvelope = Omit<TriggerEnvelope, 'id' | 'receivedAt' | 'attachments' | 'parent'> &

@@ -36,6 +36,7 @@ export type PeerStartInput = {
         parent: {
             runId: string;
             agent: string;
+            /** The calling run's depth (the stand-in adds no level): the peer's run gets `depth + 1`. */
             depth: number
         };
         /** Whether the caller is tainted; a tainted caller starts a tainted remote run. */

@@ -11,6 +11,7 @@ import type { Invoker, RemoteWaitPoint, Run } from '@chamvi/store';
 import type { RemoteAgent } from '../../agent/types.ts';
 import { ChannelNotFoundError, InvalidRunStateError, TimeoutError } from '../../errors/index.ts';
 import type { PeerRunView } from '../../peer/types.ts';
+import type { WakeOutcome } from '../types.ts';
 import { deliverOnce } from '../notify/module.ts';
 import {
     isSameApproval,
@@ -416,25 +417,26 @@ export async function pollRemoteWaits(ctx: RemoteEngineContext, listed: readonly
  * A peer's content-free "check run X now": marks the remote wait of stand-in
  * `runId` `wakeRequested` (a write conditional on the run still waiting on
  * its remote run), so the next tick on any replica polls it regardless of
- * the window. False, with nothing written, unless `runId` is a stand-in
- * waiting on the peer `invoker` authenticates as.
+ * the window: `marked` when this call set the mark, `pending` when it was
+ * set already. `undefined`, with nothing written, unless `runId` is a
+ * stand-in waiting on the peer `invoker` authenticates as.
  */
-export async function wakeRemote(ctx: RemoteEngineContext, runId: string, invoker: Invoker | undefined): Promise<boolean> {
+export async function wakeRemote(ctx: RemoteEngineContext, runId: string, invoker: Invoker | undefined): Promise<WakeOutcome | undefined> {
     const peer = ctx.peers.recognize(invoker);
 
     if (peer === undefined) {
-        return false;
+        return undefined;
     }
 
     const run = await ctx.runService.findOne(runId);
     const waiting = remoteWaitOf(run);
 
     if (!waiting || waiting.peer !== peer) {
-        return false;
+        return undefined;
     }
 
     if (waiting.wakeRequested) {
-        return true;
+        return 'pending';
     }
 
     try {
@@ -460,13 +462,13 @@ export async function wakeRemote(ctx: RemoteEngineContext, runId: string, invoke
         ctx.emit(updated);
     } catch (error) {
         if (error instanceof InvalidRunStateError) {
-            return false;
+            return undefined;
         }
 
         throw error;
     }
 
-    return true;
+    return 'marked';
 }
 
 /**

@@ -35,8 +35,9 @@ function addUsage(a: Usage, b: Usage): Usage {
 
 /**
  * The calling run the peer counts the start against: the stand-in's parent
- * when it was dispatched here, else the stand-in itself. `depth` is the
- * stand-in's own depth.
+ * when it was dispatched here, else the stand-in itself. `depth` is that
+ * calling run's depth, so the stand-in adds no level: the peer's run lands
+ * at the depth a local dispatch from the caller would (`parent.depth + 1`).
  */
 function callerOf(run: Run): PeerStartInput['peer']['parent'] {
     const { parent } = run.trigger;
@@ -45,7 +46,8 @@ function callerOf(run: Run): PeerStartInput['peer']['parent'] {
         return {
             runId: parent.runId,
             agent: parent.agent,
-            depth: parent.depth,
+            // the trigger's depth is the stand-in's own; its parent sits one above
+            depth: parent.depth - 1,
         };
     }
 
@@ -77,6 +79,28 @@ async function attachmentsOf(ctx: RemoteExecuteContext): Promise<ArtifactInput[]
             data,
         };
     }));
+}
+
+/**
+ * The signal of the start request: aborted with `signal` unless a cancel
+ * aborted it (its reason `cancel`). A cancel lets the start finish, since the
+ * peer may have created the run: only a recorded start is cancelled remotely.
+ */
+function startSignal(signal: AbortSignal): AbortSignal {
+    const controller = new AbortController();
+    const forward = () => {
+        if (signal.reason !== 'cancel') {
+            controller.abort(signal.reason);
+        }
+    };
+
+    if (signal.aborted) {
+        forward();
+    } else {
+        signal.addEventListener('abort', forward, { once: true });
+    }
+
+    return controller.signal;
 }
 
 async function startInput(ctx: RemoteExecuteContext): Promise<PeerStartInput> {
@@ -137,7 +161,7 @@ async function startRemote(ctx: RemoteExecuteContext): Promise<string | undefine
         const input = await startInput(ctx);
         const answer = await peerRequest(
             clock,
-            ctx.signal,
+            startSignal(ctx.signal),
             (signal) => ctx.peers.transport(peer).start(input, { signal }),
         );
 
@@ -171,6 +195,13 @@ async function startRemote(ctx: RemoteExecuteContext): Promise<string | undefine
     } catch (error) {
         // the start is idempotent under its key: recovery resends it and reaches the same remote run
         ctx.onError(error, run);
+
+        return undefined;
+    }
+
+    if (ctx.signal.aborted) {
+        // cancelled while the start was in flight: the recorded start makes the settle send the remote cancel
+        await ctx.finish({ status: RunStatus.CANCELLED });
 
         return undefined;
     }
@@ -280,11 +311,13 @@ async function settle(ctx: RemoteExecuteContext, outcome: RemoteOutcome): Promis
  * through the start effect (`remote-start:<runId>`, the local run id as the
  * idempotency key, so a resend after a lost answer reaches the same remote
  * run, and a recorded start is never sent again) and pauses on a `remote`
- * wait point that expires after the agent's `timeoutMs`. A start rejected
- * with a ValidationError fails the run; any other rejection, and a store
- * failure while recording the start or pausing, ends only the execution
- * (onError), and recovery retries once the claim expired, until the remote
- * deadline (`createdAt + timeoutMs`) passed: then the run fails with Timeout.
+ * wait point that expires at the remote deadline (`createdAt + timeoutMs`).
+ * A start rejected with a ValidationError fails the run; any other
+ * rejection, and a store failure while recording the start or pausing, ends
+ * only the execution (onError), and recovery retries once the claim expired,
+ * until the remote deadline passed: then the run fails with Timeout. A
+ * cancel lets an in-flight start finish and settles the run after recording
+ * it, so the remote run is cancelled too.
  */
 export async function executeRemoteRun(ctx: RemoteExecuteContext): Promise<void> {
     const {
@@ -313,7 +346,8 @@ export async function executeRemoteRun(ctx: RemoteExecuteContext): Promise<void>
             peer: agent.definition.peer,
             agent: agent.definition.agent,
             remoteRunId,
-            timeoutMs: agent.definition.timeoutMs,
+            // the deadline of the whole remote run: a start retried by recovery does not extend it
+            timeoutMs: Math.max(0, run.createdAt.getTime() + agent.definition.timeoutMs - ctx.clock.now()),
         }, { ...run.usage });
     } catch (error) {
         // the start is recorded: recovery re-pauses on the same remote run without sending it again

@@ -32,6 +32,7 @@ import {
     assertSubtreeBudget,
     assertToolsContext,
     conversationKey,
+    isName,
 } from './asserts.ts';
 import type {
     ModelAgent,
@@ -87,6 +88,15 @@ export function defineRemoteAgent(def: RemoteAgentDefinition): RemoteAgent {
             timeoutMs: def.timeoutMs ?? REMOTE_TIMEOUT_DEFAULT_MS,
         },
     };
+}
+
+/**
+ * Whether `value` follows the agent-name rule: lowercase letters and digits
+ * in words joined by single hyphens, at most `AGENT_NAME_MAX_LENGTH`
+ * characters (agent, channel, role and peer names).
+ */
+export function isAgentName(value: unknown): value is string {
+    return isName(value);
 }
 
 function assertName(name: unknown): void {

@@ -221,6 +221,8 @@ describe('public api', () => {
         'ContextNotProvidedError',
         'AgentNotFoundError',
         'AgentReplacedError',
+        'PeerStartBusyError',
+        'isAgentName',
         'checkAgentModel',
         'resolveModel',
         'extract',
@@ -277,7 +279,13 @@ describe('public api', () => {
         expect(core.REMOTE_TIMEOUT_DEFAULT_MS).toBe(86_400_000);
         expect(core.PEER_REQUEST_TIMEOUT_MS).toBe(30_000);
         expect(core.ErrorCode.REMOTE_FAILED).toBe('remote_failed');
-        expectTypeOf<core.IEngine['wake']>().toEqualTypeOf<(runId: string, invoker: store.Invoker | undefined) => Promise<boolean>>();
+        expect(core.ErrorCode.PEER_START_BUSY).toBe('peer_start_busy');
+        expect(new core.PeerStartBusyError('dev', 'r1').code).toBe('peer_start_busy');
+        expect(core.AGENT_NAME_MAX_LENGTH).toBe(64);
+        expect(core.isAgentName('dev-ops')).toBe(true);
+        expect(core.isAgentName('Dev')).toBe(false);
+        expect(core.isAgentName('a'.repeat(65))).toBe(false);
+        expectTypeOf<core.IEngine['wake']>().toEqualTypeOf<(runId: string, invoker: store.Invoker | undefined) => Promise<core.WakeOutcome | undefined>>();
         expectTypeOf<core.Agent>().toEqualTypeOf<core.ModelAgent | core.SimpleAgent | core.RemoteAgent>();
         expectTypeOf(core.defineRemoteAgent).returns.toEqualTypeOf<core.RemoteAgent>();
         expectTypeOf(core.defineRemoteAgent).parameter(0).toEqualTypeOf<core.RemoteAgentDefinition>();

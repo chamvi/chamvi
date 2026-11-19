@@ -11,8 +11,15 @@ import {
     expect,
     it,
 } from 'vitest';
-import { ValidationError } from '@chamvi/core';
-import type { IEngine } from '@chamvi/core';
+import {
+    InvalidAgentDefinitionError,
+    ValidationError,
+    agent,
+    defineRemoteAgent,
+    defineSimpleAgent,
+    dispatchTo,
+} from '@chamvi/core';
+import type { IEngine, RemoteAgent } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import { rejectWith } from '../../utils/peers.ts';
 import {
@@ -169,9 +176,51 @@ describe('the stand-in run: start', () => {
             parent: {
                 runId: alfredId,
                 agent: 'alfred',
-                depth: 1,
+                // a root caller: the peer's run lands at depth 1, as a local dispatch would
+                depth: 0,
             },
             taint: false,
+        });
+    });
+
+    it('sends the depth of a dispatched calling run, not the stand-in\'s', async () => {
+        const developer = defineRemoteAgent({
+            name: 'developer',
+            peer: 'dev',
+            channels: [agent.on({ from: ['alfred'], maxDepth: 2 })],
+        });
+        const alfred = defineSimpleAgent({
+            name: 'alfred',
+            channels: [agent.on({ from: ['lead'] })],
+            run: async (payload, ctx) => dispatchTo(ctx, { agent: 'developer', payload }),
+        });
+        const lead = defineSimpleAgent({
+            name: 'lead',
+            run: async (payload, ctx) => dispatchTo(ctx, { agent: 'alfred', payload }),
+        });
+        const {
+            engine,
+            store,
+            peers,
+        } = setup({ engine: { agents: [developer, alfred, lead] } });
+
+        await engine.start();
+        await engine.dispatch({
+            agent: 'lead',
+            trigger: 'test',
+            channel: 'test',
+            payload: 'go',
+        });
+        await engine.idle();
+
+        const { data: [alfredRun] } = await store.runService.find({ agent: 'alfred' });
+
+        expect(alfredRun?.trigger.parent?.depth).toBe(1);
+        expect(peers.calls.start).toHaveLength(1);
+        expect(peers.calls.start[0]!.input.peer.parent).toEqual({
+            runId: alfredRun!.id,
+            agent: 'alfred',
+            depth: 1,
         });
     });
 
@@ -340,6 +389,70 @@ describe('the stand-in run: start', () => {
         expect((await readRun(store, runId)).waiting).toMatchObject({ kind: 'remote', remoteRunId: 'r1' });
     });
 
+    it('cancels the remote run once when a cancel arrives while the start is in flight', async () => {
+        const {
+            engine,
+            store,
+            peers,
+        } = setup();
+        const sent = Promise.withResolvers<void>();
+        const answer = Promise.withResolvers<{ runId: string }>();
+        let aborted = false;
+
+        peers.script('start', ({ opts }) => {
+            opts.signal.addEventListener('abort', () => {
+                aborted = true;
+            });
+            sent.resolve();
+
+            return answer.promise;
+        });
+
+        await engine.start();
+
+        const { runId } = await engine.dispatch({
+            agent: 'developer',
+            trigger: 'test',
+            channel: 'test',
+            payload: { task: 'upgrade' },
+        });
+
+        await sent.promise;
+
+        const cancelled = engine.cancel(runId);
+
+        // the peer created the run: its answer still arrives after the cancel
+        answer.resolve({ runId: 'r1' });
+        await cancelled;
+        await engine.idle();
+
+        expect(aborted).toBe(false);
+        expect((await readRun(store, runId)).status).toBe(RunStatus.CANCELLED);
+        expect(peers.calls.cancel.map((call) => call.runId)).toEqual(['r1']);
+    });
+
+    it('expires the remote wait at the remote deadline after a retried start', async () => {
+        const {
+            engine,
+            store,
+            clock,
+            peers,
+        } = setup({ developer: { timeoutMs: 3_600_000 }, engine: { claimTtlMs: 120_000 } });
+
+        peers.script('start', rejectWith(new Error('down')));
+
+        const runId = await startStandIn(engine);
+
+        clock.advance(120_000);
+        await engine.recover();
+        await engine.idle();
+
+        const run = await readRun(store, runId);
+
+        expect(run.status).toBe(RunStatus.WAITING);
+        expect(run.waiting?.expiresAt).toEqual(new Date(REMOTE_START.getTime() + 3_600_000));
+    });
+
     it('fails with Timeout instead of retrying a start past the remote deadline', async () => {
         const {
             engine,
@@ -365,5 +478,35 @@ describe('the stand-in run: start', () => {
         expect(run.status).toBe(RunStatus.FAILED);
         expect(run.error?.code).toBe('Timeout');
         expect(peers.calls.start).toHaveLength(1);
+    });
+});
+
+describe('the stand-in run: registration', () => {
+    const handBuilt = (definition: Record<string, unknown>) => ({
+        kind: 'remote',
+        name: 'developer',
+        definition: {
+            name: 'developer',
+            peer: 'dev',
+            agent: 'developer',
+            role: 'default',
+            timeoutMs: DAY,
+            ...definition,
+        },
+    }) as unknown as RemoteAgent;
+
+    it.each([
+        ['a non-numeric timeoutMs', { timeoutMs: 'soon' }],
+        ['no timeoutMs', { timeoutMs: undefined }],
+        ['no remote agent', { agent: undefined }],
+        ['a malformed role', { role: 'Not A Role' }],
+        ['a model', { model: 'openai/gpt' }],
+    ])('re-runs the definition checks on a hand-built remote agent with %s', async (_, definition) => {
+        const { engine } = setup();
+
+        await expect(engine.putAgent(handBuilt(definition))).rejects.toBeInstanceOf(InvalidAgentDefinitionError);
+        expect(() => engine.checkAgent(handBuilt(definition))).toThrow(InvalidAgentDefinitionError);
+        // a hand-built agent with every normalized field passes
+        expect(() => engine.checkAgent(handBuilt({}))).not.toThrow();
     });
 });

@@ -166,7 +166,8 @@ describe('the stand-in run: poll, wake, timeout and cancel', () => {
 
         const before = await readRun(store, runId);
 
-        expect(await other.wake(runId, token('dev-token'))).toBe(true);
+        expect(await other.wake(runId, token('dev-token'))).toBe('marked');
+        expect(await engine.wake(runId, token('dev-token'))).toBe('pending');
 
         const woken = await readRun(store, runId);
 
@@ -238,12 +239,12 @@ describe('the stand-in run: poll, wake, timeout and cancel', () => {
             updates.push(event);
         });
 
-        expect(await engine.wake(runId, undefined)).toBe(false);
-        expect(await engine.wake(runId, token('someone'))).toBe(false);
-        expect(await engine.wake(runId, token('ops-token'))).toBe(false);
-        expect(await engine.wake(alfred, token('dev-token'))).toBe(false);
-        expect(await engine.wake('0190f0b8-0000-7000-8000-000000000000', token('dev-token'))).toBe(false);
-        expect(await engine.wake(settled, token('dev-token'))).toBe(false);
+        expect(await engine.wake(runId, undefined)).toBeUndefined();
+        expect(await engine.wake(runId, token('someone'))).toBeUndefined();
+        expect(await engine.wake(runId, token('ops-token'))).toBeUndefined();
+        expect(await engine.wake(alfred, token('dev-token'))).toBeUndefined();
+        expect(await engine.wake('0190f0b8-0000-7000-8000-000000000000', token('dev-token'))).toBeUndefined();
+        expect(await engine.wake(settled, token('dev-token'))).toBeUndefined();
 
         expect(await snapshot()).toEqual(before);
         expect(updates).toEqual([]);
