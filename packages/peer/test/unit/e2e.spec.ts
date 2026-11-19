@@ -211,7 +211,14 @@ async function startSide(options: {
  */
 async function startPair(): Promise<Pair> {
     const clock = new ControllableClock(NOW);
-    const [devPort, assistantsPort] = [await freePort(), await freePort()];
+    const devPort = await freePort();
+    let assistantsPort = await freePort();
+
+    // freePort() closes its listener, so the next call may hand out the same port again
+    while (assistantsPort === devPort) {
+        assistantsPort = await freePort();
+    }
+
     const devUrl = `http://127.0.0.1:${devPort}`;
     const assistantsUrl = `http://127.0.0.1:${assistantsPort}`;
     const dropWakes = { value: false };
