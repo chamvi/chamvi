@@ -44,7 +44,7 @@ it('exports the Chamvi source, preparation and verified bundle API from main', (
 it('keeps the official SDK range and runtime graph app-free', () => {
     const pkg = JSON.parse(readFileSync(new URL('../../package.json', import.meta.url), 'utf8'));
 
-    expect(pkg.dependencies.skills).toBe('^1.8.1');
+    expect(pkg.dependencies.skills).toBe('^1.9.0');
     expect(pkg.dependencies).not.toHaveProperty('@chamvi/app');
     expect(pkg.peerDependencies).not.toHaveProperty('@chamvi/app');
     expect(Object.keys(pkg.exports).sort()).toEqual(['.', './package.json']);

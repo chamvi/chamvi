@@ -1,12 +1,12 @@
 # Discord
 
-[`@chamvi/chat-discord`](#creatediscordchat) connects an agent to a Discord bot: direct messages, guild channels and threads. chamvi holds one [discord.js](https://www.npmjs.com/package/discord.js) Gateway connection for incoming messages, parses them with the Chat SDK's [`@chat-adapter/discord`](https://www.npmjs.com/package/@chat-adapter/discord) `4.44.0`, and replies through Discord REST itself.
+[`@chamvi/chat-discord`](#creatediscordchat) connects an agent to a Discord bot: direct messages, guild channels and threads. chamvi holds one [discord.js](https://www.npmjs.com/package/discord.js) Gateway connection for incoming messages, parses them with the Chat SDK's [`@chat-adapter/discord`](https://www.npmjs.com/package/@chat-adapter/discord) `4.45.0`, and replies through Discord REST itself.
 
 ```bash
-npm install @chamvi/chat-discord @chamvi/chat @chamvi/core @chamvi/http chat @chat-adapter/discord@4.44.0 discord.js --save
+npm install @chamvi/chat-discord @chamvi/chat @chamvi/core @chamvi/http chat @chat-adapter/discord@4.45.0 discord.js --save
 ```
 
-`@chamvi/chat`, `@chamvi/core`, `chat`, `@chat-adapter/discord` and `discord.js` (`^14.25.1`) are peer dependencies; `@chat-adapter/discord` is pinned to exactly `4.44.0`, the version chamvi was verified against. The package uses only `@chamvi/chat`'s public API: its channel is a [`chatChannel()`](/reference/chat#chatchannel) with the Discord hooks passed as [`platform`](/reference/chat#platform-packages), so subscriptions, replies, approvals, memory and trust work as described there.
+`@chamvi/chat`, `@chamvi/core`, `chat`, `@chat-adapter/discord` and `discord.js` (`^14.25.1`) are peer dependencies; `@chat-adapter/discord` is pinned to exactly `4.45.0`, the version chamvi was verified against. The package uses only `@chamvi/chat`'s public API: its channel is a [`chatChannel()`](/reference/chat#chatchannel) with the Discord hooks passed as [`platform`](/reference/chat#platform-packages), so subscriptions, replies, approvals, memory and trust work as described there.
 
 ## Developer Portal
 

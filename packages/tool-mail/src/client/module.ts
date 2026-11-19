@@ -659,7 +659,9 @@ class MailClient implements IMailClient {
         skip?: MailIdParts,
     ): Promise<{ found: Found[]; total: number }> {
         return this.inFolder(connection, folder, async (uidValidity) => {
-            const matched = (await connection.search(criteria, { uid: true })) || [];
+            // strict: an answer read only in part (an invalid or capped uid list) fails the search instead of
+            // returning fewer matches and a short `total`
+            const matched = (await connection.search(criteria, { uid: true, strict: true })) || [];
             const uids = matched
                 .filter((uid) => !(skip && skip.folder === folder && skip.uid === uid))
                 .sort((a, b) => b - a);
