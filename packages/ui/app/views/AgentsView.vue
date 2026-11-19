@@ -8,7 +8,7 @@
 
 import { computed, ref } from 'vue';
 import { useAgentRollups } from '../agents/composables.ts';
-import { channelChips, hiddenRunsNotice, matchesName } from '../agents/helpers.ts';
+import { channelChips, hiddenRunsNotice, matchesName } from '../agents/helpers/index.ts';
 import AgentCard from '../components/agent-card/AgentCard.vue';
 import EmptyState from '../components/empty-state/EmptyState.vue';
 import PageHead from '../components/page-head/PageHead.vue';

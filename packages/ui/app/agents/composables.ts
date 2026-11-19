@@ -30,7 +30,7 @@ import {
     AGENT_WAITING_LIMIT,
     RECENT_RUNS,
 } from './constants.ts';
-import { buildRollups, summarizeActivity } from './helpers.ts';
+import { buildRollups, summarizeActivity } from './helpers/index.ts';
 import type { Activity, AgentRollup } from './types.ts';
 import { toRunQuery } from '../runs/query.ts';
 

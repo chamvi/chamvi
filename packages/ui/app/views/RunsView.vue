@@ -14,7 +14,7 @@ import {
     watch,
 } from 'vue';
 import { useRoute, useRouter } from 'vue-router';
-import { failedSummary, oldestWaiting, tokenShares } from '../agents/helpers.ts';
+import { failedSummary, oldestWaiting, tokenShares } from '../agents/helpers/index.ts';
 import { useAgents } from '../agents/composables.ts';
 import { INBOX } from '../approvals/constants.ts';
 import type { RunListFilter } from '../runs/types.ts';
@@ -28,7 +28,7 @@ import {
     RUN_LIST_POLL_MS,
     RUN_STATUSES,
 } from '../runs/constants.ts';
-import { formatTokens } from '../runs/helpers.ts';
+import { formatTokens } from '../runs/helpers/index.ts';
 import { filterFromQuery, queryFromFilter } from '../runs/query.ts';
 
 const { client } = useAppContext();

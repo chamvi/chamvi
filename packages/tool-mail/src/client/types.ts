@@ -154,3 +154,10 @@ export type StructureAttachment = {
     node: MessageStructureObject;
     info: MailAttachmentInfo;
 };
+
+/** A summary with what merging and deduplicating needs. */
+export type MailFound = {
+    summary: MailSummary;
+    time: number;
+    messageId?: string;
+};

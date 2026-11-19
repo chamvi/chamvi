@@ -25,7 +25,7 @@ import {
     parsePayload,
     summarizeActivity,
     tokenShares,
-} from '../../../../app/agents/helpers.ts';
+} from '../../../../app/agents/helpers/index.ts';
 import type { AgentWire, ScheduleWire } from '@chamvi/http-kit';
 import { withoutIteratorHelpers } from '../../../utils/iterator.ts';
 import { ALL, allowedOf } from '../../../utils/permissions.ts';

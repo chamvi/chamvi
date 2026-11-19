@@ -11,7 +11,7 @@ import { RouterLink, useRouter } from 'vue-router';
 import type { AgentWire, RunPage, RunWire } from '@chamvi/http-kit';
 import { RouteName } from '../../router/constants.ts';
 import { RUN_LIST_PAGE_SIZE } from '../../runs/constants.ts';
-import { formatTokens, shortId } from '../../runs/helpers.ts';
+import { formatTokens, shortId } from '../../runs/helpers/index.ts';
 import { NavIcon, StatusChip } from '@chamvi/ui-kit';
 
 const props = defineProps<{

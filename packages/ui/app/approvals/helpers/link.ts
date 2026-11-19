@@ -5,68 +5,23 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isObject } from 'smob';
+
 import type { ApiError, RunWire } from '@chamvi/http-kit';
 import { Permission } from '@chamvi/access';
-import { shortId } from '../runs/helpers.ts';
-import { JSON_BODY_MAX_LENGTH } from './constants.ts';
+import { shortId } from '../../runs/helpers/index.ts';
 import type {
     ApprovalLink,
-    ApprovalWaitWire,
     DecidedApproval,
-    DetailLine,
     LinkNotice,
     LinkedApprovalState,
-    NotifiedLine,
-} from './types.ts';
+} from '../types.ts';
+import { approvalWaitOf } from './wait.ts';
 
 /** The first non-empty string of a query value (a repeated key is an array). */
 function firstToken(value: unknown): string | undefined {
     const values: unknown[] = Array.isArray(value) ? value : [value];
 
     return values.find((item): item is string => typeof item === 'string' && item.length > 0);
-}
-
-/** The run's approval wait point; `undefined` without one or for a dispatch wait. */
-export function approvalWaitOf(run: Pick<RunWire, 'waiting'> | undefined): ApprovalWaitWire | undefined {
-    return run?.waiting?.kind === 'approval' ? run.waiting : undefined;
-}
-
-/**
- * The inbox's open approvals: every waiting run but the linked one
- * (`linkRunId`) and those whose current approval was answered here. The
- * match is on run and approval id, so a run that pauses on its next
- * approval shows up again.
- */
-export function pendingApprovals(
-    runs: readonly RunWire[],
-    decided: readonly DecidedApproval[],
-    linkRunId?: string,
-): RunWire[] {
-    return runs.filter((run) => run.id !== linkRunId && decided.every((d) => !(
-        d.result === 'answered' &&
-        d.run.id === run.id &&
-        approvalWaitOf(d.run)?.approvalId === approvalWaitOf(run)?.approvalId
-    )));
-}
-
-/**
- * The callout's "notified" line: the channel (and address) the approval went
- * out through once sent, `inbox only` for a request that names no channel,
- * else "not sent (retrying)" (the engine re-sends on every poll).
- */
-export function notifiedLine(run: RunWire): NotifiedLine {
-    const waiting = approvalWaitOf(run);
-
-    if (!waiting?.channel) {
-        return { text: 'inbox only', warn: false };
-    }
-
-    if (waiting.notifiedAt) {
-        return { text: waiting.address ? `${waiting.channel} · ${waiting.address}` : waiting.channel, warn: false };
-    }
-
-    return { text: 'not sent (retrying)', warn: true };
 }
 
 /**
@@ -222,71 +177,5 @@ export function linkNotice(state: LinkedApprovalState, link: ApprovalLink): Link
         }
         default:
             return undefined;
-    }
-}
-
-/**
- * Whether the selection fits the wait point (core's rule): always without
- * options, exactly one for a single choice, at least one for a multiple one.
- */
-export function canApprove(waiting: { options?: unknown[]; multiple?: boolean }, selected: readonly string[]): boolean {
-    if (!waiting.options || waiting.options.length === 0) {
-        return true;
-    }
-
-    return waiting.multiple ? selected.length > 0 : selected.length === 1;
-}
-
-/** A detail reads as a diff when a line starts with `@@ ` or a `--- ` line is followed by a `+++ ` line. */
-export function isDiffDetail(detail: string): boolean {
-    const lines = detail.split('\n');
-
-    return lines.some((line, index) => line.startsWith('@@ ') ||
-        (line.startsWith('--- ') && (lines[index + 1] ?? '').startsWith('+++ ')));
-}
-
-/** The lines of an option's detail, each marked add, del or hunk when the detail is a diff. */
-export function detailLines(detail: string): DetailLine[] {
-    const lines = detail.split('\n');
-
-    if (!isDiffDetail(detail)) {
-        return lines.map((text) => ({ text }));
-    }
-
-    return lines.map((text) => {
-        if (text.startsWith('@@')) {
-            return { text, kind: 'hunk' as const };
-        }
-
-        if (text.startsWith('+') && !text.startsWith('+++')) {
-            return { text, kind: 'add' as const };
-        }
-
-        if (text.startsWith('-') && !text.startsWith('---')) {
-            return { text, kind: 'del' as const };
-        }
-
-        return { text };
-    });
-}
-
-/**
- * The parsed body when it is a JSON object or array (a trust approval's
- * `{ tool, input, taint }`), shown as a JSON block; else undefined (text).
- */
-export function jsonBody(body: string): unknown {
-    const text = body.trim();
-
-    // a large body would render one element per token: it stays text
-    if (text.length > JSON_BODY_MAX_LENGTH || (!text.startsWith('{') && !text.startsWith('['))) {
-        return undefined;
-    }
-
-    try {
-        const value: unknown = JSON.parse(text);
-
-        return isObject(value) || Array.isArray(value) ? value : undefined;
-    } catch {
-        return undefined;
     }
 }

@@ -7,7 +7,7 @@
 
 import { expect, test } from '@playwright/test';
 import type { APIRequestContext, Page } from '@playwright/test';
-import { shortId } from '../../app/runs/helpers.ts';
+import { shortId } from '../../app/runs/helpers/index.ts';
 import { E2E_ORIGIN, E2E_TOKEN } from './demo/constants.ts';
 
 const AUTH = { authorization: `Bearer ${E2E_TOKEN}` };

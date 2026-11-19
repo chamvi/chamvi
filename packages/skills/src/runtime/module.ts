@@ -24,7 +24,7 @@ import {
     invalidSkill,
     isSkillSource,
     skillHeaders,
-} from '../catalog/helpers.ts';
+} from '../catalog/helpers/index.ts';
 import { createSkillCatalog } from '../catalog/module.ts';
 import type { RuntimeSkillInput, RuntimeSkillSource, Skill } from '../catalog/types.ts';
 

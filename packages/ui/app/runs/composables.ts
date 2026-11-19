@@ -22,7 +22,7 @@ import type {
 import { createPoller } from '@chamvi/ui-kit';
 import { asApiError, retryDelayOf } from '@chamvi/http-kit';
 import { ACTIVITY_LIMIT } from '../agents/constants.ts';
-import { summarizeActivity } from '../agents/helpers.ts';
+import { summarizeActivity } from '../agents/helpers/index.ts';
 import type { Activity } from '../agents/types.ts';
 import { openRunStream } from '../sse/module.ts';
 import type { IRunStream, RunStreamOptions } from '../sse/types.ts';
@@ -31,10 +31,9 @@ import {
     RUN_COUNTS_POLL_MS,
     RUN_LIST_POLL_MS,
 } from './constants.ts';
-import { isSettled, lastStepIndex, mergeRunEvent } from './helpers.ts';
-import type { RunDetailState } from './helpers.ts';
+import { isSettled, lastStepIndex, mergeRunEvent } from './helpers/index.ts';
+import type { RunDetailState, RunListFilter } from './types.ts';
 import { toRunQuery } from './query.ts';
-import type { RunListFilter } from './types.ts';
 
 /** One page of runs, newest first, polled every `RUN_LIST_POLL_MS` while the scope lives. */
 export function useRunList(client: IClient, filter: Ref<RunListFilter>) {

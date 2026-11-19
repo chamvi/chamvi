@@ -22,9 +22,9 @@ import {
     shortId,
     subtreeTotal,
     waitToolName,
-} from '../../../../app/runs/helpers.ts';
-import type { RunDetailState } from '../../../../app/runs/helpers.ts';
-import { approvalWaitOf } from '../../../../app/approvals/helpers.ts';
+} from '../../../../app/runs/helpers/index.ts';
+import type { RunDetailState } from '../../../../app/runs/types.ts';
+import { approvalWaitOf } from '../../../../app/approvals/helpers/index.ts';
 import { ALL, allowedOf } from '../../../utils/permissions.ts';
 import { wireRun, wireStep } from '../../../utils/runs.ts';
 

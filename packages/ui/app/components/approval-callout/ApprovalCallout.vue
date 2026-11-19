@@ -27,13 +27,13 @@ import {
     detailLines,
     jsonBody,
     notifiedLine,
-} from '../../approvals/helpers.ts';
+} from '../../approvals/helpers/index.ts';
 import { useArtifactTiles } from '../../artifacts/composables.ts';
 import { approvalArtifactIds } from '../../artifacts/helpers.ts';
 import type { ArtifactTile } from '../../artifacts/types.ts';
 import { NavIcon, StatusChip, useAppContext } from '@chamvi/ui-kit';
 import { RouteName } from '../../router/constants.ts';
-import { shortId } from '../../runs/helpers.ts';
+import { shortId } from '../../runs/helpers/index.ts';
 import ArtifactStrip from '../artifact-strip/ArtifactStrip.vue';
 import ArtifactViewer from '../artifact-viewer/ArtifactViewer.vue';
 import ExpiryCountdown from '../expiry-countdown/ExpiryCountdown.vue';

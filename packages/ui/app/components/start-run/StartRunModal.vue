@@ -15,7 +15,7 @@ import {
     watch,
 } from 'vue';
 import { Permission } from '@chamvi/access';
-import { createStartKeys } from '../../agents/helpers.ts';
+import { createStartKeys } from '../../agents/helpers/index.ts';
 import { refusalText } from '../../errors/helpers.ts';
 import { isPayload } from '../../forms/validators.ts';
 import type { StartRunResult } from '@chamvi/http-kit';
