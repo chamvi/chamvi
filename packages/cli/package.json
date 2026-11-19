@@ -62,7 +62,7 @@
     "license": "Apache-2.0",
     "dependencies": {
         "@chamvi/store-db": "^0.9.0",
-        "@oxc-project/runtime": "^0.157.0",
+        "@oxc-project/runtime": "^0.159.0",
         "citty": "^0.2.2"
     },
     "devDependencies": {
@@ -72,7 +72,7 @@
         "@routup/decorators": "^5.3.0",
         "@swc/core": "^1.16.22",
         "@testcontainers/postgresql": "^12.2.1",
-        "ai": "^7.0.165",
+        "ai": "^7.0.173",
         "reflect-metadata": "^0.2.2",
         "tsdown": "^0.23.7",
         "unplugin-swc": "^2.0.0"

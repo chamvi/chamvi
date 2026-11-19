@@ -57,7 +57,7 @@
     },
     "license": "Apache-2.0",
     "dependencies": {
-        "skills": "^1.8.1",
+        "skills": "^1.9.0",
         "smob": "^1.6.2",
         "yaml": "~2.9.1"
     },
@@ -66,7 +66,7 @@
         "@chamvi/core": "^0.9.0",
         "@chamvi/store-memory": "^0.9.0",
         "@chamvi/test-kit": "^0.9.0",
-        "ai": "^7.0.165"
+        "ai": "^7.0.173"
     },
     "peerDependencies": {
         "@chamvi/core": "^0.9.0",
