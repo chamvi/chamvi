@@ -55,12 +55,15 @@ function chatChannel() {
     const state: {
         fail: number; 
         started: number; 
-        gate?: Promise<void> 
+        gate?: Promise<void>;
+        /** Called when a send starts, before the gate. */
+        entered?: () => void;
     } = { fail: 0, started: 0 };
     const channel: IChannel = {
         name: 'chat',
         out: async (message, address, options) => {
             state.started++;
+            state.entered?.();
 
             if (state.gate) {
                 await state.gate;
@@ -247,33 +250,31 @@ describe('the stand-in run: remote approvals', () => {
         } = setup();
         const other = replica();
         const gate = Promise.withResolvers<void>();
+        const entered = Promise.withResolvers<void>();
 
         engines.push(other);
         chat.state.gate = gate.promise;
+        chat.state.entered = entered.resolve;
         peers.script('start', { runId: 'r1' });
         peers.script('read', waitingView('r1', PUSH));
 
         const runId = await startStandIn(engine);
 
-        // A polls, stores the approval and is inside `out`
-        await engine.tick();
+        try {
+            // A polls, stores the approval and is inside `out` (bounded by the test timeout, no timer of its own)
+            await engine.tick();
+            await entered.promise;
 
-        while (chat.state.started === 0) {
-            await new Promise<void>((resolve) => {
-                setTimeout(resolve, 1);
-            });
+            // B (and A's own retry) see the approval not yet notified: the notify lock is held
+            await other.tick();
+            await engine.tick();
+            await other.idle();
+
+            expect(chat.state.started).toBe(1);
+        } finally {
+            gate.resolve();
         }
 
-        // B (and A's own retry) see the approval not yet notified: the notify lock is held
-        await other.tick();
-        await engine.tick();
-        await new Promise<void>((resolve) => {
-            setTimeout(resolve, 10);
-        });
-
-        expect(chat.state.started).toBe(1);
-
-        gate.resolve();
         await Promise.all([engine.idle(), other.idle()]);
         await tickIdle(other);
         await tickIdle(engine);
