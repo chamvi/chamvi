@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 import type { FindOptionsWhere, ObjectLiteral } from 'typeorm';
 import type { EntityRecord } from '@chamvi/store';
 import { DatabaseUnavailableError } from '../../error/unavailable.ts';

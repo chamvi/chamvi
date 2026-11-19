@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 import type { IQuery } from '@rapiq/core';
 import { In } from 'typeorm';
 import type {
