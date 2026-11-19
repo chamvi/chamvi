@@ -210,6 +210,61 @@ describe('the indexing lock', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('renews the lock between the batches of a document embedded longer than the lease', async () => {
+        const setup = createIndexerSetup();
+        const model = gatedModel({ modelId: 'mock-model-id' });
+        // six embedding batches (64 chunks each at most): 6 x 59 s outlasts the 300 s lease
+        const long = Array.from({ length: 330 }, (_, i) => `Paragraph ${i} ${'x'.repeat(1700)}`).join('\n\n');
+
+        start(setup, 'replica-a', model, mapSource(new Map([['long.md', long]])));
+
+        for (let n = 0; n < 6; n++) {
+            await expect.poll(() => model.started.length).toBe(n + 1);
+            // below the embedding timeout per call, past half the lease every three batches
+            setup.clock.advance(59_000);
+            model.open(n);
+        }
+
+        await waitForReady(setup.service, 'docs');
+
+        expect(acquiresOf(setup, 'replica-a')).toEqual([true]);
+        expect(renewsOf(setup, 'replica-a').length).toBeGreaterThan(0);
+        expect(renewsOf(setup, 'replica-a').every(Boolean)).toBe(true);
+        expect(model.started).toHaveLength(6);
+        expect(await setup.service.findOneDocument('docs', 'long.md')).toMatchObject({ status: 'ready' });
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('ends the embedding of a document at a lost renew between its batches, writing nothing', async () => {
+        const setup = createIndexerSetup();
+        const model = gatedModel({ modelId: 'mock-model-id' });
+        const long = Array.from({ length: 330 }, (_, i) => `Paragraph ${i} ${'x'.repeat(1700)}`).join('\n\n');
+
+        start(setup, 'replica-a', model, mapSource(new Map([['long.md', long]])));
+
+        for (let n = 0; n < 3; n++) {
+            await expect.poll(() => model.started.length).toBe(n + 1);
+            setup.clock.advance(59_000);
+
+            if (n < 2) {
+                model.open(n);
+            }
+        }
+
+        // the lease is taken over while the third batch is embedded: the renew before the fourth answers false
+        await setup.locks.release('knowledge:docs', 'replica-a');
+        expect(await setup.locks.acquire('knowledge:docs', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBeTypeOf('number');
+        model.open(2);
+
+        await expect.poll(() => renewsOf(setup, 'replica-a')).toEqual([false]);
+        await settle();
+
+        expect(model.started).toHaveLength(3);
+        expect(acquiresOf(setup, 'replica-a')).toEqual([true]);
+        expect(await setup.service.findOneDocument('docs', 'long.md')).toBeUndefined();
+        expect(setup.errors).toEqual([]);
+    });
+
     it('lets the loser take over when the winner gave up before ready', async () => {
         const setup = createIndexerSetup();
         const gated = gatedModel({ modelId: 'mock-model-id' });

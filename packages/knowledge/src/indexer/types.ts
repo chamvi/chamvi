@@ -85,6 +85,11 @@ export type EmbedDocumentInput = {
     dimensions?: number;
     /** Called once with the length the first batch taught. */
     learned?: (dimensions: number) => Promise<void>;
+    /**
+     * Called before every batch to keep the pass's lock alive (each batch is
+     * bounded by KNOWLEDGE_EMBED_TIMEOUT_MS); false ends the embedding.
+     */
+    renew?: () => Promise<boolean>;
 };
 
 export type EmbeddedDocument = {

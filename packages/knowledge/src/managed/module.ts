@@ -45,7 +45,8 @@ async function isSameCollection(input: SyncManagedInput, record: KnowledgeCollec
  * the re-read and the ready write gets its chunks of that generation removed
  * again. A provider rejection
  * marks it `failed` with the error and removes its chunks of that generation
- * (the content they hold was replaced); any other error fails the pass.
+ * (the content they hold was replaced); any other error fails the pass. A
+ * lock lost between two embedding batches ends the pass, writing nothing.
  */
 async function embedOne(
     input: SyncManagedInput,
@@ -72,7 +73,13 @@ async function embedOne(
             embed: input.embed,
             signal,
             ...(dimensions === undefined ? {} : { dimensions }),
+            renew: () => lock.renew(),
         });
+
+        // the lease was lost between two batches
+        if (!embedded) {
+            return { stop: true };
+        }
     } catch (error) {
         if (signal.aborted || !isProviderRejection(error)) {
             throw error;

@@ -117,15 +117,21 @@ function assertVectors(label: string, vectors: unknown, count: number, dimension
  * content, embeds the chunks in batches of EMBED_BATCH_SIZE with `model`,
  * checks each batch's vectors against the generation's length (learned from
  * the first batch when unknown; `learned` is called once with it) and gives
- * every chunk the document's title and source.
+ * every chunk the document's title and source. `renew` is asked before every
+ * batch, so a document embedded longer than the lease keeps it; its false
+ * answer ends the embedding with undefined (the lock is lost, nothing to write).
  */
-export async function embedDocument(input: EmbedDocumentInput): Promise<EmbeddedDocument> {
+export async function embedDocument(input: EmbedDocumentInput): Promise<EmbeddedDocument | undefined> {
     const { document, label } = input;
     const chunks = chunkText(document.content);
     const inputs: KnowledgeChunkInput[] = [];
     let { dimensions } = input;
 
     for (let offset = 0; offset < chunks.length; offset += EMBED_BATCH_SIZE) {
+        if (input.renew && !await input.renew()) {
+            return undefined;
+        }
+
         const batch = chunks.slice(offset, offset + EMBED_BATCH_SIZE);
         const vectors = await input.embed(input.model, batch.map((chunk) => chunk.text), input.signal);
         const learned = dimensions === undefined;
@@ -333,7 +339,13 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
                     record = { ...record, pending: { ...record.pending, dimensions: length } };
                     await service.saveCollection(record, writeOptionsOf(lock));
                 },
+                renew: () => lock.renew(),
             });
+
+            // the lease was lost between two batches
+            if (!embedded) {
+                return;
+            }
 
             ({ dimensions } = embedded);
 

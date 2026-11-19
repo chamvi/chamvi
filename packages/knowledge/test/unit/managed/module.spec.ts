@@ -404,6 +404,69 @@ describe('managed collections', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('keeps the lock between the batches of a document embedded longer than the lease', async () => {
+        const setup = createIndexerSetup();
+        const model = gatedModel();
+        const knowledge = create(setup, { embeddingModel: model });
+        // six embedding batches: 6 x 59 s outlasts the 300 s lease
+        const long = Array.from({ length: 330 }, (_, i) => `Paragraph ${i} ${'x'.repeat(1700)}`).join('\n\n');
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+        await knowledge.putDocument('notes', { id: 'long', content: long });
+
+        for (let n = 0; n < 6; n++) {
+            await expect.poll(() => model.started.length).toBe(n + 1);
+            setup.clock.advance(59_000);
+            model.open(n);
+        }
+
+        await waitForDocument(setup, 'notes', 'long', 'ready');
+
+        const renews = setup.locks.renewed.filter((entry) => entry.key === 'knowledge:notes');
+
+        expect(renews.length).toBeGreaterThan(0);
+        expect(renews.every((entry) => entry.result)).toBe(true);
+        expect(model.started).toHaveLength(6);
+        expect(setup.errors).toEqual([]);
+    });
+
+    it('ends the pass at a lock lost between the batches of a document, writing nothing', async () => {
+        const setup = createIndexerSetup();
+        const model = gatedModel();
+        const knowledge = create(setup, { embeddingModel: model });
+        const long = Array.from({ length: 330 }, (_, i) => `Paragraph ${i} ${'x'.repeat(1700)}`).join('\n\n');
+
+        await knowledge.createCollection('notes');
+        knowledge.start();
+        await knowledge.putDocument('notes', { id: 'long', content: long });
+
+        for (let n = 0; n < 3; n++) {
+            await expect.poll(() => model.started.length).toBe(n + 1);
+            setup.clock.advance(59_000);
+
+            if (n < 2) {
+                model.open(n);
+            }
+        }
+
+        // the pass's owner (createCollection took the lock under its own owner before)
+        const holder = setup.locks.acquired.findLast((entry) => entry.key === 'knowledge:notes' && entry.result)!.owner;
+
+        await setup.locks.release('knowledge:notes', holder);
+        expect(await setup.locks.acquire('knowledge:notes', 'intruder', KNOWLEDGE_LOCK_TTL_MS)).toBeTypeOf('number');
+        model.open(2);
+
+        await expect.poll(() => setup.locks.renewed.filter((entry) => entry.owner === holder).map((entry) => entry.result))
+            .toEqual([false]);
+        await settle();
+
+        expect(model.started).toHaveLength(3);
+        expect(await setup.service.findOneDocument('notes', 'long')).toMatchObject({ status: 'pending' });
+        expect(await setup.service.search('notes', 1, await vectorOf('Paragraph 1'), { topK: 5 })).toEqual([]);
+        expect(setup.errors).toEqual([]);
+    });
+
     it('a same-content PUT with a new title during the ready write leaves it pending, then ready under the new title', async () => {
         const setup = createIndexerSetup();
         const knowledge = create(setup, { embeddingModel: mockEmbeddingModel() });
