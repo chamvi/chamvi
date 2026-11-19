@@ -95,7 +95,7 @@ function allowedPath(path: string, repo: string, policy: GithubProposalsOptions)
         (policy.repos[repo.toLowerCase()]?.paths.some((pattern) => matchesGlob(path, pattern)) ?? false);
 }
 
-function validate(input: GithubProposeChangeInput, policy: GithubProposalsOptions): RepoTarget {
+function validateProposal(input: GithubProposeChangeInput, policy: GithubProposalsOptions): RepoTarget {
     const target = parseRepo(input.repo);
     const allowed = allowedPath(input.path, input.repo, policy);
 
@@ -429,12 +429,12 @@ export function createProposalTools(app: IGithubApp, policy: GithubProposalsOpti
                 reason: { type: 'string', minLength: 1 },
             }, ['repo', 'path', 'content', 'reason']),
             effectKey(input, ctx, options) {
-                validate(input, policy);
+                validateProposal(input, policy);
 
                 return proposalKey(input, ctx, options);
             },
             async alreadyApplied(key, input, ctx) {
-                const target = validate(input, policy);
+                const target = validateProposal(input, policy);
                 const root = proposalBranch(input, ctx);
 
                 return withOctokit(app, ctx, target, async (octokit) => {
@@ -467,7 +467,7 @@ export function createProposalTools(app: IGithubApp, policy: GithubProposalsOpti
                 });
             },
             async execute(input, options) {
-                const target = validate(input, policy);
+                const target = validateProposal(input, policy);
                 const ctx = options.context;
                 const root = proposalBranch(input, ctx);
                 const effect = effectMarker(proposalKey(input, ctx, options));

@@ -49,7 +49,7 @@ export function defineModelAgent<S extends StateSchema = StateSchema>(def: Model
     assertModelAgent(def);
     assertInstructions(def.instructions);
 
-    return { kind: 'model', ...build(def) } as ModelAgent<S>;
+    return { kind: 'model', ...buildAgentDefinition(def) } as ModelAgent<S>;
 }
 
 /**
@@ -62,7 +62,7 @@ export function defineSimpleAgent<S extends StateSchema = StateSchema, T extends
     assertName(def.name);
     assertSimpleAgent(def);
 
-    return { kind: 'simple', ...build(def) } as SimpleAgent<S, T>;
+    return { kind: 'simple', ...buildAgentDefinition(def) } as SimpleAgent<S, T>;
 }
 
 /**
@@ -129,7 +129,7 @@ function assertSubscriptions(agent: string, channels: ChannelSubscription[] | un
 }
 
 /** The checks the model and simple kinds share, then the definition with its budget defaults. */
-function build<S extends StateSchema>(
+function buildAgentDefinition<S extends StateSchema>(
     def: ModelAgentDefinition<S> | SimpleAgentDefinition<S>,
 ): { name: string; definition: ModelAgentDefinition<S> | SimpleAgentDefinition<S> } {
     assertDescription(def);

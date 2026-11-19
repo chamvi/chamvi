@@ -11,7 +11,6 @@
 | commitlint + husky | Conventional Commits enforcement (`.husky/commit-msg`) |
 | release-please | One linked version for every package, one release and changelog (`linked-versions`) |
 | Dependabot | Daily npm + GitHub Actions updates, grouped by prod/dev and major/minor+patch |
-| EditorConfig | Whitespace rules shared with the editor |
 | unplugin-swc | Compiles the store-db entities' legacy decorators in tsdown and Vitest; the root `tsconfig.build.json` sets `experimentalDecorators: true` |
 
 The `@tada5hi/*` config packages are the source of truth for lint, TS and commit rules; the local config files are thin wrappers. Prefer changing the shared package over adding a local override, unless the deviation is chamvi-specific.
@@ -20,7 +19,7 @@ The `@tada5hi/*` config packages are the source of truth for lint, TS and commit
 
 - ESM only (`"type": "module"`), Node >= 26.0.0 (CI runs Node 26 only).
 - Configured agent/contributed instructions use core `AgentInstructions`; preserve native SDK role-specific content and provider options. Only the leading system run goes into SDK `instructions`; later configured blocks stay transient and ordered. Manual skills catalog instructions remain strings.
-- `@chamvi/ui`'s app, its kit and the `*-ui` pages ship to Vite's default browser target (Safari 16.4, Firefox 114), which esbuild does not polyfill: no ES2025 iterator helpers (`map.entries().toArray()`; use `Array.from`; `no-restricted-syntax` in `eslint.config.js`); `mountPage()` polyfills `toWellFormed`. Its scoped Unicorn override also retains `instanceof Error` instead of requiring the newer `Error.isError` API. The `Uint8Array` base64/hex preference rules are disabled globally: Buffer's base64 decoding is lenient where `Uint8Array.fromBase64()` throws (request input relies on it) and the dashboard's browser target lacks those APIs; keep the existing Buffer encodings.
+- `@chamvi/ui`'s app, its kit and the `*-ui` pages ship to Vite's default browser target (Safari 16.4, Firefox 114) without polyfills: no ES2025 iterator helpers (`map.entries().toArray()`; use `Array.from`; lint enforced); `mountPage()` polyfills `toWellFormed`. Its Unicorn override keeps `instanceof Error` (no `Error.isError`). The `Uint8Array` base64/hex rules are off globally: request input relies on Buffer's lenient base64 decoding (`Uint8Array.fromBase64()` throws) and the dashboard target lacks those APIs; keep Buffer.
 - 4-space indent (also JSON and YAML), LF, UTF-8, final newline, trailing whitespace trimmed except in Markdown (see `.editorconfig`).
 - Single quotes, semicolons, and braces around every control-flow body, including single statements (enforced by ESLint).
 - Package scope `@chamvi/*`, Apache-2.0 license (`LICENSE` plus `NOTICE` in the root and every package), all packages public.
@@ -47,22 +46,24 @@ The `@tada5hi/*` config packages are the source of truth for lint, TS and commit
 - **A module is a folder, not a file.** A concept gets `src/<concept>/` with, as needed:
   - `module.ts`: the implementation (the class or the main functions). A folder with several implementations names them after what they do (`effect/define.ts`, `effect/wrap.ts`), and a sub-concept with its own content gets a subfolder (`engine/queue/`, `engine/execute/`).
   - `types.ts`: every exported type. No exported type lives in an implementation file.
-  - `asserts.ts`: functions the implementation uses. When helpers grow, it becomes a `helpers/` folder with one file per helper and its own `index.ts`.
+  - `asserts.ts`: functions the implementation uses. Above about 8 helpers it becomes a `helpers/` folder with one file per helper or group and its own `index.ts`.
   - `constants.ts`: every exported constant (`agent/constants.ts`, `effect/constants.ts`, `errors/constants.ts`).
   - `index.ts`: the barrel. It re-exports **files of its own folder only**, alphabetically: `export *` when the whole file is public, named exports when the folder keeps part of it internal (`effect/index.ts` exports `EFFECT` but not `EFFECT_HOOKS`; helpers are never exported).
   - `controller.ts` (or `controller/`) and `service.ts` (or `service/`), in a folder that answers HTTP: the `@routup/decorators` controller holds no permission check, validation, store or engine call; the service owns them.
+- **At most 400 lines per source file** (`max-lines`: no blanks or comments; tests, migrations exempt). Three or more functions passing one context become a class over it (`EngineSkills`).
 - **One class per file.** `max-classes-per-file` is `1` in `@tada5hi/eslint-config`; never disable it in source. Sibling classes share a folder: `src/errors/base.ts` holds `ChamviError`, and every other error has its own file named after its concept, kebab-case and without an `-error` suffix (`lease-lost.ts` holds `LeaseLostError`). Error codes live in `ErrorCode` (`errors/constants.ts`), never as string literals in the constructors.
 - **No cross-module re-export files.** A file that just pulls symbols out of other modules is not allowed; the code moves into the folder (or package) it belongs to. One exception: `@chamvi/app` exposes `@chamvi/core`, `@chamvi/access`, `@chamvi/store` and named cron/HTTP symbols from its root barrel, by owner decision, so an agent repository imports one package; it also exposes the orkos `IModule` and eldin `IContainer` types and eldin's `TypedToken` from `module/index.ts`. The root facade uses narrow inline `no-reexport-shims` exceptions for these external package exports, preserving core's wildcard surface; directory re-export declarations elsewhere stay within their subtree.
 - **The package entry composes folder barrels.** `src/index.ts` is `export * from './<folder>/index.ts'` per folder. Inside a package, import the file you need (`../errors/index.ts`, `../state/types.ts`), not `src/index.ts`.
 - **Feature package modules.** An app module lives in its feature package's `src/module/`, published as the `/module` subpath (`@chamvi/github/module`, ...): the only folder importing `@chamvi/app`, which is an optional peer (`peerDependenciesMeta`) plus a devDependency, and stays external in `dist/module.mjs` (one `AppToken` set per process). The main entry and every chunk it loads stay app-free. A shared instance reaches tools through a context pair in the main entry (`provide<Name>Context(engine, value)`, `inject<Name>Context(ctx)`, core-only, in `src/context/`); the `ContextKey` stays internal, and the module provides in its `engineCreated` hook. `@chamvi/app` itself keeps only `/authup` (http cannot depend on app) and `/testing`. Exception (#248): a storage backend may import app in its main entry, as a peer (`@chamvi/store-db-vector`); knowledge's `/module` creates its token with app's `TypedToken`.
 - **Dependency graph.** The `@chamvi/*` edges of `dependencies`, `devDependencies`, `optionalDependencies` and `peerDependencies` (optional or not) must stay acyclic: nx builds its project graph from them, and release-please's node-workspace plugin (with `updatePeerDependencies`) throws on a cycle, which aborts the release run for every package. An `nx.implicitDependencies` exclusion only hides an edge from nx, so it is no fix. Break a cycle in the package.json files instead (a structural type in place of a type import, as `@chamvi/test-kit` does for `IWorkspace`; a variable-specifier import of a package that is in no dependency field, as `@chamvi/sandbox/module` does for its providers and test-kit for store-db). `packages/app/test/unit/graph.spec.ts` checks the graph release-please builds.
-- **Test helpers are a package.** Helpers other packages test with (`ControllableClock`, `createTestEngine`, the port suites) live in `@chamvi/test-kit` (peer on core); core never depends on the kit (an nx cycle), so core's tests use private copies (`test/utils/clock.ts`, `engine.ts`).
+- **Test helpers are a package**: `@chamvi/test-kit` (peer on core) holds what other packages test with (`ControllableClock`, `createTestEngine`, the port suites); core never depends on it (an nx cycle) and tests with private copies (`test/utils/clock.ts`, `engine.ts`).
 
 ## Naming
 
 - **`interface` is for behavior contracts and always carries the `I` prefix**: `IRunRepository`, `IClock`, `IChannel`, `IAgentState`. A class implements it (`MemoryRunRepository implements IRunRepository`), or a factory returns it.
 - **Data shapes are `type` aliases without a prefix**: `Run`, `Step`, `TriggerEnvelope`, `EngineOptions`, `ApprovalAnswer`.
 - Files are kebab-case.
+- A module-level function names its concept (`settleRemoteRun`, not `settle`); a bare verb is a lint error in core, http, app, sandbox, store-db, knowledge, github, test-kit. Methods and closures are free.
 - A repository implements a port of `@chamvi/store` with the generic port's methods (`findOneById`, `findMany`, `create`, `merge`, `save`, `upsert`, `transaction`); a service keeps domain names (`create`, `findOne`, `find`, `claim`, `beginTurn`), and its `OrFail` variants reject missing records or empty selected pages, never present falsy values.
 
 ## Helpers and Dependencies
@@ -88,13 +89,13 @@ Migrations live in `packages/store-db/src/migrations/` (PostgreSQL), with the or
 
 - Before implementation, trace the complete input-to-output flow and inspect an existing analogous module. Reuse its patterns and installed library mechanisms; introduce a new seam only for concrete callers that need it.
 - For persistence changes, map every stored identifier to its parent or document the lifecycle reason it can precede/outlive that parent. Generate migrations ([store.md](topics/store.md)), verify database integrity and ORM relationship loading.
-- Keep domain validation, identity and selection rules in the service, one implementation for every driver; a repository owns queries and storage only.
-- Review the whole feature, including callers and configuration, after local fixes. Report design/convention findings separately from test results; passing checks alone do not establish completion.
+- Domain validation, identity and selection rules live in the service (one for every driver); a repository owns queries and storage only.
+- After local fixes, review the whole feature with its callers and configuration. Report design/convention findings apart from test results; passing checks alone do not prove completion.
 
 - After changes run `npm run build && npm run test && npm run typecheck && npm run lint`. Run `npm run lint:fix` before hand-fixing formatting.
 - Never edit `dist/` (generated, git-ignored). Never hand-edit `.release-please-manifest.json` or package versions; release-please owns them.
 - Keep runtime `dependencies` minimal (the house libraries `@ebec/core`, `smob`, `validup` are fine); tooling belongs in `devDependencies`, and the AI SDK (`ai`) stays a peer dependency.
-- Host-local Git in skills preparation and the test-kit fixture uses bounded `execFile`: raw stdout, rejection on nonzero exits or signals, the default independent 1 MiB stdout/stderr limits with SIGTERM termination. Skills preparation gives the pinned-tree fetch 5 minutes and metadata 30 seconds; fixture commands keep their isolated environment and have no timeout. The SDK owns cloning; sandbox Git stays on `workspace.exec`. See [simple-git.md](references/simple-git.md).
+- Host-local Git (skills preparation, the test-kit fixture) uses bounded `execFile`: raw stdout, rejects nonzero exits and signals, default 1 MiB stdout/stderr limits each, SIGTERM. Skills preparation: 5 minutes for the pinned-tree fetch, 30 seconds for metadata; fixture commands keep their isolated environment, no timeout. The SDK owns cloning; sandbox Git stays on `workspace.exec`. See [simple-git.md](references/simple-git.md).
 - New package: add `packages/<name>` (copy `packages/test-kit` layout), a path alias in the root `tsconfig.json`, aliases in its `test/vitest.config.ts` for itself and every workspace package it imports, an entry in `release-please-config.json` (`packages` and the `linked-versions` components) and in `.release-please-manifest.json` at the current version.
 - Errors extend `ChamviError` (`@ebec/core` `BaseError`) and live in `src/errors/`, one file each (see File Organization); never throw a bare `Error` from library code.
 - A new public export goes through its folder's `index.ts` (reached from `src/index.ts`) and must be added to the package's `test/unit/exports.spec.ts`.
@@ -123,11 +124,7 @@ Conventional Commits: `<type>(scope): <description>`, e.g. `feat(core): add run 
 
 ## References
 
-External project references live in `.agents/references/`: one Markdown file per external project this codebase cross-references, building a cumulative mapping so later work finds the corresponding code without searching again. When you look up source code or docs in a referenced project, update its file with:
-
-- The source file path / function name (or doc anchor) in the external project
-- The corresponding file path / function name in chamvi
-- Any behavioral differences between the implementations (pin claims to a version or commit)
+External project references live in `.agents/references/`: one Markdown file per external project chamvi cross-references, a cumulative map so later work need not search again. When you look up source code or docs in a referenced project, update its file with the external file path / function name (or doc anchor), the corresponding chamvi file path / function name, and any behavioral differences (pinned to a version or commit).
 
 Current references:
 

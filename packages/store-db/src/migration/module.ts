@@ -180,7 +180,7 @@ async function migrate(context: Context, dataSource: DataSource): Promise<string
     }
 }
 
-async function run(context: Context): Promise<number> {
+async function runMigrationCommand(context: Context): Promise<number> {
     const { write } = context.input;
 
     return withConnection(context, { url: requireUrl(context) }, async (dataSource) => {
@@ -379,7 +379,7 @@ async function generate(context: Context): Promise<number> {
 
 const OPERATIONS = {
     generate,
-    run,
+    run: runMigrationCommand,
     revert,
     status,
     drift,
