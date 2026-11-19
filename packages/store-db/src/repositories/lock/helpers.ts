@@ -6,7 +6,7 @@
  */
 
 import type { EntityManager } from 'typeorm';
-import { LockTokenEntity } from '../../entities/index.ts';
+import { LockEntity, LockTokenEntity } from '../../entities/index.ts';
 
 /** The id of the counter row in `chamvi_lock_tokens`. */
 const LOCK_TOKEN_ROW = 1;
@@ -18,7 +18,9 @@ const LOCK_TOKEN_ROW = 1;
  * microseconds (`Date.now() * 1000`, as the memory store issues), not the
  * database's: storage numbering, never compared with domain time, and no
  * query calls the database's clock. A missing row (a truncated or
- * synchronized table) is inserted at the floor first.
+ * synchronized table) is inserted first at the floor or the highest token
+ * a stored lease holds, whichever is greater, so the next token is above
+ * every surviving lease.
  */
 export async function issueLockToken(manager: EntityManager): Promise<number> {
     for (;;) {
@@ -36,10 +38,15 @@ export async function issueLockToken(manager: EntityManager): Promise<number> {
             return Number(row.value);
         }
 
+        const stored = await manager.createQueryBuilder(LockEntity, 'lock')
+            .select('MAX(lock.token)', 'value')
+            .getRawOne<{ value: string | number | null }>();
+        const highest = stored?.value === null || stored?.value === undefined ? 0 : Number(stored.value);
+
         await manager.createQueryBuilder()
             .insert()
             .into(LockTokenEntity)
-            .values({ id: LOCK_TOKEN_ROW, value: floor })
+            .values({ id: LOCK_TOKEN_ROW, value: Math.max(floor, highest) })
             .orIgnore()
             .execute();
     }

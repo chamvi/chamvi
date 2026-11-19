@@ -16,6 +16,7 @@ import {
 import { type ILockService, LockService } from '@chamvi/core';
 import type { Lock } from '@chamvi/store';
 import { ControllableClock, testUuid } from '@chamvi/test-kit';
+import { LockEntity, LockTokenEntity } from '../../../../src/entities/index.ts';
 import { DatabaseLockRepository } from '../../../../src/repositories/lock/index.ts';
 import { createBarrier } from '../../../utils/barrier.ts';
 import type { Barrier } from '../../../utils/barrier.ts';
@@ -168,6 +169,23 @@ describePostgres('lock service on postgres', () => {
         expect(log.statements.filter((statement) => statement.startsWith('INSERT'))).toEqual([]);
         expect(log.failed).toEqual([]);
         expect(await locks.holds('k', 'b')).toBe(true);
+    });
+
+    it('a lost counter row is reseeded above every stored lease, so a takeover issues a higher token', async () => {
+        await locks.acquire('k', 'a', 1_000);
+
+        // a lease far above the wall clock in microseconds, then the counter row is lost
+        const high = (Date.now() * 1000) + 1_000_000_000_000;
+
+        await dataSource.getRepository(LockEntity).update({ key: 'k' }, { token: high });
+        await dataSource.getRepository(LockTokenEntity).clear();
+
+        clock.advance(1_000);
+
+        const token = await locks.acquire('k', 'b', 1_000);
+
+        expect(token).toBeGreaterThan(high);
+        expect((await repository.findOneBy({ key: 'k' }))).toMatchObject({ owner: 'b', token });
     });
 
     it('two first acquirers of one lock: exactly one acquires', async () => {
