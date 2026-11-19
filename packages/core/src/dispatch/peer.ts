@@ -157,14 +157,8 @@ export async function dispatchPeer(
         depth,
         ...(fields.origin !== undefined ? { origin: fields.origin } : {}),
     };
-    const callHash = stableHash({
-        standIn: fields.standIn,
-        role,
-        payload,
-        idempotencyKey,
-        concurrencyKey,
-        address,
-    });
+    // the claimed key is the call's identity: a resend whose validated payload differs (a schema adding a fresh value) still reuses its slot
+    const callHash = stableHash({ idempotencyKey });
     const countKey = `peer-count:${peer}:${parent.runId}:${target}:${role}`;
     const lockKey = `peer-count:${countKey}`;
     const create = () => host.createRun({

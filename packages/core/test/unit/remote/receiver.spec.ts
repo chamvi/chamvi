@@ -416,6 +416,11 @@ describe('the receiver: dispatchPeer()', () => {
 
         // a resend of a counted call spends no slot
         expect(await engine.dispatchPeer(envelope({ idempotencyKey: 'a' }), fields({ standIn: 'a' }))).toMatchObject({ deduplicated: true });
+        // the key is the call's identity: a resend whose validated payload differs (a schema adding a fresh value) reuses the slot
+        expect(await engine.dispatchPeer(
+            envelope({ idempotencyKey: 'b', payload: { text: 'changed' } }),
+            fields({ standIn: 'b' }),
+        )).toMatchObject({ deduplicated: true });
 
         // another caller run has its own count
         expect(await engine.dispatchPeer(
