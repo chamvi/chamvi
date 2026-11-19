@@ -42,6 +42,7 @@ import { syncManaged } from '../managed/module.ts';
 import type { ManagedLoop } from '../managed/types.ts';
 import { copy, lockKey } from '../service/helpers.ts';
 import type { IKnowledgeService } from '../service/types.ts';
+import { storedDocument } from '../source/helpers.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import type { IKnowledgeCollectionRepository, KnowledgeCollection } from '../store/types.ts';
 import { normalizeOptions, resolveCollection, resolveEmbeddingModel } from './helpers.ts';
@@ -528,12 +529,14 @@ class Knowledge implements IKnowledge {
         return record;
     }
 
-    async putDocument(collection: string, input: KnowledgeDocumentInput): Promise<KnowledgeDocumentPutResult> {
-        const problem = managedDocumentProblem(input);
+    async putDocument(collection: string, request: KnowledgeDocumentInput): Promise<KnowledgeDocumentPutResult> {
+        const problem = managedDocumentProblem(request);
 
         if (problem) {
             throw problem;
         }
+
+        const input = storedDocument(request);
 
         await this.managedRecord(collection);
 

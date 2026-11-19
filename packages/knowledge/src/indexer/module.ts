@@ -19,6 +19,7 @@ import type {
     KnowledgeCollection,
     KnowledgeDocument,
 } from '../store/types.ts';
+import { storedDocument } from '../source/helpers.ts';
 import type { KnowledgeDocumentInput } from '../source/types.ts';
 import {
     EMBED_BATCH_SIZE,
@@ -286,8 +287,10 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
     };
 
     for (const source of definition.sources) {
-        for await (const document of source.documents(context)) {
+        for await (const yielded of source.documents(context)) {
             signal.throwIfAborted();
+
+            const document = storedDocument(yielded);
 
             if (seen.has(document.id)) {
                 input.onError(new ValidationError(

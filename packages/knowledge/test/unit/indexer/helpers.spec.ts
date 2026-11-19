@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import type { KnowledgeDocument, KnowledgeDocumentInput } from '@chamvi/knowledge';
-import { sameDetails, sameOrigin } from '../../../src/indexer/helpers.ts';
+import { sameDetails } from '../../../src/indexer/helpers.ts';
 
 function stored(metadata: Record<string, unknown>): KnowledgeDocument {
     return {
@@ -49,25 +49,5 @@ describe('sameDetails', () => {
         const metadata = Object.assign(Object.create(null) as Record<string, unknown>, { b: 1, a: 2 });
 
         expect(sameDetails(stored({ a: 2, b: 1 }), input(metadata))).toBe(true);
-    });
-
-    it('treats NUL and lone surrogates as the U+FFFD a store may keep in their place', () => {
-        const dirty = 'a\0b\uD800c';
-        const clean = 'a\uFFFDb\uFFFDc';
-
-        expect(sameDetails(
-            {
-                ...stored({ [clean]: clean }), 
-                title: clean, 
-                source: clean, 
-            },
-            {
-                ...input({ [dirty]: dirty }), 
-                title: dirty, 
-                source: dirty, 
-            },
-        )).toBe(true);
-        expect(sameOrigin({ ...stored({}), title: clean }, { ...input({}), title: 'a\uFFFDb\uFFFDd' })).toBe(false);
-        expect(sameDetails(stored({ k: clean }), input({ k: 'other' }))).toBe(false);
     });
 });
