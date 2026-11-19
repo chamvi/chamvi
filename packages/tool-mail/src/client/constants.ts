@@ -30,3 +30,20 @@ export const MAIL_EXCLUDED_FOLDER_NAMES = /trash|junk|spam|papierkorb|gel(ö|oe)
 
 /** The message of a mail id whose folder changed UIDVALIDITY or no longer holds the mail. */
 export const MAIL_STALE_ID_MESSAGE = 'mail id is stale, search again';
+
+/** The fetch query of a search result. */
+export const MAIL_SUMMARY_QUERY = {
+    uid: true,
+    envelope: true,
+    flags: true,
+    internalDate: true,
+    bodyStructure: true,
+    size: true,
+} as const;
+
+/** The fetch query that dates a search candidate (`dateOf()`: the Date header, else INTERNALDATE). */
+export const MAIL_DATE_QUERY = {
+    uid: true,
+    envelope: true,
+    internalDate: true,
+} as const;

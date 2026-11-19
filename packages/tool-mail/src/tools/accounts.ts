@@ -8,7 +8,7 @@
 import type { Tool } from 'ai';
 import { defineTool } from '@chamvi/core';
 import type { MailAccountView } from '../client/types.ts';
-import { objectSchema, signalOf, taintOf } from './asserts.ts';
+import { objectSchema, signalOf, taintOf } from './asserts/index.ts';
 import { UNTRUSTED_NOTE } from './constants.ts';
 import type { MailClientSource } from './types.ts';
 

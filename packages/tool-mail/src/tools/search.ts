@@ -19,7 +19,7 @@ import {
     requireString,
     signalOf,
     taintOf,
-} from './asserts.ts';
+} from './asserts/index.ts';
 import { UNTRUSTED_NOTE } from './constants.ts';
 import type { MailClientSource } from './types.ts';
 
