@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 import { describe } from 'vitest';
 import { describeKnowledgeChunksContract } from './chunks.ts';
 import { describeKnowledgeCollectionsContract } from './collections.ts';

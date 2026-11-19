@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 import { beforeEach, describe } from 'vitest';
 import { registerConversationChildCases } from './children.ts';
 import { ConversationContractContext } from './context.ts';

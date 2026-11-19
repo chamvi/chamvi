@@ -5,5 +5,4 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 export const AT = Date.UTC(2026, 0, 1);

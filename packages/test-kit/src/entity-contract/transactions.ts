@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 import { defineQuery } from '@rapiq/core';
 import { expect, it } from 'vitest';
 import { EntityDeadlockError } from '@chamvi/store';

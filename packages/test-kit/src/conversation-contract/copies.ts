@@ -5,7 +5,6 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-
 import { expect, it } from 'vitest';
 import { EntityConflictError } from '@chamvi/store';
 import type { ConversationRecord } from '@chamvi/store';
