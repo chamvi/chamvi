@@ -11,7 +11,7 @@ import {
     composeSkillIdentities,
     copySkill,
     invalidSkill,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import { createSkillTools } from './tools.ts';
 import type { Skill, SkillCatalog } from './types.ts';
 

@@ -14,7 +14,7 @@ import {
     copySkillInputs,
     isSkillSource,
     skillHeaders,
-} from '../catalog/helpers.ts';
+} from '../catalog/helpers/index.ts';
 import { SkillRuntime } from './module.ts';
 
 export const skillRuntimeProvider: ISkillRuntimeProvider = Object.freeze({

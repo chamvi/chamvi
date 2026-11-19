@@ -6,7 +6,7 @@
  */
 
 import type { SkillInput } from '@chamvi/core';
-import { copySkill, copySkillSource } from '../catalog/helpers.ts';
+import { copySkill, copySkillSource } from '../catalog/helpers/index.ts';
 import type { ISkillSource, Skill } from '../catalog/types.ts';
 import { skillRuntimeProvider } from './provider.ts';
 
