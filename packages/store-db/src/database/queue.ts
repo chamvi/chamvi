@@ -13,16 +13,16 @@ import type {
 } from 'typeorm';
 import { SERIALIZED_DRIVERS } from '../entity/constants.ts';
 import {
-    acquire,
+    acquireQueue,
     createUnit,
-    drop,
+    dropQueueHold,
     isInTransaction,
-    pass,
+    passQueue,
     queueOf,
     runInUnit,
     scopedUnit,
     serialize,
-} from '../entity/helpers/serialize.ts';
+} from '../entity/helpers/serialize/index.ts';
 import type { Queue, QueueUnit } from '../entity/types.ts';
 import type { QueueDataSourceOptions } from './types.ts';
 
@@ -31,7 +31,7 @@ import type { QueueDataSourceOptions } from './types.ts';
  * connection and one query runner object for every caller, so the guard
  * hands each `createQueryRunner()` call a runner of its own over that
  * object and lets one unit of work use the connection at a time (the
- * queue in `entity/helpers/serialize.ts`, shared with the repository
+ * queue in `entity/helpers/serialize/`, shared with the repository
  * base).
  *
  * 1. A unit is one statement, one open transaction (from its outermost
@@ -128,7 +128,7 @@ async function open(queue: Queue, runner: object, shared: QueryRunner): Promise<
     unit.members.add(runner);
     unit.owned = true;
 
-    await acquire(queue, unit);
+    await acquireQueue(queue, unit);
 
     if (!isInTransaction(queue.dataSource)) {
         // whatever the last holder left behind (a BEGIN that failed, a COMMIT sent as a plain query)
@@ -189,7 +189,7 @@ function createRunner(queue: Queue, shared: QueryRunner): QueryRunner {
         try {
             return await (Reflect.get(shared, name) as Method).apply(runner, args);
         } finally {
-            drop(queue, unit);
+            dropQueueHold(queue, unit);
         }
     };
 
@@ -235,7 +235,7 @@ function endAbandoned(queue: Queue, unit: QueueUnit | undefined): void {
 
     driver.databaseConnection?.exec('ROLLBACK');
     Object.assign(driver.createQueryRunner('master'), { isTransactionActive: false, transactionDepth: 0 });
-    pass(queue);
+    passQueue(queue);
 }
 
 /**

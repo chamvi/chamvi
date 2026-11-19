@@ -9,7 +9,7 @@ import { ControllableClock } from '@chamvi/test-kit';
 import type { DataSource, EntityManager } from 'typeorm';
 import { describe, expect, it } from 'vitest';
 import { closeDatabase } from '../../../src/database/index.ts';
-import { queueOf } from '../../../src/entity/helpers/serialize.ts';
+import { queueOf } from '../../../src/entity/helpers/serialize/index.ts';
 import { openFixtureDataSource } from '../../utils/entity/data-source.ts';
 import type { FixtureDataSource } from '../../utils/entity/data-source.ts';
 import { createFixtureRepositories } from '../../utils/entity/repositories.ts';
