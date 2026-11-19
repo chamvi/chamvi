@@ -13,10 +13,10 @@ import { fromJsonSchema } from '@modelcontextprotocol/server';
 import type { McpServer } from '@modelcontextprotocol/server';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import { DEFAULT_PAGE_LIMIT, MAX_PAGE_LIMIT } from '../app/constants.ts';
-import { acquireStreamSlot } from '../app/helpers.ts';
+import { acquireStreamSlot } from '../app/helpers/index.ts';
 import type { HttpContext } from '../app/types.ts';
 import { Permission } from '@chamvi/access';
-import { agentResource, isGranted } from '../auth/helpers.ts';
+import { agentResource, isGranted } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
 import { KEY_MAX_LENGTH } from '../request/constants.ts';
 import {
@@ -29,7 +29,7 @@ import {
     canReadAgentContent,
     findHttpSubscription,
     serializeRun,
-} from '../runs/helpers.ts';
+} from '../runs/helpers/index.ts';
 import {
     DEFAULT_MCP_MAX_WAIT_SECONDS,
     DEFAULT_MCP_NAME,
@@ -43,7 +43,7 @@ import {
     toRunToolResult,
     toolResult,
     waitForRun,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type {
     McpEndpointOptions,
     McpRequestExtra,

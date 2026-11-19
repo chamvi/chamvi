@@ -8,7 +8,7 @@
 import { describe, expect, it } from 'vitest';
 import { Permission } from '@chamvi/access';
 import type { PermissionAuthorization, PermissionBinding } from '@chamvi/access';
-import { toInvoker } from '../../../src/auth/helpers.ts';
+import { toInvoker } from '../../../src/auth/helpers/index.ts';
 
 const READ: PermissionBinding = { permission: { name: Permission.RUN_READ } };
 const USER_ID = '0195f2a0-7c3e-7a4b-9c1d-2e3f4a5b6c7d';

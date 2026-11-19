@@ -15,7 +15,7 @@ import {
     isValidupError,
 } from 'validup';
 import type { Container, ValidatorDescriptor } from 'validup';
-import { boundReceived } from './helpers.ts';
+import { boundReceived } from './helpers/index.ts';
 
 /*
  * Every validator that fails on a value passes `boundReceived(value)` as the issue's received

@@ -7,7 +7,7 @@
 
 import type { HandlerInterface } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
-import { usePrincipal } from '../auth/helpers.ts';
+import { usePrincipal } from '../auth/helpers/index.ts';
 
 /** Authenticates the request (401 otherwise) before any body is read. */
 export class ForceLoggedInMiddleware implements HandlerInterface {

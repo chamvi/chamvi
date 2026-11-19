@@ -20,14 +20,14 @@ import {
     forbidden,
     isGranted,
     resolvePrincipal,
-} from '../auth/helpers.ts';
+} from '../auth/helpers/index.ts';
 import {
     assertDerivedKey,
     isJsonMediaType,
     readIdempotencyHeader,
     readRequestBody,
     validatePayload,
-} from '../request/helpers.ts';
+} from '../request/helpers/index.ts';
 import { createWebhookSubscription } from '../subscriptions/webhook.ts';
 import { WEBHOOK_CHANNEL_NAME } from './constants.ts';
 import { markWebhookChannel, parseWebhookSubpath } from './helpers.ts';

@@ -17,7 +17,7 @@ import {
     isWaitOver,
     toJsonSchema,
     toRunToolResult,
-} from '../../../src/mcp/helpers.ts';
+} from '../../../src/mcp/helpers/index.ts';
 import { createTestEngine } from '@chamvi/test-kit';
 
 function plainSchema(jsonSchema?: unknown): StandardSchemaV1 {

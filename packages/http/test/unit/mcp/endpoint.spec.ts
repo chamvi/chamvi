@@ -13,7 +13,7 @@ import {
 } from 'vitest';
 import { App } from 'routup';
 import type { IShutdown } from '@chamvi/http';
-import { buildContext, createErrorHandler } from '../../../src/app/helpers.ts';
+import { buildContext, createErrorHandler } from '../../../src/app/helpers/index.ts';
 import { registerMcpRoutes } from '../../../src/mcp/module.ts';
 import { RunHttpService } from '../../../src/runs/service.ts';
 import {

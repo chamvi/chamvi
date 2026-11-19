@@ -21,8 +21,8 @@ import {
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
-import { useHttpContext } from '../../app/helpers.ts';
-import { usePrincipal } from '../../auth/helpers.ts';
+import { useHttpContext } from '../../app/helpers/index.ts';
+import { usePrincipal } from '../../auth/helpers/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
 import { streamConnection } from '../stream/module.ts';
 import type {

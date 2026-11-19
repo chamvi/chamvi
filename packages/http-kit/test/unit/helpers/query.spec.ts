@@ -7,7 +7,7 @@
 
 import { describe, expect, it } from 'vitest';
 import { buildQueryString, path } from '@chamvi/http-kit';
-import { parseRunListQuery } from '../../../../http/src/runs/helpers.ts';
+import { parseRunListQuery } from '../../../../http/src/runs/helpers/index.ts';
 
 /** What the server decodes from a client-built query (http cannot devDepend on http-kit: a cycle). */
 const decode = (text: string, agents: string[] = ['a']) => parseRunListQuery(new URLSearchParams(text.slice(1)), agents);

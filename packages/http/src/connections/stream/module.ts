@@ -8,7 +8,7 @@
 import type { ClockTimer, IConnectionHandle } from '@chamvi/core';
 import { createEventStream } from 'routup';
 import type { IAppEvent } from 'routup';
-import { acquireStreamSlot, refuseStreamOverCap, refuseWhenClosed } from '../../app/helpers.ts';
+import { acquireStreamSlot, refuseStreamOverCap, refuseWhenClosed } from '../../app/helpers/index.ts';
 import type { HttpContext } from '../../app/types.ts';
 
 /**

@@ -5,21 +5,9 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { assertTriggerKey } from '@chamvi/core';
-import { flattenIssueItems } from '@ebec/core';
-import type { Issue } from '@ebec/core';
-import {
-    BadRequestError,
-    RequestEntityTooLargeError,
-    UnsupportedMediaTypeError,
-} from '@ebec/http';
-import type { StandardSchemaV1 } from '@standard-schema/spec';
-import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
+import { BadRequestError, RequestEntityTooLargeError, UnsupportedMediaTypeError } from '@ebec/http';
 import type { IAppEvent } from 'routup';
-import { isObject } from 'smob';
-import type { Container } from 'validup';
-import { KEY_MAX_LENGTH, RECEIVED_MAX_LENGTH } from './constants.ts';
-import type { ReadRequestBodyOptions } from './types.ts';
+import type { ReadRequestBodyOptions } from '../types.ts';
 
 /** `application/json` or a `+json` media type (parameters ignored). */
 export function isJsonMediaType(contentType: string | null): boolean {
@@ -32,11 +20,11 @@ export function isJsonMediaType(contentType: string | null): boolean {
     return type === 'application/json' || /^[a-z0-9.+-]+\/[a-z0-9.+-]+\+json$/.test(type);
 }
 
-function tooLarge(limit: number): RequestEntityTooLargeError {
+function bodyTooLarge(limit: number): RequestEntityTooLargeError {
     return new RequestEntityTooLargeError({ message: `The request body exceeds ${limit} bytes.` });
 }
 
-function unsupported(): UnsupportedMediaTypeError {
+function bodyNotJson(): UnsupportedMediaTypeError {
     return new UnsupportedMediaTypeError({ message: 'The request body must be application/json.' });
 }
 
@@ -45,7 +33,7 @@ function unsupported(): UnsupportedMediaTypeError {
  * connection can serve the next request; false when the body is longer
  * (or the read fails) and the connection must close instead.
  */
-async function drain(reader: ReadableStreamDefaultReader<Uint8Array>, max: number): Promise<boolean> {
+async function drainRefusedBody(reader: ReadableStreamDefaultReader<Uint8Array>, max: number): Promise<boolean> {
     let size = 0;
 
     try {
@@ -67,43 +55,6 @@ async function drain(reader: ReadableStreamDefaultReader<Uint8Array>, max: numbe
     } catch {
         return false;
     }
-}
-
-/**
- * `value` when its JSON has at most `RECEIVED_MAX_LENGTH` characters, else
- * `undefined`: what a validation issue may carry as `received`.
- */
-export function boundReceived(value: unknown): unknown {
-    if (value === undefined) {
-        return undefined;
-    }
-
-    try {
-        const json = JSON.stringify(value);
-
-        return json !== undefined && json.length <= RECEIVED_MAX_LENGTH ? value : undefined;
-    } catch {
-        return undefined;
-    }
-}
-
-/** `issues` (groups walked) without a `received` value over `RECEIVED_MAX_LENGTH`. */
-export function boundIssues(issues: readonly Issue[]): Issue[] {
-    return issues.map((issue) => {
-        if (issue.type === 'group') {
-            return { ...issue, issues: boundIssues(issue.issues) };
-        }
-
-        if (!('received' in issue) || boundReceived(issue.received) !== undefined) {
-            return issue;
-        }
-
-        const bounded = { ...issue };
-
-        delete bounded.received;
-
-        return bounded;
-    });
 }
 
 /**
@@ -140,11 +91,11 @@ export async function readBodyBytes(event: IAppEvent, limit: number, json: boole
         size += value.byteLength;
 
         if ((size > 0 && !json) || size > limit) {
-            if (!await drain(reader, limit)) {
+            if (!await drainRefusedBody(reader, limit)) {
                 closeAfterResponse(event);
             }
 
-            throw json ? tooLarge(limit) : unsupported();
+            throw json ? bodyTooLarge(limit) : bodyNotJson();
         }
 
         chunks.push(value);
@@ -177,7 +128,7 @@ export async function readRequestBody(request: Request, options: ReadRequestBody
     const length = request.headers.get('content-length');
 
     if (length !== null && /^\d+$/.test(length) && Number(length) > limit) {
-        throw tooLarge(limit);
+        throw bodyTooLarge(limit);
     }
 
     if (!request.body) {
@@ -199,7 +150,7 @@ export async function readRequestBody(request: Request, options: ReadRequestBody
             size += value.byteLength;
 
             if (size > limit) {
-                throw tooLarge(limit);
+                throw bodyTooLarge(limit);
             }
 
             chunks.push(value);
@@ -223,7 +174,7 @@ export function assertContentLength(event: IAppEvent, limit: number): void {
     const length = Number(event.request.headers.get('content-length'));
 
     if (Number.isFinite(length) && length > limit) {
-        throw tooLarge(limit);
+        throw bodyTooLarge(limit);
     }
 }
 
@@ -247,85 +198,5 @@ export async function readJsonBody(event: IAppEvent, limit: number): Promise<unk
         return JSON.parse(new TextDecoder().decode(bytes));
     } catch {
         throw new BadRequestError({ message: 'The request body is not valid JSON.' });
-    }
-}
-
-/**
- * Validates a JSON object body with a validup container. A missing body
- * reads as `{}`; unknown keys are dropped.
- */
-export async function validateBody<T extends Record<string, any>>(
-    container: Container<T>,
-    body: unknown,
-): Promise<T> {
-    if (body === undefined) {
-        body = {};
-    }
-
-    if (!isObject(body)) {
-        throw new BadRequestError({ message: 'The request body must be a JSON object.' });
-    }
-
-    return container.run(body as Partial<T>);
-}
-
-function describeIssues(issues: readonly Issue[]): string {
-    return flattenIssueItems(issues).map((issue) => {
-        const path = issue.path.map(String).join('.');
-
-        return path ? `${path}: ${issue.message}` : issue.message;
-    }).join('; ');
-}
-
-/** Validates a trigger payload (any JSON) with the trigger's Standard Schema. */
-export async function validatePayload(schema: StandardSchemaV1 | undefined, payload: unknown): Promise<unknown> {
-    if (!schema) {
-        return payload;
-    }
-
-    const result = await schema['~standard'].validate(payload);
-
-    if (result.issues) {
-        const issues = buildIssuesForStandardSchemaIssues(result.issues);
-        throw new BadRequestError({ message: `Invalid payload: ${describeIssues(issues)}`, issues });
-    }
-
-    return result.value;
-}
-
-/** An `Idempotency-Key` header value (`null`: absent): 1 to `KEY_MAX_LENGTH` characters, else 400. */
-export function readIdempotencyHeader(value: string | null): string | undefined {
-    if (value === null) {
-        return undefined;
-    }
-
-    if (value.length < 1 || value.length > KEY_MAX_LENGTH) {
-        throw new BadRequestError({ message: `The Idempotency-Key header must have 1 to ${KEY_MAX_LENGTH} characters.` });
-    }
-
-    return value;
-}
-
-/** A key a trigger derived from the payload: core's `assertTriggerKey` (400 `validation_error`). */
-export function assertDerivedKey(name: string, value: string | undefined): void {
-    assertTriggerKey(`${name} derived from the payload`, value);
-}
-
-/**
- * 400 for a NUL character (`%00`) in the path or the query: Postgres text
- * columns refuse it, so a lookup by such an id, key or filter would fail
- * as a 500 instead of a 404.
- */
-export function assertNoNul(event: IAppEvent): void {
-    let found = /%00/i.test(event.path);
-
-    for (const [key, value] of event.searchParams) {
-        if (key.includes('\0') || value.includes('\0')) {
-            found = true;
-        }
-    }
-
-    if (found) {
-        throw new BadRequestError({ message: 'The request URL must not contain a NUL character.' });
     }
 }

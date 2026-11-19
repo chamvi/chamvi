@@ -28,7 +28,7 @@ import {
     testChannels,
 } from '../../utils/app.ts';
 import { approvalModel, textModel } from '../../utils/model.ts';
-import { summarizeAgent } from '../../../src/agents/helpers.ts';
+import { summarizeAgent } from '../../../src/agents/helpers/index.ts';
 import { callTool, connectMcp, textOf } from '../../utils/mcp.ts';
 
 const DEV_TOKEN = 'peer-dev-token-0123456789';

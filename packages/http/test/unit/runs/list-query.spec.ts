@@ -7,7 +7,7 @@
 
 import { eq, inArray } from '@rapiq/core';
 import { describe, expect, it } from 'vitest';
-import { parseRunListQuery } from '../../../src/runs/helpers.ts';
+import { parseRunListQuery } from '../../../src/runs/helpers/index.ts';
 
 const parse = (query: string) => parseRunListQuery(new URLSearchParams(query));
 

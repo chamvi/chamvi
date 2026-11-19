@@ -8,7 +8,7 @@
 import { allPermissions, isPermissionBinding } from '@chamvi/access';
 import type { PermissionBinding } from '@chamvi/access';
 import { InvalidAgentDefinitionError } from '@chamvi/core';
-import { readBearerToken } from '../helpers.ts';
+import { readBearerToken } from '../helpers/index.ts';
 import type { Authenticator, Principal } from '../types.ts';
 import { STATIC_TOKEN_MIN_LENGTH } from './constants.ts';
 import { hashToken } from './helpers.ts';

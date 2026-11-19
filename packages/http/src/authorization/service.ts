@@ -8,9 +8,9 @@
 import { PERMISSION_NAMES } from '@chamvi/access';
 import type { IClock } from '@chamvi/core';
 import { Container } from 'validup';
-import { isGrantedSome } from '../auth/helpers.ts';
+import { isGrantedSome } from '../auth/helpers/index.ts';
 import type { Principal } from '../auth/types.ts';
-import { validateBody } from '../request/helpers.ts';
+import { validateBody } from '../request/helpers/index.ts';
 import { isStringArray } from '../request/validators.ts';
 import { AUTHORIZATION_CHECK_MAX_NAMES, AUTHORIZATION_CHECK_NAME_MAX_LENGTH } from './constants.ts';
 import type {

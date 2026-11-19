@@ -17,7 +17,7 @@ import {
     DTags,
 } from '@routup/decorators';
 import type { IAppEvent } from 'routup';
-import { usePrincipal } from '../../auth/helpers.ts';
+import { usePrincipal } from '../../auth/helpers/index.ts';
 import { ForceLoggedInMiddleware, RequiredJsonBodyMiddleware } from '../../middleware/index.ts';
 import type {
     ConnectionConfigControllerContext,

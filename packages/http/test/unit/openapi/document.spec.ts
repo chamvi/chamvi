@@ -10,8 +10,8 @@ import { fileURLToPath } from 'node:url';
 import { isObject } from 'smob';
 import { describe, expect, it } from 'vitest';
 import type { IConnectionHandle } from '@chamvi/core';
-import { parseCollectionQuery, parseKvListQuery } from '../../../src/agents/helpers.ts';
-import { parseRunListQuery } from '../../../src/runs/helpers.ts';
+import { parseCollectionQuery, parseKvListQuery } from '../../../src/agents/helpers/index.ts';
+import { parseRunListQuery } from '../../../src/runs/helpers/index.ts';
 import {
     ADMIN_TOKEN,
     approvalIdOf,

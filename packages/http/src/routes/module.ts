@@ -16,9 +16,9 @@ import type {
     HttpRouteRequest,
     HttpRouteResult,
 } from '../app/types.ts';
-import { authorize } from '../auth/helpers.ts';
-import { assertContentLength, isJsonMediaType, readBodyBytes } from '../request/helpers.ts';
-import { toBody } from '../runs/helpers.ts';
+import { authorize } from '../auth/helpers/index.ts';
+import { assertContentLength, isJsonMediaType, readBodyBytes } from '../request/helpers/index.ts';
+import { toBody } from '../runs/helpers/index.ts';
 import { routeSubpath } from './helpers.ts';
 
 /**
