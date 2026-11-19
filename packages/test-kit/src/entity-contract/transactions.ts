@@ -23,7 +23,7 @@ function deferred(): Deferred {
     return { promise, resolve };
 }
 
-function pause(ms: number): Promise<void> {
+function pauseEntityContract(ms: number): Promise<void> {
     return new Promise((resolve) => {
         setTimeout(resolve, ms);
     });
@@ -120,7 +120,7 @@ export function registerEntityTransactionCases(repositories: EntityContractRepos
             return 'saved';
         });
 
-        const outcome = await Promise.race([second, pause(1000).then(() => 'waited')]);
+        const outcome = await Promise.race([second, pauseEntityContract(1000).then(() => 'waited')]);
 
         release.resolve();
         await first;
@@ -183,7 +183,7 @@ export function registerEntityTransactionCases(repositories: EntityContractRepos
         const increment = (n: number) => parents.transaction(async (repository) => {
             const row = (await repository.findOneById(uuid(n)))!;
 
-            await pause(20);
+            await pauseEntityContract(20);
             repository.merge(row, { counter: row.counter + 1 });
             await repository.save(row);
         });
