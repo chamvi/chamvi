@@ -25,3 +25,10 @@ export type * from './types.ts';
 
 /** The container and module contracts a module factory is written against (eldin, orkos). */
 export type { IContainer, IModule };
+
+/**
+ * The class a feature module creates its container keys with: the container
+ * compares keys by `instanceof`, so a token of another eldin copy is never found.
+ */
+// eslint-disable-next-line @tada5hi/no-reexport-shims -- One eldin class for app's container and every feature module's tokens.
+export { TypedToken } from 'eldin';
