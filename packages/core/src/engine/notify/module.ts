@@ -18,7 +18,9 @@ import type { NotifyContext, NotifyDelivery } from './types.ts';
  * whether it is still due; then `send` (raced against the attempt's signal)
  * and `record`. An InvalidRunStateError (moved on meanwhile) ends the attempt
  * quietly, any other failure goes to `fail`; the lock is released after the
- * attempt (a release failure reaches onError).
+ * attempt (a release failure reaches onError). The store waits (`acquire`,
+ * `pending`, `record`) are raced against the same signal; a lock granted after
+ * the race was lost is released by an untracked continuation.
  */
 export async function deliverOnce(ctx: NotifyContext, delivery: NotifyDelivery): Promise<void> {
     const lockKey = `notify:${delivery.key}`;
@@ -32,16 +34,30 @@ export async function deliverOnce(ctx: NotifyContext, delivery: NotifyDelivery):
     let acquired = false;
 
     try {
-        acquired = await ctx.lockService.acquire(lockKey, attempt, ctx.claimTtlMs);
+        const acquiring = ctx.lockService.acquire(lockKey, attempt, ctx.claimTtlMs);
 
-        if (!acquired || !await delivery.pending()) {
+        try {
+            acquired = await untilAborted(acquiring, signal);
+        } catch (error) {
+            // The wait lost to the deadline or a drain: a lock the store grants later is released
+            // by a continuation the delivery set does not track (idle() and drain() stay unchanged).
+            acquiring.then(
+                (granted) => (granted ?
+                    ctx.lockService.release(lockKey, attempt) :
+                    undefined),
+            ).catch((releaseError: unknown) => ctx.onError(releaseError, delivery.run));
+
+            throw error;
+        }
+
+        if (!acquired || !await untilAborted(delivery.pending(), signal)) {
             return;
         }
 
         signal.throwIfAborted();
 
         await untilAborted(delivery.send(signal), signal);
-        await delivery.record(signal);
+        await untilAborted(delivery.record(signal), signal);
     } catch (error) {
         if (!(error instanceof InvalidRunStateError)) {
             delivery.fail(error, signal);
