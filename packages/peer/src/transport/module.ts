@@ -25,8 +25,12 @@ import type { PeerTransportOptions } from './types.ts';
 type HttpTransport = NonNullable<ClientOptions['transport']>;
 type TransportRequest = Parameters<HttpTransport['dispatch']>[0];
 
-/** Statuses the peer answers for a request that fails the same way when sent again (401: after the one authup retry). */
-const PERMANENT_STATUSES = new Set([400, 401, 403, 404, 409]);
+/**
+ * Statuses the peer answers for a request that fails the same way when sent
+ * again (401: after the one authup retry; 413 only without `Retry-After`,
+ * which marks a temporary size limit).
+ */
+const PERMANENT_STATUSES = new Set([400, 401, 403, 404, 409, 413, 415]);
 
 /**
  * The codes of a 409 that a resend may pass: a storage conflict or deadlock,
@@ -61,11 +65,11 @@ function transportError(status: number, code: string, message: string): ApiError
 /**
  * Talks to one peer over `@chamvi/http-kit`: every request goes to the
  * peer's own origin with its bearer, never follows a redirect, and is aborted
- * by the caller's signal (the engine's deadline). A 400, 401, 403, 404, a
- * 409 of another code than a conflict, deadlock, replaced agent or run state
- * race, or a redirect is a permanent ValidationError (a misconfiguration a
- * resend does not fix); 429, those 409s, 5xx and network errors are a
- * retryable PeerRequestError.
+ * by the caller's signal (the engine's deadline). A 400, 401, 403, 404,
+ * 415, a 413 without `Retry-After`, a 409 of another code than a conflict,
+ * deadlock, replaced agent or run state race, or a redirect is a permanent
+ * ValidationError (a resend does not fix it); 429, those 409s, a 413 with
+ * `Retry-After`, 5xx and network errors are a retryable PeerRequestError.
  */
 export class PeerTransport implements IPeerTransport {
     protected readonly name: string;
@@ -176,9 +180,10 @@ export class PeerTransport implements IPeerTransport {
             secrets,
         );
 
-        const retryableConflict = error.status === 409 && RETRYABLE_CONFLICT_CODES.has(error.code);
+        const retryable = (error.status === 409 && RETRYABLE_CONFLICT_CODES.has(error.code)) ||
+            (error.status === 413 && error.retryAfter !== undefined);
 
-        if ((PERMANENT_STATUSES.has(error.status) && !retryableConflict) || TRANSPORT_ERRORS.has(error)) {
+        if ((PERMANENT_STATUSES.has(error.status) && !retryable) || TRANSPORT_ERRORS.has(error)) {
             return new ValidationError(message);
         }
 

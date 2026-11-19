@@ -110,11 +110,12 @@ The transport honours the caller's signal (the engine's request deadline) and ad
 
 | Answer | Error |
 |---|---|
-| 400, 401, 403, 404, 409, any redirect | `ValidationError` of `@chamvi/core`: permanent (a misconfiguration a resend does not fix) |
+| 400, 401, 403, 404, 415, 413 without `Retry-After`, 409, any redirect | `ValidationError` of `@chamvi/core`: permanent (a resend does not fix it) |
+| 409 with the code `entity_conflict`, `entity_deadlock`, `agent_replaced` or `invalid_run_state`; 413 with `Retry-After` | `PeerRequestError`: retryable (a passing condition at the peer) |
 | 401 with an authup credential | the token is dropped and the request sent once more with a fresh one; a second 401 is permanent |
 | authup token endpoint: 4xx (but 429), a redirect, an answer without `access_token` | `ValidationError`: permanent |
 | 429, 503 (peer or token endpoint) | `PeerRequestError` with `retryAfterMs` from `Retry-After` (seconds or an HTTP date); none without the header |
-| other 5xx, a network error | `PeerRequestError`: retryable |
+| other 5xx, a network error (also while reading the authup token answer) | `PeerRequestError`: retryable |
 | the caller's abort | the signal's reason |
 
 ## Options

@@ -160,13 +160,22 @@ describe('peer transport', () => {
         expect(error).not.toBeInstanceOf(ValidationError);
     });
 
-    it.each([400, 401, 403, 404, 409])('maps %i to a permanent ValidationError', async (status) => {
+    it.each([400, 401, 403, 404, 409, 413, 415])('maps %i to a permanent ValidationError', async (status) => {
         const { transport } = setup(() => json({ code: 'refused', message: 'Refused.' }, { status }));
 
         const error = await rejection(transport.start(START, opts()));
 
         expect(error).toBeInstanceOf(ValidationError);
         expect(error.message).toContain('dev');
+    });
+
+    it('keeps a 413 with Retry-After retryable (a temporary size limit)', async () => {
+        const { transport } = setup(() => json({ code: 'too_large', message: 'Later.' }, { status: 413, headers: { 'retry-after': '60' } }));
+
+        const error = await rejection(transport.start(START, opts()));
+
+        expect(error).toBeInstanceOf(PeerRequestError);
+        expect(error).not.toBeInstanceOf(ValidationError);
     });
 
     it('maps 429 with Retry-After in seconds to a retryable error with retryAfterMs', async () => {
