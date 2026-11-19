@@ -288,7 +288,7 @@ describe('knowledge.check()', () => {
         const indexer = createIndexerSetup();
         const knowledge = createKnowledge(indexer.options({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(new Map())] })] }));
 
-        await indexer.repository.saveCollection(record('docs', 'managed'));
+        await indexer.service.saveCollection(record('docs', 'managed'));
 
         const error = await knowledge.check().catch((e: unknown) => e);
 
@@ -301,14 +301,14 @@ describe('knowledge.check()', () => {
         const indexer = createIndexerSetup();
         const knowledge = createKnowledge(indexer.options({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(new Map())] })] }));
 
-        await indexer.repository.saveCollection(record('docs', 'declared'));
-        await indexer.repository.saveCollection({ ...record('old', 'declared'), status: 'orphaned' });
-        await indexer.repository.saveCollection(record('notes', 'managed'));
+        await indexer.service.saveCollection(record('docs', 'declared'));
+        await indexer.service.saveCollection({ ...record('old', 'declared'), status: 'orphaned' });
+        await indexer.service.saveCollection(record('notes', 'managed'));
 
-        const before = await indexer.repository.findCollections();
+        const before = await indexer.service.findCollections();
 
         await expect(knowledge.check()).resolves.toBeUndefined();
-        expect(await indexer.repository.findCollections()).toEqual(before);
+        expect(await indexer.service.findCollections()).toEqual(before);
     });
 
     it('runs every source\'s check, so a missing folder fails it', async () => {
@@ -319,7 +319,7 @@ describe('knowledge.check()', () => {
 
         expect(error).toBeInstanceOf(InvalidAgentDefinitionError);
         expect((error as Error).message).toBe('Knowledge collection "docs": folder(): "/definitely/not/a/directory" is no directory.');
-        expect(await indexer.repository.findCollections()).toEqual([]);
+        expect(await indexer.service.findCollections()).toEqual([]);
     });
 
     it('passes on an empty store', async () => {
@@ -327,7 +327,7 @@ describe('knowledge.check()', () => {
         const knowledge = createKnowledge(indexer.options({ collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(new Map())] })] }));
 
         await expect(knowledge.check()).resolves.toBeUndefined();
-        expect(await indexer.repository.findCollections()).toEqual([]);
+        expect(await indexer.service.findCollections()).toEqual([]);
     });
 });
 

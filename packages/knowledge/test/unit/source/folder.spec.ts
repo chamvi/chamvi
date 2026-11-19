@@ -79,13 +79,13 @@ async function indexOnce(setup: IndexerSetup, root: string): Promise<string[]> {
     setup.clock.advance(1000);
     knowledge.start();
     await waitForCollection(
-        setup.repository,
+        setup.service,
         'docs',
         (found) => found.updatedAt.getTime() === setup.clock.now() && found.status === 'ready',
     );
     await knowledge.stop();
 
-    return setup.repository.findDocumentIds('docs');
+    return setup.service.findDocumentIds('docs');
 }
 
 describe('folder', () => {

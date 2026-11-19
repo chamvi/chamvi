@@ -81,7 +81,7 @@ async function setup(options: { index?: boolean } = {}): Promise<Fixture> {
 
     if (options.index !== false) {
         knowledge.start();
-        await waitForReady(indexer.repository, 'handbook');
+        await waitForReady(indexer.service, 'handbook');
     }
 
     return {
@@ -143,7 +143,7 @@ describe('knowledge_search', () => {
         const fixture = await setup({ index: false });
         const vector = await vectorOf(fixture.model, 'refund');
 
-        await seedCollection(fixture.repository, 'many', fixture.model, {
+        await seedCollection(fixture.service, 'many', fixture.model, {
             model: MODEL,
             documents: Object.fromEntries(Array.from({ length: 8 }, (_, i) => [`d${i}`, [{ text: `refund ${i}`, vector }]])),
         });
@@ -159,11 +159,11 @@ describe('knowledge_search', () => {
     it('merges several collections by score', async () => {
         const fixture = await setup({ index: false });
 
-        await seedCollection(fixture.repository, 'alpha', fixture.model, {
+        await seedCollection(fixture.service, 'alpha', fixture.model, {
             model: MODEL,
             documents: { returns: [{ text: 'refund policy for returns of damaged parcels' }] },
         });
-        await seedCollection(fixture.repository, 'beta', fixture.model, {
+        await seedCollection(fixture.service, 'beta', fixture.model, {
             model: MODEL,
             documents: {
                 exact: [{ text: 'refund policy' }],
@@ -187,8 +187,8 @@ describe('knowledge_search', () => {
     it('embeds the query once per distinct model', async () => {
         const fixture = await setup({ index: false });
 
-        await seedCollection(fixture.repository, 'alpha', fixture.model, { model: MODEL, documents: { a: [{ text: 'refund' }] } });
-        await seedCollection(fixture.repository, 'beta', fixture.model, { model: MODEL, documents: { b: [{ text: 'refund' }] } });
+        await seedCollection(fixture.service, 'alpha', fixture.model, { model: MODEL, documents: { a: [{ text: 'refund' }] } });
+        await seedCollection(fixture.service, 'beta', fixture.model, { model: MODEL, documents: { b: [{ text: 'refund' }] } });
 
         const before = fixture.model.calls.length;
 
@@ -202,7 +202,7 @@ describe('knowledge_search', () => {
         const vector = await vectorOf(fixture.model, 'refund');
         const text = 'r'.repeat(2000);
 
-        await seedCollection(fixture.repository, 'large', fixture.model, {
+        await seedCollection(fixture.service, 'large', fixture.model, {
             model: MODEL,
             documents: Object.fromEntries(Array.from({ length: 30 }, (_, i) => [`d${String(i).padStart(2, '0')}`, [{ text, vector }]])),
         });
@@ -223,7 +223,7 @@ describe('knowledge_search', () => {
         await expect(search(fixture, { query: 'refund' })).rejects.toThrow(ValidationError);
         await expect(search(fixture, { query: 'refund' })).rejects.toThrow('Knowledge collection "handbook" is not ready.');
 
-        await seedCollection(fixture.repository, 'fresh', fixture.model, {
+        await seedCollection(fixture.service, 'fresh', fixture.model, {
             model: MODEL,
             generation: 0,
             status: 'pending',
@@ -237,7 +237,7 @@ describe('knowledge_search', () => {
     it('searches a stale collection at its served generation', async () => {
         const fixture = await setup({ index: false });
 
-        await seedCollection(fixture.repository, 'old', fixture.model, {
+        await seedCollection(fixture.service, 'old', fixture.model, {
             model: MODEL,
             status: 'stale',
             documents: { a: [{ text: 'refund' }] },
@@ -248,7 +248,7 @@ describe('knowledge_search', () => {
 
     it('refuses a collection the agent did not name without searching it', async () => {
         const fixture = await setup();
-        const spy = vi.spyOn(fixture.repository, 'search');
+        const spy = vi.spyOn(fixture.service, 'search');
         const before = fixture.model.calls.length;
 
         await expect(search(fixture, { query: 'refund', collection: 'secrets' })).rejects.toThrow(ValidationError);
@@ -261,19 +261,19 @@ describe('knowledge_search', () => {
     it('refuses an orphaned collection, and a declared one without a definition', async () => {
         const fixture = await setup();
 
-        await seedCollection(fixture.repository, 'gone', fixture.model, {
+        await seedCollection(fixture.service, 'gone', fixture.model, {
             kind: 'declared',
             status: 'orphaned',
             model: MODEL,
             documents: { a: [{ text: 'refund' }] },
         });
-        await seedCollection(fixture.repository, 'undeclared', fixture.model, {
+        await seedCollection(fixture.service, 'undeclared', fixture.model, {
             kind: 'declared',
             model: MODEL,
             documents: { a: [{ text: 'refund' }] },
         });
 
-        const spy = vi.spyOn(fixture.repository, 'search');
+        const spy = vi.spyOn(fixture.service, 'search');
 
         await expect(search(fixture, { query: 'refund' }, { collections: ['gone'] }))
             .rejects.toThrow('Knowledge collection "gone" is not available.');
@@ -285,7 +285,7 @@ describe('knowledge_search', () => {
     it('serves an orphaned record of a name this app declares (a replica that never declared it marked it)', async () => {
         const fixture = await setup({ index: false });
 
-        await seedCollection(fixture.repository, 'handbook', fixture.model, {
+        await seedCollection(fixture.service, 'handbook', fixture.model, {
             kind: 'declared',
             status: 'orphaned',
             trusted: true,
@@ -300,7 +300,7 @@ describe('knowledge_search', () => {
         const fixture = await setup({ index: false });
 
         // served by a model this process neither declares nor resolves
-        await seedCollection(fixture.repository, 'handbook', fixture.model, {
+        await seedCollection(fixture.service, 'handbook', fixture.model, {
             kind: 'declared',
             trusted: true,
             status: 'stale',
@@ -318,7 +318,7 @@ describe('knowledge_search', () => {
     it('answers a clear error for a collection whose model is not available', async () => {
         const fixture = await setup({ index: false });
 
-        await seedCollection(fixture.repository, 'notes', fixture.model, { model: 'retired/embed', documents: { a: [{ text: 'refund' }] } });
+        await seedCollection(fixture.service, 'notes', fixture.model, { model: 'retired/embed', documents: { a: [{ text: 'refund' }] } });
 
         await expect(search(fixture, { query: 'refund' }, { collections: ['notes'] })).rejects.toThrow(new ValidationError(
             'Knowledge collection "notes": its embedding model "retired/embed" is not available here.',
@@ -354,7 +354,7 @@ describe('knowledge_search', () => {
     it('taints a call that searches an untrusted or missing collection', async () => {
         const fixture = await setup();
 
-        await seedCollection(fixture.repository, 'wiki', fixture.model, { model: MODEL, documents: {} });
+        await seedCollection(fixture.service, 'wiki', fixture.model, { model: MODEL, documents: {} });
 
         const tools = knowledgeTools({ collections: ['handbook', 'wiki', 'missing'] });
         const { taint } = (tools.knowledge_search as unknown as { trust: { taint: (input: unknown, ctx: unknown) => Promise<boolean> } }).trust;
@@ -382,7 +382,7 @@ describe('knowledge_search', () => {
         knowledge.start();
 
         await vi.waitFor(async () => {
-            expect(await indexer.repository.findOneDocument('notes', 'refunds')).toMatchObject({ status: 'ready' });
+            expect(await indexer.service.findOneDocument('notes', 'refunds')).toMatchObject({ status: 'ready' });
         });
 
         const tools = knowledgeTools({ collections: ['notes'] });
@@ -409,24 +409,24 @@ describe('knowledge_search', () => {
         const record = await knowledge.createCollection('notes');
 
         // a store edited by hand, or written by another implementation
-        await indexer.repository.saveCollection({ ...record, trusted: true });
+        await indexer.service.saveCollection({ ...record, trusted: true });
 
         const tools = knowledgeTools({ collections: ['notes'] });
         const { taint } = (tools.knowledge_search as unknown as { trust: { taint: (input: unknown, ctx: unknown) => Promise<boolean> } }).trust;
 
         expect(await taint({ query: 'refund policy' }, toolContext(knowledge))).toBe(true);
-        expect(knowledge.view((await indexer.repository.findOneCollection('notes'))!).trusted).toBe(false);
+        expect(knowledge.view((await indexer.service.findOneCollection('notes'))!).trusted).toBe(false);
     });
 
     it('fails instead of answering when the served generation switched during the search', async () => {
         const fixture = await setup();
-        const search_ = fixture.repository.search.bind(fixture.repository);
+        const search_ = fixture.service.search.bind(fixture.service);
 
-        fixture.repository.search = async (collection, generation, vector, options) => {
-            const record = (await fixture.repository.findOneCollection(collection))!;
+        fixture.service.search = async (collection, generation, vector, options) => {
+            const record = (await fixture.service.findOneCollection(collection))!;
 
             // a re-embed switches and deletes the generation being searched
-            await fixture.repository.saveCollection({ ...record, generation: record.generation + 1 });
+            await fixture.service.saveCollection({ ...record, generation: record.generation + 1 });
 
             return search_(collection, generation, vector, options);
         };
@@ -446,15 +446,15 @@ describe('knowledge_search', () => {
 
         expect(await taint(input, ctx)).toBe(false);
 
-        const search_ = fixture.repository.search.bind(fixture.repository);
+        const search_ = fixture.service.search.bind(fixture.service);
         const downgrade = async (collection: string) => {
-            const record = (await fixture.repository.findOneCollection(collection))!;
+            const record = (await fixture.service.findOneCollection(collection))!;
 
-            await fixture.repository.saveCollection({ ...record, trusted: false });
+            await fixture.service.saveCollection({ ...record, trusted: false });
         };
 
         // a sync downgrades the collection (and writes untrusted chunks) while it is searched
-        fixture.repository.search = async (collection, generation, vector, options) => {
+        fixture.service.search = async (collection, generation, vector, options) => {
             await downgrade(collection);
 
             return search_(collection, generation, vector, options);

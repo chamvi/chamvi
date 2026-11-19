@@ -94,25 +94,25 @@ export type IndexerSetup = {
      * `adopt(knowledge)` makes it that knowledge's own (then spies and
      * overrides on it reach the knowledge's calls).
      */
-    repository: IKnowledgeService;
+    service: IKnowledgeService;
     locks: RecordedLocks;
     errors: Array<{ error: unknown; collection?: string }>;
     options(extra?: Partial<KnowledgeOptions>): KnowledgeOptions;
-    /** Makes `repository` the knowledge's service; returns the knowledge. */
+    /** Points `service` at the knowledge's own service; returns the knowledge. */
     adopt<K extends IKnowledge>(knowledge: K): K;
 };
 
 export function createIndexerSetup(): IndexerSetup {
     const clock = new ControllableClock(new Date('2026-11-01T00:00:00Z'));
     const store = createMemoryKnowledgeRepository();
-    const repository = new KnowledgeService({ repository: store, clock });
+    const service = new KnowledgeService({ repository: store, clock });
     const locks = recordingLocks(createTestEngine({ agents: [], clock }).lockService);
     const errors: IndexerSetup['errors'] = [];
 
     const setup: IndexerSetup = {
         clock,
         store,
-        repository,
+        service,
         locks,
         errors,
         options: (extra = {}) => ({
@@ -125,7 +125,7 @@ export function createIndexerSetup(): IndexerSetup {
             ...extra,
         }),
         adopt: (knowledge) => {
-            setup.repository = knowledge.service;
+            setup.service = knowledge.service;
 
             return knowledge;
         },
@@ -136,14 +136,14 @@ export function createIndexerSetup(): IndexerSetup {
 
 /** Waits until the stored collection fits `predicate`, returning it. */
 export async function waitForCollection(
-    repository: Pick<IKnowledgeService, 'findOneCollection'>,
+    service: Pick<IKnowledgeService, 'findOneCollection'>,
     name: string,
     predicate: (collection: KnowledgeCollection) => boolean,
 ): Promise<KnowledgeCollection> {
     let found: KnowledgeCollection | undefined;
 
     await vi.waitFor(async () => {
-        found = await repository.findOneCollection(name);
+        found = await service.findOneCollection(name);
 
         if (!found || !predicate(found)) {
             throw new Error(`collection ${name} is ${found?.status ?? 'missing'}`);
@@ -155,12 +155,12 @@ export async function waitForCollection(
 
 /** Waits until the collection is ready at the given generation. */
 export function waitForReady(
-    repository: Pick<IKnowledgeService, 'findOneCollection'>,
+    service: Pick<IKnowledgeService, 'findOneCollection'>,
     name: string,
     generation = 1,
 ): Promise<KnowledgeCollection> {
     return waitForCollection(
-        repository,
+        service,
         name,
         (collection) => collection.status === 'ready' && collection.generation === generation,
     );

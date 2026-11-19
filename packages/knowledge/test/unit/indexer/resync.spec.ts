@@ -83,7 +83,7 @@ describe('resyncing a declared collection', () => {
 
         start(setup, model, mapSource(docs), 60_000);
 
-        const first = await waitForReady(setup.repository, 'docs');
+        const first = await waitForReady(setup.service, 'docs');
 
         expect(first.syncedAt).toEqual(new Date(setup.clock.now()));
 
@@ -92,20 +92,20 @@ describe('resyncing a declared collection', () => {
         setup.clock.advance(59_999);
         await settle();
 
-        expect(await setup.repository.findOneDocument('docs', 'b.md')).toBeUndefined();
+        expect(await setup.service.findOneDocument('docs', 'b.md')).toBeUndefined();
 
         setup.clock.advance(1);
 
         await vi.waitFor(async () => {
-            expect(await setup.repository.findOneDocument('docs', 'b.md')).toMatchObject({ status: 'ready' });
+            expect(await setup.service.findOneDocument('docs', 'b.md')).toMatchObject({ status: 'ready' });
         });
 
         const [vector] = (await mockEmbeddingModel().doEmbed({ values: ['Kubernetes pods are scheduled onto nodes.'] })).embeddings;
-        const [match] = await setup.repository.search('docs', 1, vector!, { topK: 1 });
+        const [match] = await setup.service.search('docs', 1, vector!, { topK: 1 });
 
         expect(match).toMatchObject({ document: 'b.md', text: 'Kubernetes pods are scheduled onto nodes.' });
         await vi.waitFor(async () => {
-            expect((await setup.repository.findOneCollection('docs'))?.syncedAt).toEqual(new Date(first.syncedAt!.getTime() + 60_000));
+            expect((await setup.service.findOneCollection('docs'))?.syncedAt).toEqual(new Date(first.syncedAt!.getTime() + 60_000));
         });
         expect(setup.errors).toEqual([]);
     });
@@ -116,7 +116,7 @@ describe('resyncing a declared collection', () => {
 
         start(setup, mockEmbeddingModel(), counted.source);
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
         setup.clock.advance(2_147_483_647);
         await settle();
@@ -138,7 +138,7 @@ describe('resyncing a declared collection', () => {
 
         model.open(0);
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await expect.poll(() => counted.reads()).toBe(2);
         await settle();
 
@@ -161,14 +161,14 @@ describe('resyncing a declared collection', () => {
         const docs = new Map([['a.md', 'Refunds within thirty days.']]);
         const knowledge = start(setup, mockEmbeddingModel(), mapSource(docs), 60_000);
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
         docs.delete('a.md');
         docs.set('b.md', 'Kubernetes pods are scheduled onto nodes.');
         knowledge.sync('docs');
 
         await vi.waitFor(async () => {
-            expect(await setup.repository.findDocumentIds('docs')).toEqual(['b.md']);
+            expect(await setup.service.findDocumentIds('docs')).toEqual(['b.md']);
         });
     });
 });

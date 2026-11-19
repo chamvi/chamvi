@@ -56,18 +56,18 @@ async function deletedByAnotherReplica(setup: IndexerSetup, model = mockEmbeddin
     started.push(declaring);
     declaring.start();
 
-    await waitForReady(setup.repository, 'docs');
+    await waitForReady(setup.service, 'docs');
 
     const other = createKnowledge(setup.options());
 
     started.push(other);
     other.start();
 
-    await waitForCollection(setup.repository, 'docs', (found) => found.status === 'orphaned');
+    await waitForCollection(setup.service, 'docs', (found) => found.status === 'orphaned');
 
     expect(await other.deleteCollection('docs')).toBe(true);
-    expect(await setup.repository.findOneCollection('docs')).toBeUndefined();
-    expect(await setup.repository.findDocumentIds('docs')).toEqual([]);
+    expect(await setup.service.findOneCollection('docs')).toBeUndefined();
+    expect(await setup.service.findDocumentIds('docs')).toEqual([]);
 
     return { declaring, model };
 }
@@ -80,13 +80,13 @@ describe('a declared collection whose record was deleted', () => {
 
         setup.clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
 
-        const rebuilt = await waitForReady(setup.repository, 'docs');
+        const rebuilt = await waitForReady(setup.service, 'docs');
 
         expect(rebuilt).toMatchObject({ kind: 'declared', status: 'ready' });
         await vi.waitFor(async () => {
-            expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md']);
+            expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md']);
         });
-        expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({ status: 'ready', generation: 1 });
+        expect(await setup.service.findOneDocument('docs', 'a.md')).toMatchObject({ status: 'ready', generation: 1 });
         expect(setup.errors).toEqual([]);
     });
 
@@ -109,7 +109,7 @@ describe('a declared collection whose record was deleted', () => {
         down = true;
         setup.clock.advance(KNOWLEDGE_MANAGED_POLL_MS);
 
-        const failed = await waitForCollection(setup.repository, 'docs', (found) => found.retryAt !== undefined);
+        const failed = await waitForCollection(setup.service, 'docs', (found) => found.retryAt !== undefined);
 
         expect(failed.syncedAt).toBeUndefined();
         expect(setup.errors).toHaveLength(1);
@@ -117,11 +117,11 @@ describe('a declared collection whose record was deleted', () => {
         down = false;
         setup.clock.advance(KNOWLEDGE_RETRY_MS);
 
-        const rebuilt = await waitForReady(setup.repository, 'docs');
+        const rebuilt = await waitForReady(setup.service, 'docs');
 
         expect(rebuilt.error).toBeUndefined();
         await vi.waitFor(async () => {
-            expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md']);
+            expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md']);
         });
     });
 
@@ -132,9 +132,9 @@ describe('a declared collection whose record was deleted', () => {
 
         declaring.sync('docs');
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await vi.waitFor(async () => {
-            expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md']);
+            expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md']);
         });
         // every document embedded again: nothing of the deleted record survived
         expect(model.calls.length).toBeGreaterThan(calls);
@@ -149,7 +149,7 @@ describe('a declared collection whose record was deleted', () => {
         started.push(knowledge);
         knowledge.start();
 
-        const first = await waitForReady(setup.repository, 'docs');
+        const first = await waitForReady(setup.service, 'docs');
         const acquires = setup.locks.acquired.length;
 
         for (let i = 0; i < 3; i++) {
@@ -158,7 +158,7 @@ describe('a declared collection whose record was deleted', () => {
         }
 
         expect(setup.locks.acquired).toHaveLength(acquires);
-        expect((await setup.repository.findOneCollection('docs'))?.syncedAt).toEqual(first.syncedAt);
+        expect((await setup.service.findOneCollection('docs'))?.syncedAt).toEqual(first.syncedAt);
         expect(model.calls).toHaveLength(1);
     });
 });

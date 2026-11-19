@@ -11,7 +11,7 @@ import type { IKnowledgeService } from '../service/types.ts';
 
 export type SyncManagedInput = {
     name: string;
-    repository: IKnowledgeService;
+    service: IKnowledgeService;
     embed: KnowledgeEmbed;
     /** Whether `embed` can embed with that stored model identity. */
     hasModel: (model: string) => boolean;

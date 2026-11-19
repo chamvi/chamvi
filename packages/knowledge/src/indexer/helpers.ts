@@ -149,11 +149,11 @@ export function writeOptionsOf(lock: KnowledgeIndexLock): KnowledgeWriteOptions 
  * past its lease never uses the token it got over the current owner's.
  */
 export async function advanceLockFence(
-    repository: Pick<IKnowledgeService, 'advanceFence'>,
+    service: Pick<IKnowledgeService, 'advanceFence'>,
     name: string,
     lock: KnowledgeIndexLock,
 ): Promise<KnowledgeFence | undefined> {
-    const fence = await repository.advanceFence(name);
+    const fence = await service.advanceFence(name);
 
     if (fence === undefined) {
         delete lock.fence;

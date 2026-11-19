@@ -124,7 +124,7 @@ describe('the indexing lock', () => {
         start(setup, 'replica-a', model);
         start(setup, 'replica-b', model);
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await expect.poll(() => setup.locks.acquired.length).toBe(2);
 
         expect(setup.locks.acquired.every((entry) => entry.key === 'knowledge:docs')).toBe(true);
@@ -161,16 +161,16 @@ describe('the indexing lock', () => {
         await expect.poll(() => acquiresOf(setup, 'replica-b')).toEqual([false]);
 
         gated.open();
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
         await vi.waitFor(async () => {
             setup.clock.advance(KNOWLEDGE_RETRY_MS);
             await settle();
 
-            expect(await setup.repository.findOneDocument('docs', 'd.md')).toBeDefined();
+            expect(await setup.service.findOneDocument('docs', 'd.md')).toBeDefined();
         });
 
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'd.md']);
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'd.md']);
         expect(setup.errors).toEqual([]);
     });
 
@@ -200,8 +200,8 @@ describe('the indexing lock', () => {
         await expect.poll(() => acquiresOf(setup, 'replica-a')).toEqual([true, false]);
         await settle();
 
-        expect(await setup.repository.findOneDocument('docs', 'long.md')).toBeUndefined();
-        expect(await setup.repository.search('docs', 1, (await mockEmbeddingModel().doEmbed({ values: ['x'] })).embeddings[0]!, { topK: 5 })).toEqual([]);
+        expect(await setup.service.findOneDocument('docs', 'long.md')).toBeUndefined();
+        expect(await setup.service.search('docs', 1, (await mockEmbeddingModel().doEmbed({ values: ['x'] })).embeddings[0]!, { topK: 5 })).toEqual([]);
         expect(setup.errors).toEqual([]);
     });
 
@@ -218,7 +218,7 @@ describe('the indexing lock', () => {
 
         setup.clock.advance(KNOWLEDGE_RETRY_MS);
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
         expect(acquiresOf(setup, 'replica-b')).toEqual([false, true]);
         expect(model.calls.flatMap((call) => call.values)).toHaveLength(3);
@@ -235,7 +235,7 @@ describe('the indexing lock', () => {
         setup.clock.advance((KNOWLEDGE_LOCK_TTL_MS / 2) + 1);
         gated.open();
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
         expect(acquiresOf(setup, 'replica-a')).toEqual([true, true]);
     });
@@ -258,8 +258,8 @@ describe('the indexing lock', () => {
         await settle();
 
         expect(model.calls).toHaveLength(1);
-        expect(await setup.repository.findOneDocument('docs', 'b.md')).toBeUndefined();
-        expect((await setup.repository.findOneCollection('docs'))?.status).toBe('pending');
+        expect(await setup.service.findOneDocument('docs', 'b.md')).toBeUndefined();
+        expect((await setup.service.findOneCollection('docs'))?.status).toBe('pending');
         expect(setup.errors).toEqual([]);
     });
 
@@ -311,7 +311,7 @@ describe('the indexing lock', () => {
             setup.clock.advance(KNOWLEDGE_RETRY_MS);
             await settle();
 
-            expect(await setup.repository.findOneCollection('docs')).toMatchObject({ generation: 1, status: 'ready' });
+            expect(await setup.service.findOneCollection('docs')).toMatchObject({ generation: 1, status: 'ready' });
         });
     });
 
@@ -343,7 +343,7 @@ describe('the indexing lock', () => {
 
         // attempts at 0, 5, 15 and 35 s, whichever replica takes each
         expect(seen).toEqual([2, 2, 3, 3, 3, 3, 4]);
-        expect(await setup.repository.findOneCollection('docs')).toMatchObject({
+        expect(await setup.service.findOneCollection('docs')).toMatchObject({
             failures: 4,
             retryAt: new Date(setup.clock.now() + (KNOWLEDGE_RETRY_MS * 8)),
         });
@@ -353,10 +353,10 @@ describe('the indexing lock', () => {
         const setup = createIndexerSetup();
         const first = start(setup, 'replica-a', mockEmbeddingModel());
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await first.stop();
 
-        const ready = await setup.repository.findOneCollection('docs');
+        const ready = await setup.service.findOneCollection('docs');
         const acquire = setup.locks.acquire.bind(setup.locks);
         let failures = 1;
 
@@ -375,7 +375,7 @@ describe('the indexing lock', () => {
         await expect.poll(() => setup.errors.length).toBe(1);
 
         expect((setup.errors[0]!.error as Error).message).toBe('lock store down');
-        expect(await setup.repository.findOneCollection('docs')).toEqual(ready);
+        expect(await setup.service.findOneCollection('docs')).toEqual(ready);
     });
 
     it('a pass whose fence another owner advanced writes nothing more and reports nothing', async () => {
@@ -401,7 +401,7 @@ describe('the indexing lock', () => {
         setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
         start(setup, 'replica-b', mockEmbeddingModel());
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         expect(acquiresOf(setup, 'replica-b')).toEqual([true]);
 
         gate.resolve();
@@ -410,14 +410,14 @@ describe('the indexing lock', () => {
         await settle();
 
         expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost', lock: 'knowledge:docs' } });
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
-        expect(await setup.repository.findOneDocument('docs', 'a.md')).toMatchObject({ content: docs.get('a.md') });
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(await setup.service.findOneDocument('docs', 'a.md')).toMatchObject({ content: docs.get('a.md') });
 
         const [vector] = (await mockEmbeddingModel().doEmbed({ values: [stale] })).embeddings;
-        const matches = await setup.repository.search('docs', 1, vector!, { topK: 10 });
+        const matches = await setup.service.search('docs', 1, vector!, { topK: 10 });
 
         expect(matches.map((match) => match.text)).not.toContain(stale);
-        expect(await setup.repository.findOneCollection('docs')).toMatchObject({ status: 'ready', generation: 1 });
+        expect(await setup.service.findOneCollection('docs')).toMatchObject({ status: 'ready', generation: 1 });
         expect(setup.errors).toEqual([]);
     });
 
@@ -442,7 +442,7 @@ describe('the indexing lock', () => {
         setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
         start(setup, 'replica-b', mockEmbeddingModel());
 
-        const ready = await waitForReady(setup.repository, 'docs');
+        const ready = await waitForReady(setup.service, 'docs');
 
         gate.resolve();
 
@@ -450,8 +450,8 @@ describe('the indexing lock', () => {
         await settle();
 
         expect(held.mock.settledResults[0]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost', lock: 'knowledge:docs' } });
-        expect(await setup.repository.findOneCollection('docs')).toEqual(ready);
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(await setup.service.findOneCollection('docs')).toEqual(ready);
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
         expect(setup.errors).toEqual([]);
     });
 
@@ -478,7 +478,7 @@ describe('the indexing lock', () => {
         // no write without a token: nothing recreates the deleted record
         expect(save).toHaveBeenCalledTimes(1);
         expect(replace).not.toHaveBeenCalled();
-        expect(await setup.repository.findOneCollection('docs')).toBeUndefined();
+        expect(await setup.service.findOneCollection('docs')).toBeUndefined();
         expect(setup.errors).toEqual([]);
     });
 
@@ -514,7 +514,7 @@ describe('the indexing lock', () => {
         await settle();
 
         expect(replace).not.toHaveBeenCalled();
-        expect(await setup.repository.findOneCollection('docs')).toEqual(theirs);
+        expect(await setup.service.findOneCollection('docs')).toEqual(theirs);
         expect(setup.errors).toEqual([]);
     });
 
@@ -549,7 +549,7 @@ describe('the indexing lock', () => {
         const setup = createIndexerSetup();
         const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
         const { service } = knowledge;
         const read = service.findOneCollection.bind(service);
@@ -583,10 +583,10 @@ describe('the indexing lock', () => {
         const setup = createIndexerSetup();
         const seeded = start(setup, 'seed', mockEmbeddingModel());
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await seeded.stop();
 
-        const before = (await setup.repository.findOneCollection('docs'))!;
+        const before = (await setup.service.findOneCollection('docs'))!;
         const replicaA = createKnowledge(setup.options({
             owner: 'replica-a',
             collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(docs)] })],
@@ -646,12 +646,12 @@ describe('the indexing lock', () => {
             setup.clock.advance(KNOWLEDGE_RETRY_MS);
             await settle();
 
-            const collection = await setup.repository.findOneCollection('docs');
+            const collection = await setup.service.findOneCollection('docs');
 
             expect(collection?.syncedAt?.getTime()).toBeGreaterThan(before.syncedAt!.getTime());
         });
-        expect(await setup.repository.findOneCollection('docs')).toMatchObject({ status: 'ready', generation: 1 });
-        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(await setup.service.findOneCollection('docs')).toMatchObject({ status: 'ready', generation: 1 });
+        expect(await setup.service.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
         expect(setup.errors).toEqual([]);
     });
 
@@ -683,7 +683,7 @@ describe('the indexing lock', () => {
             return fence;
         });
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
 
         expect(replace.mock.calls).toHaveLength(3);
         expect(replace.mock.calls.every((call) => call[4]?.fence !== undefined)).toBe(true);
@@ -727,7 +727,7 @@ describe('the indexing lock', () => {
         // the pass ended without a fence of its own: the intruder's token stays the newest
         expect(fences).toHaveBeenCalledTimes(1);
         expect(replace).not.toHaveBeenCalled();
-        expect(await setup.repository.findOneCollection('docs')).toEqual(record);
+        expect(await setup.service.findOneCollection('docs')).toEqual(record);
         expect(setup.errors).toEqual([]);
     });
 
@@ -774,7 +774,7 @@ describe('the indexing lock', () => {
                 return advance(name);
             });
 
-        const synced = await waitForCollection(setup.repository, 'docs', (collection) => collection.syncedAt !== undefined);
+        const synced = await waitForCollection(setup.service, 'docs', (collection) => collection.syncedAt !== undefined);
 
         // never a generation number given out before
         expect(synced).toMatchObject({
@@ -830,7 +830,7 @@ describe('the indexing lock', () => {
         await settle();
 
         expect(held.mock.settledResults[1]).toMatchObject({ type: 'rejected', value: { code: 'lease_lost' } });
-        expect(await setup.repository.findOneCollection('docs')).toEqual(theirs);
+        expect(await setup.service.findOneCollection('docs')).toEqual(theirs);
         expect(setup.errors.map(({ error }) => (error as Error).message)).toEqual(['store down']);
     });
 
@@ -861,7 +861,7 @@ describe('the indexing lock', () => {
             knowledge.start();
         }
 
-        await waitForReady(setup.repository, 'docs');
+        await waitForReady(setup.service, 'docs');
         await expect.poll(() => setup.locks.acquired.length).toBe(2);
 
         // the loser's own first pass, once the lock is free
