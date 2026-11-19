@@ -10,7 +10,7 @@ import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { ToolSet } from 'ai';
 import { buildIssuesForStandardSchemaIssues } from '@validup/standard-schema';
 import { isObject } from 'smob';
-import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from '../agent/constants.ts';
+import { NAME_MAX_LENGTH, NAME_PATTERN } from '../agent/constants.ts';
 import type { Agent } from '../agent/types.ts';
 import { AGENT_CHANNEL_NAME } from '../channel/constants.ts';
 import { assertChannelName } from '../channel/helpers.ts';
@@ -85,7 +85,7 @@ function isFromEntry(entry: unknown): boolean {
 
     const parts = entry.split('/');
 
-    return parts.length <= 2 && parts.every((part) => part.length <= AGENT_NAME_MAX_LENGTH && AGENT_NAME_PATTERN.test(part));
+    return parts.length <= 2 && parts.every((part) => part.length <= NAME_MAX_LENGTH && NAME_PATTERN.test(part));
 }
 
 /**
@@ -104,7 +104,7 @@ export function checkFrom(label: string, value: unknown): string[] | undefined {
     for (const entry of value) {
         if (!isFromEntry(entry)) {
             throw new InvalidAgentDefinitionError(
-                `${label}: from entry "${String(entry)}" must be an agent name or <peer>/<agent>, each matching ${AGENT_NAME_PATTERN} and at most ${AGENT_NAME_MAX_LENGTH} characters.`,
+                `${label}: from entry "${String(entry)}" must be an agent name or <peer>/<agent>, each matching ${NAME_PATTERN} and at most ${NAME_MAX_LENGTH} characters.`,
             );
         }
     }

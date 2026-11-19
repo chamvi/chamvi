@@ -8,6 +8,7 @@
 export const DEFAULT_MAX_STEPS = 20;
 export const DEFAULT_TIMEOUT_MS = 15 * 60 * 1000;
 
-export const AGENT_NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
+export const NAME_PATTERN = /^[a-z0-9]+(-[a-z0-9]+)*$/;
 /** The longest name the agent-name rule allows (agent, channel, role and peer names). */
 export const AGENT_NAME_MAX_LENGTH = 64;
+export const NAME_MAX_LENGTH = AGENT_NAME_MAX_LENGTH;

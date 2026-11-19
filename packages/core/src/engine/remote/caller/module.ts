@@ -175,6 +175,9 @@ export class EngineRemote implements IEngineRemote {
             return;
         }
 
+        const agent = this.ctx.getAgent(run.agent);
+        const fallbackPeer = agent?.kind === 'remote' ? agent.definition.peer : undefined;
+
         this.ctx.detach(async () => {
             const { effectService } = this.ctx;
             const started = readRemoteStartRecord((await effectService.findOne(remoteStartKey(run.id)))?.result);
@@ -183,7 +186,11 @@ export class EngineRemote implements IEngineRemote {
                 return;
             }
 
-            this.sendCancel(run, started.peer, started.runId);
+            const peer = started.peer ?? fallbackPeer;
+
+            if (peer !== undefined) {
+                this.sendCancel(run, peer, started.runId);
+            }
         }, run);
     }
 

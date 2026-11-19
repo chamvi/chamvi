@@ -10,7 +10,7 @@ import { isObject } from 'smob';
 import { APPROVAL_TIMEOUT_MAX_MS } from '../approval/constants.ts';
 import { CONVERSATION_FIELD_MAX_LENGTH } from '../conversation/constants.ts';
 import { TRIGGER_KEY_MAX_LENGTH } from '../trigger/constants.ts';
-import { AGENT_NAME_MAX_LENGTH, AGENT_NAME_PATTERN } from './constants.ts';
+import { NAME_MAX_LENGTH, NAME_PATTERN } from './constants.ts';
 import type {
     Agent,
     AgentDefinition,
@@ -42,7 +42,7 @@ const REMOTE_AGENT_REFUSED = [
 
 /** Whether `value` follows the agent-name rule (also peer and role names). */
 export function isName(value: unknown): value is string {
-    return typeof value === 'string' && value.length <= AGENT_NAME_MAX_LENGTH && AGENT_NAME_PATTERN.test(value);
+    return typeof value === 'string' && value.length <= NAME_MAX_LENGTH && NAME_PATTERN.test(value);
 }
 
 /**
@@ -65,7 +65,7 @@ export function assertRemoteAgent(def: RemoteAgentDefinition): void {
 
         if ((field === 'peer' || value !== undefined) && !isName(value)) {
             throw new InvalidAgentDefinitionError(
-                `Agent "${def.name}": ${field} "${String(value)}" must match ${AGENT_NAME_PATTERN} and be at most ${AGENT_NAME_MAX_LENGTH} characters.`,
+                `Agent "${def.name}": ${field} "${String(value)}" must match ${NAME_PATTERN} and be at most ${NAME_MAX_LENGTH} characters.`,
             );
         }
     }

@@ -12,16 +12,14 @@ import type { RemoteOutcome, RemoteStartRecord } from '../types.ts';
 
 /** A stored `remote-start:` record (undefined for a malformed one). */
 export function readRemoteStartRecord(value: unknown): RemoteStartRecord | undefined {
-    if (
-        !isObject(value) ||
-        typeof value.runId !== 'string' ||
-        value.runId.length === 0 ||
-        typeof value.peer !== 'string'
-    ) {
+    if (!isObject(value) || typeof value.runId !== 'string' || value.runId.length === 0) {
         return undefined;
     }
 
-    return { runId: value.runId, peer: value.peer };
+    return {
+        runId: value.runId,
+        ...(typeof value.peer === 'string' ? { peer: value.peer } : {}),
+    };
 }
 
 /**
