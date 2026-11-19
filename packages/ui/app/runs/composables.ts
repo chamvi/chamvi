@@ -32,7 +32,7 @@ import {
     RUN_LIST_POLL_MS,
 } from './constants.ts';
 import { isSettled, lastStepIndex, mergeRunEvent } from './helpers/index.ts';
-import type { RunDetailState, RunListFilter  } from './types.ts';
+import type { RunDetailState, RunListFilter } from './types.ts';
 import { toRunQuery } from './query.ts';
 
 /** One page of runs, newest first, polled every `RUN_LIST_POLL_MS` while the scope lives. */
