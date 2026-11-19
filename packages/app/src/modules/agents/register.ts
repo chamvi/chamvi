@@ -6,7 +6,7 @@
  */
 
 import { InvalidAgentDefinitionError, InvalidRunStateError } from '@chamvi/core';
-import { messageOf } from '../../loader/helpers.ts';
+import { messageOf } from '../../loader/helpers/index.ts';
 import type { RegisterAgentInput, RegisterOutcome } from './types.ts';
 
 /**

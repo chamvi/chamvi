@@ -15,7 +15,7 @@ import {
     packageNameOf,
     splitAgentEntries,
     userConditions,
-} from '../../../src/package/helpers.ts';
+} from '../../../src/package/helpers/index.ts';
 
 describe('package specifiers', () => {
     it.each(['pkg', 'my-agent', '@s/pkg', '@s/pkg/sub/path', 'pkg/agents', '@scope.x/a_b~c'])('accepts %s', (spec) => {

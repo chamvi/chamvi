@@ -31,7 +31,7 @@ import {
     LOG_LEVELS,
     PUBLIC_URL_PROTOCOLS,
 } from './constants.ts';
-import { assertPackageSpecifier, assertUniqueSpecifiers } from '../package/helpers.ts';
+import { assertPackageSpecifier, assertUniqueSpecifiers } from '../package/helpers/index.ts';
 import { readTokens } from './helpers.ts';
 import type { AppConfig, ReadConfigOptions } from './types.ts';
 

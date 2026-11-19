@@ -16,7 +16,7 @@ import {
     it,
 } from 'vitest';
 import { loadAgent } from '@chamvi/app';
-import { createModuleJiti, createPackageAliases, readModule } from '../../../src/loader/helpers.ts';
+import { createModuleJiti, createPackageAliases, readModule } from '../../../src/loader/helpers/index.ts';
 import { createTempDir, writeTree } from '../../utils/folder.ts';
 
 describe('the default module reader', () => {

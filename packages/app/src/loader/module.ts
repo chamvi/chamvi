@@ -37,7 +37,7 @@ import {
     readFreshModule,
     rebuildAgent,
     relativize,
-} from './helpers.ts';
+} from './helpers/index.ts';
 import type {
     AgentLoadIssue,
     LoadAgentOptions,

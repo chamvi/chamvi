@@ -7,7 +7,7 @@
 
 import { registerHooks } from 'node:module';
 import { pathToFileURL } from 'node:url';
-import { createPackageAliases } from '../loader/helpers.ts';
+import { createPackageAliases } from '../loader/helpers/index.ts';
 
 /** Per process and copy of this package: the pinned specifiers (file URLs) and the agent package roots they apply below. */
 let pin: { aliases: Map<string, string>; roots: Set<string> } | undefined;

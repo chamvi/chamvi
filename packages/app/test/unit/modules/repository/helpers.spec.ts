@@ -8,7 +8,7 @@
 import { inspect } from 'node:util';
 import { ChamviError } from '@chamvi/core';
 import { describe, expect, it } from 'vitest';
-import { createStoppedError } from '../../../../src/module/helpers.ts';
+import { createStoppedError } from '../../../../src/module/helpers/index.ts';
 import { maskPassword } from '../../../../src/modules/repository/helpers.ts';
 
 const URL_WITH_PASSWORD = 'postgres://u:p%40ss-w0rd@db:5432/x';

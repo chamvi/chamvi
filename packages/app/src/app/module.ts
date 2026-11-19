@@ -21,10 +21,10 @@ import {
     createStoppedError,
     reportingModule,
     runHooks,
-} from '../module/helpers.ts';
+} from '../module/helpers/index.ts';
 import { runStartSteps } from '../module/start.ts';
 import { withServices } from '../modules/service/module.ts';
-import { splitAgentEntries } from '../package/helpers.ts';
+import { splitAgentEntries } from '../package/helpers/index.ts';
 import type { AppContext, AppMode } from '../module/types.ts';
 import { APP_BRAND, APP_MODULES } from './constants.ts';
 import {

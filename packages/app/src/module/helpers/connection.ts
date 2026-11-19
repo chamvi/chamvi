@@ -14,107 +14,14 @@ import {
 import type { ConnectionValues, ResolveConnectionInput, ResolvedConnection } from '@chamvi/core';
 import type { AgentIssue } from '@chamvi/http';
 import type { IContainer } from 'eldin';
-import type { IModule } from 'orkos';
-import { isObject } from 'smob';
-import { envString, envUrl } from '../env/module.ts';
-import type { Env } from '../env/types.ts';
-import { isKeyringUnsetError } from '../keyring/helpers.ts';
-import { APP_ERROR_CODE, AppToken, SCHEMA_BEHIND_SQLSTATES } from './constants.ts';
+import { isKeyringUnsetError } from '../../keyring/helpers.ts';
+import { AppToken } from '../constants.ts';
 import type {
-    AppContext,
-    ILifecycleHook,
-    LifecyclePhase,
     ReadStoredConnectionsOptions,
     StoredConnection,
     StoredConnectionFailure,
-    UiAuth,
-} from './types.ts';
-
-/** The reason the context signal aborts with once stop() is called (internal). */
-export function createStoppedError(): ChamviError {
-    return new ChamviError({
-        code: APP_ERROR_CODE.STOPPED,
-        message: 'The app was stopped.',
-    });
-}
-
-/** Throws the context signal's reason (the app_stopped ChamviError) once stop() was called. */
-export function throwIfStopped(context: AppContext): void {
-    if (context.signal.aborted) {
-        throw context.signal.reason;
-    }
-}
-
-/**
- * Runs the given phase of every `AppToken.LIFECYCLE_HOOKS` entry in
- * registration order. A throwing hook is reported (`{ hook, phase }`) and the
- * others still run; it never rejects.
- */
-export async function runHooks(container: IContainer, phase: 'engineCreated', ...args: Parameters<NonNullable<ILifecycleHook['engineCreated']>>): Promise<void>;
-export async function runHooks(container: IContainer, phase: Exclude<LifecyclePhase, 'engineCreated'>): Promise<void>;
-export async function runHooks(container: IContainer, phase: LifecyclePhase, ...args: unknown[]): Promise<void> {
-    const context = container.resolve(AppToken.CONTEXT);
-    const hooks = container.resolveAll(AppToken.LIFECYCLE_HOOKS);
-
-    for (const hook of hooks) {
-        const fn = hook[phase] as ((...input: unknown[]) => void | Promise<void>) | undefined;
-
-        if (!fn) {
-            continue;
-        }
-
-        try {
-            await fn.apply(hook, args);
-        } catch (error) {
-            context.report(error, { hook: hook.name, phase });
-        }
-    }
-}
-
-/**
- * Wraps a module so a throwing `teardown` is reported (`{ module: name }`)
- * instead of being swallowed by orkos; everything else is delegated (internal).
- */
-export function reportingModule(module: IModule, report: AppContext['report']): IModule {
-    const {
-        teardown,
-        onReady,
-        onError,
-    } = module;
-
-    return {
-        name: module.name,
-        version: module.version,
-        dependencies: module.dependencies,
-        setup: (container) => module.setup(container),
-        ...(onReady && { onReady: (container: IContainer) => onReady.call(module, container) }),
-        ...(onError && { onError: (error: Error, container: IContainer) => onError.call(module, error, container) }),
-        ...(teardown && {
-            async teardown(container: IContainer) {
-                try {
-                    await teardown.call(module, container);
-                } catch (error) {
-                    report(error, { module: module.name });
-                }
-            },
-        }),
-    };
-}
-
-/**
- * Whether `error` is the database's "no such table or column": a store behind
- * its migrations, which a check meets because it never migrates.
- */
-export function isSchemaBehindError(error: unknown): boolean {
-    if (!isObject(error)) {
-        return false;
-    }
-
-    // TypeORM's QueryFailedError carries the driver's error, with its SQLSTATE
-    const code = isObject(error.driverError) ? error.driverError.code : error.code;
-
-    return typeof code === 'string' && SCHEMA_BEHIND_SQLSTATES.includes(code);
-}
+} from '../types.ts';
+import { isSchemaBehindError } from './schema.ts';
 
 /** The `start --check` issues of the connections a module lists as incomplete or failed; field names and reasons only, never a value. */
 export function connectionIssuesOf(container: IContainer): AgentIssue[] {
@@ -147,7 +54,7 @@ export function connectionIssuesOf(container: IContainer): AgentIssue[] {
  * the keyring), or stored secrets while `CHAMVI_ENCRYPTION_KEYS` is unset. A
  * malformed keyring is a deployment error and still fails the start.
  */
-function isUnreadable(error: unknown): error is ChamviError {
+function isUnreadableConnectionError(error: unknown): error is ChamviError {
     if (error instanceof DecryptionFailedError) {
         return true;
     }
@@ -174,7 +81,7 @@ async function readStoredConnection(
                 throw error;
             }
 
-            if (!isUnreadable(error)) {
+            if (!isUnreadableConnectionError(error)) {
                 // our messages name variables, key ids and connections; a driver's may quote anything
                 const reason = error instanceof ChamviError ? error.message : 'the read failed';
 
@@ -316,29 +223,5 @@ export function resolveStoredConnection(
         values: Object.fromEntries(Object.entries(resolved.values).filter(([key]) => !lost.includes(key))),
         state: 'failed',
         reason: unreadable.reason,
-    };
-}
-
-/**
- * The dashboard's sign-in from the env: the token login, plus the authup login
- * with `CHAMVI_UI_AUTHUP_CLIENT_ID` (then `AUTHUP_URL` is required) and the
- * optional `CHAMVI_UI_AUTHUP_REALM_ID`.
- */
-export function readUiAuth(env: Env): UiAuth {
-    const clientId = envString(env, 'CHAMVI_UI_AUTHUP_CLIENT_ID');
-
-    if (typeof clientId === 'undefined') {
-        return { tokens: true };
-    }
-
-    const realmId = envString(env, 'CHAMVI_UI_AUTHUP_REALM_ID');
-
-    return {
-        tokens: true,
-        authup: {
-            url: envUrl(env, 'AUTHUP_URL', { required: true, protocols: ['http:', 'https:'] }),
-            clientId,
-            ...(typeof realmId === 'string' && { realmId }),
-        },
     };
 }

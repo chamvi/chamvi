@@ -16,7 +16,7 @@ import {
     throwIfStopped,
 } from '@chamvi/app';
 import type { ILifecycleHook } from '@chamvi/app';
-import { reportingModule } from '../../../src/module/helpers.ts';
+import { reportingModule } from '../../../src/module/helpers/index.ts';
 import { buildHarness, createHarness } from '../../utils/harness.ts';
 
 const noop = async (): Promise<void> => undefined;

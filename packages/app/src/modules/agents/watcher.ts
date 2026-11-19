@@ -8,7 +8,7 @@
 import { join } from 'node:path';
 import type { AgentIssue } from '@chamvi/http';
 import { defineIntervalComponent } from 'hubwire';
-import { formerAgentFolderHash, messageOf, relativize } from '../../loader/helpers.ts';
+import { formerAgentFolderHash, messageOf, relativize } from '../../loader/helpers/index.ts';
 import { hashAgentFolder, listAgentFolders, loadAgent } from '../../loader/module.ts';
 import type { LoadedAgent } from '../../loader/types.ts';
 import {

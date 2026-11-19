@@ -10,7 +10,7 @@ import { NoSuchModelError } from 'ai';
 import type { EmbeddingModel, LanguageModel } from 'ai';
 import { isObject } from 'smob';
 import { BUILTIN_PROVIDERS, MODEL_SEPARATOR, PROVIDER_TYPES } from './constants.ts';
-import { defaultImporter, isPackageNotFound, providerEnvName } from './helpers.ts';
+import { defaultImporter, isPackageNotFound, providerEnvName } from './helpers/index.ts';
 import type {
     ModelProviders,
     ModelResolver,

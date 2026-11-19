@@ -22,7 +22,7 @@ import {
     it,
 } from 'vitest';
 import { readConfigFile, readConfigFileAgents } from '../../../src/models/file.ts';
-import { readModelSettings } from '../../../src/models/settings.ts';
+import { readModelSettings } from '../../../src/models/settings/index.ts';
 import type { ProviderConfig } from '../../../src/models/types.ts';
 
 describe('readModelSettings', () => {

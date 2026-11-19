@@ -16,7 +16,7 @@ import type { IContainer } from 'eldin';
 import type { IModule } from 'orkos';
 import { readConfigFileAgents } from '../../models/file.ts';
 import { APP_ERROR_CODE, AppToken, ModuleName } from '../../module/constants.ts';
-import { isPackageMarker, mergePackageSpecifiers } from '../../package/helpers.ts';
+import { isPackageMarker, mergePackageSpecifiers } from '../../package/helpers/index.ts';
 import {
     AGENTS_WATCHER_COMPONENT_NAME,
     AGENT_PACKAGES_COMPONENT_NAME,

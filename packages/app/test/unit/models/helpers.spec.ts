@@ -16,7 +16,7 @@ import {
     providerEnvName,
     providerName,
     splitModelRef,
-} from '../../../src/models/helpers.ts';
+} from '../../../src/models/helpers/index.ts';
 
 function withCode(message: string, code?: string): Error {
     const error = new Error(message);

@@ -57,7 +57,7 @@ import {
     storeModule,
 } from '@chamvi/app';
 import type { AppMode, StoreModuleOptions } from '@chamvi/app';
-import { createStoppedError } from '../../../../src/module/helpers.ts';
+import { createStoppedError } from '../../../../src/module/helpers/index.ts';
 import { STORE_CONNECT_TIMEOUT_MS } from '../../../../src/modules/repository/constants.ts';
 import { StoreModule } from '../../../../src/modules/repository/module.ts';
 import { buildHarness } from '../../../utils/harness.ts';

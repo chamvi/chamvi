@@ -18,7 +18,7 @@ import {
     it,
 } from 'vitest';
 import { createModelResolver } from '../../../src/models/resolver.ts';
-import { readModelSettings } from '../../../src/models/settings.ts';
+import { readModelSettings } from '../../../src/models/settings/index.ts';
 import type { ModelSettings, ProviderConfig } from '../../../src/models/types.ts';
 import { textModel } from '@chamvi/test-kit';
 

@@ -10,7 +10,7 @@ import type { StaticCspConfig } from '@chamvi/http';
 import type { IContainer } from 'eldin';
 import type { IModule, ModuleDependency } from 'orkos';
 import { AppToken, ModuleName } from '../../module/constants.ts';
-import { readUiAuth } from '../../module/helpers.ts';
+import { readUiAuth } from '../../module/helpers/index.ts';
 import type { UiPageModuleOptions } from './types.ts';
 
 const DEFAULT_UI_BASE = '/ui';
