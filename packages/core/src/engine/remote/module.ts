@@ -255,6 +255,11 @@ export async function surfaceRemoteApproval(ctx: RemoteEngineContext, run: Run, 
 
     const stored = remoteWaitOf(updated)?.remote?.approval;
 
+    // a new approval below this stand-in: the receiver's signals to a peer that started a run up its lineage
+    if (stored && !isSameApproval(current.remote?.approval, stored)) {
+        ctx.peerEvent(updated);
+    }
+
     if (stored && !stored.notifiedAt && approvalsOf(ctx, updated)) {
         ctx.detach((deliverySignal) => deliverRemoteApproval(ctx, updated.id, deliverySignal), updated);
     }

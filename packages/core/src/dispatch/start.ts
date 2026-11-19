@@ -162,7 +162,8 @@ async function start(
 
     const maxPerRun = maxPerRunOf(target, subscription);
     const maxDepth = maxDepthOf(target, subscription);
-    const depth = (run.parent?.kind === 'dispatch' ? run.parent.depth : 0) + 1;
+    // a peer parent's depth counts too, so calls bouncing between apps reach maxDepth
+    const depth = (run.parent?.depth ?? 0) + 1;
 
     if (depth > maxDepth) {
         throw new ValidationError(`Agent "${target}" role "${role}" accepts dispatches up to depth ${maxDepth}.`);

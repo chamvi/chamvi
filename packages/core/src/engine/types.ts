@@ -7,7 +7,7 @@
 
 import type { Agent } from '../agent/types.ts';
 import type { ArtifactInput, IArtifactService  } from '../artifact/types.ts';
-import type { ChannelContext, IChannel } from '../channel/types.ts';
+import type { ChannelContext, DispatchResult, IChannel } from '../channel/types.ts';
 import type { IClock } from '../clock/index.ts';
 import type { IContextProvider } from '../context/types.ts';
 import type { ConversationInspection, ConversationOptions, IConversationService  } from '../conversation/types.ts';
@@ -20,7 +20,7 @@ import type {
     TriggerEnvelope,
 } from '@chamvi/store';
 import type { IModelResolver, ModelRef } from '../model/types.ts';
-import type { IPeerResolver } from '../peer/types.ts';
+import type { IPeerResolver, PeerStartInput } from '../peer/types.ts';
 import type { SkillInput } from '../skill/types.ts';
 import type { IAgentRevisionService } from '../agent-revision/types.ts';
 import type { IConnectionService } from '../connection/types.ts';
@@ -69,6 +69,14 @@ export interface IEngine extends IContextProvider {
     readonly isDraining: boolean;
 
     dispatch(envelope: DispatchEnvelope): Promise<{ runId: string; deduplicated: boolean }>;
+    /**
+     * Starts a run a peer asked for: the peer is the one `peers.recognize()`
+     * names for `envelope.invoker`, the target its `agent.on()` role
+     * `fields.role`, checked like a local cross-agent dispatch (`from` entry
+     * `<peer>/<parent.agent>`); a refusal is a ValidationError with nothing
+     * written.
+     */
+    dispatchPeer(envelope: DispatchEnvelope, fields: PeerStartInput['peer'] & { role: string }): Promise<DispatchResult>;
     inspectConversation(identity: ConversationIdentity, query?: { limit?: number; offset?: number }): Promise<ConversationInspection | undefined>;
     resetConversation(identity: ConversationIdentity, options?: { keepNotes?: boolean }): Promise<ConversationScope>;
     deleteConversation(identity: ConversationIdentity): Promise<void>;

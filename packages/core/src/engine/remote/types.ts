@@ -53,4 +53,12 @@ export type RemoteEngineContext = RemoteAnswerContext & Pick<DispatchEngineConte
      * rejection reported to onError.
      */
     detach(work: (signal: AbortSignal) => Promise<void>, run?: Run): void;
+    /** A run settled or an approval became pending in it: the receiver's ping and notification (onPeerEvent()). */
+    peerEvent(run: Run): void;
 };
+
+/** What the receiver's ping and approval notification need from the engine. */
+export type ReceiverContext = Pick<
+    RemoteEngineContext,
+    'runService' | 'clock' | 'claimTtlMs' | 'onError' | 'lockService' | 'effectService' | 'peers' | 'getChannel' | 'detach'
+>;

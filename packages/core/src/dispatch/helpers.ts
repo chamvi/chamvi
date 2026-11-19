@@ -157,7 +157,7 @@ export function fromOf(agent: string, subscription: ChannelSubscription): string
  * The stored run `runId` first, then its ancestors up `parentRunId` (at most
  * DISPATCH_DEPTH_MAX hops); stops at a run the store does not hold.
  */
-export async function ancestorsOf(host: DispatchHost, runId: string): Promise<Run[]> {
+export async function ancestorsOf(host: { runs: Pick<DispatchHost['runs'], 'findOne'> }, runId: string): Promise<Run[]> {
     const chain: Run[] = [];
     let next: string | undefined = runId;
 
@@ -501,4 +501,27 @@ export function assertNoDispatchCollision(agent: string, tools: ToolSet, others:
             throw new InvalidAgentDefinitionError(`Agent "${agent}": dispatch tool "${name}" collides with another tool of that name.`);
         }
     }
+}
+
+/**
+ * A `serial(key, fn)`: runs `fn` after every earlier call under the same key
+ * settled (in this process), whatever their outcome; a key's chain is dropped once idle.
+ */
+export function createSerial(): DispatchHost['serial'] {
+    const chains = new Map<string, Promise<unknown>>();
+
+    return (key, fn) => {
+        const previous = chains.get(key) ?? Promise.resolve();
+        const next = previous.then(fn, fn);
+        const tail = next.catch(() => {});
+
+        chains.set(key, tail);
+        void tail.then(() => {
+            if (chains.get(key) === tail) {
+                chains.delete(key);
+            }
+        });
+
+        return next;
+    };
 }

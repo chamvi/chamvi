@@ -73,12 +73,13 @@ import { RunStatus } from '@chamvi/store';
 import { untilAborted } from '../run/helpers.ts';
 import { deliverOnce } from './notify/module.ts';
 import { DISPATCH_CONTEXT } from '../dispatch/constants.ts';
-import type { DispatchHost } from '../dispatch/types.ts';
-import { assertDispatchRoles, declaresDispatchRole } from '../dispatch/helpers.ts';
+import type { DispatchHost, PeerDispatchHost } from '../dispatch/types.ts';
+import { assertDispatchRoles, createSerial, declaresDispatchRole } from '../dispatch/helpers.ts';
+import { dispatchPeer } from '../dispatch/peer.ts';
 import { MODEL_CONTEXT } from '../model/constants.ts';
 import { checkAgentModel, checkDefaultModel } from '../model/module.ts';
 import type { IModelResolver, ModelContext, ModelRef } from '../model/types.ts';
-import type { IPeerResolver } from '../peer/types.ts';
+import type { IPeerResolver, PeerStartInput } from '../peer/types.ts';
 import { EngineSkills } from './skills/module.ts';
 import type { IEngineSkills } from './skills/types.ts';
 import type { SkillContribution } from '../skill/types.ts';
@@ -104,6 +105,7 @@ import { executeSimpleRun } from './execute/simple.ts';
 import { executeRun } from './execute/module.ts';
 import { executeRemoteRun } from './execute/remote.ts';
 import { cancelRemote, pollRemoteWaits, wakeRemote } from './remote/module.ts';
+import { onPeerEvent } from './remote/receiver.ts';
 import type { RemoteEngineContext } from './remote/types.ts';
 import type { ExecuteContext, RemoteExecuteContext, SuspendRequest } from './execute/types.ts';
 import {
@@ -257,6 +259,8 @@ export class Engine implements IEngine {
 
     protected readonly deliveryControllers = new Set<AbortController>();
 
+    protected readonly peerDispatchHost: PeerDispatchHost;
+
     protected started = false;
 
     protected draining = false;
@@ -347,6 +351,7 @@ export class Engine implements IEngine {
 
         this.provided.set(CLOCK_KEY, this.clock);
         this.provided.set(DISPATCH_CONTEXT, this.createDispatchHost());
+        this.peerDispatchHost = this.createPeerDispatchHost();
 
         for (const agent of opts.agents) {
             this.assertRegistrable(agent);
@@ -387,13 +392,29 @@ export class Engine implements IEngine {
     }
 
     /**
+     * Starts a run a peer asked for (a stand-in run of another chamvi app
+     * waits on it): the peer is the one `peers.recognize(envelope.invoker)`
+     * names, the target is the agent's `agent.on()` role `fields.role`,
+     * checked like a local cross-agent dispatch (`from` lists
+     * `<peer>/<parent.agent>`, the peer's `chamvi_agent_run`, `maxDepth`,
+     * the schema, `maxPerRun` per peer and calling run); any refusal is a
+     * ValidationError with nothing written. The run gets a `peer` parent
+     * (no parentRunId) and, for a tainted caller, taint `peer:<peer>`.
+     */
+    async dispatchPeer(envelope: DispatchEnvelope, fields: PeerStartInput['peer'] & { role: string }): Promise<DispatchResult> {
+        return dispatchPeer(this.peerDispatchHost, envelope, fields);
+    }
+
+    /**
      * dispatch()'s body; `parent` comes only from this argument (the
-     * dispatch host), never from the envelope.
+     * dispatch host or the peer host), never from the envelope, and so does
+     * `taintSource` (a peer parent's initial taint, ignored for any other).
      */
     protected async createRun(
         envelope: DispatchEnvelope,
         parent?: TriggerParent,
         conversation?: ConversationBinding,
+        taintSource?: string,
     ): Promise<{ runId: string; deduplicated: boolean }> {
         // resolved once, synchronously: the agent and revision this run is created for
         const agent = this.agents.get(envelope.agent);
@@ -508,7 +529,9 @@ export class Engine implements IEngine {
             id: runId,
             agent: trigger.agent,
             status: RunStatus.QUEUED,
-            taint: (parent ? (await this.runService.findOne(parent.runId))?.taint : undefined) ??
+            // a dispatched run inherits its parent's taint; a peer parent's runId names a run of the peer
+            taint: (parent?.kind === 'dispatch' ? (await this.runService.findOne(parent.runId))?.taint : undefined) ??
+                (parent?.kind === 'peer' && taintSource !== undefined ? { at: now, source: taintSource } : undefined) ??
                 (this.channels.get(trigger.channel)?.untrusted ? { at: now, source: `channel:${trigger.channel}` } : undefined),
             trigger,
             concurrencyKey: trigger.concurrencyKey,
@@ -608,8 +631,6 @@ export class Engine implements IEngine {
      * path that sets a run's parent.
      */
     protected createDispatchHost(): DispatchHost {
-        const chains = new Map<string, Promise<unknown>>();
-
         return {
             getAgent: (name) => this.agents.get(name),
             hasChannel: (name) => this.channels.has(name),
@@ -627,21 +648,23 @@ export class Engine implements IEngine {
 
                 return this.createRun(envelope, parent);
             },
-            serial: (runId, fn) => {
-                const previous = chains.get(runId) ?? Promise.resolve();
-                const next = previous.then(fn, fn);
-                const tail = next.catch(() => {});
-
-                chains.set(runId, tail);
-                void tail.then(() => {
-                    if (chains.get(runId) === tail) {
-                        chains.delete(runId);
-                    }
-                });
-
-                return next;
-            },
+            serial: createSerial(),
             inflight: new Map(),
+        };
+    }
+
+    /**
+     * The internal host of dispatchPeer(): the only path that sets a peer
+     * parent or an initial peer taint.
+     */
+    protected createPeerDispatchHost(): PeerDispatchHost {
+        return {
+            getAgent: (name) => this.agents.get(name),
+            clock: this.clock,
+            effects: this.effectService,
+            peers: this.peers,
+            createRun: (envelope, parent, taintSource) => this.createRun(envelope, parent, undefined, taintSource),
+            serial: createSerial(),
         };
     }
 
@@ -1414,6 +1437,7 @@ export class Engine implements IEngine {
         this.emit({ type: 'run.updated', run: updated });
         await this.reconcileConversation(updated);
         this.cancelRemoteOf(updated);
+        this.peerEvent(updated);
         await onRunSettled(this.dispatchContext(), updated);
     }
 
@@ -1732,7 +1756,14 @@ export class Engine implements IEngine {
             return;
         }
 
-        if (waiting.kind !== 'approval' || waiting.notifiedAt) {
+        if (waiting.kind !== 'approval') {
+            return;
+        }
+
+        // also on a pause on an approval delivered before: the peer side dedupes its notification
+        this.peerEvent(updated);
+
+        if (waiting.notifiedAt) {
             return;
         }
 
@@ -2253,6 +2284,7 @@ export class Engine implements IEngine {
             this.emit({ type: 'run.updated', run: updated });
             await this.reconcileConversation(updated);
             this.cancelRemoteOf(updated);
+            this.peerEvent(updated);
             await onRunSettled(this.dispatchContext(), updated);
         }
 
@@ -2419,7 +2451,24 @@ export class Engine implements IEngine {
             getAgent: (name) => this.getAgent(name),
             getChannel: (name) => this.getChannel(name),
             detach: (work, run) => this.detach(work, run),
+            peerEvent: (run) => this.peerEvent(run),
         };
+    }
+
+    /**
+     * The receiver's ping and approval notification for `run` (settled, or
+     * an approval pending in it): detached, never throws; nothing without peers.
+     */
+    protected peerEvent(run: Run): void {
+        if (!this.peers) {
+            return;
+        }
+
+        try {
+            onPeerEvent(this.remoteContext(this.peers), run);
+        } catch (error) {
+            this.onError(error, run);
+        }
     }
 
     /**
