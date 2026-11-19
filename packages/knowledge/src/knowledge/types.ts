@@ -22,7 +22,7 @@ export type KnowledgeOptions = {
     /** The collection repository with its documents and chunks (`createMemoryKnowledgeRepository()` or a persistent one). */
     repository: IKnowledgeCollectionRepository;
     /** The engine's lock service: one indexer per collection across replicas. */
-    locks: Pick<ILockService, 'acquire' | 'release'>;
+    locks: Pick<ILockService, 'acquire' | 'renew' | 'release'>;
     collections?: readonly KnowledgeCollectionDefinition[];
     /** Resolves string model refs (`embedding()`); the app's resolver in an app. */
     models?: IModelResolver;

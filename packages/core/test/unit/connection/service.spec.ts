@@ -51,7 +51,7 @@ function setup() {
     const hold = async (name: string, owner = 'o1', ttlMs = 1_000) => {
         const lock = `connection:${name}`;
 
-        expect(await lockService.acquire(lock, owner, ttlMs)).toBe(true);
+        expect(await lockService.acquire(lock, owner, ttlMs)).toBeTypeOf('number');
 
         return { lock, owner };
     };
@@ -257,8 +257,8 @@ describe('ConnectionService', () => {
         const { lockService, connections } = setup();
 
         await connections.create(makeConnection('wa'));
-        expect(await lockService.acquire('agents:wa', 'o1', 1_000)).toBe(true);
-        expect(await lockService.acquire('connection:other', 'o1', 1_000)).toBe(true);
+        expect(await lockService.acquire('agents:wa', 'o1', 1_000)).toBeTypeOf('number');
+        expect(await lockService.acquire('connection:other', 'o1', 1_000)).toBeTypeOf('number');
 
         for (const lock of ['agents:wa', 'connection:other']) {
             await expect(connections.writeEntries('wa', { set: { a: bytes(1) } }, { lock, owner: 'o1' }))
@@ -337,7 +337,7 @@ describe('ConnectionService', () => {
         const fence = await hold('wa', 'o1', 1_000);
 
         await connections.writeEntries('wa', { set: { a: bytes(1) } }, fence);
-        expect(await lockService.acquire('connection:other', 'o1', 1_000)).toBe(true);
+        expect(await lockService.acquire('connection:other', 'o1', 1_000)).toBeTypeOf('number');
 
         for (const refused of [{ lock: fence.lock, owner: 'o2' }, { lock: 'connection:other', owner: 'o1' }]) {
             await expect(connections.delete('wa', refused)).rejects.toBeInstanceOf(LeaseLostError);
@@ -409,7 +409,7 @@ describe('ConnectionService', () => {
         const fence = await hold('wa', 'o1', 1_000);
 
         await connections.writeEntries('wa', { set: { a: bytes(1) } }, fence);
-        expect(await lockService.acquire('connection:other', 'o1', 1_000)).toBe(true);
+        expect(await lockService.acquire('connection:other', 'o1', 1_000)).toBeTypeOf('number');
 
         const replacement = makeConnection('wa', { type: 'telegram', keyId: 'k2' });
 
@@ -1032,7 +1032,7 @@ describe('ConnectionService', () => {
         }],
         ['taken over by another owner', async (ctx: ReturnType<typeof setup>) => {
             ctx.clock.advance(1_000);
-            expect(await ctx.lockService.acquire('connection:wa', 'o2', 60_000)).toBe(true);
+            expect(await ctx.lockService.acquire('connection:wa', 'o2', 60_000)).toBeTypeOf('number');
         }],
     ])('a fence %s while the fenced write waits for the connection row refuses every fenced write and writes nothing', async (_, change) => {
         const ctx = setup();

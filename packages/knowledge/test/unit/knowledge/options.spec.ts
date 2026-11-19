@@ -171,6 +171,8 @@ describe('createKnowledge', () => {
             // the entity methods without the documents and chunks children
             { repository: Object.assign(Object.create(createMemoryKnowledgeRepository()), { documents: undefined }) },
             { locks: {} },
+            // a pass renews its lease in place, keeping the token
+            { locks: { acquire: async () => 1, release: async () => {} } },
             { collections: 'docs' },
             { models: 'openai' },
             { clock: {} },

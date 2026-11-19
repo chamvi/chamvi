@@ -193,6 +193,32 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
         expect(three[0]!.score).toBeCloseTo(0, 6);
     });
 
+    it('updateOrigin changes one document generation only, keeps vectors and sanitizes text', async () => {
+        const { id } = await service.saveCollection(collectionOf('docs'));
+        const origin = { title: 'A', source: 'a.md' };
+
+        await service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'a0', origin), chunkOf(1, [0, 1], 'a1', origin)]);
+        await service.replaceChunks('docs', 'a', 2, [chunkOf(0, [1, 0], 'a2', origin)]);
+        await service.replaceChunks('docs', 'b', 1, [chunkOf(0, [1, 0], 'b0', origin)]);
+
+        const before = await repository.chunks.search(id, 1, [1, 0], { topK: 10 });
+        const where = {
+            collectionId: id, 
+            document: 'a', 
+            generation: 1, 
+        };
+
+        expect(await repository.chunks.updateOrigin(where, { title: 'B\0' })).toBe(2);
+
+        const after = await repository.chunks.search(id, 1, [1, 0], { topK: 10 });
+
+        expect(after.map((m) => [m.document, m.text, m.score, m.title, m.source])).toEqual(
+            before.map((m) => [m.document, m.text, m.score, m.document === 'a' ? 'B�' : 'A', m.document === 'a' ? undefined : 'a.md']),
+        );
+        expect((await repository.chunks.search(id, 2, [1, 0], { topK: 10 }))[0]!.title).toBe('A');
+        expect(await repository.chunks.updateOrigin({ ...where, document: 'none' }, {})).toBe(0);
+    });
+
     it('round-trips NUL and lone surrogates as U+FFFD in content, title, source and metadata', async () => {
         const dirty = 'a\0b\uD800c\uDFFFd';
         const clean = 'a�b�c�d';
@@ -311,7 +337,7 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
     it('a delete while a pass writes never resurrects a row', async () => {
         await service.saveCollection(collectionOf('docs'));
 
-        const fence = await service.advanceFence('docs');
+        const fence = await service.claimFence('docs', Date.now() * 1000);
         const gate = createGate();
         const writing = gatedService(gate).replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0])], { fence: fence! });
 
@@ -332,7 +358,7 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
     it('a pass that writes after a delete took the row is refused and writes nothing', async () => {
         await service.saveCollection(collectionOf('docs'));
 
-        const fence = await service.advanceFence('docs');
+        const fence = await service.claimFence('docs', Date.now() * 1000);
         const gate = createGate();
         const deleting = gatedService(gate).deleteCollection('docs');
 
@@ -359,8 +385,9 @@ describePostgres('knowledge repositories on PostgreSQL', () => {
         await service.saveCollection(collectionOf('docs'));
         await service.saveDocument(documentOf('docs', 'a'));
 
-        const stale = await service.advanceFence('docs');
-        const fresh = await service.advanceFence('docs');
+        const token = Date.now() * 1000;
+        const stale = await service.claimFence('docs', token);
+        const fresh = await service.claimFence('docs', token + 1);
         const gate = createGate();
         const writing = gatedService(gate).replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 0], 'fresh')], { fence: fresh! });
 

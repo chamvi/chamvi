@@ -17,6 +17,11 @@ export type Lock = {
     owner: string;
     /** When the lease ends: from this time on it counts as expired. */
     expiresAt: Date;
+    /**
+     * The fencing token of the lease: from `ILockRepository.nextToken()`,
+     * issued on every insert and takeover, kept by a renewal.
+     */
+    token: number;
 };
 
 /**
@@ -32,4 +37,13 @@ export interface ILockRepository extends IEntityRepository<Lock> {
      * `time` meanwhile stays.
      */
     removeExpiredBy(time: Date): Promise<number>;
+
+    /**
+     * Issue the next fencing token: a positive safe integer strictly above
+     * every token this storage issued before, for any key, and at least
+     * the wall clock in microseconds (`max(last + 1, ms * 1000)`), so a
+     * recreated or switched lock store never issues one below a token a
+     * previous store handed out. Inside a transaction it is issued in it.
+     */
+    nextToken(): Promise<number>;
 }

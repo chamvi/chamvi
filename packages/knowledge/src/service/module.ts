@@ -38,7 +38,6 @@ import {
     toCollection,
     toDocument,
     withDetails,
-    withOrigin,
 } from './helpers.ts';
 import type {
     IKnowledgeService,
@@ -55,8 +54,9 @@ import type {
  * name (locked), then the documents and chunks through the handed-in
  * repository's children. Reads resolve the collection's row id first.
  * `saveCollection` keeps the stored row's `id` and `fence`; a new row gets
- * a uuid v7 id and fence 0. Only `advanceFence` changes a fence; a write
- * given `{ fence }` compares it with the locked row before it writes.
+ * a uuid v7 id and fence 0. Only `claimFence` changes a fence (to the
+ * lock's token, never down); a write given `{ fence }` compares it with the
+ * locked row before it writes.
  */
 export class KnowledgeService implements IKnowledgeService {
     protected repository: IKnowledgeCollectionRepository;
@@ -81,7 +81,7 @@ export class KnowledgeService implements IKnowledgeService {
         }
     }
 
-    async advanceFence(name: string): Promise<KnowledgeFence | undefined> {
+    async claimFence(name: string, token: number): Promise<KnowledgeFence | undefined> {
         return this.repository.transaction(async (repository) => {
             const record = await repository.findOneBy({ name });
 
@@ -89,7 +89,16 @@ export class KnowledgeService implements IKnowledgeService {
                 return undefined;
             }
 
-            const saved = await repository.save(repository.merge(record, { fence: record.fence + 1 }));
+            // max seen: a holder with an older lock token never takes the fence back
+            if (token < record.fence) {
+                throw new LeaseLostError({ lock: lockKey(name) });
+            }
+
+            if (token === record.fence) {
+                return { id: record.id, fence: token };
+            }
+
+            const saved = await repository.save(repository.merge(record, { fence: token }));
 
             return { id: saved.id, fence: saved.fence };
         });
@@ -286,15 +295,14 @@ export class KnowledgeService implements IKnowledgeService {
 
             // the document's own generation only: another one may hold older text (a re-embed's
             // served generation), which keeps the details it was written with until the switch
-            const chunks = await repository.chunks.findManyBy({
-                collectionId: record.id,
-                document: id,
-                generation: document.generation,
-            });
-
-            if (chunks.length > 0) {
-                await repository.chunks.upsertMany(chunks.map((chunk) => withOrigin(chunk, details)));
-            }
+            await repository.chunks.updateOrigin(
+                {
+                    collectionId: record.id, 
+                    document: id, 
+                    generation: document.generation, 
+                },
+                { title: details.title, source: details.source },
+            );
 
             return true;
         });

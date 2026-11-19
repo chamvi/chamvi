@@ -85,10 +85,10 @@ describe('LockService', () => {
     });
 
     it('acquire takes a free key once: another owner and the same owner are refused while it is held', async () => {
-        expect(await locks.acquire('k', 'a', 1_000)).toBe(true);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
-        expect(await locks.acquire('k', 'a', 1_000)).toBe(false);
-        expect(await locks.acquire('other', 'b', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'a', 1_000)).toBeTypeOf('number');
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
+        expect(await locks.acquire('k', 'a', 1_000)).toBeUndefined();
+        expect(await locks.acquire('other', 'b', 1_000)).toBeTypeOf('number');
         expect(await repository.findOneBy({ key: 'k' })).toMatchObject({
             key: 'k',
             owner: 'a',
@@ -97,15 +97,15 @@ describe('LockService', () => {
     });
 
     it('a lease created at T expires at exactly T + ttlMs', async () => {
-        expect(await locks.acquire('k', 'a', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'a', 1_000)).toBeTypeOf('number');
 
         clock.advance(999);
         expect(await locks.holds('k', 'a')).toBe(true);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
 
         clock.advance(1);
         expect(await locks.holds('k', 'a')).toBe(false);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeTypeOf('number');
         expect(await locks.holds('k', 'b')).toBe(true);
     });
 
@@ -115,13 +115,55 @@ describe('LockService', () => {
         const { id } = (await repository.findOneBy({ key: 'k' }))!;
 
         clock.advance(1_000);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+
+        const token = await locks.acquire('k', 'b', 1_000);
+
+        expect(token).toBeTypeOf('number');
         expect(await repository.findOneBy({ key: 'k' })).toEqual({
             id,
             key: 'k',
             owner: 'b',
             expiresAt: new Date(12_000),
+            token,
         });
+    });
+
+    it('a takeover whose issued token is not above the stored one takes another, so a later holder always gets a higher token', async () => {
+        const first = await locks.acquire('k', 'a', 1_000);
+        const nextToken = repository.nextToken.bind(repository);
+        let issued = 0;
+
+        // a custom store whose counter is not commit-ordered: the first token after the
+        // expiry is below the stored lease's, issued before the locked read saw it
+        repository.nextToken = async () => {
+            issued += 1;
+
+            return issued === 1 ? first! - 5 : nextToken();
+        };
+
+        clock.advance(1_000);
+
+        const token = await locks.acquire('k', 'b', 1_000);
+
+        expect(issued).toBe(2);
+        expect(token).toBeGreaterThan(first!);
+        expect((await repository.findOneBy({ key: 'k' }))?.token).toBe(token);
+    });
+
+    it('a takeover whose second token is still not above the stored one refuses loudly and leaves the row unchanged', async () => {
+        const first = await locks.acquire('k', 'a', 1_000);
+        const before = await repository.findOneBy({ key: 'k' });
+
+        // a counter that stays below the stored lease's token (e.g. a reseeded one)
+        repository.nextToken = async () => first! - 5;
+
+        clock.advance(1_000);
+
+        await expect(locks.acquire('k', 'b', 1_000)).rejects.toMatchObject({
+            code: 'invalid_run_state',
+            message: expect.stringMatching(/"k".*\d+.*\d+/),
+        });
+        expect(await repository.findOneBy({ key: 'k' })).toEqual(before);
     });
 
     it('release by the owner frees the key; a release by another owner or of an unknown key does nothing', async () => {
@@ -130,11 +172,11 @@ describe('LockService', () => {
         await locks.release('k', 'b');
         await locks.release('missing', 'a');
         expect(await locks.holds('k', 'a')).toBe(true);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
 
         await locks.release('k', 'a');
         expect(await repository.findOneBy({ key: 'k' })).toBeNull();
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeTypeOf('number');
     });
 
     it('release by the owner of an expired lease removes it; after a takeover the former owner releases nothing', async () => {
@@ -151,30 +193,30 @@ describe('LockService', () => {
     });
 
     it('renew extends a held lease to exactly now + ttlMs', async () => {
-        expect(await locks.acquire('k', 'a', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'a', 1_000)).toBeTypeOf('number');
         clock.advance(999);
         expect(await locks.renew('k', 'a', 1_000)).toBe(true);
         clock.advance(1);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
         clock.advance(998);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
         clock.advance(1);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeTypeOf('number');
     });
 
     it('renew is refused for an unknown key, another owner, after expiry, after a takeover and after release', async () => {
         expect(await locks.renew('missing', 'a', 1_000)).toBe(false);
         expect(await repository.findOneBy({ key: 'missing' })).toBeNull();
-        expect(await locks.acquire('k', 'a', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'a', 1_000)).toBeTypeOf('number');
         expect(await locks.renew('k', 'b', 1_000)).toBe(false);
         clock.advance(1_000);
         expect(await locks.renew('k', 'a', 1_000)).toBe(false);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeTypeOf('number');
         expect(await locks.renew('k', 'a', 1_000)).toBe(false);
         expect(await locks.renew('k', 'b', 1_000)).toBe(true);
         await locks.release('k', 'b');
         expect(await locks.renew('k', 'b', 1_000)).toBe(false);
-        expect(await locks.acquire('k', 'c', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'c', 1_000)).toBeTypeOf('number');
     });
 
     it('renew of an expired lease fails even if nobody took it, and leaves it as it was', async () => {
@@ -198,15 +240,17 @@ describe('LockService', () => {
     it('of twenty concurrent acquirers of one key exactly one acquires', async () => {
         const results = await Promise.all(Array.from({ length: 20 }, (_, i) => locks.acquire('k', `o${i}`, 1_000)));
 
-        expect(results.filter(Boolean)).toHaveLength(1);
-        expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe(`o${results.indexOf(true)}`);
+        const granted = results.filter((token) => token !== undefined);
+
+        expect(granted).toHaveLength(1);
+        expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe(`o${results.indexOf(granted[0])}`);
     });
 
     it('two first acquirers of one lock: exactly one acquires', async () => {
         const results = await Promise.all([locks.acquire('k', 'a', 1_000), locks.acquire('k', 'b', 1_000)]);
 
-        expect(results.filter(Boolean)).toHaveLength(1);
-        expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe(results[0] ? 'a' : 'b');
+        expect(results.filter((token) => token !== undefined)).toHaveLength(1);
+        expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe(results[0] !== undefined ? 'a' : 'b');
     });
 
     it('two owners taking over one expired lock together: exactly one succeeds, and a renew by the previous owner then fails', async () => {
@@ -215,10 +259,10 @@ describe('LockService', () => {
 
         const results = await Promise.all([locks.acquire('k', 'a', 1_000), locks.acquire('k', 'b', 1_000)]);
 
-        expect(results.filter(Boolean)).toHaveLength(1);
-        expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe(results[0] ? 'a' : 'b');
+        expect(results.filter((token) => token !== undefined)).toHaveLength(1);
+        expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe(results[0] !== undefined ? 'a' : 'b');
         expect(await locks.renew('k', 'old', 1_000)).toBe(false);
-        expect(await locks.holds('k', results[0] ? 'a' : 'b')).toBe(true);
+        expect(await locks.holds('k', results[0] !== undefined ? 'a' : 'b')).toBe(true);
     });
 
     it('a held key is refused on one plain read: no transaction, no insert', async () => {
@@ -230,7 +274,7 @@ describe('LockService', () => {
             inserts: 0,
         });
 
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
         expect(repository.probe).toMatchObject({
             transactions: 0,
             reads: 1,
@@ -244,7 +288,7 @@ describe('LockService', () => {
         await locks.renew('k', 'a', 1_000);
         repository.probe.transactions = 0;
 
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
         expect(repository.probe.transactions).toBe(0);
     });
 
@@ -262,7 +306,7 @@ describe('LockService', () => {
         };
         repository.probe.transactions = 0;
 
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
         // the renewal above and the takeover read: no insert is tried
         expect(repository.probe.transactions).toBe(2);
     });
@@ -272,7 +316,7 @@ describe('LockService', () => {
         clock.advance(1_000);
         repository.probe.transactions = 0;
 
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeTypeOf('number');
         expect(repository.probe.transactions).toBe(1);
         expect(await locks.holds('k', 'b')).toBe(true);
     });
@@ -280,13 +324,13 @@ describe('LockService', () => {
     it('acquire inserts again when another lease was inserted after its plain read and released before its locked read', async () => {
         // the plain read finds the key free; another owner inserts it before this insert, and releases it before the takeover reads
         repository.probe.beforeInsert = async () => {
-            expect(await locks.acquire('k', 'x', 1_000)).toBe(true);
+            expect(await locks.acquire('k', 'x', 1_000)).toBeTypeOf('number');
             repository.probe.beforeRead = () => locks.release('k', 'x');
         };
         repository.probe.transactions = 0;
         repository.probe.inserts = 0;
 
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeTypeOf('number');
         // the insert, the other owner's insert, the takeover, the release, the second insert
         expect(repository.probe.transactions).toBe(5);
         expect(repository.probe.inserts).toBe(3);
@@ -299,7 +343,7 @@ describe('LockService', () => {
         repository.probe.beforeRead = () => locks.release('k', 'a');
         repository.probe.transactions = 0;
 
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeTypeOf('number');
         // the takeover, the release above and the insert
         expect(repository.probe.transactions).toBe(3);
         expect(await locks.holds('k', 'b')).toBe(true);
@@ -336,7 +380,7 @@ describe('LockService', () => {
         clock.advance(1_500);
         done();
         await holder;
-        expect(await acquire).toBe(true);
+        expect(await acquire).toBeTypeOf('number');
     });
 
     it('passes a storage error other than a conflict through', async () => {

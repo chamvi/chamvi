@@ -223,7 +223,7 @@ describe('the services of the store step', () => {
         expect(await repositories.run.findOneById('r1')).toMatchObject({ id: 'r1' });
         clock.advance(500);
         expect((await runs.update('r1', { status: 'running' })).updatedAt).toEqual(new Date(clock.now()));
-        await expect(container.resolve(AppToken.LOCK_SERVICE).acquire('k', 'a', 10)).resolves.toBe(true);
+        await expect(container.resolve(AppToken.LOCK_SERVICE).acquire('k', 'a', 10)).resolves.toBeTypeOf('number');
         expect(await repositories.lock.findOneBy({ key: 'k' })).toMatchObject({ owner: 'a' });
 
         // optional aggregates it does not register stay absent, with their services

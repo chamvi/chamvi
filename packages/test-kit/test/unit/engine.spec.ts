@@ -65,7 +65,7 @@ describe('createTestEngine', () => {
         });
 
         await expect(write('o1')).rejects.toBeInstanceOf(LeaseLostError);
-        expect(await engine.lockService.acquire('connection:wa', 'o1', 1_000)).toBe(true);
+        expect(await engine.lockService.acquire('connection:wa', 'o1', 1_000)).toBeTypeOf('number');
         await expect(write('o1')).resolves.toBeUndefined();
         await expect(write('o2')).rejects.toBeInstanceOf(LeaseLostError);
         clock.advance(1_000);

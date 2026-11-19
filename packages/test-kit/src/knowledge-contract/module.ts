@@ -178,7 +178,7 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
 
                 expect(created.id).not.toBe('another-row');
                 expect(created.fence).toBe(0);
-                expect(await service.advanceFence('docs')).toEqual({ id: created.id, fence: 1 });
+                expect(await service.claimFence('docs', 1)).toEqual({ id: created.id, fence: 1 });
                 expect(await service.findOneCollectionOrFail('docs')).toEqual(collectionOf('docs'));
             });
 
@@ -540,6 +540,24 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 // another generation's chunks keep the details they were written with
                 expect(details(await service.search('docs', 2, [1, 0], { topK: 10 }))).toEqual([['a', 'A', 'a.md']]);
                 expect(await service.findOneDocumentOrFail('docs', 'b')).toEqual(documentOf('docs', 'b', origin));
+            });
+
+            it('updateDetails keeps the scores of the document\'s chunks', async () => {
+                const service = await create();
+                const origin = { title: 'A', source: 'a.md' };
+
+                await service.saveCollection(collectionOf('docs'));
+                await service.saveDocument(documentOf('docs', 'a', origin));
+                await service.replaceChunks('docs', 'a', 1, [chunkOf(0, [1, 2], 'a0', origin), chunkOf(1, [3, 1], 'a1', origin)]);
+
+                const before = await service.search('docs', 1, [1, 1], { topK: 10 });
+
+                expect(await service.updateDetails('docs', 'a', { hash: 'sha256:a', ...origin }, {})).toBe(true);
+
+                const after = await service.search('docs', 1, [1, 1], { topK: 10 });
+
+                expect(after.map((m) => [m.index, m.text, m.score])).toEqual(before.map((m) => [m.index, m.text, m.score]));
+                expect(after.every((m) => m.title === undefined && m.source === undefined)).toBe(true);
             });
 
             it('updateDetails during a re-embed leaves the served old text under its old details', async () => {
@@ -1053,24 +1071,50 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 expect(await service.search('docs', 2, [1, 0], { topK: 10 })).toHaveLength(1);
             };
 
-            it('advanceFence counts per collection and answers undefined for a missing one', async () => {
+            it('claimFence takes a token at or above the stored fence and answers undefined for a missing one', async () => {
                 const service = await create();
                 const docs = await service.saveCollection(collectionOf('docs'));
                 const other = await service.saveCollection(collectionOf('other'));
 
-                expect(await service.advanceFence('docs')).toEqual({ id: docs.id, fence: 1 });
-                expect(await service.advanceFence('docs')).toEqual({ id: docs.id, fence: 2 });
-                expect(await service.advanceFence('other')).toEqual({ id: other.id, fence: 1 });
-                expect(await service.advanceFence('missing')).toBeUndefined();
+                expect(await service.claimFence('docs', 5)).toEqual({ id: docs.id, fence: 5 });
+                // the same token again: the holder claiming twice
+                expect(await service.claimFence('docs', 5)).toEqual({ id: docs.id, fence: 5 });
+                expect(await service.claimFence('docs', 9)).toEqual({ id: docs.id, fence: 9 });
+                expect(await service.claimFence('other', 3)).toEqual({ id: other.id, fence: 3 });
+                expect(await service.claimFence('missing', 7)).toBeUndefined();
                 expect((await service.findCollections()).map((collection) => collection.name)).toEqual(['docs', 'other']);
                 expect(await service.findOneCollection('docs')).toEqual(collectionOf('docs'));
             });
 
+            it('claimFence with a token below the stored fence is a LeaseLostError and writes nothing', async () => {
+                const service = await seed();
+                const current = await service.claimFence('docs', 9);
+
+                await expect(service.claimFence('docs', 8)).rejects.toMatchObject({ code: 'lease_lost', lock: 'knowledge:docs' });
+
+                // the newer holder's writes still apply
+                await service.saveDocument(documentOf('docs', 'b'), options(current));
+                expect(await service.findDocumentIds('docs')).toEqual(['a', 'b']);
+                expect(await service.findOneCollection('docs')).toEqual(collectionOf('docs'));
+            });
+
+            it('claimFence round-trips tokens above 2^31', async () => {
+                const service = await seed();
+                const token = Date.now() * 1000;
+                const claimed = await service.claimFence('docs', token);
+
+                expect(claimed?.fence).toBe(token);
+                await expect(service.claimFence('docs', token + 1)).resolves.toMatchObject({ fence: token + 1 });
+                await expect(service.claimFence('docs', token)).rejects.toMatchObject({ code: 'lease_lost' });
+                await service.saveDocument(documentOf('docs', 'b'), options({ id: claimed!.id, fence: token + 1 }));
+                expect(await service.findDocumentIds('docs')).toEqual(['a', 'b']);
+            });
+
             it.each(writes)('a write with a stale fence is a LeaseLostError and writes nothing: $method', async ({ write }) => {
                 const service = await seed();
-                const stale = await service.advanceFence('docs');
+                const stale = await service.claimFence('docs', 1);
 
-                await service.advanceFence('docs');
+                await service.claimFence('docs', 2);
 
                 await expect(write(service, stale)).rejects.toMatchObject({ code: 'lease_lost', lock: 'knowledge:docs' });
                 await expectSeed(service);
@@ -1079,9 +1123,9 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
             it.each(writes)('a write with the current fence is applied: $method', async ({ write, applied }) => {
                 const service = await seed();
 
-                await service.advanceFence('docs');
+                await service.claimFence('docs', 1);
 
-                const current = await service.advanceFence('docs');
+                const current = await service.claimFence('docs', 2);
 
                 await applied(service, await write(service, current));
             });
@@ -1091,14 +1135,14 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
 
                 await service.saveCollection(collectionOf('docs'));
 
-                const old = await service.advanceFence('docs');
+                const old = await service.claimFence('docs', 1);
 
                 await service.deleteCollection('docs');
                 await service.saveCollection(collectionOf('docs'));
 
-                const current = await service.advanceFence('docs');
+                const current = await service.claimFence('docs', 1);
 
-                // the same counter of another row
+                // the same token on another row
                 expect(current?.fence).toBe(old?.fence);
                 expect(current?.id).not.toBe(old?.id);
 
@@ -1116,8 +1160,8 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
             it.each(writes)('a write without a fence is never refused: $method', async ({ write, applied }) => {
                 const service = await seed();
 
-                await service.advanceFence('docs');
-                await service.advanceFence('docs');
+                await service.claimFence('docs', 1);
+                await service.claimFence('docs', 2);
 
                 await applied(service, await write(service));
             });
@@ -1126,9 +1170,9 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                 const service = await create();
                 const created = await service.saveCollection(collectionOf('docs'));
 
-                await service.advanceFence('docs');
+                await service.claimFence('docs', 1);
 
-                const fence = await service.advanceFence('docs');
+                const fence = await service.claimFence('docs', 2);
                 // a record carrying another row's id and fence: neither is written
                 const foreign = {
                     ...collectionOf('docs', { status: 'stale' }),
@@ -1143,7 +1187,8 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
                     status: 'stale',
                 });
                 expect(await service.saveCollection(collectionOf('docs'), { fence: fence! })).toMatchObject({ id: created.id, fence: 2 });
-                expect(await service.advanceFence('docs')).toEqual({ id: created.id, fence: 3 });
+                // a token below 99 still claims: the input's fence was never written
+                expect(await service.claimFence('docs', 3)).toEqual({ id: created.id, fence: 3 });
                 expect(await service.findOneCollection('docs')).toEqual(collectionOf('docs'));
             });
 
@@ -1153,25 +1198,27 @@ export function describeKnowledgeRepositoryContract(options: KnowledgeRepository
 
                 expect(created).toMatchObject({ fence: 0, ...collectionOf('docs') });
 
-                await service.advanceFence('docs');
+                await service.claimFence('docs', 1);
 
                 await expect(service.saveCollection(collectionOf('docs', { status: 'stale' }), { create: true }))
                     .rejects.toMatchObject({ code: 'lease_lost', lock: 'knowledge:docs' });
                 expect(await service.findOneCollection('docs')).toEqual(collectionOf('docs'));
-                expect(await service.advanceFence('docs')).toEqual({ id: created.id, fence: 2 });
+                // the refused create kept the claimed fence
+                await expect(service.claimFence('docs', 0)).rejects.toMatchObject({ code: 'lease_lost' });
+                expect(await service.claimFence('docs', 1)).toEqual({ id: created.id, fence: 1 });
             });
 
             it('a fenced write after deleteCollection is RepositoryNotFoundError and creates no row', async () => {
                 for (const { method, write } of writes) {
                     const service = await seed();
-                    const fence = await service.advanceFence('docs');
+                    const fence = await service.claimFence('docs', 1);
 
                     await service.deleteCollection('docs');
 
                     await expect(write(service, fence), method).rejects.toMatchObject({ code: 'repository_not_found' });
                     expect(await service.findCollections(), method).toEqual([]);
                     expect(await service.findDocumentIds('docs'), method).toEqual([]);
-                    expect(await service.advanceFence('docs'), method).toBeUndefined();
+                    expect(await service.claimFence('docs', 2), method).toBeUndefined();
                 }
             });
         });

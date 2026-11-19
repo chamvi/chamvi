@@ -18,6 +18,7 @@ export const TableName = {
     CHECKPOINTS: 'chamvi_checkpoints',
     IDEMPOTENCY_KEYS: 'chamvi_idempotency_keys',
     LOCKS: 'chamvi_locks',
+    LOCK_TOKENS: 'chamvi_lock_tokens',
     EFFECTS: 'chamvi_effects',
     KV: 'chamvi_kv',
     DOCS: 'chamvi_docs',
@@ -44,4 +45,13 @@ export const JSON_VALUE_TRANSFORMER: ValueTransformer = {
 export const OPTIONAL_JSON_TRANSFORMER: ValueTransformer = {
     to: (value: unknown) => (value === undefined || value === null ? null : toJsonParameter(value)),
     from: (value: unknown) => value,
+};
+
+/**
+ * bigint column read as a `number` (the driver reads bigint as a string):
+ * for values below 2^53, as fencing tokens are.
+ */
+export const BIGINT_NUMBER_TRANSFORMER: ValueTransformer = {
+    to: (value: unknown) => value,
+    from: (value: unknown) => (value === null || value === undefined ? value : Number(value)),
 };

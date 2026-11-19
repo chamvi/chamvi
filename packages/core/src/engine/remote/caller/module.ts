@@ -102,7 +102,7 @@ export class EngineRemote implements IEngineRemote {
         const { pollMs } = ctx.peers.settings(waiting.peer);
         const lockKey = remotePollKey(run.id);
         const owner = randomUUID();
-        const held = await ctx.lockService.acquire(lockKey, owner, pollMs);
+        const held = await ctx.lockService.acquire(lockKey, owner, pollMs) !== undefined;
 
         const woken = waiting.wakeRequested === true && await this.wakes.take(run.id);
 

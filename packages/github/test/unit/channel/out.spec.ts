@@ -595,7 +595,7 @@ describe('githubChannel persistent comments', () => {
 
     it('fails as busy when the slot stays locked for the whole timeout', async () => {
         const locks = createTestEngine({ agents: [] }).lockService;
-        const acquire = vi.spyOn(locks, 'acquire').mockResolvedValue(false);
+        const acquire = vi.spyOn(locks, 'acquire').mockResolvedValue(undefined);
         const {
             send,
             fake,
@@ -703,7 +703,7 @@ describe('githubChannel persistent comments', () => {
     it.each(['abort', 'timeout'])('rejects promptly on %s while acquiring, and releases a late acquisition without writing', async (mode) => {
         const locks = createTestEngine({ agents: [] }).lockService;
         const release = vi.spyOn(locks, 'release');
-        const acquire = Promise.withResolvers<boolean>();
+        const acquire = Promise.withResolvers<number | undefined>();
 
         const acquireLock = vi.spyOn(locks, 'acquire').mockImplementationOnce(() => acquire.promise);
 
@@ -736,7 +736,7 @@ describe('githubChannel persistent comments', () => {
                 expect(await pending).toMatchObject({ code: 'github_request', message: expect.stringContaining('within') });
             }
         } finally {
-            acquire.resolve(true);
+            acquire.resolve(1);
             await pending;
         }
 
@@ -941,7 +941,7 @@ describe('githubChannel persistent comments', () => {
 
     it('releases when abort races the successful acquisition callback', async () => {
         const locks = createTestEngine({ agents: [] }).lockService;
-        const acquire = Promise.withResolvers<boolean>();
+        const acquire = Promise.withResolvers<number | undefined>();
         const release = vi.spyOn(locks, 'release');
         const acquireLock = vi.spyOn(locks, 'acquire').mockImplementationOnce(() => acquire.promise);
         const { send, fake } = setupPersistent({ locks });
@@ -949,7 +949,7 @@ describe('githubChannel persistent comments', () => {
         const reason = new Error('cancel just after acquisition');
         const pending = send(STATUS_APPROVAL, ADDRESS, githubTrigger(), controller.signal).catch((error: unknown) => error);
 
-        acquire.resolve(true);
+        acquire.resolve(1);
         queueMicrotask(() => controller.abort(reason));
 
         expect(await pending).toBe(reason);

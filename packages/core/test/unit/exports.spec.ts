@@ -98,7 +98,7 @@ describe('public api', () => {
         expectTypeOf<core.IEngine['idempotencyService']>().toEqualTypeOf<core.IIdempotencyService>();
         expectTypeOf<core.LockServiceContext['repository']>().toEqualTypeOf<ILockRepository>();
         expectTypeOf<core.IdempotencyServiceContext['repository']>().toEqualTypeOf<IIdempotencyRepository>();
-        expectTypeOf<core.LockService['acquire']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
+        expectTypeOf<core.LockService['acquire']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<number | undefined>>();
         expectTypeOf<core.LockService['renew']>().toEqualTypeOf<(key: string, owner: string, ttlMs: number) => Promise<boolean>>();
         expectTypeOf<core.LockService['release']>().toEqualTypeOf<(key: string, owner: string) => Promise<void>>();
         expectTypeOf<core.LockService['holds']>().toEqualTypeOf<(key: string, owner: string) => Promise<boolean>>();

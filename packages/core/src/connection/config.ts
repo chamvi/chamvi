@@ -219,7 +219,7 @@ export function createConnectionConfigStore(options: ConnectionConfigStoreOption
             const lock = lockKeyOf(name);
             const holder = `${owner}:${randomUUID()}`;
 
-            if (!await lockService.acquire(lock, holder, DEFAULT_CONNECTION_LEASE_TTL_MS)) {
+            if (await lockService.acquire(lock, holder, DEFAULT_CONNECTION_LEASE_TTL_MS) === undefined) {
                 throw new ConnectionHeldError(name);
             }
 

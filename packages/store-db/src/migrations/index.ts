@@ -7,3 +7,4 @@
 
 export * from './1794096000000-uuid-baseline.ts';
 export * from './1794230765000-connections-revisions-item-bytes.ts';
+export * from './1795093873329-lock-tokens.ts';

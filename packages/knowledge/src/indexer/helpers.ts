@@ -94,19 +94,23 @@ export function createWake(): KnowledgeWake {
 }
 
 /**
- * The lock a sync holds: `renew()` re-acquires it once half the TTL passed
- * since it was taken and answers false for good once another owner has it.
+ * The lock a sync holds, acquired with `token`: `renew()` extends the lease
+ * (keeping the token) once half the TTL passed since it was taken or last
+ * renewed, and answers false for good once the lease is no longer this
+ * owner's (expired or taken by another owner).
  */
 export function createIndexLock(
-    locks: Pick<ILockService, 'acquire' | 'release'>,
+    locks: Pick<ILockService, 'renew'>,
     key: string,
     owner: string,
     clock: IClock,
+    token: number,
 ): KnowledgeIndexLock & { readonly lost: boolean } {
-    let acquiredAt = clock.now();
+    let renewedAt = clock.now();
     let lost = false;
 
     return {
+        token,
         get lost() {
             return lost;
         },
@@ -117,15 +121,12 @@ export function createIndexLock(
 
             const now = clock.now();
 
-            if (now - acquiredAt < KNOWLEDGE_LOCK_TTL_MS / 2) {
+            if (now - renewedAt < KNOWLEDGE_LOCK_TTL_MS / 2) {
                 return true;
             }
 
-            // owner-guarded: a no-op when the lease expired and another owner took it
-            await locks.release(key, owner);
-
-            if (await locks.acquire(key, owner, KNOWLEDGE_LOCK_TTL_MS)) {
-                acquiredAt = now;
+            if (await locks.renew(key, owner, KNOWLEDGE_LOCK_TTL_MS)) {
+                renewedAt = now;
 
                 return true;
             }
@@ -143,17 +144,17 @@ export function writeOptionsOf(lock: KnowledgeIndexLock): KnowledgeWriteOptions 
 }
 
 /**
- * Advances the collection's fence and gives `lock` the new token (none for a
- * missing collection); answers it. Every caller renews the lock right after
- * and writes nothing when that fails: a holder stalled inside the advance
- * past its lease never uses the token it got over the current owner's.
+ * Claims the collection's fence with the lock's token and gives `lock` the
+ * fence (none for a missing collection); answers it. A newer holder's claim
+ * is a `LeaseLostError`, so a holder stalled past its lease never takes the
+ * fence back from the current owner.
  */
-export async function advanceLockFence(
-    service: Pick<IKnowledgeService, 'advanceFence'>,
+export async function claimLockFence(
+    service: Pick<IKnowledgeService, 'claimFence'>,
     name: string,
     lock: KnowledgeIndexLock,
 ): Promise<KnowledgeFence | undefined> {
-    const fence = await service.advanceFence(name);
+    const fence = await service.claimFence(name, lock.token);
 
     if (fence === undefined) {
         delete lock.fence;
@@ -164,7 +165,7 @@ export async function advanceLockFence(
     return fence;
 }
 
-/** A write refused for a fence another owner advanced (LeaseLostError, by code across core copies). */
+/** A write refused for a fence another owner claimed (LeaseLostError, by code across core copies). */
 export function isLeaseLost(error: unknown): boolean {
     return isObject(error) && error.code === ErrorCode.LEASE_LOST;
 }

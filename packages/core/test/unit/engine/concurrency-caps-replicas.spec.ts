@@ -72,7 +72,7 @@ describe('shared-store admission', () => {
         await h.settle();
         expect(h.errors).toContain(error);
         expect((await h.store.runService.findOne(runId))?.status).toBe('queued');
-        expect(await h.store.lockService.acquire('admission:worker', 'probe', 1)).toBe(true);
+        expect(await h.store.lockService.acquire('admission:worker', 'probe', 1)).toBeTypeOf('number');
         await h.store.lockService.release('admission:worker', 'probe');
         h.clock.advance(60_001);
         await h.settle();
@@ -350,7 +350,7 @@ describe('shared-store admission', () => {
         h.clock.advance(20_000);
         await h.settle();
         expect((await h.store.runService.findOne(runId))?.status).toBe('queued');
-        expect(await h.store.lockService.acquire('admission:worker', 'probe', 1)).toBe(true);
+        expect(await h.store.lockService.acquire('admission:worker', 'probe', 1)).toBeTypeOf('number');
         await h.store.lockService.release('admission:worker', 'probe');
         h.clock.advance(20_000);
         await h.settle();

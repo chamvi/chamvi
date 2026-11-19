@@ -55,11 +55,12 @@ describe('public api', () => {
         expect(pkg[name as keyof typeof pkg]).toBeTypeOf('function');
     });
 
-    it('exports the date and optional jsonb column transformers, and no list schema of its own (decodeQuery and defineSchema are @chamvi/http\'s)', () => {
+    it('exports the date, optional jsonb and bigint number column transformers, and no list schema of its own (decodeQuery and defineSchema are @chamvi/http\'s)', () => {
         expect(pkg.dateToISOStringTransformer.to).toBeTypeOf('function');
         expect(pkg.dateToISOStringTransformer.from).toBeTypeOf('function');
         expect(pkg.OPTIONAL_JSON_TRANSFORMER.to).toBeTypeOf('function');
         expect(pkg.OPTIONAL_JSON_TRANSFORMER.from).toBeTypeOf('function');
+        expect(pkg.BIGINT_NUMBER_TRANSFORMER.from('4503599627370496')).toBe(2 ** 52);
         expect(pkg).not.toHaveProperty('decodeQuery');
         expect(pkg).not.toHaveProperty('defineSchema');
         expect(pkg).not.toHaveProperty('prepareQuery');
@@ -68,10 +69,10 @@ describe('public api', () => {
 
     it('exports the entities, migrations and lock name', () => {
         expect(pkg.STORE_ENTITIES).toBeInstanceOf(Array);
-        expect(pkg.STORE_ENTITIES).toHaveLength(17);
+        expect(pkg.STORE_ENTITIES).toHaveLength(18);
         expect(pkg.STORE_MIGRATIONS).toBeInstanceOf(Array);
-        expect(pkg.STORE_MIGRATIONS).toHaveLength(2);
-        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('ConnectionsRevisionsItemBytes1794230765000');
+        expect(pkg.STORE_MIGRATIONS).toHaveLength(3);
+        expect(pkg.STORE_MIGRATIONS.at(-1)?.name).toBe('LockTokens1795093873329');
         expect(pkg.MIGRATION_LOCK_NAME).toBe('chamvi:migrations');
         expect(pkg.STORE_LEGACY_SCHEMA_CODE).toBe('store_legacy_schema');
         expect(pkg.DatabaseErrorCode).toEqual({

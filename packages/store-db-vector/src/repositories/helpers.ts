@@ -76,7 +76,9 @@ export function fromCollectionEntity(row: KnowledgeCollectionEntity): KnowledgeC
         syncedAt: row.syncedAt,
         createdAt: row.createdAt,
         updatedAt: row.updatedAt,
-        fence: row.fence,
+        // a number also when an insert merged the column's default back as the driver's string,
+        // which TypeORM does without the column transformer
+        fence: Number(row.fence),
     });
 
     // a re-embed in progress exactly while its generation is set

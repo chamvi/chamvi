@@ -17,8 +17,17 @@ import type { NotifyContext, NotifyDelivery } from './types.ts';
  * sends while it is inside `send`. Under the lock `pending()` re-reads
  * whether it is still due; then `send` (raced against the attempt's signal)
  * and `record`. An InvalidRunStateError (moved on meanwhile) ends the attempt
- * quietly, any other failure goes to `fail`; the lock is released after the
- * attempt (a release failure reaches onError).
+ * quietly, any other failure goes to `fail`. The store waits (`acquire`,
+ * `pending`, `record`) are raced against the same signal; a lock granted after
+ * the race was lost is released by an untracked continuation.
+ *
+ * The lock is released once the last of `pending`, `send` and `record` has
+ * settled, also when the attempt stopped waiting for it: another replica
+ * could otherwise send again before the record lands. The release is raced
+ * against the signal too (the deadline keeps running until it settled), so
+ * the attempt never outlasts the deadline; a release the attempt stopped
+ * waiting for goes on untracked by the delivery set. A failed release
+ * reaches onError.
  */
 export async function deliverOnce(ctx: NotifyContext, delivery: NotifyDelivery): Promise<void> {
     const lockKey = `notify:${delivery.key}`;
@@ -29,28 +38,56 @@ export async function deliverOnce(ctx: NotifyContext, delivery: NotifyDelivery):
     timer.unref?.();
 
     const signal = AbortSignal.any([delivery.signal, deadline.signal]);
-    let acquired = false;
+    let acquired: number | undefined;
+    // the store or transport work last started under the lock, maybe still in flight
+    let work: Promise<unknown> = Promise.resolve();
+    const step = <T>(next: Promise<T>): Promise<T> => {
+        work = next;
+
+        return untilAborted(next, signal);
+    };
 
     try {
-        acquired = await ctx.lockService.acquire(lockKey, attempt, ctx.claimTtlMs);
+        const acquiring = ctx.lockService.acquire(lockKey, attempt, ctx.claimTtlMs);
 
-        if (!acquired || !await delivery.pending()) {
+        try {
+            acquired = await untilAborted(acquiring, signal);
+        } catch (error) {
+            // The wait lost to the deadline or a drain: a lock the store grants later is released
+            // by a continuation the delivery set does not track (idle() and drain() stay unchanged).
+            acquiring.then(
+                (token) => (token !== undefined ?
+                    ctx.lockService.release(lockKey, attempt) :
+                    undefined),
+            ).catch((releaseError: unknown) => ctx.onError(releaseError, delivery.run));
+
+            throw error;
+        }
+
+        if (acquired === undefined || !await step(delivery.pending())) {
             return;
         }
 
         signal.throwIfAborted();
 
-        await untilAborted(delivery.send(signal), signal);
-        await delivery.record(signal);
+        await step(delivery.send(signal));
+        await step(delivery.record(signal));
     } catch (error) {
         if (!(error instanceof InvalidRunStateError)) {
             delivery.fail(error, signal);
         }
     } finally {
-        timer.clear();
+        if (acquired !== undefined) {
+            const release = () => ctx.lockService.release(lockKey, attempt);
+            // after the work settled, whichever way: its own failure was handled above
+            const releasing = work.then(release, release).then(
+                () => undefined,
+                (releaseError: unknown) => ctx.onError(releaseError, delivery.run),
+            );
 
-        if (acquired) {
-            await ctx.lockService.release(lockKey, attempt).catch((releaseError: unknown) => ctx.onError(releaseError, delivery.run));
+            await untilAborted(releasing, signal).catch(() => {});
         }
+
+        timer.clear();
     }
 }

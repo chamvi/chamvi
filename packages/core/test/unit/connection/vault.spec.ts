@@ -177,7 +177,7 @@ describe('vault.open', () => {
             if (!delayed) {
                 delayed = true;
                 clock.advance(3_000);
-                expect(await store.lockService.acquire('connection:wa', 'o2', 60_000)).toBe(true);
+                expect(await store.lockService.acquire('connection:wa', 'o2', 60_000)).toBeTypeOf('number');
             }
 
             return findOne(name);
@@ -188,7 +188,7 @@ describe('vault.open', () => {
             owner: 'o1',
             leaseTtlMs: 3_000,
         })).rejects.toBeInstanceOf(LeaseLostError);
-        expect(await store.lockService.acquire('connection:wa', 'o3', 1_000)).toBe(false);
+        expect(await store.lockService.acquire('connection:wa', 'o3', 1_000)).toBeUndefined();
     });
 
     it('rejects with LeaseLostError when the lease expired during initialization, and releases it', async () => {
@@ -215,7 +215,7 @@ describe('vault.open', () => {
             owner: 'o1',
             leaseTtlMs: 3_000,
         })).rejects.toBeInstanceOf(LeaseLostError);
-        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBeTypeOf('number');
     });
 
     it('releases a lease acquired after the signal aborted', async () => {
@@ -237,7 +237,7 @@ describe('vault.open', () => {
             signal: controller.signal,
         })).rejects.toThrow('stopped');
         store.lockService.acquire = acquire;
-        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBeTypeOf('number');
     });
 
     it('does not acquire when the signal is already aborted', async () => {
@@ -251,7 +251,7 @@ describe('vault.open', () => {
             signal: controller.signal,
         })).rejects.toThrow('stopped');
         expect(await store.connectionService.findOne('wa')).toBeUndefined();
-        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBeTypeOf('number');
     });
 });
 
@@ -306,7 +306,7 @@ describe('connection session', () => {
 
         // the first renew confirms the lease before open returns
         expect(renewals).toEqual([0, 1_000, 2_000, 3_000, 4_000]);
-        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(false);
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBeUndefined();
         await session.write({ set: { a: text('1') } });
         await session.close();
         clock.advance(10_000);
@@ -335,7 +335,7 @@ describe('connection session', () => {
         expect(ttls).toEqual([60_000]);
         clock.advance(19_999);
         await settle();
-        expect(await acquire('connection:wa', 'o2', 1_000)).toBe(false);
+        expect(await acquire('connection:wa', 'o2', 1_000)).toBeUndefined();
         await session.close();
     });
 
@@ -524,7 +524,7 @@ describe('connection session', () => {
         await expect(session.write({ set: { b: text('1') } })).rejects.toBeInstanceOf(LeaseLostError);
         expect(await store.connectionService.findEntry('wa', 'a')).toBeUndefined();
         await session.close();
-        expect(await store.lockService.acquire('connection:wa', 'o3', 1_000)).toBe(false);
+        expect(await store.lockService.acquire('connection:wa', 'o3', 1_000)).toBeUndefined();
     });
 
     it('serializes writes, and flush and reads wait for the accepted ones', async () => {
@@ -627,7 +627,7 @@ describe('connection session', () => {
 
         expect(decode(await other.readOne('a'))).toBe('1');
         await other.close();
-        expect(await store.lockService.acquire('connection:wa', 'o3', 1_000)).toBe(true);
+        expect(await store.lockService.acquire('connection:wa', 'o3', 1_000)).toBeTypeOf('number');
     });
 
     it('round-trips the entry key __proto__', async () => {
@@ -737,7 +737,7 @@ describe('connection session', () => {
         clock.advance(10_000);
         await settle();
         expect(renewals).toBe(7);
-        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBe(true);
+        expect(await store.lockService.acquire('connection:wa', 'o2', 1_000)).toBeTypeOf('number');
         expect(await connections!.findEntry('wa', 'a')).toBeInstanceOf(Uint8Array);
     });
 
@@ -804,7 +804,7 @@ describe('connection session', () => {
         expect(await store.connectionService.findEntry('wb', 'late')).toBeUndefined();
         await first.close();
         // the first session's close does not release the second's lease
-        expect(await store.lockService.acquire('connection:wb', 'o2', 1_000)).toBe(false);
+        expect(await store.lockService.acquire('connection:wb', 'o2', 1_000)).toBeUndefined();
         await second.close();
     });
 

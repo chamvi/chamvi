@@ -175,7 +175,9 @@ export function createCommentSender(options: ResolvedGithubChannelOptions) {
                             signal.throwIfAborted();
                         }
 
-                        const acquisition = options.locks.acquire(slotKey, owner, options.timeoutMs * 2).then(async (taken) => {
+                        const acquisition = options.locks.acquire(slotKey, owner, options.timeoutMs * 2).then(async (token) => {
+                            const taken = token !== undefined;
+
                             // A cancelled caller may stop waiting before the store answers.
                             if (taken && signal.aborted) {
                                 await options.locks.release(slotKey, owner);

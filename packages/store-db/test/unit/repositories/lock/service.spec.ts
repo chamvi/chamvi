@@ -15,24 +15,27 @@ import {
 } from 'vitest';
 import { type ILockService, LockService } from '@chamvi/core';
 import type { Lock } from '@chamvi/store';
-import { ControllableClock } from '@chamvi/test-kit';
+import { ControllableClock, testUuid } from '@chamvi/test-kit';
+import { LockEntity, LockTokenEntity } from '../../../../src/entities/index.ts';
 import { DatabaseLockRepository } from '../../../../src/repositories/lock/index.ts';
 import { createBarrier } from '../../../utils/barrier.ts';
 import type { Barrier } from '../../../utils/barrier.ts';
 import { createTestDataSource, describePostgres, truncateRepository } from '../../../utils/database.ts';
 
 type Probe = {
-    /** The first arrivals of an insert wait for each other here (no row is locked yet). */
-    insert?: Barrier;
-    /** The first arrivals of a transaction's single-row read wait for each other here, before the read locks. */
-    read?: Barrier;
+    /**
+     * The first arrivals of a transaction's token wait for each other here, before the counter
+     * row locks: every insert and takeover takes its token first, so racing transactions meet
+     * here and then serialize on the counter row.
+     */
+    token?: Barrier;
     /** Runs once before the next single-row read of a transaction. */
     beforeRead?: () => Promise<void>;
     /** Runs once before the next insert of a transaction. */
     beforeInsert?: () => Promise<void>;
 };
 
-/** Holds inserts and reads at barriers so racing transactions meet, and signals reads. */
+/** Holds tokens at a barrier so racing transactions meet, and signals reads and inserts. */
 class ProbedLockRepository extends DatabaseLockRepository {
     protected probe: Probe;
 
@@ -51,7 +54,6 @@ class ProbedLockRepository extends DatabaseLockRepository {
 
             this.probe.beforeInsert = undefined;
             await hook?.();
-            await this.probe.insert?.arrive();
         }
 
         return super.save(entity);
@@ -63,10 +65,17 @@ class ProbedLockRepository extends DatabaseLockRepository {
 
             this.probe.beforeRead = undefined;
             await hook?.();
-            await this.probe.read?.arrive();
         }
 
         return super.findOneBy(where);
+    }
+
+    override async nextToken(): Promise<number> {
+        if (this.tx) {
+            await this.probe.token?.arrive();
+        }
+
+        return super.nextToken();
     }
 }
 
@@ -132,7 +141,7 @@ describePostgres('lock service on postgres', () => {
         log.recording = true;
 
         try {
-            expect(await locks.acquire('k', 'b', 1_000)).toEqual(false);
+            expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
         } finally {
             log.recording = false;
         }
@@ -142,7 +151,7 @@ describePostgres('lock service on postgres', () => {
         expect(log.failed).toEqual([]);
     });
 
-    it('an expired lease is taken over in five statements and no unique violation', async () => {
+    it('an expired lease is taken over in six statements and no unique violation', async () => {
         await locks.acquire('k', 'a', 1_000);
         clock.advance(1_000);
         log.statements = [];
@@ -150,52 +159,69 @@ describePostgres('lock service on postgres', () => {
         log.recording = true;
 
         try {
-            expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+            expect(await locks.acquire('k', 'b', 1_000)).toBeTypeOf('number');
         } finally {
             log.recording = false;
         }
 
-        // the plain read, then BEGIN, the locked read, the update, COMMIT: no insert is tried
-        expect(log.statements).toHaveLength(5);
+        // the plain read, then BEGIN, the token, the locked read, the update, COMMIT: no insert is tried
+        expect(log.statements).toHaveLength(6);
         expect(log.statements.filter((statement) => statement.startsWith('INSERT'))).toEqual([]);
         expect(log.failed).toEqual([]);
         expect(await locks.holds('k', 'b')).toBe(true);
     });
 
+    it('a lost counter row is reseeded above every stored lease, so a takeover issues a higher token', async () => {
+        await locks.acquire('k', 'a', 1_000);
+
+        // a lease far above the wall clock in microseconds, then the counter row is lost
+        const high = (Date.now() * 1000) + 1_000_000_000_000;
+
+        await dataSource.getRepository(LockEntity).update({ key: 'k' }, { token: high });
+        await dataSource.getRepository(LockTokenEntity).clear();
+
+        clock.advance(1_000);
+
+        const token = await locks.acquire('k', 'b', 1_000);
+
+        expect(token).toBeGreaterThan(high);
+        expect((await repository.findOneBy({ key: 'k' }))).toMatchObject({ owner: 'b', token });
+    });
+
     it('two first acquirers of one lock: exactly one acquires', async () => {
-        const racing = probed({ insert: createBarrier(2) });
+        const racing = probed({ token: createBarrier(2) });
         const results = await Promise.all([racing.acquire('k', 'a', 1_000), racing.acquire('k', 'b', 1_000)]);
 
-        expect(results.filter(Boolean)).toHaveLength(1);
-        expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe(results[0] ? 'a' : 'b');
+        expect(results.filter((token) => token !== undefined)).toHaveLength(1);
+        expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe(results[0] !== undefined ? 'a' : 'b');
     });
 
     it('of twenty concurrent acquirers of one key exactly one acquires', async () => {
         const results = await Promise.all(Array.from({ length: 20 }, (_, i) => locks.acquire('k', `o${i}`, 1_000)));
 
-        expect(results.filter(Boolean)).toHaveLength(1);
+        expect(results.filter((token) => token !== undefined)).toHaveLength(1);
     });
 
     it('two owners taking over one expired lock together: exactly one succeeds, and a renew by the previous owner then fails', async () => {
         await locks.acquire('k', 'old', 1_000);
         clock.advance(1_000);
 
-        const racing = probed({ read: createBarrier(2) });
+        const racing = probed({ token: createBarrier(2) });
         const results = await Promise.all([racing.acquire('k', 'a', 1_000), racing.acquire('k', 'b', 1_000)]);
-        const winner = results[0] ? 'a' : 'b';
+        const winner = results[0] !== undefined ? 'a' : 'b';
 
-        expect(results.filter(Boolean)).toHaveLength(1);
+        expect(results.filter((token) => token !== undefined)).toHaveLength(1);
         expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe(winner);
         expect(await locks.renew('k', 'old', 1_000)).toBe(false);
         expect(await locks.holds('k', winner)).toBe(true);
     });
 
     it('a lease created at T expires at exactly T + ttlMs', async () => {
-        expect(await locks.acquire('k', 'a', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'a', 1_000)).toBeTypeOf('number');
         clock.advance(999);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
         clock.advance(1);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(true);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeTypeOf('number');
     });
 
     it('renew of an expired lease fails even if nobody took it; a release by another owner does nothing', async () => {
@@ -212,15 +238,22 @@ describePostgres('lock service on postgres', () => {
         await locks.acquire('k', 'a', 1_000);
         clock.advance(900);
         expect(await locks.renew('k', 'a', 1_000)).toBe(true);
-        expect(await locks.acquire('k', 'b', 1_000)).toBe(false);
+        expect(await locks.acquire('k', 'b', 1_000)).toBeUndefined();
         expect((await repository.findOneBy({ key: 'k' }))!.owner).toBe('a');
     });
 
     it('acquire inserts again when another lease was inserted after its plain read and released before its locked read', async () => {
         // the plain read finds the key free; another owner inserts it before this insert, and releases it before the takeover reads
         const racing = probed({
+            // stored directly: this insert's transaction holds the token counter, so another acquire would wait on it
             beforeInsert: async () => {
-                expect(await locks.acquire('k', 'x', 1_000)).toBe(true);
+                await repository.save(repository.create({
+                    id: testUuid('x'),
+                    key: 'k',
+                    owner: 'x',
+                    expiresAt: new Date(11_000),
+                    token: 1,
+                }));
             },
             beforeRead: () => locks.release('k', 'x'),
         });
@@ -229,7 +262,7 @@ describePostgres('lock service on postgres', () => {
         log.recording = true;
 
         try {
-            expect(await racing.acquire('k', 'b', 1_000)).toBe(true);
+            expect(await racing.acquire('k', 'b', 1_000)).toBeTypeOf('number');
         } finally {
             log.recording = false;
         }
@@ -246,7 +279,7 @@ describePostgres('lock service on postgres', () => {
 
         const racing = probed({ beforeRead: () => locks.release('k', 'a') });
 
-        expect(await racing.acquire('k', 'b', 1_000)).toBe(true);
+        expect(await racing.acquire('k', 'b', 1_000)).toBeTypeOf('number');
         expect(await locks.holds('k', 'b')).toBe(true);
     });
 
@@ -281,6 +314,6 @@ describePostgres('lock service on postgres', () => {
         clock.advance(1_500);
         done();
         await holder;
-        expect(await acquire).toBe(true);
+        expect(await acquire).toBeTypeOf('number');
     });
 });

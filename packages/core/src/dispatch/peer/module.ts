@@ -143,7 +143,7 @@ export async function dispatchPeer(
     return host.serial(countKey, async () => {
         const owner = randomUUID();
 
-        if (!await host.locks.acquire(lockKey, owner, host.lockTtlMs)) {
+        if (await host.locks.acquire(lockKey, owner, host.lockTtlMs) === undefined) {
             throw new PeerStartBusyError(peer, parent.runId);
         }
 

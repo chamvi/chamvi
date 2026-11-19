@@ -97,7 +97,7 @@ export type ContractKnowledgeService = {
         collection: ContractKnowledgeCollection,
         options?: ContractKnowledgeWriteOptions,
     ): Promise<ContractKnowledgeCollectionRecord>;
-    advanceFence(name: string): Promise<ContractKnowledgeFence | undefined>;
+    claimFence(name: string, token: number): Promise<ContractKnowledgeFence | undefined>;
     findOneCollection(name: string): Promise<ContractKnowledgeCollection | undefined>;
     findOneCollectionOrFail(name: string): Promise<ContractKnowledgeCollection>;
     findCollections(): Promise<ContractKnowledgeCollection[]>;

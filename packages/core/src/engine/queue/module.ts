@@ -212,7 +212,7 @@ export class RunQueue {
         // The lock TTL is claimTtlMs: a transition slower than that lets a second replica in.
         const lockKey = `concurrency:${run.agent}:${run.concurrencyKey}`;
 
-        if (!await lockService.acquire(lockKey, owner, claimTtlMs)) {
+        if (await lockService.acquire(lockKey, owner, claimTtlMs) === undefined) {
             return undefined;
         }
 

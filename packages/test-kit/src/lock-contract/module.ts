@@ -11,17 +11,23 @@ import {
     expect,
     it,
 } from 'vitest';
+import { LockService } from '@chamvi/core';
 import { EntityConflictError } from '@chamvi/store';
 import type { ILockRepository, Lock } from '@chamvi/store';
+import { ControllableClock } from '../clock/index.ts';
 import { testUuid } from '../fixture/helpers.ts';
 import type { LockRepositoryContractInput } from './types.ts';
 
-function lockOf(label: string, key: string, owner: string, expiresAt: number): Lock {
+/** Tolerance for a database whose clock lags the process clock a little (microseconds). */
+const CLOCK_TOLERANCE_US = 5_000_000;
+
+function lockOf(label: string, key: string, owner: string, expiresAt: number, token = 1): Lock {
     return {
         id: testUuid(label),
         key,
         owner,
         expiresAt: new Date(expiresAt),
+        token,
     };
 }
 
@@ -32,8 +38,9 @@ async function insert(locks: ILockRepository, lock: Lock): Promise<Lock> {
 /**
  * The storage behaviour of an `ILockRepository`: locks stored as given,
  * the unique key, changed columns saved in place, `removeExpiredBy` and
- * its boundary, copies, and concurrent first saves and locked reads of
- * one key.
+ * its boundary, copies, concurrent first saves and locked reads of one
+ * key, and the fencing tokens `nextToken` issues (also through a
+ * `LockService` over the repository).
  */
 export function describeLockRepositoryContract(input: LockRepositoryContractInput): void {
     describe(`lock repository contract: ${input.name}`, () => {
@@ -163,6 +170,91 @@ export function describeLockRepositoryContract(input: LockRepositoryContractInpu
 
             await Promise.all(Array.from({ length: 10 }, () => extend()));
             expect((await locks.findOneBy({ key: 'k' }))!.expiresAt).toEqual(new Date(10));
+        });
+
+        it('nextToken issues distinct, increasing tokens at or above the wall clock in microseconds, also concurrently', async () => {
+            const floor = Date.now() * 1000 - CLOCK_TOLERANCE_US;
+            const first = await locks.nextToken();
+
+            expect(Number.isSafeInteger(first)).toBe(true);
+            expect(first).toBeGreaterThanOrEqual(floor);
+
+            const tokens = await Promise.all(Array.from({ length: 20 }, () => locks.nextToken()));
+
+            expect(new Set(tokens).size).toBe(20);
+            expect(Math.min(...tokens)).toBeGreaterThan(first);
+            expect(await locks.nextToken()).toBeGreaterThan(Math.max(...tokens));
+        });
+
+        it('stores the token of a lock and keeps it when the owner and expiry change', async () => {
+            await insert(locks, lockOf('l1', 'k', 'o1', 1_000, 1_700_000_000_000_001));
+
+            const read = (await locks.findOneBy({ key: 'k' }))!;
+
+            expect(read.token).toBe(1_700_000_000_000_001);
+            locks.merge(read, { expiresAt: new Date(2_000) });
+            await locks.save(read);
+            expect((await locks.findOneBy({ key: 'k' }))!.token).toBe(1_700_000_000_000_001);
+        });
+
+        describe('through a LockService', () => {
+            let clock: ControllableClock;
+            let service: LockService;
+
+            const tokenOf = async (key: string) => (await locks.findOneBy({ key }))!.token;
+
+            beforeEach(() => {
+                clock = new ControllableClock(new Date(10_000));
+                service = new LockService({ repository: locks, clock });
+            });
+
+            it('acquire resolves the stored token, at or above the wall clock in microseconds; a refusal resolves undefined', async () => {
+                const floor = Date.now() * 1000 - CLOCK_TOLERANCE_US;
+                const token = await service.acquire('k', 'a', 1_000);
+
+                expect(token).toBeTypeOf('number');
+                expect(token).toBeGreaterThanOrEqual(floor);
+                expect(await tokenOf('k')).toBe(token);
+                expect(await service.acquire('k', 'b', 1_000)).toBeUndefined();
+            });
+
+            it('a takeover after expiry resolves a higher token and keeps the row id', async () => {
+                const first = (await service.acquire('k', 'a', 1_000))!;
+                const { id } = (await locks.findOneBy({ key: 'k' }))!;
+
+                clock.advance(1_000);
+
+                const second = (await service.acquire('k', 'b', 1_000))!;
+
+                expect(second).toBeGreaterThan(first);
+                expect(await locks.findOneBy({ key: 'k' })).toMatchObject({
+                    id, 
+                    owner: 'b', 
+                    token: second, 
+                });
+            });
+
+            it('acquire after a release resolves a higher token', async () => {
+                const first = (await service.acquire('k', 'a', 1_000))!;
+
+                await service.release('k', 'a');
+
+                expect(await service.acquire('k', 'a', 1_000)).toBeGreaterThan(first);
+            });
+
+            it('renew keeps the stored token', async () => {
+                const token = await service.acquire('k', 'a', 1_000);
+
+                clock.advance(500);
+                expect(await service.renew('k', 'a', 1_000)).toBe(true);
+                expect(await tokenOf('k')).toBe(token);
+            });
+
+            it('a second key gets a token above the first key\'s', async () => {
+                const first = (await service.acquire('a', 'o', 1_000))!;
+
+                expect(await service.acquire('b', 'o', 1_000)).toBeGreaterThan(first);
+            });
         });
     });
 }

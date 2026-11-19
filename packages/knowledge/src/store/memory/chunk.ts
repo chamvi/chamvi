@@ -57,6 +57,58 @@ export class MemoryKnowledgeChunkRepository extends MemoryEntityRepository<Knowl
         });
     }
 
+    /**
+     * The rows matching the where, each locked, read again by its key and
+     * rewritten if it still matches, in the caller's transaction or one of
+     * its own: a row a concurrent delete or replace removed or moved is
+     * skipped, never written back.
+     */
+    async updateOrigin(
+        where: {
+            collectionId: string;
+            document: string;
+            generation: number;
+        },
+        origin: { title?: string; source?: string },
+    ): Promise<number> {
+        if (!this.tx) {
+            return this.transaction((repository) => repository.updateOrigin(where, origin));
+        }
+
+        let updated = 0;
+
+        for (const { key } of await this.findManyBy(where)) {
+            const row = await this.findOneBy({ key });
+
+            if (
+                !row ||
+                row.collectionId !== where.collectionId ||
+                row.document !== where.document ||
+                row.generation !== where.generation
+            ) {
+                continue;
+            }
+
+            const next = { ...row };
+
+            delete next.title;
+            delete next.source;
+
+            if (origin.title !== undefined) {
+                next.title = origin.title;
+            }
+
+            if (origin.source !== undefined) {
+                next.source = origin.source;
+            }
+
+            await this.upsert(next);
+            updated++;
+        }
+
+        return updated;
+    }
+
     async search(
         collectionId: string,
         generation: number,

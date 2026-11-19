@@ -208,6 +208,21 @@ export interface IKnowledgeChunkRepository extends IEntityRepository<KnowledgeCh
         vector: number[],
         options: KnowledgeSearchOptions,
     ): Promise<KnowledgeChunkMatch[]>;
+
+    /**
+     * Sets `title` and `source` of the chunks of one document generation (a
+     * value not given is removed), leaving vectors and text alone; resolves
+     * the number of rows changed. Bound to the transaction like the other
+     * children.
+     */
+    updateOrigin(
+        where: {
+            collectionId: string; 
+            document: string; 
+            generation: number 
+        },
+        origin: { title?: string; source?: string },
+    ): Promise<number>;
 }
 
 /**

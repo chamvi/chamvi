@@ -723,7 +723,7 @@ describe('createConnectionConfigStore', () => {
             await config.delete('mail-work', 'api');
 
             await expect(connections.findOne('mail-work')).resolves.toBeUndefined();
-            await expect(store.lockService.acquire('connection:mail-work', 'next', 1_000)).resolves.toBe(true);
+            await expect(store.lockService.acquire('connection:mail-work', 'next', 1_000)).resolves.toBeTypeOf('number');
         });
 
         it('delete refuses a held lease', async () => {
@@ -774,7 +774,7 @@ describe('createConnectionConfigStore', () => {
             connections.delete = async (name, fence) => {
                 connections.delete = remove;
                 clock.advance(DEFAULT_CONNECTION_LEASE_TTL_MS);
-                expect(await store.lockService.acquire('connection:mail-work', 'next', 60_000)).toBe(true);
+                expect(await store.lockService.acquire('connection:mail-work', 'next', 60_000)).toBeTypeOf('number');
 
                 return remove.call(connections, name, fence);
             };
@@ -797,7 +797,7 @@ describe('createConnectionConfigStore', () => {
             };
 
             await expect(config.delete('mail-work', 'api')).rejects.toBe(failure);
-            await expect(store.lockService.acquire('connection:mail-work', 'next', 1_000)).resolves.toBe(true);
+            await expect(store.lockService.acquire('connection:mail-work', 'next', 1_000)).resolves.toBeTypeOf('number');
         });
     });
 });

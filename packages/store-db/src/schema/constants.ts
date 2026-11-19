@@ -22,11 +22,13 @@ import {
     IdempotencyKeyEntity,
     KvEntity,
     LockEntity,
+    LockTokenEntity,
     RunEntity,
     StepEntity,
 } from '../entities/index.ts';
 import {
     ConnectionsRevisionsItemBytes1794230765000,
+    LockTokens1795093873329,
     UuidBaseline1794096000000,
 } from '../migrations/index.ts';
 
@@ -36,6 +38,7 @@ export const STORE_ENTITIES = [
     CheckpointEntity,
     IdempotencyKeyEntity,
     LockEntity,
+    LockTokenEntity,
     EffectEntity,
     KvEntity,
     DocEntity,
@@ -53,6 +56,7 @@ export const STORE_ENTITIES = [
 export const STORE_MIGRATIONS = [
     UuidBaseline1794096000000,
     ConnectionsRevisionsItemBytes1794230765000,
+    LockTokens1795093873329,
 ];
 
 export const MIGRATION_LOCK_NAME = 'chamvi:migrations';
