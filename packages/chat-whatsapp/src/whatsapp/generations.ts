@@ -54,10 +54,15 @@ export class WhatsAppGenerations {
 
     protected current: WhatsAppConnectionRun | undefined;
 
-    status: WhatsAppConnectionStatus = 'stopped';
+    private currentStatus: WhatsAppConnectionStatus = 'stopped';
 
     constructor(options: WhatsAppConnectionOptions) {
         this.options = options;
+    }
+
+    /** The connection status; `notify` is its only writer. */
+    get status(): WhatsAppConnectionStatus {
+        return this.currentStatus;
     }
 
     protected report(error: unknown) {
@@ -73,7 +78,7 @@ export class WhatsAppGenerations {
             return;
         }
 
-        this.status = next;
+        this.currentStatus = next;
 
         if (this.options.onStatus) {
             try {
