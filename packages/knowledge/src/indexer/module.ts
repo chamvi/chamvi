@@ -184,6 +184,12 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         }
 
         await advanceLockFence(repository, name, lock);
+
+        // a stall inside the advance may have outlasted the lease: never a write with that token then
+        if (!await lock.renew()) {
+            return;
+        }
+
         stored = await repository.findOneCollection(name);
     }
 
@@ -252,9 +258,10 @@ export async function syncCollection(input: SyncCollectionInput): Promise<void> 
         // the record exists from here on: the writes that follow carry its fence
         const fence = await advanceLockFence(repository, name, lock);
 
-        // deleted (or deleted and created again) since the create: never a write without
-        // a token, nor one into another row of the name
-        if (fence?.id !== saved.id) {
+        // a stall inside the advance may have outlasted the lease (never a write with that
+        // token then); deleted (or deleted and created again) since the create: never a
+        // write without a token, nor one into another row of the name
+        if (!await lock.renew() || fence?.id !== saved.id) {
             return;
         }
     }
@@ -431,7 +438,8 @@ async function recordErrorUnderLock(
         // a pass that failed before it had a token: never a write without one
         await advanceLockFence(repository, name, lock);
 
-        if (lock.fence === undefined) {
+        // a stall inside the advance may have outlasted the lease: never a write with that token then
+        if (lock.fence === undefined || !await lock.renew()) {
             return false;
         }
     }
@@ -522,8 +530,8 @@ function idleWaitOf(dueIn: number | undefined, checkMs: number | undefined): num
  * meanwhile waits for it too. A configuration error
  * (InvalidAgentDefinitionError) is stored and reported once and ends the
  * loop. A failed lock acquire or store read is only reported and retried on
- * this loop's own backoff. Each pass first renews the lock and advances the
- * collection's fence (`lock.fence`); a write the fence refuses (`LeaseLostError`: another owner
+ * this loop's own backoff. Each pass first renews the lock, advances the
+ * collection's fence (`lock.fence`) and renews again (no pass when it fails); a write the fence refuses (`LeaseLostError`: another owner
  * took the lock) ends the pass like a lost lock: nothing reported or stored,
  * no backoff. With `checkMs`, an idle loop also reads its record that often:
  * a missing one (deleted on another replica) or one no pass completed yet
@@ -620,7 +628,11 @@ export async function runCollection(input: CollectionLoopInput): Promise<void> {
                     wake.clear();
                     // a pass that lost the lock before this advance writes nothing more
                     await advanceLockFence(repository, name, lock);
-                    await input.pass(lock, report);
+
+                    // a stall inside the advance may have outlasted the lease: never a pass with that token then
+                    if (await lock.renew()) {
+                        await input.pass(lock, report);
+                    }
                 }
             } catch (error) {
                 if (isLeaseLost(error)) {
@@ -717,8 +729,16 @@ export async function markOrphans(
             continue;
         }
 
+        const lock = createIndexLock(locks, key, owner, clock);
+
         try {
             const fence = await repository.advanceFence(candidate.name);
+
+            // a stall inside the advance may have outlasted the lease: never a mark with that token then
+            if (!await lock.renew()) {
+                continue;
+            }
+
             const record = await repository.findOneCollection(candidate.name);
 
             if (fence && isOrphan(record)) {

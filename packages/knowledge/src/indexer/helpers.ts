@@ -142,7 +142,12 @@ export function writeOptionsOf(lock: KnowledgeIndexLock): KnowledgeWriteOptions 
     return lock.fence === undefined ? {} : { fence: lock.fence };
 }
 
-/** Advances the collection's fence and gives `lock` the new token (none for a missing collection); answers it. */
+/**
+ * Advances the collection's fence and gives `lock` the new token (none for a
+ * missing collection); answers it. Every caller renews the lock right after
+ * and writes nothing when that fails: a holder stalled inside the advance
+ * past its lease never uses the token it got over the current owner's.
+ */
 export async function advanceLockFence(
     repository: Pick<IKnowledgeService, 'advanceFence'>,
     name: string,

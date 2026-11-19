@@ -349,8 +349,9 @@ export async function syncManaged(input: SyncManagedInput): Promise<void> {
 
         await advanceLockFence(repository, name, lock);
 
-        if (lock.fence === undefined) {
-            // gone again: nothing to write, and never a write without a token
+        // gone again (nothing to write, and never a write without a token), or a stall
+        // inside the advance outlasted the lease (never a write with that token)
+        if (lock.fence === undefined || !await lock.renew()) {
             return;
         }
 

@@ -579,6 +579,82 @@ describe('the indexing lock', () => {
         expect(setup.errors).toEqual([]);
     });
 
+    it('a replica held inside its fence advance past the lease writes nothing over the current owner', async () => {
+        const setup = createIndexerSetup();
+        const seeded = start(setup, 'seed', mockEmbeddingModel());
+
+        await waitForReady(setup.repository, 'docs');
+        await seeded.stop();
+
+        const before = (await setup.repository.findOneCollection('docs'))!;
+        const replicaA = createKnowledge(setup.options({
+            owner: 'replica-a',
+            collections: [knowledgeCollection('docs', { model: mockEmbeddingModel(), sources: [mapSource(docs)] })],
+        }));
+        const { service } = replicaA;
+        const advance = service.advanceFence.bind(service);
+        const gate = Promise.withResolvers<void>();
+
+        openGates.push(gate.resolve);
+
+        // A renewed its lock, then stalls inside the advance (before the row is read)
+        const fences = vi.spyOn(service, 'advanceFence').mockImplementationOnce(async (name) => {
+            await gate.promise;
+
+            return advance(name);
+        });
+        const writes = [
+            vi.spyOn(service, 'saveCollection'),
+            vi.spyOn(service, 'saveDocument'),
+            vi.spyOn(service, 'replaceChunks'),
+            vi.spyOn(service, 'deleteGeneration'),
+            vi.spyOn(service, 'deleteGenerationsExcept'),
+            vi.spyOn(service, 'deleteDocument'),
+        ];
+
+        started.push(replicaA);
+        replicaA.start();
+
+        await expect.poll(() => fences.mock.calls.length).toBe(1);
+
+        // A's lease runs out: B acquires, advances the fence and is mid-pass when A resumes
+        setup.clock.advance(KNOWLEDGE_LOCK_TTL_MS + 1);
+
+        const held = gatedSource();
+
+        openGates.push(held.open);
+        start(setup, 'replica-b', mockEmbeddingModel(), held.source);
+
+        await expect.poll(() => held.held()).toBe(true);
+        expect(acquiresOf(setup, 'replica-b')).toEqual([true]);
+
+        gate.resolve();
+
+        await expect.poll(() => fences.mock.settledResults[0]?.type).toBe('fulfilled');
+        await expect.poll(() => acquiresOf(setup, 'replica-a')).toEqual([true, false]);
+        await settle();
+
+        // A's newer token is never used: its renew after the advance failed
+        for (const write of writes) {
+            expect(write).not.toHaveBeenCalled();
+        }
+
+        // B's next fenced write is refused, it ends quietly and converges on its retry
+        held.open();
+
+        await vi.waitFor(async () => {
+            setup.clock.advance(KNOWLEDGE_RETRY_MS);
+            await settle();
+
+            const collection = await setup.repository.findOneCollection('docs');
+
+            expect(collection?.syncedAt?.getTime()).toBeGreaterThan(before.syncedAt!.getTime());
+        });
+        expect(await setup.repository.findOneCollection('docs')).toMatchObject({ status: 'ready', generation: 1 });
+        expect(await setup.repository.findDocumentIds('docs')).toEqual(['a.md', 'b.md', 'c.md']);
+        expect(setup.errors).toEqual([]);
+    });
+
     it('a pass whose record appeared after the fence was advanced writes with a fence', async () => {
         const setup = createIndexerSetup();
         const knowledge = setup.adopt(start(setup, 'replica-a', mockEmbeddingModel()));
