@@ -64,6 +64,7 @@ const ROUTES: [string, string, string][] = [
     ['/runs/{id}/artifacts/{artifactId}', 'get', 'run'],
     ['/runs/{id}/cancel', 'post', 'run'],
     ['/runs/{id}/approve', 'post', 'run'],
+    ['/runs/{id}/wake', 'post', 'run'],
     ['/connections', 'get', 'connection'],
     ['/connections/{name}', 'get', 'connection'],
     ['/connections/{name}', 'delete', 'connection'],
@@ -86,12 +87,13 @@ const SCHEMAS = '#/components/schemas/';
  * The routes that answer a success status other than 200, `[path, method,
  * status, body schema]`: the one list. `@DStatus` sets the status at
  * runtime and documents it; the drift check below sends a real request for
- * each entry.
+ * each entry. No body schema: the route answers without a body.
  */
-const SUCCESS_STATUSES: [string, string, '201' | '202', Schema][] = [
+const SUCCESS_STATUSES: [string, string, '201' | '202', Schema | undefined][] = [
     ['/agents/{name}/runs', 'post', '202', { $ref: `${SCHEMAS}StartRunView` }],
     ['/runs/{id}/cancel', 'post', '202', { $ref: `${SCHEMAS}CancelRunView` }],
     ['/runs/{id}/approve', 'post', '202', { $ref: `${SCHEMAS}ApproveRunView` }],
+    ['/runs/{id}/wake', 'post', '202', undefined],
     ['/connections/{name}/reset', 'post', '202', { $ref: `${SCHEMAS}ConnectionView` }],
     ['/connection-types/{type}/connections', 'post', '201', {
         allOf: [
@@ -137,6 +139,7 @@ const OPEN_VALUES = new Set<string>([
     'RunView.trigger.payload',
     // what a run or a step produced, and a step's input and error: whatever the model or the tool returned
     'RunView.output',
+    'PeerRunView.output',
     'Step.input',
     'Step.output',
     'Step.error',
@@ -395,7 +398,7 @@ describe.skipIf(!document)('the generated openapi document', () => {
             const label = `${method.toUpperCase()} ${path}`;
 
             expect(Object.keys(operation.responses).toSorted(), label).toEqual([status, 'default']);
-            expect(operation.responses[status]?.content, label).toEqual({ 'application/json': { schema } });
+            expect(operation.responses[status]?.content, label).toEqual(schema ? { 'application/json': { schema } } : undefined);
             expect(operation.responses[status]?.description, label).toMatch(status === '201' ? /^Created/ : /^Accepted/);
         }
     });
@@ -628,7 +631,8 @@ describe('the documented success statuses', () => {
         },
     };
     // a create needs a keyring and a declared connection type: `test/unit/connections/config.spec.ts` asserts its 201
-    const elsewhere = new Set(['post /connection-types/{type}/connections']);
+    // a wake needs a peer and a stand-in run: `test/unit/runs/peer.spec.ts` asserts its 202
+    const elsewhere = new Set(['post /connection-types/{type}/connections', 'post /runs/{id}/wake']);
 
     it('probes every entry or names the spec that does', () => {
         const keys = SUCCESS_STATUSES.map(([path, method]) => `${method} ${path}`);
@@ -649,6 +653,7 @@ describe('the documented success statuses', () => {
         const failures: [string, string, Record<string, unknown> | undefined][] = [
             ['POST', '/agents/nope/runs', undefined],
             ['POST', '/runs/missing/cancel', undefined],
+            ['POST', '/runs/missing/wake', undefined],
             ['POST', '/runs/missing/approve', { approvalId: 'x', approved: true }],
             ['POST', '/connections/nope/reset', undefined],
         ];

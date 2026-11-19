@@ -45,6 +45,31 @@ export type RunToolDispatchWait = {
     expiresAt: string;
 };
 
+/**
+ * The run is a remote agent's stand-in waiting on its remote run at a peer
+ * (`runId`, `agent` name the stand-in). `approval` is set while an
+ * approval is pending there or below it; it is answered at the peer
+ * (`url`), never with `approve_run`.
+ */
+export type RunToolRemoteWait = {
+    kind: 'remote';
+    runId: string;
+    agent: string;
+    peer: string;
+    /** The agent's name at the peer. */
+    remoteAgent: string;
+    remoteRunId: string;
+    expiresAt: string;
+    approval?: {
+        /** The remote run waiting on the approval. */
+        runId: string;
+        approvalId: string;
+        title: string;
+        /** The owning app's approval link. */
+        url?: string;
+    };
+};
+
 /** What `run_<agent>` answers. */
 export type RunToolResult = {
     runId: string;
@@ -52,7 +77,7 @@ export type RunToolResult = {
     deduplicated: boolean;
     output?: unknown;
     error?: { code: string; message: string };
-    waiting?: RunToolApprovalWait | RunToolDispatchWait;
+    waiting?: RunToolApprovalWait | RunToolDispatchWait | RunToolRemoteWait;
 };
 
 /** Resolved MCP options; internal. */

@@ -197,6 +197,7 @@ describe('public api', () => {
             'LOGGER',
             'MODELS',
             'OPENAPI_DOCUMENTS',
+            'PEERS',
             'RUN_REPOSITORY',
             'RUN_SERVICE',
             'SERVER',

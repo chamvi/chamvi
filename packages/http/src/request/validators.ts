@@ -5,7 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
-import { isArtifactMediaType } from '@chamvi/core';
+import { AGENT_NAME_MAX_LENGTH, isAgentName, isArtifactMediaType } from '@chamvi/core';
 import { IssueCode, prefixIssuePath } from '@ebec/core';
 import type { Issue } from '@ebec/core';
 import {
@@ -44,6 +44,36 @@ export function isBoolean(): ValidatorDescriptor {
         run: ({ value }) => {
             if (typeof value !== 'boolean') {
                 throw createValidupError(boundReceived(value), IssueCode.VALUE_INVALID, 'must be a boolean');
+            }
+
+            return value;
+        },
+    });
+}
+
+/** A name under core's agent-name rule (`isAgentName()`): agent, channel and role names. */
+export function isName(): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (!isAgentName(value)) {
+                throw createValidupError(
+                    boundReceived(value),
+                    IssueCode.VALUE_INVALID,
+                    `must be lowercase letters and digits in words joined by single hyphens, at most ${AGENT_NAME_MAX_LENGTH} characters`,
+                );
+            }
+
+            return value;
+        },
+    });
+}
+
+/** An integer from `min` to `max`. */
+export function isInteger({ min, max }: { min: number; max: number }): ValidatorDescriptor {
+    return defineValidator({
+        run: ({ value }) => {
+            if (typeof value !== 'number' || !Number.isSafeInteger(value) || value < min || value > max) {
+                throw createValidupError(boundReceived(value), IssueCode.VALUE_INVALID, `must be an integer from ${min} to ${max}`);
             }
 
             return value;

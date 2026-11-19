@@ -35,5 +35,6 @@
     "packages/tool-mail": "0.9.0",
     "packages/tool-calendar": "0.9.0",
     "packages/access": "0.9.0",
-    "packages/http-kit": "0.9.0"
+    "packages/http-kit": "0.9.0",
+    "packages/peer": "0.9.0"
 }

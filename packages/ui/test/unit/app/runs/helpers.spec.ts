@@ -13,14 +13,18 @@ import {
     dispatchCallout,
     formatDuration,
     formatTokens,
+    httpUrl,
     lastStepIndex,
     mergeRunEvent,
     parentOf,
+    remoteCallout,
+    remoteLabel,
     shortId,
     subtreeTotal,
     waitToolName,
 } from '../../../../app/runs/helpers.ts';
 import type { RunDetailState } from '../../../../app/runs/helpers.ts';
+import { approvalWaitOf } from '../../../../app/approvals/helpers.ts';
 import { ALL, allowedOf } from '../../../utils/permissions.ts';
 import { wireRun, wireStep } from '../../../utils/runs.ts';
 
@@ -164,6 +168,42 @@ describe('parentOf', () => {
         expect(parentOf(run)).toEqual({ runId: 'p1', label: 'dispatched from' });
     });
 
+    it('names a peer parent <peer>/<agent> with its origin, unlinked', () => {
+        const base = wireRun();
+        const parent = {
+            kind: 'peer' as const,
+            peer: 'dev',
+            runId: 'remote-p1',
+            standIn: 'stand-in-1',
+            agent: 'maintainer',
+            role: 'notify',
+            depth: 1,
+        };
+
+        expect(parentOf(wireRun({
+            trigger: {
+                ...base.trigger, 
+                channel: 'agent', 
+                parent: { ...parent, origin: 'Ann' }, 
+            }, 
+        }))).toEqual({
+            runId: 'remote-p1',
+            label: 'from dev/maintainer (Ann)',
+            remote: true,
+        });
+        expect(parentOf(wireRun({
+            trigger: {
+                ...base.trigger, 
+                channel: 'agent', 
+                parent, 
+            }, 
+        }))).toEqual({
+            runId: 'remote-p1',
+            label: 'from dev/maintainer',
+            remote: true,
+        });
+    });
+
     it('is undefined without a parent', () => {
         expect(parentOf(wireRun())).toBeUndefined();
     });
@@ -264,5 +304,109 @@ describe('waitToolName', () => {
             },
         }))).toBeUndefined();
         expect(waitToolName(wireRun())).toBeUndefined();
+    });
+});
+
+/** A `javascript:` URL, built so no literal script URL sits in the source. */
+const SCRIPT_URL = ['javascript', 'alert(1)'].join(':');
+
+describe('remote waits', () => {
+    const expiresAt = '2026-01-01T00:00:00.000Z';
+
+    function standIn(remote?: {
+        status: 'waiting';
+        approval?: {
+            runId: string;
+            approvalId: string;
+            title: string;
+            url?: string
+        }
+    }) {
+        return wireRun({
+            status: 'waiting',
+            waiting: {
+                kind: 'remote',
+                id: 'remote',
+                peer: 'dev',
+                agent: 'developer',
+                remoteRunId: 'r-42',
+                expiresAt,
+                ...(remote ? { remote } : {}),
+            },
+        });
+    }
+
+    it('labels a remote agent as <peer>/<agent>', () => {
+        expect(remoteLabel({ peer: 'dev', agent: 'developer' })).toBe('dev/developer');
+    });
+
+    it('shows the remote agent and the remote run id of a stand-in', () => {
+        expect(remoteCallout(standIn())).toEqual({ target: 'dev/developer', remoteRunId: 'r-42' });
+        expect(remoteCallout(standIn({ status: 'waiting' }))).toEqual({ target: 'dev/developer', remoteRunId: 'r-42' });
+    });
+
+    it('adds the remote approval title and the peer link', () => {
+        const run = standIn({
+            status: 'waiting',
+            approval: {
+                runId: 'r-43',
+                approvalId: '1:c1:0',
+                title: 'Push the branch?',
+                url: 'https://dev.example.com/ui/approvals?run=r-43&approval=1%3Ac1%3A0',
+            },
+        });
+
+        expect(remoteCallout(run)).toEqual({
+            target: 'dev/developer',
+            remoteRunId: 'r-42',
+            approval: {
+                title: 'Push the branch?',
+                url: 'https://dev.example.com/ui/approvals?run=r-43&approval=1%3Ac1%3A0',
+            },
+        });
+    });
+
+    it('drops a peer link that is not http(s)', () => {
+        const run = standIn({
+            status: 'waiting',
+            approval: {
+                runId: 'r-43',
+                approvalId: '1:c1:0',
+                title: 'Push the branch?',
+                url: SCRIPT_URL,
+            },
+        });
+
+        expect(remoteCallout(run)?.approval).toEqual({ title: 'Push the branch?', url: undefined });
+    });
+
+    it('is undefined for a run that is not waiting on a remote run', () => {
+        expect(remoteCallout(wireRun())).toBeUndefined();
+        expect(remoteCallout({ ...standIn(), status: 'completed' })).toBeUndefined();
+    });
+
+    it('keeps a stand-in out of the approvals inbox', () => {
+        const run = standIn({
+            status: 'waiting',
+            approval: {
+                runId: 'r-43',
+                approvalId: '1:c1:0',
+                title: 'Push the branch?',
+            },
+        });
+
+        expect(approvalWaitOf(run)).toBeUndefined();
+    });
+});
+
+describe('httpUrl', () => {
+    it('keeps http and https URLs only', () => {
+        expect(httpUrl('https://peer.example.com/ui/approvals?run=1')).toBe('https://peer.example.com/ui/approvals?run=1');
+        expect(httpUrl('http://localhost:3000/x')).toBe('http://localhost:3000/x');
+        expect(httpUrl(SCRIPT_URL)).toBeUndefined();
+        expect(httpUrl('data:text/html,hi')).toBeUndefined();
+        expect(httpUrl('/ui/approvals')).toBeUndefined();
+        expect(httpUrl('')).toBeUndefined();
+        expect(httpUrl(undefined)).toBeUndefined();
     });
 });

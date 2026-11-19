@@ -10,5 +10,6 @@ export type {
     RunSummary,
     RunToolApprovalWait,
     RunToolDispatchWait,
+    RunToolRemoteWait,
     RunToolResult,
 } from './types.ts';

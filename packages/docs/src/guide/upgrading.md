@@ -6,6 +6,8 @@ chamvi is pre-1.0: a minor release may break the API. Each section lists what ch
 
 A connection row is identified by its id, its generation, never by a timestamp: a save made from a form that another save, a WhatsApp reset or a delete and create replaced answers 409 `connection_changed`, and the dashboard keeps the typed values and offers **Reload values**. No migration: the id is the row's existing primary key.
 
+Agents can run in another chamvi app ([Remote agents](/guide/remote-agents)): `defineRemoteAgent()`, the new package `@chamvi/peer` with `peerModule()`, and `AppToken.PEERS`. Nothing changes for an app that configures no peer. `@chamvi/http` adds the route `POST /runs/:id/wake` (peers only; anyone else gets 404) and the error code `peer_start_busy` (503 with `Retry-After`, a peer's start only); a run can store the code `remote_failed`, and a waiting run the wait kind `remote`. A client that switches over `run.waiting.kind` must handle `remote`. `GET /agents` lists a remote agent with `kind: 'remote'` and `remote: { peer, agent }`.
+
 ### Breaking changes
 
 | Change | Before | Replacement |

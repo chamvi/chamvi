@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { PeerRunView } from '@chamvi/core';
 import type { RunStatusLiteral, Step } from '@chamvi/store';
 import type { RunView } from '@chamvi/http';
 import type { EntityQueryInput } from '../../helpers/types.ts';
@@ -15,6 +16,9 @@ export type RunWire = Wire<RunView>;
 export type StepWire = Wire<Step>;
 
 export type RunDetail = RunWire & { steps: StepWire[] };
+
+/** `GET /runs/:id` as a peer principal reads a run it started. */
+export type PeerRunViewWire = Wire<PeerRunView>;
 
 export type RunPage = {
     data: RunWire[];
@@ -53,7 +57,11 @@ export interface IRunAPI {
     /** `GET /runs`, newest first unless the query sorts. */
     getMany(query?: RunListQuery, options?: APIRequestOptions): Promise<RunPage>;
     getOne(id: string, options?: APIRequestOptions): Promise<RunDetail>;
+    /** `GET /runs/:id` answered to a peer principal: the narrow view of a run it started. */
+    getPeerView(id: string, options?: APIRequestOptions): Promise<PeerRunViewWire>;
     cancel(id: string, options?: APIRequestOptions): Promise<void>;
+    /** `POST /runs/:id/wake`: the content-free ping that a peer's stand-in run should poll now. */
+    wake(id: string, options?: APIRequestOptions): Promise<void>;
     approve(id: string, body: ApproveBody, options?: APIRequestOptions): Promise<void>;
     /** The `text/event-stream` body of `GET /runs/:id/stream` (an ApiError for a non-2xx answer). */
     stream(id: string, init: RunStreamInit): Promise<ReadableStream<Uint8Array>>;

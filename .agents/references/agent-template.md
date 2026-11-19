@@ -177,3 +177,7 @@ Built the template against the branch on 2026-11-17: a fresh clone of `main` at 
 ## Components and their status (#235, unreleased)
 
 Checked 2026-11-18 against this file's contract map, not a template checkout: no CLI, env or route the template uses changes; `@chamvi/app` only adds exports (`componentsModule()`, `AppToken.COMPONENTS`, `AppToken.COMPONENT_LIST`, `ModuleName.COMPONENTS`), and the template's `modules` list keeps the built-ins. `GET /components` is new and `components` is now a reserved route segment, so an app controller or route at `/components` is refused at start (the template has none). The `"*"` example tokens hold the new `chamvi_component_read`.
+
+## Remote agents and peers (unreleased)
+
+Checked 2026-11-19 against this file's contract map, not a template checkout: no CLI, env name or route the template uses changes. Additive only: `defineRemoteAgent()` (`@chamvi/core`, re-exported by `@chamvi/app`), `AppToken.PEERS`, the new package `@chamvi/peer` with `peerModule()` on `/module` (not a dependency of the template), one new route `POST /runs/:id/wake` and the error code `peer_start_busy`. `GET /agents` adds an optional `remote` to a remote agent's summary. No template change.

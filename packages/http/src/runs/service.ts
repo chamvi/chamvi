@@ -6,16 +6,18 @@
  */
 
 import { Permission } from '@chamvi/access';
+import { AGENT_CHANNEL_NAME, AgentNotFoundError, RunNotFoundError } from '@chamvi/core';
 import type {
     Agent,
     ChannelSubscription,
     DispatchEnvelope,
 } from '@chamvi/core';
 import type { Artifact, Run } from '@chamvi/store';
+import { BadRequestError } from '@ebec/http';
 import { and, defineQuery, inArray } from '@rapiq/core';
 import type { StandardSchemaV1 } from '@standard-schema/spec';
 import type { Container } from 'validup';
-import { requireAgent } from '../agents/helpers.ts';
+import { agentNotFound, requireAgent } from '../agents/helpers.ts';
 import {
     agentResource,
     assertGranted,
@@ -29,14 +31,18 @@ import { readIdempotencyHeader, validateBody, validatePayload } from '../request
 import {
     assertCanListRuns,
     createApproveContainer,
+    createPeerStartContainer,
     createStartRunContainer,
+    hasPeerFields,
     loadApprovableRun,
+    loadPeerRun,
     loadReadableRun,
     loadRunArtifact,
     parseRunListQuery,
     requireHttpSubscription,
     serializeRun,
     serializeStep,
+    toPeerRunView,
     toRunListRequest,
 } from './helpers.ts';
 import type {
@@ -45,13 +51,14 @@ import type {
     CancelRunView,
     DispatchRunInput,
     IRunHttpService,
+    PeerStartRunBody,
     RunArtifactView,
-    RunDetailView,
     RunFindFilter,
     RunFindView,
     RunHttpServiceContext,
     RunListRequest,
     RunListView,
+    RunReadView,
     StartRunBody,
     StartRunInput,
     StartRunView,
@@ -65,13 +72,27 @@ export class RunHttpService implements IRunHttpService {
 
     protected approveContainer: Container<ApproveBody>;
 
+    protected peerStartContainer: Container<PeerStartRunBody>;
+
     constructor(ctx: RunHttpServiceContext) {
         this.ctx = ctx;
         this.startContainer = createStartRunContainer();
         this.approveContainer = createApproveContainer();
+        this.peerStartContainer = createPeerStartContainer();
     }
 
     async start(input: StartRunInput, principal: Principal): Promise<StartRunView> {
+        // the peer name comes from the credential only, never from the body; a peer
+        // credential always starts through the peer path (its taint and `from` check), so a
+        // body without the peer and role fields is a 400 there, never an ordinary run
+        if (this.recognize(principal) !== undefined) {
+            return this.startPeer(input, principal);
+        }
+
+        if (hasPeerFields(input.data)) {
+            throw new BadRequestError({ message: 'The peer and role fields need a peer credential.' });
+        }
+
         const name = input.agent;
         const { agent, subscription } = await this.resolveStart(name, principal);
 
@@ -145,7 +166,15 @@ export class RunHttpService implements IRunHttpService {
         return loadReadableRun(this.ctx, principal, id);
     }
 
-    async get(id: string, principal: Principal): Promise<RunDetailView> {
+    async get(id: string, principal: Principal): Promise<RunReadView> {
+        const peer = this.recognize(principal);
+
+        if (peer !== undefined) {
+            const run = await loadPeerRun(this.ctx, toInvoker(principal), peer, id);
+
+            return toPeerRunView(this.ctx, run, this.ctx.engine.peers?.approvalUrl?.bind(this.ctx.engine.peers));
+        }
+
         const run = await this.getReadable(id, principal);
 
         return { ...serializeRun(run, this.ctx.agents), steps: (await this.ctx.stepService.find(run.id)).map(serializeStep) };
@@ -164,6 +193,16 @@ export class RunHttpService implements IRunHttpService {
     }
 
     async cancel(id: string, principal: Principal): Promise<CancelRunView> {
+        const peer = this.recognize(principal);
+
+        if (peer !== undefined) {
+            // a peer cancels the runs it started, no grant needed; any other run is 404
+            await loadPeerRun(this.ctx, toInvoker(principal), peer, id);
+            await this.ctx.engine.cancel(id);
+
+            return { runId: id, status: (await this.ctx.engine.getRun(id))?.status };
+        }
+
         await assertGranted(principal, this.ctx.clock, Permission.RUN_CANCEL);
 
         const target = await this.ctx.runService.findOne(id);
@@ -180,7 +219,24 @@ export class RunHttpService implements IRunHttpService {
         return { runId: id, status: run?.status };
     }
 
+    async wake(id: string, principal: Principal): Promise<void> {
+        // a non-peer gets the unknown-run 404
+        if (this.recognize(principal) === undefined) {
+            throw new RunNotFoundError(id);
+        }
+
+        // a peer gets 202 alike for every run: a stand-in that settled or was cancelled meanwhile is routine, no error
+        const outcome = await this.ctx.engine.wake(id, toInvoker(principal));
+
+        // only a fresh mark ticks: a mark already set has its poll coming; a failure is the poll's, not the wake's
+        if (outcome === 'marked') {
+            this.ctx.engine.tick().catch((error: unknown) => this.ctx.onError(error));
+        }
+    }
+
     async approve(id: string, data: ApproveBody, principal: Principal): Promise<ApproveRunView> {
+        this.refusePeerAnswer(id, principal);
+
         // authorize against the run's agent before validating the body
         const run = await loadApprovableRun(this.ctx, principal, id);
         const body = await validateBody(this.approveContainer, data);
@@ -189,6 +245,8 @@ export class RunHttpService implements IRunHttpService {
     }
 
     async answer(id: string, answer: ApproveBody, principal: Principal): Promise<ApproveRunView> {
+        this.refusePeerAnswer(id, principal);
+
         const run = await loadApprovableRun(this.ctx, principal, id);
 
         return this.applyAnswer(run.id, answer, principal);
@@ -208,10 +266,72 @@ export class RunHttpService implements IRunHttpService {
     }
 
     /**
+     * A peer never answers an approval (answering stays with the app that
+     * owns the run), whatever its grants: the unknown-run 404, before any
+     * read, so nothing about the run is revealed.
+     */
+    protected refusePeerAnswer(id: string, principal: Principal): void {
+        if (this.recognize(principal) !== undefined) {
+            throw new RunNotFoundError(id);
+        }
+    }
+
+    /** The peer `principal` authenticates as (`engine.peers.recognize()`), if any. */
+    protected recognize(principal: Principal): string | undefined {
+        return this.ctx.engine.peers?.recognize(toInvoker(principal));
+    }
+
+    /**
+     * A peer's start through `engine.dispatchPeer()` (no `http.on()` needed):
+     * the agent as this app serves it (404), the body (400), then the
+     * engine's checks. An unknown and an ungranted agent answer the same
+     * missing-agent 404, before the body is read, so a peer cannot probe
+     * agents; core's PeerStartBusyError (the count lock held by another
+     * replica) answers 503 with `Retry-After`.
+     */
+    protected async startPeer(input: StartRunInput, principal: Principal): Promise<StartRunView> {
+        const name = input.agent;
+        const current = this.ctx.agents.get(name);
+
+        if (!current || !await isGranted(principal, Permission.AGENT_RUN, this.ctx.clock, agentResource(name, current))) {
+            throw agentNotFound(name);
+        }
+
+        const body = await validateBody(this.peerStartContainer, input.data);
+        const idempotencyKey = body.idempotencyKey ?? readIdempotencyHeader(input.idempotencyHeader ?? null);
+        const envelope: DispatchEnvelope = {
+            agent: name,
+            trigger: body.role,
+            channel: AGENT_CHANNEL_NAME,
+            payload: body.payload,
+            ...(idempotencyKey !== undefined ? { idempotencyKey } : {}),
+            ...(body.address !== undefined ? { address: body.address } : {}),
+            ...(body.attachments?.length ? { attachments: body.attachments } : {}),
+            invoker: toInvoker(principal),
+        };
+
+        try {
+            return await this.ctx.engine.dispatchPeer(envelope, { ...body.peer, role: body.role });
+        } catch (error) {
+            // core checks the grant again (changed since): the same missing-agent 404
+            if (error instanceof AgentNotFoundError) {
+                throw agentNotFound(name);
+            }
+
+            throw error;
+        }
+    }
+
+    /**
      * The engine's dispatch envelope for `input`, its payload validated
      * against the subscription's schema.
      */
     protected async toDispatchEnvelope(input: DispatchRunInput, principal: Principal): Promise<DispatchEnvelope> {
+        // a peer starts runs only through POST /agents/:name/runs with the peer fields (dispatchPeer())
+        if (this.recognize(principal) !== undefined) {
+            throw new BadRequestError({ message: 'A peer credential starts runs only with the peer and role fields of POST /agents/:name/runs.' });
+        }
+
         const { agent, subscription } = input;
         const payload = await validatePayload(subscription.options.schema as StandardSchemaV1 | undefined, input.payload);
 

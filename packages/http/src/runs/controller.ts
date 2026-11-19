@@ -33,8 +33,8 @@ import type {
     CancelRunView,
     IRunHttpService,
     RunControllerContext,
-    RunDetailView,
     RunListView,
+    RunReadView,
     StartRunRequestBody,
     StartRunView,
 } from './types.ts';
@@ -78,12 +78,12 @@ export class RunController {
         return this.service.list(event.searchParams, await usePrincipal(event));
     }
 
-    /** The run with its steps. */
+    /** The run with its steps; a peer gets the peer view of a run it started. */
     @DGet('/runs/:id', [ForceLoggedInMiddleware])
     async get(
         @DPath('id') id: string,
         @DContext() event: IAppEvent,
-    ): Promise<RunDetailView> {
+    ): Promise<RunReadView> {
         return this.service.get(id, await usePrincipal(event));
     }
 
@@ -142,6 +142,20 @@ export class RunController {
         @DContext() event: IAppEvent,
     ): Promise<CancelRunView> {
         return this.service.cancel(id, await usePrincipal(event));
+    }
+
+    /** A peer's content-free wake of its stand-in run: the next poll of its remote run happens at once. */
+    @DPost('/runs/:id/wake', [ForceLoggedInMiddleware])
+    @DStatus(202)
+    @DReturns<void>(202, 'Accepted, without a body: the stand-in run polls its remote run at once.')
+    async wake(
+        @DPath('id') id: string,
+        @DContext() event: IAppEvent,
+    ): Promise<Response> {
+        await this.service.wake(id, await usePrincipal(event));
+
+        // from the response headers, so CORS and RateLimit-* survive
+        return new Response(null, { status: 202, headers: new Headers(event.response.headers) });
     }
 
     /** Answers the run's approval wait point. */

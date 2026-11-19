@@ -5,6 +5,7 @@
  * view the LICENSE file that was distributed with this source code.
  */
 
+import type { PeerStartInput } from '@chamvi/core';
 import type { AgentIssue, AgentSummary } from '@chamvi/http';
 import type { APIRequestOptions, Wire } from '../types.ts';
 
@@ -18,10 +19,27 @@ export type AgentList = {
     issues: AgentIssueWire[];
 };
 
+/** The caller's lineage on a peer start: the stand-in run, the calling run, its taint and the origin name. */
+export type PeerStartWire = Wire<PeerStartInput['peer']>;
+
+/** One attachment of a start as sent: the bytes in base64. */
+export type AttachmentWire = {
+    /** `type/subtype`, e.g. `image/png`. */
+    mediaType: string;
+    filename?: string;
+    data: string;
+};
+
 export type StartRunBody = {
     payload: unknown;
     /** Dedupes a retried start (scoped to the agent, the source and the principal). */
     idempotencyKey?: string;
+    /** Stored as artifacts of the run (at most `MAX_ATTACHMENTS` of `@chamvi/http`, bounded by its body limit). */
+    attachments?: AttachmentWire[];
+    /** The `agent.on()` role a peer start targets. */
+    role?: string;
+    /** Sent only by a peer app: the server refuses it from any other principal. */
+    peer?: PeerStartWire;
 };
 
 export type StartRunResult = { runId: string; deduplicated: boolean };

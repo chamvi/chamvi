@@ -131,6 +131,29 @@ const APPROVAL_WAIT: WaitPoint = {
     expiresAt: new Date(1000),
 };
 
+const REMOTE_WAIT: WaitPoint = {
+    kind: 'remote',
+    id: 'remote',
+    peer: 'dev',
+    agent: 'developer',
+    remoteRunId: 'remote-1',
+    expiresAt: new Date(1000),
+};
+
+const REMOTE_APPROVAL_WAIT: WaitPoint = {
+    ...REMOTE_WAIT,
+    remote: {
+        status: 'waiting',
+        approval: {
+            runId: 'remote-2',
+            approvalId: '0:c9:0',
+            title: 'Merge?',
+            url: 'https://dev.example/ui/approvals?run=remote-2&approval=0%3Ac9%3A0',
+            notifiedAt: new Date(500),
+        },
+    },
+};
+
 describe('toRunToolResult', () => {
     it('serializes an approval wait', () => {
         const result = toRunToolResult(buildRun('waiting', APPROVAL_WAIT), false, true);
@@ -172,6 +195,36 @@ describe('toRunToolResult', () => {
         });
     });
 
+    it('serializes a remote wait, with the approval pending at the peer and its link', () => {
+        expect(toRunToolResult(buildRun('waiting', REMOTE_WAIT), false, true).waiting).toEqual({
+            kind: 'remote',
+            runId: 'r1',
+            agent: 'gate',
+            peer: 'dev',
+            remoteAgent: 'developer',
+            remoteRunId: 'remote-1',
+            expiresAt: new Date(1000).toISOString(),
+        });
+
+        const standIn = { ...buildRun('waiting', REMOTE_APPROVAL_WAIT, 'stand-in', 'r1'), agent: 'developer' };
+
+        expect(toRunToolResult(buildRun('waiting', DISPATCH_WAIT), false, true, standIn).waiting).toEqual({
+            kind: 'remote',
+            runId: 'stand-in',
+            agent: 'developer',
+            peer: 'dev',
+            remoteAgent: 'developer',
+            remoteRunId: 'remote-1',
+            expiresAt: new Date(1000).toISOString(),
+            approval: {
+                runId: 'remote-2',
+                approvalId: '0:c9:0',
+                title: 'Merge?',
+                url: 'https://dev.example/ui/approvals?run=remote-2&approval=0%3Ac9%3A0',
+            },
+        });
+    });
+
     it('answers only the run id, status and deduplicated when not readable', () => {
         const run = {
             ...buildRun('failed', APPROVAL_WAIT), 
@@ -206,6 +259,20 @@ describe('findWaitingApproval', () => {
 
         await ready;
         expect((await findWaitingApproval(engine, 'r1'))?.id).toBe('r1');
+    });
+
+    it('is a stand-in whose remote run waits on an approval, itself or below a dispatch', async () => {
+        const { engine, ready } = engineOver([
+            buildRun('waiting', REMOTE_APPROVAL_WAIT),
+            buildRun('waiting', DISPATCH_WAIT, 'p1'),
+            buildRun('waiting', REMOTE_APPROVAL_WAIT, 's1', 'p1'),
+            buildRun('waiting', REMOTE_WAIT, 'quiet'),
+        ]);
+
+        await ready;
+        expect((await findWaitingApproval(engine, 'r1'))?.id).toBe('r1');
+        expect((await findWaitingApproval(engine, 'p1'))?.id).toBe('s1');
+        expect(await findWaitingApproval(engine, 'quiet')).toBeUndefined();
     });
 
     it('finds a waiting grandchild breadth-first, skipping settled children', async () => {
@@ -273,10 +340,12 @@ describe('isWaitOver', () => {
         expect(isWaitOver(buildRun('failed'))).toBe(true);
         expect(isWaitOver(buildRun('cancelled'))).toBe(true);
         expect(isWaitOver(buildRun('waiting', APPROVAL_WAIT))).toBe(true);
+        expect(isWaitOver(buildRun('waiting', REMOTE_APPROVAL_WAIT))).toBe(true);
     });
 
     it('is false for a dispatch wait and an unsettled run', () => {
         expect(isWaitOver(buildRun('waiting', DISPATCH_WAIT))).toBe(false);
+        expect(isWaitOver(buildRun('waiting', REMOTE_WAIT))).toBe(false);
         expect(isWaitOver(buildRun('queued'))).toBe(false);
         expect(isWaitOver(buildRun('running'))).toBe(false);
         expect(isWaitOver(buildRun('interrupted'))).toBe(false);

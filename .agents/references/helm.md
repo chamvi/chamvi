@@ -178,3 +178,7 @@ Checked 2026-11-17 against this file's contract map: no CLI argument, exit code 
 ## Components and their status (#235, unreleased)
 
 Checked 2026-11-18 against this file's contract map: no CLI argument, exit code, signal, env name or default, port, probe, image or sandbox RBAC changes, so the chart needs no change. `GET <basePath>/components` (permission `chamvi_component_read`) is a new route the chart does not use; `/healthz`, `/readyz` and `/metrics` are unchanged. The background jobs stop in the `stopping` phase, before the drain, and share one `CHAMVI_DRAIN_TIMEOUT_MS` budget with it (the drain gets what the stop left), so the shutdown's worst case is unchanged (cli.md → *Signals*: 70 s with the defaults, under `CHAMVI_FORCE_EXIT_MS` 90 s) and the grace guard holds.
+
+## Remote agents and peers (unreleased)
+
+Checked 2026-11-19 against this file's contract map: no CLI argument, exit code, signal, env name or default, port, probe, image or sandbox RBAC changes, so the chart needs no change. New: one route, `POST <basePath>/runs/:id/wake` (peers only), under `basePath` like every route, so the Ingress prefix covers it; the error code `peer_start_busy` (503 with `Retry-After`). A peer's incoming static token is an ordinary `CHAMVI_TOKENS` entry (through `secrets`); its outgoing secret and the peer URLs are the app's own configuration of `peerModule()` (`@chamvi/peer/module`), which the app reads from whatever env names it chooses. The peer's approval link reuses the derived `CHAMVI_PUBLIC_URL`.

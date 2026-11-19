@@ -8,7 +8,10 @@
 import {
     APPROVAL_OPTIONS_MAX,
     ArtifactNotFoundError,
+    DISPATCH_DEPTH_MAX,
     RunNotFoundError,
+    findApprovalWaitBelow,
+    pendingApprovalOf,
 } from '@chamvi/core';
 import { RunStatus } from '@chamvi/store';
 import type {
@@ -16,6 +19,7 @@ import type {
     ArtifactInput,
     ChannelSubscription,
     IClock,
+    PeerRunView,
 } from '@chamvi/core';
 import type {
     Artifact,
@@ -46,7 +50,9 @@ import {
     isBase64,
     isBoolean,
     isDefined,
+    isInteger,
     isMediaType,
+    isName,
     isString,
     isStringArray,
 } from '../request/validators.ts';
@@ -57,10 +63,13 @@ import {
     APPROVAL_REASON_MAX_LENGTH,
     ATTACHMENT_FILENAME_MAX_LENGTH,
     MAX_ATTACHMENTS,
+    PEER_ORIGIN_MAX_LENGTH,
 } from './constants.ts';
 import type {
     ApproveBody,
     InvokerView,
+    PeerStartBody,
+    PeerStartRunBody,
     RunFindFilter,
     RunListRequest,
     RunView,
@@ -237,6 +246,92 @@ export function createStartRunContainer(): Container<StartRunBody> {
     container.mount('attachments', { optional: true }, isArrayOf(createAttachmentContainer(), { max: MAX_ATTACHMENTS }));
 
     return container;
+}
+
+/** A peer's start: the start body with `role` and `peer` required; unknown keys are dropped. */
+export function createPeerStartContainer(): Container<PeerStartRunBody> {
+    const container = new Container<PeerStartRunBody>();
+    const parent = new Container<PeerStartBody['parent']>();
+    const peer = new Container<PeerStartBody>();
+
+    parent.mount('runId', isString({ min: 1, max: KEY_MAX_LENGTH }));
+    parent.mount('agent', isName());
+    parent.mount('depth', isInteger({ min: 0, max: DISPATCH_DEPTH_MAX }));
+
+    peer.mount('standIn', isString({ min: 1, max: KEY_MAX_LENGTH }));
+    peer.mount('parent', parent);
+    peer.mount('taint', isBoolean());
+    peer.mount('origin', { optional: true }, isString({ min: 1, max: PEER_ORIGIN_MAX_LENGTH }));
+
+    container.mount('payload', { optional: true }, isDefined());
+    container.mount('idempotencyKey', { optional: true }, isString({ min: 1, max: KEY_MAX_LENGTH }));
+    container.mount('address', { optional: true }, isString({ min: 1, max: KEY_MAX_LENGTH }));
+    container.mount('attachments', { optional: true }, isArrayOf(createAttachmentContainer(), { max: MAX_ATTACHMENTS }));
+    container.mount('role', isName());
+    container.mount('peer', peer);
+
+    return container;
+}
+
+/** Whether an unvalidated start body names a peer field (`peer` or `role`). */
+export function hasPeerFields(data: unknown): boolean {
+    return isObject(data) && (data.peer !== undefined || data.role !== undefined);
+}
+
+/**
+ * A run the peer `peer` (authenticated as `invoker`) started: its trigger's
+ * invoker has the invoker's id and kind, and its parent is a `peer` parent of
+ * that peer. Any other run, and a missing one, is the same RunNotFoundError (404),
+ * so a peer cannot probe run ids.
+ */
+export async function loadPeerRun(ctx: Pick<HttpContext, 'runService'>, invoker: Invoker, peer: string, id: string): Promise<Run> {
+    const run = await ctx.runService.findOne(id);
+    const starter = run?.trigger.invoker;
+    const parent = run?.trigger.parent;
+
+    if (!run || starter?.id !== invoker.id || starter.kind !== invoker.kind || parent?.kind !== 'peer' || parent.peer !== peer) {
+        throw new RunNotFoundError(id);
+    }
+
+    return run;
+}
+
+/**
+ * The peer view of `run`: its status, wait kind, output, error, whether it
+ * is tainted, its usage plus its subtree usage, and the approval pending in
+ * it or below it (`pendingApprovalOf()`, else `findApprovalWaitBelow()`). An approval of
+ * this app (an approval wait point) gets this app's link
+ * (`approvalUrl`); a remote one keeps the link its owner gave, if any.
+ */
+export async function toPeerRunView(
+    ctx: Pick<HttpContext, 'runService'>,
+    run: Run,
+    approvalUrl: ((ref: { runId: string; approvalId: string }) => string | undefined) | undefined,
+): Promise<PeerRunView> {
+    const holder = pendingApprovalOf(run) ? run : await findApprovalWaitBelow(ctx.runService, run);
+    const pending = holder ? pendingApprovalOf(holder) : undefined;
+    let approval = pending;
+
+    if (pending && pending.url === undefined && holder?.waiting?.kind === 'approval') {
+        const url = approvalUrl?.({ runId: pending.runId, approvalId: pending.approvalId });
+
+        approval = url !== undefined ? { ...pending, url } : pending;
+    }
+
+    return {
+        id: run.id,
+        status: run.status,
+        ...(run.status === RunStatus.WAITING && run.waiting ? { waiting: run.waiting.kind } : {}),
+        ...(approval ? { approval } : {}),
+        ...(run.output !== undefined ? { output: run.output } : {}),
+        ...(run.error ? { error: { code: run.error.code, message: run.error.message } } : {}),
+        tainted: run.taint !== undefined,
+        // the run's own usage plus its children's, so the caller's maxSubtreeTokens counts the whole remote tree
+        usage: {
+            inputTokens: run.usage.inputTokens + (run.subtreeUsage?.inputTokens ?? 0),
+            outputTokens: run.usage.outputTokens + (run.subtreeUsage?.outputTokens ?? 0),
+        },
+    };
 }
 
 /** One attachment; unknown keys are dropped. */
