@@ -267,6 +267,9 @@ export class Engine implements IEngine {
                 ...this.context,
                 ...this.dispatchContext(),
                 peers: opts.peers,
+                // through the engine's public lookups, so a subclass or a spy sees them
+                getAgent: (name) => this.getAgent(name),
+                getChannel: (name) => this.getChannel(name),
                 peerEvent: (run) => this.peerReceiver?.onRunEvent(run),
             };
 
@@ -285,6 +288,7 @@ export class Engine implements IEngine {
             // the context's lockService, runService, getAgent, clock, owner and claimTtlMs
             ...this.context,
             concurrencyMaxRuns: opts.concurrencyMaxRuns ?? 4,
+            getAgent: (name) => this.getAgent(name),
             execute: (run) => this.runner.guardedExecute(run),
             onError: (error, run) => this.onError(error, run),
             onRunUpdated: (run) => this.context.emit({ type: 'run.updated', run }),
