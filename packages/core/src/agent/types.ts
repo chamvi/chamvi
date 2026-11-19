@@ -273,7 +273,7 @@ export type RemoteAgentDefinition = {
     toolsContext?: never;
 };
 
-export type AgentDefinition<S extends StateSchema = StateSchema> = ModelAgentDefinition<S> | SimpleAgentDefinition<S>;
+export type AgentDefinition<S extends StateSchema = StateSchema> = ModelAgentDefinition<S> | SimpleAgentDefinition<S> | RemoteAgentDefinition;
 
 /** defineModelAgent()'s result: its definition with the budget defaults applied. */
 export type ModelAgent<S extends StateSchema = StateSchema> = {

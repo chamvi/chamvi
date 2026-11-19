@@ -167,14 +167,14 @@ export function assertAgentKind(agent: Agent): void {
 }
 
 /** `description`, when given, is a non-empty string. */
-export function assertDescription(def: Pick<AgentDefinition | RemoteAgentDefinition, 'name' | 'description'>): void {
+export function assertDescription(def: Pick<AgentDefinition, 'name' | 'description'>): void {
     if (def.description !== undefined && (typeof def.description !== 'string' || def.description.trim().length === 0)) {
         throw new InvalidAgentDefinitionError(`Agent "${def.name}": "description" must be a non-empty string.`);
     }
 }
 
 /** `private`, when given, is a boolean. */
-export function assertPrivate(def: Pick<AgentDefinition | RemoteAgentDefinition, 'name' | 'private'>): void {
+export function assertPrivate(def: Pick<AgentDefinition, 'name' | 'private'>): void {
     if (def.private !== undefined && typeof def.private !== 'boolean') {
         throw new InvalidAgentDefinitionError(`Agent "${def.name}": private must be a boolean.`);
     }

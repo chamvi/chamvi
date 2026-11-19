@@ -34,7 +34,6 @@ import {
     conversationKey,
 } from './asserts.ts';
 import type {
-    AgentDefinition,
     ModelAgent,
     ModelAgentDefinition,
     RemoteAgent,
@@ -120,7 +119,9 @@ function assertSubscriptions(agent: string, channels: ChannelSubscription[] | un
 }
 
 /** The checks the model and simple kinds share, then the definition with its budget defaults. */
-function build<S extends StateSchema>(def: AgentDefinition<S>): { name: string; definition: AgentDefinition<S> } {
+function build<S extends StateSchema>(
+    def: ModelAgentDefinition<S> | SimpleAgentDefinition<S>,
+): { name: string; definition: ModelAgentDefinition<S> | SimpleAgentDefinition<S> } {
     assertDescription(def);
     assertPrivate(def);
 
@@ -159,7 +160,7 @@ function build<S extends StateSchema>(def: AgentDefinition<S>): { name: string; 
             timeoutMs: DEFAULT_TIMEOUT_MS,
             ...def.budget,
         },
-    } as AgentDefinition<S>;
+    } as ModelAgentDefinition<S> | SimpleAgentDefinition<S>;
 
     return { name: def.name, definition };
 }

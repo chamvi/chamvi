@@ -27,6 +27,7 @@ import type {
     ModelAgent,
     ModelAgentDefinition,
     RemoteAgent,
+    RemoteAgentDefinition,
     SimpleAgent,
     SimpleAgentDefinition,
     SimpleRunContext,
@@ -324,7 +325,8 @@ describe('simple agents', () => {
     });
 
     it('types the union', () => {
-        expectTypeOf<AgentDefinition>().toEqualTypeOf<ModelAgentDefinition | SimpleAgentDefinition>();
+        expectTypeOf<AgentDefinition>().toEqualTypeOf<ModelAgentDefinition | SimpleAgentDefinition | RemoteAgentDefinition>();
+        expectTypeOf<Agent['definition']>().toMatchTypeOf<AgentDefinition>();
         expectTypeOf<SimpleAgentDefinition['model']>().toEqualTypeOf<undefined>();
         expectTypeOf<ModelAgentDefinition['run']>().toEqualTypeOf<undefined>();
         expectTypeOf<SimpleRunContext>().toMatchTypeOf<ToolContext>();
