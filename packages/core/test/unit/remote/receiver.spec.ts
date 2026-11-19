@@ -35,6 +35,7 @@ import type {
 import { RunStatus } from '@chamvi/store';
 import type { Invoker, Run } from '@chamvi/store';
 import { stableHash } from '../../../src/effect/helpers.ts';
+import { peerNotifyKey } from '../../../src/engine/remote/receiver.ts';
 import { ControllableClock } from '../../utils/clock.ts';
 import { createTestServices, servicesOf } from '../../utils/engine.ts';
 import type { TestServiceSet } from '../../utils/engine.ts';
@@ -599,15 +600,25 @@ describe('the receiver: ping and notification', () => {
         expect(chat[0]!.address).toBe('dev-room');
         expect(chat[0]!.message).toMatchObject({
             kind: 'message',
-            key: `peer-notify:${runId}:${approvalId}`,
+            key: peerNotifyKey('dev', runId, { runId, approvalId }),
             runId,
             agent: 'gated',
             title: 'Go?',
         });
         expect(chat[0]!.message.body).toContain(`https://me.example/ui/approvals?run=${runId}&approval=${approvalId}`);
         expect(chat[0]!.message).not.toHaveProperty('approvalId');
-        expect(await store.effectService.findOne(`peer-notify:${runId}:${approvalId}`)).toBeDefined();
+        expect(await store.effectService.findOne(peerNotifyKey('dev', runId, { runId, approvalId }))).toBeDefined();
         expect(errors).toEqual([]);
+    });
+
+    it('scopes the notification key to the recipient peer and the local holder, bounded in length', () => {
+        const approval = { runId: 'r'.repeat(400), approvalId: 'a'.repeat(400) };
+        const key = peerNotifyKey('dev', 'holder-1', approval);
+
+        expect(key).toMatch(/^peer-notify:dev:holder-1:[0-9a-f]{64}$/);
+        expect(peerNotifyKey('dev', 'holder-2', approval)).not.toBe(key);
+        expect(peerNotifyKey('ops', 'holder-1', approval)).not.toBe(key);
+        expect(peerNotifyKey('dev', 'holder-1', approval)).toBe(key);
     });
 
     it('notifies an approval in a grandchild of the peer-started run', async () => {

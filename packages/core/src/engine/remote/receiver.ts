@@ -7,15 +7,22 @@
 
 import type { PeerParent, RemoteApproval, Run } from '@chamvi/store';
 import { pendingApprovalOf } from '../../dispatch/descendants.ts';
+import { stableHash } from '../../effect/helpers.ts';
 import { ancestorsOf, isSettled } from '../../dispatch/helpers.ts';
 import { ChannelNotFoundError, TimeoutError } from '../../errors/index.ts';
 import { deliverOnce } from '../notify/module.ts';
 import { peerRequest } from './helpers.ts';
 import type { ReceiverContext } from './types.ts';
 
-/** The key of the receiver's notification of an approval: `peer-notify:<runId>:<approvalId>`, `runId` the run holding it. */
-export function peerNotifyKey(approval: Pick<RemoteApproval, 'runId' | 'approvalId'>): string {
-    return `peer-notify:${approval.runId}:${approval.approvalId}`;
+/**
+ * The key of the receiver's notification of an approval to `peer`:
+ * `peer-notify:<peer>:<holderRunId>:<hash>`, the hash over the approval's
+ * run and approval id. Scoped to the recipient and the local holder, so a
+ * downstream peer reporting colliding ids cannot suppress another
+ * notification, and bounded in length whatever ids a peer reports.
+ */
+export function peerNotifyKey(peer: string, holderRunId: string, approval: Pick<RemoteApproval, 'runId' | 'approvalId'>): string {
+    return `peer-notify:${peer}:${holderRunId}:${stableHash({ runId: approval.runId, approvalId: approval.approvalId })}`;
 }
 
 function peerParentOf(run: Run): PeerParent | undefined {
@@ -42,7 +49,7 @@ function sendWake(ctx: ReceiverContext, run: Run, parent: PeerParent): void {
  * one) to the fixed `approvals` destination of `peer`, once per approval:
  * a plain message (title, and a body with the approval link: this app's
  * own for its own approval, the owning app's for a remote one), keyed
- * `peer-notify:<runId>:<approvalId>`. The sent notification is recorded as
+ * `peerNotifyKey()`. The sent notification is recorded as
  * an effect under that key (the wait point's `notifiedAt` belongs to the
  * run's own destination), checked under the store lock `notify:<key>`.
  */
@@ -60,7 +67,7 @@ async function notifyApproval(ctx: ReceiverContext, holder: Run, peer: string, s
         throw new ChannelNotFoundError(destination.channel);
     }
 
-    const key = peerNotifyKey(approval);
+    const key = peerNotifyKey(peer, holder.id, approval);
     // an approval of this app's own run links to this app; a remote one to the app that owns it
     const url = approval.runId === holder.id ?
         ctx.peers.approvalUrl?.({ runId: approval.runId, approvalId: approval.approvalId }) :
