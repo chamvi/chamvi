@@ -80,7 +80,7 @@ describe('deliverOnce store waits', () => {
         expect(t.delivery.fail).toHaveBeenCalledWith(t.timeout, expect.any(AbortSignal));
     });
 
-    it('resolves when pending never answers, and releases the lock', async () => {
+    it('resolves when pending never answers, and keeps the lock while it is in flight', async () => {
         const t = setup(async () => 1);
 
         t.delivery.pending.mockImplementation(() => never());
@@ -90,12 +90,13 @@ describe('deliverOnce store waits', () => {
         await settle();
         t.clock.advance(TTL + 1);
         await done;
+        await settle();
         expect(t.delivery.send).not.toHaveBeenCalled();
         expect(t.delivery.fail).toHaveBeenCalledWith(t.timeout, expect.any(AbortSignal));
-        expect(t.release).toHaveBeenCalledTimes(1);
+        expect(t.release).not.toHaveBeenCalled();
     });
 
-    it('resolves when record never answers, and releases the lock', async () => {
+    it('resolves when record never answers, and keeps the lock while it is in flight', async () => {
         const t = setup(async () => 1);
 
         t.delivery.record.mockImplementation(() => never());
@@ -105,9 +106,104 @@ describe('deliverOnce store waits', () => {
         await settle();
         t.clock.advance(TTL + 1);
         await done;
+        await settle();
         expect(t.delivery.send).toHaveBeenCalledTimes(1);
         expect(t.delivery.fail).toHaveBeenCalledWith(t.timeout, expect.any(AbortSignal));
+        expect(t.release).not.toHaveBeenCalled();
+    });
+
+    it('releases the lock only once a record in flight at the abort settled', async () => {
+        const t = setup(async () => 1);
+        const recording = Promise.withResolvers<void>();
+        const failure = new Error('record failed');
+        const unhandled: unknown[] = [];
+        const onUnhandled = (error: unknown) => {
+            unhandled.push(error);
+        };
+
+        process.on('unhandledRejection', onUnhandled);
+
+        try {
+            // a plain function, not vi.fn: the spy would observe (and so handle) the rejection
+            (t.delivery as { record: NotifyDelivery['record'] }).record = () => recording.promise;
+
+            const done = deliverOnce(t.ctx, t.delivery);
+
+            await settle();
+            t.clock.advance(TTL + 1);
+            await done;
+            await settle();
+            expect(t.release).not.toHaveBeenCalled();
+
+            recording.reject(failure);
+            await settle();
+            expect(t.release).toHaveBeenCalledTimes(1);
+            expect(t.release).toHaveBeenCalledWith('notify:k', expect.any(String));
+            await new Promise((resolve) => {
+                setImmediate(resolve);
+            });
+            expect(unhandled).toEqual([]);
+        } finally {
+            process.off('unhandledRejection', onUnhandled);
+        }
+    });
+
+    it('reports a release that fails after abandoned work settled to onError', async () => {
+        const t = setup(async () => 1);
+        const sending = Promise.withResolvers<void>();
+        const failure = new Error('release failed');
+
+        t.delivery.send.mockImplementation(() => sending.promise);
+        t.release.mockRejectedValue(failure);
+
+        const done = deliverOnce(t.ctx, t.delivery);
+
+        await settle();
+        t.clock.advance(TTL + 1);
+        await done;
+        sending.resolve();
+        await settle();
+        expect(t.delivery.record).not.toHaveBeenCalled();
+        expect(t.errors).toEqual([failure]);
+    });
+
+    it('resolves at the deadline when the release never answers', async () => {
+        const t = setup(async () => 1);
+
+        t.release.mockImplementation(() => never());
+
+        let resolved = false;
+        const done = deliverOnce(t.ctx, t.delivery).then(() => {
+            resolved = true;
+        });
+
+        await settle();
+        await settle();
+        expect(t.delivery.record).toHaveBeenCalledTimes(1);
         expect(t.release).toHaveBeenCalledTimes(1);
+        expect(resolved).toBe(false);
+
+        t.clock.advance(TTL + 1);
+        await done;
+        expect(t.delivery.fail).not.toHaveBeenCalled();
+        expect(t.release).toHaveBeenCalledTimes(1);
+    });
+
+    it('reports a release that rejects after the deadline to onError', async () => {
+        const t = setup(async () => 1);
+        const releasing = Promise.withResolvers<boolean>();
+        const failure = new Error('release failed');
+
+        t.release.mockImplementation(() => releasing.promise);
+
+        const done = deliverOnce(t.ctx, t.delivery);
+
+        await settle();
+        t.clock.advance(TTL + 1);
+        await done;
+        releasing.reject(failure);
+        await settle();
+        expect(t.errors).toEqual([failure]);
     });
 
     it('handles a record that rejects on a signal aborted as it starts', async () => {
@@ -194,6 +290,79 @@ describe('deliverOnce store waits', () => {
                 return Object.assign(Object.create(real), {
                     acquire: (key: string, owner: string, ttlMs: number) => (
                         key.startsWith('notify:') ? (hangs++, never<number | undefined>()) : real.acquire(key, owner, ttlMs)
+                    ),
+                }) as ILockService;
+            },
+        });
+        const engine = createTestEngine({
+            services: store,
+            clock,
+            claimTtlMs: TTL,
+            channels: [{ name: 'slack', out: async () => {} }],
+            agents: [defineModelAgent({
+                name: 'release',
+                instructions: 'x',
+                model: mockModel([
+                    {
+                        parts: [{
+                            type: 'tool-call', 
+                            toolName: 'ask', 
+                            input: {}, 
+                            toolCallId: 'c1', 
+                        }], 
+                    },
+                    { parts: [{ type: 'text', text: 'done' }] },
+                ]),
+                tools: {
+                    ask: defineTool({
+                        inputSchema: z.object({}),
+                        execute: async (_input, { context }) => (await context.channels.findOneOrFail('slack').approve({
+                            title: 't',
+                            body: 'b',
+                            address: 'C',
+                        })).approved,
+                    }),
+                },
+            })],
+            onError: () => {},
+        });
+
+        await engine.start();
+        await engine.dispatch({
+            agent: 'release', 
+            trigger: 'http', 
+            channel: 'http', 
+            payload: {},
+        });
+
+        let idle = false;
+        const waiting = engine.idle().then(() => {
+            idle = true;
+        });
+
+        await vi.waitFor(() => expect(hangs).toBe(1), { timeout: 500 });
+        expect(idle).toBe(false);
+        // the poll may start a further (equally hanging) attempt: each one ends at its deadline
+        await vi.waitFor(() => {
+            clock.advance(TTL + 1);
+            expect(idle).toBe(true);
+        }, { timeout: 1000 });
+        await waiting;
+        engine.stop();
+    });
+
+    it('lets engine.idle() resolve once the clock passes the deadline of a hanging release', async () => {
+        const clock = new ControllableClock(1_000_000);
+        let hangs = 0;
+        const store = createTestServices({
+            clock,
+            lockService: (lockCtx) => {
+                const real = new LockService(lockCtx);
+
+                // only the notify lock's release hangs; the engine's own locks keep working
+                return Object.assign(Object.create(real), {
+                    release: (key: string, owner: string) => (
+                        key.startsWith('notify:') ? (hangs++, never<boolean>()) : real.release(key, owner)
                     ),
                 }) as ILockService;
             },
