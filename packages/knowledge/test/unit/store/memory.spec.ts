@@ -66,4 +66,44 @@ describe('memory chunk updateOrigin', () => {
         expect(await repository.chunks.updateOrigin(where, {})).toBe(2);
         expect((await repository.chunks.findManyBy(where)).every((row) => row.title === undefined && row.source === undefined)).toBe(true);
     });
+
+    it('never resurrects rows a concurrent removeManyBy deletes', async () => {
+        const repository = createMemoryKnowledgeRepository();
+        const service = new KnowledgeService({
+            repository,
+            clock: new ControllableClock(new Date('2026-11-01T00:00:00Z')),
+        });
+        const { id } = await service.saveCollection({
+            name: 'docs',
+            kind: 'managed',
+            trusted: false,
+            model: 'm',
+            chunker: 'c',
+            generation: 1,
+        } as never);
+        const chunk = (index: number) => ({
+            index,
+            text: `a${index}`,
+            vector: [1, 0],
+            start: 0,
+            end: 2,
+            title: 'A',
+        });
+
+        await service.replaceChunks('docs', 'a', 1, [chunk(0), chunk(1), chunk(2)] as never);
+
+        const where = {
+            collectionId: id,
+            document: 'a',
+            generation: 1,
+        };
+        // both unbound: the update has read the rows when the delete commits
+        const [, removed] = await Promise.all([
+            repository.chunks.updateOrigin(where, { title: 'B' }),
+            repository.chunks.removeManyBy(where),
+        ]);
+
+        expect(removed).toBe(3);
+        expect(await repository.chunks.findManyBy(where)).toEqual([]);
+    });
 });
